@@ -1,0 +1,210 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Glass fill -->
+    <linearGradient id="glassFill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.09)"/>
+      <stop offset="50%" stop-color="rgba(255,255,255,0.05)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0.08)"/>
+    </linearGradient>
+
+    <!-- Rainbow border gradient (conical approximation using 4 linear gradients on segments) -->
+    <!-- Top side: pink to purple -->
+    <linearGradient id="gradTop" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#ff006e"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <!-- Right side: purple to blue -->
+    <linearGradient id="gradRight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#3a86ff"/>
+    </linearGradient>
+    <!-- Bottom side: blue to green -->
+    <linearGradient id="gradBottom" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#3a86ff"/>
+      <stop offset="100%" stop-color="#06d6a0"/>
+    </linearGradient>
+    <!-- Left side: green to pink -->
+    <linearGradient id="gradLeft" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#06d6a0"/>
+      <stop offset="100%" stop-color="#ff006e"/>
+    </linearGradient>
+
+    <!-- Full rainbow gradient for the border rect (diagonal sweep) -->
+    <linearGradient id="rainbowBorder" gradientUnits="userSpaceOnUse" x1="212" y1="212" x2="812" y2="812">
+      <stop offset="0%" stop-color="#ff006e"/>
+      <stop offset="25%" stop-color="#a855f7"/>
+      <stop offset="50%" stop-color="#3a86ff"/>
+      <stop offset="75%" stop-color="#06d6a0"/>
+      <stop offset="100%" stop-color="#ff006e"/>
+    </linearGradient>
+
+    <!-- Multi-color ambient glow -->
+    <filter id="ambientGlowMulti" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="40"/>
+    </filter>
+
+    <!-- Rainbow border glow filter -->
+    <filter id="borderGlowRainbow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="14" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Pink glow filter -->
+    <filter id="glowPink" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur2"/>
+      <feColorMatrix in="blur2" type="matrix" values="0 0 0 0 1  0 0 0 0 0  0 0 0 0 0.43  0 0 0 0.5 0" result="pinkBlur"/>
+      <feMerge>
+        <feMergeNode in="pinkBlur"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Green glow filter -->
+    <filter id="glowGreen" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur2"/>
+      <feColorMatrix in="blur2" type="matrix" values="0 0 0 0 0.02  0 0 0 0 0.84  0 0 0 0 0.63  0 0 0 0.5 0" result="greenBlur"/>
+      <feMerge>
+        <feMergeNode in="greenBlur"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Purple glow filter -->
+    <filter id="glowPurple" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur2"/>
+      <feColorMatrix in="blur2" type="matrix" values="0 0 0 0 0.66  0 0 0 0 0.33  0 0 0 0 0.97  0 0 0 0.5 0" result="purpleBlur"/>
+      <feMerge>
+        <feMergeNode in="purpleBlur"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Blue glow filter -->
+    <filter id="glowBlue" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur1"/>
+      <feGaussianBlur in="SourceGraphic" stdDeviation="16" result="blur2"/>
+      <feColorMatrix in="blur2" type="matrix" values="0 0 0 0 0.23  0 0 0 0 0.53  0 0 0 0 1  0 0 0 0.5 0" result="blueBlur"/>
+      <feMerge>
+        <feMergeNode in="blueBlur"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Clip path for border segments -->
+    <clipPath id="clipTop">
+      <rect x="200" y="200" width="624" height="312"/>
+    </clipPath>
+    <clipPath id="clipBottom">
+      <rect x="200" y="512" width="624" height="312"/>
+    </clipPath>
+    <clipPath id="clipLeft">
+      <rect x="200" y="200" width="312" height="624"/>
+    </clipPath>
+    <clipPath id="clipRight">
+      <rect x="512" y="200" width="312" height="624"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#06060f"/>
+
+  <!-- Multi-color ambient background glow -->
+  <rect x="212" y="212" width="300" height="300" rx="20" fill="#ff006e" opacity="0.04" filter="url(#ambientGlowMulti)"/>
+  <rect x="512" y="212" width="300" height="300" rx="20" fill="#a855f7" opacity="0.04" filter="url(#ambientGlowMulti)"/>
+  <rect x="212" y="512" width="300" height="300" rx="20" fill="#06d6a0" opacity="0.04" filter="url(#ambientGlowMulti)"/>
+  <rect x="512" y="512" width="300" height="300" rx="20" fill="#3a86ff" opacity="0.04" filter="url(#ambientGlowMulti)"/>
+
+  <!-- Main rounded rectangle: glass card -->
+  <rect x="212" y="212" width="600" height="600" rx="40" fill="white" fill-opacity="0.07"/>
+
+  <!-- Glass highlight (top edge) -->
+  <rect x="212" y="212" width="600" height="300" rx="40" fill="white" fill-opacity="0.02"/>
+
+  <!-- Rainbow gradient border with glow - using 4 colored segments -->
+  <g filter="url(#borderGlowRainbow)">
+    <!-- Top border segment: pink -> purple (left to right) -->
+    <rect x="212" y="212" width="600" height="600" rx="40" fill="none" stroke="url(#gradTop)" stroke-width="4" clip-path="url(#clipTop)"/>
+    <!-- Bottom border segment: blue -> green (right to left) -->
+    <rect x="212" y="212" width="600" height="600" rx="40" fill="none" stroke="url(#gradBottom)" stroke-width="4" clip-path="url(#clipBottom)"/>
+    <!-- Left border segment: green -> pink (bottom to top) -->
+    <rect x="212" y="212" width="600" height="600" rx="40" fill="none" stroke="url(#gradLeft)" stroke-width="4" clip-path="url(#clipLeft)"/>
+    <!-- Right border segment: purple -> blue (top to bottom) -->
+    <rect x="212" y="212" width="600" height="600" rx="40" fill="none" stroke="url(#gradRight)" stroke-width="4" clip-path="url(#clipRight)"/>
+  </g>
+
+  <!-- Divider cross lines -->
+  <line x1="512" y1="232" x2="512" y2="792" stroke="white" stroke-opacity="0.15" stroke-width="2"/>
+  <line x1="232" y1="512" x2="792" y2="512" stroke="white" stroke-opacity="0.15" stroke-width="2"/>
+
+  <!-- ======= TOP-LEFT: Heart (#ff006e) ======= -->
+  <g transform="translate(362, 362)" filter="url(#glowPink)">
+    <path d="M 0 20
+             C 0 8, -20 -14, -38 -14
+             C -62 -14, -62 16, -62 16
+             C -62 40, -30 62, 0 82
+             C 30 62, 62 40, 62 16
+             C 62 16, 62 -14, 38 -14
+             C 20 -14, 0 8, 0 20 Z"
+          fill="#ff006e" opacity="0.9"/>
+  </g>
+
+  <!-- ======= TOP-RIGHT: Brain (#a855f7) ======= -->
+  <g transform="translate(662, 362)" filter="url(#glowPurple)">
+    <path d="M -2 -55 C -30 -55, -55 -40, -58 -15 C -62 10, -50 30, -35 42 C -25 50, -10 58, -2 60 Z"
+          fill="#a855f7" opacity="0.85"/>
+    <path d="M 2 -55 C 30 -55, 55 -40, 58 -15 C 62 10, 50 30, 35 42 C 25 50, 10 58, 2 60 Z"
+          fill="#a855f7" opacity="0.75"/>
+    <line x1="0" y1="-55" x2="0" y2="60" stroke="#06060f" stroke-width="3" opacity="0.4"/>
+    <path d="M -10 -30 C -25 -28, -42 -20, -48 -10" fill="none" stroke="#06060f" stroke-width="2.5" opacity="0.3" stroke-linecap="round"/>
+    <path d="M -8 -8 C -22 -5, -40 2, -52 12" fill="none" stroke="#06060f" stroke-width="2.5" opacity="0.25" stroke-linecap="round"/>
+    <path d="M -6 18 C -18 22, -32 30, -38 38" fill="none" stroke="#06060f" stroke-width="2" opacity="0.2" stroke-linecap="round"/>
+    <path d="M 10 -30 C 25 -28, 42 -20, 48 -10" fill="none" stroke="#06060f" stroke-width="2.5" opacity="0.3" stroke-linecap="round"/>
+    <path d="M 8 -8 C 22 -5, 40 2, 52 12" fill="none" stroke="#06060f" stroke-width="2.5" opacity="0.25" stroke-linecap="round"/>
+    <path d="M 6 18 C 18 22, 32 30, 38 38" fill="none" stroke="#06060f" stroke-width="2" opacity="0.2" stroke-linecap="round"/>
+  </g>
+
+  <!-- ======= BOTTOM-LEFT: Map Pin (#06d6a0) ======= -->
+  <g transform="translate(362, 662)" filter="url(#glowGreen)">
+    <path d="M 0 70
+             C -8 50, -45 20, -45 -15
+             C -45 -42, -25 -62, 0 -62
+             C 25 -62, 45 -42, 45 -15
+             C 45 20, 8 50, 0 70 Z"
+          fill="#06d6a0" opacity="0.9"/>
+    <circle cx="0" cy="-15" r="18" fill="#06060f" opacity="0.5"/>
+    <circle cx="0" cy="-15" r="10" fill="#06d6a0" opacity="0.4"/>
+  </g>
+
+  <!-- ======= BOTTOM-RIGHT: Water Droplet (#3a86ff) ======= -->
+  <g transform="translate(662, 662)" filter="url(#glowBlue)">
+    <path d="M 0 -65
+             C 0 -65, -45 -10, -45 20
+             C -45 45, -25 65, 0 65
+             C 25 65, 45 45, 45 20
+             C 45 -10, 0 -65, 0 -65 Z"
+          fill="#3a86ff" opacity="0.9"/>
+    <ellipse cx="-12" cy="-5" rx="12" ry="20" fill="white" opacity="0.25" transform="rotate(-15, -12, -5)"/>
+    <circle cx="-10" cy="-15" r="5" fill="white" opacity="0.35"/>
+  </g>
+
+  <!-- Corner highlights on the card (glass effect) -->
+  <path d="M 252 212 L 212 212 Q 212 212 212 252" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.2"/>
+  <path d="M 772 212 L 812 212 Q 812 212 812 252" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.15"/>
+  <path d="M 212 772 L 212 812 Q 212 812 252 812" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.1"/>
+  <path d="M 812 772 L 812 812 Q 812 812 772 812" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.1"/>
+
+  <!-- Subtle inner border highlight -->
+  <rect x="216" y="216" width="592" height="592" rx="38" fill="none" stroke="white" stroke-width="1" stroke-opacity="0.06"/>
+</svg>

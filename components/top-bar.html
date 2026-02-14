@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Top Bar — Component Library</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/layout.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/effects.css">
+  <link rel="stylesheet" href="../css/component-library.css">
+</head>
+<body class="library-page">
+
+  <nav class="lib-nav">
+    <span class="lib-nav-title">Design System</span>
+    <div class="lib-nav-links">
+      <a href="../brand-guide.html" class="lib-nav-link">Brand Guide</a>
+      <a href="index.html" class="lib-nav-link active">Component Library</a>
+      <a href="../index.html" class="lib-nav-link">Homepage</a>
+    </div>
+  </nav>
+
+  <main class="lib-container">
+    <h1 class="lib-page-title">Top Bar</h1>
+    <p class="lib-page-desc">
+      The command bar that sits at the top of the right panel. It contains the page title and a live clock.
+    </p>
+
+    <!-- Command Bar -->
+    <section class="component-section">
+      <h2 class="component-name">Command Bar</h2>
+      <p class="component-classes">.top-bar &nbsp; .top-bar-title &nbsp; .top-bar-clock</p>
+      <p class="component-description">
+        Fixed header bar with title and live clock. Sits atop the right panel with a glass-morphism background blur.
+      </p>
+
+      <div class="state-grid">
+
+        <!-- Empty State -->
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div style="position: relative; left: auto; right: auto; width: 100%; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(6,6,15,0.7); border-bottom: 1px solid rgba(255,255,255,0.06); border-radius: 8px;">
+              <div class="skeleton-bar" style="width: 120px; height: 10px;"></div>
+              <span class="top-bar-clock" style="color: var(--text-muted); text-shadow: none;">--:--:--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active State -->
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div style="position: relative; left: auto; right: auto; width: 100%; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(6,6,15,0.7); border-bottom: 1px solid rgba(255,255,255,0.06); border-radius: 8px;">
+              <span class="top-bar-title">COMMAND CENTER</span>
+              <span class="top-bar-clock">14:32:07</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+</body>
+</html>

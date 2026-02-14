@@ -1,0 +1,19 @@
+/* ===== CSS RESET & GLOBAL STYLES ===== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  font-family: 'Space Grotesk', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Three.js canvas */
+#particle-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}

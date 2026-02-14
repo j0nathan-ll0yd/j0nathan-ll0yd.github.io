@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#06060f">
+<title>Brand Guide — Command Center Design System</title>
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/components.css">
+<link rel="stylesheet" href="css/effects.css">
+<link rel="stylesheet" href="css/component-library.css">
+</head>
+<body class="library-page">
+
+<!-- Navigation -->
+<nav class="lib-nav">
+  <span class="lib-nav-title">Design System</span>
+  <div class="lib-nav-links">
+    <a class="lib-nav-link active" href="brand-guide.html">Brand Guide</a>
+    <a class="lib-nav-link" href="components/index.html">Component Library</a>
+    <a class="lib-nav-link" href="index.html">Homepage</a>
+  </div>
+</nav>
+
+<div class="lib-container">
+
+  <!-- Page Header -->
+  <h1 class="lib-page-title">Brand Guide</h1>
+  <p class="lib-page-desc">
+    Visual language, color tokens, typography, glass-morphism, glow effects, spacing scale, and animation catalog for the Command Center design system.
+  </p>
+
+  <!-- ===== LOGO ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Logo</h2>
+    <div style="background: var(--bg); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 48px; display: flex; align-items: center; justify-content: center;">
+      <img src="assets/logo.svg" alt="Command Center Logo" style="max-width: 280px; height: auto;">
+    </div>
+  </section>
+
+  <!-- ===== COLOR PALETTE ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Color Palette</h2>
+    <div class="swatch-grid">
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #06060f;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Background</div>
+          <div class="swatch-hex">#06060f</div>
+          <div class="swatch-var">--bg</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #ff006e;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Neon Pink</div>
+          <div class="swatch-hex">#ff006e</div>
+          <div class="swatch-var">--neon-pink</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #3a86ff;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Neon Blue</div>
+          <div class="swatch-hex">#3a86ff</div>
+          <div class="swatch-var">--neon-blue</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #06d6a0;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Neon Green</div>
+          <div class="swatch-hex">#06d6a0</div>
+          <div class="swatch-var">--neon-green</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #f59e0b;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Neon Amber</div>
+          <div class="swatch-hex">#f59e0b</div>
+          <div class="swatch-var">--neon-amber</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #a855f7;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Neon Purple</div>
+          <div class="swatch-hex">#a855f7</div>
+          <div class="swatch-var">--neon-purple</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: #ef4444;"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Neon Red</div>
+          <div class="swatch-hex">#ef4444</div>
+          <div class="swatch-var">--neon-red</div>
+        </div>
+      </div>
+
+      <div class="swatch">
+        <div class="swatch-color" style="background: rgba(255,255,255,0.07); border-bottom: 1px solid rgba(255,255,255,0.06);"></div>
+        <div class="swatch-info">
+          <div class="swatch-name">Glass</div>
+          <div class="swatch-hex">rgba(255,255,255,0.07)</div>
+          <div class="swatch-var">--glass-bg</div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TYPOGRAPHY ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Typography</h2>
+
+    <!-- Weight specimens -->
+    <div class="type-specimen">
+      <div class="type-specimen-label">Light &mdash; 300</div>
+      <div style="font-weight: 300; font-size: 1.2rem; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+    </div>
+
+    <div class="type-specimen">
+      <div class="type-specimen-label">Regular &mdash; 400</div>
+      <div style="font-weight: 400; font-size: 1.2rem; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+    </div>
+
+    <div class="type-specimen">
+      <div class="type-specimen-label">Medium &mdash; 500</div>
+      <div style="font-weight: 500; font-size: 1.2rem; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+    </div>
+
+    <div class="type-specimen">
+      <div class="type-specimen-label">Semi-Bold &mdash; 600</div>
+      <div style="font-weight: 600; font-size: 1.2rem; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+    </div>
+
+    <div class="type-specimen">
+      <div class="type-specimen-label">Bold &mdash; 700</div>
+      <div style="font-weight: 700; font-size: 1.2rem; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+    </div>
+
+    <!-- Size scale -->
+    <div style="margin-top: 32px;">
+      <div class="type-specimen">
+        <div class="type-specimen-label">3XL &mdash; var(--font-size-3xl) &mdash; 2.4rem</div>
+        <div style="font-size: var(--font-size-3xl); font-weight: 700; line-height: 1.2;">Command Center</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">2XL &mdash; var(--font-size-2xl) &mdash; 2rem</div>
+        <div style="font-size: var(--font-size-2xl); font-weight: 700; line-height: 1.2;">Command Center</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">Hero &mdash; var(--font-size-hero) &mdash; 2.2rem</div>
+        <div style="font-size: var(--font-size-hero); font-weight: 700; line-height: 1.2;">Command Center</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">XL &mdash; var(--font-size-xl) &mdash; 1.5rem</div>
+        <div style="font-size: var(--font-size-xl); font-weight: 600; line-height: 1.3;">Command Center</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">LG &mdash; var(--font-size-lg) &mdash; 1.05rem</div>
+        <div style="font-size: var(--font-size-lg); font-weight: 600; line-height: 1.4;">Command Center</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">MD &mdash; var(--font-size-md) &mdash; 0.82rem</div>
+        <div style="font-size: var(--font-size-md); font-weight: 500; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">Base &mdash; var(--font-size-base) &mdash; 0.72rem</div>
+        <div style="font-size: var(--font-size-base); font-weight: 400; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">SM &mdash; var(--font-size-sm) &mdash; 0.55rem</div>
+        <div style="font-size: var(--font-size-sm); font-weight: 400; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+      </div>
+
+      <div class="type-specimen">
+        <div class="type-specimen-label">XS &mdash; var(--font-size-xs) &mdash; 0.42rem</div>
+        <div style="font-size: var(--font-size-xs); font-weight: 500; letter-spacing: 2px; text-transform: uppercase; line-height: 1.5;">The quick brown fox jumps over the lazy dog</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GLASS-MORPHISM ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Glass-morphism</h2>
+    <div class="glass-demo" style="background: linear-gradient(135deg, rgba(255,0,110,0.15), rgba(58,134,255,0.15), rgba(6,214,160,0.15)); border-radius: 20px; padding: 32px;">
+      <div class="glass-panel" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);">
+        4% opacity
+      </div>
+      <div class="glass-panel" style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);">
+        7% opacity
+      </div>
+      <div class="glass-panel" style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.15); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);">
+        12% opacity
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== GLOW & NEON ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Glow &amp; Neon</h2>
+    <div class="glow-row">
+      <div class="glow-sample" style="background: var(--neon-pink); box-shadow: var(--glow-pink); color: #fff;">Pink</div>
+      <div class="glow-sample" style="background: var(--neon-blue); box-shadow: var(--glow-blue); color: #fff;">Blue</div>
+      <div class="glow-sample" style="background: var(--neon-green); box-shadow: var(--glow-green); color: #06060f;">Green</div>
+      <div class="glow-sample" style="background: var(--neon-amber); box-shadow: var(--glow-amber); color: #06060f;">Amber</div>
+      <div class="glow-sample" style="background: var(--neon-purple); box-shadow: var(--glow-purple); color: #fff;">Purple</div>
+      <div class="glow-sample" style="background: var(--neon-red); box-shadow: 0 0 20px rgba(239,68,68,0.3), 0 0 40px rgba(239,68,68,0.15); color: #fff;">Red</div>
+    </div>
+  </section>
+
+  <!-- ===== SPACING ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Spacing Scale</h2>
+    <div class="spacing-ruler">
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 4px;"></div>
+        <span class="spacing-label">4px &mdash; --space-4</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 8px;"></div>
+        <span class="spacing-label">8px &mdash; --space-8</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 12px;"></div>
+        <span class="spacing-label">12px &mdash; --space-12</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 16px;"></div>
+        <span class="spacing-label">16px &mdash; --space-16</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 20px;"></div>
+        <span class="spacing-label">20px &mdash; --space-20</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 24px;"></div>
+        <span class="spacing-label">24px &mdash; --space-24</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 32px;"></div>
+        <span class="spacing-label">32px &mdash; --space-32</span>
+      </div>
+      <div class="spacing-item">
+        <div class="spacing-bar" style="width: 48px;"></div>
+        <span class="spacing-label">48px &mdash; --space-48</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== ANIMATION CATALOG ===== -->
+  <section class="brand-section">
+    <h2 class="brand-section-title">Animation Catalog</h2>
+    <div class="anim-grid">
+
+      <!-- avatarGlow -->
+      <div class="anim-demo">
+        <div style="width: 48px; height: 48px; border-radius: 50%; background: var(--neon-pink); animation: avatarGlow 2s ease-in-out infinite;"></div>
+        <div class="anim-label">avatarGlow</div>
+      </div>
+
+      <!-- dotPulse -->
+      <div class="anim-demo">
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--neon-green); animation: dotPulse 1.5s ease-in-out infinite;"></div>
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--neon-green); animation: dotPulse 1.5s ease-in-out 0.3s infinite;"></div>
+          <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--neon-green); animation: dotPulse 1.5s ease-in-out 0.6s infinite;"></div>
+        </div>
+        <div class="anim-label">dotPulse</div>
+      </div>
+
+      <!-- ecgScroll -->
+      <div class="anim-demo" style="overflow: hidden;">
+        <div style="display: flex; width: 200%; animation: ecgScroll 3s linear infinite;">
+          <svg viewBox="0 0 200 40" style="width: 50%; height: 32px;" preserveAspectRatio="none">
+            <polyline points="0,20 20,20 30,20 35,5 40,35 45,20 50,20 70,20 80,20 85,5 90,35 95,20 100,20 120,20 130,20 135,5 140,35 145,20 150,20 170,20 180,20 185,5 190,35 195,20 200,20" fill="none" stroke="var(--neon-pink)" stroke-width="1.5" />
+          </svg>
+          <svg viewBox="0 0 200 40" style="width: 50%; height: 32px;" preserveAspectRatio="none">
+            <polyline points="0,20 20,20 30,20 35,5 40,35 45,20 50,20 70,20 80,20 85,5 90,35 95,20 100,20 120,20 130,20 135,5 140,35 145,20 150,20 170,20 180,20 185,5 190,35 195,20 200,20" fill="none" stroke="var(--neon-pink)" stroke-width="1.5" />
+          </svg>
+        </div>
+        <div class="anim-label">ecgScroll</div>
+      </div>
+
+      <!-- termBlink -->
+      <div class="anim-demo">
+        <div style="font-family: 'Space Grotesk', monospace; font-size: 0.72rem; color: var(--neon-green);">
+          <span>$&nbsp;</span><span style="display: inline-block; width: 7px; height: 14px; background: var(--neon-green); animation: termBlink 1s step-end infinite; vertical-align: text-bottom;"></span>
+        </div>
+        <div class="anim-label">termBlink</div>
+      </div>
+
+      <!-- shimmer -->
+      <div class="anim-demo">
+        <div style="display: flex; flex-direction: column; gap: 6px; width: 100%;">
+          <div class="skeleton-bar" style="width: 100%; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 75%; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 90%; height: 10px;"></div>
+        </div>
+        <div class="anim-label">shimmer</div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

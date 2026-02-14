@@ -1,0 +1,75 @@
+/* ===== DESIGN TOKENS ===== */
+:root {
+  /* --- Color Palette --- */
+  --bg: #06060f;
+  --neon-pink: #ff006e;
+  --neon-blue: #3a86ff;
+  --neon-green: #06d6a0;
+  --neon-amber: #f59e0b;
+  --neon-purple: #a855f7;
+  --neon-red: #ef4444;
+
+  /* --- Glass-morphism --- */
+  --glass-bg: rgba(255,255,255,0.07);
+  --glass-border: rgba(255,255,255,0.1);
+
+  /* --- Text --- */
+  --text: #f0f0f0;
+  --text-muted: #6b7280;
+
+  /* --- Layout --- */
+  --left-width: 35%;
+  --right-width: 65%;
+
+  /* --- Typography --- */
+  --font-family: 'Space Grotesk', sans-serif;
+  --font-mono: 'Space Grotesk', monospace;
+  --font-size-xs: 0.42rem;
+  --font-size-sm: 0.55rem;
+  --font-size-base: 0.72rem;
+  --font-size-md: 0.82rem;
+  --font-size-lg: 1.05rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-3xl: 2.4rem;
+  --font-size-hero: 2.2rem;
+
+  /* --- Spacing --- */
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-36: 36px;
+  --space-40: 40px;
+  --space-48: 48px;
+
+  /* --- Border Radius --- */
+  --radius-sm: 2px;
+  --radius-md: 8px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-pill: 50px;
+  --radius-circle: 50%;
+
+  /* --- Blur --- */
+  --blur-sm: 8px;
+  --blur-md: 16px;
+  --blur-lg: 24px;
+  --blur-xl: 32px;
+
+  /* --- Glow Shadows --- */
+  --glow-pink: 0 0 20px rgba(255,0,110,0.3), 0 0 40px rgba(255,0,110,0.15);
+  --glow-blue: 0 0 20px rgba(58,134,255,0.3), 0 0 40px rgba(58,134,255,0.15);
+  --glow-green: 0 0 20px rgba(6,214,160,0.3), 0 0 40px rgba(6,214,160,0.15);
+  --glow-amber: 0 0 20px rgba(245,158,11,0.3), 0 0 40px rgba(245,158,11,0.15);
+  --glow-purple: 0 0 20px rgba(168,85,247,0.3), 0 0 40px rgba(168,85,247,0.15);
+}

@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mind Column — Component Library</title>
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/tokens.css">
+  <link rel="stylesheet" href="../css/base.css">
+  <link rel="stylesheet" href="../css/components.css">
+  <link rel="stylesheet" href="../css/effects.css">
+  <link rel="stylesheet" href="../css/component-library.css">
+</head>
+<body class="library-page">
+
+  <nav class="lib-nav">
+    <span class="lib-nav-title">Design System</span>
+    <div class="lib-nav-links">
+      <a href="../brand-guide.html" class="lib-nav-link">Brand Guide</a>
+      <a href="index.html" class="lib-nav-link active">Component Library</a>
+      <a href="../index.html" class="lib-nav-link">Homepage</a>
+    </div>
+  </nav>
+
+  <main class="lib-container">
+    <h1 class="lib-page-title">Mind Column</h1>
+    <p class="lib-page-desc">
+      The Mind column captures the intellectual life of the dashboard: open-source contributions, recent code activity, curated reading, and the current bookshelf. These four components surface what is being built, read, and learned.
+    </p>
+
+    <!-- ==================== 1. GITHUB HEATMAP ==================== -->
+    <div class="component-section">
+      <div class="component-name">GitHub Heatmap</div>
+      <div class="component-description">
+        A contribution heatmap grid inspired by GitHub's activity graph. Each cell represents a day, colored by contribution level (0-4). Below the grid, three stat counters display repository count, star count, and total contributions.
+      </div>
+      <div class="component-classes">.contrib-grid, .contrib-week, .contrib-cell, .gh-stats-row</div>
+
+      <div class="state-grid">
+        <!-- Empty State -->
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">GitHub Contributions</span>
+                <div class="widget-header-right">
+                  <div class="live-dot" style="background:var(--text-muted);box-shadow:none;animation:none;"></div>
+                  <span class="widget-timestamp">this year</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="contrib-grid">
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="0"></div></div>
+                </div>
+                <div class="gh-stats-row">
+                  <div>
+                    <div class="gh-stat-value" style="color:var(--text-muted);">--</div>
+                    <div class="gh-stat-label">Repos</div>
+                  </div>
+                  <div>
+                    <div class="gh-stat-value" style="color:var(--text-muted);">--</div>
+                    <div class="gh-stat-label">Stars</div>
+                  </div>
+                  <div>
+                    <div class="gh-stat-value" style="color:var(--text-muted);">--</div>
+                    <div class="gh-stat-label">Contributions</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active State -->
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">GitHub Contributions</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">this year</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="contrib-grid">
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div></div>
+                  <div class="contrib-week"><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div><div class="contrib-cell" data-level="0"></div><div class="contrib-cell" data-level="1"></div><div class="contrib-cell" data-level="2"></div><div class="contrib-cell" data-level="3"></div><div class="contrib-cell" data-level="4"></div></div>
+                </div>
+                <div class="gh-stats-row">
+                  <div>
+                    <div class="gh-stat-value">42</div>
+                    <div class="gh-stat-label">Repos</div>
+                  </div>
+                  <div>
+                    <div class="gh-stat-value">128</div>
+                    <div class="gh-stat-label">Stars</div>
+                  </div>
+                  <div>
+                    <div class="gh-stat-value">1,847</div>
+                    <div class="gh-stat-label">Contributions</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2. RECENT COMMITS ==================== -->
+    <div class="component-section">
+      <div class="component-name">Recent Commits</div>
+      <div class="component-description">
+        A terminal-styled feed of the latest Git commits across repositories. Each line displays a short hash in neon green, the commit message, the repository name, and a relative timestamp. Styled as a dark inset panel with monospace type.
+      </div>
+      <div class="component-classes">.commits-terminal, .commit-line, .cm-hash, .cm-msg, .cm-repo, .cm-date</div>
+
+      <div class="state-grid">
+        <!-- Empty State -->
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Recent Commits</span>
+              </div>
+              <div class="widget-body">
+                <div class="commits-terminal">
+                  <span style="color:var(--text-muted);">No recent commits</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active State -->
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Recent Commits</span>
+              </div>
+              <div class="widget-body">
+                <div class="commits-terminal">
+                  <div class="commit-line">
+                    <span class="cm-hash">a1b2c3d</span>
+                    <span class="cm-msg">Fix auth token refresh</span>
+                    <span class="cm-repo">myapp</span>
+                    <span class="cm-date">2h ago</span>
+                  </div>
+                  <div class="commit-line">
+                    <span class="cm-hash">e4f5g6h</span>
+                    <span class="cm-msg">Add rate limiting middleware</span>
+                    <span class="cm-repo">api-gateway</span>
+                    <span class="cm-date">1d ago</span>
+                  </div>
+                  <div class="commit-line">
+                    <span class="cm-hash">i7j8k9l</span>
+                    <span class="cm-msg">Update dependencies</span>
+                    <span class="cm-repo">myapp</span>
+                    <span class="cm-date">2d ago</span>
+                  </div>
+                  <div class="commit-line">
+                    <span class="cm-hash">m0n1o2p</span>
+                    <span class="cm-msg">Implement WebSocket handlers</span>
+                    <span class="cm-repo">realtime-service</span>
+                    <span class="cm-date">3d ago</span>
+                  </div>
+                  <div class="commit-line">
+                    <span class="cm-hash">q3r4s5t</span>
+                    <span class="cm-msg">Refactor database queries</span>
+                    <span class="cm-repo">api-gateway</span>
+                    <span class="cm-date">5d ago</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 3. READING FEED ==================== -->
+    <div class="component-section">
+      <div class="component-name">Reading Feed</div>
+      <div class="component-description">
+        A curated list of recently read or saved articles. Each item features an optional star for favorites, a title that highlights on hover, and metadata showing the source domain and relative date. Items slide in from the right on load.
+      </div>
+      <div class="component-classes">.article-list, .article-list-item, .article-list-star, .article-list-title</div>
+
+      <div class="state-grid">
+        <!-- Empty State -->
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Reading Feed</span>
+                <div class="widget-header-right">
+                  <div class="live-dot" style="background:var(--text-muted);box-shadow:none;animation:none;"></div>
+                  <span class="widget-timestamp">recent</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <ul class="article-list">
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star"></span>
+                    <div class="article-list-content">
+                      <div class="skeleton-bar" style="height:14px;width:85%;"></div>
+                      <div class="skeleton-bar" style="height:10px;width:40%;margin-top:6px;"></div>
+                    </div>
+                  </li>
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star"></span>
+                    <div class="article-list-content">
+                      <div class="skeleton-bar" style="height:14px;width:70%;"></div>
+                      <div class="skeleton-bar" style="height:10px;width:40%;margin-top:6px;"></div>
+                    </div>
+                  </li>
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star"></span>
+                    <div class="article-list-content">
+                      <div class="skeleton-bar" style="height:14px;width:90%;"></div>
+                      <div class="skeleton-bar" style="height:10px;width:40%;margin-top:6px;"></div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active State -->
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Reading Feed</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">recent</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <ul class="article-list">
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star visible">&#9733;</span>
+                    <div class="article-list-content">
+                      <div class="article-list-title">Why SQLite Is So Great for the Edge</div>
+                      <div class="article-list-meta">
+                        <span class="article-list-source">fly.io/blog</span>
+                        <span class="article-list-date">Today</span>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star"></span>
+                    <div class="article-list-content">
+                      <div class="article-list-title">The End of Localhost</div>
+                      <div class="article-list-meta">
+                        <span class="article-list-source">dx.tips</span>
+                        <span class="article-list-date">Yesterday</span>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star visible">&#9733;</span>
+                    <div class="article-list-content">
+                      <div class="article-list-title">Building AI Agents That Actually Work</div>
+                      <div class="article-list-meta">
+                        <span class="article-list-source">anthropic.com</span>
+                        <span class="article-list-date">2 days ago</span>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star"></span>
+                    <div class="article-list-content">
+                      <div class="article-list-title">CSS Container Queries Are Here</div>
+                      <div class="article-list-meta">
+                        <span class="article-list-source">web.dev</span>
+                        <span class="article-list-date">3 days ago</span>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="article-list-item" style="animation:none;opacity:1;">
+                    <span class="article-list-star"></span>
+                    <div class="article-list-content">
+                      <div class="article-list-title">Rust for JavaScript Developers</div>
+                      <div class="article-list-meta">
+                        <span class="article-list-source">rustforjs.dev</span>
+                        <span class="article-list-date">4 days ago</span>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 4. BOOKSHELF ==================== -->
+    <div class="component-section">
+      <div class="component-name">Bookshelf</div>
+      <div class="component-description">
+        A horizontally scrolling row of book covers with title, author, and reading status displayed beneath each. Books lift on hover and their titles glow green. Clicking a book opens a detail modal overlay with stats, progress, and description.
+      </div>
+      <div class="component-classes">.shelf-row, .shelf-book, .shelf-cover-wrapper, .book-overlay, .book-modal</div>
+
+      <div class="state-grid">
+        <!-- Empty State -->
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Bookshelf</span>
+                <div class="widget-header-right">
+                  <div class="live-dot" style="background:var(--text-muted);box-shadow:none;animation:none;"></div>
+                  <span class="widget-timestamp">library</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="shelf-row">
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <div style="width:80px;height:120px;background:rgba(255,255,255,0.04);border-radius:4px;border:1px solid rgba(255,255,255,0.06);"></div>
+                    </div>
+                    <div class="shelf-book-title"><div class="skeleton-bar" style="height:10px;width:60px;margin:0 auto;"></div></div>
+                    <div class="shelf-book-author"><div class="skeleton-bar" style="height:8px;width:50px;margin:2px auto 0;"></div></div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <div style="width:80px;height:120px;background:rgba(255,255,255,0.04);border-radius:4px;border:1px solid rgba(255,255,255,0.06);"></div>
+                    </div>
+                    <div class="shelf-book-title"><div class="skeleton-bar" style="height:10px;width:60px;margin:0 auto;"></div></div>
+                    <div class="shelf-book-author"><div class="skeleton-bar" style="height:8px;width:50px;margin:2px auto 0;"></div></div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <div style="width:80px;height:120px;background:rgba(255,255,255,0.04);border-radius:4px;border:1px solid rgba(255,255,255,0.06);"></div>
+                    </div>
+                    <div class="shelf-book-title"><div class="skeleton-bar" style="height:10px;width:60px;margin:0 auto;"></div></div>
+                    <div class="shelf-book-author"><div class="skeleton-bar" style="height:8px;width:50px;margin:2px auto 0;"></div></div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <div style="width:80px;height:120px;background:rgba(255,255,255,0.04);border-radius:4px;border:1px solid rgba(255,255,255,0.06);"></div>
+                    </div>
+                    <div class="shelf-book-title"><div class="skeleton-bar" style="height:10px;width:60px;margin:0 auto;"></div></div>
+                    <div class="shelf-book-author"><div class="skeleton-bar" style="height:8px;width:50px;margin:2px auto 0;"></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Active State -->
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div class="tri-card visible tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Bookshelf</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">library</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="shelf-row">
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" alt="Crafting Engineering Strategy">
+                    </div>
+                    <div class="shelf-book-title">Crafting Engineering Strategy</div>
+                    <div class="shelf-book-author">Will Larson</div>
+                    <div class="shelf-book-status shelf-status-next">Up Next</div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" alt="Foundryside">
+                    </div>
+                    <div class="shelf-book-title">Foundryside</div>
+                    <div class="shelf-book-author">Robert Jackson Bennett</div>
+                    <div class="shelf-book-status shelf-status-in_progress">Reading</div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" alt="The Tainted Cup">
+                    </div>
+                    <div class="shelf-book-title">The Tainted Cup</div>
+                    <div class="shelf-book-author">Robert Jackson Bennett</div>
+                    <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <img src="https://m.media-amazon.com/images/P/0593723848.01._SCLZZZZZZZ_SX200_.jpg" alt="A Drop of Corruption">
+                    </div>
+                    <div class="shelf-book-title">A Drop of Corruption</div>
+                    <div class="shelf-book-author">Robert Jackson Bennett</div>
+                    <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+                  </div>
+                  <div class="shelf-book" style="opacity:1;animation:none;">
+                    <div class="shelf-cover-wrapper">
+                      <img src="https://m.media-amazon.com/images/P/0593128508.01._SCLZZZZZZZ_SX200_.jpg" alt="A Deadly Education">
+                    </div>
+                    <div class="shelf-book-title">A Deadly Education</div>
+                    <div class="shelf-book-author">Naomi Novik</div>
+                    <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+</body>
+</html>
