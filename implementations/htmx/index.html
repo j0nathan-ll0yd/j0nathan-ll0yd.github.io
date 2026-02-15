@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<base href="/implementations/htmx/">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#06060f">
+<meta name="description" content="Jonathan Lloyd — Command Center (HTMX)">
+<title>Jonathan Lloyd — Command Center</title>
+<link rel="icon" type="image/svg+xml" href="../../assets/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="../../css/tokens.css">
+<link rel="stylesheet" href="../../css/base.css">
+<link rel="stylesheet" href="../../css/layout.css">
+<link rel="stylesheet" href="../../css/components.css">
+<link rel="stylesheet" href="../../css/effects.css">
+</head>
+<body>
+
+<canvas id="particle-canvas"></canvas>
+
+<div class="command-layout">
+
+  <!-- LEFT PANEL: Identity -->
+  <div class="left-panel">
+
+    <!-- Identity Card -->
+    <div class="identity-card" id="identityCard">
+    </div>
+
+    <!-- Bio Terminal -->
+    <div class="tri-card tri-card-accent-blue left-panel-bio" id="cardBio">
+      <div class="widget-header">
+        <span class="widget-label">Bio</span>
+        <div class="widget-header-right">
+          <div class="live-dot live-dot-blue"></div>
+          <span class="widget-timestamp">bash</span>
+        </div>
+      </div>
+      <div class="widget-body" style="padding: 0;">
+        <div class="terminal-container">
+          <div class="terminal-titlebar">
+            <div class="terminal-btn terminal-btn-red"></div>
+            <div class="terminal-btn terminal-btn-yellow"></div>
+            <div class="terminal-btn terminal-btn-green"></div>
+            <div class="terminal-title">zsh &mdash; about</div>
+          </div>
+          <div class="terminal-body" id="terminalBody">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="left-panel-status" id="cardSystem">
+      <div class="left-status-header">
+        <span class="widget-label">System Status</span>
+        <div class="widget-header-right">
+          <div class="live-dot"></div>
+          <span class="widget-timestamp">realtime</span>
+        </div>
+      </div>
+      <div id="systemStatus">
+      </div>
+    </div>
+
+  </div>
+
+  <!-- TOP BAR -->
+  <div class="top-bar">
+    <div class="top-bar-title">Command Center</div>
+    <div class="top-bar-clock" id="liveClock"></div>
+  </div>
+
+  <!-- RIGHT PANEL: Triptych Grid -->
+  <div class="right-panel">
+    <div class="triptych-grid" id="triptychGrid">
+
+      <!-- COLUMN 1: BODY -->
+      <div class="triptych-column triptych-column-body">
+        <div class="column-header column-header-pink">Body</div>
+
+        <!-- Heart Rate -->
+        <div class="tri-card tri-card-accent-pink" id="cardHR">
+          <div class="widget-header">
+            <span class="widget-label">Heart Rate</span>
+            <div class="widget-header-right">
+              <div class="live-dot live-dot-pink"></div>
+              <span class="widget-timestamp">live</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+        <!-- Daily Activity -->
+        <div class="tri-card tri-card-accent-green" id="cardSteps">
+          <div class="widget-header">
+            <span class="widget-label">Daily Activity</span>
+            <div class="widget-header-right">
+              <div class="live-dot"></div>
+              <span class="widget-timestamp">today</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+        <!-- Workouts -->
+        <div class="tri-card tri-card-accent-pink" id="cardWorkouts">
+          <div class="widget-header">
+            <span class="widget-label">Workouts</span>
+            <div class="widget-header-right">
+              <div class="data-toggle" id="workoutToggle">
+                <div class="data-toggle-track" id="workoutToggleTrack">
+                  <div class="data-toggle-thumb"></div>
+                </div>
+                <span class="data-toggle-label">Live</span>
+              </div>
+              <div class="live-dot live-dot-pink"></div>
+              <span class="widget-timestamp" id="workoutTimestamp">today</span>
+            </div>
+          </div>
+          <div class="widget-body" id="workoutsBody">
+          </div>
+        </div>
+
+        <!-- Night Summary -->
+        <div class="tri-card tri-card-accent-purple" id="cardSleep">
+          <div class="widget-header">
+            <span class="widget-label">Night Summary</span>
+            <div class="widget-header-right">
+              <div class="live-dot live-dot-purple"></div>
+              <span class="widget-timestamp">last night</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+        <!-- Hydration -->
+        <div class="tri-card tri-card-accent-blue" id="cardHydration">
+          <div class="widget-header">
+            <span class="widget-label">Hydration</span>
+            <div class="widget-header-right">
+              <div class="live-dot live-dot-blue"></div>
+              <span class="widget-timestamp">today</span>
+            </div>
+          </div>
+          <div class="widget-body">
+            <div class="hydra-layout">
+              <div class="hydra-vessel hydra-vessel-water">
+                <div class="hydra-bottle">
+                  <div class="hydra-bottle-cap"></div>
+                  <div class="hydra-bottle-body">
+                    <div class="hydra-liquid hydra-liquid-water" id="hydraWaterLiq">
+                      <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
+                        <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+                <div class="hydra-val" id="hydraWaterVal">0</div>
+                <div class="hydra-label">Water</div>
+              </div>
+              <div class="hydra-divider"></div>
+              <div class="hydra-vessel hydra-vessel-coffee">
+                <div class="hydra-mug">
+                  <div class="hydra-mug-steam">
+                    <div class="hydra-steam-line"></div>
+                    <div class="hydra-steam-line"></div>
+                    <div class="hydra-steam-line"></div>
+                  </div>
+                  <div class="hydra-mug-body">
+                    <div class="hydra-liquid hydra-liquid-coffee" id="hydraCoffeeLiq">
+                      <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
+                        <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="hydra-mug-handle"></div>
+                </div>
+                <div class="hydra-val" id="hydraCoffeeVal">0</div>
+                <div class="hydra-label">Coffee</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Location -->
+        <div class="tri-card tri-card-accent-green" id="cardLocation">
+          <div class="widget-header">
+            <span class="widget-label">Current Location</span>
+            <div class="widget-header-right">
+              <div class="live-dot"></div>
+              <span class="widget-timestamp">live</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- COLUMN 2: MIND -->
+      <div class="triptych-column triptych-column-mind">
+        <div class="column-header column-header-green">Mind</div>
+
+        <!-- GitHub Heatmap -->
+        <div class="tri-card tri-card-accent-green" id="cardGithub">
+          <div class="widget-header">
+            <span class="widget-label">GitHub Contributions</span>
+            <div class="widget-header-right">
+              <div class="live-dot"></div>
+              <span class="widget-timestamp">this year</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+        <!-- Recent Commits -->
+        <div class="tri-card tri-card-accent-green" id="cardCommits">
+          <div class="widget-header">
+            <span class="widget-label">Recent Commits</span>
+            <div class="widget-header-right">
+              <div class="live-dot"></div>
+              <span class="widget-timestamp">latest</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+        <!-- Reading Feed -->
+        <div class="tri-card tri-card-accent-green" id="cardReading">
+          <div class="widget-header">
+            <span class="widget-label">Reading Feed</span>
+            <div class="widget-header-right">
+              <div class="live-dot"></div>
+              <span class="widget-timestamp">recent</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+        <!-- Bookshelf -->
+        <div class="tri-card tri-card-accent-green" id="cardBooks">
+          <div class="widget-header">
+            <span class="widget-label">Bookshelf</span>
+            <div class="widget-header-right">
+              <div class="live-dot"></div>
+              <span class="widget-timestamp">library</span>
+            </div>
+          </div>
+          <div class="widget-body">
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<div class="book-overlay" id="bookOverlay">
+  <div class="book-modal" id="bookModal"></div>
+</div>
+
+<!-- ===== HANDLEBARS TEMPLATES ===== -->
+
+<!-- Identity Card -->
+<script type="text/x-handlebars-template" id="tplIdentity">
+  <img class="id-avatar" src="../../{{avatar}}" alt="Avatar">
+  <div class="id-info-inline">
+    <div class="id-name">{{name}}</div>
+    <div class="id-title">{{title}}</div>
+  </div>
+  <div class="id-bio">{{bio}}</div>
+  <div class="id-links">
+    <a href="{{github}}" class="neon-pill" target="_blank" rel="noopener noreferrer">GitHub</a>
+    <a href="{{linkedin}}" class="neon-pill" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+  </div>
+</script>
+
+<!-- Bio Terminal -->
+<script type="text/x-handlebars-template" id="tplTerminal">
+    {{#each terminalLines}}
+      {{#if (eq type "prompt")}}
+        <div class="terminal-line" data-type="prompt" data-cmd="{{termCmd text}}"><span class="terminal-prompt">$ </span><span class="terminal-command"></span></div>
+      {{else if (eq type "output")}}
+        <div class="terminal-line" data-type="output" data-output="{{termOutput text}}">{{#if (hasArrow text)}}<span class="terminal-arrow">&rarr; </span><span class="terminal-output"></span>{{else}}<span class="terminal-output"></span>{{/if}}</div>
+      {{else if (eq type "blank")}}
+        <div class="terminal-line" data-type="blank">&nbsp;</div>
+      {{else if (eq type "cursor")}}
+        <div class="terminal-line" data-type="cursor"><span class="terminal-prompt">$ </span><span class="terminal-cursor"></span></div>
+      {{/if}}
+    {{/each}}
+</script>
+
+<!-- System Status -->
+<script type="text/x-handlebars-template" id="tplSystem">
+  {{#each lines}}
+    <div class="sys-line" style="animation-delay: {{multiply @index 0.1}}s">
+      <div class="sys-dot {{dotClass}}" style="animation-delay: {{multiply @index 0.3}}s"></div>
+      <span class="sys-key">{{key}}:</span>
+      <span class="{{valClass}}">{{value}}</span>
+    </div>
+  {{/each}}
+</script>
+
+<!-- Heart Rate -->
+<script type="text/x-handlebars-template" id="tplHeartRate">
+  <div class="hr-layout">
+    <div class="hr-ecg-bg">
+      <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none">
+        <defs>
+          <filter id="ecgGlow">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge>
+              <feMergeNode in="blur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <path id="ecgPath" class="ecg-line" d=""/>
+      </svg>
+    </div>
+    <div class="hr-overlay">
+      <div class="hr-overlay-left">
+        <div>
+          <span class="pulse-bpm" id="pulseBpm" data-hr="{{quantities.heartRate.value}}">0</span><span class="pulse-bpm-unit">BPM</span>
+        </div>
+        <span class="pulse-status-badge" id="pulseStatusBadge"></span>
+      </div>
+      <div class="hr-overlay-right">
+        <span class="hr-hrv-label">HRV</span>
+        <span class="hr-hrv-value" id="pulseHrvValue" data-hrv="{{round quantities.hrvSDNN.value}}">{{round quantities.hrvSDNN.value}}</span>
+        <span class="hr-hrv-unit">ms</span>
+      </div>
+    </div>
+  </div>
+</script>
+
+<!-- Daily Activity -->
+<script type="text/x-handlebars-template" id="tplActivity">
+  <div class="split-cols">
+    <div class="split-col">
+      <div class="split-col-title">Movement</div>
+      <div class="split-metric">
+        <div class="split-metric-label">Steps</div>
+        <div class="split-metric-value">{{toLocaleString (round quantities.stepCount.value)}}</div>
+      </div>
+      <div class="split-metric">
+        <div class="split-metric-label">Distance</div>
+        <div class="split-metric-value">{{round quantities.distanceWalkingRunning.value}}<span class="split-metric-unit">m</span></div>
+      </div>
+      <div class="split-metric">
+        <div class="split-metric-label">Exercise</div>
+        <div class="split-metric-value">{{quantities.exerciseTime.value}}<span class="split-metric-unit">min</span></div>
+      </div>
+    </div>
+    <div class="split-col">
+      <div class="split-col-title">Energy</div>
+      <div class="split-metric">
+        <div class="split-metric-label">Active</div>
+        <div class="split-metric-value">{{round quantities.activeEnergyBurned.value}}<span class="split-metric-unit">kcal</span></div>
+      </div>
+      <div class="split-metric">
+        <div class="split-metric-label">Basal</div>
+        <div class="split-metric-value">{{round quantities.basalEnergyBurned.value}}<span class="split-metric-unit">kcal</span></div>
+      </div>
+      <div class="split-metric">
+        <div class="split-metric-label">Total</div>
+        <div class="split-metric-value">{{round derived.totalCalories}}<span class="split-metric-unit">kcal</span></div>
+      </div>
+    </div>
+  </div>
+</script>
+
+<!-- Workouts (initial load - rest day by default, JS handles toggle) -->
+<script type="text/x-handlebars-template" id="tplWorkoutsInit">
+  <div class="workout-rest-center">
+    <svg class="workout-rest-icon" viewBox="0 0 56 56" fill="none">
+      <circle cx="28" cy="20" r="10" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.7"/>
+      <path d="M16 38 Q20 32 28 30 Q36 32 40 38" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.5" fill="none"/>
+      <path d="M12 44 Q18 38 28 36 Q38 38 44 44" stroke="var(--neon-blue)" stroke-width="1" opacity="0.3" fill="none"/>
+      <circle cx="28" cy="20" r="3" fill="var(--neon-pink)" opacity="0.6"/>
+      <path d="M24 18 Q28 14 32 18" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="none"/>
+    </svg>
+    <div class="workout-rest-heading">Recovery Day</div>
+    <div class="workout-rest-sub">No workouts recorded</div>
+    <div class="workout-rest-insight">Your body recovers while you rest</div>
+  </div>
+</script>
+
+<!-- Night Summary -->
+<script type="text/x-handlebars-template" id="tplSleep">
+  <div>
+    <div class="sleep-moon-top">
+      <div class="sleep-moon-wrap">
+        <svg width="70" height="70" viewBox="0 0 80 80">
+          <defs>
+            <filter id="moonGlow">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <circle cx="40" cy="40" r="28" fill="#a855f7" opacity="0.15" filter="url(#moonGlow)"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4"/>
+          <path d="M40,12 A28,28 0 1,1 40,68 A20,20 0 1,0 40,12" fill="#a855f7" opacity="0.3" filter="url(#moonGlow)"/>
+          <circle cx="34" cy="30" r="3" fill="rgba(168,85,247,0.2)"/>
+          <circle cx="48" cy="45" r="2" fill="rgba(168,85,247,0.15)"/>
+        </svg>
+      </div>
+      <div class="sleep-moon-info">
+        <div class="sleep-moon-hero">{{sleepDurationFormatted}}</div>
+        <div class="sleep-moon-score-row">
+          <span class="sleep-moon-score-label">Score</span>
+          <div class="sleep-moon-score-track"><div class="sleep-moon-score-fill" style="width:{{sleepScore}}%"></div></div>
+          <span class="sleep-moon-score-val">{{sleepScore}}</span>
+        </div>
+      </div>
+    </div>
+    <div class="sleep-moon-pills">
+      <div class="sleep-moon-pill" style="background:#1e40af15;animation-delay:0.3s">
+        <div class="sleep-moon-pill-label">Deep</div>
+        <div class="sleep-moon-pill-val" style="color:#1e40af">{{sleepPhaseFormatted.deep}}</div>
+      </div>
+      <div class="sleep-moon-pill" style="background:#a855f715;animation-delay:0.4s">
+        <div class="sleep-moon-pill-label">REM</div>
+        <div class="sleep-moon-pill-val" style="color:#a855f7">{{sleepPhaseFormatted.rem}}</div>
+      </div>
+      <div class="sleep-moon-pill" style="background:#3a86ff15;animation-delay:0.5s">
+        <div class="sleep-moon-pill-label">Core</div>
+        <div class="sleep-moon-pill-val" style="color:#3a86ff">{{sleepPhaseFormatted.core}}</div>
+      </div>
+      <div class="sleep-moon-pill" style="background:#f59e0b15;animation-delay:0.6s">
+        <div class="sleep-moon-pill-label">Awake</div>
+        <div class="sleep-moon-pill-val" style="color:#f59e0b">{{sleepPhaseFormatted.awake}}</div>
+      </div>
+    </div>
+    <div class="sleep-moon-insight"><span>{{derived.deepPct}}% deep</span> &mdash; <span>{{derived.remPct}}% REM</span> &mdash; restorative sleep</div>
+  </div>
+</script>
+
+<!-- Hydration Data Loader (hidden, stores data attributes for init.js) -->
+<script type="text/x-handlebars-template" id="tplHydrationData">
+  <div id="hydrationDataStore"
+       data-water-oz="{{hydration.waterOz}}"
+       data-coffee-oz="{{hydration.coffeeOz}}"
+       data-water-max="{{hydration.waterMax}}"
+       data-coffee-max="{{hydration.coffeeMax}}"
+       data-water-range-lo="{{hydration.waterRangeLo}}"
+       data-water-range-hi="{{hydration.waterRangeHi}}"
+       data-coffee-range-lo="{{hydration.coffeeRangeLo}}"
+       data-coffee-range-hi="{{hydration.coffeeRangeHi}}"
+       data-coffee-caution-max="{{hydration.coffeeCautionMax}}">
+  </div>
+</script>
+
+<!-- Location -->
+<script type="text/x-handlebars-template" id="tplLocation">
+  <div class="loc-city-name">{{splitCity location}}</div>
+  <div class="loc-coordinates">{{formatCoord coordinates}}</div>
+  <div class="map-wrapper">
+    <div id="leafletMap" style="width:100%;height:100%;"></div>
+    <div class="map-overlay"></div>
+  </div>
+  <div class="map-meta-row">
+    <span>ZOOM: <span class="map-meta-value">13</span></span>
+    <span>TILE: <span class="map-meta-value">DARK MATTER</span></span>
+    <span>SRC: <span class="map-meta-value">OSM</span></span>
+  </div>
+</script>
+
+<!-- GitHub Heatmap -->
+<script type="text/x-handlebars-template" id="tplGithub">
+  <div class="contrib-grid">
+    {{#each contributions}}
+      <div class="contrib-week">
+        {{#each this}}
+          <div class="contrib-cell" data-level="{{this}}"></div>
+        {{/each}}
+      </div>
+    {{/each}}
+  </div>
+  <div class="gh-stats-row">
+    <div>
+      <div class="gh-stat-value">{{stats.repos}}</div>
+      <div class="gh-stat-label">Repos</div>
+    </div>
+    <div>
+      <div class="gh-stat-value">{{stats.stars}}</div>
+      <div class="gh-stat-label">Stars</div>
+    </div>
+    <div>
+      <div class="gh-stat-value">{{toLocaleString stats.contributions}}</div>
+      <div class="gh-stat-label">Contributions</div>
+    </div>
+  </div>
+</script>
+
+<!-- Recent Commits -->
+<script type="text/x-handlebars-template" id="tplCommits">
+  <div class="commits-terminal">
+    {{#each recentCommits}}
+      <div class="commit-line">
+        <span class="cm-hash">{{hash}}</span>
+        <span class="cm-msg">{{message}}</span>
+        <span class="cm-repo">{{repo}}</span>
+        <span class="cm-date">{{date}}</span>
+      </div>
+    {{/each}}
+  </div>
+</script>
+
+<!-- Reading Feed -->
+<script type="text/x-handlebars-template" id="tplReading">
+  <ul class="article-list">
+    {{#each articles}}
+      <li class="article-list-item" style="animation-delay: {{multiply @index 0.07}}s">
+        <span class="article-list-star {{#if starred}}visible{{/if}}">&#9733;</span>
+        <div class="article-list-content">
+          <div class="article-list-title">{{title}}</div>
+          <div class="article-list-meta">
+            <span class="article-list-source">{{source}}</span>
+            <span style="color: rgba(255,255,255,0.15)">&middot;</span>
+            <span class="article-list-date">{{date}}</span>
+          </div>
+        </div>
+      </li>
+    {{/each}}
+  </ul>
+</script>
+
+<!-- Bookshelf -->
+<script type="text/x-handlebars-template" id="tplBooks">
+  <div class="shelf-row">
+    {{#each books}}
+      <div class="shelf-book" style="animation-delay: {{multiply @index 0.08}}s" data-book="{{json this}}">
+        <div class="shelf-cover-wrapper">
+          <img src="https://m.media-amazon.com/images/P/{{asin}}.01._SCLZZZZZZZ_SX200_.jpg"
+               width="80" height="120" alt="" loading="lazy"
+               onerror="this.style.background='linear-gradient(135deg, rgba(6,214,160,0.2), rgba(58,134,255,0.15))';this.style.border='1px solid rgba(6,214,160,0.2)';this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'">
+        </div>
+        <div class="shelf-book-title"><span>{{title}}</span></div>
+        <div class="shelf-book-author">{{author}}</div>
+        <div class="shelf-book-status shelf-status-{{status}}">{{lookup ../statusLabels status}}</div>
+      </div>
+    {{/each}}
+  </div>
+</script>
+
+<!-- ===== SCRIPTS ===== -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+<script src="js/helpers.js"></script>
+<script>
+// Register additional Handlebars helpers needed by templates
+(function() {
+  // termCmd: extracts command text after "$ " from prompt lines
+  Handlebars.registerHelper('termCmd', function(text) {
+    if (!text) return '';
+    var idx = text.indexOf('$ ');
+    if (idx >= 0) return text.substring(idx + 2);
+    return text;
+  });
+
+  // termOutput: strips the arrow prefix for data attribute
+  Handlebars.registerHelper('termOutput', function(text) {
+    if (!text) return '';
+    if (text.indexOf('\u2192') === 0) return text.substring(2);
+    return text;
+  });
+
+  // hasArrow: checks if text starts with arrow character
+  Handlebars.registerHelper('hasArrow', function(text) {
+    if (!text) return false;
+    return text.indexOf('\u2192') === 0;
+  });
+
+  // formatCoord: formats coordinates array to "37.7749 N, 122.4194 W"
+  Handlebars.registerHelper('formatCoord', function(coords) {
+    if (!coords || coords.length < 2) return '';
+    return coords[0].toFixed(4) + '\u00b0N, ' + Math.abs(coords[1]).toFixed(4) + '\u00b0W';
+  });
+})();
+</script>
+<script src="js/app.js"></script>
+<script src="js/init.js"></script>
+
+</body>
+</html>

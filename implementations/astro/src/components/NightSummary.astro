@@ -1,0 +1,66 @@
+---
+const { health } = Astro.props;
+const sleepScore = health.sleepScore;
+const sleepDuration = health.sleepDurationFormatted;
+const phases = health.sleepPhaseFormatted;
+const derived = health.derived;
+
+const pills = [
+  { label: 'Deep', formatted: phases.deep, color: '#1e40af' },
+  { label: 'REM', formatted: phases.rem, color: '#a855f7' },
+  { label: 'Core', formatted: phases.core, color: '#3a86ff' },
+  { label: 'Awake', formatted: phases.awake, color: '#f59e0b' }
+];
+---
+<div class="tri-card tri-card-accent-purple" id="cardSleep">
+  <div class="widget-header">
+    <span class="widget-label">Night Summary</span>
+    <div class="widget-header-right">
+      <div class="live-dot live-dot-purple"></div>
+      <span class="widget-timestamp">last night</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="sleep-moon-top">
+      <div class="sleep-moon-wrap">
+        <svg width="70" height="70" viewBox="0 0 80 80">
+          <defs>
+            <filter id="moonGlow">
+              <feGaussianBlur stdDeviation="3" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <circle cx="40" cy="40" r="28" fill="#a855f7" opacity="0.15" filter="url(#moonGlow)"/>
+          <circle cx="40" cy="40" r="28" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4"/>
+          <path d="M40,12 A28,28 0 1,1 40,68 A20,20 0 1,0 40,12" fill="#a855f7" opacity="0.3" filter="url(#moonGlow)"/>
+          <circle cx="34" cy="30" r="3" fill="rgba(168,85,247,0.2)"/>
+          <circle cx="48" cy="45" r="2" fill="rgba(168,85,247,0.15)"/>
+        </svg>
+      </div>
+      <div class="sleep-moon-info">
+        <div class="sleep-moon-hero">{sleepDuration}</div>
+        <div class="sleep-moon-score-row">
+          <span class="sleep-moon-score-label">Score</span>
+          <div class="sleep-moon-score-track">
+            <div class="sleep-moon-score-fill" style={`width: ${sleepScore}%`}></div>
+          </div>
+          <span class="sleep-moon-score-val">{sleepScore}</span>
+        </div>
+      </div>
+    </div>
+    <div class="sleep-moon-pills">
+      {pills.map((p, i) => (
+        <div class="sleep-moon-pill" style={`background: ${p.color}15; animation-delay: ${i * 0.1 + 0.3}s`}>
+          <div class="sleep-moon-pill-label">{p.label}</div>
+          <div class="sleep-moon-pill-val" style={`color: ${p.color}`}>{p.formatted}</div>
+        </div>
+      ))}
+    </div>
+    <div class="sleep-moon-insight">
+      <span>{derived.deepPct}% deep</span> &mdash; <span>{derived.remPct}% REM</span> &mdash; restorative sleep
+    </div>
+  </div>
+</div>

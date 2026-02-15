@@ -1,0 +1,118 @@
+{
+  "books": [
+    {
+      "title": "Foundryside",
+      "author": "Robert Jackson Bennett",
+      "isbn": "9780525573844",
+      "asin": "0525573844",
+      "link": "https://amzn.to/3Mr9KEO",
+      "status": "in_progress",
+      "rating": null,
+      "progress": 42
+    },
+    {
+      "title": "The Tainted Cup",
+      "author": "Robert Jackson Bennett",
+      "isbn": "9781984820710",
+      "asin": "1984820710",
+      "link": "https://amzn.to/3ZR4VrD",
+      "status": "completed",
+      "rating": 5,
+      "progress": 100
+    },
+    {
+      "title": "A Drop of Corruption",
+      "author": "Robert Jackson Bennett",
+      "isbn": "9780593723848",
+      "asin": "0593723848",
+      "link": "https://amzn.to/4ae9LoP",
+      "status": "completed",
+      "rating": 4,
+      "progress": 100
+    },
+    {
+      "title": "A Deadly Education",
+      "author": "Naomi Novik",
+      "isbn": "9780593128508",
+      "asin": "0593128508",
+      "link": "https://amzn.to/461xW7g",
+      "status": "completed",
+      "rating": 4,
+      "progress": 100
+    },
+    {
+      "title": "Crafting Engineering Strategy",
+      "author": "Will Larson",
+      "isbn": "B0FBRJY116",
+      "asin": "B0FBRJY116",
+      "link": "https://amzn.to/3ZR52n3",
+      "status": "next",
+      "rating": null,
+      "progress": 0
+    }
+  ],
+  "bookMeta": {
+    "1984820710": {
+      "series": "Shadow of the Leviathan #1",
+      "pages": 432,
+      "genres": [
+        "Fantasy",
+        "Mystery"
+      ],
+      "year": 2024,
+      "desc": "In an empire threatened by titanic creatures, an eccentric investigator and her assistant must solve a mysterious murder in a classic whodunit set in a fantastical world. Hugo Award Winner."
+    },
+    "0525573844": {
+      "series": "The Founders Trilogy #1",
+      "pages": 505,
+      "genres": [
+        "Fantasy",
+        "Sci-Fi"
+      ],
+      "year": 2018,
+      "desc": "In a city that runs on industrialized magic, a talented thief joins a secret war against the magical slave lords who run the city with their decadent hijacked sorcery."
+    },
+    "0593723848": {
+      "series": "Shadow of the Leviathan #2",
+      "pages": 461,
+      "genres": [
+        "Fantasy",
+        "Mystery"
+      ],
+      "year": 2025,
+      "desc": "Ana and Din return to investigate a new series of impossible crimes in the outer rings, where the boundary between human civilization and leviathan territory grows thin."
+    },
+    "0593128508": {
+      "series": "The Scholomance #1",
+      "pages": 336,
+      "genres": [
+        "Fantasy",
+        "Dark Academia"
+      ],
+      "year": 2020,
+      "desc": "A school for the magically gifted where failure means death. El Higgins is determined to survive, but dark forces have other plans for her extraordinary powers."
+    },
+    "B0FBRJY116": {
+      "series": null,
+      "pages": 310,
+      "genres": [
+        "Tech",
+        "Leadership"
+      ],
+      "year": 2025,
+      "desc": "A practical guide to making thoughtful engineering decisions that solve complex organizational problems, from the author of Staff Engineer and An Elegant Puzzle."
+    }
+  },
+  "statusLabels": {
+    "next": "Up Next",
+    "in_progress": "Reading",
+    "completed": "Recently Finished"
+  },
+  "stats": {
+    "totalRead": 3,
+    "currentlyReading": 1,
+    "upNext": 1,
+    "avgRating": 4.3,
+    "booksThisYear": 4
+  }
+}

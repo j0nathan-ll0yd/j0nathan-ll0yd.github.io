@@ -1,0 +1,28 @@
+$ var articles = input.reading.articles;
+
+<div class="tri-card tri-card-accent-green" id="cardReading">
+  <div class="widget-header">
+    <span class="widget-label">Reading Feed</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">recent</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <ul class="article-list" id="articleList">
+      <for|a, i| of=articles>
+        <li class="article-list-item" style=("animation-delay: " + (i * 0.07) + "s")>
+          <span class=("article-list-star" + (a.starred ? " visible" : ""))>&#9733;</span>
+          <div class="article-list-content">
+            <div class="article-list-title">${a.title}</div>
+            <div class="article-list-meta">
+              <span class="article-list-source">${a.source}</span>
+              <span style="color: rgba(255,255,255,0.15)">&middot;</span>
+              <span class="article-list-date">${a.date}</span>
+            </div>
+          </div>
+        </li>
+      </for>
+    </ul>
+  </div>
+</div>

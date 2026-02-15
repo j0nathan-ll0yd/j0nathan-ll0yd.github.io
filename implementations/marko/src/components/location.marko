@@ -1,0 +1,31 @@
+$ var p = input.profile;
+$ var city = p.location.split(',')[0];
+$ var lat = p.coordinates[0];
+$ var lng = p.coordinates[1];
+$ var coordStr = lat.toFixed(4) + '\u00b0N, ' + Math.abs(lng).toFixed(4) + '\u00b0W';
+
+<div class="tri-card tri-card-accent-green" id="cardLocation">
+  <div class="widget-header">
+    <span class="widget-label">Current Location</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">live</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="loc-city-name" id="locCity">${city}</div>
+    <div class="loc-coordinates" id="locCoords">${coordStr}</div>
+    <div class="map-wrapper">
+      <div id="leafletMap" style="width:100%;height:100%;"></div>
+      <div class="map-overlay"></div>
+    </div>
+    <div class="map-meta-row">
+      <span>ZOOM: <span class="map-meta-value">13</span></span>
+      <span>TILE: <span class="map-meta-value">DARK MATTER</span></span>
+      <span>SRC: <span class="map-meta-value">OSM</span></span>
+    </div>
+  </div>
+</div>
+<script>
+  window.__mapCoords = [${lat}, ${lng}];
+</script>

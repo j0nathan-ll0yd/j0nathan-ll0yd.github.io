@@ -1,0 +1,83 @@
+{
+  "name": "Jonathan Lloyd",
+  "title": "Senior Software Engineer",
+  "location": "San Francisco, CA",
+  "coordinates": [
+    37.7749,
+    -122.4194
+  ],
+  "linkedin": "https://www.linkedin.com/in/lifegames/",
+  "github": "https://github.com/j0nathan-ll0yd",
+  "bio": "Building things that matter. Passionate about elegant code, distributed systems, and the intersection of technology and human experience.",
+  "avatar": "assets/avatar.svg",
+  "terminalLines": [
+    {
+      "type": "prompt",
+      "text": "$ cat about.txt"
+    },
+    {
+      "type": "output",
+      "text": "→ Jonathan Lloyd"
+    },
+    {
+      "type": "output",
+      "text": "→ Senior Software Engineer"
+    },
+    {
+      "type": "output",
+      "text": "→ \"Building things that matter.\""
+    },
+    {
+      "type": "blank",
+      "text": ""
+    },
+    {
+      "type": "prompt",
+      "text": "$ ls skills/"
+    },
+    {
+      "type": "output",
+      "text": "→ javascript  typescript  python  swift  go"
+    },
+    {
+      "type": "blank",
+      "text": ""
+    },
+    {
+      "type": "prompt",
+      "text": "$ uptime"
+    },
+    {
+      "type": "output",
+      "text": "→ 15+ years and counting"
+    },
+    {
+      "type": "blank",
+      "text": ""
+    },
+    {
+      "type": "prompt",
+      "text": "$ cat philosophy.txt"
+    },
+    {
+      "type": "output",
+      "text": "→ \"Ship fast, learn faster\""
+    },
+    {
+      "type": "blank",
+      "text": ""
+    },
+    {
+      "type": "prompt",
+      "text": "$ wc -l interests/"
+    },
+    {
+      "type": "output",
+      "text": "→ distributed systems, developer tools, ML/AI, open source"
+    },
+    {
+      "type": "cursor",
+      "text": ""
+    }
+  ]
+}

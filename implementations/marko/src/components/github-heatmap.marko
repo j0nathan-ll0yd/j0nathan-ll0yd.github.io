@@ -1,0 +1,36 @@
+$ var g = input.github;
+
+<div class="tri-card tri-card-accent-green" id="cardGithub">
+  <div class="widget-header">
+    <span class="widget-label">GitHub Contributions</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">this year</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="contrib-grid" id="contribGrid">
+      <for|week| of=g.contributions>
+        <div class="contrib-week">
+          <for|level| of=week>
+            <div class="contrib-cell" data-level=level></div>
+          </for>
+        </div>
+      </for>
+    </div>
+    <div class="gh-stats-row" id="ghStats">
+      <div>
+        <div class="gh-stat-value">${g.stats.repos}</div>
+        <div class="gh-stat-label">Repos</div>
+      </div>
+      <div>
+        <div class="gh-stat-value">${g.stats.stars}</div>
+        <div class="gh-stat-label">Stars</div>
+      </div>
+      <div>
+        <div class="gh-stat-value">${g.stats.contributions.toLocaleString()}</div>
+        <div class="gh-stat-label">Contributions</div>
+      </div>
+    </div>
+  </div>
+</div>

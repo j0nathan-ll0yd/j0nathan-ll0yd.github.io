@@ -1,0 +1,40 @@
+{
+  "lines": [
+    {
+      "key": "System",
+      "value": "ONLINE",
+      "dotClass": "sys-dot-green",
+      "valClass": "sys-val-green"
+    },
+    {
+      "key": "Uptime",
+      "value": "13,547 days",
+      "dotClass": "sys-dot-green",
+      "valClass": "sys-val"
+    },
+    {
+      "key": "Coffee Level",
+      "value": "HIGH",
+      "dotClass": "sys-dot-amber",
+      "valClass": "sys-val-amber"
+    },
+    {
+      "key": "Focus Mode",
+      "value": "ACTIVE",
+      "dotClass": "sys-dot-green",
+      "valClass": "sys-val-green"
+    },
+    {
+      "key": "Current Streak",
+      "value": "12 days",
+      "dotClass": "sys-dot-green",
+      "valClass": "sys-val-green"
+    },
+    {
+      "key": "Bug Count",
+      "value": "0",
+      "dotClass": "sys-dot-green",
+      "valClass": "sys-val-green"
+    }
+  ]
+}

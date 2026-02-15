@@ -1,0 +1,67 @@
+---
+const { profile } = Astro.props;
+const city = profile.location.split(',')[0];
+const lat = profile.coordinates[0];
+const lng = profile.coordinates[1];
+const coordStr = lat.toFixed(4) + '\u00b0N, ' + Math.abs(lng).toFixed(4) + '\u00b0W';
+---
+<div class="tri-card tri-card-accent-green" id="cardLocation">
+  <div class="widget-header">
+    <span class="widget-label">Current Location</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">live</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="loc-city-name">{city}</div>
+    <div class="loc-coordinates">{coordStr}</div>
+    <div class="map-wrapper">
+      <div id="leafletMap" style="width:100%;height:100%;"></div>
+      <div class="map-overlay"></div>
+    </div>
+    <div class="map-meta-row">
+      <span>ZOOM: <span class="map-meta-value">13</span></span>
+      <span>TILE: <span class="map-meta-value">DARK MATTER</span></span>
+      <span>SRC: <span class="map-meta-value">OSM</span></span>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ lat, lng }}>
+(function() {
+  if (typeof L === 'undefined') {
+    window.addEventListener('load', init);
+  } else {
+    init();
+  }
+  function init() {
+    var el = document.getElementById('leafletMap');
+    if (!el || typeof L === 'undefined') return;
+    var map = L.map('leafletMap', {
+      center: [lat, lng],
+      zoom: 13,
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false,
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      touchZoom: false,
+      boxZoom: false,
+      keyboard: false
+    });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(map);
+    var pulseIcon = L.divIcon({
+      className: '',
+      html: '<div class="map-marker-pulse"><div class="map-marker-ring"></div><div class="map-marker-dot"></div></div>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+    L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
+    setTimeout(function() { map.invalidateSize(); }, 300);
+  }
+})();
+</script>

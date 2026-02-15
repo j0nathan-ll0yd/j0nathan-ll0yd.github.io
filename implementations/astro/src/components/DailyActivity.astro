@@ -1,0 +1,48 @@
+---
+const { health } = Astro.props;
+const q = health.quantities;
+const totalCalories = Math.round(health.derived.totalCalories);
+---
+<div class="tri-card tri-card-accent-green" id="cardSteps">
+  <div class="widget-header">
+    <span class="widget-label">Daily Activity</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">today</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="split-cols">
+      <div class="split-col">
+        <div class="split-col-title">Movement</div>
+        <div class="split-metric">
+          <div class="split-metric-label">Steps</div>
+          <div class="split-metric-value">{Math.round(q.stepCount.value).toLocaleString()}</div>
+        </div>
+        <div class="split-metric">
+          <div class="split-metric-label">Distance</div>
+          <div class="split-metric-value">{Math.round(q.distanceWalkingRunning.value)}<span class="split-metric-unit">m</span></div>
+        </div>
+        <div class="split-metric">
+          <div class="split-metric-label">Exercise</div>
+          <div class="split-metric-value">{q.exerciseTime.value}<span class="split-metric-unit">min</span></div>
+        </div>
+      </div>
+      <div class="split-col">
+        <div class="split-col-title">Energy</div>
+        <div class="split-metric">
+          <div class="split-metric-label">Active</div>
+          <div class="split-metric-value">{Math.round(q.activeEnergyBurned.value)}<span class="split-metric-unit">kcal</span></div>
+        </div>
+        <div class="split-metric">
+          <div class="split-metric-label">Basal</div>
+          <div class="split-metric-value">{Math.round(q.basalEnergyBurned.value)}<span class="split-metric-unit">kcal</span></div>
+        </div>
+        <div class="split-metric">
+          <div class="split-metric-label">Total</div>
+          <div class="split-metric-value">{totalCalories}<span class="split-metric-unit">kcal</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

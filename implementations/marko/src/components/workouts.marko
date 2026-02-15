@@ -1,0 +1,62 @@
+$ var workouts = input.health.workouts;
+$ var sampleWorkouts = input.health.sampleWorkouts;
+$ var hasWorkouts = workouts && workouts.length > 0;
+
+<div class="tri-card tri-card-accent-pink" id="cardWorkouts">
+  <div class="widget-header">
+    <span class="widget-label">Workouts</span>
+    <div class="widget-header-right">
+      <div class="data-toggle" id="workoutToggle">
+        <div class="data-toggle-track" id="workoutToggleTrack">
+          <div class="data-toggle-thumb"></div>
+        </div>
+        <span class="data-toggle-label">Live</span>
+      </div>
+      <div class="live-dot live-dot-pink"></div>
+      <span class="widget-timestamp" id="workoutTimestamp">today</span>
+    </div>
+  </div>
+  <div class="widget-body" id="workoutsBody">
+    <if(!hasWorkouts)>
+      <div class="workout-rest-center">
+        <svg class="workout-rest-icon" viewBox="0 0 56 56" fill="none">
+          <circle cx="28" cy="20" r="10" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.7"/>
+          <path d="M16 38 Q20 32 28 30 Q36 32 40 38" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.5" fill="none"/>
+          <path d="M12 44 Q18 38 28 36 Q38 38 44 44" stroke="var(--neon-blue)" stroke-width="1" opacity="0.3" fill="none"/>
+          <circle cx="28" cy="20" r="3" fill="var(--neon-pink)" opacity="0.6"/>
+          <path d="M24 18 Q28 14 32 18" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="none"/>
+        </svg>
+        <div class="workout-rest-heading">Recovery Day</div>
+        <div class="workout-rest-sub">No workouts recorded</div>
+        <div class="workout-rest-insight">Your body recovers while you rest</div>
+      </div>
+    </if>
+    <else>
+      <for|w| of=workouts>
+        $ var wh = Math.floor(w.duration / 3600);
+        $ var wm = Math.floor((w.duration % 3600) / 60);
+        $ var ws = Math.round(w.duration % 60);
+        $ var durStr = wh > 0 ? (wh + 'h ' + wm + 'm') : (wm + 'm' + (ws > 0 ? ' ' + ws + 's' : ''));
+        <div class="workout-sub-card">
+          <div class="workout-sub-top">
+            <svg class="workout-sub-icon" viewBox="0 0 28 28" fill="none">
+              <circle cx="14" cy="14" r="10" stroke="var(--neon-pink)" stroke-width="1.8" opacity="0.6"/>
+              <path d="M14 8 L14 14 L19 14" stroke="var(--neon-pink)" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+            </svg>
+            <div class="workout-sub-type">${w.activity_type}</div>
+          </div>
+          <div class="workout-sub-stats">
+            <div class="workout-stat"><div class="workout-stat-label">Duration</div><div class="workout-stat-value">${durStr}</div></div>
+            <div class="workout-stat"><div class="workout-stat-label">Calories</div><div class="workout-stat-value">${Math.round(w.energy_burned)} kcal</div></div>
+            <if(w.distance > 0)>
+              <div class="workout-stat"><div class="workout-stat-label">Distance</div><div class="workout-stat-value">${(w.distance / 1000).toFixed(2)} km</div></div>
+            </if>
+          </div>
+        </div>
+      </for>
+    </else>
+  </div>
+</div>
+<script>
+  window.__sampleWorkouts = ${JSON.stringify(sampleWorkouts)};
+</script>

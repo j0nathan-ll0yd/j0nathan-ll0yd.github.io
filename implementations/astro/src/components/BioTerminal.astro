@@ -1,0 +1,103 @@
+---
+const { profile } = Astro.props;
+const terminalLines = profile.terminalLines;
+---
+<div class="tri-card tri-card-accent-blue left-panel-bio" id="cardBio">
+  <div class="widget-header">
+    <span class="widget-label">Bio</span>
+    <div class="widget-header-right">
+      <div class="live-dot live-dot-blue"></div>
+      <span class="widget-timestamp">bash</span>
+    </div>
+  </div>
+  <div class="widget-body" style="padding: 0;">
+    <div class="terminal-container">
+      <div class="terminal-titlebar">
+        <div class="terminal-btn terminal-btn-red"></div>
+        <div class="terminal-btn terminal-btn-yellow"></div>
+        <div class="terminal-btn terminal-btn-green"></div>
+        <div class="terminal-title">zsh &mdash; about</div>
+      </div>
+      <div class="terminal-body" id="terminalBody">
+        {terminalLines.map((line: any) => {
+          if (line.type === 'cursor') {
+            return <div class="terminal-line"><span class="terminal-prompt">$ </span><span class="terminal-cursor"></span></div>;
+          } else if (line.type === 'blank') {
+            return <div class="terminal-line">&nbsp;</div>;
+          } else if (line.type === 'prompt') {
+            const parts = line.text.split(' ');
+            const cmd = parts.slice(1).join(' ');
+            return <div class="terminal-line" data-cmd={cmd}><span class="terminal-prompt">{parts[0]} </span><span class="terminal-command"></span></div>;
+          } else {
+            const text = line.text as string;
+            const hasArrow = text.startsWith('\u2192');
+            if (hasArrow) {
+              return <div class="terminal-line" data-output={text.substring(2)}><span class="terminal-arrow">&rarr; </span><span class="terminal-output"></span></div>;
+            }
+            return <div class="terminal-line" data-output={text}><span class="terminal-output"></span></div>;
+          }
+        })}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+(function() {
+  var termBody = document.getElementById('terminalBody');
+  if (!termBody) return;
+  var lines = termBody.querySelectorAll('.terminal-line');
+
+  function typeText(spanEl, text, callback) {
+    var i = 0;
+    function next() {
+      if (i < text.length) {
+        spanEl.textContent += text[i];
+        i++;
+        setTimeout(next, 30);
+      } else if (callback) {
+        callback();
+      }
+    }
+    next();
+  }
+
+  function revealLine(idx) {
+    if (idx >= lines.length) return;
+    var line = lines[idx];
+    line.classList.add('visible');
+
+    var cmd = line.getAttribute('data-cmd');
+    var output = line.getAttribute('data-output');
+
+    if (cmd !== null) {
+      var cmdSpan = line.querySelector('.terminal-command');
+      typeText(cmdSpan, cmd, function() {
+        setTimeout(function() { revealLine(idx + 1); }, 200);
+      });
+    } else if (output !== null) {
+      var outSpan = line.querySelector('.terminal-output');
+      typeText(outSpan, output, function() {
+        setTimeout(function() { revealLine(idx + 1); }, 80);
+      });
+    } else {
+      setTimeout(function() { revealLine(idx + 1); }, 400);
+    }
+  }
+
+  var termCard = termBody.closest('.tri-card');
+  if ('IntersectionObserver' in window && termCard) {
+    var obs = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          setTimeout(function() { revealLine(0); }, 500);
+          obs.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.3 });
+    obs.observe(termCard);
+  } else {
+    setTimeout(function() { revealLine(0); }, 800);
+  }
+})();
+</script>

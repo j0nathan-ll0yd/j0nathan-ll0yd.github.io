@@ -1,0 +1,47 @@
+$ var hr = input.health.quantities.heartRate.value;
+$ var hrv = Math.round(input.health.quantities.hrvSDNN.value);
+$ var state = hr < 45 ? { zone: 'Bradycardia', accentClass: 'tri-card-accent-pink', dotClass: 'live-dot-pink', bpmColor: '#3a86ff', bpmShadow: '0 0 16px rgba(58,134,255,0.6), 0 0 40px rgba(58,134,255,0.25)', ecgStroke: '#3a86ff', ecgSpeed: '8s', ecgOpacity: 0.35, badgeColor: 'var(--neon-blue)', badgeBg: 'rgba(58,134,255,0.12)', badgeBorder: 'rgba(58,134,255,0.25)' } : hr < 60 ? { zone: 'Resting Zone', accentClass: 'tri-card-accent-pink', dotClass: 'live-dot-pink', bpmColor: '#ff006e', bpmShadow: '0 0 16px rgba(255,0,110,0.6), 0 0 40px rgba(255,0,110,0.25)', ecgStroke: '#ff006e', ecgSpeed: '6s', ecgOpacity: 0.35, badgeColor: 'var(--neon-green)', badgeBg: 'rgba(6,214,160,0.12)', badgeBorder: 'rgba(6,214,160,0.25)' } : hr <= 100 ? { zone: 'Normal Zone', accentClass: 'tri-card-accent-pink', dotClass: 'live-dot-pink', bpmColor: '#ff006e', bpmShadow: '0 0 16px rgba(255,0,110,0.6), 0 0 40px rgba(255,0,110,0.25)', ecgStroke: '#ff006e', ecgSpeed: '4s', ecgOpacity: 0.35, badgeColor: 'var(--neon-green)', badgeBg: 'rgba(6,214,160,0.12)', badgeBorder: 'rgba(6,214,160,0.25)' } : hr <= 140 ? { zone: 'Fat Burn', accentClass: 'tri-card-accent-amber', dotClass: 'live-dot-amber', bpmColor: '#f59e0b', bpmShadow: '0 0 16px rgba(245,158,11,0.7), 0 0 40px rgba(245,158,11,0.3)', ecgStroke: '#f59e0b', ecgSpeed: '2.5s', ecgOpacity: 0.4, badgeColor: 'var(--neon-amber)', badgeBg: 'rgba(245,158,11,0.12)', badgeBorder: 'rgba(245,158,11,0.25)' } : { zone: 'Peak Zone', accentClass: 'tri-card-accent-red', dotClass: 'live-dot-red', bpmColor: '#ef4444', bpmShadow: '0 0 20px rgba(239,68,68,0.8), 0 0 50px rgba(239,68,68,0.35)', ecgStroke: '#ef4444', ecgSpeed: '1.5s', ecgOpacity: 0.5, badgeColor: '#ef4444', badgeBg: 'rgba(239,68,68,0.12)', badgeBorder: 'rgba(239,68,68,0.25)' };
+$ var hrvColor = hrv >= 40 ? '#06d6a0' : hrv >= 20 ? '#f59e0b' : '#ef4444';
+$ var hrvShadow = hrv >= 40 ? '0 0 12px rgba(6,214,160,0.5), 0 0 30px rgba(6,214,160,0.2)' : hrv >= 20 ? '0 0 12px rgba(245,158,11,0.5), 0 0 30px rgba(245,158,11,0.2)' : '0 0 12px rgba(239,68,68,0.5), 0 0 30px rgba(239,68,68,0.2)';
+$ var ecgPath = (function(heartRate) { var segmentWidth = 100, baseline = 55, segments = 8; var spikeScale = Math.min(heartRate / 80, 1.8); var spikeHeight = 30 + (spikeScale * 15); var path = 'M 0 ' + baseline; for (var i = 0; i < segments; i++) { var x = i * segmentWidth; path += ' L ' + (x+10) + ' ' + baseline; path += ' Q ' + (x+18) + ' ' + (baseline - 6*spikeScale) + ' ' + (x+26) + ' ' + baseline; path += ' L ' + (x+34) + ' ' + baseline; path += ' L ' + (x+38) + ' ' + (baseline + 4*spikeScale); path += ' L ' + (x+44) + ' ' + (baseline - spikeHeight); path += ' L ' + (x+50) + ' ' + (baseline + 8*spikeScale); path += ' L ' + (x+56) + ' ' + baseline; path += ' Q ' + (x+68) + ' ' + (baseline - 10*spikeScale) + ' ' + (x+80) + ' ' + baseline; path += ' L ' + (x+100) + ' ' + baseline; } return path; })(hr);
+
+<div class=("tri-card " + state.accentClass) id="cardHR">
+  <div class="widget-header">
+    <span class="widget-label">Heart Rate</span>
+    <div class="widget-header-right">
+      <div class=("live-dot " + state.dotClass)></div>
+      <span class="widget-timestamp">live</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="hr-layout">
+      <div class="hr-ecg-bg" style=("opacity: " + state.ecgOpacity)>
+        <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style=("animation-duration: " + state.ecgSpeed)>
+          <defs>
+            <filter id="ecgGlow">
+              <feGaussianBlur stdDeviation="2" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <path id="ecgPath" class="ecg-line" d=ecgPath style=("stroke: " + state.ecgStroke)/>
+        </svg>
+      </div>
+      <div class="hr-overlay">
+        <div class="hr-overlay-left">
+          <div>
+            <span class="pulse-bpm" id="pulseBpm" data-target=hr style=("color: " + state.bpmColor + "; text-shadow: " + state.bpmShadow)>0</span><span class="pulse-bpm-unit">BPM</span>
+          </div>
+          <span class="pulse-status-badge" id="pulseStatusBadge" style=("color: " + state.badgeColor + "; background: " + state.badgeBg + "; border: 1px solid " + state.badgeBorder)>${state.zone}</span>
+        </div>
+        <div class="hr-overlay-right">
+          <span class="hr-hrv-label">HRV</span>
+          <span class="hr-hrv-value" id="pulseHrvValue" style=("color: " + hrvColor + "; text-shadow: " + hrvShadow)>${hrv}</span>
+          <span class="hr-hrv-unit">ms</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

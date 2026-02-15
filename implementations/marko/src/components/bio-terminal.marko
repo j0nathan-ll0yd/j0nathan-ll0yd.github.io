@@ -1,0 +1,55 @@
+$ var lines = input.profile.terminalLines;
+<div class="tri-card tri-card-accent-blue left-panel-bio" id="cardBio">
+  <div class="widget-header">
+    <span class="widget-label">Bio</span>
+    <div class="widget-header-right">
+      <div class="live-dot live-dot-blue"></div>
+      <span class="widget-timestamp">bash</span>
+    </div>
+  </div>
+  <div class="widget-body" style="padding: 0;">
+    <div class="terminal-container">
+      <div class="terminal-titlebar">
+        <div class="terminal-btn terminal-btn-red"></div>
+        <div class="terminal-btn terminal-btn-yellow"></div>
+        <div class="terminal-btn terminal-btn-green"></div>
+        <div class="terminal-title">zsh &mdash; about</div>
+      </div>
+      <div class="terminal-body" id="terminalBody">
+        <for|line| of=lines>
+          <if(line.type === "prompt")>
+            $ var parts = line.text.split(' ');
+            $ var prompt = parts[0];
+            $ var cmd = parts.slice(1).join(' ');
+            <div class="terminal-line" data-cmd=cmd>
+              <span class="terminal-prompt">${prompt} </span><span class="terminal-command"></span>
+            </div>
+          </if>
+          <if(line.type === "output")>
+            $ var outputText = line.text;
+            $ var hasArrow = outputText.indexOf('\u2192') === 0;
+            $ var outputVal = hasArrow ? outputText.substring(2) : outputText;
+            <if(hasArrow)>
+              <div class="terminal-line" data-output=outputVal>
+                <span class="terminal-arrow">&rarr; </span><span class="terminal-output"></span>
+              </div>
+            </if>
+            <else>
+              <div class="terminal-line" data-output=outputVal>
+                <span class="terminal-output"></span>
+              </div>
+            </else>
+          </if>
+          <if(line.type === "blank")>
+            <div class="terminal-line">&nbsp;</div>
+          </if>
+          <if(line.type === "cursor")>
+            <div class="terminal-line">
+              <span class="terminal-prompt">$ </span><span class="terminal-cursor"></span>
+            </div>
+          </if>
+        </for>
+      </div>
+    </div>
+  </div>
+</div>

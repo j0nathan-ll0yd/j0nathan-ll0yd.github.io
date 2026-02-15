@@ -1,0 +1,194 @@
+{
+  "date": "2026-02-10",
+  "quantities": {
+    "activeEnergyBurned": {
+      "value": 72.71,
+      "unit": "kcal"
+    },
+    "exerciseTime": {
+      "value": 1,
+      "unit": "min"
+    },
+    "standTime": {
+      "value": 4,
+      "unit": "min"
+    },
+    "basalEnergyBurned": {
+      "value": 821.2,
+      "unit": "kcal"
+    },
+    "distanceWalkingRunning": {
+      "value": 295.68,
+      "unit": "m"
+    },
+    "heartRate": {
+      "value": 58,
+      "unit": "count/min"
+    },
+    "hrvSDNN": {
+      "value": 30.24,
+      "unit": "ms"
+    },
+    "respiratoryRate": {
+      "value": 12.5,
+      "unit": "count/min"
+    },
+    "restingHeartRate": {
+      "value": 52,
+      "unit": "count/min"
+    },
+    "stepCount": {
+      "value": 364,
+      "unit": "count"
+    }
+  },
+  "sleep": {
+    "awake": {
+      "seconds": 1143
+    },
+    "core": {
+      "seconds": 12833
+    },
+    "deep": {
+      "seconds": 1047
+    },
+    "rem": {
+      "seconds": 6611
+    }
+  },
+  "workouts": [],
+  "ranges": {
+    "heartRate": {
+      "low": 50,
+      "normal": [
+        60,
+        100
+      ],
+      "high": 120,
+      "unit": "bpm"
+    },
+    "restingHeartRate": {
+      "excellent": [
+        0,
+        60
+      ],
+      "good": [
+        60,
+        70
+      ],
+      "fair": [
+        70,
+        80
+      ],
+      "poor": [
+        80,
+        200
+      ]
+    },
+    "hrvSDNN": {
+      "poor": [
+        0,
+        20
+      ],
+      "fair": [
+        20,
+        40
+      ],
+      "good": [
+        40,
+        60
+      ],
+      "excellent": [
+        60,
+        200
+      ]
+    },
+    "respiratoryRate": {
+      "low": [
+        0,
+        12
+      ],
+      "normal": [
+        12,
+        20
+      ],
+      "high": [
+        20,
+        40
+      ]
+    },
+    "stepCount": {
+      "goal": 10000
+    },
+    "activeEnergy": {
+      "goal": 300
+    },
+    "exerciseTime": {
+      "goal": 30
+    },
+    "standTime": {
+      "goal": 60
+    },
+    "sleep": {
+      "targetHours": 7,
+      "deepPctIdeal": [
+        13,
+        23
+      ],
+      "remPctIdeal": [
+        20,
+        25
+      ],
+      "efficiencyGood": 85
+    }
+  },
+  "derived": {
+    "totalSleepSeconds": 20491,
+    "timeInBedSeconds": 21634,
+    "sleepEfficiency": 94.7,
+    "totalCalories": 893.91,
+    "distanceKm": 0.3,
+    "deepPct": 5.1,
+    "remPct": 32.3,
+    "corePct": 62.6
+  },
+  "sleepScore": 66,
+  "sleepDurationFormatted": "5h 41m",
+  "sleepPhaseFormatted": {
+    "deep": "17m",
+    "rem": "1h 50m",
+    "core": "3h 33m",
+    "awake": "19m"
+  },
+  "sampleWorkouts": [
+    {
+      "activity_type": "Outdoor Walk",
+      "duration": 646,
+      "energy_burned": 65,
+      "distance": 1134
+    },
+    {
+      "activity_type": "Barry's Bootcamp",
+      "duration": 2929,
+      "energy_burned": 454,
+      "distance": 0
+    },
+    {
+      "activity_type": "Outdoor Walk",
+      "duration": 671,
+      "energy_burned": 104,
+      "distance": 1126
+    }
+  ],
+  "hydration": {
+    "waterOz": 72,
+    "coffeeOz": 24,
+    "waterMax": 140,
+    "coffeeMax": 48,
+    "waterRangeLo": 74,
+    "waterRangeHi": 125,
+    "coffeeRangeLo": 24,
+    "coffeeRangeHi": 40,
+    "coffeeCautionMax": 20
+  }
+}

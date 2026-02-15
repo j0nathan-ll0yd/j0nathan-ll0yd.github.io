@@ -1,0 +1,22 @@
+---
+const { system } = Astro.props;
+const lines = system.lines;
+---
+<div class="left-panel-status" id="cardSystem">
+  <div class="left-status-header">
+    <span class="widget-label">System Status</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">realtime</span>
+    </div>
+  </div>
+  <div id="systemStatus">
+    {lines.map((line: any, idx: number) => (
+      <div class="sys-line" style={`animation-delay: ${idx * 0.1}s`}>
+        <div class={`sys-dot ${line.dotClass}`} style={`animation-delay: ${idx * 0.3}s`}></div>
+        <span class="sys-key">{line.key}:</span>
+        <span class={line.valClass}>{line.value}</span>
+      </div>
+    ))}
+  </div>
+</div>

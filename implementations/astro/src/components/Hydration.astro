@@ -1,0 +1,134 @@
+---
+const { health } = Astro.props;
+const hydration = health.hydration;
+const waterPct = Math.min(hydration.waterOz / hydration.waterMax, 1) * 100;
+const coffeePct = Math.min(hydration.coffeeOz / hydration.coffeeMax, 1) * 100;
+const waterRangeLo = hydration.waterRangeLo;
+const waterRangeHi = hydration.waterRangeHi;
+const waterMax = hydration.waterMax;
+const coffeeRangeLo = hydration.coffeeRangeLo;
+const coffeeRangeHi = hydration.coffeeRangeHi;
+const coffeeMax = hydration.coffeeMax;
+const coffeeCautionMax = hydration.coffeeCautionMax;
+---
+<div class="tri-card tri-card-accent-blue" id="cardHydration">
+  <div class="widget-header">
+    <span class="widget-label">Hydration</span>
+    <div class="widget-header-right">
+      <div class="live-dot live-dot-blue"></div>
+      <span class="widget-timestamp">today</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="hydra-layout">
+      <div class="hydra-vessel hydra-vessel-water">
+        <div class="hydra-bottle">
+          <div class="hydra-bottle-cap"></div>
+          <div class="hydra-bottle-body">
+            <div class="hydra-liquid hydra-liquid-water" id="hydraWaterLiq" style="height: 0%;">
+              <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
+                <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="hydra-val" id="hydraWaterVal">0</div>
+        <div class="hydra-label">Water</div>
+      </div>
+      <div class="hydra-divider"></div>
+      <div class="hydra-vessel hydra-vessel-coffee">
+        <div class="hydra-mug">
+          <div class="hydra-mug-steam">
+            <div class="hydra-steam-line"></div>
+            <div class="hydra-steam-line"></div>
+            <div class="hydra-steam-line"></div>
+          </div>
+          <div class="hydra-mug-body">
+            <div class="hydra-liquid hydra-liquid-coffee" id="hydraCoffeeLiq" style="height: 0%;">
+              <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
+                <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="hydra-mug-handle"></div>
+        </div>
+        <div class="hydra-val" id="hydraCoffeeVal">0</div>
+        <div class="hydra-label">Coffee</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script is:inline define:vars={{ waterPct, coffeePct, waterRangeLo, waterRangeHi, waterMax, coffeeRangeLo, coffeeRangeHi, coffeeMax, coffeeCautionMax, waterOz: hydration.waterOz, coffeeOz: hydration.coffeeOz }}>
+(function() {
+  var wLiq = document.getElementById('hydraWaterLiq');
+  var cLiq = document.getElementById('hydraCoffeeLiq');
+  if (!wLiq || !cLiq) return;
+  requestAnimationFrame(function() {
+    wLiq.style.height = waterPct + '%';
+    cLiq.style.height = coffeePct + '%';
+  });
+
+  function addRange(container, lo, hi, max, cssClass, labelClass, loLabel, hiLabel) {
+    var loPct = (lo / max) * 100;
+    var hiPct = (hi / max) * 100;
+    var zone = document.createElement('div');
+    zone.className = 'hydra-range ' + cssClass;
+    zone.style.bottom = loPct + '%';
+    zone.style.height = (hiPct - loPct) + '%';
+    var topLbl = document.createElement('div');
+    topLbl.className = 'hydra-range-label hydra-range-label-top ' + labelClass;
+    topLbl.textContent = hiLabel;
+    zone.appendChild(topLbl);
+    var btmLbl = document.createElement('div');
+    btmLbl.className = 'hydra-range-label hydra-range-label-bottom ' + labelClass;
+    btmLbl.textContent = loLabel;
+    zone.appendChild(btmLbl);
+    container.appendChild(zone);
+  }
+
+  function addLine(container, val, max, cssClass, labelClass, label) {
+    var pct = (val / max) * 100;
+    var line = document.createElement('div');
+    line.className = 'hydra-range ' + cssClass;
+    line.style.bottom = pct + '%';
+    line.style.height = '0px';
+    line.style.borderBottom = 'none';
+    var lbl = document.createElement('div');
+    lbl.className = 'hydra-range-label hydra-range-label-top ' + labelClass;
+    lbl.textContent = label;
+    line.appendChild(lbl);
+    container.appendChild(line);
+  }
+
+  var bottleBody = document.querySelector('.hydra-bottle-body');
+  if (bottleBody) {
+    addRange(bottleBody, waterRangeLo, waterRangeHi, waterMax,
+      'hydra-range-water', 'hydra-range-label-water',
+      String(waterRangeLo), String(waterRangeHi));
+  }
+
+  var mugBody = document.querySelector('.hydra-mug-body');
+  if (mugBody) {
+    addRange(mugBody, coffeeRangeLo, coffeeRangeHi, coffeeMax,
+      'hydra-range-coffee', 'hydra-range-label-coffee',
+      String(coffeeRangeLo), String(coffeeRangeHi));
+    addLine(mugBody, coffeeCautionMax, coffeeMax,
+      'hydra-range-caution', 'hydra-range-label-caution', '20 limit');
+  }
+  function countUpHydra(el, target) {
+    if (!el) return;
+    var startTime = null;
+    function step(ts) {
+      if (!startTime) startTime = ts;
+      var p = Math.min((ts - startTime) / 1200, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = Math.round(target * eased) + ' oz';
+      if (p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+  countUpHydra(document.getElementById('hydraWaterVal'), waterOz);
+  countUpHydra(document.getElementById('hydraCoffeeVal'), coffeeOz);
+})();
+</script>

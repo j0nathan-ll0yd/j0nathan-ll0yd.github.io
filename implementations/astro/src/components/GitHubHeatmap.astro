@@ -1,0 +1,39 @@
+---
+const { github } = Astro.props;
+const contributions = github.contributions;
+const stats = github.stats;
+---
+<div class="tri-card tri-card-accent-green" id="cardGithub">
+  <div class="widget-header">
+    <span class="widget-label">GitHub Contributions</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">this year</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="contrib-grid">
+      {contributions.map((week: number[]) => (
+        <div class="contrib-week">
+          {week.map((level: number) => (
+            <div class="contrib-cell" data-level={level}></div>
+          ))}
+        </div>
+      ))}
+    </div>
+    <div class="gh-stats-row">
+      <div>
+        <div class="gh-stat-value">{stats.repos}</div>
+        <div class="gh-stat-label">Repos</div>
+      </div>
+      <div>
+        <div class="gh-stat-value">{stats.stars}</div>
+        <div class="gh-stat-label">Stars</div>
+      </div>
+      <div>
+        <div class="gh-stat-value">{stats.contributions.toLocaleString()}</div>
+        <div class="gh-stat-label">Contributions</div>
+      </div>
+    </div>
+  </div>
+</div>

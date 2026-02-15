@@ -1,0 +1,23 @@
+$ var commits = input.github.recentCommits;
+
+<div class="tri-card tri-card-accent-green" id="cardCommits">
+  <div class="widget-header">
+    <span class="widget-label">Recent Commits</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">latest</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="commits-terminal" id="commitsList">
+      <for|c| of=commits>
+        <div class="commit-line">
+          <span class="cm-hash">${c.hash}</span>
+          <span class="cm-msg">${c.message}</span>
+          <span class="cm-repo">${c.repo}</span>
+          <span class="cm-date">${c.date}</span>
+        </div>
+      </for>
+    </div>
+  </div>
+</div>
