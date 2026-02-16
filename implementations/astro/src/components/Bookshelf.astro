@@ -40,7 +40,7 @@ const displayBooks = sortedBooks.slice(0, 5);
           genres: meta.genres || []
         });
         return (
-          <div class="shelf-book" style={`animation-delay: ${i * 0.08}s`} data-book={bookData}>
+          <div class="shelf-book" style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" role="button" aria-label={`${b.title} by ${b.author}`}>
             <div class="shelf-cover-wrapper">
               <img src={coverSrc} width="80" height="120" alt={b.title} loading="lazy">
             </div>

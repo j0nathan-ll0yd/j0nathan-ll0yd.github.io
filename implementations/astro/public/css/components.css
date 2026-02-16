@@ -133,7 +133,7 @@
 
 .widget-timestamp {
   font-size: 0.58rem;
-  color: rgba(255,255,255,0.2);
+  color: rgba(255,255,255,0.47);
   font-family: 'Space Grotesk', monospace;
   letter-spacing: 0.5px;
 }
@@ -203,7 +203,7 @@
 .id-bio {
   font-size: 0.88rem;
   font-weight: 300;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.6);
   line-height: 1.7;
   margin-bottom: 28px;
   text-wrap: balance;
@@ -617,7 +617,7 @@
 
 .workout-rest-insight {
   font-size: 0.55rem;
-  color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.47);
   font-style: italic;
   letter-spacing: 0.5px;
   text-align: center;
@@ -679,6 +679,9 @@
   cursor: pointer;
   -webkit-user-select: none;
   user-select: none;
+  min-width: 44px;
+  min-height: 24px;
+  padding: 4px 8px;
 }
 
 .data-toggle-track {
@@ -803,7 +806,7 @@
 }
 .sleep-moon-insight {
   font-size: 0.55rem;
-  color: var(--text-muted);
+  color: rgba(255,255,255,0.47);
   text-align: center;
   font-style: italic;
 }
@@ -1448,13 +1451,15 @@
   position: absolute;
   top: 12px;
   right: 14px;
-  width: 24px;
-  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
   border-radius: 50%;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   color: var(--text-muted);
   font-size: 0.7rem;
+  font-family: inherit;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;

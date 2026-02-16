@@ -1,6 +1,6 @@
 ---
 ---
-<div class="book-overlay" id="bookOverlay">
+<div class="book-overlay" id="bookOverlay" role="dialog" aria-modal="true" aria-label="Book details" aria-hidden="true">
   <div class="book-modal" id="bookModal"></div>
 </div>
 
@@ -10,11 +10,22 @@
   var modal = document.getElementById('bookModal');
   if (!overlay || !modal) return;
 
+  var triggerElement = null;
+
   var shelfBooks = document.querySelectorAll('.shelf-book[data-book]');
   shelfBooks.forEach(function(el) {
     el.addEventListener('click', function() {
+      triggerElement = el;
       var data = JSON.parse(el.getAttribute('data-book'));
       openModal(data);
+    });
+    el.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        triggerElement = el;
+        var data = JSON.parse(el.getAttribute('data-book'));
+        openModal(data);
+      }
     });
   });
 
@@ -23,7 +34,7 @@
     var cover = 'https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX200_.jpg';
 
     var html = '<div class="book-modal-header">';
-    html += '<img class="book-modal-cover" src="' + cover + '" width="80" height="120">';
+    html += '<img class="book-modal-cover" src="' + cover + '" width="80" height="120" alt="' + b.title + ' cover">';
     html += '<div class="book-modal-info">';
     if (b.series) html += '<div class="book-modal-series">' + b.series + '</div>';
     html += '<div class="book-modal-title">' + b.title + '</div>';
@@ -36,7 +47,7 @@
       html += '</div>';
     }
     html += '</div>';
-    html += '<div class="book-modal-close" id="bookModalClose">&times;</div>';
+    html += '<button class="book-modal-close" id="bookModalClose" aria-label="Close">&times;</button>';
     html += '</div>';
 
     html += '<div class="book-modal-body">';
@@ -66,14 +77,55 @@
 
     modal.innerHTML = html;
     overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
 
-    document.getElementById('bookModalClose').addEventListener('click', function() {
-      overlay.classList.remove('visible');
+    var closeBtn = document.getElementById('bookModalClose');
+    closeBtn.addEventListener('click', function() {
+      closeModal();
+    });
+    closeBtn.focus();
+
+    trapFocus(overlay);
+  }
+
+  function closeModal() {
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+    if (triggerElement) {
+      triggerElement.focus();
+      triggerElement = null;
+    }
+  }
+
+  function trapFocus(container) {
+    container.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+
+      var focusable = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!focusable.length) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     });
   }
 
   overlay.addEventListener('click', function(e) {
-    if (e.target === overlay) overlay.classList.remove('visible');
+    if (e.target === overlay) closeModal();
   });
 })();
 </script>

@@ -89,3 +89,12 @@
   animation: shimmer 2s ease-in-out infinite;
   border-radius: 4px;
 }
+
+/* ===== REDUCED MOTION (WCAG 2.3.3) ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -26,29 +26,29 @@ const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-
 const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
 ---
 <Dashboard>
-  <canvas id="particle-canvas"></canvas>
+  <canvas id="particle-canvas" aria-hidden="true"></canvas>
 
   <div class="command-layout">
 
     <!-- LEFT PANEL: Identity -->
-    <div class="left-panel">
+    <aside class="left-panel" aria-label="Profile">
       <IdentityCard profile={profile} />
       <BioTerminal profile={profile} />
       <SystemStatus system={system} />
-    </div>
+    </aside>
 
     <!-- TOP BAR -->
-    <div class="top-bar">
-      <div class="top-bar-title">Command Center</div>
-      <div class="top-bar-clock" id="liveClock"></div>
-    </div>
+    <header class="top-bar">
+      <h1 class="top-bar-title">Command Center</h1>
+      <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label="Current time"></div>
+    </header>
 
     <!-- RIGHT PANEL: Triptych Grid -->
-    <div class="right-panel">
+    <main id="main-content" class="right-panel">
       <div class="triptych-grid" id="triptychGrid">
 
         <!-- COLUMN 1: BODY -->
-        <div class="triptych-column triptych-column-body">
+        <section class="triptych-column triptych-column-body" aria-label="Body">
           <div class="column-header column-header-pink">Body</div>
           <HeartRate health={health} />
           <DailyActivity health={health} />
@@ -56,19 +56,19 @@ const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'ut
           <NightSummary health={health} />
           <Hydration health={health} />
           <Location profile={profile} />
-        </div>
+        </section>
 
         <!-- COLUMN 2: MIND -->
-        <div class="triptych-column triptych-column-mind">
+        <section class="triptych-column triptych-column-mind" aria-label="Mind">
           <div class="column-header column-header-green">Mind</div>
           <GitHubHeatmap github={github} />
           <RecentCommits github={github} />
           <ReadingFeed reading={reading} />
           <Bookshelf books={books} />
-        </div>
+        </section>
 
       </div>
-    </div>
+    </main>
 
   </div>
 
@@ -250,7 +250,12 @@ const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'ut
 
       renderer.render(scene, camera);
     }
-    animate();
+    var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!prefersReducedMotion) {
+      animate();
+    } else {
+      renderer.render(scene, camera);
+    }
 
     window.addEventListener('resize', function() {
       camera.aspect = window.innerWidth / window.innerHeight;
