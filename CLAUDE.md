@@ -138,9 +138,8 @@ npm run build   # Outputs to dist/
 
 ### HTMX / Handlebars
 ```bash
-# No build step — serve from repository root
-python3 -m http.server 8000
-# Open http://localhost:8000/implementations/htmx/
+# No build step — serve from repository root with: npx serve .
+# Open http://localhost:3000/implementations/htmx/
 ```
 - `index.html` with `<script type="text/x-handlebars-template">` templates
 - `js/app.js` fetches JSON, compiles templates, renders widgets
@@ -159,9 +158,8 @@ npm run build   # Runs node build.js → outputs dist/index.html
 
 ### Web Awesome / Shoelace
 ```bash
-# No build step — serve from repository root
-python3 -m http.server 8000
-# Open http://localhost:8000/implementations/webawesome/
+# No build step — serve from repository root with: npx serve .
+# Open http://localhost:3000/implementations/webawesome/
 ```
 - Uses Shoelace 2.x (`sl-` prefix) web components via CDN
 - `js/app.js` loaded as `type="module"`, fetches JSON at runtime
@@ -170,19 +168,18 @@ python3 -m http.server 8000
 ## Serving Locally
 
 ```bash
-cd /Users/jlloyd/Repositories/j0nathan-ll0yd.github.io
-python3 -m http.server 8000
+npx serve .
 ```
 
 | URL | Page |
 |---|---|
-| `http://localhost:8000` | Main dashboard |
-| `http://localhost:8000/brand-guide.html` | Design system reference |
-| `http://localhost:8000/components/` | Component library |
-| `http://localhost:8000/implementations/htmx/` | HTMX implementation |
-| `http://localhost:8000/implementations/webawesome/` | Web Awesome implementation |
-| `http://localhost:8000/implementations/astro/dist/` | Astro built output |
-| `http://localhost:8000/implementations/marko/dist/` | Marko built output |
+| `http://localhost:3000` | Main dashboard |
+| `http://localhost:3000/brand-guide.html` | Design system reference |
+| `http://localhost:3000/components/` | Component library |
+| `http://localhost:3000/implementations/htmx/` | HTMX implementation |
+| `http://localhost:3000/implementations/webawesome/` | Web Awesome implementation |
+| `http://localhost:3000/implementations/astro/dist/` | Astro built output |
+| `http://localhost:3000/implementations/marko/dist/` | Marko built output |
 
 ## Verification
 

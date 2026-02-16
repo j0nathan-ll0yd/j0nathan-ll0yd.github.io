@@ -2,15 +2,22 @@
  * app.js — Data fetching and Handlebars template rendering
  * Replaces htmx-ext-client-side-templates approach with direct fetch + render.
  */
+function fetchJSON(url) {
+  return fetch(url).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+    return r.json();
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     const [profile, health, github, reading, books, system] = await Promise.all([
-      fetch('../../data/profile.json').then(r => r.json()),
-      fetch('../../data/health.json').then(r => r.json()),
-      fetch('../../data/github.json').then(r => r.json()),
-      fetch('../../data/reading.json').then(r => r.json()),
-      fetch('../../data/books.json').then(r => r.json()),
-      fetch('../../data/system.json').then(r => r.json()),
+      fetchJSON('../../data/profile.json'),
+      fetchJSON('../../data/health.json'),
+      fetchJSON('../../data/github.json'),
+      fetchJSON('../../data/reading.json'),
+      fetchJSON('../../data/books.json'),
+      fetchJSON('../../data/system.json'),
     ]);
 
     // Compile all Handlebars templates

@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Must call before requiring .marko files
-require('marko/node-require');
+require('@marko/compiler/register');
 
 const distDir = path.join(__dirname, 'dist');
 const dataDir = path.join(__dirname, '..', '..', 'data');

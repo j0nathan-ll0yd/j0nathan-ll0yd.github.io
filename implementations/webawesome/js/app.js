@@ -90,27 +90,32 @@ updateClock();
 setInterval(updateClock, 1000);
 
 // ===== FETCH ALL DATA =====
-document.addEventListener('DOMContentLoaded', async () => {
-  // Wait for all Shoelace components used in the dashboard to be defined
-  await Promise.all([
-    customElements.whenDefined('sl-card'),
-    customElements.whenDefined('sl-avatar'),
-    customElements.whenDefined('sl-badge'),
-    customElements.whenDefined('sl-switch'),
-  ]);
+function fetchJSON(url) {
+  return fetch(url).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status + ' for ' + url);
+    return r.json();
+  });
+}
 
-  // Then fetch data
-  const results = await Promise.all([
-    fetch('../../data/profile.json').then(r => r.json()),
-    fetch('../../data/health.json').then(r => r.json()),
-    fetch('../../data/github.json').then(r => r.json()),
-    fetch('../../data/reading.json').then(r => r.json()),
-    fetch('../../data/books.json').then(r => r.json()),
-    fetch('../../data/system.json').then(r => r.json()),
-  ]);
+// Wait for all Shoelace components used in the dashboard to be defined
+await Promise.all([
+  customElements.whenDefined('sl-card'),
+  customElements.whenDefined('sl-avatar'),
+  customElements.whenDefined('sl-badge'),
+  customElements.whenDefined('sl-switch'),
+]);
 
-  renderAll(results[0], results[1], results[2], results[3], results[4], results[5]);
-});
+// Then fetch data
+const results = await Promise.all([
+  fetchJSON('../../data/profile.json'),
+  fetchJSON('../../data/health.json'),
+  fetchJSON('../../data/github.json'),
+  fetchJSON('../../data/reading.json'),
+  fetchJSON('../../data/books.json'),
+  fetchJSON('../../data/system.json'),
+]);
+
+renderAll(results[0], results[1], results[2], results[3], results[4], results[5]);
 
 async function renderAll(profile, health, github, reading, books, system) {
 
