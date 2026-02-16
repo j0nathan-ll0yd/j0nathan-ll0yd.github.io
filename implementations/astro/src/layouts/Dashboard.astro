@@ -1,5 +1,9 @@
 ---
-const { title = 'Jonathan Lloyd — Command Center' } = Astro.props;
+const {
+  title = 'Jonathan Lloyd — Command Center',
+  description = 'Senior Software Engineer building things that matter. Passionate about elegant code, distributed systems, and the intersection of technology and human experience.',
+} = Astro.props;
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -7,9 +11,38 @@ const { title = 'Jonathan Lloyd — Command Center' } = Astro.props;
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#06060f">
-  <meta name="description" content="Jonathan Lloyd — Command Center">
+  <meta name="description" content={description}>
+  <link rel="canonical" href={canonicalURL}>
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+
+  <!-- OpenGraph -->
+  <meta property="og:title" content={title}>
+  <meta property="og:description" content={description}>
+  <meta property="og:type" content="website">
+  <meta property="og:url" content={canonicalURL}>
+  <meta property="og:image" content={new URL('/assets/avatar.svg', Astro.site)}>
+  <meta property="og:site_name" content="Jonathan Lloyd — Command Center">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content={title}>
+  <meta name="twitter:description" content={description}>
+  <meta name="twitter:image" content={new URL('/assets/avatar.svg', Astro.site)}>
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json" set:html={JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "Jonathan Lloyd",
+    "jobTitle": "Senior Software Engineer",
+    "url": Astro.site?.toString(),
+    "sameAs": [
+      "https://www.linkedin.com/in/lifegames/",
+      "https://github.com/j0nathan-ll0yd"
+    ],
+    "description": description
+  })} />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
