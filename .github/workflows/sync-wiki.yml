@@ -28,7 +28,7 @@ jobs:
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.WIKI_TOKEN }}
 
       - name: Check if wiki is enabled
         id: wiki-check
