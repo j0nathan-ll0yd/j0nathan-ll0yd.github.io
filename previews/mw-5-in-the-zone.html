@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>In The Zone — Man @ Work</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 40%, rgba(168, 85, 247, 0.08) 0%, #06060f 70%);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .overlay.active {
+      display: flex;
+    }
+    canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 32px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(168, 85, 247, 0.3);
+      background: rgba(168, 85, 247, 0.08);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #a855f7;
+    }
+    .badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #a855f7;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .heading {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      background: linear-gradient(135deg, #a855f7, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subheading {
+      font-size: 0.75rem;
+      font-weight: 300;
+      color: #9ca3af;
+      text-align: center;
+      max-width: 380px;
+      line-height: 1.5;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .stat-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(168, 85, 247, 0.12);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      min-width: 110px;
+    }
+    .stat-value {
+      font-size: 1.4rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #a855f7;
+    }
+    .stat-label {
+      font-size: 0.5rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .stat-unit {
+      font-size: 0.55rem;
+      font-weight: 400;
+      color: rgba(168, 85, 247, 0.6);
+    }
+    .off-duty-msg {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .off-duty-msg .text {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @media (max-width: 600px) {
+      .stats-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+      .stat-card { padding: 12px 14px; min-width: 0; }
+      .stat-value { font-size: 1.1rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .badge .dot { animation: none; opacity: 1; }
+      canvas { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay" id="overlay">
+    <canvas id="eegCanvas"></canvas>
+    <div class="content">
+      <div class="badge">
+        <span class="dot"></span>
+        Flow State Active
+      </div>
+      <div class="heading">In The Zone</div>
+      <div class="subheading">
+        Neural pathways optimized. Deep focus session in progress. Command center will resume after the flow state concludes.
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value" id="focusScore">92</span>
+          <span class="stat-label">Focus</span>
+          <span class="stat-unit">score</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="elapsed">0:00</span>
+          <span class="stat-label">Elapsed</span>
+          <span class="stat-unit">h:mm</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value" id="remaining">0:00</span>
+          <span class="stat-label">Remaining</span>
+          <span class="stat-unit">h:mm</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="off-duty-msg" id="offDutyMsg">
+    <span class="text">Off-duty — overlay inactive. (Change hour check to test.)</span>
+  </div>
+
+  <script>
+    (function() {
+      var overlay = document.getElementById('overlay');
+      var offDutyMsg = document.getElementById('offDutyMsg');
+      var canvas = document.getElementById('eegCanvas');
+      var ctx = canvas.getContext('2d');
+      var focusEl = document.getElementById('focusScore');
+      var elapsedEl = document.getElementById('elapsed');
+      var remainingEl = document.getElementById('remaining');
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // EEG wave animation
+      var time = 0;
+      var waves = [
+        { freq: 0.008, amp: 15, speed: 1.2, y: 0.20, color: 'rgba(168, 85, 247, 0.2)', width: 1.5 },
+        { freq: 0.012, amp: 10, speed: 1.8, y: 0.25, color: 'rgba(168, 85, 247, 0.12)', width: 1 },
+        { freq: 0.006, amp: 20, speed: 0.8, y: 0.75, color: 'rgba(168, 85, 247, 0.15)', width: 1.5 },
+        { freq: 0.015, amp: 8, speed: 2.2, y: 0.80, color: 'rgba(168, 85, 247, 0.08)', width: 1 }
+      ];
+
+      function drawEEG() {
+        if (prefersReducedMotion) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        for (var w = 0; w < waves.length; w++) {
+          var wave = waves[w];
+          var yCenter = canvas.height * wave.y;
+          ctx.beginPath();
+          ctx.strokeStyle = wave.color;
+          ctx.lineWidth = wave.width;
+
+          for (var x = 0; x < canvas.width; x++) {
+            var xNorm = x / canvas.width;
+            var edgeFade = Math.sin(xNorm * Math.PI);
+            var y = yCenter;
+            y += Math.sin(x * wave.freq + time * wave.speed) * wave.amp * edgeFade;
+            y += Math.sin(x * wave.freq * 2.7 + time * wave.speed * 0.7) * wave.amp * 0.4 * edgeFade;
+            // Random spikes for EEG effect
+            if (Math.random() < 0.001) {
+              y += (Math.random() - 0.5) * wave.amp * 2;
+            }
+            if (x === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+          ctx.stroke();
+        }
+
+        time += 0.04;
+        requestAnimationFrame(drawEEG);
+      }
+
+      function getPSTDate() {
+        var str = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour12: false });
+        return new Date(str);
+      }
+
+      function formatHM(totalMinutes) {
+        var h = Math.floor(totalMinutes / 60);
+        var m = totalMinutes % 60;
+        return h + ':' + (m < 10 ? '0' : '') + m;
+      }
+
+      function updateStats() {
+        var pst = getPSTDate();
+        var hour = pst.getHours();
+        var min = pst.getMinutes();
+        var currentMinutes = hour * 60 + min;
+        var startMinutes = 7 * 60;
+        var endMinutes = 15 * 60;
+
+        var elapsed = Math.max(0, currentMinutes - startMinutes);
+        var remain = Math.max(0, endMinutes - currentMinutes);
+
+        elapsedEl.textContent = formatHM(elapsed);
+        remainingEl.textContent = formatHM(remain);
+
+        // Fluctuate focus score
+        var score = 88 + Math.floor(Math.random() * 10);
+        focusEl.textContent = score;
+      }
+
+      function checkTime() {
+        var pst = getPSTDate();
+        var hour = pst.getHours();
+        var isWorkHours = !(hour >= 7 && hour < 15); // inverted for preview
+        if (isWorkHours) {
+          overlay.classList.add('active');
+          offDutyMsg.style.display = 'none';
+          updateStats();
+        } else {
+          overlay.classList.remove('active');
+          offDutyMsg.style.display = 'flex';
+        }
+      }
+
+      checkTime();
+      drawEEG();
+      setInterval(updateStats, 5000);
+      setInterval(checkTime, 60000);
+    })();
+  </script>
+</body>
+</html>

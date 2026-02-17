@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Classified Briefing — Coming Soon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .noise {
+      position: fixed;
+      inset: 0;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 256px;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .card {
+      position: relative;
+      z-index: 1;
+      width: min(520px, 90vw);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+    .classified-stamp {
+      position: absolute;
+      top: 32px;
+      right: -12px;
+      transform: rotate(12deg);
+      padding: 6px 20px;
+      border: 3px solid #ef4444;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      color: #ef4444;
+      opacity: 0.7;
+    }
+    .clearance {
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      padding: 4px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+    }
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .subject-label {
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      align-self: flex-start;
+    }
+    .subject-name {
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      align-self: flex-start;
+    }
+    .subject-name .char {
+      display: inline-block;
+      position: relative;
+    }
+    .subject-name .char.glitch {
+      animation: char-glitch 0.15s steps(2) forwards;
+    }
+    .subject-title {
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: #ff006e;
+      letter-spacing: 0.1em;
+      align-self: flex-start;
+    }
+    .redacted-block {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .redacted-line {
+      height: 10px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.06);
+      position: relative;
+      overflow: hidden;
+    }
+    .redacted-line::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 0, 110, 0.15);
+      transform: scaleX(0);
+      transform-origin: left;
+    }
+    .redacted-line.reveal::after {
+      transform: scaleX(1);
+      transition: transform 0.6s ease;
+    }
+    .redacted-line:nth-child(1) { width: 100%; }
+    .redacted-line:nth-child(2) { width: 85%; }
+    .redacted-line:nth-child(3) { width: 92%; }
+    .redacted-line:nth-child(4) { width: 60%; }
+    .footer-info {
+      display: flex;
+      gap: 24px;
+      width: 100%;
+    }
+    .info-block {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .info-label {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .info-value {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #f0f0f0;
+    }
+    .info-value.pending {
+      color: #ff006e;
+    }
+    .corner-mark {
+      position: fixed;
+      font-size: 0.5rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.15);
+    }
+    .corner-mark.tl { top: 20px; left: 20px; }
+    .corner-mark.br { bottom: 20px; right: 20px; }
+    @keyframes char-glitch {
+      0% { opacity: 0; transform: translateY(-4px); }
+      50% { opacity: 0.5; transform: translateY(2px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 600px) {
+      .card { padding: 32px 24px; }
+      .classified-stamp { top: 16px; right: -6px; font-size: 0.65rem; padding: 4px 14px; }
+      .footer-info { flex-direction: column; gap: 12px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .subject-name .char { opacity: 1 !important; }
+      .subject-name .char.glitch { animation: none; opacity: 1; }
+      .redacted-line::after { transform: scaleX(1); }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="corner-mark tl">DOC-7734 // EYES ONLY</div>
+  <div class="corner-mark br">COMMAND CENTER v2.0</div>
+  <div class="card">
+    <div class="classified-stamp">CLASSIFIED</div>
+    <div class="clearance">CLEARANCE LEVEL: PENDING</div>
+    <div class="divider"></div>
+    <div class="subject-label">Subject</div>
+    <div class="subject-name" id="subjectName"></div>
+    <div class="subject-title">Software Engineer — Command Center</div>
+    <div class="divider"></div>
+    <div class="redacted-block" id="redactedBlock">
+      <div class="redacted-line"></div>
+      <div class="redacted-line"></div>
+      <div class="redacted-line"></div>
+      <div class="redacted-line"></div>
+    </div>
+    <div class="divider"></div>
+    <div class="footer-info">
+      <div class="info-block">
+        <span class="info-label">Status</span>
+        <span class="info-value pending">Briefing Pending</span>
+      </div>
+      <div class="info-block">
+        <span class="info-label">Classification</span>
+        <span class="info-value">TOP SECRET</span>
+      </div>
+      <div class="info-block">
+        <span class="info-label">Auth</span>
+        <span class="info-value" id="authCode">————</span>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var name = 'JONATHAN LLOYD';
+      var container = document.getElementById('subjectName');
+      var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&';
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      // Create char spans
+      for (var i = 0; i < name.length; i++) {
+        var span = document.createElement('span');
+        span.className = 'char';
+        span.textContent = name[i] === ' ' ? '\u00A0' : chars[Math.floor(Math.random() * chars.length)];
+        span.style.opacity = '0';
+        span.setAttribute('data-target', name[i]);
+        container.appendChild(span);
+      }
+
+      var charEls = container.querySelectorAll('.char');
+
+      if (prefersReducedMotion) {
+        for (var j = 0; j < charEls.length; j++) {
+          charEls[j].textContent = charEls[j].getAttribute('data-target') === ' ' ? '\u00A0' : charEls[j].getAttribute('data-target');
+          charEls[j].style.opacity = '1';
+        }
+      } else {
+        // Glitch reveal each character
+        for (var k = 0; k < charEls.length; k++) {
+          (function(el, index) {
+            var target = el.getAttribute('data-target');
+            var scrambleCount = 0;
+            var maxScrambles = 4 + Math.floor(Math.random() * 4);
+            var startDelay = 600 + index * 80;
+
+            setTimeout(function() {
+              el.style.opacity = '1';
+              var interval = setInterval(function() {
+                if (scrambleCount >= maxScrambles) {
+                  clearInterval(interval);
+                  el.textContent = target === ' ' ? '\u00A0' : target;
+                  el.classList.add('glitch');
+                } else {
+                  el.textContent = chars[Math.floor(Math.random() * chars.length)];
+                  scrambleCount++;
+                }
+              }, 60);
+            }, startDelay);
+          })(charEls[k], k);
+        }
+      }
+
+      // Reveal redacted lines
+      var redactedLines = document.querySelectorAll('.redacted-line');
+      for (var r = 0; r < redactedLines.length; r++) {
+        (function(line, idx) {
+          setTimeout(function() {
+            line.classList.add('reveal');
+          }, 2000 + idx * 300);
+        })(redactedLines[r], r);
+      }
+
+      // Generate auth code
+      var authEl = document.getElementById('authCode');
+      setTimeout(function() {
+        var code = '';
+        var hexChars = '0123456789ABCDEF';
+        for (var h = 0; h < 8; h++) {
+          code += hexChars[Math.floor(Math.random() * hexChars.length)];
+        }
+        authEl.textContent = code;
+      }, 3200);
+    })();
+  </script>
+</body>
+</html>

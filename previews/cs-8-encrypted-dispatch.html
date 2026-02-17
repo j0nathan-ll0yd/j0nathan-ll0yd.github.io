@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Encrypted Dispatch — Coming Soon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      width: min(460px, 90vw);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      padding: 44px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+    }
+    /* CSS lock icon */
+    .lock {
+      position: relative;
+      width: 40px;
+      height: 32px;
+      background: rgba(255, 0, 110, 0.15);
+      border: 2px solid #ff006e;
+      border-radius: 6px;
+    }
+    .lock::before {
+      content: '';
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 22px;
+      height: 18px;
+      border: 2px solid #ff006e;
+      border-bottom: none;
+      border-radius: 12px 12px 0 0;
+    }
+    .lock::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #ff006e;
+      box-shadow: 0 0 8px rgba(255, 0, 110, 0.6);
+    }
+    .seal-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #ff006e;
+      padding: 4px 16px;
+      border: 1px solid rgba(255, 0, 110, 0.25);
+      border-radius: 4px;
+    }
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .sender {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field-label {
+      font-size: 0.5rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .field-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .field-value.muted {
+      color: #9ca3af;
+      font-weight: 400;
+    }
+    .encrypted-body {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .cipher-line {
+      font-size: 0.65rem;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.08em;
+      color: rgba(255, 0, 110, 0.3);
+      word-break: break-all;
+      line-height: 1.6;
+    }
+    .message-note {
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 300;
+      color: #9ca3af;
+      line-height: 1.5;
+      max-width: 340px;
+    }
+    .eta-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .eta-value {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: #3a86ff;
+    }
+    .corner-id {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      font-size: 0.45rem;
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      color: rgba(255, 255, 255, 0.1);
+    }
+    @media (max-width: 600px) {
+      .card { padding: 32px 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      /* No animations to disable, static by design */
+    }
+  </style>
+</head>
+<body>
+  <div class="corner-id">DISPATCH-0x7E3A // SEALED</div>
+  <div class="card">
+    <div class="lock"></div>
+    <div class="seal-label">Dispatch Encrypted</div>
+    <div class="divider"></div>
+    <div class="sender">
+      <span class="field-label">From</span>
+      <span class="field-value">Jonathan Lloyd</span>
+    </div>
+    <div class="sender">
+      <span class="field-label">Subject</span>
+      <span class="field-value">Command Center — Portfolio</span>
+    </div>
+    <div class="sender">
+      <span class="field-label">Status</span>
+      <span class="field-value muted">Sealed until launch</span>
+    </div>
+    <div class="divider"></div>
+    <div class="encrypted-body" id="cipherBlock"></div>
+    <div class="divider"></div>
+    <div class="message-note">
+      This content is encrypted and will be revealed on launch day. The decryption key is being forged.
+    </div>
+    <div class="eta-block">
+      <span class="field-label">Estimated Arrival</span>
+      <span class="eta-value">COMING SOON</span>
+    </div>
+  </div>
+  <script>
+    (function() {
+      // Generate cipher text
+      var cipherBlock = document.getElementById('cipherBlock');
+      var hexChars = '0123456789abcdef';
+      for (var row = 0; row < 3; row++) {
+        var line = document.createElement('div');
+        line.className = 'cipher-line';
+        var text = '';
+        var groupCount = 8 + Math.floor(Math.random() * 4);
+        for (var g = 0; g < groupCount; g++) {
+          if (g > 0) text += ' ';
+          for (var c = 0; c < 4; c++) {
+            text += hexChars[Math.floor(Math.random() * hexChars.length)];
+          }
+        }
+        line.textContent = text;
+        cipherBlock.appendChild(line);
+      }
+
+      // Slowly re-shuffle cipher text every few seconds
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (!prefersReducedMotion) {
+        setInterval(function() {
+          var lines = cipherBlock.querySelectorAll('.cipher-line');
+          // Pick one random line to re-generate
+          var idx = Math.floor(Math.random() * lines.length);
+          var newText = '';
+          var groups = 8 + Math.floor(Math.random() * 4);
+          for (var g = 0; g < groups; g++) {
+            if (g > 0) newText += ' ';
+            for (var ch = 0; ch < 4; ch++) {
+              newText += hexChars[Math.floor(Math.random() * hexChars.length)];
+            }
+          }
+          lines[idx].textContent = newText;
+        }, 3000);
+      }
+    })();
+  </script>
+</body>
+</html>

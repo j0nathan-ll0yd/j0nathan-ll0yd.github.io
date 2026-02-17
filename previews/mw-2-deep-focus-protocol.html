@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Focus Protocol — Man @ Work</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #06060f;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 32px;
+    }
+    .overlay.active {
+      display: flex;
+    }
+    /* Scanline drift */
+    .scanline {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.2), transparent);
+      animation: scanline 6s linear infinite;
+      z-index: 10000;
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      background: rgba(245, 158, 11, 0.06);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #f59e0b;
+    }
+    .badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #f59e0b;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    /* SVG countdown ring */
+    .ring-container {
+      position: relative;
+      width: 220px;
+      height: 220px;
+    }
+    .ring-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+    .ring-bg {
+      fill: none;
+      stroke: rgba(245, 158, 11, 0.1);
+      stroke-width: 3;
+    }
+    .ring-progress {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 3;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 1s linear;
+      filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4));
+    }
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .ring-time {
+      font-size: 2.2rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: #f59e0b;
+    }
+    .ring-label {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .heading {
+      font-size: 1.3rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+    .subheading {
+      font-size: 0.75rem;
+      font-weight: 300;
+      color: #9ca3af;
+      text-align: center;
+      max-width: 360px;
+      line-height: 1.5;
+    }
+    .off-duty-msg {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .off-duty-msg .text {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    @keyframes scanline {
+      0% { top: -1px; }
+      100% { top: 100%; }
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .scanline { animation: none; display: none; }
+      .badge .dot { animation: none; opacity: 1; }
+      .ring-progress { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay" id="overlay">
+    <div class="scanline"></div>
+    <div class="badge">
+      <span class="dot"></span>
+      Deep Focus Protocol
+    </div>
+    <div class="ring-container">
+      <svg class="ring-svg" viewBox="0 0 220 220">
+        <circle class="ring-bg" cx="110" cy="110" r="100"></circle>
+        <circle class="ring-progress" id="ringProgress" cx="110" cy="110" r="100"
+          stroke-dasharray="628.318" stroke-dashoffset="0"></circle>
+      </svg>
+      <div class="ring-center">
+        <span class="ring-time" id="ringTime">--:--</span>
+        <span class="ring-label">Until Restore</span>
+      </div>
+    </div>
+    <div class="heading">Session in Progress</div>
+    <div class="subheading">
+      Deep work mode is active. The command center will automatically restore when the focus session ends at 3:00 PM PST.
+    </div>
+  </div>
+
+  <div class="off-duty-msg" id="offDutyMsg">
+    <span class="text">Off-duty — overlay inactive. (Change hour check to test.)</span>
+  </div>
+
+  <script>
+    (function() {
+      var overlay = document.getElementById('overlay');
+      var offDutyMsg = document.getElementById('offDutyMsg');
+      var ringTime = document.getElementById('ringTime');
+      var ringProgress = document.getElementById('ringProgress');
+      var circumference = 2 * Math.PI * 100; // 628.318
+
+      function getPSTDate() {
+        var str = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour12: false });
+        return new Date(str);
+      }
+
+      function checkAndUpdate() {
+        var pst = getPSTDate();
+        var hour = pst.getHours();
+        var isWorkHours = !(hour >= 7 && hour < 15); // inverted for preview
+
+        if (isWorkHours) {
+          overlay.classList.add('active');
+          offDutyMsg.style.display = 'none';
+
+          // Calculate remaining time until 15:00
+          var endMinutes = 15 * 60;
+          var startMinutes = 7 * 60;
+          var currentMinutes = hour * 60 + pst.getMinutes();
+          var totalWindow = endMinutes - startMinutes; // 480 minutes
+          var remaining = endMinutes - currentMinutes;
+          var elapsed = currentMinutes - startMinutes;
+
+          // Ring progress (how much time has elapsed)
+          var progress = elapsed / totalWindow;
+          var offset = circumference * (1 - progress);
+          ringProgress.setAttribute('stroke-dashoffset', offset);
+
+          // Countdown display
+          var rHours = Math.floor(remaining / 60);
+          var rMins = remaining % 60;
+          ringTime.textContent =
+            (rHours < 10 ? '0' : '') + rHours + ':' +
+            (rMins < 10 ? '0' : '') + rMins;
+        } else {
+          overlay.classList.remove('active');
+          offDutyMsg.style.display = 'flex';
+        }
+      }
+
+      checkAndUpdate();
+      setInterval(checkAndUpdate, 1000);
+    })();
+  </script>
+</body>
+</html>

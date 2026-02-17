@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Signal Acquiring — Coming Soon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .overlay {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 0, 110, 0.3);
+      background: rgba(255, 0, 110, 0.08);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #ff006e;
+    }
+    .status-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ff006e;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .name {
+      font-size: clamp(2rem, 6vw, 4rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ff006e, #3a86ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-shadow: none;
+      position: relative;
+    }
+    .name::after {
+      content: 'JONATHAN LLOYD';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, #ff006e, #3a86ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: blur(20px);
+      opacity: 0.5;
+      z-index: -1;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      font-weight: 300;
+      color: #9ca3af;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+    }
+    .progress-container {
+      width: min(320px, 80vw);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 16px;
+    }
+    .progress-bar {
+      height: 2px;
+      background: rgba(6, 214, 160, 0.15);
+      border-radius: 1px;
+      overflow: hidden;
+      position: relative;
+    }
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #06d6a0;
+      border-radius: 1px;
+      box-shadow: 0 0 12px rgba(6, 214, 160, 0.5);
+      transition: width 0.3s ease;
+    }
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #06d6a0;
+    }
+    .scanline {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(6, 214, 160, 0.3), transparent);
+      animation: scanline 4s linear infinite;
+      z-index: 10;
+      pointer-events: none;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes scanline {
+      0% { top: -2px; }
+      100% { top: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .status-badge .dot { animation: none; opacity: 1; }
+      .scanline { animation: none; display: none; }
+      canvas { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="particles"></canvas>
+  <div class="scanline"></div>
+  <div class="overlay">
+    <div class="status-badge">
+      <span class="dot"></span>
+      Signal Acquiring
+    </div>
+    <div class="name">JONATHAN LLOYD</div>
+    <div class="subtitle">Command Center Initializing</div>
+    <div class="progress-container">
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="progress-label">
+        <span>ACQUIRING</span>
+        <span id="progressPercent">0%</span>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      // --- Particle Network ---
+      var canvas = document.getElementById('particles');
+      var ctx = canvas.getContext('2d');
+      var particles = [];
+      var PARTICLE_COUNT = 80;
+      var CONNECTION_DIST = 150;
+      var mouse = { x: -1000, y: -1000 };
+
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      document.addEventListener('mousemove', function(e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+
+      function Particle() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 0.5;
+        this.vy = (Math.random() - 0.5) * 0.5;
+        this.radius = Math.random() * 1.5 + 0.5;
+      }
+
+      Particle.prototype.update = function() {
+        this.x += this.vx;
+        this.y += this.vy;
+        if (this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.vy *= -1;
+      };
+
+      Particle.prototype.draw = function() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(58, 134, 255, 0.6)';
+        ctx.fill();
+      };
+
+      for (var i = 0; i < PARTICLE_COUNT; i++) {
+        particles.push(new Particle());
+      }
+
+      function drawConnections() {
+        for (var i = 0; i < particles.length; i++) {
+          for (var j = i + 1; j < particles.length; j++) {
+            var dx = particles[i].x - particles[j].x;
+            var dy = particles[i].y - particles[j].y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < CONNECTION_DIST) {
+              var opacity = (1 - dist / CONNECTION_DIST) * 0.15;
+              ctx.beginPath();
+              ctx.moveTo(particles[i].x, particles[i].y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              ctx.strokeStyle = 'rgba(255, 0, 110, ' + opacity + ')';
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            }
+          }
+          // Mouse connections
+          var mdx = particles[i].x - mouse.x;
+          var mdy = particles[i].y - mouse.y;
+          var mdist = Math.sqrt(mdx * mdx + mdy * mdy);
+          if (mdist < 200) {
+            var mopacity = (1 - mdist / 200) * 0.3;
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(mouse.x, mouse.y);
+            ctx.strokeStyle = 'rgba(58, 134, 255, ' + mopacity + ')';
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Check reduced motion
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function animate() {
+        if (prefersReducedMotion) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (var i = 0; i < particles.length; i++) {
+          particles[i].update();
+          particles[i].draw();
+        }
+        drawConnections();
+        requestAnimationFrame(animate);
+      }
+      animate();
+
+      // --- Progress Bar ---
+      var progress = 0;
+      var fill = document.getElementById('progressFill');
+      var percent = document.getElementById('progressPercent');
+      function updateProgress() {
+        if (progress < 100) {
+          progress += Math.random() * 2 + 0.5;
+          if (progress > 100) progress = 100;
+          fill.style.width = progress + '%';
+          percent.textContent = Math.floor(progress) + '%';
+          var delay = Math.random() * 200 + 100;
+          setTimeout(updateProgress, delay);
+        }
+      }
+      updateProgress();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Launch Window — Coming Soon</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Starfield dots */
+    .stars {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 0;
+    }
+    .star {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      animation: twinkle 4s ease-in-out infinite;
+    }
+    .content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 36px;
+    }
+    .badge {
+      padding: 5px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(58, 134, 255, 0.25);
+      background: rgba(58, 134, 255, 0.06);
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #3a86ff;
+    }
+    .name {
+      font-size: clamp(1.8rem, 5vw, 3rem);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      text-align: center;
+    }
+    .name .first { color: #f0f0f0; }
+    .name .last { color: #3a86ff; }
+    .countdown {
+      display: flex;
+      gap: 12px;
+    }
+    .countdown-block {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 16px 12px;
+      min-width: 72px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .countdown-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .countdown-value.days { color: #ff006e; }
+    .countdown-value.hours { color: #3a86ff; }
+    .countdown-value.mins { color: #06d6a0; }
+    .countdown-value.secs { color: #f59e0b; }
+    .countdown-label {
+      font-size: 0.5rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .tagline {
+      font-size: 0.75rem;
+      font-weight: 300;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.6;
+      max-width: 360px;
+    }
+    .date-label {
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: rgba(255, 255, 255, 0.2);
+    }
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.8; }
+    }
+    @media (max-width: 500px) {
+      .countdown { gap: 8px; }
+      .countdown-block { min-width: 60px; padding: 12px 8px; }
+      .countdown-value { font-size: 1.4rem; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .star { animation: none; opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stars" id="stars"></div>
+  <div class="content">
+    <div class="badge">Launch Window</div>
+    <div class="name">
+      <span class="first">JONATHAN </span><span class="last">LLOYD</span>
+    </div>
+    <div class="countdown">
+      <div class="countdown-block">
+        <span class="countdown-value days" id="cDays">--</span>
+        <span class="countdown-label">Days</span>
+      </div>
+      <div class="countdown-block">
+        <span class="countdown-value hours" id="cHours">--</span>
+        <span class="countdown-label">Hours</span>
+      </div>
+      <div class="countdown-block">
+        <span class="countdown-value mins" id="cMins">--</span>
+        <span class="countdown-label">Min</span>
+      </div>
+      <div class="countdown-block">
+        <span class="countdown-value secs" id="cSecs">--</span>
+        <span class="countdown-label">Sec</span>
+      </div>
+    </div>
+    <div class="tagline">
+      A new command center is being built. Something worth waiting for.
+    </div>
+    <div class="date-label" id="targetDate"></div>
+  </div>
+  <script>
+    (function() {
+      // Generate starfield
+      var starsContainer = document.getElementById('stars');
+      for (var i = 0; i < 60; i++) {
+        var star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.animationDelay = (Math.random() * 4) + 's';
+        star.style.animationDuration = (3 + Math.random() * 3) + 's';
+        if (Math.random() > 0.7) {
+          star.style.width = '2px';
+          star.style.height = '2px';
+        }
+        starsContainer.appendChild(star);
+      }
+
+      // Countdown to ~30 days from now (adjust target as needed)
+      var now = new Date();
+      var target = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      target.setHours(12, 0, 0, 0);
+
+      var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      document.getElementById('targetDate').textContent =
+        'TARGET: ' + months[target.getMonth()] + ' ' + target.getDate() + ', ' + target.getFullYear();
+
+      function updateCountdown() {
+        var diff = target.getTime() - Date.now();
+        if (diff <= 0) diff = 0;
+
+        var days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        var hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        var mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        var secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+        document.getElementById('cDays').textContent = days < 10 ? '0' + days : days;
+        document.getElementById('cHours').textContent = hours < 10 ? '0' + hours : hours;
+        document.getElementById('cMins').textContent = mins < 10 ? '0' + mins : mins;
+        document.getElementById('cSecs').textContent = secs < 10 ? '0' + secs : secs;
+      }
+
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+    })();
+  </script>
+</body>
+</html>

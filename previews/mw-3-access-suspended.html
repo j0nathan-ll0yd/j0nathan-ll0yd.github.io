@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Access Suspended — Man @ Work</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #06060f;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.active {
+      display: flex;
+    }
+    .terminal {
+      width: min(540px, 90vw);
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(239, 68, 68, 0.15);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .terminal-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .terminal-dot.red { background: #ef4444; }
+    .terminal-dot.amber { background: #f59e0b; }
+    .terminal-dot.green { background: #06d6a0; }
+    .terminal-title {
+      flex: 1;
+      text-align: center;
+      font-size: 0.6rem;
+      color: #9ca3af;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .terminal-body {
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    .error-code {
+      font-size: clamp(4rem, 12vw, 7rem);
+      font-weight: 700;
+      color: #ef4444;
+      line-height: 1;
+      text-shadow: 0 0 40px rgba(239, 68, 68, 0.3);
+    }
+    .error-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #ef4444;
+    }
+    .error-message {
+      font-size: 0.75rem;
+      font-weight: 300;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.5;
+      max-width: 380px;
+    }
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .log-section {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .log-line {
+      font-size: 0.65rem;
+      font-weight: 400;
+      font-variant-numeric: tabular-nums;
+      opacity: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .log-line.visible {
+      opacity: 1;
+      transition: opacity 0.2s ease;
+    }
+    .log-ts { color: #9ca3af; }
+    .log-err { color: #ef4444; }
+    .log-warn { color: #f59e0b; }
+    .log-ok { color: #06d6a0; }
+    .countdown-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .countdown-label {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .countdown-time {
+      font-size: 1.8rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: #06d6a0;
+    }
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 12px;
+      background: #06d6a0;
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+      margin-left: 4px;
+    }
+    .off-duty-msg {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .off-duty-msg .text {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    @media (max-width: 600px) {
+      .terminal-body { padding: 24px 20px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cursor { animation: none; opacity: 1; }
+      .log-line { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay" id="overlay">
+    <div class="terminal">
+      <div class="terminal-header">
+        <div class="terminal-dot red"></div>
+        <div class="terminal-dot amber"></div>
+        <div class="terminal-dot green"></div>
+        <div class="terminal-title">Access Control</div>
+      </div>
+      <div class="terminal-body">
+        <div class="error-code">403</div>
+        <div class="error-label">Access Suspended</div>
+        <div class="error-message">
+          Command center access is temporarily suspended during work hours. System will auto-restore at end of shift.
+        </div>
+        <div class="divider"></div>
+        <div class="log-section" id="logSection"></div>
+        <div class="divider"></div>
+        <div class="countdown-section">
+          <span class="countdown-label">Auto-Restore In</span>
+          <span class="countdown-time" id="countdown">--:--:--</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="off-duty-msg" id="offDutyMsg">
+    <span class="text">Off-duty — overlay inactive. (Change hour check to test.)</span>
+  </div>
+
+  <script>
+    (function() {
+      var overlay = document.getElementById('overlay');
+      var offDutyMsg = document.getElementById('offDutyMsg');
+      var countdownEl = document.getElementById('countdown');
+      var logSection = document.getElementById('logSection');
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var logLines = [
+        { ts: '07:00:01', cls: 'log-warn', text: 'Shift schedule triggered' },
+        { ts: '07:00:02', cls: 'log-err', text: 'ACCESS DENIED — work hours active' },
+        { ts: '07:00:03', cls: 'log-warn', text: 'Suspending public endpoints' },
+        { ts: '07:00:04', cls: 'log-ok', text: 'Countdown timer initialized' },
+        { ts: '07:00:05', cls: 'log-ok', text: 'Auto-restore scheduled for 15:00 PST' }
+      ];
+
+      // Build log lines
+      for (var i = 0; i < logLines.length; i++) {
+        var el = document.createElement('div');
+        el.className = 'log-line';
+        el.innerHTML =
+          '<span class="log-ts">[' + logLines[i].ts + ']</span> ' +
+          '<span class="' + logLines[i].cls + '">' + logLines[i].text + '</span>';
+        logSection.appendChild(el);
+      }
+
+      // Add cursor to last line
+      var allLogLines = logSection.querySelectorAll('.log-line');
+      if (allLogLines.length > 0) {
+        allLogLines[allLogLines.length - 1].innerHTML += '<span class="cursor"></span>';
+      }
+
+      // Typewriter reveal
+      function revealLogs() {
+        for (var j = 0; j < allLogLines.length; j++) {
+          (function(line, idx) {
+            if (prefersReducedMotion) {
+              line.classList.add('visible');
+            } else {
+              setTimeout(function() {
+                line.classList.add('visible');
+              }, 400 + idx * 500);
+            }
+          })(allLogLines[j], j);
+        }
+      }
+
+      function getPSTDate() {
+        var str = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour12: false });
+        return new Date(str);
+      }
+
+      function updateCountdown() {
+        var pst = getPSTDate();
+        var hour = pst.getHours();
+        var min = pst.getMinutes();
+        var sec = pst.getSeconds();
+
+        var endSeconds = 15 * 3600;
+        var currentSeconds = hour * 3600 + min * 60 + sec;
+        var remaining = endSeconds - currentSeconds;
+
+        if (remaining <= 0) remaining = 0;
+
+        var rH = Math.floor(remaining / 3600);
+        var rM = Math.floor((remaining % 3600) / 60);
+        var rS = remaining % 60;
+
+        countdownEl.textContent =
+          (rH < 10 ? '0' : '') + rH + ':' +
+          (rM < 10 ? '0' : '') + rM + ':' +
+          (rS < 10 ? '0' : '') + rS;
+      }
+
+      function checkTime() {
+        var pst = getPSTDate();
+        var hour = pst.getHours();
+        var isWorkHours = !(hour >= 7 && hour < 15); // inverted for preview
+
+        if (isWorkHours) {
+          overlay.classList.add('active');
+          offDutyMsg.style.display = 'none';
+          revealLogs();
+          updateCountdown();
+        } else {
+          overlay.classList.remove('active');
+          offDutyMsg.style.display = 'flex';
+        }
+      }
+
+      checkTime();
+      setInterval(function() {
+        var pst = getPSTDate();
+        var hour = pst.getHours();
+        if (hour >= 7 && hour < 15) {
+          updateCountdown();
+        }
+      }, 1000);
+      setInterval(checkTime, 60000);
+    })();
+  </script>
+</body>
+</html>

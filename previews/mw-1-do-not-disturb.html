@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Do Not Disturb — Man @ Work</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #06060f;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .overlay.active {
+      display: flex;
+    }
+    .shift-badge {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      background: rgba(239, 68, 68, 0.08);
+      font-size: 0.55rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #ef4444;
+    }
+    .shift-badge .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #ef4444;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .card {
+      width: min(440px, 88vw);
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      backdrop-filter: blur(16px);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    .no-entry {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 4px solid #ef4444;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 30px rgba(239, 68, 68, 0.15);
+    }
+    .no-entry::after {
+      content: '';
+      width: 44px;
+      height: 4px;
+      background: #ef4444;
+      border-radius: 2px;
+    }
+    .heading {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-align: center;
+    }
+    .subheading {
+      font-size: 0.75rem;
+      font-weight: 300;
+      color: #9ca3af;
+      text-align: center;
+      line-height: 1.5;
+      max-width: 320px;
+    }
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .clock-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .clock-label {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .clock-time {
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      font-variant-numeric: tabular-nums;
+      color: #f59e0b;
+    }
+    .clock-zone {
+      font-size: 0.6rem;
+      font-weight: 400;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    .schedule {
+      display: flex;
+      gap: 24px;
+    }
+    .schedule-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .schedule-label {
+      font-size: 0.5rem;
+      font-weight: 500;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .schedule-value {
+      font-size: 0.8rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+    .schedule-value.start { color: #ef4444; }
+    .schedule-value.end { color: #06d6a0; }
+    .off-duty-msg {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .off-duty-msg .text {
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @media (max-width: 600px) {
+      .card { padding: 32px 24px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .shift-badge .dot { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Overlay shown during work hours -->
+  <div class="overlay" id="overlay">
+    <div class="shift-badge">
+      <span class="dot"></span>
+      Shift Active
+    </div>
+    <div class="card">
+      <div class="no-entry"></div>
+      <div class="heading">Do Not Disturb</div>
+      <div class="subheading">
+        Jonathan is currently heads-down at work. The command center will be available after hours.
+      </div>
+      <div class="divider"></div>
+      <div class="clock-section">
+        <span class="clock-label">Current Time (PST)</span>
+        <span class="clock-time" id="clockTime">--:--:--</span>
+        <span class="clock-zone">Pacific Standard Time</span>
+      </div>
+      <div class="schedule">
+        <div class="schedule-block">
+          <span class="schedule-label">Shift Start</span>
+          <span class="schedule-value start">07:00</span>
+        </div>
+        <div class="schedule-block">
+          <span class="schedule-label">Shift End</span>
+          <span class="schedule-value end">15:00</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shown when off-duty -->
+  <div class="off-duty-msg" id="offDutyMsg" style="display:none;">
+    <span class="text">Off-duty — overlay inactive. (Change hour check to test.)</span>
+  </div>
+
+  <script>
+    (function() {
+      var overlay = document.getElementById('overlay');
+      var offDutyMsg = document.getElementById('offDutyMsg');
+      var clockEl = document.getElementById('clockTime');
+
+      function getPSTHour() {
+        var pst = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour12: false });
+        var parts = pst.split(', ');
+        var timeParts = parts[1].split(':');
+        return parseInt(timeParts[0], 10);
+      }
+
+      function getPSTTime() {
+        return new Date().toLocaleString('en-US', {
+          timeZone: 'America/Los_Angeles',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      }
+
+      function checkTime() {
+        var hour = getPSTHour();
+        var isWorkHours = !(hour >= 7 && hour < 15); // inverted for preview
+        if (isWorkHours) {
+          overlay.classList.add('active');
+          offDutyMsg.style.display = 'none';
+        } else {
+          overlay.classList.remove('active');
+          offDutyMsg.style.display = 'flex';
+        }
+      }
+
+      function updateClock() {
+        clockEl.textContent = getPSTTime();
+      }
+
+      checkTime();
+      updateClock();
+      setInterval(updateClock, 1000);
+      setInterval(checkTime, 60000);
+    })();
+  </script>
+</body>
+</html>
