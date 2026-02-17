@@ -1,0 +1,131 @@
+name: Sync Wiki
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'docs/wiki/**'
+      - '.github/scripts/sync-wiki.sh'
+      - '.github/scripts/generate-sidebar.sh'
+      - '.github/workflows/sync-wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          path: main
+
+      - name: Checkout wiki repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if wiki is enabled
+        id: wiki-check
+        run: |
+          # Try to clone wiki, if it fails, wiki is not enabled
+          if git ls-remote --heads https://github.com/${{ github.repository }}.wiki.git 2>/dev/null; then
+            echo "wiki_enabled=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Wiki is enabled for this repository"
+          else
+            echo "wiki_enabled=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ Wiki is not enabled. Please enable it in repository settings."
+            exit 0
+          fi
+
+      - name: Sync wiki content
+        if: steps.wiki-check.outputs.wiki_enabled == 'true'
+        run: |
+          echo "📝 Starting wiki sync..."
+
+          # Make scripts executable
+          chmod +x main/.github/scripts/sync-wiki.sh
+          chmod +x main/.github/scripts/generate-sidebar.sh
+
+          # Set environment variables
+          export SOURCE_DIR="main/docs/wiki"
+          export WIKI_DIR="wiki"
+          export REPO_URL="https://github.com/${{ github.repository }}"
+
+          # Run sync script
+          bash main/.github/scripts/sync-wiki.sh
+
+      - name: Generate sidebar
+        if: steps.wiki-check.outputs.wiki_enabled == 'true'
+        run: |
+          echo "📋 Generating sidebar navigation..."
+
+          export SOURCE_DIR="main/docs/wiki"
+          export WIKI_DIR="wiki"
+          bash main/.github/scripts/generate-sidebar.sh
+
+      - name: Generate footer
+        if: steps.wiki-check.outputs.wiki_enabled == 'true'
+        run: |
+          echo "📄 Generating footer..."
+
+          cat > wiki/_Footer.md << 'EOF'
+          ---
+
+          *This wiki is automatically synced from the [main repository](https://github.com/${{ github.repository }}/tree/master/docs/wiki). To make changes, edit the files in `docs/wiki/` and submit a pull request.*
+          EOF
+
+      - name: Commit and push wiki changes
+        if: steps.wiki-check.outputs.wiki_enabled == 'true'
+        run: |
+          cd wiki
+
+          # Configure git
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+
+          # Check for changes
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "📤 Changes detected, committing..."
+            git add -A
+            git commit -m "Sync wiki from main repository
+
+            Synced from commit: ${{ github.sha }}
+            Triggered by: ${{ github.event_name }}
+
+            [View source](https://github.com/${{ github.repository }}/tree/${{ github.sha }}/docs/wiki)"
+
+            git push
+            echo "✅ Wiki synced successfully!"
+          else
+            echo "ℹ️ No changes to sync"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          if [ "${{ steps.wiki-check.outputs.wiki_enabled }}" == "true" ]; then
+            {
+              echo "## Wiki Sync Summary"
+              echo "✅ Wiki sync completed"
+              echo ""
+              echo "- Repository: ${{ github.repository }}"
+              echo "- Commit: ${{ github.sha }}"
+              echo "- Wiki URL: https://github.com/${{ github.repository }}/wiki"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Wiki Sync Summary"
+              echo "⚠️ Wiki is not enabled for this repository"
+              echo ""
+              echo "To enable wiki sync:"
+              echo "1. Go to [Repository Settings](https://github.com/${{ github.repository }}/settings)"
+              echo "2. Under Features, check 'Wikis'"
+              echo "3. Re-run this workflow"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

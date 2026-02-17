@@ -23,8 +23,6 @@ jobs:
 
       - name: Build Astro
         uses: withastro/action@v3
-        with:
-          path: implementations/astro
 
   deploy:
     needs: build

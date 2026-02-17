@@ -1,13 +1,8 @@
 .DS_Store
 .idea/
 node_modules/
+dist/
+.astro/
 _site/
 .jekyll-cache/
 .sass-cache/
-
-# Implementation build outputs
-implementations/astro/node_modules/
-implementations/astro/dist/
-implementations/astro/.astro/
-implementations/marko/node_modules/
-implementations/marko/dist/

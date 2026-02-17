@@ -1,55 +1,61 @@
-# CLAUDE.md — Command Center Portfolio
+# CLAUDE.md -- Command Center Portfolio
 
 ## Project Overview
 
-Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboard. Hosted on GitHub Pages as a static HTML/CSS/JS site. The root site (`index.html`) has no build step or package manager. Four framework re-implementations live in `/implementations/`.
+Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboard. Built with Astro (static site generation) and hosted on GitHub Pages. The site ships 0 KB JavaScript by default, with selective `is:inline` scripts for particles, map, and animations.
 
 ## Repository Structure
 
 ```
 .
-├── index.html              # Main dashboard (13 widgets, no build step)
-├── brand-guide.html        # Design system reference page
-├── .nojekyll               # Disables Jekyll on GitHub Pages
-├── .editorconfig           # 2-space indent, UTF-8, LF
-├── css/
-│   ├── tokens.css          # Design tokens (colors, typography, spacing, radii, blur, glows)
-│   ├── base.css            # Reset, body, scrollbar, global styles
-│   ├── layout.css          # .command-layout, .left-panel, .top-bar, .right-panel, responsive
-│   ├── components.css      # Widget cards, identity card, terminal, map, charts, modals
-│   ├── effects.css         # Animations, transitions, glows, particle canvas
-│   └── component-library.css  # Styles for /components/ design system pages
+├── astro.config.mjs          # Astro + PWA configuration
+├── package.json              # Dependencies and scripts
+├── tsconfig.json             # TypeScript (extends astro/tsconfigs/strict)
+├── src/
+│   ├── components/           # 14 .astro components (one per widget)
+│   ├── layouts/              # Dashboard.astro (head, SEO, scripts, analytics)
+│   └── pages/                # index.astro (data loading, page composition)
+├── public/
+│   ├── css/
+│   │   ├── tokens.css        # Design tokens (colors, typography, spacing, radii, blur, glows)
+│   │   ├── base.css          # Reset, body, scrollbar, global styles
+│   │   ├── layout.css        # .command-layout, .left-panel, .top-bar, .right-panel, responsive
+│   │   ├── components.css    # Widget cards, identity card, terminal, map, charts, modals
+│   │   └── effects.css       # Animations, transitions, glows, particle canvas
+│   ├── assets/               # avatar.svg, favicon.svg, logo.svg, PWA icons
+│   ├── js/
+│   │   ├── particles.js      # Three.js particle background (legacy, now inlined in index.astro)
+│   │   └── clock.js          # Live clock (legacy, now inlined in index.astro)
+│   └── manifest.webmanifest  # PWA manifest
 ├── data/
-│   ├── profile.json        # Name, title, bio, avatar, social links
-│   ├── health.json         # Heart rate, steps, sleep, hydration, workouts
-│   ├── github.json         # Contribution heatmap, recent commits, stats
-│   ├── books.json          # Bookshelf with covers, authors, status
-│   ├── reading.json        # RSS/article feed items
-│   ├── system.json         # System status indicators
-│   ├── mock-data.js        # Legacy: inline JS global (MOCK_DATA) used by root index.html
-│   ├── health-data.js      # Legacy: inline JS global (HEALTH_DATA) used by root index.html
-│   └── generate-json.js    # Script to generate JSON files from legacy JS data
-├── assets/
-│   ├── avatar.svg          # Profile avatar
-│   ├── favicon.svg         # Browser favicon
-│   └── logo.svg            # Site logo
-├── js/
-│   ├── particles.js        # Three.js particle background (shared by implementations)
-│   ├── clock.js            # Live clock in top bar
-│   ├── data-renderer.js    # Populates all widgets from MOCK_DATA/HEALTH_DATA globals
-│   └── component-library.js  # JS for /components/ design system pages
-├── components/             # Design system component library pages
-│   ├── index.html          # Component library index
-│   ├── left-panel.html     # Left panel components
-│   ├── top-bar.html        # Top bar components
-│   ├── body-column.html    # Body column widgets
-│   └── mind-column.html    # Mind column widgets
-└── implementations/
-    ├── VERIFY_PROMPT.md     # Prompt for verifying implementations against framework best practices
-    ├── astro/               # Astro SSG (reference implementation)
-    ├── htmx/                # Handlebars + fetch (no build step)
-    ├── marko/               # Marko 5 SSR (node build.js)
-    └── webawesome/          # Shoelace 2.x web components (no build step)
+│   ├── profile.json          # Name, title, bio, avatar, social links
+│   ├── health.json           # Heart rate, steps, sleep, hydration, workouts
+│   ├── github.json           # Contribution heatmap, recent commits, stats
+│   ├── books.json            # Bookshelf with covers, authors, status
+│   ├── reading.json          # RSS/article feed items
+│   └── system.json           # System status indicators
+├── docs/
+│   └── wiki/                 # Documentation (synced to GitHub Wiki)
+│       ├── Home.md           # Wiki homepage
+│       ├── Astro-Implementation.md  # Architecture and components
+│       ├── Brand-Guide.md    # Design system reference
+│       └── Why-Astro.md      # Framework evaluation
+├── legacy/                   # Old root site preserved for reference
+│   ├── index.html            # Original dashboard (no build step)
+│   ├── brand-guide.html      # Design system reference page
+│   ├── components/           # Component library pages
+│   ├── js/                   # data-renderer.js, component-library.js
+│   ├── css/                  # component-library.css
+│   └── data/                 # mock-data.js, health-data.js, generate-json.js
+├── .github/
+│   ├── workflows/
+│   │   ├── deploy.yml        # Build + deploy Astro to GitHub Pages
+│   │   └── sync-wiki.yml     # Sync docs/wiki/ to GitHub Wiki
+│   └── scripts/              # sync-wiki.sh, generate-sidebar.sh
+├── .editorconfig             # 2-space indent, UTF-8, LF
+├── .gitignore
+├── .nojekyll                 # Bypass Jekyll on GitHub Pages
+└── README.md
 ```
 
 ## Conventions
@@ -61,32 +67,27 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 - Insert final newline
 
 ### CSS
-- All colors, typography, spacing, and effects use custom properties from `css/tokens.css`
+- All colors, typography, spacing, and effects use custom properties from `public/css/tokens.css`
 - Glass-morphism pattern: `background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(var(--blur-md));`
 - Widget card structure: `.tri-card` > `.widget-header` + `.widget-body`
 - Widget header: `.widget-label` + `.widget-header-right` > `.live-dot` + `.widget-timestamp`
 - Accent classes: `.tri-card-accent-pink`, `-blue`, `-green`, `-amber`, `-purple`
 
-### JavaScript (Root)
-- ES5 only: `var`, IIFEs, `function` declarations — no `let`/`const`/arrow functions
-- Each file wrapped in an IIFE: `(function() { ... })();`
-- Root site loads data via `<script>` tags that set `window.MOCK_DATA` and `window.HEALTH_DATA`
+### JavaScript (Inline Scripts)
+- ES5 only: `var`, IIFEs, `function` declarations -- no `let`/`const`/arrow functions
+- Each script wrapped in an IIFE: `(function() { ... })();`
+- All client JS is embedded in `src/pages/index.astro` as `<script is:inline>` blocks
 
-### Layout
-- `.command-layout` > `.left-panel` + `.top-bar` + `.right-panel`
-- Left panel: fixed, 35% width, contains identity card + bio terminal + system status
-- Right panel: 65% width, scrollable, contains `.triptych-grid` with Body and Mind columns
-- Top bar: fixed, spans right panel width, contains title + live clock
+### Astro Components
+- 14 components in `src/components/`, one per widget
+- Props receive data objects parsed from JSON files
+- No client-side framework -- all rendering is build-time
 
 ## Data Flow
 
 | Context | How data is loaded |
 |---|---|
-| Root `index.html` | `<script src="data/mock-data.js">` sets `window.MOCK_DATA`; `data-renderer.js` reads it |
-| Astro | Imports JSON files at build time via `fs.readFileSync` in frontmatter |
-| HTMX/Handlebars | `fetch()` calls to `../../data/*.json` at runtime |
-| Marko | `build.js` reads JSON files with `fs.readFileSync`, passes as template input |
-| Web Awesome | `fetch()` calls to `../../data/*.json` at runtime |
+| Astro build | `fs.readFileSync` from `data/*.json` in `src/pages/index.astro` frontmatter |
 | Future | CloudFront-backed API serving real data |
 
 ## Design System Quick Reference
@@ -102,7 +103,7 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 | `--neon-purple` | `#a855f7` | Sleep, night summary |
 | `--neon-red` | `#ef4444` | Alert states |
 | `--text` | `#f0f0f0` | Primary text |
-| `--text-muted` | `#6b7280` | Secondary text |
+| `--text-muted` | `#9ca3af` | Secondary text |
 
 ### Glass-morphism
 ```css
@@ -123,79 +124,25 @@ backdrop-filter: blur(var(--blur-md)); /* 16px */
 | `900px` | Stacks to single column |
 | `600px` | Mobile optimizations |
 
-## Working with Implementations
+## Running Locally
 
-### Astro (Reference Implementation)
 ```bash
-cd implementations/astro
 npm install
-npm run dev     # Dev server with hot reload
-npm run build   # Outputs to dist/
+npm run dev       # http://localhost:4321
+npm run build     # Outputs to dist/
+npm run preview   # Preview build locally
 ```
-- 14 `.astro` components in `src/components/`
-- Reads JSON data at build time
-- `scripts/copy-assets.js` copies shared CSS/assets to `public/`
-
-### HTMX / Handlebars
-```bash
-# No build step — serve from repository root with: npx serve .
-# Open http://localhost:3000/implementations/htmx/
-```
-- `index.html` with `<script type="text/x-handlebars-template">` templates
-- `js/app.js` fetches JSON, compiles templates, renders widgets
-- `js/helpers.js` registers Handlebars helpers
-- `js/init.js` initializes particles, clock, map after `dataReady` event
-
-### Marko
-```bash
-cd implementations/marko
-npm install
-npm run build   # Runs node build.js → outputs dist/index.html
-```
-- `build.js` reads JSON, renders `src/index.marko` to static HTML
-- 14 `.marko` components in `src/components/`
-- Output: `dist/index.html` (self-contained, references shared CSS/assets)
-
-### Web Awesome / Shoelace
-```bash
-# No build step — serve from repository root with: npx serve .
-# Open http://localhost:3000/implementations/webawesome/
-```
-- Uses Shoelace 2.x (`sl-` prefix) web components via CDN
-- `js/app.js` loaded as `type="module"`, fetches JSON at runtime
-- `css/wa-overrides.css` maps Shoelace CSS custom properties to design tokens
-
-## Serving Locally
-
-```bash
-npx serve .
-```
-
-| URL | Page |
-|---|---|
-| `http://localhost:3000` | Main dashboard |
-| `http://localhost:3000/brand-guide.html` | Design system reference |
-| `http://localhost:3000/components/` | Component library |
-| `http://localhost:3000/implementations/htmx/` | HTMX implementation |
-| `http://localhost:3000/implementations/webawesome/` | Web Awesome implementation |
-| `http://localhost:3000/implementations/astro/dist/` | Astro built output |
-| `http://localhost:3000/implementations/marko/dist/` | Marko built output |
-
-## Verification
-
-Use `implementations/VERIFY_PROMPT.md` to audit all four implementations against their framework best practices. It provides a structured prompt with 20 research topics per implementation and cross-implementation HTML comparison against the Astro reference.
 
 ## Rules and Guardrails
 
 ### DO NOT
-- Modify shared `css/`, `data/`, or `assets/` files without checking all consumers (root + 4 implementations)
-- Add a root-level `package.json` — the root site is intentionally build-free
-- Use ES6+ syntax (`let`, `const`, arrow functions, template literals) in root-level JS files
-- Remove `.nojekyll` — GitHub Pages needs it to serve the site without Jekyll processing
+- Use ES6+ syntax (`let`, `const`, arrow functions, template literals) in inline `<script is:inline>` blocks
+- Remove `.nojekyll` -- GitHub Pages needs it to serve the site without Jekyll processing
+- Modify `public/css/` files without testing all responsive breakpoints
 
 ### DO
-- Use CSS custom properties from `css/tokens.css` for all colors, spacing, and typography
+- Use CSS custom properties from `public/css/tokens.css` for all colors, spacing, and typography
 - Follow the widget HTML structure: `.tri-card` > `.widget-header` + `.widget-body`
 - Test all four responsive breakpoints (1400px, 1100px, 900px, 600px)
-- Treat the Astro implementation as the reference when building or fixing other implementations
-- Run `python3 -m http.server` from the repo root to test — implementations reference `../../data/` and `../../css/` via relative paths
+- Run `npm run build` to verify changes compile correctly
+- Refer to `docs/wiki/` for detailed documentation on architecture, design system, and decisions

@@ -1,12 +1,12 @@
 # Command Center
 
-A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi command center with glass-morphism aesthetics and a particle background.
+A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi command center with glass-morphism aesthetics and a particle background. Built with [Astro](https://astro.build) and hosted on GitHub Pages.
 
 <!-- TODO: Add screenshot -->
 
 ## Overview
 
-The dashboard displays 13 interactive widgets organized in a split-panel layout with a fixed left panel (identity) and a scrollable right panel (body + mind columns). The site is static HTML/CSS/JS hosted on GitHub Pages, with four parallel framework re-implementations exploring different approaches to building the same UI.
+The dashboard displays 13 interactive widgets organized in a split-panel layout with a fixed left panel (identity) and a scrollable right panel (body + mind columns). Astro generates static HTML at build time, shipping 0 KB of JavaScript by default. Interactive elements (particles, map, animations) use selective `is:inline` scripts.
 
 ## Architecture
 
@@ -25,25 +25,37 @@ The dashboard displays 13 interactive widgets organized in a split-panel layout 
 
 - **Left panel** (35%): Identity card, bio terminal with typing animation, system status
 - **Top bar**: "Command Center" title and live clock
-- **Right panel** (65%): Two-column triptych grid — Body (health/fitness) and Mind (coding/reading)
+- **Right panel** (65%): Two-column triptych grid -- Body (health/fitness) and Mind (coding/reading)
 
 ## Directory Structure
 
 ```
 .
-├── index.html              # Main dashboard
-├── brand-guide.html        # Design system reference
-├── .nojekyll               # Disables Jekyll processing
-├── css/                    # Shared stylesheets (tokens, base, layout, components, effects)
-├── data/                   # JSON data files + legacy JS globals + generator script
-├── assets/                 # SVGs (avatar, favicon, logo)
-├── js/                     # particles.js, clock.js, data-renderer.js
-├── components/             # Design system component library pages
-└── implementations/
-    ├── astro/              # Astro SSG (reference implementation)
-    ├── htmx/               # Handlebars + fetch
-    ├── marko/              # Marko 5 SSR
-    └── webawesome/         # Shoelace web components
+├── astro.config.mjs          # Astro + PWA configuration
+├── package.json              # Dependencies and scripts
+├── tsconfig.json             # TypeScript configuration
+├── src/
+│   ├── components/           # 14 .astro components (one per widget)
+│   ├── layouts/              # Dashboard.astro (head, SEO, scripts)
+│   └── pages/                # index.astro (data loading, page composition)
+├── public/
+│   ├── css/                  # Design tokens, base, layout, components, effects
+│   ├── assets/               # SVGs, PWA icons
+│   ├── js/                   # particles.js, clock.js
+│   └── manifest.webmanifest  # PWA manifest
+├── data/                     # 6 JSON files (read at build time)
+├── docs/wiki/                # Documentation (synced to GitHub Wiki)
+├── legacy/                   # Old root site preserved for reference
+└── .github/workflows/        # Deploy + wiki sync actions
+```
+
+## Running Locally
+
+```bash
+npm install
+npm run dev       # http://localhost:4321
+npm run build     # Outputs to dist/
+npm run preview   # Preview build locally
 ```
 
 ## Design System
@@ -56,67 +68,19 @@ The visual language is built on a dark sci-fi aesthetic with glass-morphism card
 - **Typography**: [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) with a scale from 0.42rem to 2.2rem
 - **Animations**: Particle field, count-up numbers, staggered card reveals, terminal typing, wave effects
 
-See `brand-guide.html` for the full design system reference.
-
-## Implementation Experiments
-
-Four re-implementations of the same dashboard, each using a different framework:
-
-| Implementation | Approach | Build Step | Key Files |
-|---|---|---|---|
-| **Astro** (reference) | Static site generation, `.astro` components | `npm run build` | `src/components/*.astro`, `src/pages/index.astro` |
-| **HTMX** | Handlebars templates, `fetch()` for data | None | `index.html`, `js/app.js`, `js/helpers.js`, `js/init.js` |
-| **Marko** | Server-side rendering to static HTML | `npm run build` | `src/index.marko`, `src/components/*.marko`, `build.js` |
-| **Web Awesome** | Shoelace 2.x web components, ES modules | None | `index.html`, `js/app.js`, `css/wa-overrides.css` |
-
-The Astro implementation is the reference — other implementations should match its output HTML structure and widget behavior.
-
-## Data Files
-
-Six JSON files in `data/` provide widget content:
-
-| File | Contents |
-|---|---|
-| `profile.json` | Name, title, bio, avatar URL, social links |
-| `health.json` | Heart rate, steps, calories, sleep, hydration, workouts |
-| `github.json` | Contribution heatmap grid, recent commits, stats |
-| `books.json` | Book covers, titles, authors, reading status |
-| `reading.json` | RSS/article feed items |
-| `system.json` | System status indicators |
-
-The root site currently loads data via legacy JS globals (`data/mock-data.js`, `data/health-data.js`). Framework implementations fetch the JSON files directly. A future iteration will serve live data from CloudFront.
-
-## Running Locally
-
-**Root site** (no build step):
-```bash
-python3 -m http.server 8000
-# Open http://localhost:8000
-```
-
-**Astro** (requires Node.js):
-```bash
-cd implementations/astro
-npm install
-npm run dev
-```
-
-**Marko** (requires Node.js):
-```bash
-cd implementations/marko
-npm install
-npm run build
-# Serve dist/ from root: python3 -m http.server 8000
-```
-
-**HTMX and Web Awesome** have no build step — serve from the repository root and navigate to their paths.
-
 ## Technology Stack
 
-- [Three.js](https://threejs.org) — Particle background animation
-- [Leaflet](https://leafletjs.com) — Interactive map widget
-- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) — Typography
-- [Astro](https://astro.build) — Static site generation (reference implementation)
-- [Marko](https://markojs.com) — Server-side rendering implementation
-- [Handlebars](https://handlebarsjs.com) — Client-side templating (HTMX implementation)
-- [Shoelace](https://shoelace.style) — Web components (Web Awesome implementation)
+- [Astro](https://astro.build) -- Static site generation (0 KB JS by default, islands architecture)
+- [Three.js](https://threejs.org) -- Particle background animation
+- [Leaflet](https://leafletjs.com) -- Interactive map widget
+- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) -- Typography
+- [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa) -- Progressive Web App support
+- [Simple Analytics](https://simpleanalytics.com) -- Privacy-focused analytics
+
+## Documentation
+
+Detailed documentation is available in [`docs/wiki/`](docs/wiki/Home.md) and on the [GitHub Wiki](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki):
+
+- [Astro Implementation](docs/wiki/Astro-Implementation.md) -- Architecture, components, data flow
+- [Brand Guide](docs/wiki/Brand-Guide.md) -- Colors, typography, glass-morphism, widget structure
+- [Why Astro](docs/wiki/Why-Astro.md) -- Framework evaluation and decision rationale
