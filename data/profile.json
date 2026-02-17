@@ -1,6 +1,6 @@
 {
   "name": "Jonathan Lloyd",
-  "title": "Senior Software Engineer",
+  "title": "Engineering Director",
   "location": "San Francisco, CA",
   "coordinates": [
     37.7749,
@@ -8,8 +8,8 @@
   ],
   "linkedin": "https://www.linkedin.com/in/lifegames/",
   "github": "https://github.com/j0nathan-ll0yd",
-  "bio": "Building things that matter. Passionate about elegant code, distributed systems, and the intersection of technology and human experience.",
-  "avatar": "assets/avatar.svg",
+  "bio": "Experienced engineering leader with a demonstrated history of growing teams, scaling infrastructure, and building businesses. Excels at empowering engineers to be accountable and take ownership, using data to provide guidance and suggestions to his teams, and collaboration with product, design, and operations.",
+  "avatar": "https://www.gravatar.com/avatar/e835f8e6deaeb1889200e0072362586d?s=200",
   "terminalLines": [
     {
       "type": "prompt",
@@ -21,7 +21,7 @@
     },
     {
       "type": "output",
-      "text": "→ Senior Software Engineer"
+      "text": "→ Engineering Director"
     },
     {
       "type": "output",
@@ -37,7 +37,7 @@
     },
     {
       "type": "output",
-      "text": "→ javascript  typescript  python  swift  go"
+      "text": "→ aws  typescript  serverless  swift  go  perl"
     },
     {
       "type": "blank",
@@ -49,7 +49,7 @@
     },
     {
       "type": "output",
-      "text": "→ 15+ years and counting"
+      "text": "→ 24+ years professionally and counting"
     },
     {
       "type": "blank",

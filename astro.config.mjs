@@ -25,8 +25,8 @@ export default defineConfig({
     AstroPWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Jonathan Lloyd — Command Center',
-        short_name: 'Command Center',
+        name: 'Jonathan Lloyd — Human Datastream',
+        short_name: 'Human Datastream',
         description: 'Senior Software Engineer portfolio dashboard',
         start_url: '/',
         scope: '/',
