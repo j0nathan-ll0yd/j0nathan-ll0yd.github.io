@@ -16,6 +16,7 @@ import RecentCommits from '../components/RecentCommits.astro';
 import ReadingFeed from '../components/ReadingFeed.astro';
 import Bookshelf from '../components/Bookshelf.astro';
 import BookModal from '../components/BookModal.astro';
+import ComingSoon from '../components/ComingSoon.astro';
 
 const dataDir = path.join(process.cwd(), 'data');
 const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
@@ -26,6 +27,7 @@ const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-
 const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
 ---
 <Dashboard>
+  {import.meta.env.PROD && <ComingSoon />}
   <canvas id="particle-canvas" aria-hidden="true"></canvas>
 
   <div class="command-layout">

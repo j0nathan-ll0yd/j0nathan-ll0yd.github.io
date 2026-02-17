@@ -1,0 +1,244 @@
+---
+// Coming Soon overlay — "Mission Pending" dossier card
+// Remove this component (and its import in index.astro) to reveal the live site.
+---
+<div id="coming-soon-overlay">
+  <div class="dossier">
+    <div class="dossier-header">
+      <span class="dossier-title">Mission Dossier</span>
+      <span class="dossier-id" id="dossierId">CC-0000</span>
+    </div>
+    <div class="dossier-body">
+      <div class="status-row">
+        <div class="status-dot"></div>
+        <div class="status-text">Mission Pending</div>
+      </div>
+      <div class="divider"></div>
+      <div class="fields">
+        <div class="field-row">
+          <div class="field">
+            <span class="field-label">Operative</span>
+            <span class="field-value">Jonathan Lloyd</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Callsign</span>
+            <span class="field-value highlight-blue">j0nathan-ll0yd</span>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <span class="field-label">Mission Type</span>
+            <span class="field-value highlight-pink">Portfolio Launch</span>
+          </div>
+          <div class="field">
+            <span class="field-label">ETA</span>
+            <span class="field-value highlight-amber">TBD</span>
+          </div>
+        </div>
+        <div class="field">
+          <span class="field-label">Briefing</span>
+          <span class="field-value dim">A command-center-themed portfolio is under construction. The operative is assembling systems, running diagnostics, and preparing for deployment.</span>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <div class="field">
+        <span class="field-label">Objectives</span>
+      </div>
+      <div class="objectives">
+        <div class="objective completed">
+          <div class="objective-check done"></div>
+          Design system established
+        </div>
+        <div class="objective completed">
+          <div class="objective-check done"></div>
+          Core infrastructure deployed
+        </div>
+        <div class="objective">
+          <div class="objective-check"></div>
+          Widget systems online
+        </div>
+        <div class="objective">
+          <div class="objective-check"></div>
+          Live data feeds connected
+        </div>
+        <div class="objective">
+          <div class="objective-check"></div>
+          Final clearance granted
+        </div>
+      </div>
+    </div>
+    <div class="dossier-footer">Classification: Unclassified // Distribution: Public</div>
+  </div>
+</div>
+
+<style>
+  #coming-soon-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #06060f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Space Grotesk', sans-serif;
+  }
+  .dossier {
+    width: min(480px, 90vw);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .dossier-header {
+    padding: 16px 28px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .dossier-title {
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #9ca3af;
+  }
+  .dossier-id {
+    font-size: 0.5rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    color: rgba(255, 255, 255, 0.15);
+    font-variant-numeric: tabular-nums;
+  }
+  .dossier-body {
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .status-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #f59e0b;
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.4);
+    animation: pulse-dot 3s ease-in-out infinite;
+  }
+  .status-text {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #f59e0b;
+  }
+  .fields {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .field-label {
+    font-size: 0.5rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #9ca3af;
+  }
+  .field-value {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #f0f0f0;
+  }
+  .field-value.highlight-blue { color: #3a86ff; }
+  .field-value.highlight-pink { color: #ff006e; }
+  .field-value.highlight-green { color: #06d6a0; }
+  .field-value.highlight-amber { color: #f59e0b; }
+  .field-value.dim { color: #9ca3af; font-weight: 400; }
+  .divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .objectives {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .objective {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.7rem;
+    font-weight: 400;
+    color: #9ca3af;
+  }
+  .objective-check {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    flex-shrink: 0;
+  }
+  .objective-check.done {
+    border-color: rgba(6, 214, 160, 0.4);
+    background: rgba(6, 214, 160, 0.1);
+    position: relative;
+  }
+  .objective-check.done::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 4px;
+    width: 4px;
+    height: 7px;
+    border-right: 1.5px solid #06d6a0;
+    border-bottom: 1.5px solid #06d6a0;
+    transform: rotate(45deg);
+  }
+  .objective.completed {
+    color: rgba(6, 214, 160, 0.6);
+  }
+  .dossier-footer {
+    padding: 14px 28px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    text-align: center;
+    font-size: 0.5rem;
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.12);
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  @media (max-width: 600px) {
+    .dossier-body { padding: 20px; }
+    .field-row { grid-template-columns: 1fr; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status-dot { animation: none; opacity: 1; }
+  }
+</style>
+
+<script is:inline>
+(function() {
+  var year = new Date().getFullYear();
+  var id = 'CC-' + year + '-' + Math.floor(Math.random() * 9000 + 1000);
+  document.getElementById('dossierId').textContent = id;
+})();
+</script>
