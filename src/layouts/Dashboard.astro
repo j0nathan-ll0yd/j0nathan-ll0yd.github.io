@@ -61,7 +61,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <!-- Service Worker -->
   <script is:inline>
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/sw.js');
     });
