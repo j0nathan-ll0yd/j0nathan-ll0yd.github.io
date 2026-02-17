@@ -1,38 +1,13 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Top Bar — Component Library</title>
-  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../css/tokens.css">
-  <link rel="stylesheet" href="../css/base.css">
-  <link rel="stylesheet" href="../css/layout.css">
-  <link rel="stylesheet" href="../css/components.css">
-  <link rel="stylesheet" href="../css/effects.css">
-  <link rel="stylesheet" href="../css/component-library.css">
-</head>
-<body class="library-page">
-
-  <nav class="lib-nav">
-    <span class="lib-nav-title">Design System</span>
-    <div class="lib-nav-links">
-      <a href="../brand-guide.html" class="lib-nav-link">Brand Guide</a>
-      <a href="index.html" class="lib-nav-link active">Component Library</a>
-      <a href="../index.html" class="lib-nav-link">Homepage</a>
-    </div>
-  </nav>
-
+---
+import Showcase from '../layouts/Showcase.astro';
+---
+<Showcase title="Top Bar">
   <main class="lib-container">
     <h1 class="lib-page-title">Top Bar</h1>
     <p class="lib-page-desc">
       The command bar that sits at the top of the right panel. It contains the page title and a live clock.
     </p>
 
-    <!-- Command Bar -->
     <section class="component-section">
       <h2 class="component-name">Command Bar</h2>
       <p class="component-classes">.top-bar &nbsp; .top-bar-title &nbsp; .top-bar-clock</p>
@@ -42,7 +17,6 @@
 
       <div class="state-grid">
 
-        <!-- Empty State -->
         <div class="state-column">
           <span class="state-label state-label-empty">Empty</span>
           <div class="state-render">
@@ -53,7 +27,6 @@
           </div>
         </div>
 
-        <!-- Active State -->
         <div class="state-column">
           <span class="state-label state-label-active">Active</span>
           <div class="state-render">
@@ -68,6 +41,4 @@
     </section>
 
   </main>
-
-</body>
-</html>
+</Showcase>

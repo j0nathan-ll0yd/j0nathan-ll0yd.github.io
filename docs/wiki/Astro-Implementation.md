@@ -12,7 +12,7 @@ This is Astro's **islands architecture**: the page is static HTML with selective
 
 ### Configuration
 
-- **`astro.config.mjs`** -- Defines `site` URL, `static` output mode, and `@vite-pwa/astro` integration
+- **`astro.config.mjs`** -- Defines `site` URL, `static` output mode, `@vite-pwa/astro` integration, and `showcase-dev-only` integration for dev-only component showcase routes
 - **`tsconfig.json`** -- Extends `astro/tsconfigs/strict`
 - **`package.json`** -- Two scripts: `dev` (Astro dev server) and `build` (static output to `dist/`)
 
@@ -74,7 +74,24 @@ Data is passed to components as Astro props. No client-side data fetching occurs
 | `Bookshelf` | `books` | Book covers grid, click opens BookModal |
 | `BookModal` | (none) | Modal with focus trapping, Tab cycling, Escape to close |
 
+## Component Showcase (Dev Only)
+
+A visual storyboard at `/showcase/` for iterating on components during development. Only available via `npm run dev` -- excluded from production builds via a local Astro integration that conditionally injects routes when `command === 'dev'`.
+
+Showcase pages live in `src/showcase/` (not `src/pages/`) and import the real `.astro` components, rendering them with both empty and active state data side-by-side. Empty state data comes from `data/showcase-empty.json`.
+
+| Route | Content |
+|---|---|
+| `/showcase` | Landing page linking to each panel |
+| `/showcase/brand-guide` | Design tokens, typography, glass-morphism, animations |
+| `/showcase/left-panel` | IdentityCard, BioTerminal, SystemStatus |
+| `/showcase/top-bar` | Command bar |
+| `/showcase/body-column` | HeartRate, DailyActivity, Workouts, NightSummary, Hydration, Location |
+| `/showcase/mind-column` | GitHubHeatmap, RecentCommits, ReadingFeed, Bookshelf |
+
 ## Layout
+
+### Dashboard Layout
 
 `src/layouts/Dashboard.astro` provides the HTML shell:
 
@@ -84,6 +101,14 @@ Data is passed to components as Astro props. No client-side data fetching occurs
 - **CSS**: 5 stylesheets loaded from `/css/` (tokens, base, layout, components, effects)
 - **Body**: Skip link, `<slot />` for page content, CDN scripts (Three.js, Leaflet), service worker registration, Simple Analytics
 - **Accessibility**: `<a href="#main-content" class="skip-link">Skip to main content</a>`
+
+### Showcase Layout
+
+`src/layouts/Showcase.astro` provides a minimal shell for component showcase pages:
+
+- **Head**: charset, viewport, favicon, Space Grotesk font, CSS (tokens, base, components, effects, showcase), named `head` slot for page-specific resources
+- **Nav**: Sticky navigation bar with links to Brand Guide, Component Library, and Dashboard; active link highlighting via `Astro.url.pathname`
+- **Body**: `library-page` class enables scrolling (overrides dashboard's fixed layout)
 
 ## SEO & Metadata
 

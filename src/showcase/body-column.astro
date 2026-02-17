@@ -1,0 +1,255 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Showcase from '../layouts/Showcase.astro';
+import HeartRate from '../components/HeartRate.astro';
+import DailyActivity from '../components/DailyActivity.astro';
+import Workouts from '../components/Workouts.astro';
+import NightSummary from '../components/NightSummary.astro';
+import Hydration from '../components/Hydration.astro';
+import Location from '../components/Location.astro';
+
+const dataDir = path.join(process.cwd(), 'data');
+const health = JSON.parse(fs.readFileSync(path.join(dataDir, 'health.json'), 'utf-8'));
+const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
+const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json'), 'utf-8'));
+const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
+---
+<Showcase title="Body Column">
+  <link slot="head" rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script slot="head" is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <main class="lib-container">
+    <h1 class="lib-page-title">Body Column</h1>
+    <p class="lib-page-desc">
+      The six components that make up the Body column of the triptych grid. Each component is shown in its empty (no data) and active (populated) states.
+    </p>
+
+    <!-- ==================== 1. HEART RATE ==================== -->
+    <section class="component-section">
+      <h2 class="component-name">Heart Rate</h2>
+      <p class="component-classes">.tri-card-accent-pink &nbsp; .hr-layout &nbsp; .hr-ecg-bg &nbsp; .ecg-svg &nbsp; .hr-overlay &nbsp; .pulse-bpm &nbsp; .pulse-status-badge &nbsp; .hr-hrv-value</p>
+      <p class="component-description">
+        Real-time heart rate display with animated ECG waveform background, BPM readout, zone badge, and HRV metric.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <HeartRate health={empty.health} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <HeartRate health={health} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 2. DAILY ACTIVITY ==================== -->
+    <section class="component-section">
+      <h2 class="component-name">Daily Activity</h2>
+      <p class="component-classes">.tri-card-accent-green &nbsp; .split-cols &nbsp; .split-col &nbsp; .split-col-title &nbsp; .split-metric &nbsp; .split-metric-value</p>
+      <p class="component-description">
+        Two-column layout showing movement and energy metrics for the current day.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <DailyActivity health={empty.health} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <DailyActivity health={health} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 3. WORKOUTS ==================== -->
+    <section class="component-section">
+      <h2 class="component-name">Workouts</h2>
+      <p class="component-classes">.tri-card-accent-pink &nbsp; .workout-rest-center &nbsp; .workout-sub-card &nbsp; .workout-sub-stats &nbsp; .workout-stat</p>
+      <p class="component-description">
+        Displays recorded workouts for the day, or a rest-day state when no workouts are logged.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Default</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate #workoutToggle from two Workouts instances -->
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Workouts</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="workout-rest-center">
+                  <svg class="workout-rest-icon" viewBox="0 0 56 56" fill="none">
+                    <circle cx="28" cy="20" r="10" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.7"/>
+                    <path d="M16 38 Q20 32 28 30 Q36 32 40 38" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.5" fill="none"/>
+                    <path d="M12 44 Q18 38 28 36 Q38 38 44 44" stroke="var(--neon-blue)" stroke-width="1" opacity="0.3" fill="none"/>
+                    <circle cx="28" cy="20" r="3" fill="var(--neon-pink)" opacity="0.6"/>
+                    <path d="M24 18 Q28 14 32 18" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="none"/>
+                  </svg>
+                  <div class="workout-rest-heading">Recovery Day</div>
+                  <div class="workout-rest-sub">No workouts recorded</div>
+                  <div class="workout-rest-insight">Your body recovers while you rest</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Live Data</span>
+          <div class="state-render">
+            <Workouts health={healthWithWorkouts} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 4. NIGHT SUMMARY ==================== -->
+    <section class="component-section">
+      <h2 class="component-name">Night Summary</h2>
+      <p class="component-classes">.tri-card-accent-purple &nbsp; .sleep-moon-top &nbsp; .sleep-moon-hero &nbsp; .sleep-moon-score-row &nbsp; .sleep-moon-pills &nbsp; .sleep-moon-pill</p>
+      <p class="component-description">
+        Sleep data from the previous night with moon icon, duration, quality score bar, and stage-breakdown pills.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <NightSummary health={empty.health} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <NightSummary health={health} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 5. HYDRATION ==================== -->
+    <section class="component-section">
+      <h2 class="component-name">Hydration</h2>
+      <p class="component-classes">.tri-card-accent-blue &nbsp; .hydra-layout &nbsp; .hydra-vessel &nbsp; .hydra-bottle &nbsp; .hydra-mug &nbsp; .hydra-liquid &nbsp; .hydra-val</p>
+      <p class="component-description">
+        Animated water bottle and coffee mug with liquid fill levels, wave animations, and volume readouts.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate hydra IDs from two Hydration instances -->
+            <div class="tri-card tri-card-accent-blue">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-blue"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout">
+                  <div class="hydra-vessel hydra-vessel-water">
+                    <div class="hydra-bottle">
+                      <div class="hydra-bottle-cap"></div>
+                      <div class="hydra-bottle-body">
+                        <div class="hydra-liquid hydra-liquid-water" style="height: 0%;"></div>
+                      </div>
+                    </div>
+                    <div class="hydra-val">0 oz</div>
+                    <div class="hydra-label">Water</div>
+                  </div>
+                  <div class="hydra-divider"></div>
+                  <div class="hydra-vessel hydra-vessel-coffee">
+                    <div class="hydra-mug">
+                      <div class="hydra-mug-steam">
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                      </div>
+                      <div class="hydra-mug-body">
+                        <div class="hydra-liquid hydra-liquid-coffee" style="height: 0%;"></div>
+                      </div>
+                      <div class="hydra-mug-handle"></div>
+                    </div>
+                    <div class="hydra-val">0 oz</div>
+                    <div class="hydra-label">Coffee</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <Hydration health={health} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 6. LOCATION ==================== -->
+    <section class="component-section">
+      <h2 class="component-name">Location</h2>
+      <p class="component-classes">.tri-card-accent-green &nbsp; .loc-city-name &nbsp; .loc-coordinates &nbsp; .map-wrapper &nbsp; .map-overlay</p>
+      <p class="component-description">
+        Current location card with city name, coordinates, and an embedded Leaflet dark-theme map.
+      </p>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate #leafletMap from two Location instances -->
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Current Location</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">live</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="loc-city-name" style="color: var(--text-muted);">---</div>
+                <div class="loc-coordinates" style="color: var(--text-muted);">0.0000&deg;N, 0.0000&deg;W</div>
+                <div class="map-wrapper" style="display: flex; align-items: center; justify-content: center;">
+                  <div style="color: var(--text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 2px;">Location unavailable</div>
+                </div>
+                <div class="map-meta-row">
+                  <span>ZOOM: <span class="map-meta-value">--</span></span>
+                  <span>TILE: <span class="map-meta-value">--</span></span>
+                  <span>SRC: <span class="map-meta-value">--</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <Location profile={profile} />
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</Showcase>

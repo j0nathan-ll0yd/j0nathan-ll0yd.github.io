@@ -1,0 +1,116 @@
+{
+  "profile": {
+    "name": "",
+    "title": "",
+    "location": "---",
+    "coordinates": [0, 0],
+    "linkedin": "#",
+    "github": "#",
+    "bio": "",
+    "avatar": "assets/avatar.svg",
+    "terminalLines": [
+      { "type": "cursor", "text": "" }
+    ]
+  },
+  "health": {
+    "date": "",
+    "quantities": {
+      "activeEnergyBurned": { "value": 0, "unit": "kcal" },
+      "exerciseTime": { "value": 0, "unit": "min" },
+      "standTime": { "value": 0, "unit": "min" },
+      "basalEnergyBurned": { "value": 0, "unit": "kcal" },
+      "distanceWalkingRunning": { "value": 0, "unit": "m" },
+      "heartRate": { "value": 0, "unit": "count/min" },
+      "hrvSDNN": { "value": 0, "unit": "ms" },
+      "respiratoryRate": { "value": 0, "unit": "count/min" },
+      "restingHeartRate": { "value": 0, "unit": "count/min" },
+      "stepCount": { "value": 0, "unit": "count" }
+    },
+    "sleep": {
+      "awake": { "seconds": 0 },
+      "core": { "seconds": 0 },
+      "deep": { "seconds": 0 },
+      "rem": { "seconds": 0 }
+    },
+    "workouts": [],
+    "ranges": {
+      "heartRate": { "low": 50, "normal": [60, 100], "high": 120, "unit": "bpm" },
+      "restingHeartRate": { "excellent": [0, 60], "good": [60, 70], "fair": [70, 80], "poor": [80, 200] },
+      "hrvSDNN": { "poor": [0, 20], "fair": [20, 40], "good": [40, 60], "excellent": [60, 200] },
+      "respiratoryRate": { "low": [0, 12], "normal": [12, 20], "high": [20, 40] },
+      "stepCount": { "goal": 10000 },
+      "activeEnergy": { "goal": 300 },
+      "exerciseTime": { "goal": 30 },
+      "standTime": { "goal": 60 },
+      "sleep": { "targetHours": 7, "deepPctIdeal": [13, 23], "remPctIdeal": [20, 25], "efficiencyGood": 85 }
+    },
+    "derived": {
+      "totalSleepSeconds": 0,
+      "timeInBedSeconds": 0,
+      "sleepEfficiency": 0,
+      "totalCalories": 0,
+      "distanceKm": 0,
+      "deepPct": 0,
+      "remPct": 0,
+      "corePct": 0
+    },
+    "sleepScore": 0,
+    "sleepDurationFormatted": "--h --m",
+    "sleepPhaseFormatted": {
+      "deep": "--",
+      "rem": "--",
+      "core": "--",
+      "awake": "--"
+    },
+    "sampleWorkouts": [],
+    "hydration": {
+      "waterOz": 0,
+      "coffeeOz": 0,
+      "waterMax": 140,
+      "coffeeMax": 48,
+      "waterRangeLo": 74,
+      "waterRangeHi": 125,
+      "coffeeRangeLo": 24,
+      "coffeeRangeHi": 40,
+      "coffeeCautionMax": 20
+    }
+  },
+  "github": {
+    "contributions": [
+      [0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0],[0,0,0,0,0,0,0]
+    ],
+    "totalContributions": 0,
+    "recentCommits": [],
+    "stats": {
+      "repos": 0,
+      "stars": 0,
+      "contributions": 0
+    }
+  },
+  "reading": {
+    "articles": []
+  },
+  "books": {
+    "books": [],
+    "bookMeta": {},
+    "statusLabels": {
+      "next": "Up Next",
+      "in_progress": "Reading",
+      "completed": "Recently Finished"
+    }
+  },
+  "system": {
+    "lines": [
+      { "key": "System", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Uptime", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Coffee Level", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Focus Mode", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Current Streak", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Bug Count", "value": "Checking...", "dotClass": "", "valClass": "" }
+    ]
+  }
+}

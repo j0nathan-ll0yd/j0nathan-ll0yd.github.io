@@ -1,7 +1,6 @@
 ---
 const { health } = Astro.props;
 const workouts = health.workouts || [];
-const sampleWorkouts = health.sampleWorkouts || [];
 const hasWorkouts = workouts.length > 0;
 
 function fmtDuration(seconds: number): string {
@@ -16,17 +15,11 @@ function fmtDuration(seconds: number): string {
   <div class="widget-header">
     <span class="widget-label">Workouts</span>
     <div class="widget-header-right">
-      <div class="data-toggle" id="workoutToggle">
-        <div class="data-toggle-track" id="workoutToggleTrack">
-          <div class="data-toggle-thumb"></div>
-        </div>
-        <span class="data-toggle-label">Live</span>
-      </div>
       <div class="live-dot live-dot-pink"></div>
-      <span class="widget-timestamp" id="workoutTimestamp">today</span>
+      <span class="widget-timestamp">today</span>
     </div>
   </div>
-  <div class="widget-body" id="workoutsBody">
+  <div class="widget-body">
     {hasWorkouts ? (
       workouts.map((w: any) => (
         <div class="workout-sub-card">
@@ -86,59 +79,3 @@ function fmtDuration(seconds: number): string {
     )}
   </div>
 </div>
-
-<script is:inline define:vars={{ sampleWorkouts }}>
-(function() {
-  var toggle = document.getElementById('workoutToggle');
-  var track = document.getElementById('workoutToggleTrack');
-  var timestamp = document.getElementById('workoutTimestamp');
-  var wBody = document.getElementById('workoutsBody');
-  if (!toggle || !track || !timestamp || !wBody) return;
-
-  var isLive = false;
-  var originalHTML = wBody.innerHTML;
-
-  function fmtDuration(seconds) {
-    var h = Math.floor(seconds / 3600);
-    var m = Math.floor((seconds % 3600) / 60);
-    var s = Math.round(seconds % 60);
-    if (h > 0) return h + 'h ' + m + 'm';
-    return m + 'm' + (s > 0 ? ' ' + s + 's' : '');
-  }
-
-  function getIcon(type) {
-    if (type === 'Outdoor Walk') {
-      return '<svg class="workout-sub-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="5" r="3" fill="var(--neon-pink)" opacity="0.8"/><path d="M14 8 L14 17 M14 12 L9 15 M14 12 L19 15 M12 27 L14 17 L16 27" stroke="var(--neon-pink)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/></svg>';
-    }
-    if (type === "Barry's Bootcamp") {
-      return '<svg class="workout-sub-icon" viewBox="0 0 28 28" fill="none"><rect x="3" y="12" width="22" height="4" rx="2" stroke="var(--neon-pink)" stroke-width="1.8" opacity="0.8"/><rect x="1" y="10" width="4" height="8" rx="1.5" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.6"/><rect x="23" y="10" width="4" height="8" rx="1.5" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.6"/><circle cx="8" cy="14" r="3" stroke="var(--neon-pink)" stroke-width="1.2" opacity="0.5"/><circle cx="20" cy="14" r="3" stroke="var(--neon-pink)" stroke-width="1.2" opacity="0.5"/></svg>';
-    }
-    return '<svg class="workout-sub-icon" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="10" stroke="var(--neon-pink)" stroke-width="1.8" opacity="0.6"/><path d="M14 8 L14 14 L19 14" stroke="var(--neon-pink)" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/></svg>';
-  }
-
-  toggle.addEventListener('click', function() {
-    isLive = !isLive;
-    if (isLive) {
-      track.classList.add('active');
-      timestamp.textContent = 'sample';
-      var html = '';
-      sampleWorkouts.forEach(function(w) {
-        var distHtml = w.distance > 0
-          ? '<div class="workout-stat"><div class="workout-stat-label">Distance</div><div class="workout-stat-value">' + (w.distance / 1000).toFixed(2) + ' km</div></div>'
-          : '';
-        html += '<div class="workout-sub-card"><div class="workout-sub-top">' + getIcon(w.activity_type) +
-          '<div class="workout-sub-type">' + w.activity_type + '</div></div>' +
-          '<div class="workout-sub-stats">' +
-          '<div class="workout-stat"><div class="workout-stat-label">Duration</div><div class="workout-stat-value">' + fmtDuration(w.duration) + '</div></div>' +
-          '<div class="workout-stat"><div class="workout-stat-label">Calories</div><div class="workout-stat-value">' + Math.round(w.energy_burned) + ' kcal</div></div>' +
-          distHtml + '</div></div>';
-      });
-      wBody.innerHTML = html;
-    } else {
-      track.classList.remove('active');
-      timestamp.textContent = 'today';
-      wBody.innerHTML = originalHTML;
-    }
-  });
-})();
-</script>

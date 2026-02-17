@@ -53,8 +53,7 @@ html, body {
   outline-offset: 2px;
 }
 
-.book-modal-close:focus-visible,
-.data-toggle:focus-visible {
+.book-modal-close:focus-visible {
   outline: 2px solid var(--neon-blue);
   outline-offset: 2px;
 }

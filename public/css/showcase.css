@@ -1,4 +1,5 @@
-/* ===== COMPONENT LIBRARY STYLES ===== */
+/* ===== SHOWCASE STYLES ===== */
+/* Migrated from legacy/css/component-library.css */
 
 /* Override body overflow for library pages */
 body.library-page {
@@ -380,6 +381,34 @@ body.library-page {
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--text-muted);
+}
+
+/* Force all components visible inside showcase renders.
+   On the real dashboard, components start at opacity:0 and a
+   staggered-reveal script adds .visible. In the showcase we
+   skip that script and make everything visible immediately. */
+.state-render .tri-card,
+.state-render .identity-card,
+.state-render .left-panel-status,
+.state-render .left-panel-bio,
+.state-render .terminal-line,
+.state-render .article-list-item,
+.state-render .article-list-star,
+.state-render .shelf-book {
+  opacity: 1 !important;
+  transform: none !important;
+  animation-delay: 0s !important;
+}
+
+/* Sleep pills — animated in with delay, force visible */
+.state-render .sleep-moon-pill {
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+/* Sleep score fill bar — animated width, let inline style take effect */
+.state-render .sleep-moon-score-fill {
+  animation: none !important;
 }
 
 /* Responsive */

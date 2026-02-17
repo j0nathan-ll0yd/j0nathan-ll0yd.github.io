@@ -1,10 +1,27 @@
 import { defineConfig } from 'astro/config';
 import AstroPWA from '@vite-pwa/astro';
 
+const showcaseDevOnly = {
+  name: 'showcase-dev-only',
+  hooks: {
+    'astro:config:setup'({ injectRoute, command }) {
+      if (command === 'dev') {
+        injectRoute({ pattern: '/showcase', entrypoint: 'src/showcase/index.astro' });
+        injectRoute({ pattern: '/showcase/brand-guide', entrypoint: 'src/showcase/brand-guide.astro' });
+        injectRoute({ pattern: '/showcase/left-panel', entrypoint: 'src/showcase/left-panel.astro' });
+        injectRoute({ pattern: '/showcase/top-bar', entrypoint: 'src/showcase/top-bar.astro' });
+        injectRoute({ pattern: '/showcase/body-column', entrypoint: 'src/showcase/body-column.astro' });
+        injectRoute({ pattern: '/showcase/mind-column', entrypoint: 'src/showcase/mind-column.astro' });
+      }
+    }
+  }
+};
+
 export default defineConfig({
   site: 'https://j0nathan-ll0yd.github.io',
   output: 'static',
   integrations: [
+    showcaseDevOnly,
     AstroPWA({
       registerType: 'autoUpdate',
       manifest: {

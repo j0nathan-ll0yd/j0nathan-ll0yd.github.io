@@ -671,63 +671,6 @@
   color: var(--text);
 }
 
-/* ===== DATA TOGGLE ===== */
-.data-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  -webkit-user-select: none;
-  user-select: none;
-  min-width: 44px;
-  min-height: 24px;
-  padding: 4px 8px;
-}
-
-.data-toggle-track {
-  width: 28px;
-  height: 14px;
-  border-radius: 7px;
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.12);
-  position: relative;
-  transition: background 0.3s ease, border-color 0.3s ease;
-}
-
-.data-toggle-track.active {
-  background: rgba(255,0,110,0.2);
-  border-color: rgba(255,0,110,0.4);
-}
-
-.data-toggle-thumb {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  position: absolute;
-  top: 1px;
-  left: 1px;
-  transition: transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease;
-}
-
-.data-toggle-track.active .data-toggle-thumb {
-  transform: translateX(14px);
-  background: var(--neon-pink);
-  box-shadow: 0 0 6px rgba(255,0,110,0.5);
-}
-
-.data-toggle-label {
-  font-size: 0.48rem;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 1.5px;
-  transition: color 0.3s ease;
-}
-
-.data-toggle-track.active + .data-toggle-label {
-  color: var(--neon-pink);
-}
-
 /* ===== 8. NIGHT SUMMARY (Moon) ===== */
 .sleep-moon-top {
   display: flex;

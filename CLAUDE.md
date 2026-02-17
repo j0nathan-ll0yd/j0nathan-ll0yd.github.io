@@ -13,15 +13,17 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 ├── tsconfig.json             # TypeScript (extends astro/tsconfigs/strict)
 ├── src/
 │   ├── components/           # 14 .astro components (one per widget)
-│   ├── layouts/              # Dashboard.astro (head, SEO, scripts, analytics)
-│   └── pages/                # index.astro (data loading, page composition)
+│   ├── layouts/              # Dashboard.astro, Showcase.astro
+│   ├── pages/                # index.astro (data loading, page composition)
+│   └── showcase/             # Dev-only component showcase pages (not in src/pages/)
 ├── public/
 │   ├── css/
 │   │   ├── tokens.css        # Design tokens (colors, typography, spacing, radii, blur, glows)
 │   │   ├── base.css          # Reset, body, scrollbar, global styles
 │   │   ├── layout.css        # .command-layout, .left-panel, .top-bar, .right-panel, responsive
 │   │   ├── components.css    # Widget cards, identity card, terminal, map, charts, modals
-│   │   └── effects.css       # Animations, transitions, glows, particle canvas
+│   │   ├── effects.css       # Animations, transitions, glows, particle canvas
+│   │   └── showcase.css      # Styles for dev-only component showcase
 │   ├── assets/               # avatar.svg, favicon.svg, logo.svg, PWA icons
 │   ├── js/
 │   │   ├── particles.js      # Three.js particle background (legacy, now inlined in index.astro)
@@ -33,20 +35,14 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 │   ├── github.json           # Contribution heatmap, recent commits, stats
 │   ├── books.json            # Bookshelf with covers, authors, status
 │   ├── reading.json          # RSS/article feed items
-│   └── system.json           # System status indicators
+│   ├── system.json           # System status indicators
+│   └── showcase-empty.json   # Empty state props for showcase pages
 ├── docs/
 │   └── wiki/                 # Documentation (synced to GitHub Wiki)
 │       ├── Home.md           # Wiki homepage
 │       ├── Astro-Implementation.md  # Architecture and components
 │       ├── Brand-Guide.md    # Design system reference
 │       └── Why-Astro.md      # Framework evaluation
-├── legacy/                   # Old root site preserved for reference
-│   ├── index.html            # Original dashboard (no build step)
-│   ├── brand-guide.html      # Design system reference page
-│   ├── components/           # Component library pages
-│   ├── js/                   # data-renderer.js, component-library.js
-│   ├── css/                  # component-library.css
-│   └── data/                 # mock-data.js, health-data.js, generate-json.js
 ├── .github/
 │   ├── workflows/
 │   │   ├── deploy.yml        # Build + deploy Astro to GitHub Pages
@@ -89,6 +85,21 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 |---|---|
 | Astro build | `fs.readFileSync` from `data/*.json` in `src/pages/index.astro` frontmatter |
 | Future | CloudFront-backed API serving real data |
+
+## Component Showcase (Dev Only)
+
+A visual storyboard for iterating on components, available only during `npm run dev` at `/showcase/`. Routes are injected via a local Astro integration (`showcase-dev-only` in `astro.config.mjs`) that only activates when `command === 'dev'`. Showcase files live in `src/showcase/` (not `src/pages/`), so they are excluded from production builds.
+
+| Route | Page | Content |
+|---|---|---|
+| `/showcase` | `index.astro` | Landing page with cards linking to each panel |
+| `/showcase/brand-guide` | `brand-guide.astro` | Colors, typography, glass-morphism, glows, spacing, animations |
+| `/showcase/left-panel` | `left-panel.astro` | IdentityCard, BioTerminal, SystemStatus |
+| `/showcase/top-bar` | `top-bar.astro` | Command bar (empty/active states) |
+| `/showcase/body-column` | `body-column.astro` | HeartRate, DailyActivity, Workouts, NightSummary, Hydration, Location |
+| `/showcase/mind-column` | `mind-column.astro` | GitHubHeatmap, RecentCommits, ReadingFeed, Bookshelf |
+
+Each component page imports the real `.astro` components and renders them side-by-side with empty state data (from `data/showcase-empty.json`) and active state data (from the real `data/*.json` files).
 
 ## Design System Quick Reference
 

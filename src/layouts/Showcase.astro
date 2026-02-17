@@ -1,0 +1,40 @@
+---
+const { title } = Astro.props;
+const pathname = Astro.url.pathname;
+
+function isActive(href) {
+  if (href === '/showcase' || href === '/showcase/') {
+    return pathname === '/showcase' || pathname === '/showcase/';
+  }
+  return pathname.startsWith(href);
+}
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{title} — Command Center Design System</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <link rel="stylesheet" href="/css/effects.css">
+  <link rel="stylesheet" href="/css/showcase.css">
+  <slot name="head" />
+</head>
+<body class="library-page">
+  <nav class="lib-nav">
+    <span class="lib-nav-title">Design System</span>
+    <div class="lib-nav-links">
+      <a href="/showcase/brand-guide" class:list={['lib-nav-link', { active: isActive('/showcase/brand-guide') }]}>Brand Guide</a>
+      <a href="/showcase" class:list={['lib-nav-link', { active: isActive('/showcase') }]}>Component Library</a>
+      <a href="/" class="lib-nav-link">Dashboard</a>
+    </div>
+  </nav>
+  <slot />
+</body>
+</html>

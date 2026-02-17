@@ -1,0 +1,119 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Showcase from '../layouts/Showcase.astro';
+import IdentityCard from '../components/IdentityCard.astro';
+import BioTerminal from '../components/BioTerminal.astro';
+import SystemStatus from '../components/SystemStatus.astro';
+
+const dataDir = path.join(process.cwd(), 'data');
+const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
+const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
+const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json'), 'utf-8'));
+---
+<Showcase title="Left Panel">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Left Panel</h1>
+    <p class="lib-page-desc">
+      The left panel houses the identity stack: a personal identity card, a terminal-style bio, and a real-time system status readout. These three components anchor the Command Center and establish who is behind the dashboard.
+    </p>
+
+    <!-- ==================== 1. IDENTITY CARD ==================== -->
+    <div class="component-section">
+      <div class="component-name">Identity Card</div>
+      <div class="component-description">
+        The primary identity component featuring an avatar with a neon glow ring, hero-sized name with dual-color text shadow, an uppercase title, a short bio paragraph, and pill-shaped social links.
+      </div>
+      <div class="component-classes">.identity-card, .id-avatar, .id-name, .id-title, .id-bio, .id-links, .neon-pill</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <IdentityCard profile={empty.profile} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <IdentityCard profile={profile} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2. BIO TERMINAL ==================== -->
+    <div class="component-section">
+      <div class="component-name">Bio Terminal</div>
+      <div class="component-description">
+        A faux terminal wrapped inside a tri-card with an accent-blue top border. Features a macOS-style titlebar with traffic-light dots, and lines that type in sequentially. The cursor blinks on the final line.
+      </div>
+      <div class="component-classes">.terminal-container, .terminal-titlebar, .terminal-btn, .terminal-body, .terminal-line, .terminal-cursor</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate #terminalBody from two BioTerminal instances -->
+            <div class="tri-card tri-card-accent-blue left-panel-bio">
+              <div class="widget-header">
+                <span class="widget-label">Bio</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-blue"></div>
+                  <span class="widget-timestamp">bash</span>
+                </div>
+              </div>
+              <div class="widget-body" style="padding: 0;">
+                <div class="terminal-container">
+                  <div class="terminal-titlebar">
+                    <div class="terminal-btn terminal-btn-red"></div>
+                    <div class="terminal-btn terminal-btn-yellow"></div>
+                    <div class="terminal-btn terminal-btn-green"></div>
+                    <div class="terminal-title">zsh &mdash; about</div>
+                  </div>
+                  <div class="terminal-body">
+                    <div class="terminal-line visible">
+                      <span class="terminal-prompt">$ </span>
+                      <span class="terminal-cursor"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <BioTerminal profile={profile} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 3. SYSTEM STATUS ==================== -->
+    <div class="component-section">
+      <div class="component-name">System Status</div>
+      <div class="component-description">
+        A compact status readout with colored indicator dots and key-value pairs displayed in a monospace font. Each row shows a system metric with a pulsing dot that communicates health at a glance.
+      </div>
+      <div class="component-classes">.left-panel-status, .sys-line, .sys-dot, .sys-key, .sys-val</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <SystemStatus system={empty.system} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <SystemStatus system={system} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</Showcase>
