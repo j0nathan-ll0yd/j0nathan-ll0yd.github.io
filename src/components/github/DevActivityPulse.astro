@@ -1,0 +1,222 @@
+---
+interface Event {
+  type: 'commit' | 'pr_opened' | 'pr_closed' | 'pr_merged' | 'issue_opened' | 'issue_closed';
+  repo: string;
+  title: string;
+  date: string;
+  hash?: string;
+  additions?: number;
+  deletions?: number;
+  number?: number;
+}
+
+interface Props {
+  events: Event[];
+}
+
+const { events } = Astro.props;
+
+const iconMap: Record<string, { symbol: string; color: string; colorHex: string }> = {
+  'commit':       { symbol: '\u2192', color: 'var(--neon-green)',  colorHex: '#06d6a0' },
+  'pr_opened':    { symbol: '\u2295', color: 'var(--neon-blue)',   colorHex: '#3a86ff' },
+  'pr_closed':    { symbol: '\u2296', color: 'var(--neon-blue)',   colorHex: '#3a86ff' },
+  'pr_merged':    { symbol: '\u229E', color: 'var(--neon-blue)',   colorHex: '#3a86ff' },
+  'issue_opened': { symbol: '\u25C9', color: 'var(--neon-amber)',  colorHex: '#f59e0b' },
+  'issue_closed': { symbol: '\u2714', color: 'var(--neon-amber)',  colorHex: '#f59e0b' },
+};
+
+function getIcon(type: string) {
+  return iconMap[type] || { symbol: '\u00B7', color: 'var(--neon-green)', colorHex: '#06d6a0' };
+}
+
+// SVG dimensions
+const svgW = 520;
+const svgH = 80;
+const padding = 10;
+const usableW = svgW - padding * 2;
+
+// Parse relative dates to hours for positioning
+function dateToHours(date: string): number {
+  const num = parseInt(date);
+  if (date.includes('d')) return num * 24;
+  return num;
+}
+
+const maxHours = Math.max(...events.map(e => dateToHours(e.date)), 1);
+
+// Build pulse spikes
+const spikes = events.map((event, i) => {
+  const hours = dateToHours(event.date);
+  const x = padding + (hours / maxHours) * usableW;
+  const icon = getIcon(event.type);
+  const height = svgH * 0.5 + (1 - hours / maxHours) * svgH * 0.3;
+  return { x, height, color: icon.colorHex, event, index: i };
+});
+
+// Count event types for summary
+const typeCounts: Record<string, number> = {};
+for (const event of events) {
+  const category = event.type.startsWith('pr_') ? 'pr' : event.type.startsWith('issue_') ? 'issue' : event.type;
+  typeCounts[category] = (typeCounts[category] || 0) + 1;
+}
+
+const summaryItems = [
+  { symbol: '\u2192', color: 'var(--neon-green)',  count: typeCounts['commit'] || 0, label: 'commits' },
+  { symbol: '\u2295', color: 'var(--neon-blue)',   count: (typeCounts['pr'] || 0), label: 'PRs' },
+  { symbol: '\u25C9', color: 'var(--neon-amber)',  count: (typeCounts['issue'] || 0), label: 'issues' },
+];
+
+// 3 most recent events
+const recent = events.slice(0, 3);
+---
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Dev Pulse</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">monitor</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-dap-pulse">
+      <div class="gh-dap-chart">
+        <svg viewBox={`0 0 ${svgW} ${svgH}`} preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <line x1={padding} y1={svgH - 1} x2={svgW - padding} y2={svgH - 1} stroke="rgba(255,255,255,0.06)" stroke-width="1" />
+          {spikes.map((spike) => (
+            <line
+              x1={spike.x.toFixed(1)}
+              y1={svgH}
+              x2={spike.x.toFixed(1)}
+              y2={(svgH - spike.height).toFixed(1)}
+              stroke={spike.color}
+              stroke-width="3"
+              stroke-linecap="round"
+              opacity="0.8"
+            />
+          ))}
+          {spikes.map((spike) => (
+            <circle
+              cx={spike.x.toFixed(1)}
+              cy={(svgH - spike.height).toFixed(1)}
+              r="3"
+              fill={spike.color}
+              opacity="0.9"
+            />
+          ))}
+        </svg>
+      </div>
+
+      <div class="gh-dap-summary">
+        {summaryItems.map((item) => (
+          <span class="gh-dap-stat">
+            <span class="gh-dap-stat-icon" style={`color: ${item.color};`}>{item.symbol}</span>
+            <span class="gh-dap-stat-count">{item.count}</span>
+            <span class="gh-dap-stat-label">{item.label}</span>
+          </span>
+        ))}
+      </div>
+
+      <div class="gh-dap-recent">
+        {recent.map((event: Event) => {
+          const icon = getIcon(event.type);
+          return (
+            <div class="gh-dap-recent-line">
+              <span class="gh-dap-recent-icon" style={`color: ${icon.color};`}>{icon.symbol}</span>
+              <span class="gh-dap-recent-title">{event.title}</span>
+              <span class="gh-dap-recent-date">{event.date}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-dap-pulse {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .gh-dap-chart {
+    width: 100%;
+    height: 60px;
+  }
+
+  .gh-dap-chart svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .gh-dap-summary {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 6px 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .gh-dap-stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .gh-dap-stat-icon {
+    font-size: 0.72rem;
+  }
+
+  .gh-dap-stat-count {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'Space Grotesk', monospace;
+  }
+
+  .gh-dap-stat-label {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .gh-dap-recent {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 0.64rem;
+    line-height: 1.7;
+  }
+
+  .gh-dap-recent-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .gh-dap-recent-icon {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+  }
+
+  .gh-dap-recent-title {
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gh-dap-recent-date {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.55rem;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+</style>

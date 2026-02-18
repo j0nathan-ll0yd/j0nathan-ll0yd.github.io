@@ -1,0 +1,190 @@
+---
+interface Event {
+  type: 'commit' | 'pr_opened' | 'pr_closed' | 'pr_merged' | 'issue_opened' | 'issue_closed';
+  repo: string;
+  title: string;
+  date: string;
+  hash?: string;
+  additions?: number;
+  deletions?: number;
+  number?: number;
+}
+
+interface RepoGroup {
+  repo: string;
+  events: Event[];
+}
+
+interface Props {
+  events: Event[];
+}
+
+const { events } = Astro.props;
+
+const iconMap: Record<string, { symbol: string; color: string; label: string }> = {
+  'commit':       { symbol: '\u2192', color: 'var(--neon-green)',  label: 'commit' },
+  'pr_opened':    { symbol: '\u2295', color: 'var(--neon-blue)',   label: 'pr opened' },
+  'pr_closed':    { symbol: '\u2296', color: 'var(--neon-blue)',   label: 'pr closed' },
+  'pr_merged':    { symbol: '\u229E', color: 'var(--neon-blue)',   label: 'pr merged' },
+  'issue_opened': { symbol: '\u25C9', color: 'var(--neon-amber)',  label: 'issue' },
+  'issue_closed': { symbol: '\u2714', color: 'var(--neon-amber)',  label: 'closed' },
+};
+
+function getIcon(type: string) {
+  return iconMap[type] || { symbol: '\u00B7', color: 'var(--neon-green)', label: 'event' };
+}
+
+function getDetail(event: Event): string {
+  if (event.type === 'commit' && event.hash) {
+    return event.hash + ' +' + (event.additions || 0) + '/-' + (event.deletions || 0);
+  }
+  if (event.number !== undefined) {
+    return '#' + event.number;
+  }
+  return '';
+}
+
+// Group events by repo
+const groupMap = new Map<string, Event[]>();
+for (const event of events) {
+  const existing = groupMap.get(event.repo);
+  if (existing) {
+    existing.push(event);
+  } else {
+    groupMap.set(event.repo, [event]);
+  }
+}
+const groups: RepoGroup[] = Array.from(groupMap.entries()).map(([repo, events]) => ({ repo, events }));
+---
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Dev By Repo</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">grouped</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-dar-groups">
+      {groups.map((group: RepoGroup) => (
+        <div class="gh-dar-group">
+          <div class="gh-dar-header">
+            <span class="gh-dar-repo">{group.repo}</span>
+            <span class="gh-dar-count">{group.events.length}</span>
+          </div>
+          <div class="gh-dar-events">
+            {group.events.map((event: Event) => {
+              const icon = getIcon(event.type);
+              const detail = getDetail(event);
+              return (
+                <div class="gh-dar-row">
+                  <span class="gh-dar-icon" style={`color: ${icon.color};`}>{icon.symbol}</span>
+                  <span class="gh-dar-label" style={`color: ${icon.color};`}>{icon.label}</span>
+                  <span class="gh-dar-title">{event.title}</span>
+                  {detail && <span class="gh-dar-detail">{detail}</span>}
+                  <span class="gh-dar-date">{event.date}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-dar-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .gh-dar-group {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .gh-dar-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .gh-dar-repo {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--neon-green);
+    letter-spacing: 0.3px;
+  }
+
+  .gh-dar-count {
+    font-size: 0.52rem;
+    font-family: 'Space Grotesk', monospace;
+    color: rgba(255, 255, 255, 0.25);
+    margin-left: auto;
+  }
+
+  .gh-dar-events {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gh-dar-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0 4px 16px;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 0.64rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .gh-dar-row:last-child {
+    border-bottom: none;
+  }
+
+  .gh-dar-icon {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+  }
+
+  .gh-dar-label {
+    flex-shrink: 0;
+    font-size: 0.52rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    min-width: 58px;
+  }
+
+  .gh-dar-title {
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gh-dar-detail {
+    color: var(--text-muted);
+    font-size: 0.56rem;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .gh-dar-date {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.52rem;
+    flex-shrink: 0;
+    min-width: 40px;
+    text-align: right;
+  }
+</style>

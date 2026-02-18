@@ -12,6 +12,7 @@ const showcaseDevOnly = {
         injectRoute({ pattern: '/showcase/top-bar', entrypoint: 'src/showcase/top-bar.astro' });
         injectRoute({ pattern: '/showcase/body-column', entrypoint: 'src/showcase/body-column.astro' });
         injectRoute({ pattern: '/showcase/mind-column', entrypoint: 'src/showcase/mind-column.astro' });
+        injectRoute({ pattern: '/showcase/github-widgets', entrypoint: 'src/showcase/github-widgets.astro' });
       }
     }
   }
