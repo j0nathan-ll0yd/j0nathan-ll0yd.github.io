@@ -1,0 +1,138 @@
+---
+interface RingData {
+  count: number;
+  pct: number;
+}
+
+interface Props {
+  commits: RingData;
+  pullRequests: RingData;
+  issues: RingData;
+  reviews: RingData;
+}
+
+const { commits, pullRequests, issues, reviews } = Astro.props;
+
+// Ring configuration: outer to inner
+const rings = [
+  { label: 'Commits', data: commits, color: 'var(--neon-green)', colorRgb: '6,214,160', radius: 72 },
+  { label: 'Pull Requests', data: pullRequests, color: 'var(--neon-blue)', colorRgb: '58,134,255', radius: 56 },
+  { label: 'Issues', data: issues, color: 'var(--neon-amber)', colorRgb: '245,158,11', radius: 40 },
+  { label: 'Reviews', data: reviews, color: 'var(--neon-purple)', colorRgb: '168,85,247', radius: 24 },
+];
+
+const strokeWidth = 10;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Contribution Rings</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">this year</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-rings">
+      <svg class="gh-rings-svg" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg">
+        {rings.map((ring) => {
+          const circumference = 2 * Math.PI * ring.radius;
+          const dashArray = (ring.data.pct / 100) * circumference;
+          const dashOffset = 0;
+          return (
+            <g>
+              {/* Background track */}
+              <circle
+                class="gh-ring-track"
+                cx="90"
+                cy="90"
+                r={ring.radius}
+                fill="none"
+                stroke={`rgba(${ring.colorRgb},0.1)`}
+                stroke-width={strokeWidth}
+              />
+              {/* Filled arc */}
+              <circle
+                class="gh-ring-fill"
+                cx="90"
+                cy="90"
+                r={ring.radius}
+                fill="none"
+                stroke={ring.color}
+                stroke-width={strokeWidth}
+                stroke-linecap="round"
+                stroke-dasharray={`${dashArray} ${circumference - dashArray}`}
+                stroke-dashoffset={circumference * 0.25}
+                style={`filter: drop-shadow(0 0 4px rgba(${ring.colorRgb},0.4));`}
+                transform="rotate(-90 90 90)"
+              />
+            </g>
+          );
+        })}
+      </svg>
+      <div class="gh-rings-legend">
+        {rings.map((ring) => (
+          <div class="gh-rings-legend-item">
+            <span class="gh-rings-legend-dot" style={`background: ${ring.color}; box-shadow: 0 0 6px rgba(${ring.colorRgb},0.4);`}></span>
+            <span class="gh-rings-legend-label">{ring.label}</span>
+            <span class="gh-rings-legend-count">{ring.data.count.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-rings {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .gh-rings-svg {
+    width: 160px;
+    height: 160px;
+  }
+
+  .gh-ring-track {
+    opacity: 1;
+  }
+
+  .gh-ring-fill {
+    transition: stroke-dasharray 0.6s ease;
+  }
+
+  .gh-rings-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    justify-content: center;
+  }
+
+  .gh-rings-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.65rem;
+    font-family: 'Space Grotesk', monospace;
+  }
+
+  .gh-rings-legend-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gh-rings-legend-label {
+    color: var(--text-muted);
+    letter-spacing: 0.5px;
+  }
+
+  .gh-rings-legend-count {
+    color: var(--text);
+    font-weight: 600;
+  }
+</style>

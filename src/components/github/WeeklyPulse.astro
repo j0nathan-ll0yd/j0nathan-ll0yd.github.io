@@ -1,0 +1,109 @@
+---
+interface Props {
+  weeks: { total: number; label: string }[];
+  maxWeek: number;
+}
+
+const { weeks, maxWeek } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Weekly Pulse</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">12 weeks</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-pulse">
+      <div class="gh-pulse-bars">
+        {weeks.map((week, idx) => {
+          const heightPct = maxWeek > 0 ? (week.total / maxWeek) * 100 : 0;
+          const isCurrent = idx === weeks.length - 1;
+          return (
+            <div class="gh-pulse-bar">
+              <div
+                class={`gh-pulse-bar-fill ${isCurrent ? 'gh-pulse-bar-current' : ''}`}
+                style={`height: ${heightPct}%`}
+                title={`${week.label}: ${week.total} contributions`}
+              >
+                <span class="gh-pulse-bar-count">{week.total}</span>
+              </div>
+              <span class="gh-pulse-label">{week.label}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-pulse {
+    padding: 4px 0 0;
+  }
+
+  .gh-pulse-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 120px;
+  }
+
+  .gh-pulse-bar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .gh-pulse-bar-fill {
+    width: 100%;
+    min-height: 2px;
+    background: rgba(6,214,160,0.35);
+    border-radius: 3px 3px 0 0;
+    position: relative;
+    transition: height 0.3s ease;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .gh-pulse-bar-fill:hover {
+    background: rgba(6,214,160,0.55);
+  }
+
+  .gh-pulse-bar-current {
+    background: var(--neon-green);
+    box-shadow: 0 0 8px rgba(6,214,160,0.5), 0 0 20px rgba(6,214,160,0.2);
+  }
+
+  .gh-pulse-bar-current:hover {
+    background: var(--neon-green);
+  }
+
+  .gh-pulse-bar-count {
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    position: absolute;
+    top: -14px;
+    white-space: nowrap;
+  }
+
+  .gh-pulse-bar-current .gh-pulse-bar-count {
+    color: var(--neon-green);
+    font-weight: 600;
+  }
+
+  .gh-pulse-label {
+    font-size: 0.42rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+</style>

@@ -1,0 +1,126 @@
+---
+interface RecentDay {
+  date: string;
+  active: boolean;
+}
+
+interface Props {
+  current: number;
+  longest: number;
+  recentDays: RecentDay[];
+}
+
+const { current, longest, recentDays } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Streak Counter</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">last 30 days</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-streak-numbers">
+      <div class="gh-streak-block">
+        <div class="gh-streak-big gh-streak-current">{current}</div>
+        <div class="gh-streak-label">Current Streak</div>
+      </div>
+      <div class="gh-streak-divider"></div>
+      <div class="gh-streak-block">
+        <div class="gh-streak-big gh-streak-longest">{longest}</div>
+        <div class="gh-streak-label">Longest Streak</div>
+      </div>
+    </div>
+    <div class="gh-streak-unit">days</div>
+    <div class="gh-streak-dots">
+      {recentDays.map((day) => (
+        <div
+          class={`gh-streak-dot ${day.active ? 'gh-streak-dot-active' : ''}`}
+          title={`${day.date}: ${day.active ? 'active' : 'inactive'}`}
+        ></div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-streak-numbers {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-bottom: 4px;
+  }
+
+  .gh-streak-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .gh-streak-big {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    font-family: 'Space Grotesk', monospace;
+  }
+
+  .gh-streak-current {
+    color: var(--neon-green);
+    text-shadow:
+      0 0 12px rgba(6,214,160,0.6),
+      0 0 30px rgba(6,214,160,0.25);
+  }
+
+  .gh-streak-longest {
+    color: var(--text);
+    opacity: 0.7;
+  }
+
+  .gh-streak-divider {
+    width: 1px;
+    height: 48px;
+    background: linear-gradient(180deg, transparent, rgba(255,255,255,0.1), transparent);
+  }
+
+  .gh-streak-label {
+    font-size: 0.48rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+  }
+
+  .gh-streak-unit {
+    text-align: center;
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 14px;
+  }
+
+  .gh-streak-dots {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .gh-streak-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(6,214,160,0.08);
+    border: 1px solid rgba(6,214,160,0.12);
+  }
+
+  .gh-streak-dot-active {
+    background: var(--neon-green);
+    border-color: var(--neon-green);
+    box-shadow: 0 0 6px rgba(6,214,160,0.4);
+  }
+</style>

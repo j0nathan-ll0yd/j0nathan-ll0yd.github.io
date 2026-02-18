@@ -1,0 +1,104 @@
+---
+interface Commit {
+  hash: string;
+  message: string;
+  repo: string;
+  date: string;
+  additions: number;
+  deletions: number;
+}
+
+interface Props {
+  commits: Commit[];
+}
+
+const { commits } = Astro.props;
+---
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Commit Log</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">latest</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-commit-log">
+      {commits.map((c: Commit) => (
+        <div class="gh-cl-line">
+          <span class="gh-cl-hash">{c.hash}</span>
+          <span class="gh-cl-msg">{c.message}</span>
+          <span class="gh-cl-repo">{c.repo}</span>
+          <span class="gh-cl-stats">
+            <span class="gh-cl-additions">+{c.additions}</span>
+            <span class="gh-cl-deletions">-{c.deletions}</span>
+          </span>
+          <span class="gh-cl-date">{c.date}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-commit-log {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(6, 214, 160, 0.1);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 0.68rem;
+    line-height: 1.8;
+  }
+
+  .gh-cl-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .gh-cl-hash {
+    color: var(--neon-green);
+    flex-shrink: 0;
+    text-shadow: 0 0 6px rgba(6, 214, 160, 0.3);
+  }
+
+  .gh-cl-msg {
+    color: var(--text);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gh-cl-repo {
+    color: var(--text-muted);
+    font-size: 0.6rem;
+    flex-shrink: 0;
+  }
+
+  .gh-cl-stats {
+    display: inline-flex;
+    gap: 4px;
+    flex-shrink: 0;
+    font-size: 0.6rem;
+  }
+
+  .gh-cl-additions {
+    color: var(--neon-green);
+  }
+
+  .gh-cl-deletions {
+    color: #ef4444;
+  }
+
+  .gh-cl-date {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.6rem;
+    flex-shrink: 0;
+    margin-left: auto;
+  }
+</style>

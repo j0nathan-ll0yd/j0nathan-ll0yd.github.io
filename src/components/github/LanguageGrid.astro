@@ -1,0 +1,98 @@
+---
+interface Props {
+  languages: { name: string; pct: number; color: string; repos: number }[];
+}
+
+const { languages } = Astro.props;
+const sorted = [...languages].sort((a, b) => b.pct - a.pct);
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Language Grid</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">all repos</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-lang-grid">
+      {sorted.map((lang) => (
+        <div class="gh-lg-badge">
+          <div class="gh-lg-badge-top">
+            <span class="gh-lg-dot" style={`background: ${lang.color};`}></span>
+            <span class="gh-lg-name">{lang.name}</span>
+          </div>
+          <div class="gh-lg-badge-bottom">
+            <span class="gh-lg-pct">{lang.pct}%</span>
+            <span class="gh-lg-repos">{lang.repos} {lang.repos === 1 ? 'repo' : 'repos'}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-lang-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  @media (max-width: 600px) {
+    .gh-lang-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  .gh-lg-badge {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+  }
+
+  .gh-lg-badge-top {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .gh-lg-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gh-lg-name {
+    font-size: var(--font-size-base);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .gh-lg-badge-bottom {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .gh-lg-pct {
+    font-size: var(--font-size-md);
+    color: var(--neon-green);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .gh-lg-repos {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+</style>

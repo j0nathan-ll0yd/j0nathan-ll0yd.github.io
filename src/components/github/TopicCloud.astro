@@ -1,0 +1,80 @@
+---
+interface Props {
+  topics: { name: string; count: number; size: string }[];
+}
+
+const { topics } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Topic Cloud</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">all repos</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-topics">
+      <div class="gh-topic-cloud">
+        {topics.map((topic) => (
+          <span class={`gh-topic-tag gh-topic-${topic.size}`}>
+            {topic.name}
+          </span>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-topics {
+    padding: 4px 0 0;
+  }
+
+  .gh-topic-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .gh-topic-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    white-space: nowrap;
+    transition: background 0.2s ease;
+  }
+
+  .gh-topic-tag:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .gh-topic-sm {
+    font-size: 0.6rem;
+    color: rgba(6, 214, 160, 0.45);
+    padding: 3px 8px;
+  }
+
+  .gh-topic-md {
+    font-size: 0.78rem;
+    color: rgba(6, 214, 160, 0.65);
+  }
+
+  .gh-topic-lg {
+    font-size: 0.95rem;
+    color: rgba(6, 214, 160, 0.82);
+    font-weight: 500;
+  }
+
+  .gh-topic-xl {
+    font-size: 1.1rem;
+    color: var(--neon-green);
+    font-weight: 600;
+    border-color: rgba(6, 214, 160, 0.2);
+  }
+</style>

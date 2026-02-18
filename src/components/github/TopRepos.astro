@@ -1,0 +1,118 @@
+---
+interface Repo {
+  rank: number;
+  name: string;
+  stars: number;
+  language: string;
+  languageColor: string;
+}
+
+interface Props {
+  repos: Repo[];
+}
+
+const { repos } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Top Repos</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">by stars</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-top-repos">
+      <div class="gh-tr-list">
+        {repos.map((repo: Repo) => (
+          <div class:list={['gh-tr-item', { 'gh-tr-highlight': repo.rank <= 3 }]}>
+            <span class="gh-tr-rank">{String(repo.rank).padStart(2, '0')}</span>
+            <span class="gh-tr-name">{repo.name}</span>
+            <span class="gh-tr-stars">&#9733; {repo.stars}</span>
+            <span class="gh-tr-lang">
+              <span class="gh-tr-lang-dot" style={`background: ${repo.languageColor};`}></span>
+              {repo.language}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-top-repos {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(6, 214, 160, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 0.68rem;
+  }
+
+  .gh-tr-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gh-tr-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  .gh-tr-item:last-child {
+    border-bottom: none;
+  }
+
+  .gh-tr-rank {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.6rem;
+    min-width: 18px;
+    flex-shrink: 0;
+  }
+
+  .gh-tr-highlight .gh-tr-rank {
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .gh-tr-name {
+    color: var(--neon-green);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gh-tr-highlight .gh-tr-name {
+    text-shadow: 0 0 8px rgba(6, 214, 160, 0.4);
+  }
+
+  .gh-tr-stars {
+    color: var(--neon-amber);
+    font-size: 0.62rem;
+    flex-shrink: 0;
+    text-shadow: 0 0 6px rgba(245, 158, 11, 0.25);
+  }
+
+  .gh-tr-lang {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.58rem;
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .gh-tr-lang-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+</style>

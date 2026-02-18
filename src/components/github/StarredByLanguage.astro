@@ -1,0 +1,145 @@
+---
+interface Repo {
+  owner: string;
+  name: string;
+  stars: number;
+  starredAt: string;
+}
+
+interface LanguageGroup {
+  language: string;
+  languageColor: string;
+  repos: Repo[];
+}
+
+interface Props {
+  groups: LanguageGroup[];
+}
+
+const { groups } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Starred By Language</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">grouped</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-star-lang">
+      {groups.map((group: LanguageGroup) => (
+        <div class="gh-sbl-group">
+          <div class="gh-sbl-header">
+            <span class="gh-sbl-dot" style={`background: ${group.languageColor}; box-shadow: 0 0 8px ${group.languageColor};`}></span>
+            <span class="gh-sbl-lang" style={`color: ${group.languageColor};`}>{group.language}</span>
+            <span class="gh-sbl-count">{group.repos.length}</span>
+          </div>
+          <div class="gh-sbl-repos">
+            {group.repos.map((repo: Repo) => (
+              <div class="gh-sbl-row">
+                <span class="gh-sbl-name">
+                  <span class="gh-sbl-owner">{repo.owner}/</span>{repo.name}
+                </span>
+                <span class="gh-sbl-stars">&#9733; {repo.stars.toLocaleString()}</span>
+                <span class="gh-sbl-date">{repo.starredAt}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-star-lang {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .gh-sbl-group {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .gh-sbl-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .gh-sbl-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gh-sbl-lang {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .gh-sbl-count {
+    font-size: 0.52rem;
+    font-family: 'Space Grotesk', monospace;
+    color: rgba(255, 255, 255, 0.25);
+    margin-left: auto;
+  }
+
+  .gh-sbl-repos {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gh-sbl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0 4px 16px;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 0.64rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+  }
+
+  .gh-sbl-row:last-child {
+    border-bottom: none;
+  }
+
+  .gh-sbl-name {
+    color: var(--neon-green);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gh-sbl-owner {
+    color: rgba(6, 214, 160, 0.5);
+  }
+
+  .gh-sbl-stars {
+    color: var(--neon-amber);
+    font-size: 0.58rem;
+    flex-shrink: 0;
+    text-shadow: 0 0 6px rgba(245, 158, 11, 0.25);
+  }
+
+  .gh-sbl-date {
+    color: rgba(255, 255, 255, 0.2);
+    font-size: 0.52rem;
+    flex-shrink: 0;
+    min-width: 72px;
+    text-align: right;
+  }
+</style>

@@ -1,0 +1,111 @@
+---
+interface Props {
+  commits: number;
+  pullRequests: number;
+  issues: number;
+  reviews: number;
+}
+
+const { commits, pullRequests, issues, reviews } = Astro.props;
+
+const pills = [
+  { value: commits, label: 'Commits', colorClass: 'gh-bd-pill-green' },
+  { value: pullRequests, label: 'Pull Requests', colorClass: 'gh-bd-pill-blue' },
+  { value: issues, label: 'Issues', colorClass: 'gh-bd-pill-amber' },
+  { value: reviews, label: 'Reviews', colorClass: 'gh-bd-pill-purple' },
+];
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Contribution Breakdown</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">this year</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-breakdown">
+      <div class="gh-bd-grid">
+        {pills.map((pill) => (
+          <div class={`gh-bd-pill ${pill.colorClass}`}>
+            <span class="gh-bd-count">{pill.value.toLocaleString()}</span>
+            <span class="gh-bd-label">{pill.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-breakdown {
+    padding: 4px 0 0;
+  }
+
+  .gh-bd-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .gh-bd-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.04);
+  }
+
+  .gh-bd-pill-green {
+    border: 1px solid rgba(6,214,160,0.25);
+  }
+
+  .gh-bd-pill-blue {
+    border: 1px solid rgba(58,134,255,0.25);
+  }
+
+  .gh-bd-pill-amber {
+    border: 1px solid rgba(245,158,11,0.25);
+  }
+
+  .gh-bd-pill-purple {
+    border: 1px solid rgba(168,85,247,0.25);
+  }
+
+  .gh-bd-count {
+    font-size: 1.4rem;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .gh-bd-pill-green .gh-bd-count {
+    color: var(--neon-green);
+    text-shadow: 0 0 10px rgba(6,214,160,0.4);
+  }
+
+  .gh-bd-pill-blue .gh-bd-count {
+    color: var(--neon-blue);
+    text-shadow: 0 0 10px rgba(58,134,255,0.4);
+  }
+
+  .gh-bd-pill-amber .gh-bd-count {
+    color: var(--neon-amber);
+    text-shadow: 0 0 10px rgba(245,158,11,0.4);
+  }
+
+  .gh-bd-pill-purple .gh-bd-count {
+    color: var(--neon-purple);
+    text-shadow: 0 0 10px rgba(168,85,247,0.4);
+  }
+
+  .gh-bd-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+</style>

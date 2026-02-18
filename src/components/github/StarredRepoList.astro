@@ -1,0 +1,113 @@
+---
+interface Repo {
+  owner: string;
+  name: string;
+  stars: number;
+  language: string;
+  languageColor: string;
+  starredAt: string;
+}
+
+interface Props {
+  repos: Repo[];
+}
+
+const { repos } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Starred Repos</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">recent</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-starred-list">
+      {repos.map((repo: Repo) => (
+        <div class="gh-sl-row">
+          <span class="gh-sl-name">
+            <span class="gh-sl-owner">{repo.owner}/</span>{repo.name}
+          </span>
+          <span class="gh-sl-stars">&#9733; {repo.stars.toLocaleString()}</span>
+          <span class="gh-sl-lang">
+            <span class="gh-sl-lang-dot" style={`background: ${repo.languageColor};`}></span>
+            {repo.language}
+          </span>
+          <span class="gh-sl-date">{repo.starredAt}</span>
+        </div>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-starred-list {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(6, 214, 160, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'Space Grotesk', monospace;
+    font-size: 0.68rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .gh-sl-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  .gh-sl-row:last-child {
+    border-bottom: none;
+  }
+
+  .gh-sl-name {
+    color: var(--neon-green);
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .gh-sl-owner {
+    color: rgba(6, 214, 160, 0.5);
+  }
+
+  .gh-sl-stars {
+    color: var(--neon-amber);
+    font-size: 0.62rem;
+    flex-shrink: 0;
+    text-shadow: 0 0 6px rgba(245, 158, 11, 0.25);
+  }
+
+  .gh-sl-lang {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 0.58rem;
+    flex-shrink: 0;
+    min-width: 80px;
+  }
+
+  .gh-sl-lang-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gh-sl-date {
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 0.56rem;
+    flex-shrink: 0;
+    min-width: 72px;
+    text-align: right;
+  }
+</style>

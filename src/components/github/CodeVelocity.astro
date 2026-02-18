@@ -1,0 +1,152 @@
+---
+interface Props {
+  weeks: { additions: number; deletions: number }[];
+}
+
+const { weeks } = Astro.props;
+
+const chartW = 520;
+const chartH = 160;
+const baseline = chartH / 2;
+
+const maxAdd = Math.max(...weeks.map((w) => w.additions), 1);
+const maxDel = Math.max(...weeks.map((w) => w.deletions), 1);
+const maxVal = Math.max(maxAdd, maxDel);
+
+const stepX = weeks.length > 1 ? chartW / (weeks.length - 1) : chartW;
+
+function additionsY(val: number): number {
+  return baseline - (val / maxVal) * (baseline - 4);
+}
+
+function deletionsY(val: number): number {
+  return baseline + (val / maxVal) * (baseline - 4);
+}
+
+// Build additions area path (above baseline)
+let addPath = `M0,${baseline}`;
+for (let i = 0; i < weeks.length; i++) {
+  addPath += ` L${(i * stepX).toFixed(1)},${additionsY(weeks[i].additions).toFixed(1)}`;
+}
+addPath += ` L${((weeks.length - 1) * stepX).toFixed(1)},${baseline} Z`;
+
+// Build deletions area path (below baseline)
+let delPath = `M0,${baseline}`;
+for (let i = 0; i < weeks.length; i++) {
+  delPath += ` L${(i * stepX).toFixed(1)},${deletionsY(weeks[i].deletions).toFixed(1)}`;
+}
+delPath += ` L${((weeks.length - 1) * stepX).toFixed(1)},${baseline} Z`;
+
+// Grid lines every 4 weeks
+const gridLines: number[] = [];
+for (let i = 4; i < weeks.length; i += 4) {
+  gridLines.push(i * stepX);
+}
+
+// Net lines calculation
+const totalAdd = weeks.reduce((s, w) => s + w.additions, 0);
+const totalDel = weeks.reduce((s, w) => s + w.deletions, 0);
+const netLines = totalAdd - totalDel;
+const netPositive = netLines >= 0;
+const netFormatted = (netPositive ? '+' : '') + netLines.toLocaleString();
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Code Velocity</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">52 weeks</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-velocity">
+      <div class="gh-vel-chart">
+        <svg viewBox={`0 0 ${chartW} ${chartH}`} preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="grad-additions" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#06d6a0" stop-opacity="0.05" />
+              <stop offset="100%" stop-color="#06d6a0" stop-opacity="0.45" />
+            </linearGradient>
+            <linearGradient id="grad-deletions" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ef4444" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="#ef4444" stop-opacity="0.05" />
+            </linearGradient>
+          </defs>
+
+          {gridLines.map((x) => (
+            <line
+              x1={x.toFixed(1)}
+              y1="0"
+              x2={x.toFixed(1)}
+              y2={chartH}
+              stroke="rgba(255,255,255,0.06)"
+              stroke-width="1"
+            />
+          ))}
+
+          <path class="gh-vel-additions" d={addPath} fill="url(#grad-additions)" />
+          <path class="gh-vel-deletions" d={delPath} fill="url(#grad-deletions)" />
+
+          <line
+            class="gh-vel-baseline"
+            x1="0"
+            y1={baseline}
+            x2={chartW}
+            y2={baseline}
+            stroke="rgba(255,255,255,0.12)"
+            stroke-width="1"
+            stroke-dasharray="4,4"
+          />
+        </svg>
+      </div>
+      <div class="gh-vel-summary">
+        <span class={netPositive ? 'gh-vel-net-pos' : 'gh-vel-net-neg'}>
+          Net: {netFormatted} lines
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-velocity {
+    padding: 4px 0 0;
+  }
+
+  .gh-vel-chart {
+    width: 100%;
+    height: 120px;
+    margin-bottom: 10px;
+  }
+
+  .gh-vel-chart svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .gh-vel-additions {
+    transition: opacity 0.3s ease;
+  }
+
+  .gh-vel-deletions {
+    transition: opacity 0.3s ease;
+  }
+
+  .gh-vel-summary {
+    text-align: center;
+    font-size: var(--font-size-base);
+    letter-spacing: 0.5px;
+  }
+
+  .gh-vel-net-pos {
+    color: var(--neon-green);
+    font-weight: 600;
+  }
+
+  .gh-vel-net-neg {
+    color: var(--neon-red);
+    font-weight: 600;
+  }
+</style>

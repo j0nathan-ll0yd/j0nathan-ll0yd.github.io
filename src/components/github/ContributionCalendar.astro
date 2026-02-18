@@ -1,0 +1,179 @@
+---
+interface Day {
+  date: string;
+  count: number;
+  level: number;
+}
+
+interface Week {
+  firstDay: string;
+  days: Day[];
+}
+
+interface Props {
+  weeks: Week[];
+  months: string[];
+}
+
+const { weeks, months } = Astro.props;
+
+const dayLabels = ['Mon', '', 'Wed', '', 'Fri', '', ''];
+
+// Build month header positions: track which column index each new month starts at
+const monthPositions: { name: string; col: number }[] = [];
+const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+let lastMonth = '';
+weeks.forEach((week, i) => {
+  if (week.days.length > 0) {
+    const m = monthNames[new Date(week.days[0].date + 'T00:00:00').getMonth()];
+    if (m !== lastMonth) {
+      monthPositions.push({ name: m, col: i });
+      lastMonth = m;
+    }
+  }
+});
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Contribution Calendar</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">last 90 days</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-calendar">
+      <!-- Month headers -->
+      <div class="gh-cal-months">
+        <div class="gh-cal-months-spacer"></div>
+        <div class="gh-cal-months-track">
+          {monthPositions.map((mp) => (
+            <span class="gh-cal-month-label" style={`grid-column: ${mp.col + 1}`}>{mp.name}</span>
+          ))}
+        </div>
+      </div>
+
+      <div class="gh-cal-body">
+        <!-- Day labels -->
+        <div class="gh-cal-day-labels">
+          {dayLabels.map((label) => (
+            <span class="gh-cal-day-label">{label}</span>
+          ))}
+        </div>
+
+        <!-- Grid -->
+        <div class="gh-cal-grid">
+          {weeks.map((week) => (
+            <div class="gh-cal-week">
+              {week.days.map((day) => (
+                <div
+                  class="gh-cal-cell"
+                  data-level={day.level}
+                  title={`${day.date}: ${day.count} contribution${day.count !== 1 ? 's' : ''}`}
+                ></div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-calendar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .gh-cal-months {
+    display: flex;
+    align-items: flex-end;
+    gap: 0;
+  }
+
+  .gh-cal-months-spacer {
+    width: 28px;
+    flex-shrink: 0;
+  }
+
+  .gh-cal-months-track {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+  }
+
+  .gh-cal-month-label {
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-family: 'Space Grotesk', monospace;
+  }
+
+  .gh-cal-body {
+    display: flex;
+    gap: 4px;
+  }
+
+  .gh-cal-day-labels {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 24px;
+    flex-shrink: 0;
+  }
+
+  .gh-cal-day-label {
+    height: 12px;
+    font-size: 0.42rem;
+    color: var(--text-muted);
+    font-family: 'Space Grotesk', monospace;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+  }
+
+  .gh-cal-grid {
+    display: flex;
+    gap: 3px;
+    flex: 1;
+  }
+
+  .gh-cal-week {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .gh-cal-cell {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+  }
+
+  .gh-cal-cell[data-level="0"] {
+    background: rgba(6,214,160,0.05);
+  }
+
+  .gh-cal-cell[data-level="1"] {
+    background: rgba(6,214,160,0.2);
+  }
+
+  .gh-cal-cell[data-level="2"] {
+    background: rgba(6,214,160,0.4);
+    box-shadow: 0 0 3px rgba(6,214,160,0.15);
+  }
+
+  .gh-cal-cell[data-level="3"] {
+    background: rgba(6,214,160,0.65);
+    box-shadow: 0 0 4px rgba(6,214,160,0.25);
+  }
+
+  .gh-cal-cell[data-level="4"] {
+    background: var(--neon-green);
+    box-shadow: 0 0 6px rgba(6,214,160,0.4);
+  }
+</style>

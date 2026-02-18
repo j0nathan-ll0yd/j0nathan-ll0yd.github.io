@@ -1,0 +1,105 @@
+---
+interface Props {
+  languages: { name: string; pct: number; color: string }[];
+}
+
+const { languages } = Astro.props;
+const sorted = [...languages].sort((a, b) => b.pct - a.pct);
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Language Stack</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">all repos</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-lang-stack">
+      <div class="gh-ls-bar">
+        {sorted.map((lang) => (
+          <div
+            class="gh-ls-segment"
+            style={`width: ${lang.pct}%; background: ${lang.color};`}
+            title={`${lang.name} ${lang.pct}%`}
+          ></div>
+        ))}
+      </div>
+      <div class="gh-ls-legend">
+        {sorted.map((lang) => (
+          <div class="gh-ls-legend-item">
+            <span class="gh-ls-legend-dot" style={`background: ${lang.color};`}></span>
+            <span class="gh-ls-legend-name">{lang.name}</span>
+            <span class="gh-ls-legend-pct">{lang.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-lang-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .gh-ls-bar {
+    display: flex;
+    height: 12px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .gh-ls-segment {
+    height: 100%;
+    min-width: 2px;
+    transition: width 0.3s ease;
+  }
+
+  .gh-ls-segment:first-child {
+    border-radius: 6px 0 0 6px;
+  }
+
+  .gh-ls-segment:last-child {
+    border-radius: 0 6px 6px 0;
+  }
+
+  .gh-ls-segment:only-child {
+    border-radius: 6px;
+  }
+
+  .gh-ls-legend {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 8px 16px;
+  }
+
+  .gh-ls-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .gh-ls-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gh-ls-legend-name {
+    font-size: var(--font-size-base);
+    color: var(--text);
+  }
+
+  .gh-ls-legend-pct {
+    font-size: var(--font-size-base);
+    color: var(--text-muted);
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+  }
+</style>

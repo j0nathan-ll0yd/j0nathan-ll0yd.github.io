@@ -1,0 +1,119 @@
+---
+interface Props {
+  avatarUrl: string;
+  name: string;
+  bio: string;
+  followers: number;
+  following: number;
+  createdAt: string;
+  publicRepos: number;
+}
+
+const { avatarUrl, name, bio, followers, following, createdAt, publicRepos } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Profile</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">github</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-profile">
+      <img class="gh-prof-avatar" src={avatarUrl} alt={name} width="64" height="64" />
+      <div class="gh-prof-name">{name}</div>
+      <div class="gh-prof-bio">{bio}</div>
+      <div class="gh-prof-stats">
+        <div class="gh-prof-stat">
+          <div class="gh-prof-stat-val">{followers.toLocaleString()}</div>
+          <div class="gh-prof-stat-label">Followers</div>
+        </div>
+        <div class="gh-prof-stat">
+          <div class="gh-prof-stat-val">{following.toLocaleString()}</div>
+          <div class="gh-prof-stat-label">Following</div>
+        </div>
+        <div class="gh-prof-stat">
+          <div class="gh-prof-stat-val">{publicRepos}</div>
+          <div class="gh-prof-stat-label">Repos</div>
+        </div>
+      </div>
+      <div class="gh-prof-since">{createdAt}</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-profile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .gh-prof-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    border: 2px solid rgba(6, 214, 160, 0.5);
+    box-shadow:
+      0 0 16px rgba(6, 214, 160, 0.3),
+      0 0 32px rgba(6, 214, 160, 0.15);
+    object-fit: cover;
+  }
+
+  .gh-prof-name {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+  }
+
+  .gh-prof-bio {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    max-width: 280px;
+  }
+
+  .gh-prof-stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+  }
+
+  .gh-prof-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+  }
+
+  .gh-prof-stat-val {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--neon-green);
+    line-height: 1;
+  }
+
+  .gh-prof-stat-label {
+    font-size: 0.48rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .gh-prof-since {
+    font-size: 0.58rem;
+    color: rgba(255, 255, 255, 0.4);
+    font-family: 'Space Grotesk', monospace;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+</style>

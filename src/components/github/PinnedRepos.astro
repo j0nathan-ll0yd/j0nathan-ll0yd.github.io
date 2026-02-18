@@ -1,0 +1,119 @@
+---
+interface Repo {
+  name: string;
+  description: string;
+  stars: number;
+  forks: number;
+  language: string;
+  languageColor: string;
+  url: string;
+}
+
+interface Props {
+  repos: Repo[];
+}
+
+const { repos } = Astro.props;
+---
+
+<div class="tri-card tri-card-accent-green">
+  <div class="widget-header">
+    <span class="widget-label">Pinned Repos</span>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">pinned</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="gh-pinned">
+      {repos.map((repo: Repo) => (
+        <a class="gh-pin-card" href={repo.url}>
+          <div class="gh-pin-name">{repo.name}</div>
+          <div class="gh-pin-desc">{repo.description}</div>
+          <div class="gh-pin-meta">
+            <span class="gh-pin-lang">
+              <span class="gh-pin-lang-dot" style={`background: ${repo.languageColor}; box-shadow: 0 0 6px ${repo.languageColor};`}></span>
+              {repo.language}
+            </span>
+            <span class="gh-pin-stat">&#9733; {repo.stars}</span>
+            <span class="gh-pin-stat">&#9282; {repo.forks}</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .gh-pinned {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .gh-pin-card {
+    display: block;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 12px 14px;
+    text-decoration: none;
+    transition: background 0.2s ease, border-color 0.2s ease;
+  }
+
+  @media (hover: hover) {
+    .gh-pin-card:hover {
+      background: rgba(6, 214, 160, 0.05);
+      border-color: rgba(6, 214, 160, 0.15);
+    }
+
+    .gh-pin-card:hover .gh-pin-name {
+      text-shadow: 0 0 10px rgba(6, 214, 160, 0.5);
+    }
+  }
+
+  .gh-pin-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--neon-green);
+    margin-bottom: 4px;
+    text-shadow: 0 0 6px rgba(6, 214, 160, 0.3);
+  }
+
+  .gh-pin-desc {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin-bottom: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .gh-pin-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.6rem;
+    font-family: 'Space Grotesk', monospace;
+    color: var(--text-muted);
+  }
+
+  .gh-pin-lang {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .gh-pin-lang-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .gh-pin-stat {
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 0.5px;
+  }
+</style>
