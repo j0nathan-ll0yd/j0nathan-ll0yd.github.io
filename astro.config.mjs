@@ -40,7 +40,16 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest}']
+        globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest}'],
+        runtimeCaching: [{
+          urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/.*/,
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'live-data',
+            networkTimeoutSeconds: 5,
+            expiration: { maxAgeSeconds: 300 }
+          }
+        }]
       }
     })
   ]

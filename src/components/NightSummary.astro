@@ -6,10 +6,10 @@ const phases = health.sleepPhaseFormatted;
 const derived = health.derived;
 
 const pills = [
-  { label: 'Deep', formatted: phases.deep, color: '#1e40af' },
-  { label: 'REM', formatted: phases.rem, color: '#a855f7' },
-  { label: 'Core', formatted: phases.core, color: '#3a86ff' },
-  { label: 'Awake', formatted: phases.awake, color: '#f59e0b' }
+  { label: 'Deep', phase: 'deep', formatted: phases.deep, color: '#1e40af' },
+  { label: 'REM', phase: 'rem', formatted: phases.rem, color: '#a855f7' },
+  { label: 'Core', phase: 'core', formatted: phases.core, color: '#3a86ff' },
+  { label: 'Awake', phase: 'awake', formatted: phases.awake, color: '#f59e0b' }
 ];
 ---
 <div class="tri-card tri-card-accent-purple" id="cardSleep">
@@ -41,25 +41,25 @@ const pills = [
         </svg>
       </div>
       <div class="sleep-moon-info">
-        <div class="sleep-moon-hero">{sleepDuration}</div>
+        <div class="sleep-moon-hero" id="sleepDuration">{sleepDuration}</div>
         <div class="sleep-moon-score-row">
           <span class="sleep-moon-score-label">Score</span>
           <div class="sleep-moon-score-track">
-            <div class="sleep-moon-score-fill" style={`width: ${sleepScore}%`}></div>
+            <div class="sleep-moon-score-fill" id="sleepScoreFill" style={`width: ${sleepScore}%`}></div>
           </div>
-          <span class="sleep-moon-score-val">{sleepScore}</span>
+          <span class="sleep-moon-score-val" id="sleepScoreVal">{sleepScore}</span>
         </div>
       </div>
     </div>
     <div class="sleep-moon-pills">
       {pills.map((p, i) => (
-        <div class="sleep-moon-pill" style={`background: ${p.color}15; animation-delay: ${i * 0.1 + 0.3}s`}>
+        <div class="sleep-moon-pill" data-phase={p.phase} style={`background: ${p.color}15; animation-delay: ${i * 0.1 + 0.3}s`}>
           <div class="sleep-moon-pill-label">{p.label}</div>
           <div class="sleep-moon-pill-val" style={`color: ${p.color}`}>{p.formatted}</div>
         </div>
       ))}
     </div>
-    <div class="sleep-moon-insight">
+    <div class="sleep-moon-insight" id="sleepInsight">
       <span>{derived.deepPct}% deep</span> &mdash; <span>{derived.remPct}% REM</span> &mdash; restorative sleep
     </div>
   </div>

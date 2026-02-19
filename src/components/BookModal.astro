@@ -12,33 +12,44 @@
 
   var triggerElement = null;
 
-  var shelfBooks = document.querySelectorAll('.shelf-book[data-book]');
-  shelfBooks.forEach(function(el) {
-    el.addEventListener('click', function() {
-      triggerElement = el;
-      var data = JSON.parse(el.getAttribute('data-book'));
-      openModal(data);
-    });
-    el.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        triggerElement = el;
-        var data = JSON.parse(el.getAttribute('data-book'));
+  var cardBooks = document.getElementById('cardBooks');
+  if (cardBooks) {
+    cardBooks.addEventListener('click', function(e) {
+      var book = e.target.closest('.shelf-book[data-book]');
+      if (book) {
+        triggerElement = book;
+        var data = JSON.parse(book.getAttribute('data-book'));
         openModal(data);
       }
     });
-  });
+    cardBooks.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        var book = e.target.closest('.shelf-book[data-book]');
+        if (book) {
+          e.preventDefault();
+          triggerElement = book;
+          var data = JSON.parse(book.getAttribute('data-book'));
+          openModal(data);
+        }
+      }
+    });
+  }
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   function openModal(b) {
     var asin = b.asin;
-    var cover = 'https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX200_.jpg';
+    var cover = b.cover || ('https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX200_.jpg');
 
     var html = '<div class="book-modal-header">';
-    html += '<img class="book-modal-cover" src="' + cover + '" width="80" height="120" alt="' + b.title + ' cover">';
+    html += '<img class="book-modal-cover" src="' + esc(cover) + '" width="80" height="120" alt="' + esc(b.title) + ' cover">';
     html += '<div class="book-modal-info">';
-    if (b.series) html += '<div class="book-modal-series">' + b.series + '</div>';
-    html += '<div class="book-modal-title">' + b.title + '</div>';
-    html += '<div class="book-modal-author">' + b.author + '</div>';
+    if (b.series) html += '<div class="book-modal-series">' + esc(b.series) + '</div>';
+    html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
+    html += '<div class="book-modal-author">' + esc(b.author) + '</div>';
     if (b.rating) {
       html += '<div class="book-modal-stars">';
       for (var s = 1; s <= 5; s++) {
@@ -62,16 +73,16 @@
       html += '<div class="book-modal-progress-label">' + b.progress + '% complete</div></div>';
     }
 
-    if (b.desc) html += '<div class="book-modal-desc">' + b.desc + '</div>';
+    if (b.desc) html += '<div class="book-modal-desc">' + esc(b.desc) + '</div>';
 
     if (b.genres && b.genres.length) {
       html += '<div class="book-modal-tags">';
-      b.genres.forEach(function(g) { html += '<span class="book-modal-tag">' + g + '</span>'; });
+      b.genres.forEach(function(g) { html += '<span class="book-modal-tag">' + esc(g) + '</span>'; });
       html += '</div>';
     }
 
     if (b.link) {
-      html += '<div><a href="' + b.link + '" target="_blank" rel="noopener" class="book-modal-amazon">View on Amazon &rarr;</a></div>';
+      html += '<div><a href="' + esc(b.link) + '" target="_blank" rel="noopener" class="book-modal-amazon">View on Amazon &rarr;</a></div>';
     }
     html += '</div>';
 
