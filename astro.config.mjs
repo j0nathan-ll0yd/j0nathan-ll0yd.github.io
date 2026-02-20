@@ -21,6 +21,17 @@ const showcaseDevOnly = {
 export default defineConfig({
   site: 'https://j0nathan-ll0yd.github.io',
   output: 'static',
+  vite: {
+    server: {
+      proxy: {
+        '/api/live': {
+          target: 'https://d2nfgi9u0n3jr6.cloudfront.net',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api\/live/, ''),
+        }
+      }
+    }
+  },
   integrations: [
     showcaseDevOnly,
     AstroPWA({
