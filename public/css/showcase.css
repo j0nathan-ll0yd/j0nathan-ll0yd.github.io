@@ -108,7 +108,7 @@ body.library-page {
 /* Side-by-side state grid */
 .state-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 24px;
 }
 
@@ -131,6 +131,12 @@ body.library-page {
   color: var(--text-muted);
   background: rgba(255,255,255,0.04);
   border: 1px solid rgba(255,255,255,0.08);
+}
+
+.state-label-skeleton {
+  color: var(--neon-blue);
+  background: rgba(58,134,255,0.08);
+  border: 1px solid rgba(58,134,255,0.2);
 }
 
 .state-label-active {
@@ -211,6 +217,8 @@ body.library-page {
 .lib-card-accent-pink { background: var(--neon-pink); }
 .lib-card-accent-green { background: var(--neon-green); }
 .lib-card-accent-blue { background: var(--neon-blue); }
+.lib-card-accent-purple { background: var(--neon-purple); }
+.lib-card-accent-amber { background: var(--neon-amber); }
 
 /* Brand guide specific */
 .brand-section {
@@ -381,6 +389,32 @@ body.library-page {
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--text-muted);
+}
+
+/* Sub-section titles within domain pages */
+.lib-section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--neon-pink);
+  margin: 48px 0 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,0,110,0.15);
+}
+
+.lib-section-title:first-of-type {
+  margin-top: 0;
+}
+
+/* ComingSoon overlay override: render inline in showcase */
+.state-render .coming-soon-overlay {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  min-height: 400px;
+  overflow: hidden;
+  border-radius: 12px;
 }
 
 /* Force all components visible inside showcase renders.

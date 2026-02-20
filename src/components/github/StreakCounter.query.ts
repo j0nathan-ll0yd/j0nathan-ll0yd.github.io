@@ -68,6 +68,12 @@ export const sampleData = {
   ] as { date: string; active: boolean }[],
 };
 
+export const emptyData: typeof sampleData = {
+  current: 0,
+  longest: 0,
+  recentDays: [] as { date: string; active: boolean }[],
+};
+
 export function transform(response: any): typeof sampleData {
   const calendar = response.data.user.contributionsCollection.contributionCalendar;
 

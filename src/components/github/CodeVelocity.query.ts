@@ -65,6 +65,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  weeks: [],
+};
+
 export function transform(response: any): typeof sampleData {
   const raw: any[] = Array.isArray(response) ? response : [];
 

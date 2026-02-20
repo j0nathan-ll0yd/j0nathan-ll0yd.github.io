@@ -117,6 +117,11 @@ export const sampleData = {
   months: ['Nov', 'Dec', 'Jan', 'Feb'],
 };
 
+export const emptyData: typeof sampleData = {
+  weeks: [] as { firstDay: string; days: { date: string; count: number; level: number }[] }[],
+  months: [],
+};
+
 const levelMap: Record<string, number> = {
   NONE: 0,
   FIRST_QUARTILE: 1,

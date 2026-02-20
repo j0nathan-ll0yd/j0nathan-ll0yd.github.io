@@ -44,6 +44,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  repos: [],
+};
+
 export function transform(response: any): typeof sampleData {
   const nodes = response.data.user.pinnedItems.nodes;
   const repos = nodes.map((repo: any) => ({

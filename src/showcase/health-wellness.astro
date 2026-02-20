@@ -1,0 +1,455 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Showcase from '../layouts/Showcase.astro';
+import HeartRate from '../components/HeartRate.astro';
+import DailyActivity from '../components/DailyActivity.astro';
+import Workouts from '../components/Workouts.astro';
+import NightSummary from '../components/NightSummary.astro';
+import Hydration from '../components/Hydration.astro';
+import Location from '../components/Location.astro';
+
+const dataDir = path.join(process.cwd(), 'data');
+const health = JSON.parse(fs.readFileSync(path.join(dataDir, 'health.json'), 'utf-8'));
+const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
+const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json'), 'utf-8'));
+const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
+---
+<Showcase title="Health & Wellness">
+  <link slot="head" rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <script slot="head" is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <main class="lib-container">
+    <h1 class="lib-page-title">Health &amp; Wellness</h1>
+    <p class="lib-page-desc">
+      The six health and wellness components: heart rate with ECG waveform, daily activity metrics, workout tracking, sleep summary, hydration levels, and current location with map.
+    </p>
+
+    <h2 class="lib-section-title">Vitals</h2>
+
+    <!-- ==================== 1. HEART RATE ==================== -->
+    <div class="component-section">
+      <div class="component-name">HeartRate</div>
+      <div class="component-description">
+        Real-time heart rate display with animated ECG waveform background, BPM readout, zone badge, and HRV metric. Contains SVG filter id="ecgGlow" so only one component instance per page.
+      </div>
+      <div class="component-classes">.tri-card-accent-pink, .hr-layout, .hr-ecg-bg, .ecg-svg, .hr-overlay, .pulse-bpm, .pulse-status-badge, .hr-hrv-value</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Heart Rate</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="position: relative; min-height: 100px;">
+                  <div class="skeleton-bar" style="width: 100%; height: 60px; border-radius: 8px; margin-bottom: 12px;"></div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="skeleton-bar" style="width: 80px; height: 28px;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 18px; border-radius: 50px;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: flex-end; margin-top: 8px;">
+                    <div class="skeleton-bar" style="width: 60px; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Hand-written: avoids duplicate SVG id="ecgGlow" -->
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Heart Rate</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hr-layout">
+                  <div class="hr-overlay" style="position: relative;">
+                    <div class="pulse-bpm" style="color: var(--text-muted);">---</div>
+                    <div class="pulse-status-badge" style="opacity: 0.3;">---</div>
+                  </div>
+                </div>
+                <div style="display: flex; justify-content: flex-end; padding-top: 6px;">
+                  <span class="hr-hrv-value" style="color: var(--text-muted);">HRV: ---</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <HeartRate health={health} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2. DAILY ACTIVITY ==================== -->
+    <div class="component-section">
+      <div class="component-name">DailyActivity</div>
+      <div class="component-description">
+        Two-column layout showing movement and energy metrics for the current day.
+      </div>
+      <div class="component-classes">.tri-card-accent-green, .split-cols, .split-col, .split-col-title, .split-metric, .split-metric-value</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Daily Activity</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div class="skeleton-bar" style="width: 60px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 80px; height: 20px;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 70px; height: 20px;"></div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <div class="skeleton-bar" style="width: 55px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 75px; height: 20px;"></div>
+                    <div class="skeleton-bar" style="width: 45px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 85px; height: 20px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <DailyActivity health={empty.health} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <DailyActivity health={health} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="lib-section-title">Recovery</h2>
+
+    <!-- ==================== 3. WORKOUTS ==================== -->
+    <div class="component-section">
+      <div class="component-name">Workouts</div>
+      <div class="component-description">
+        Displays recorded workouts for the day, or a rest-day state when no workouts are logged. Contains id="cardWorkouts" so only one component instance per page.
+      </div>
+      <div class="component-classes">.tri-card-accent-pink, .workout-rest-center, .workout-sub-card, .workout-sub-stats, .workout-stat</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Workouts</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px 0;">
+                  <div class="skeleton-circle" style="width: 56px; height: 56px;"></div>
+                  <div class="skeleton-bar" style="width: 100px; height: 14px;"></div>
+                  <div class="skeleton-bar" style="width: 140px; height: 10px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate id="cardWorkouts" -->
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Workouts</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="workout-rest-center">
+                  <svg class="workout-rest-icon" viewBox="0 0 56 56" fill="none">
+                    <circle cx="28" cy="20" r="10" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.7"/>
+                    <path d="M16 38 Q20 32 28 30 Q36 32 40 38" stroke="var(--neon-pink)" stroke-width="1.5" opacity="0.5" fill="none"/>
+                    <path d="M12 44 Q18 38 28 36 Q38 38 44 44" stroke="var(--neon-blue)" stroke-width="1" opacity="0.3" fill="none"/>
+                    <circle cx="28" cy="20" r="3" fill="var(--neon-pink)" opacity="0.6"/>
+                    <path d="M24 18 Q28 14 32 18" stroke="rgba(255,255,255,0.3)" stroke-width="0.8" fill="none"/>
+                  </svg>
+                  <div class="workout-rest-heading">Recovery Day</div>
+                  <div class="workout-rest-sub">No workouts recorded</div>
+                  <div class="workout-rest-insight">Your body recovers while you rest</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <Workouts health={healthWithWorkouts} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 4. NIGHT SUMMARY ==================== -->
+    <div class="component-section">
+      <div class="component-name">NightSummary</div>
+      <div class="component-description">
+        Sleep data from the previous night with moon icon, duration, quality score bar, and stage-breakdown pills. Contains SVG filter id="moonGlow" so only one component instance per page.
+      </div>
+      <div class="component-classes">.tri-card-accent-purple, .sleep-moon-top, .sleep-moon-hero, .sleep-moon-score-row, .sleep-moon-pills, .sleep-moon-pill</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-purple">
+              <div class="widget-header">
+                <span class="widget-label">Night Summary</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-purple"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                  <div class="skeleton-circle" style="width: 40px; height: 40px;"></div>
+                  <div class="skeleton-bar" style="width: 80px; height: 22px;"></div>
+                  <div class="skeleton-bar" style="width: 100%; height: 8px; border-radius: 4px;"></div>
+                  <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <div class="skeleton-bar" style="width: 60px; height: 22px; border-radius: 50px;"></div>
+                    <div class="skeleton-bar" style="width: 55px; height: 22px; border-radius: 50px;"></div>
+                    <div class="skeleton-bar" style="width: 65px; height: 22px; border-radius: 50px;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 22px; border-radius: 50px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Hand-written: avoids duplicate SVG id="moonGlow" -->
+            <div class="tri-card tri-card-accent-purple">
+              <div class="widget-header">
+                <span class="widget-label">Night Summary</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-purple"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="sleep-moon-top" style="text-align: center;">
+                  <div style="font-size: 1.8rem; margin-bottom: 2px;">&#127769;</div>
+                  <div class="sleep-moon-hero" style="color: var(--text-muted);">0h 0m</div>
+                </div>
+                <div class="sleep-moon-score-row" style="display: flex; align-items: center; gap: 8px; margin-top: 10px;">
+                  <span style="color: var(--text-muted); font-size: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">Quality</span>
+                  <div style="flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px;">
+                    <div style="width: 0%; height: 100%; border-radius: 2px; background: var(--neon-purple);"></div>
+                  </div>
+                  <span style="color: var(--text-muted); font-size: 0.55rem;">0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <NightSummary health={health} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="lib-section-title">Intake &amp; Location</h2>
+
+    <!-- ==================== 5. HYDRATION ==================== -->
+    <div class="component-section">
+      <div class="component-name">Hydration</div>
+      <div class="component-description">
+        Animated water bottle and coffee mug with liquid fill levels, wave animations, and volume readouts. Contains hydra DOM IDs so only one component instance per page.
+      </div>
+      <div class="component-classes">.tri-card-accent-blue, .hydra-layout, .hydra-vessel, .hydra-bottle, .hydra-mug, .hydra-liquid, .hydra-val</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-blue">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-blue"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; justify-content: space-around; align-items: center; padding: 12px 0;">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div class="skeleton-bar" style="width: 40px; height: 80px; border-radius: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 40px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 30px; height: 8px;"></div>
+                  </div>
+                  <div style="width: 1px; height: 60px; background: rgba(255,255,255,0.06);"></div>
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div class="skeleton-bar" style="width: 44px; height: 60px; border-radius: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 40px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 30px; height: 8px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate hydra IDs -->
+            <div class="tri-card tri-card-accent-blue">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-blue"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout">
+                  <div class="hydra-vessel hydra-vessel-water">
+                    <div class="hydra-bottle">
+                      <div class="hydra-bottle-cap"></div>
+                      <div class="hydra-bottle-body">
+                        <div class="hydra-liquid hydra-liquid-water" style="height: 0%;"></div>
+                      </div>
+                    </div>
+                    <div class="hydra-val">0 oz</div>
+                    <div class="hydra-label">Water</div>
+                  </div>
+                  <div class="hydra-divider"></div>
+                  <div class="hydra-vessel hydra-vessel-coffee">
+                    <div class="hydra-mug">
+                      <div class="hydra-mug-steam">
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                      </div>
+                      <div class="hydra-mug-body">
+                        <div class="hydra-liquid hydra-liquid-coffee" style="height: 0%;"></div>
+                      </div>
+                      <div class="hydra-mug-handle"></div>
+                    </div>
+                    <div class="hydra-val">0 oz</div>
+                    <div class="hydra-label">Coffee</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <Hydration health={health} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 6. LOCATION ==================== -->
+    <div class="component-section">
+      <div class="component-name">Location</div>
+      <div class="component-description">
+        Current location card with city name, coordinates, and an embedded Leaflet dark-theme map. Contains id="leafletMap" so only one component instance per page.
+      </div>
+      <div class="component-classes">.tri-card-accent-green, .loc-city-name, .loc-coordinates, .map-wrapper, .map-overlay</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Current Location</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="skeleton-bar" style="width: 120px; height: 16px; margin-bottom: 6px;"></div>
+                <div class="skeleton-bar" style="width: 160px; height: 10px; margin-bottom: 12px;"></div>
+                <div class="skeleton-bar" style="width: 100%; height: 120px; border-radius: 8px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate #leafletMap -->
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Current Location</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">live</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="loc-city-name" style="color: var(--text-muted);">---</div>
+                <div class="loc-coordinates" style="color: var(--text-muted);">0.0000&deg;N, 0.0000&deg;W</div>
+                <div class="map-wrapper" style="display: flex; align-items: center; justify-content: center;">
+                  <div style="color: var(--text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 2px;">Location unavailable</div>
+                </div>
+                <div class="map-meta-row">
+                  <span>ZOOM: <span class="map-meta-value">--</span></span>
+                  <span>TILE: <span class="map-meta-value">--</span></span>
+                  <span>SRC: <span class="map-meta-value">--</span></span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <Location profile={profile} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</Showcase>

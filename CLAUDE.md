@@ -90,16 +90,18 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 
 A visual storyboard for iterating on components, available only during `npm run dev` at `/showcase/`. Routes are injected via a local Astro integration (`showcase-dev-only` in `astro.config.mjs`) that only activates when `command === 'dev'`. Showcase files live in `src/showcase/` (not `src/pages/`), so they are excluded from production builds.
 
-| Route | Page | Content |
+| Route | Page | Components |
 |---|---|---|
-| `/showcase` | `index.astro` | Landing page with cards linking to each panel |
+| `/showcase` | `index.astro` | Landing page with cards linking to each domain group |
 | `/showcase/brand-guide` | `brand-guide.astro` | Colors, typography, glass-morphism, glows, spacing, animations |
-| `/showcase/left-panel` | `left-panel.astro` | IdentityCard, BioTerminal, SystemStatus |
-| `/showcase/top-bar` | `top-bar.astro` | Command bar (empty/active states) |
-| `/showcase/body-column` | `body-column.astro` | HeartRate, DailyActivity, Workouts, NightSummary, Hydration, Location |
-| `/showcase/mind-column` | `mind-column.astro` | GitHubHeatmap, RecentCommits, ReadingFeed, Bookshelf |
+| `/showcase/identity-system` | `identity-system.astro` | IdentityCard, BioTerminal, SystemStatus, Command Bar, ComingSoon |
+| `/showcase/health-wellness` | `health-wellness.astro` | HeartRate, DailyActivity, Workouts, NightSummary, Hydration, Location |
+| `/showcase/contributions-commits` | `contributions-commits.astro` | ContributionGrid, ContributionCalendar, GitHubHeatmap, CommitLog, CommitTimeline, RecentCommits, + 6 trend widgets |
+| `/showcase/repositories-languages` | `repositories-languages.astro` | PinnedRepos, TopRepos, RepoShowcase, StarredRepoList, + 9 language/profile widgets |
+| `/showcase/activity-feeds` | `activity-feeds.astro` | DevActivityLog, DevActivityTimeline, DevActivityCards, DevActivityByRepo, DevActivityPulse, ActivityFeed |
+| `/showcase/reading-books` | `reading-books.astro` | ReadingFeed, Bookshelf, BookModal |
 
-Each component page imports the real `.astro` components and renders them side-by-side with empty state data (from `data/showcase-empty.json`) and active state data (from the real `data/*.json` files).
+Each component page renders all 45 components in 3 states (skeleton, empty, active) using data from `data/showcase-empty.json`, `data/*.json`, and `.query.ts` co-located exports.
 
 ## Design System Quick Reference
 

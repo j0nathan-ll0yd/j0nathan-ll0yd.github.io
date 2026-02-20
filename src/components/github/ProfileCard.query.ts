@@ -36,6 +36,16 @@ export const sampleData = {
   publicRepos: 42,
 };
 
+export const emptyData: typeof sampleData = {
+  avatarUrl: "",
+  name: "",
+  bio: "",
+  followers: 0,
+  following: 0,
+  createdAt: "",
+  publicRepos: 0,
+};
+
 export function transform(response: any): typeof sampleData {
   const user = response.data.user;
   const date = new Date(user.createdAt);

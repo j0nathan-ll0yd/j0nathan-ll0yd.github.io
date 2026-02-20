@@ -51,6 +51,14 @@ export const sampleData = {
   longestStreak: 47,
 };
 
+export const emptyData: typeof sampleData = {
+  totalContributions: 0,
+  topLanguage: "---",
+  mostActiveMonth: "---",
+  reposCreated: 0,
+  longestStreak: 0,
+};
+
 export function transform(response: any): typeof sampleData {
   const collection = response.data.user.contributionsCollection;
   const calendar = collection.contributionCalendar;

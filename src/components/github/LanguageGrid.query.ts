@@ -40,6 +40,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  languages: [],
+};
+
 export function transform(response: any): typeof sampleData {
   const sizeByLang: Record<string, { size: number; color: string; repos: Set<number> }> = {};
   let totalSize = 0;

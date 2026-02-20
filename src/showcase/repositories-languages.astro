@@ -1,0 +1,854 @@
+---
+import Showcase from '../layouts/Showcase.astro';
+
+import PinnedRepos from '../components/github/PinnedRepos.astro';
+import { sampleData as pinnedData, emptyData as pinnedEmpty } from '../components/github/PinnedRepos.query';
+import TopRepos from '../components/github/TopRepos.astro';
+import { sampleData as topReposData, emptyData as topReposEmpty } from '../components/github/TopRepos.query';
+import RepoShowcase from '../components/github/RepoShowcase.astro';
+import { sampleData as showcaseData, emptyData as showcaseEmpty } from '../components/github/RepoShowcase.query';
+
+import StarredRepoList from '../components/github/StarredRepoList.astro';
+import { sampleData as starredListData, emptyData as starredListEmpty } from '../components/github/StarredRepoList.query';
+import StarredRepoCards from '../components/github/StarredRepoCards.astro';
+import { sampleData as starredCardsData, emptyData as starredCardsEmpty } from '../components/github/StarredRepoCards.query';
+import StarredTimeline from '../components/github/StarredTimeline.astro';
+import { sampleData as starredTimelineData, emptyData as starredTimelineEmpty } from '../components/github/StarredTimeline.query';
+import StarredByLanguage from '../components/github/StarredByLanguage.astro';
+import { sampleData as starredByLangData, emptyData as starredByLangEmpty } from '../components/github/StarredByLanguage.query';
+
+import LanguageBars from '../components/github/LanguageBars.astro';
+import { sampleData as langBarsData, emptyData as langBarsEmpty } from '../components/github/LanguageBars.query';
+import LanguageStack from '../components/github/LanguageStack.astro';
+import { sampleData as langStackData, emptyData as langStackEmpty } from '../components/github/LanguageStack.query';
+import LanguageGrid from '../components/github/LanguageGrid.astro';
+import { sampleData as langGridData, emptyData as langGridEmpty } from '../components/github/LanguageGrid.query';
+
+import ProfileCard from '../components/github/ProfileCard.astro';
+import { sampleData as profileData, emptyData as profileEmpty } from '../components/github/ProfileCard.query';
+import YearInReview from '../components/github/YearInReview.astro';
+import { sampleData as yearData, emptyData as yearEmpty } from '../components/github/YearInReview.query';
+import TopicCloud from '../components/github/TopicCloud.astro';
+import { sampleData as topicData, emptyData as topicEmpty } from '../components/github/TopicCloud.query';
+---
+<Showcase title="Repositories &amp; Languages">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Repositories &amp; Languages</h1>
+    <p class="lib-page-desc">
+      Thirteen components covering repository showcases, starred repo views, language breakdowns, profile summary, year-in-review stats, and topic clouds.
+    </p>
+
+    <!-- ==================== REPOSITORY WIDGETS ==================== -->
+    <h2 class="lib-section-title">Repository Widgets</h2>
+
+    <!-- ==================== 1. PINNED REPOS ==================== -->
+    <div class="component-section">
+      <div class="component-name">PinnedRepos</div>
+      <div class="component-description">
+        Card list of pinned repositories with description, stars, forks, and primary language badge. Uses the GraphQL pinnedItems API.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Pinned Repos</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;">
+                    <div class="skeleton-bar" style="width: 60%; height: 13px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 90%; height: 10px; margin-bottom: 6px;"></div>
+                    <div class="skeleton-bar" style="width: 50%; height: 10px;"></div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;">
+                    <div class="skeleton-bar" style="width: 55%; height: 13px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 85%; height: 10px; margin-bottom: 6px;"></div>
+                    <div class="skeleton-bar" style="width: 45%; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <PinnedRepos {...pinnedEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <PinnedRepos {...pinnedData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2. TOP REPOS ==================== -->
+    <div class="component-section">
+      <div class="component-name">TopRepos</div>
+      <div class="component-description">
+        Ranked list of top repositories by stars. Terminal-style compact layout with rank, name, star count, and language.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Top Repos</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 18px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 55%; height: 12px;"></span>
+                    <span class="skeleton-bar" style="width: 40px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 18px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 48%; height: 12px;"></span>
+                    <span class="skeleton-bar" style="width: 40px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 18px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 52%; height: 12px;"></span>
+                    <span class="skeleton-bar" style="width: 40px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 18px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 45%; height: 12px;"></span>
+                    <span class="skeleton-bar" style="width: 40px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 18px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 50%; height: 12px;"></span>
+                    <span class="skeleton-bar" style="width: 40px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <TopRepos {...topReposEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <TopRepos {...topReposData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 3. REPO SHOWCASE ==================== -->
+    <div class="component-section">
+      <div class="component-name">RepoShowcase</div>
+      <div class="component-description">
+        Rich repo cards with description, stars, forks, primary language, and topic tags. 2-column grid layout. Combines pinned items with repository topics from GraphQL.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Repo Showcase</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;">
+                    <div class="skeleton-bar" style="width: 65%; height: 13px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 90%; height: 10px; margin-bottom: 6px;"></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                      <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 30px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 30px; height: 10px;"></div>
+                    </div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;">
+                    <div class="skeleton-bar" style="width: 55%; height: 13px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 80%; height: 10px; margin-bottom: 6px;"></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                      <div class="skeleton-bar" style="width: 45px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 25px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 25px; height: 10px;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <RepoShowcase {...showcaseEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <RepoShowcase {...showcaseData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== STARRED REPOS ==================== -->
+    <h2 class="lib-section-title">Starred Repos</h2>
+
+    <!-- ==================== 4. STARRED REPO LIST ==================== -->
+    <div class="component-section">
+      <div class="component-name">StarredRepoList</div>
+      <div class="component-description">
+        Compact chronological list of recently starred repos with owner/name, star count, language dot, and relative date. Terminal-style layout.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Starred Repos</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; gap: 8px; font-family: 'Space Grotesk', monospace;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 110px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 35px; height: 12px; flex-shrink: 0;"></span>
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 50px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 95px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 30px; height: 12px; flex-shrink: 0;"></span>
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 50px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 120px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 28px; height: 12px; flex-shrink: 0;"></span>
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 50px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 100px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 32px; height: 12px; flex-shrink: 0;"></span>
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 50px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <span class="skeleton-bar" style="width: 105px; height: 12px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 38px; height: 12px; flex-shrink: 0;"></span>
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 50px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <StarredRepoList {...starredListEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <StarredRepoList {...starredListData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 5. STARRED REPO CARDS ==================== -->
+    <div class="component-section">
+      <div class="component-name">StarredRepoCards</div>
+      <div class="component-description">
+        Rich card grid of recently starred repos with descriptions, owner name, language badge, and star/fork counts. 2-column layout.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Starred Repos</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;">
+                    <div class="skeleton-bar" style="width: 60%; height: 13px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 85%; height: 10px; margin-bottom: 6px;"></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                      <div class="skeleton-bar" style="width: 45px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 28px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 28px; height: 10px;"></div>
+                    </div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px;">
+                    <div class="skeleton-bar" style="width: 50%; height: 13px; margin-bottom: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 78%; height: 10px; margin-bottom: 6px;"></div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                      <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                      <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 32px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 32px; height: 10px;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <StarredRepoCards {...starredCardsEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <StarredRepoCards {...starredCardsData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 6. STARRED TIMELINE ==================== -->
+    <div class="component-section">
+      <div class="component-name">StarredTimeline</div>
+      <div class="component-description">
+        Vertical timeline with dates on the left and repo info on the right. Language-colored dots show starring activity pattern over time.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Starred Timeline</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; gap: 16px; padding-left: 20px; border-left: 2px solid rgba(255,255,255,0.06);">
+                  <div style="position: relative;">
+                    <div class="skeleton-circle" style="width: 10px; height: 10px; position: absolute; left: -25px; top: 2px;"></div>
+                    <div class="skeleton-bar" style="width: 60px; height: 10px; margin-bottom: 4px;"></div>
+                    <div class="skeleton-bar" style="width: 70%; height: 13px; margin-bottom: 4px;"></div>
+                    <div class="skeleton-bar" style="width: 50%; height: 10px;"></div>
+                  </div>
+                  <div style="position: relative;">
+                    <div class="skeleton-circle" style="width: 10px; height: 10px; position: absolute; left: -25px; top: 2px;"></div>
+                    <div class="skeleton-bar" style="width: 55px; height: 10px; margin-bottom: 4px;"></div>
+                    <div class="skeleton-bar" style="width: 65%; height: 13px; margin-bottom: 4px;"></div>
+                    <div class="skeleton-bar" style="width: 45%; height: 10px;"></div>
+                  </div>
+                  <div style="position: relative;">
+                    <div class="skeleton-circle" style="width: 10px; height: 10px; position: absolute; left: -25px; top: 2px;"></div>
+                    <div class="skeleton-bar" style="width: 65px; height: 10px; margin-bottom: 4px;"></div>
+                    <div class="skeleton-bar" style="width: 60%; height: 13px; margin-bottom: 4px;"></div>
+                    <div class="skeleton-bar" style="width: 48%; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <StarredTimeline {...starredTimelineEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <StarredTimeline {...starredTimelineData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 7. STARRED BY LANGUAGE ==================== -->
+    <div class="component-section">
+      <div class="component-name">StarredByLanguage</div>
+      <div class="component-description">
+        Starred repos grouped under language section headers, showing which languages you explore most. Sorted by group size descending.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Starred By Language</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
+                  <div>
+                    <div class="skeleton-bar" style="width: 80px; height: 13px; margin-bottom: 8px;"></div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; padding-left: 8px;">
+                      <div class="skeleton-bar" style="width: 75%; height: 11px;"></div>
+                      <div class="skeleton-bar" style="width: 65%; height: 11px;"></div>
+                      <div class="skeleton-bar" style="width: 70%; height: 11px;"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="skeleton-bar" style="width: 70px; height: 13px; margin-bottom: 8px;"></div>
+                    <div style="display: flex; flex-direction: column; gap: 6px; padding-left: 8px;">
+                      <div class="skeleton-bar" style="width: 68%; height: 11px;"></div>
+                      <div class="skeleton-bar" style="width: 72%; height: 11px;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <StarredByLanguage {...starredByLangEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <StarredByLanguage {...starredByLangData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== LANGUAGE WIDGETS ==================== -->
+    <h2 class="lib-section-title">Language Widgets</h2>
+
+    <!-- ==================== 8. LANGUAGE BARS ==================== -->
+    <div class="component-section">
+      <div class="component-name">LanguageBars</div>
+      <div class="component-description">
+        Horizontal progress bars per language with percentage labels and colored dots. Aggregated from language data across your top repositories via GraphQL.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Language Bars</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 60px; height: 11px; flex-shrink: 0;"></span>
+                    <div class="skeleton-bar" style="flex: 1; height: 8px; border-radius: 4px;"></div>
+                    <span class="skeleton-bar" style="width: 32px; height: 11px; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 55px; height: 11px; flex-shrink: 0;"></span>
+                    <div class="skeleton-bar" style="flex: 1; height: 8px; border-radius: 4px;"></div>
+                    <span class="skeleton-bar" style="width: 32px; height: 11px; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 50px; height: 11px; flex-shrink: 0;"></span>
+                    <div class="skeleton-bar" style="flex: 1; height: 8px; border-radius: 4px;"></div>
+                    <span class="skeleton-bar" style="width: 32px; height: 11px; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 65px; height: 11px; flex-shrink: 0;"></span>
+                    <div class="skeleton-bar" style="flex: 1; height: 8px; border-radius: 4px;"></div>
+                    <span class="skeleton-bar" style="width: 32px; height: 11px; flex-shrink: 0;"></span>
+                  </div>
+                  <div style="display: flex; gap: 8px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <span class="skeleton-bar" style="width: 48px; height: 11px; flex-shrink: 0;"></span>
+                    <div class="skeleton-bar" style="flex: 1; height: 8px; border-radius: 4px;"></div>
+                    <span class="skeleton-bar" style="width: 32px; height: 11px; flex-shrink: 0;"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <LanguageBars {...langBarsEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <LanguageBars {...langBarsData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 9. LANGUAGE STACK ==================== -->
+    <div class="component-section">
+      <div class="component-name">LanguageStack</div>
+      <div class="component-description">
+        Single stacked horizontal bar with a legend below. Like GitHub's repo language bar but aggregated across all repositories. Compact and fits tight spaces.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Language Stack</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="skeleton-bar" style="width: 100%; height: 12px; border-radius: 6px; margin-bottom: 12px;"></div>
+                <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                  </div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 45px; height: 10px;"></div>
+                  </div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 55px; height: 10px;"></div>
+                  </div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 40px; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <LanguageStack {...langStackEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <LanguageStack {...langStackData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 10. LANGUAGE GRID ==================== -->
+    <div class="component-section">
+      <div class="component-name">LanguageGrid</div>
+      <div class="component-description">
+        Grid of language badges showing colored dot, name, percentage, and repository count. A card-like alternative to bars or stacked views.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Language Grid</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <div class="skeleton-bar" style="width: 45px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 28px; height: 10px; margin-left: auto;"></div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 24px; height: 10px; margin-left: auto;"></div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <div class="skeleton-bar" style="width: 40px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 26px; height: 10px; margin-left: auto;"></div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <div class="skeleton-bar" style="width: 55px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 22px; height: 10px; margin-left: auto;"></div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <div class="skeleton-bar" style="width: 42px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 30px; height: 10px; margin-left: auto;"></div>
+                  </div>
+                  <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 10px; display: flex; align-items: center; gap: 8px;">
+                    <div class="skeleton-circle" style="width: 8px; height: 8px; flex-shrink: 0;"></div>
+                    <div class="skeleton-bar" style="width: 48px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 25px; height: 10px; margin-left: auto;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <LanguageGrid {...langGridEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <LanguageGrid {...langGridData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== PROFILE & STATS ==================== -->
+    <h2 class="lib-section-title">Profile &amp; Stats</h2>
+
+    <!-- ==================== 11. PROFILE CARD ==================== -->
+    <div class="component-section">
+      <div class="component-name">ProfileCard</div>
+      <div class="component-description">
+        GitHub profile summary: avatar, name, bio, follower/following counts, member since date, and public repos count. Direct GraphQL user query.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Profile</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; gap: 14px; align-items: flex-start;">
+                  <div class="skeleton-circle" style="width: 64px; height: 64px; flex-shrink: 0;"></div>
+                  <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                    <div class="skeleton-bar" style="width: 55%; height: 14px;"></div>
+                    <div class="skeleton-bar" style="width: 80%; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 65%; height: 10px;"></div>
+                    <div style="display: flex; gap: 12px; margin-top: 4px;">
+                      <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                      <div class="skeleton-bar" style="width: 40px; height: 10px;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <ProfileCard {...profileEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <ProfileCard {...profileData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 12. YEAR IN REVIEW ==================== -->
+    <div class="component-section">
+      <div class="component-name">YearInReview</div>
+      <div class="component-description">
+        Annual summary card with total contributions, top language, most active month, repos created, and longest streak. Combines multiple GraphQL data sources.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Year in Review</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="skeleton-bar" style="width: 100px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 13px;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="skeleton-bar" style="width: 85px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 60px; height: 13px;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="skeleton-bar" style="width: 110px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 45px; height: 13px;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="skeleton-bar" style="width: 90px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 35px; height: 13px;"></div>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="skeleton-bar" style="width: 95px; height: 11px;"></div>
+                    <div class="skeleton-bar" style="width: 55px; height: 13px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <YearInReview {...yearEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <YearInReview {...yearData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 13. TOPIC CLOUD ==================== -->
+    <div class="component-section">
+      <div class="component-name">TopicCloud</div>
+      <div class="component-description">
+        Repository topics displayed as a tag cloud. More frequently used topics appear larger and brighter. GraphQL repositoryTopics aggregated across all repos.
+      </div>
+      <div class="component-classes">.tri-card-accent-green</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header">
+                <span class="widget-label">Topic Cloud</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                  <div class="skeleton-bar" style="width: 72px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 56px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 80px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 48px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 64px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 40px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 76px; height: 22px; border-radius: 50px;"></div>
+                  <div class="skeleton-bar" style="width: 52px; height: 22px; border-radius: 50px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <TopicCloud {...topicEmpty} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <TopicCloud {...topicData} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</Showcase>

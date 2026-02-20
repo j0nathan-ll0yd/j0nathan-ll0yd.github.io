@@ -41,6 +41,11 @@ export const sampleData = {
   maxWeek: 89,
 };
 
+export const emptyData: typeof sampleData = {
+  weeks: [],
+  maxWeek: 0,
+};
+
 function formatWeekLabel(dateStr: string): string {
   const d = new Date(dateStr);
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

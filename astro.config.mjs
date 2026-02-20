@@ -8,11 +8,12 @@ const showcaseDevOnly = {
       if (command === 'dev') {
         injectRoute({ pattern: '/showcase', entrypoint: 'src/showcase/index.astro' });
         injectRoute({ pattern: '/showcase/brand-guide', entrypoint: 'src/showcase/brand-guide.astro' });
-        injectRoute({ pattern: '/showcase/left-panel', entrypoint: 'src/showcase/left-panel.astro' });
-        injectRoute({ pattern: '/showcase/top-bar', entrypoint: 'src/showcase/top-bar.astro' });
-        injectRoute({ pattern: '/showcase/body-column', entrypoint: 'src/showcase/body-column.astro' });
-        injectRoute({ pattern: '/showcase/mind-column', entrypoint: 'src/showcase/mind-column.astro' });
-        injectRoute({ pattern: '/showcase/github-widgets', entrypoint: 'src/showcase/github-widgets.astro' });
+        injectRoute({ pattern: '/showcase/identity-system', entrypoint: 'src/showcase/identity-system.astro' });
+        injectRoute({ pattern: '/showcase/health-wellness', entrypoint: 'src/showcase/health-wellness.astro' });
+        injectRoute({ pattern: '/showcase/contributions-commits', entrypoint: 'src/showcase/contributions-commits.astro' });
+        injectRoute({ pattern: '/showcase/repositories-languages', entrypoint: 'src/showcase/repositories-languages.astro' });
+        injectRoute({ pattern: '/showcase/activity-feeds', entrypoint: 'src/showcase/activity-feeds.astro' });
+        injectRoute({ pattern: '/showcase/reading-books', entrypoint: 'src/showcase/reading-books.astro' });
       }
     }
   }

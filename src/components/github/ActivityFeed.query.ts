@@ -21,6 +21,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  events: [],
+};
+
 interface EventData {
   type: string;
   repo: string;

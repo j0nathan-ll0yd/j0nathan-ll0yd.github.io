@@ -48,6 +48,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  commits: [],
+};
+
 export function transform(response: any): typeof sampleData {
   const commits: typeof sampleData.commits = [];
   const now = Date.now();

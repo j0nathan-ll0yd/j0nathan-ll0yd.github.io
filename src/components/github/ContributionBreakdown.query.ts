@@ -26,6 +26,13 @@ export const sampleData = {
   reviews: 203,
 };
 
+export const emptyData: typeof sampleData = {
+  commits: 0,
+  pullRequests: 0,
+  issues: 0,
+  reviews: 0,
+};
+
 export function transform(response: any): typeof sampleData {
   const c = response.data.user.contributionsCollection;
   return {

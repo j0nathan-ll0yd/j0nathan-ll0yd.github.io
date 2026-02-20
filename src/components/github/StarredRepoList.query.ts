@@ -37,6 +37,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  repos: [],
+};
+
 export function transform(response: any): typeof sampleData {
   const edges = response.data.user.starredRepositories.edges;
   const now = Date.now();

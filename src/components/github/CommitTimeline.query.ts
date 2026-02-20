@@ -44,6 +44,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  commits: [],
+};
+
 const repoColors = ['#06d6a0', '#3a86ff', '#ff006e', '#f59e0b', '#a855f7'];
 
 export function transform(response: any): typeof sampleData {

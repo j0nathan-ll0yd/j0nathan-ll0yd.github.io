@@ -53,6 +53,15 @@ export const sampleData = {
   },
 };
 
+export const emptyData: typeof sampleData = {
+  contributions: Array.from({ length: 52 }, () => [0, 0, 0, 0, 0, 0, 0]) as number[][],
+  stats: {
+    repos: 0,
+    stars: 0,
+    contributions: 0,
+  },
+};
+
 const levelMap: Record<string, number> = {
   NONE: 0,
   FIRST_QUARTILE: 1,

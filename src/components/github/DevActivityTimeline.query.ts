@@ -19,6 +19,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  events: [],
+};
+
 export function transform(response: any): typeof sampleData {
   return response;
 }

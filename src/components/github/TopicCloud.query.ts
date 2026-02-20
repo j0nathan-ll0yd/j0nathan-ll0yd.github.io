@@ -54,6 +54,10 @@ function countToSize(count: number, max: number): 'sm' | 'md' | 'lg' | 'xl' {
   return 'sm';
 }
 
+export const emptyData: typeof sampleData = {
+  topics: [],
+};
+
 export function transform(response: any): typeof sampleData {
   const topicCounts: Record<string, number> = {};
 

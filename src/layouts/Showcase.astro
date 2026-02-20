@@ -4,7 +4,8 @@ const pathname = Astro.url.pathname;
 
 function isActive(href) {
   if (href === '/showcase' || href === '/showcase/') {
-    return pathname === '/showcase' || pathname === '/showcase/';
+    return pathname === '/showcase' || pathname === '/showcase/'
+      || (pathname.startsWith('/showcase/') && !pathname.startsWith('/showcase/brand-guide'));
   }
   return pathname.startsWith(href);
 }
@@ -32,7 +33,6 @@ function isActive(href) {
     <div class="lib-nav-links">
       <a href="/showcase/brand-guide" class:list={['lib-nav-link', { active: isActive('/showcase/brand-guide') }]}>Brand Guide</a>
       <a href="/showcase" class:list={['lib-nav-link', { active: isActive('/showcase') }]}>Component Library</a>
-      <a href="/showcase/github-widgets" class:list={['lib-nav-link', { active: isActive('/showcase/github-widgets') }]}>GitHub Widgets</a>
       <a href="/" class="lib-nav-link">Dashboard</a>
     </div>
   </nav>

@@ -25,6 +25,10 @@ export const sampleData = {
   ],
 };
 
+export const emptyData: typeof sampleData = {
+  grid: Array.from({ length: 7 }, () => Array(24).fill(0)),
+};
+
 export function transform(response: any): typeof sampleData {
   // punch_card response is array of [day, hour, commits]
   // day 0=Sun..6=Sat, hour 0-23

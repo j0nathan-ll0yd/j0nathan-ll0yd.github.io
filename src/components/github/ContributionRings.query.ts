@@ -35,6 +35,13 @@ export const sampleData = {
   reviews: { count: 203, pct: 78 },
 };
 
+export const emptyData: typeof sampleData = {
+  commits: { count: 0, pct: 0 },
+  pullRequests: { count: 0, pct: 0 },
+  issues: { count: 0, pct: 0 },
+  reviews: { count: 0, pct: 0 },
+};
+
 export function transform(response: any): typeof sampleData {
   const c = response.data.user.contributionsCollection;
   const total = c.contributionCalendar.totalContributions || 1;

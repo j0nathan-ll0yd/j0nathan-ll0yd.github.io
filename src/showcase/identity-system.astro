@@ -1,0 +1,313 @@
+---
+import fs from 'node:fs';
+import path from 'node:path';
+import Showcase from '../layouts/Showcase.astro';
+import IdentityCard from '../components/IdentityCard.astro';
+import BioTerminal from '../components/BioTerminal.astro';
+import SystemStatus from '../components/SystemStatus.astro';
+import ComingSoon from '../components/ComingSoon.astro';
+
+const dataDir = path.join(process.cwd(), 'data');
+const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
+const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
+const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json'), 'utf-8'));
+---
+<Showcase title="Identity & System">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Identity &amp; System</h1>
+    <p class="lib-page-desc">
+      The identity and system components that anchor the Command Center: personal identity card, terminal-style bio, system status readout, command bar header, and the coming-soon mission dossier overlay.
+    </p>
+
+    <h2 class="lib-section-title">Profile</h2>
+
+    <!-- ==================== 1. IDENTITY CARD ==================== -->
+    <div class="component-section">
+      <div class="component-name">IdentityCard</div>
+      <div class="component-description">
+        The primary identity component featuring an avatar with a neon glow ring, hero-sized name with dual-color text shadow, an uppercase title, a short bio paragraph, and pill-shaped social links.
+      </div>
+      <div class="component-classes">.identity-card, .id-avatar, .id-name, .id-title, .id-bio, .id-links, .neon-pill</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="identity-card" style="text-align: center;">
+              <div class="skeleton-circle" style="width: 96px; height: 96px; margin: 0 auto 16px;"></div>
+              <div class="skeleton-bar" style="width: 60%; height: 24px; margin: 0 auto 10px;"></div>
+              <div class="skeleton-bar" style="width: 40%; height: 10px; margin: 0 auto 14px;"></div>
+              <div class="skeleton-bar" style="width: 80%; height: 10px; margin: 0 auto 6px;"></div>
+              <div class="skeleton-bar" style="width: 65%; height: 10px; margin: 0 auto 16px;"></div>
+              <div style="display: flex; gap: 8px; justify-content: center;">
+                <div class="skeleton-bar" style="width: 64px; height: 26px; border-radius: 50px;"></div>
+                <div class="skeleton-bar" style="width: 64px; height: 26px; border-radius: 50px;"></div>
+                <div class="skeleton-bar" style="width: 64px; height: 26px; border-radius: 50px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <IdentityCard profile={empty.profile} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <IdentityCard profile={profile} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 2. BIO TERMINAL ==================== -->
+    <div class="component-section">
+      <div class="component-name">BioTerminal</div>
+      <div class="component-description">
+        A faux terminal with macOS-style titlebar, sequentially typing lines, and a blinking cursor. Contains id="terminalBody" so only one instance per page.
+      </div>
+      <div class="component-classes">.terminal-container, .terminal-titlebar, .terminal-btn, .terminal-body, .terminal-line, .terminal-cursor</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-blue left-panel-bio">
+              <div class="widget-header">
+                <span class="widget-label">Bio</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-blue"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body" style="padding: 0;">
+                <div class="terminal-container">
+                  <div class="terminal-titlebar">
+                    <div class="terminal-btn terminal-btn-red"></div>
+                    <div class="terminal-btn terminal-btn-yellow"></div>
+                    <div class="terminal-btn terminal-btn-green"></div>
+                    <div class="terminal-title">zsh</div>
+                  </div>
+                  <div class="terminal-body" style="padding: 12px 16px;">
+                    <div class="skeleton-bar" style="width: 70%; height: 12px; margin-bottom: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 55%; height: 12px; margin-bottom: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 80%; height: 12px; margin-bottom: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 40%; height: 12px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Static HTML: avoids duplicate #terminalBody -->
+            <div class="tri-card tri-card-accent-blue left-panel-bio">
+              <div class="widget-header">
+                <span class="widget-label">Bio</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-blue"></div>
+                  <span class="widget-timestamp">bash</span>
+                </div>
+              </div>
+              <div class="widget-body" style="padding: 0;">
+                <div class="terminal-container">
+                  <div class="terminal-titlebar">
+                    <div class="terminal-btn terminal-btn-red"></div>
+                    <div class="terminal-btn terminal-btn-yellow"></div>
+                    <div class="terminal-btn terminal-btn-green"></div>
+                    <div class="terminal-title">zsh &mdash; about</div>
+                  </div>
+                  <div class="terminal-body">
+                    <div class="terminal-line visible">
+                      <span class="terminal-prompt">$ </span>
+                      <span class="terminal-cursor"></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <BioTerminal profile={profile} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="lib-section-title">System</h2>
+
+    <!-- ==================== 3. SYSTEM STATUS ==================== -->
+    <div class="component-section">
+      <div class="component-name">SystemStatus</div>
+      <div class="component-description">
+        A compact status readout with colored indicator dots and key-value pairs in monospace font. Each row shows a system metric with a pulsing dot.
+      </div>
+      <div class="component-classes">.left-panel-status, .sys-line, .sys-dot, .sys-key, .sys-val</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="left-panel-status">
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="skeleton-circle" style="width: 6px; height: 6px;"></div>
+                  <div class="skeleton-bar" style="width: 50px; height: 10px;"></div>
+                  <div class="skeleton-bar" style="width: 60px; height: 10px; margin-left: auto;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="skeleton-circle" style="width: 6px; height: 6px;"></div>
+                  <div class="skeleton-bar" style="width: 45px; height: 10px;"></div>
+                  <div class="skeleton-bar" style="width: 55px; height: 10px; margin-left: auto;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="skeleton-circle" style="width: 6px; height: 6px;"></div>
+                  <div class="skeleton-bar" style="width: 55px; height: 10px;"></div>
+                  <div class="skeleton-bar" style="width: 50px; height: 10px; margin-left: auto;"></div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="skeleton-circle" style="width: 6px; height: 6px;"></div>
+                  <div class="skeleton-bar" style="width: 48px; height: 10px;"></div>
+                  <div class="skeleton-bar" style="width: 58px; height: 10px; margin-left: auto;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <SystemStatus system={empty.system} />
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <SystemStatus system={system} />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 4. COMMAND BAR ==================== -->
+    <div class="component-section">
+      <div class="component-name">Command Bar</div>
+      <div class="component-description">
+        Fixed header bar with page title and live clock. Rendered as inline HTML (no .astro component file).
+      </div>
+      <div class="component-classes">.top-bar, .top-bar-title, .top-bar-clock</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div style="position: relative; width: 100%; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(6,6,15,0.7); border-bottom: 1px solid rgba(255,255,255,0.06); border-radius: 8px;">
+              <div class="skeleton-bar" style="width: 120px; height: 10px;"></div>
+              <div class="skeleton-bar" style="width: 64px; height: 10px;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div style="position: relative; width: 100%; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(6,6,15,0.7); border-bottom: 1px solid rgba(255,255,255,0.06); border-radius: 8px;">
+              <div class="skeleton-bar" style="width: 120px; height: 10px;"></div>
+              <span class="top-bar-clock" style="color: var(--text-muted); text-shadow: none;">--:--:--</span>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div style="position: relative; width: 100%; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; background: rgba(6,6,15,0.7); border-bottom: 1px solid rgba(255,255,255,0.06); border-radius: 8px;">
+              <span class="top-bar-title">COMMAND CENTER</span>
+              <span class="top-bar-clock">14:32:07</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 5. COMING SOON ==================== -->
+    <div class="component-section">
+      <div class="component-name">ComingSoon</div>
+      <div class="component-description">
+        Full-page "Mission Pending" dossier overlay with field labels, objectives checklist, and animated status dot. Contains id="coming-soon-overlay" and id="dossierId" so only one instance per page. The showcase CSS overrides position: fixed to render it inline.
+      </div>
+      <div class="component-classes">#coming-soon-overlay, .dossier, .dossier-header, .status-row, .fields, .objectives</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="coming-soon-overlay" style="position: relative; inset: auto; z-index: auto; min-height: 400px; display: flex; align-items: center; justify-content: center; background: var(--bg); border-radius: 12px;">
+              <div style="width: min(480px, 90%); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden;">
+                <div style="padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between;">
+                  <div class="skeleton-bar" style="width: 100px; height: 10px;"></div>
+                  <div class="skeleton-bar" style="width: 60px; height: 10px;"></div>
+                </div>
+                <div style="padding: 28px; display: flex; flex-direction: column; gap: 16px;">
+                  <div class="skeleton-bar" style="width: 50%; height: 18px; margin: 0 auto;"></div>
+                  <div style="height: 1px; background: rgba(255,255,255,0.06);"></div>
+                  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                      <div class="skeleton-bar" style="width: 60px; height: 8px;"></div>
+                      <div class="skeleton-bar" style="width: 100px; height: 12px;"></div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                      <div class="skeleton-bar" style="width: 50px; height: 8px;"></div>
+                      <div class="skeleton-bar" style="width: 90px; height: 12px;"></div>
+                    </div>
+                  </div>
+                  <div style="height: 1px; background: rgba(255,255,255,0.06);"></div>
+                  <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <div class="skeleton-bar" style="width: 70%; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 60%; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 65%; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 55%; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 50%; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <!-- Hand-written: avoids duplicate IDs from ComingSoon component -->
+            <div class="coming-soon-overlay" style="position: relative; inset: auto; z-index: auto; min-height: 400px; display: flex; align-items: center; justify-content: center; background: var(--bg); border-radius: 12px; font-family: 'Space Grotesk', sans-serif;">
+              <div style="width: min(480px, 90%); background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; overflow: hidden;">
+                <div style="padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 0.6rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: #9ca3af;">Mission Dossier</span>
+                  <span style="font-size: 0.5rem; color: rgba(255,255,255,0.15);">CC-0000</span>
+                </div>
+                <div style="padding: 28px; display: flex; flex-direction: column; gap: 20px;">
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <div style="width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15);"></div>
+                    <span style="font-size: 1.1rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted);">---</span>
+                  </div>
+                </div>
+                <div style="padding: 14px 28px; border-top: 1px solid rgba(255,255,255,0.06); text-align: center; font-size: 0.5rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.12);">Classification: ---</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <ComingSoon />
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</Showcase>
