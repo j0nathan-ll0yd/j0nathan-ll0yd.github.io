@@ -2,14 +2,14 @@
 const { health } = Astro.props;
 const hydration = health.hydration;
 const waterPct = Math.min(hydration.waterOz / hydration.waterMax, 1) * 100;
-const coffeePct = Math.min(hydration.coffeeOz / hydration.coffeeMax, 1) * 100;
+const caffeinePct = Math.min((hydration.caffeineMg ?? 0) / (hydration.caffeineMax ?? 500), 1) * 100;
 const waterRangeLo = hydration.waterRangeLo;
 const waterRangeHi = hydration.waterRangeHi;
 const waterMax = hydration.waterMax;
-const coffeeRangeLo = hydration.coffeeRangeLo;
-const coffeeRangeHi = hydration.coffeeRangeHi;
-const coffeeMax = hydration.coffeeMax;
-const coffeeCautionMax = hydration.coffeeCautionMax;
+const caffeineRangeLo = hydration.caffeineRangeLo ?? 200;
+const caffeineRangeHi = hydration.caffeineRangeHi ?? 400;
+const caffeineMax = hydration.caffeineMax ?? 500;
+const caffeineMg = hydration.caffeineMg ?? 0;
 ---
 <div class="tri-card tri-card-accent-blue" id="cardHydration">
   <div class="widget-header">
@@ -53,20 +53,20 @@ const coffeeCautionMax = hydration.coffeeCautionMax;
           <div class="hydra-mug-handle"></div>
         </div>
         <div class="hydra-val" id="hydraCoffeeVal">0</div>
-        <div class="hydra-label" id="hydraCoffeeLabel">Coffee</div>
+        <div class="hydra-label" id="hydraCoffeeLabel">Caffeine</div>
       </div>
     </div>
   </div>
 </div>
 
-<script is:inline define:vars={{ waterPct, coffeePct, waterRangeLo, waterRangeHi, waterMax, coffeeRangeLo, coffeeRangeHi, coffeeMax, coffeeCautionMax, waterOz: hydration.waterOz, coffeeOz: hydration.coffeeOz }}>
+<script is:inline define:vars={{ waterPct, caffeinePct, waterRangeLo, waterRangeHi, waterMax, caffeineRangeLo, caffeineRangeHi, caffeineMax, waterOz: hydration.waterOz, caffeineMg }}>
 (function() {
   var wLiq = document.getElementById('hydraWaterLiq');
   var cLiq = document.getElementById('hydraCoffeeLiq');
   if (!wLiq || !cLiq) return;
   requestAnimationFrame(function() {
     wLiq.style.height = waterPct + '%';
-    cLiq.style.height = coffeePct + '%';
+    cLiq.style.height = caffeinePct + '%';
   });
 
   function addRange(container, lo, hi, max, cssClass, labelClass, loLabel, hiLabel) {
@@ -87,20 +87,6 @@ const coffeeCautionMax = hydration.coffeeCautionMax;
     container.appendChild(zone);
   }
 
-  function addLine(container, val, max, cssClass, labelClass, label) {
-    var pct = (val / max) * 100;
-    var line = document.createElement('div');
-    line.className = 'hydra-range ' + cssClass;
-    line.style.bottom = pct + '%';
-    line.style.height = '0px';
-    line.style.borderBottom = 'none';
-    var lbl = document.createElement('div');
-    lbl.className = 'hydra-range-label hydra-range-label-top ' + labelClass;
-    lbl.textContent = label;
-    line.appendChild(lbl);
-    container.appendChild(line);
-  }
-
   var bottleBody = document.querySelector('.hydra-bottle-body');
   if (bottleBody) {
     addRange(bottleBody, waterRangeLo, waterRangeHi, waterMax,
@@ -110,25 +96,24 @@ const coffeeCautionMax = hydration.coffeeCautionMax;
 
   var mugBody = document.querySelector('.hydra-mug-body');
   if (mugBody) {
-    addRange(mugBody, coffeeRangeLo, coffeeRangeHi, coffeeMax,
+    addRange(mugBody, caffeineRangeLo, caffeineRangeHi, caffeineMax,
       'hydra-range-coffee', 'hydra-range-label-coffee',
-      String(coffeeRangeLo), String(coffeeRangeHi));
-    addLine(mugBody, coffeeCautionMax, coffeeMax,
-      'hydra-range-caution', 'hydra-range-label-caution', '20 limit');
+      String(caffeineRangeLo), String(caffeineRangeHi));
   }
-  function countUpHydra(el, target) {
+
+  function countUp(el, target, unit) {
     if (!el) return;
     var startTime = null;
     function step(ts) {
       if (!startTime) startTime = ts;
       var p = Math.min((ts - startTime) / 1200, 1);
       var eased = 1 - Math.pow(1 - p, 3);
-      el.textContent = Math.round(target * eased) + ' oz';
+      el.textContent = Math.round(target * eased) + ' ' + unit;
       if (p < 1) requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
   }
-  countUpHydra(document.getElementById('hydraWaterVal'), waterOz);
-  countUpHydra(document.getElementById('hydraCoffeeVal'), coffeeOz);
+  countUp(document.getElementById('hydraWaterVal'), waterOz, 'oz');
+  countUp(document.getElementById('hydraCoffeeVal'), caffeineMg, 'mg');
 })();
 </script>

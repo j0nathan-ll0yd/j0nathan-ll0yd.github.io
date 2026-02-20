@@ -65,14 +65,13 @@
     "sampleWorkouts": [],
     "hydration": {
       "waterOz": 0,
-      "coffeeOz": 0,
+      "caffeineMg": 0,
       "waterMax": 140,
-      "coffeeMax": 48,
+      "caffeineMax": 500,
       "waterRangeLo": 74,
       "waterRangeHi": 125,
-      "coffeeRangeLo": 24,
-      "coffeeRangeHi": 40,
-      "coffeeCautionMax": 20
+      "caffeineRangeLo": 200,
+      "caffeineRangeHi": 400
     }
   },
   "github": {

@@ -36,15 +36,13 @@ export function adaptHealth(healthData: any, sleepData: any | null): any {
   // 6. Build hydration object
   const hydration = {
     waterOz,
-    coffeeOz: 0,
     caffeineMg,
     waterMax: HYDRATION.waterMax,
-    coffeeMax: HYDRATION.coffeeMax,
+    caffeineMax: HYDRATION.caffeineMax,
     waterRangeLo: HYDRATION.waterRangeLo,
     waterRangeHi: HYDRATION.waterRangeHi,
-    coffeeRangeLo: HYDRATION.coffeeRangeLo,
-    coffeeRangeHi: HYDRATION.coffeeRangeHi,
-    coffeeCautionMax: HYDRATION.coffeeCautionMax,
+    caffeineRangeLo: HYDRATION.caffeineRangeLo,
+    caffeineRangeHi: HYDRATION.caffeineRangeHi,
   };
 
   // 7. Sleep fields
