@@ -16,7 +16,7 @@ function esc(s: string | null | undefined): string {
 }
 
 export function updateHeartRate(data: any): void {
-  const hr = data.quantities.heartRate.value;
+  const hr = Math.round(data.quantities.heartRate.value);
   const hrv = Math.round(data.quantities.hrvSDNN.value);
   const zone = classifyHeartRate(hr);
   const hrvStyle = classifyHRV(hrv);

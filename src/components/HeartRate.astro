@@ -2,7 +2,7 @@
 import { classifyHeartRate, buildECGPath, classifyHRV } from '../lib/heart-rate';
 
 const { health } = Astro.props;
-const hr = health.quantities.heartRate.value;
+const hr = Math.round(health.quantities.heartRate.value);
 const hrv = Math.round(health.quantities.hrvSDNN.value);
 
 const state = classifyHeartRate(hr);

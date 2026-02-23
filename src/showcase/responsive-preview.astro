@@ -1,0 +1,118 @@
+---
+import Showcase from '../layouts/Showcase.astro';
+
+const devices = [
+  { label: 'Mobile', width: 375, height: 812, frame: 'phone' },
+  { label: 'Tablet', width: 768, height: 1024, frame: 'tablet' },
+  { label: 'Desktop', width: 1440, height: 900, frame: 'browser' },
+  { label: 'Large Desktop', width: 2560, height: 1440, frame: 'ultra' },
+];
+---
+<Showcase title="Responsive Preview">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Responsive Preview</h1>
+    <p class="lib-page-desc">Live dashboard rendered at 4 viewport sizes</p>
+
+    <div class="rp-toolbar">
+      <button class="rp-view-btn active" data-view="grid">Grid</button>
+      <button class="rp-view-btn" data-view="focus">Focus</button>
+      <select class="rp-focus-select" style="display: none;">
+        {devices.map((d, i) => (
+          <option value={String(i)}>{d.label} ({d.width}px)</option>
+        ))}
+      </select>
+    </div>
+
+    <div class="rp-container rp-grid-mode">
+      {devices.map((d, i) => (
+        <div class="rp-device">
+          <div class="rp-device-label">
+            <span class="rp-device-name">{d.label}</span>
+            <span class="rp-device-size">{d.width} × {d.height}</span>
+          </div>
+          <div class={`rp-device-frame rp-frame-${d.frame}`}>
+            {d.frame === 'browser' && (
+              <div class="rp-browser-chrome">
+                <div class="rp-traffic-dot rp-dot-red"></div>
+                <div class="rp-traffic-dot rp-dot-yellow"></div>
+                <div class="rp-traffic-dot rp-dot-green"></div>
+              </div>
+            )}
+            {d.frame === 'phone' && <div class="rp-phone-notch"></div>}
+            <div class="rp-iframe-wrapper">
+              <iframe
+                src="/"
+                width={String(d.width)}
+                height={String(d.height)}
+                title={`${d.label} preview (${d.width}px)`}
+                loading={i === 0 ? 'eager' : 'lazy'}
+              ></iframe>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  </main>
+
+  <script is:inline>
+  (function() {
+    var frames = document.querySelectorAll('.rp-device');
+    var gridBtn = document.querySelector('[data-view="grid"]');
+    var focusBtn = document.querySelector('[data-view="focus"]');
+    var focusSelect = document.querySelector('.rp-focus-select');
+    var container = document.querySelector('.rp-container');
+
+    function scaleFrames() {
+      for (var i = 0; i < frames.length; i++) {
+        var wrapper = frames[i].querySelector('.rp-iframe-wrapper');
+        var iframe = frames[i].querySelector('iframe');
+        if (!wrapper || !iframe) continue;
+        var targetWidth = parseInt(iframe.getAttribute('width'), 10);
+        var targetHeight = parseInt(iframe.getAttribute('height'), 10);
+        var availableWidth = wrapper.clientWidth;
+        var scale = availableWidth / targetWidth;
+        iframe.style.width = targetWidth + 'px';
+        iframe.style.height = targetHeight + 'px';
+        iframe.style.transform = 'scale(' + scale + ')';
+        iframe.style.transformOrigin = 'top left';
+        wrapper.style.height = (targetHeight * scale) + 'px';
+      }
+    }
+
+    gridBtn.addEventListener('click', function() {
+      container.classList.remove('rp-focus-mode');
+      container.classList.add('rp-grid-mode');
+      gridBtn.classList.add('active');
+      focusBtn.classList.remove('active');
+      focusSelect.style.display = 'none';
+      for (var i = 0; i < frames.length; i++) frames[i].style.display = '';
+      scaleFrames();
+    });
+
+    focusBtn.addEventListener('click', function() {
+      container.classList.remove('rp-grid-mode');
+      container.classList.add('rp-focus-mode');
+      focusBtn.classList.add('active');
+      gridBtn.classList.remove('active');
+      focusSelect.style.display = '';
+      var idx = parseInt(focusSelect.value, 10);
+      for (var i = 0; i < frames.length; i++) {
+        frames[i].style.display = i === idx ? '' : 'none';
+      }
+      scaleFrames();
+    });
+
+    focusSelect.addEventListener('change', function() {
+      var idx = parseInt(focusSelect.value, 10);
+      for (var i = 0; i < frames.length; i++) {
+        frames[i].style.display = i === idx ? '' : 'none';
+      }
+      scaleFrames();
+    });
+
+    window.addEventListener('resize', scaleFrames);
+    window.addEventListener('load', scaleFrames);
+    scaleFrames();
+  })();
+  </script>
+</Showcase>

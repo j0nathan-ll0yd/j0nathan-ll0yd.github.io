@@ -14,6 +14,7 @@ const showcaseDevOnly = {
         injectRoute({ pattern: '/showcase/repositories-languages', entrypoint: 'src/showcase/repositories-languages.astro' });
         injectRoute({ pattern: '/showcase/activity-feeds', entrypoint: 'src/showcase/activity-feeds.astro' });
         injectRoute({ pattern: '/showcase/reading-books', entrypoint: 'src/showcase/reading-books.astro' });
+        injectRoute({ pattern: '/showcase/responsive-preview', entrypoint: 'src/showcase/responsive-preview.astro' });
       }
     }
   }
