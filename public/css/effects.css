@@ -90,6 +90,11 @@
   border-radius: 4px;
 }
 
+.skeleton-circle {
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+}
+
 /* ===== REDUCED MOTION (WCAG 2.3.3) ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

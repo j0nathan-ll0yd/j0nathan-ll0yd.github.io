@@ -20,6 +20,21 @@ const caffeineMg = hydration.caffeineMg ?? 0;
     </div>
   </div>
   <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; justify-content: space-around; align-items: center; padding: 12px 0;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <div class="skeleton-bar" style="width: 40px; height: 80px; border-radius: 8px;"></div>
+          <div class="skeleton-bar" style="width: 40px; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 30px; height: 8px;"></div>
+        </div>
+        <div style="width: 1px; height: 60px; background: rgba(255,255,255,0.06);"></div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+          <div class="skeleton-bar" style="width: 44px; height: 60px; border-radius: 8px;"></div>
+          <div class="skeleton-bar" style="width: 40px; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 30px; height: 8px;"></div>
+        </div>
+      </div>
+    </div>
     <div class="hydra-layout">
       <div class="hydra-vessel hydra-vessel-water">
         <div class="hydra-bottle">

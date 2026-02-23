@@ -63,6 +63,7 @@ export function updateHeartRate(data: any): void {
   if (card) {
     card.classList.remove(...ACCENT_CLASSES);
     card.classList.add(zone.accentClass);
+    card.classList.remove('is-loading');
   }
 }
 
@@ -91,21 +92,20 @@ export function updateDailyActivity(data: any): void {
       }
     }
   }
+
+  card.classList.remove('is-loading');
 }
 
 export function updateWorkouts(data: any[] | null): void {
   const card = document.getElementById('cardWorkouts');
   if (!card) return;
 
-  if (data === null) {
-    card.style.display = 'none';
-    return;
-  }
-
-  if (data.length === 0) return;
+  if (!data || data.length === 0) return;
 
   const body = card.querySelector('.widget-body');
   if (!body) return;
+
+  card.style.display = '';
 
   function fmtDuration(seconds: number): string {
     const h = Math.floor(seconds / 3600);
@@ -176,6 +176,8 @@ export function updateNightSummary(data: any): void {
   if (insight) {
     insight.innerHTML = '<span>' + data.derived.deepPct + '% deep</span> &mdash; <span>' + data.derived.remPct + '% REM</span> &mdash; restorative sleep';
   }
+
+  document.getElementById('cardSleep')?.classList.remove('is-loading');
 }
 
 export function updateHydration(data: any): void {
@@ -208,6 +210,8 @@ export function updateHydration(data: any): void {
   if (coffeeLabel) {
     coffeeLabel.textContent = 'Caffeine';
   }
+
+  document.getElementById('cardHydration')?.classList.remove('is-loading');
 }
 
 export function updateBookshelf(data: any): void {
@@ -303,4 +307,6 @@ export function updateBookshelf(data: any): void {
     });
     shelfRow.innerHTML = html;
   }
+
+  document.getElementById('cardBooks')?.classList.remove('is-loading');
 }

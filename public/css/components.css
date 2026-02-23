@@ -1545,3 +1545,26 @@
 .hydra-liquid {
   transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* === Skeleton Loading Overlay === */
+.tri-card.is-loading .skeleton-state {
+  display: block;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--glass-bg);
+  padding: 14px 18px 18px;
+}
+.tri-card.is-loading .widget-body {
+  position: relative;
+}
+.tri-card.is-loading .widget-body > *:not(.skeleton-state) {
+  opacity: 0;
+  pointer-events: none;
+}
+.tri-card:not(.is-loading) .skeleton-state {
+  display: none;
+}
+.tri-card .widget-body > *:not(.skeleton-state) {
+  transition: opacity 0.3s ease;
+}

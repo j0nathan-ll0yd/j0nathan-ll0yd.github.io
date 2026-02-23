@@ -10,7 +10,20 @@ import {
   updateBookshelf,
 } from '../lib/updaters';
 
+const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks'];
+
 initDevMode();
+
+// Add skeleton loading state to live-data cards (skip in dev mode)
+let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+if (!isDevMode()) {
+  LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.add('is-loading'));
+
+  // Fallback: remove skeletons after 8s if data never arrives
+  fallbackTimer = setTimeout(() => {
+    LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.remove('is-loading'));
+  }, 8000);
+}
 
 // Wait for card reveal animation to complete (~1200ms)
 setTimeout(async () => {
@@ -52,4 +65,8 @@ setTimeout(async () => {
       console.warn('[live-data] Books update failed:', e);
     }
   }
+
+  // Clean up any remaining skeletons (handles partial endpoint failures)
+  LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.remove('is-loading'));
+  if (fallbackTimer) clearTimeout(fallbackTimer);
 }, 1200);
