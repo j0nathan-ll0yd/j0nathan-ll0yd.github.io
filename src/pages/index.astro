@@ -13,7 +13,7 @@ import Hydration from '../components/Hydration.astro';
 import Location from '../components/Location.astro';
 import StarredRepoList from '../components/github/StarredRepoList.astro';
 import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
-import RecentCommits from '../components/RecentCommits.astro';
+import DevActivityLog from '../components/github/DevActivityLog.astro';
 import ReadingFeed from '../components/ReadingFeed.astro';
 import Bookshelf from '../components/Bookshelf.astro';
 import BookModal from '../components/BookModal.astro';
@@ -111,7 +111,7 @@ try {
         <section class="triptych-column triptych-column-mind" aria-label="Mind">
           <div class="column-header column-header-green">Mind</div>
           <StarredRepoList repos={starredRepos} />
-          <RecentCommits github={github} />
+          <DevActivityLog events={github.devActivity} />
           <ReadingFeed reading={reading} />
           <Bookshelf books={books} />
         </section>

@@ -214,6 +214,55 @@ export function updateHydration(data: any): void {
   document.getElementById('cardHydration')?.classList.remove('is-loading');
 }
 
+export function updateDevActivityLog(events: any[]): void {
+  const card = document.getElementById('cardDevLog');
+  if (!card) return;
+
+  if (!events || events.length === 0) return;
+
+  const body = card.querySelector('.widget-body');
+  if (!body) return;
+
+  const iconMap: Record<string, { symbol: string; color: string }> = {
+    'commit':       { symbol: '\u2192', color: 'var(--neon-green)' },
+    'pr_opened':    { symbol: '\u2295', color: 'var(--neon-blue)' },
+    'pr_closed':    { symbol: '\u2296', color: 'var(--neon-blue)' },
+    'pr_merged':    { symbol: '\u229E', color: 'var(--neon-blue)' },
+    'issue_opened': { symbol: '\u25C9', color: 'var(--neon-amber)' },
+    'issue_closed': { symbol: '\u2714', color: 'var(--neon-amber)' },
+  };
+  const fallbackIcon = { symbol: '\u00B7', color: 'var(--neon-green)' };
+
+  let html = '<div class="gh-dal-terminal">';
+  events.forEach((e: any) => {
+    const icon = iconMap[e.type] || fallbackIcon;
+    let detail = '';
+    if (e.type === 'commit' && e.hash) {
+      detail = esc(e.hash) + ' +' + (e.additions || 0) + '/-' + (e.deletions || 0);
+    } else if (e.number !== undefined) {
+      detail = '#' + e.number;
+    }
+
+    if (e.url) {
+      html += '<a class="gh-dal-line" href="' + esc(e.url) + '" target="_blank" rel="noopener noreferrer">';
+    } else {
+      html += '<a class="gh-dal-line">';
+    }
+    html += '<span class="gh-dal-icon" style="color: ' + icon.color + ';">' + icon.symbol + '</span>';
+    html += '<span class="gh-dal-repo">' + esc(e.repo) + '</span>';
+    html += '<span class="gh-dal-title">' + esc(e.title) + '</span>';
+    if (detail) {
+      html += '<span class="gh-dal-detail">' + detail + '</span>';
+    }
+    html += '<span class="gh-dal-date">' + esc(e.date) + '</span>';
+    html += '</a>';
+  });
+  html += '</div>';
+
+  body.innerHTML = html;
+  card.classList.remove('is-loading');
+}
+
 export function updateBookshelf(data: any): void {
   const shelfRow = document.getElementById('dashShelfRow');
   if (!shelfRow) return;

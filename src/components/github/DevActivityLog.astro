@@ -8,6 +8,7 @@ interface Event {
   additions?: number;
   deletions?: number;
   number?: number;
+  url?: string;
 }
 
 interface Props {
@@ -39,7 +40,7 @@ function getDetail(event: Event): string {
   return '';
 }
 ---
-<div class="tri-card tri-card-accent-green">
+<div class="tri-card tri-card-accent-green" id="cardDevLog">
   <div class="widget-header">
     <span class="widget-label">Dev Log</span>
     <div class="widget-header-right">
@@ -49,74 +50,19 @@ function getDetail(event: Event): string {
   </div>
   <div class="widget-body">
     <div class="gh-dal-terminal">
-      {events.map((event: Event) => {
+      {events.slice(0, 10).map((event: Event) => {
         const icon = getIcon(event.type);
         const detail = getDetail(event);
         return (
-          <div class="gh-dal-line">
+          <a class="gh-dal-line" href={event.url || undefined} target={event.url ? '_blank' : undefined} rel={event.url ? 'noopener noreferrer' : undefined}>
             <span class="gh-dal-icon" style={`color: ${icon.color};`}>{icon.symbol}</span>
             <span class="gh-dal-repo">{event.repo}</span>
             <span class="gh-dal-title">{event.title}</span>
             {detail && <span class="gh-dal-detail">{detail}</span>}
             <span class="gh-dal-date">{event.date}</span>
-          </div>
+          </a>
         );
       })}
     </div>
   </div>
 </div>
-
-<style>
-  .gh-dal-terminal {
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(6, 214, 160, 0.1);
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-family: 'Space Grotesk', monospace;
-    font-size: 0.68rem;
-    line-height: 1.8;
-  }
-
-  .gh-dal-line {
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    flex-wrap: nowrap;
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  .gh-dal-icon {
-    flex-shrink: 0;
-    font-size: 0.72rem;
-  }
-
-  .gh-dal-repo {
-    color: var(--text);
-    font-weight: 600;
-    flex-shrink: 0;
-    font-size: 0.64rem;
-  }
-
-  .gh-dal-title {
-    color: var(--text-muted);
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .gh-dal-detail {
-    color: var(--neon-green);
-    opacity: 0.7;
-    font-size: 0.6rem;
-    flex-shrink: 0;
-  }
-
-  .gh-dal-date {
-    color: rgba(255, 255, 255, 0.2);
-    font-size: 0.6rem;
-    flex-shrink: 0;
-    margin-left: auto;
-  }
-</style>

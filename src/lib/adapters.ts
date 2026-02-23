@@ -134,6 +134,43 @@ export function adaptWorkouts(workoutsData: any | null): any[] | null {
   return workoutsData;
 }
 
+export function adaptGithubEvents(data: any): any[] {
+  if (!data) return [];
+  const events: any[] = data.events || [];
+  const now = Date.now();
+
+  return events.slice(0, 10).map((e: any) => {
+    let date = e.date;
+    if (date && date.includes('T')) {
+      const msAgo = now - new Date(date).getTime();
+      const minutesAgo = Math.floor(msAgo / 60000);
+      const hoursAgo = Math.floor(minutesAgo / 60);
+      const daysAgo = Math.floor(hoursAgo / 24);
+      const weeksAgo = Math.floor(daysAgo / 7);
+      if (weeksAgo > 0) date = weeksAgo + 'w ago';
+      else if (daysAgo > 0) date = daysAgo + 'd ago';
+      else if (hoursAgo > 0) date = hoursAgo + 'h ago';
+      else date = minutesAgo + 'm ago';
+    }
+
+    const fullRepo = e.repo || '';
+    let repo = fullRepo;
+    const slashIdx = repo.indexOf('/');
+    if (slashIdx !== -1) repo = repo.substring(slashIdx + 1);
+
+    let url = '';
+    if (e.type === 'commit' && e.hash) {
+      url = 'https://github.com/' + fullRepo + '/commit/' + e.hash;
+    } else if (e.type?.startsWith('pr_') && e.number !== undefined) {
+      url = 'https://github.com/' + fullRepo + '/pull/' + e.number;
+    } else if (e.type?.startsWith('issue_') && e.number !== undefined) {
+      url = 'https://github.com/' + fullRepo + '/issues/' + e.number;
+    }
+
+    return { ...e, date, repo, url };
+  });
+}
+
 export function adaptBooks(booksData: any): any {
   const statusMap: Record<string, string> = {
     reading: 'in_progress',

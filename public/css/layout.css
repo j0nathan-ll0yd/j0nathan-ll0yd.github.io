@@ -16,7 +16,7 @@
   height: 100vh;
   display: flex;
   flex-direction: column;
-  justify-content: safe center;
+  justify-content: flex-start;
   align-items: center;
   padding: 48px 36px;
   gap: 0;
@@ -113,7 +113,7 @@
 /* ===== TRIPTYCH GRID ===== */
 .triptych-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(300px, 2fr) 3fr;
   gap: 12px;
 }
 
@@ -123,6 +123,8 @@
   flex-direction: column;
   gap: 12px;
   position: relative;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* Vertical neon gutter line on left edge of each column */
@@ -320,9 +322,9 @@
   .split-metric-value { font-size: 1.3rem; }
   .loc-city-name { font-size: 1.3rem; }
 
-  .commits-terminal {
-    font-size: 0.68rem;
-    padding: 10px;
+  .gh-dal-terminal {
+    font-size: 0.64rem;
+    padding: 8px 10px;
     line-height: 1.7;
   }
 

@@ -1,6 +1,6 @@
 import { isDevMode, initDevMode } from '../lib/dev-mode';
 import { fetchAllEndpoints } from '../lib/api';
-import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks } from '../lib/adapters';
+import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents } from '../lib/adapters';
 import {
   updateHeartRate,
   updateDailyActivity,
@@ -8,9 +8,10 @@ import {
   updateNightSummary,
   updateHydration,
   updateBookshelf,
+  updateDevActivityLog,
 } from '../lib/updaters';
 
-const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks'];
+const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog'];
 
 initDevMode();
 
@@ -63,6 +64,14 @@ setTimeout(async () => {
       updateBookshelf(adaptBooks(data.books));
     } catch (e) {
       console.warn('[live-data] Books update failed:', e);
+    }
+  }
+
+  if (data.githubEvents) {
+    try {
+      updateDevActivityLog(adaptGithubEvents(data.githubEvents));
+    } catch (e) {
+      console.warn('[live-data] GitHub events update failed:', e);
     }
   }
 

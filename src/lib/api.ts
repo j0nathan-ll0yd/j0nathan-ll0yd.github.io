@@ -9,6 +9,7 @@ export interface FetchResult {
   sleep: any | null;
   workouts: any | null;
   books: any | null;
+  githubEvents: any | null;
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<any | null> {
@@ -26,12 +27,13 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<
 }
 
 export async function fetchAllEndpoints(): Promise<FetchResult> {
-  const [health, sleep, workouts, books] = await Promise.all([
+  const [health, sleep, workouts, books, githubEvents] = await Promise.all([
     fetchWithTimeout(BASE + ENDPOINTS.health),
     fetchWithTimeout(BASE + ENDPOINTS.sleep),
     fetchWithTimeout(BASE + ENDPOINTS.workouts),
     fetchWithTimeout(BASE + ENDPOINTS.books),
+    fetchWithTimeout(BASE + ENDPOINTS.githubEvents),
   ]);
 
-  return { health, sleep, workouts, books };
+  return { health, sleep, workouts, books, githubEvents };
 }

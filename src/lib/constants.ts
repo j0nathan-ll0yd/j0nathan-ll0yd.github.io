@@ -21,4 +21,5 @@ export const ENDPOINTS = {
   workouts: '/workouts.json',
   books: '/books.json',
   starredRepos: '/github-starred-repos.json',
+  githubEvents: '/github-events.json',
 } as const;

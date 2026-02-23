@@ -5,7 +5,6 @@ import Showcase from '../layouts/Showcase.astro';
 
 // Root components (use data/*.json)
 import GitHubHeatmap from '../components/GitHubHeatmap.astro';
-import RecentCommits from '../components/RecentCommits.astro';
 
 // GitHub widgets (use .query.ts sampleData + emptyData)
 import ContributionGrid from '../components/github/ContributionGrid.astro';
@@ -325,68 +324,6 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
           <span class="state-label state-label-active">Active</span>
           <div class="state-render">
             <CommitTimeline {...timelineData} />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== 6. RECENT COMMITS ==================== -->
-    <div class="component-section">
-      <div class="component-name">RecentCommits</div>
-      <div class="component-description">
-        A terminal-styled feed of the latest Git commits across repositories. Each line displays a short hash in neon green, the commit message, the repository name, and a relative timestamp.
-      </div>
-      <div class="component-classes">.tri-card-accent-green</div>
-
-      <div class="state-grid">
-        <div class="state-column">
-          <span class="state-label state-label-skeleton">Skeleton</span>
-          <div class="state-render">
-            <div class="tri-card tri-card-accent-green">
-              <div class="widget-header">
-                <span class="widget-label">Recent Commits</span>
-                <div class="widget-header-right">
-                  <div class="live-dot"></div>
-                  <span class="widget-timestamp">---</span>
-                </div>
-              </div>
-              <div class="widget-body">
-                <div class="commits-terminal">
-                  <div class="commit-line" style="display: flex; gap: 8px; align-items: center;">
-                    <span class="skeleton-bar" style="width: 48px; height: 12px; flex-shrink: 0;"></span>
-                    <span class="skeleton-bar" style="width: 60%; height: 12px;"></span>
-                    <span class="skeleton-bar" style="width: 64px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
-                  </div>
-                  <div class="commit-line" style="display: flex; gap: 8px; align-items: center;">
-                    <span class="skeleton-bar" style="width: 48px; height: 12px; flex-shrink: 0;"></span>
-                    <span class="skeleton-bar" style="width: 45%; height: 12px;"></span>
-                    <span class="skeleton-bar" style="width: 64px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
-                  </div>
-                  <div class="commit-line" style="display: flex; gap: 8px; align-items: center;">
-                    <span class="skeleton-bar" style="width: 48px; height: 12px; flex-shrink: 0;"></span>
-                    <span class="skeleton-bar" style="width: 55%; height: 12px;"></span>
-                    <span class="skeleton-bar" style="width: 64px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
-                  </div>
-                  <div class="commit-line" style="display: flex; gap: 8px; align-items: center;">
-                    <span class="skeleton-bar" style="width: 48px; height: 12px; flex-shrink: 0;"></span>
-                    <span class="skeleton-bar" style="width: 50%; height: 12px;"></span>
-                    <span class="skeleton-bar" style="width: 64px; height: 12px; margin-left: auto; flex-shrink: 0;"></span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="state-column">
-          <span class="state-label state-label-empty">Empty</span>
-          <div class="state-render">
-            <RecentCommits github={empty.github} />
-          </div>
-        </div>
-        <div class="state-column">
-          <span class="state-label state-label-active">Active</span>
-          <div class="state-render">
-            <RecentCommits github={github} />
           </div>
         </div>
       </div>

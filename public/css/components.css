@@ -1118,28 +1118,41 @@
   color: var(--text-muted);
 }
 
-/* ===== 12. RECENT COMMITS ===== */
-.commits-terminal {
+/* ===== 12. DEV ACTIVITY LOG ===== */
+.gh-dal-terminal {
   background: rgba(0,0,0,0.4);
   border: 1px solid rgba(6,214,160,0.1);
   border-radius: 8px;
-  padding: 12px;
+  padding: 10px 12px;
   font-family: 'Space Grotesk', monospace;
-  font-size: 0.72rem;
-  line-height: 1.9;
+  font-size: 0.68rem;
+  line-height: 1.8;
 }
 
-.commit-line {
+.gh-dal-line {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 4px;
+  padding: 1px 4px;
+  margin: 0 -4px;
+  transition: background 0.15s ease;
 }
 
-.cm-hash { color: var(--neon-green); white-space: nowrap; flex-shrink: 0; }
-.cm-msg { color: var(--text); flex: 1; min-width: 0; }
-.cm-repo { color: var(--text-muted); font-size: 0.65rem; white-space: nowrap; }
-.cm-date { color: rgba(255,255,255,0.2); font-size: 0.65rem; white-space: nowrap; margin-left: auto; }
+.gh-dal-line:hover {
+  background: rgba(255,255,255,0.05);
+}
+
+.gh-dal-icon { flex-shrink: 0; font-size: 0.72rem; }
+.gh-dal-repo { color: var(--text); font-weight: 600; flex-shrink: 0; font-size: 0.64rem; }
+.gh-dal-title { color: var(--text-muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gh-dal-detail { color: var(--neon-green); opacity: 0.7; font-size: 0.6rem; flex-shrink: 0; }
+.gh-dal-date { color: rgba(255,255,255,0.2); font-size: 0.6rem; flex-shrink: 0; margin-left: auto; }
 
 /* ===== 13. READING FEED ===== */
 .article-list {

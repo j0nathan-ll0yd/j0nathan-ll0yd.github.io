@@ -491,46 +491,56 @@
     "HTML": 22400,
     "Shell": 8900
   },
-  "recentCommits": [
+  "devActivity": [
     {
-      "hash": "a1b2c3d",
-      "message": "Fix auth token refresh",
-      "repo": "myapp",
+      "type": "commit",
+      "repo": "mantle",
+      "title": "Unify handler pattern",
       "date": "2h ago",
-      "additions": 24,
-      "deletions": 8
+      "hash": "a9421b5",
+      "additions": 28,
+      "deletions": 16,
+      "url": "https://github.com/j0nathan-ll0yd/mantle/commit/a9421b5"
     },
     {
-      "hash": "e4f5g6h",
-      "message": "Add rate limiting middleware",
-      "repo": "api-gateway",
+      "type": "pr_opened",
+      "repo": "media-downloader",
+      "title": "chore(deps): update yt-dlp",
       "date": "1d ago",
-      "additions": 156,
-      "deletions": 12
+      "number": 388,
+      "additions": 1,
+      "deletions": 1,
+      "url": "https://github.com/j0nathan-ll0yd/aws-cloudformation-media-downloader/pull/388"
     },
     {
-      "hash": "i7j8k9l",
-      "message": "Update dependencies",
-      "repo": "myapp",
+      "type": "commit",
+      "repo": "mantle",
+      "title": "Add validation engine",
       "date": "2d ago",
-      "additions": 48,
-      "deletions": 52
+      "hash": "b3c4d5e",
+      "additions": 45,
+      "deletions": 12,
+      "url": "https://github.com/j0nathan-ll0yd/mantle/commit/b3c4d5e"
     },
     {
-      "hash": "m0n1o2p",
-      "message": "Implement WebSocket handlers",
-      "repo": "realtime-service",
+      "type": "commit",
+      "repo": "portfolio",
+      "title": "Add skeleton loading states",
       "date": "3d ago",
-      "additions": 312,
-      "deletions": 45
+      "hash": "9deedf9",
+      "additions": 156,
+      "deletions": 24,
+      "url": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/9deedf9"
     },
     {
-      "hash": "q3r4s5t",
-      "message": "Refactor database queries",
-      "repo": "api-gateway",
+      "type": "commit",
+      "repo": "mantle",
+      "title": "Extract shared utilities",
       "date": "5d ago",
+      "hash": "f6g7h8i",
       "additions": 89,
-      "deletions": 134
+      "deletions": 34,
+      "url": "https://github.com/j0nathan-ll0yd/mantle/commit/f6g7h8i"
     }
   ],
   "commitHours": [
