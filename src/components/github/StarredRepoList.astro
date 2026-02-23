@@ -2,6 +2,7 @@
 interface Repo {
   owner: string;
   name: string;
+  url: string;
   stars: number;
   language: string;
   languageColor: string;
@@ -27,9 +28,9 @@ const { repos } = Astro.props;
     <div class="gh-starred-list">
       {repos.map((repo: Repo) => (
         <div class="gh-sl-row">
-          <span class="gh-sl-name">
+          <a class="gh-sl-name" href={repo.url} target="_blank" rel="noopener noreferrer">
             <span class="gh-sl-owner">{repo.owner}/</span>{repo.name}
-          </span>
+          </a>
           <span class="gh-sl-stars">&#9733; {repo.stars.toLocaleString()}</span>
           <span class="gh-sl-lang">
             <span class="gh-sl-lang-dot" style={`background: ${repo.languageColor};`}></span>
@@ -68,11 +69,17 @@ const { repos } = Astro.props;
 
   .gh-sl-name {
     color: var(--neon-green);
+    text-decoration: none;
     flex: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .gh-sl-name:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 
   .gh-sl-owner {

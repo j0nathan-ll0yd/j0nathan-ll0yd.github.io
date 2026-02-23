@@ -20,4 +20,5 @@ export const ENDPOINTS = {
   sleep: '/sleep.json',
   workouts: '/workouts.json',
   books: '/books.json',
+  starredRepos: '/github-starred-repos.json',
 } as const;
