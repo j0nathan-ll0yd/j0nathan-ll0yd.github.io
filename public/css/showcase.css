@@ -407,11 +407,15 @@ body.library-page {
   margin-top: 0;
 }
 
-/* ComingSoon overlay override: render inline in showcase */
-.state-render .coming-soon-overlay {
-  position: relative;
-  inset: auto;
-  z-index: auto;
+/* ComingSoon overlay override: render inline in showcase.
+   The component uses scoped #coming-soon-overlay with position:fixed;z-index:9999.
+   Scoped Astro styles are injected as inline <style> (after external CSS),
+   so !important is needed to override the source-order advantage. */
+.state-render .coming-soon-overlay,
+.state-render #coming-soon-overlay {
+  position: relative !important;
+  inset: auto !important;
+  z-index: auto !important;
   min-height: 400px;
   overflow: hidden;
   border-radius: 12px;

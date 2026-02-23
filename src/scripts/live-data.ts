@@ -9,6 +9,7 @@ import {
   updateHydration,
   updateBookshelf,
   updateDevActivityLog,
+  updateSystemStatus,
 } from '../lib/updaters';
 
 const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog'];
@@ -74,6 +75,8 @@ setTimeout(async () => {
       console.warn('[live-data] GitHub events update failed:', e);
     }
   }
+
+  updateSystemStatus(data.timestamps);
 
   // Clean up any remaining skeletons (handles partial endpoint failures)
   LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.remove('is-loading'));

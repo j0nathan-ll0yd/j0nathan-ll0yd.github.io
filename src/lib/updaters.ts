@@ -263,6 +263,43 @@ export function updateDevActivityLog(events: any[]): void {
   card.classList.remove('is-loading');
 }
 
+export function updateSystemStatus(timestamps: Record<string, string | null>): void {
+  const container = document.getElementById('systemStatus');
+  if (!container) return;
+
+  const lines = container.querySelectorAll('.sys-line');
+  lines.forEach((line) => {
+    const source = (line as HTMLElement).dataset.source;
+    if (!source) return;
+
+    const dot = line.querySelector('.sys-dot');
+    const valEl = line.querySelector('[class*="sys-val"]');
+    if (!dot || !valEl) return;
+
+    const ts = timestamps[source];
+    if (ts) {
+      const ago = formatRelativeTime(ts);
+      dot.className = 'sys-dot sys-dot-green';
+      valEl.className = 'sys-val-green';
+      valEl.innerHTML = 'ACTIVE <span class="sys-val">(' + ago + ')</span>';
+    } else {
+      dot.className = 'sys-dot sys-dot-red';
+      valEl.className = 'sys-val-red';
+      valEl.textContent = 'OFFLINE';
+    }
+  });
+}
+
+function formatRelativeTime(isoString: string): string {
+  const msAgo = Date.now() - new Date(isoString).getTime();
+  const minutesAgo = Math.max(0, Math.floor(msAgo / 60000));
+  const hoursAgo = Math.floor(minutesAgo / 60);
+  const daysAgo = Math.floor(hoursAgo / 24);
+  if (daysAgo > 0) return daysAgo + 'd ago';
+  if (hoursAgo > 0) return hoursAgo + 'h ago';
+  return minutesAgo + 'm ago';
+}
+
 export function updateBookshelf(data: any): void {
   const shelfRow = document.getElementById('dashShelfRow');
   if (!shelfRow) return;

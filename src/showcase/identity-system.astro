@@ -11,6 +11,18 @@ const dataDir = path.join(process.cwd(), 'data');
 const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
 const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
 const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json'), 'utf-8'));
+
+// Mock active state for SystemStatus — system.json now holds PENDING fallback;
+// the real active state comes from live API data, so we simulate it here.
+const activeSystem = {
+  lines: [
+    { key: "Health", value: 'ACTIVE <span class="sys-val">(15m ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
+    { key: "Sleep", value: 'ACTIVE <span class="sys-val">(15m ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
+    { key: "Books", value: 'ACTIVE <span class="sys-val">(3d ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
+    { key: "Github Events", value: 'ACTIVE <span class="sys-val">(2h ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
+    { key: "Github Stars", value: 'ACTIVE <span class="sys-val">(4h ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
+  ]
+};
 ---
 <Showcase title="Identity & System">
   <main class="lib-container">
@@ -184,13 +196,13 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
         <div class="state-column">
           <span class="state-label state-label-empty">Empty</span>
           <div class="state-render">
-            <SystemStatus system={empty.system} />
+            <SystemStatus system={system} />
           </div>
         </div>
         <div class="state-column">
           <span class="state-label state-label-active">Active</span>
           <div class="state-render">
-            <SystemStatus system={system} />
+            <SystemStatus system={activeSystem} />
           </div>
         </div>
       </div>

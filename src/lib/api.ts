@@ -10,6 +10,7 @@ export interface FetchResult {
   workouts: any | null;
   books: any | null;
   githubEvents: any | null;
+  timestamps: Record<string, string | null>;
 }
 
 async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<any | null> {
@@ -27,13 +28,25 @@ async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<
 }
 
 export async function fetchAllEndpoints(): Promise<FetchResult> {
-  const [health, sleep, workouts, books, githubEvents] = await Promise.all([
+  // starredRepos is fetched solely for its generatedAt timestamp (System Status widget).
+  // Its payload is not used elsewhere — StarredRepoList is build-time only.
+  const [health, sleep, workouts, books, githubEvents, starredRepos] = await Promise.all([
     fetchWithTimeout(BASE + ENDPOINTS.health),
     fetchWithTimeout(BASE + ENDPOINTS.sleep),
     fetchWithTimeout(BASE + ENDPOINTS.workouts),
     fetchWithTimeout(BASE + ENDPOINTS.books),
     fetchWithTimeout(BASE + ENDPOINTS.githubEvents),
+    fetchWithTimeout(BASE + ENDPOINTS.starredRepos),
   ]);
 
-  return { health, sleep, workouts, books, githubEvents };
+  return {
+    health, sleep, workouts, books, githubEvents,
+    timestamps: {
+      health: health?.generatedAt ?? null,
+      sleep: sleep?.generatedAt ?? null,
+      books: books?.generatedAt ?? null,
+      githubEvents: githubEvents?.generatedAt ?? null,
+      starredRepos: starredRepos?.generatedAt ?? null,
+    },
+  };
 }

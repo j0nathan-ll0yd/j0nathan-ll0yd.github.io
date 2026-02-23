@@ -422,6 +422,11 @@
 
 .sys-val-green { color: var(--neon-green); }
 .sys-val-amber { color: var(--neon-amber); }
+.sys-dot-red {
+  background: var(--neon-red);
+  box-shadow: 0 0 8px var(--neon-red);
+}
+.sys-val-red { color: var(--neon-red); }
 
 /* ===== 4. COMMAND BAR ===== */
 /* (styles in layout.css: .top-bar, .top-bar-title, .top-bar-clock) */

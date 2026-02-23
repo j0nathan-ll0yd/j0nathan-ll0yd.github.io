@@ -104,12 +104,11 @@
   },
   "system": {
     "lines": [
-      { "key": "System", "value": "Checking...", "dotClass": "", "valClass": "" },
-      { "key": "Uptime", "value": "Checking...", "dotClass": "", "valClass": "" },
-      { "key": "Coffee Level", "value": "Checking...", "dotClass": "", "valClass": "" },
-      { "key": "Focus Mode", "value": "Checking...", "dotClass": "", "valClass": "" },
-      { "key": "Current Streak", "value": "Checking...", "dotClass": "", "valClass": "" },
-      { "key": "Bug Count", "value": "Checking...", "dotClass": "", "valClass": "" }
+      { "key": "Health", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Sleep", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Books", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Github Events", "value": "Checking...", "dotClass": "", "valClass": "" },
+      { "key": "Github Stars", "value": "Checking...", "dotClass": "", "valClass": "" }
     ]
   }
 }

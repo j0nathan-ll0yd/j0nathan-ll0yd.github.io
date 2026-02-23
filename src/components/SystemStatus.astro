@@ -1,6 +1,14 @@
 ---
 const { system } = Astro.props;
 const lines = system.lines;
+
+const sourceMap: Record<string, string> = {
+  'Health': 'health',
+  'Sleep': 'sleep',
+  'Books': 'books',
+  'Github Events': 'githubEvents',
+  'Github Stars': 'starredRepos',
+};
 ---
 <div class="left-panel-status" id="cardSystem">
   <div class="left-status-header">
@@ -12,10 +20,10 @@ const lines = system.lines;
   </div>
   <div id="systemStatus">
     {lines.map((line: any, idx: number) => (
-      <div class="sys-line" style={`animation-delay: ${idx * 0.1}s`}>
+      <div class="sys-line" data-source={sourceMap[line.key] || ''} style={`animation-delay: ${idx * 0.1}s`}>
         <div class={`sys-dot ${line.dotClass}`} style={`animation-delay: ${idx * 0.3}s`}></div>
         <span class="sys-key">{line.key}:</span>
-        <span class={line.valClass}>{line.value}</span>
+        <span class={line.valClass || 'sys-val'} set:html={line.value}></span>
       </div>
     ))}
   </div>
