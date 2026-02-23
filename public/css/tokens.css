@@ -20,6 +20,7 @@
   /* --- Layout --- */
   --left-width: 35%;
   --right-width: 65%;
+  --top-bar-height: 48px;
 
   /* --- Typography --- */
   --font-family: 'Space Grotesk', sans-serif;
