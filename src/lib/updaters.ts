@@ -1,5 +1,6 @@
 import { classifyHeartRate, buildECGPath, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
+import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry } from './adapters';
 
 const ACCENT_CLASSES = [
   'tri-card-accent-pink', 'tri-card-accent-blue', 'tri-card-accent-green',
@@ -15,7 +16,7 @@ function esc(s: string | null | undefined): string {
     .replace(/"/g, '&quot;');
 }
 
-export function updateHeartRate(data: any): void {
+export function updateHeartRate(data: AdaptedHealth): void {
   const hr = Math.round(data.quantities.heartRate.value);
   const hrv = Math.round(data.quantities.hrvSDNN.value);
   const zone = classifyHeartRate(hr);
@@ -67,7 +68,7 @@ export function updateHeartRate(data: any): void {
   }
 }
 
-export function updateDailyActivity(data: any): void {
+export function updateDailyActivity(data: AdaptedHealth): void {
   const q = data.quantities;
   const card = document.getElementById('cardSteps');
   if (!card) return;
@@ -96,7 +97,7 @@ export function updateDailyActivity(data: any): void {
   card.classList.remove('is-loading');
 }
 
-export function updateWorkouts(data: any[] | null): void {
+export function updateWorkouts(data: WorkoutEntry[] | null): void {
   const card = document.getElementById('cardWorkouts');
   if (!card) return;
 
@@ -126,16 +127,16 @@ export function updateWorkouts(data: any[] | null): void {
   }
 
   let html = '';
-  data.forEach((w: any) => {
+  data.forEach((w: WorkoutEntry) => {
     html += '<div class="workout-sub-card">';
     html += '<div class="workout-sub-top">';
-    html += getIcon(w.activity_type);
-    html += '<div class="workout-sub-type">' + esc(w.activity_type) + '</div>';
+    html += getIcon(w.activityType);
+    html += '<div class="workout-sub-type">' + esc(w.activityType) + '</div>';
     html += '</div>';
     html += '<div class="workout-sub-stats">';
-    html += '<div class="workout-stat"><div class="workout-stat-label">Duration</div><div class="workout-stat-value">' + fmtDuration(w.duration) + '</div></div>';
-    html += '<div class="workout-stat"><div class="workout-stat-label">Calories</div><div class="workout-stat-value">' + Math.round(w.energy_burned) + ' kcal</div></div>';
-    if (w.distance > 0) {
+    html += '<div class="workout-stat"><div class="workout-stat-label">Duration</div><div class="workout-stat-value">' + fmtDuration(w.duration ?? 0) + '</div></div>';
+    html += '<div class="workout-stat"><div class="workout-stat-label">Calories</div><div class="workout-stat-value">' + Math.round(w.energyBurned ?? 0) + ' kcal</div></div>';
+    if (w.distance && w.distance > 0) {
       html += '<div class="workout-stat"><div class="workout-stat-label">Distance</div><div class="workout-stat-value">' + (w.distance / 1000).toFixed(2) + ' km</div></div>';
     }
     html += '</div>';
@@ -145,7 +146,7 @@ export function updateWorkouts(data: any[] | null): void {
   body.innerHTML = html;
 }
 
-export function updateNightSummary(data: any): void {
+export function updateNightSummary(data: AdaptedSleep): void {
   const duration = document.getElementById('sleepDuration');
   if (duration) {
     duration.textContent = data.sleepDurationFormatted;
@@ -180,7 +181,7 @@ export function updateNightSummary(data: any): void {
   document.getElementById('cardSleep')?.classList.remove('is-loading');
 }
 
-export function updateHydration(data: any): void {
+export function updateHydration(data: AdaptedHealth): void {
   const waterOz = data.hydration.waterOz;
   const caffeineMg = data.hydration.caffeineMg;
 
@@ -214,7 +215,7 @@ export function updateHydration(data: any): void {
   document.getElementById('cardHydration')?.classList.remove('is-loading');
 }
 
-export function updateDevActivityLog(events: any[]): void {
+export function updateDevActivityLog(events: AdaptedGithubEvent[]): void {
   const card = document.getElementById('cardDevLog');
   if (!card) return;
 
@@ -234,7 +235,7 @@ export function updateDevActivityLog(events: any[]): void {
   const fallbackIcon = { symbol: '\u00B7', color: 'var(--neon-green)' };
 
   let html = '<div class="gh-dal-terminal">';
-  events.forEach((e: any) => {
+  events.forEach((e: AdaptedGithubEvent) => {
     const icon = iconMap[e.type] || fallbackIcon;
     let detail = '';
     if (e.type === 'commit' && e.hash) {
@@ -300,14 +301,14 @@ function formatRelativeTime(isoString: string): string {
   return minutesAgo + 'm ago';
 }
 
-export function updateBookshelf(data: any): void {
+export function updateBookshelf(data: AdaptedBooks): void {
   const shelfRow = document.getElementById('dashShelfRow');
   if (!shelfRow) return;
 
   const statusLabels = data.statusLabels;
   const bookMeta = data.bookMeta;
   const statusOrder: Record<string, number> = { in_progress: 0, next: 1, completed: 2 };
-  const sortedBooks = data.books.slice().sort((a: any, b: any) => {
+  const sortedBooks = data.books.slice().sort((a, b) => {
     return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
   });
   const displayBooks = sortedBooks.slice(0, 5);
@@ -315,9 +316,9 @@ export function updateBookshelf(data: any): void {
   const existingBooks = shelfRow.querySelectorAll('.shelf-book');
 
   if (existingBooks.length === displayBooks.length) {
-    displayBooks.forEach((b: any, i: number) => {
+    displayBooks.forEach((b, i: number) => {
       const el = existingBooks[i];
-      const meta = bookMeta[b.asin] || {};
+      const meta = bookMeta[b.asin] || {} as BookMeta;
       const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX200_.jpg');
 
       el.setAttribute('data-book', JSON.stringify({
@@ -399,8 +400,8 @@ export function updateBookshelf(data: any): void {
     });
   } else {
     let html = '';
-    displayBooks.forEach((b: any, i: number) => {
-      const meta = bookMeta[b.asin] || {};
+    displayBooks.forEach((b, i: number) => {
+      const meta = bookMeta[b.asin] || {} as BookMeta;
       const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX200_.jpg');
       const bookData = JSON.stringify({
         title: b.title,

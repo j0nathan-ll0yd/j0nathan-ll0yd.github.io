@@ -5,8 +5,106 @@ import {
   formatPhase,
   computeSleepPercentages,
 } from './sleep';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport } from '../types/exports';
 
-export function adaptHealth(healthData: any, sleepData: any | null): any {
+// ── Adapted output types (what adapters produce for updaters) ──────
+
+export interface HealthQuantity {
+  value: number;
+  unit: string;
+}
+
+export interface AdaptedHealth {
+  date: string;
+  quantities: Record<string, HealthQuantity>;
+  derived: {
+    totalCalories: number;
+    deepPct: number;
+    remPct: number;
+    corePct: number;
+  };
+  sleepScore: number;
+  sleepDurationFormatted: string;
+  sleepPhaseFormatted: Record<string, string>;
+  hydration: {
+    waterOz: number;
+    caffeineMg: number;
+    waterMax: number;
+    caffeineMax: number;
+    waterRangeLo: number;
+    waterRangeHi: number;
+    caffeineRangeLo: number;
+    caffeineRangeHi: number;
+  };
+}
+
+export interface AdaptedSleep {
+  sleepScore: number;
+  sleepDurationFormatted: string;
+  sleepPhaseFormatted: Record<string, string>;
+  derived: {
+    deepPct: number;
+    remPct: number;
+    corePct: number;
+  };
+  phases: Record<string, number>;
+}
+
+export interface WorkoutEntry {
+  activityType: string;
+  duration: number | null;
+  energyBurned: number | null;
+  distance: number | null;
+  source: string;
+}
+
+export interface AdaptedGithubEvent {
+  type: string;
+  repo: string;
+  title: string;
+  date: string;
+  number?: number;
+  hash?: string;
+  additions?: number;
+  deletions?: number;
+  url: string;
+}
+
+export interface AdaptedBookEntry {
+  title: string;
+  author: string;
+  asin: string;
+  status: string;
+  rating: number | null;
+  progress: number | undefined;
+  link: string;
+  cover: string | null;
+  notes: string | null;
+}
+
+export interface BookMeta {
+  series: string | null;
+  pages: number | null;
+  genres: string[];
+  year: number | null;
+  desc: string | null;
+}
+
+export interface AdaptedBooks {
+  books: AdaptedBookEntry[];
+  bookMeta: Record<string, BookMeta>;
+  statusLabels: Record<string, string>;
+  stats: {
+    total: number;
+    reading: number;
+    completed: number;
+    upcoming: number;
+  };
+}
+
+// ── Adapter functions ──────────────────────────────────────────────
+
+export function adaptHealth(healthData: HealthExport, sleepData: SleepExport | null): AdaptedHealth {
   const q = { ...healthData.quantities };
 
   // 1. Rename heartRateVariabilitySDNN → hrvSDNN
@@ -46,27 +144,31 @@ export function adaptHealth(healthData: any, sleepData: any | null): any {
   };
 
   // 7. Sleep fields
-  let sleepScore = healthData.quantities?.sleepScore?.value ?? healthData.sleepScore ?? 0;
+  let sleepScore = q.sleepScore?.value ?? 0;
   let sleepDurationFormatted = '';
-  let sleepPhaseFormatted: any = {};
+  let sleepPhaseFormatted: Record<string, string> = {};
   let deepPct = 0;
   let remPct = 0;
   let corePct = 0;
 
   if (sleepData) {
+    const rem = sleepData.rem as { seconds: number } | undefined;
+    const deep = sleepData.deep as { seconds: number } | undefined;
+    const core = sleepData.core as { seconds: number } | undefined;
+    const awake = sleepData.awake as { seconds: number } | undefined;
     const phases = {
-      rem: sleepData.rem.seconds,
-      deep: sleepData.deep.seconds,
-      core: sleepData.core.seconds,
-      awake: sleepData.awake.seconds,
+      rem: rem?.seconds ?? 0,
+      deep: deep?.seconds ?? 0,
+      core: core?.seconds ?? 0,
+      awake: awake?.seconds ?? 0,
     };
     const totalSleepSeconds = computeTotalSleepSeconds(phases);
     sleepDurationFormatted = formatDuration(totalSleepSeconds);
     sleepPhaseFormatted = {
-      deep: formatPhase(sleepData.deep.seconds),
-      rem: formatPhase(sleepData.rem.seconds),
-      core: formatPhase(sleepData.core.seconds),
-      awake: formatPhase(sleepData.awake.seconds),
+      deep: formatPhase(phases.deep),
+      rem: formatPhase(phases.rem),
+      core: formatPhase(phases.core),
+      awake: formatPhase(phases.awake),
     };
     const pcts = computeSleepPercentages(phases);
     deepPct = pcts.deepPct;
@@ -78,9 +180,6 @@ export function adaptHealth(healthData: any, sleepData: any | null): any {
   return {
     date: healthData.date,
     quantities: q,
-    sleep: sleepData ?? healthData.sleep,
-    workouts: healthData.workouts ?? [],
-    ranges: healthData.ranges,
     derived: {
       totalCalories,
       deepPct,
@@ -94,52 +193,49 @@ export function adaptHealth(healthData: any, sleepData: any | null): any {
   };
 }
 
-export function adaptSleep(sleepData: any, healthData: any | null): any {
+export function adaptSleep(sleepData: SleepExport, healthData: HealthExport | null): AdaptedSleep {
+  const rem = sleepData.rem as { seconds: number } | undefined;
+  const deep = sleepData.deep as { seconds: number } | undefined;
+  const core = sleepData.core as { seconds: number } | undefined;
+  const awake = sleepData.awake as { seconds: number } | undefined;
   const phases = {
-    rem: sleepData.rem.seconds,
-    deep: sleepData.deep.seconds,
-    core: sleepData.core.seconds,
-    awake: sleepData.awake.seconds,
+    rem: rem?.seconds ?? 0,
+    deep: deep?.seconds ?? 0,
+    core: core?.seconds ?? 0,
+    awake: awake?.seconds ?? 0,
   };
   const totalSleepSeconds = computeTotalSleepSeconds(phases);
   const pcts = computeSleepPercentages(phases);
 
   return {
-    sleepScore: healthData?.quantities?.sleepScore?.value ?? healthData?.sleepScore ?? 0,
+    sleepScore: healthData?.quantities?.sleepScore?.value ?? 0,
     sleepDurationFormatted: formatDuration(totalSleepSeconds),
     sleepPhaseFormatted: {
-      deep: formatPhase(sleepData.deep.seconds),
-      rem: formatPhase(sleepData.rem.seconds),
-      core: formatPhase(sleepData.core.seconds),
-      awake: formatPhase(sleepData.awake.seconds),
+      deep: formatPhase(phases.deep),
+      rem: formatPhase(phases.rem),
+      core: formatPhase(phases.core),
+      awake: formatPhase(phases.awake),
     },
     derived: {
       deepPct: pcts.deepPct,
       remPct: pcts.remPct,
       corePct: pcts.corePct,
     },
-    phases: {
-      rem: sleepData.rem.seconds,
-      deep: sleepData.deep.seconds,
-      core: sleepData.core.seconds,
-      awake: sleepData.awake.seconds,
-    },
+    phases,
   };
 }
 
-export function adaptWorkouts(workoutsData: any | null): any[] | null {
+export function adaptWorkouts(workoutsData: WorkoutsExport | null): WorkoutEntry[] | null {
   if (workoutsData === null) return null;
-  if (Array.isArray(workoutsData)) return workoutsData;
-  if (workoutsData.workouts !== undefined) return workoutsData.workouts;
-  return workoutsData;
+  return workoutsData.workouts;
 }
 
-export function adaptGithubEvents(data: any): any[] {
+export function adaptGithubEvents(data: GithubEventsExport | null): AdaptedGithubEvent[] {
   if (!data) return [];
-  const events: any[] = data.events || [];
+  const events = data.events || [];
   const now = Date.now();
 
-  return events.slice(0, 10).map((e: any) => {
+  return events.slice(0, 10).map((e) => {
     let date = e.date;
     if (date && date.includes('T')) {
       const msAgo = now - new Date(date).getTime();
@@ -171,22 +267,20 @@ export function adaptGithubEvents(data: any): any[] {
   });
 }
 
-export function adaptBooks(booksData: any): any {
+export function adaptBooks(booksData: BooksExport): AdaptedBooks {
   const statusMap: Record<string, string> = {
     reading: 'in_progress',
     upNext: 'next',
     completed: 'completed',
   };
 
-  const rawBooks: any[] = booksData.books ?? [];
+  const rawBooks = booksData.books ?? [];
 
-  const books = rawBooks.map((b: any) => {
-    const mappedStatus = statusMap[b.status] ?? b.status;
+  const books: AdaptedBookEntry[] = rawBooks.map((b) => {
+    const mappedStatus = statusMap[b.status ?? ''] ?? b.status ?? 'next';
     let progress: number | undefined;
     if (b.currentPage != null && b.totalPages != null && b.totalPages > 0) {
       progress = Math.round(b.currentPage / b.totalPages * 100);
-    } else if (b.progress != null) {
-      progress = b.progress;
     }
     return {
       title: b.title,
@@ -196,39 +290,27 @@ export function adaptBooks(booksData: any): any {
       rating: b.rating ?? null,
       progress,
       link: 'https://www.amazon.com/dp/' + b.asin + '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl',
-      cover: b.mainImage ?? b.cover,
+      cover: b.mainImage ?? null,
       notes: b.notes ?? null,
     };
   });
 
-  const bookMeta: Record<string, any> = {};
-  if (booksData.bookMeta) {
-    for (const [asin, meta] of Object.entries<any>(booksData.bookMeta)) {
-      bookMeta[asin] = {
-        series: meta.series ?? null,
-        pages: meta.pageCount ?? meta.pages,
-        genres: meta.genres ?? [],
-        year: meta.publishedYear ?? meta.year,
-        desc: meta.description ?? meta.desc,
+  const bookMeta: Record<string, BookMeta> = {};
+  for (const b of rawBooks) {
+    if (b.asin) {
+      bookMeta[b.asin] = {
+        series: b.series ?? null,
+        pages: b.pageCount ?? b.totalPages ?? null,
+        genres: b.category ? b.category.split(' > ') : [],
+        year: b.publishedYear ?? null,
+        desc: b.description ?? null,
       };
-    }
-  } else {
-    for (const b of rawBooks) {
-      if (b.asin) {
-        bookMeta[b.asin] = {
-          series: b.series ?? null,
-          pages: b.pageCount ?? b.totalPages ?? null,
-          genres: b.genres ?? [],
-          year: b.publishedYear ?? null,
-          desc: b.description ?? null,
-        };
-      }
     }
   }
 
-  const inProgress = books.filter((b: any) => b.status === 'in_progress').length;
-  const completed = books.filter((b: any) => b.status === 'completed').length;
-  const next = books.filter((b: any) => b.status === 'next').length;
+  const inProgress = books.filter((b) => b.status === 'in_progress').length;
+  const completed = books.filter((b) => b.status === 'completed').length;
+  const next = books.filter((b) => b.status === 'next').length;
 
   return {
     books,
