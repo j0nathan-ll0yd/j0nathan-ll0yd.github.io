@@ -359,6 +359,20 @@ try {
   })();
   </script>
 
+  <!-- Auto-Reload (5 min) -->
+  <script is:inline>
+  (function() {
+    var INTERVAL = 300000;
+    var loadTime = Date.now();
+    var timer = setTimeout(function() { location.reload(); }, INTERVAL);
+    document.addEventListener('visibilitychange', function() {
+      if (!document.hidden && (Date.now() - loadTime) >= INTERVAL) {
+        location.reload();
+      }
+    });
+  })();
+  </script>
+
   <!-- Live Data Integration -->
   <script>
     import '../scripts/live-data';
