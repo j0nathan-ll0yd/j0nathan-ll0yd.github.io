@@ -357,15 +357,22 @@ export function updateBookshelf(data: AdaptedBooks): void {
         author.textContent = b.author;
       }
 
+      // Active class for in_progress books
+      if (b.status === 'in_progress') {
+        el.classList.add('shelf-book-active');
+      } else {
+        el.classList.remove('shelf-book-active');
+      }
+
       const status = el.querySelector('.shelf-book-status');
       if (status) {
         status.className = 'shelf-book-status shelf-status-' + b.status;
-        status.textContent = statusLabels[b.status];
+        status.textContent = b.status === 'in_progress' ? 'READING' : statusLabels[b.status];
       }
 
-      // Stars: create-or-update
+      // Stars: only for non-in_progress books
       const existingStars = el.querySelector('.shelf-book-stars');
-      if (b.rating) {
+      if (b.status !== 'in_progress' && b.rating) {
         let starsHtml = '';
         for (let s = 1; s <= 5; s++) {
           starsHtml += '<span class="' + (s <= b.rating ? 'star-on' : 'star-off') + '">' + (s <= b.rating ? '\u2605' : '\u2606') + '</span>';
@@ -382,16 +389,16 @@ export function updateBookshelf(data: AdaptedBooks): void {
         existingStars.remove();
       }
 
-      // Progress: create-or-update
+      // Progress: create-or-update for in_progress books
       const existingProgress = el.querySelector('.shelf-book-progress');
       if (b.status === 'in_progress' && b.progress != null) {
         if (existingProgress) {
-          existingProgress.textContent = b.progress + '%';
+          existingProgress.textContent = b.progress + '% COMPLETE';
         } else {
           const progDiv = document.createElement('div');
           progDiv.className = 'shelf-book-progress';
-          progDiv.textContent = b.progress + '%';
-          const insertAfter = el.querySelector('.shelf-book-stars') || status;
+          progDiv.textContent = b.progress + '% COMPLETE';
+          const insertAfter = status;
           insertAfter!.insertAdjacentElement('afterend', progDiv);
         }
       } else if (existingProgress) {
@@ -420,22 +427,22 @@ export function updateBookshelf(data: AdaptedBooks): void {
         genres: meta.genres || [],
         notes: b.notes || null,
       });
-      html += '<div class="shelf-book" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" role="button" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
+      var activeClass = b.status === 'in_progress' ? ' shelf-book-active' : '';
+      html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" role="button" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
       html += '<img src="' + esc(coverSrc) + '" width="80" height="120" alt="' + esc(b.title) + '" loading="lazy">';
       html += '</div>';
       html += '<div class="shelf-book-title"><span>' + esc(b.title) + '</span></div>';
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';
-      html += '<div class="shelf-book-status shelf-status-' + b.status + '">' + statusLabels[b.status] + '</div>';
-      if (b.rating) {
+      html += '<div class="shelf-book-status shelf-status-' + b.status + '">' + (b.status === 'in_progress' ? 'READING' : statusLabels[b.status]) + '</div>';
+      if (b.status === 'in_progress' && b.progress != null) {
+        html += '<div class="shelf-book-progress">' + b.progress + '% COMPLETE</div>';
+      } else if (b.rating) {
         html += '<div class="shelf-book-stars">';
         for (let s = 1; s <= 5; s++) {
           html += '<span class="' + (s <= b.rating ? 'star-on' : 'star-off') + '">' + (s <= b.rating ? '\u2605' : '\u2606') + '</span>';
         }
         html += '</div>';
-      }
-      if (b.status === 'in_progress' && b.progress != null) {
-        html += '<div class="shelf-book-progress">' + b.progress + '%</div>';
       }
       html += '</div>';
     });

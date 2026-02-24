@@ -60,22 +60,30 @@ const displayBooks = sortedBooks.slice(0, 5);
           genres: meta.genres || []
         });
         return (
-          <div class="shelf-book" style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" role="button" aria-label={`${b.title} by ${b.author}`}>
+          <div class={`shelf-book${b.status === 'in_progress' ? ' shelf-book-active' : ''}`} style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" role="button" aria-label={`${b.title} by ${b.author}`}>
             <div class="shelf-cover-wrapper">
               <img src={coverSrc} width="80" height="120" alt={b.title} loading="lazy">
             </div>
             <div class="shelf-book-title"><span>{b.title}</span></div>
             <div class="shelf-book-author">{b.author}</div>
-            <div class={`shelf-book-status shelf-status-${b.status}`}>{statusLabels[b.status]}</div>
-            {b.rating && (
-              <div class="shelf-book-stars">
-                {[1,2,3,4,5].map((s: number) => (
-                  <span class={s <= b.rating ? 'star-on' : 'star-off'}>{s <= b.rating ? '\u2605' : '\u2606'}</span>
-                ))}
-              </div>
-            )}
-            {b.status === 'in_progress' && b.progress != null && (
-              <div class="shelf-book-progress">{b.progress}%</div>
+            {b.status === 'in_progress' ? (
+              <Fragment>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                {b.progress != null && (
+                  <div class="shelf-book-progress">{b.progress}% COMPLETE</div>
+                )}
+              </Fragment>
+            ) : (
+              <Fragment>
+                <div class={`shelf-book-status shelf-status-${b.status}`}>{statusLabels[b.status]}</div>
+                {b.rating && (
+                  <div class="shelf-book-stars">
+                    {[1,2,3,4,5].map((s: number) => (
+                      <span class={s <= b.rating ? 'star-on' : 'star-off'}>{s <= b.rating ? '\u2605' : '\u2606'}</span>
+                    ))}
+                  </div>
+                )}
+              </Fragment>
             )}
           </div>
         );

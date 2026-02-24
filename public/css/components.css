@@ -1249,6 +1249,7 @@
   padding-bottom: 6px;
   scrollbar-width: thin;
   scrollbar-color: rgba(6,214,160,0.3) transparent;
+  align-items: stretch;
 }
 
 .shelf-row::-webkit-scrollbar { height: 4px; }
@@ -1263,11 +1264,26 @@
   opacity: 0;
   animation: shelfFadeIn 0.4s ease-out forwards;
   transition: transform 0.2s ease;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 4px;
 }
 
 @media (hover: hover) {
   .shelf-book:hover { transform: translateY(-4px); }
   .shelf-book:hover .shelf-book-title a { color: var(--neon-green); }
+}
+
+.shelf-book-active {
+  background: rgba(6,214,160,0.12);
+  border-color: rgba(6,214,160,0.4);
+  box-shadow: 0 0 16px rgba(6,214,160,0.25), 0 0 32px rgba(6,214,160,0.1);
+  padding: 8px 6px;
+}
+
+.shelf-book-active .shelf-cover-wrapper img {
+  border-color: rgba(6,214,160,0.4);
+  box-shadow: 0 4px 16px rgba(6,214,160,0.25);
 }
 
 .shelf-cover-wrapper {
@@ -1328,6 +1344,7 @@
   font-size: 0.42rem;
   letter-spacing: 1px;
   margin-top: 1px;
+  text-align: center;
 }
 .shelf-book-stars .star-on { color: var(--neon-amber); }
 .shelf-book-stars .star-off { color: rgba(255,255,255,0.1); }
@@ -1338,6 +1355,7 @@
   font-weight: 600;
   margin-top: 1px;
   text-shadow: 0 0 8px rgba(6,214,160,0.3);
+  text-align: center;
 }
 
 /* ===== BOOK MODAL ===== */
@@ -1356,7 +1374,7 @@
 .book-overlay.visible { display: flex; }
 
 .book-modal {
-  width: clamp(320px, 85vw, 520px);
+  width: clamp(320px, 50vw, 720px);
   max-width: 90vw;
   max-height: 90dvh;
   overflow-y: auto;
@@ -1371,14 +1389,16 @@
 
 .book-modal-header {
   display: flex;
-  gap: 16px;
-  padding: clamp(14px, 3vw, 20px) clamp(14px, 3vw, 20px) clamp(12px, 2vw, 16px);
+  gap: 20px;
+  padding: clamp(18px, 3vw, 28px) clamp(18px, 3vw, 28px) clamp(16px, 2vw, 24px);
   border-bottom: 1px solid rgba(255,255,255,0.04);
   position: relative;
 }
 
 .book-modal-cover {
-  border-radius: 6px;
+  width: 140px;
+  height: 210px;
+  border-radius: 8px;
   object-fit: cover;
   border: 1px solid rgba(255,255,255,0.1);
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
@@ -1390,12 +1410,12 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 8px;
   justify-content: center;
 }
 
 .book-modal-series {
-  font-size: 0.48rem;
+  font-size: 0.6rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -1404,22 +1424,22 @@
 }
 
 .book-modal-title {
-  font-size: clamp(0.88rem, 0.78rem + 0.38vw, 1.05rem);
+  font-size: var(--font-size-2xl);
   font-weight: 700;
   color: var(--text);
   line-height: 1.25;
 }
 
 .book-modal-author {
-  font-size: 0.6rem;
+  font-size: 0.78rem;
   font-family: 'Space Grotesk', monospace;
   color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 
 .book-modal-stars {
-  font-size: 0.65rem;
-  letter-spacing: 1px;
+  font-size: 0.85rem;
+  letter-spacing: 2px;
   margin-top: 2px;
 }
 .book-modal-stars .star-on { color: var(--neon-amber); }
@@ -1427,15 +1447,15 @@
 
 .book-modal-close {
   position: absolute;
-  top: 12px;
-  right: 14px;
-  min-width: 24px;
-  min-height: 24px;
+  top: 14px;
+  right: 16px;
+  min-width: 32px;
+  min-height: 32px;
   border-radius: 50%;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.9rem;
   font-family: inherit;
   padding: 0;
   display: flex;
@@ -1447,10 +1467,10 @@
 .book-modal-close:hover { background: rgba(255,255,255,0.1); color: var(--text); }
 
 .book-modal-body {
-  padding: clamp(12px, 3vw, 16px) clamp(14px, 3vw, 20px) clamp(16px, 3vw, 20px);
+  padding: clamp(16px, 3vw, 24px) clamp(18px, 3vw, 28px) clamp(20px, 3vw, 28px);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .book-modal-stats {
@@ -1461,30 +1481,30 @@
 .book-modal-stat {
   flex: 1;
   text-align: center;
-  padding: 8px 4px;
+  padding: 12px 8px;
   background: rgba(255,255,255,0.03);
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,0.04);
 }
 
 .book-modal-stat-val {
-  font-size: clamp(0.75rem, 0.65rem + 0.31vw, 0.9rem);
+  font-size: clamp(0.9rem, 0.78rem + 0.38vw, 1.1rem);
   font-weight: 700;
   color: var(--text);
 }
 
 .book-modal-stat-label {
-  font-size: 0.42rem;
+  font-size: 0.55rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1.5px;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .book-modal-progress {
-  height: 4px;
+  height: 6px;
   background: rgba(255,255,255,0.06);
-  border-radius: 2px;
+  border-radius: 3px;
   overflow: hidden;
 }
 .book-modal-progress-fill {
@@ -1494,18 +1514,18 @@
   box-shadow: 0 0 8px rgba(6,214,160,0.4);
 }
 .book-modal-progress-label {
-  font-size: 0.46rem;
+  font-size: 0.6rem;
   color: var(--neon-green);
   font-family: 'Space Grotesk', monospace;
-  margin-top: 3px;
+  margin-top: 4px;
 }
 
 .book-modal-desc {
-  font-size: 0.58rem;
-  line-height: 1.55;
+  font-size: 0.88rem;
+  line-height: 1.65;
   color: rgba(255,255,255,0.6);
   display: -webkit-box;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 6;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -1518,9 +1538,9 @@
 
 .book-modal-tag {
   display: inline-block;
-  font-size: 0.48rem;
+  font-size: 0.6rem;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 10px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -1533,31 +1553,31 @@
   margin-top: 4px;
 }
 .book-modal-notes-label {
-  font-size: 0.42rem;
+  font-size: 0.55rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1.5px;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .book-modal-notes-text {
-  font-size: 0.58rem;
-  line-height: 1.55;
+  font-size: 0.88rem;
+  line-height: 1.65;
   color: var(--text);
   font-style: italic;
-  padding-left: 8px;
+  padding-left: 10px;
   border-left: 2px solid var(--neon-amber);
 }
 
 .book-modal-amazon {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.52rem;
+  gap: 8px;
+  font-size: 0.65rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
-  padding: 6px 14px;
+  padding: 10px 20px;
   border-radius: 8px;
   background: rgba(6,214,160,0.12);
   border: 1px solid rgba(6,214,160,0.25);
