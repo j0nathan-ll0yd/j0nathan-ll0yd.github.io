@@ -11,6 +11,7 @@ export const STATUS_LABELS: Record<string, string> = {
   next: 'Up Next',
   in_progress: 'Reading',
   completed: 'Recently Finished',
+  finished: 'Recently Finished',
 } as const;
 
 export const CLOUDFRONT_BASE = 'https://d2nfgi9u0n3jr6.cloudfront.net';

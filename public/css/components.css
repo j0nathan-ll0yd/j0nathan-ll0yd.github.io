@@ -1248,13 +1248,13 @@
   scroll-snap-type: x mandatory;
   padding-bottom: 6px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(6,214,160,0.3) transparent;
+  scrollbar-color: rgba(245,158,11,0.3) transparent;
   align-items: stretch;
 }
 
 .shelf-row::-webkit-scrollbar { height: 4px; }
 .shelf-row::-webkit-scrollbar-track { background: transparent; }
-.shelf-row::-webkit-scrollbar-thumb { background: rgba(6,214,160,0.3); border-radius: 4px; }
+.shelf-row::-webkit-scrollbar-thumb { background: rgba(245,158,11,0.3); border-radius: 4px; }
 
 .shelf-book {
   flex-shrink: 0;
@@ -1271,19 +1271,19 @@
 
 @media (hover: hover) {
   .shelf-book:hover { transform: translateY(-4px); }
-  .shelf-book:hover .shelf-book-title a { color: var(--neon-green); }
+  .shelf-book:hover .shelf-book-title a { color: var(--neon-amber); }
 }
 
 .shelf-book-active {
-  background: rgba(6,214,160,0.12);
-  border-color: rgba(6,214,160,0.4);
-  box-shadow: 0 0 16px rgba(6,214,160,0.25), 0 0 32px rgba(6,214,160,0.1);
+  background: rgba(245,158,11,0.12);
+  border-color: rgba(245,158,11,0.4);
+  box-shadow: 0 0 16px rgba(245,158,11,0.25), 0 0 32px rgba(245,158,11,0.1);
   padding: 8px 6px;
 }
 
 .shelf-book-active .shelf-cover-wrapper img {
-  border-color: rgba(6,214,160,0.4);
-  box-shadow: 0 4px 16px rgba(6,214,160,0.25);
+  border-color: rgba(245,158,11,0.4);
+  box-shadow: 0 4px 16px rgba(245,158,11,0.25);
 }
 
 .shelf-cover-wrapper {
@@ -1298,7 +1298,7 @@
   border-radius: 4px;
   object-fit: cover;
   border: 1px solid rgba(255,255,255,0.08);
-  background: linear-gradient(135deg, rgba(6,214,160,0.15), rgba(58,134,255,0.1));
+  background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(58,134,255,0.1));
 }
 
 .shelf-book-title {
@@ -1337,8 +1337,8 @@
 }
 
 .shelf-status-next { color: var(--neon-blue); text-shadow: 0 0 8px rgba(58,134,255,0.3); }
-.shelf-status-in_progress { color: var(--neon-green); text-shadow: 0 0 8px rgba(6,214,160,0.3); }
-.shelf-status-completed { color: var(--neon-amber); text-shadow: 0 0 8px rgba(245,158,11,0.3); }
+.shelf-status-in_progress { color: var(--neon-amber); text-shadow: 0 0 8px rgba(245,158,11,0.3); }
+.shelf-status-completed, .shelf-status-finished { color: var(--neon-amber); text-shadow: 0 0 8px rgba(245,158,11,0.3); }
 
 .shelf-book-stars {
   font-size: 0.42rem;
@@ -1351,10 +1351,10 @@
 
 .shelf-book-progress {
   font-size: 0.42rem;
-  color: var(--neon-green);
+  color: var(--neon-amber);
   font-weight: 600;
   margin-top: 1px;
-  text-shadow: 0 0 8px rgba(6,214,160,0.3);
+  text-shadow: 0 0 8px rgba(245,158,11,0.3);
   text-align: center;
 }
 
@@ -1381,9 +1381,9 @@
   background: rgba(12,12,24,0.96);
   backdrop-filter: blur(32px);
   -webkit-backdrop-filter: blur(32px);
-  border: 1px solid rgba(6,214,160,0.2);
+  border: 1px solid rgba(245,158,11,0.2);
   border-radius: clamp(var(--radius-md), 2vw, var(--radius-xl));
-  box-shadow: 0 16px 60px rgba(0,0,0,0.6), 0 0 30px rgba(6,214,160,0.1);
+  box-shadow: 0 16px 60px rgba(0,0,0,0.6), 0 0 30px rgba(245,158,11,0.1);
   animation: bookModalIn 0.3s ease-out;
 }
 
@@ -1509,13 +1509,13 @@
 }
 .book-modal-progress-fill {
   height: 100%;
-  background: var(--neon-green);
+  background: var(--neon-amber);
   border-radius: 2px;
-  box-shadow: 0 0 8px rgba(6,214,160,0.4);
+  box-shadow: 0 0 8px rgba(245,158,11,0.4);
 }
 .book-modal-progress-label {
   font-size: 0.6rem;
-  color: var(--neon-green);
+  color: var(--neon-amber);
   font-family: 'Space Grotesk', monospace;
   margin-top: 4px;
 }
@@ -1544,9 +1544,9 @@
   border-radius: 10px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  background: rgba(6,214,160,0.1);
-  border: 1px solid rgba(6,214,160,0.2);
-  color: var(--neon-green);
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.2);
+  color: var(--neon-amber);
 }
 
 .book-modal-notes {
@@ -1579,16 +1579,16 @@
   letter-spacing: 1.5px;
   padding: 10px 20px;
   border-radius: 8px;
-  background: rgba(6,214,160,0.12);
-  border: 1px solid rgba(6,214,160,0.25);
-  color: var(--neon-green);
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.25);
+  color: var(--neon-amber);
   text-decoration: none;
   transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
 }
 .book-modal-amazon:hover {
-  background: rgba(6,214,160,0.2);
-  border-color: rgba(6,214,160,0.4);
-  box-shadow: 0 0 12px rgba(6,214,160,0.2);
+  background: rgba(245,158,11,0.2);
+  border-color: rgba(245,158,11,0.4);
+  box-shadow: 0 0 12px rgba(245,158,11,0.2);
 }
 
 /* === Dev Mode Badge === */

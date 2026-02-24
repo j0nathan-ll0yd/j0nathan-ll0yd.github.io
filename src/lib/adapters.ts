@@ -300,7 +300,7 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
     if (b.asin) {
       bookMeta[b.asin] = {
         series: b.series ?? null,
-        pages: b.pageCount ?? b.totalPages ?? null,
+        pages: b.totalPages ?? b.pageCount ?? null,
         genres: b.category ? b.category.split(' > ') : [],
         year: b.publishedYear ?? null,
         desc: b.description ?? null,

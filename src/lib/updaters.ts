@@ -268,6 +268,8 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
   const container = document.getElementById('systemStatus');
   if (!container) return;
 
+  var SOURCE_COLORS: Record<string, string> = { books: 'amber' };
+
   const lines = container.querySelectorAll('.sys-line');
   lines.forEach((line) => {
     const source = (line as HTMLElement).dataset.source;
@@ -280,8 +282,9 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
     const ts = timestamps[source];
     if (ts) {
       const ago = formatRelativeTime(ts);
-      dot.className = 'sys-dot sys-dot-green';
-      valEl.className = 'sys-val-green';
+      const color = SOURCE_COLORS[source] || 'green';
+      dot.className = 'sys-dot sys-dot-' + color;
+      valEl.className = 'sys-val-' + color;
       valEl.innerHTML = 'ACTIVE <span class="sys-val">(' + ago + ')</span>';
     } else {
       dot.className = 'sys-dot sys-dot-red';
@@ -307,7 +310,7 @@ export function updateBookshelf(data: AdaptedBooks): void {
 
   const statusLabels = data.statusLabels;
   const bookMeta = data.bookMeta;
-  const statusOrder: Record<string, number> = { in_progress: 0, next: 1, completed: 2 };
+  const statusOrder: Record<string, number> = { in_progress: 0, next: 1, completed: 2, finished: 2 };
   const sortedBooks = data.books.slice().sort((a, b) => {
     return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
   });
