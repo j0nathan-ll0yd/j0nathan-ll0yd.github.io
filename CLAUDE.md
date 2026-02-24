@@ -64,6 +64,9 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 
 ### CSS
 - All colors, typography, spacing, and effects use custom properties from `public/css/tokens.css`
+- Typography and spacing tokens use fluid `clamp()` values that scale between 600px–1400px viewports (e.g., `--font-size-base: clamp(0.62rem, 0.55rem + 0.20vw, 0.72rem)`)
+- Font-size clamp() values use `rem + vw` preferred values for WCAG 1.4.4 zoom compliance; spacing tokens use `px` bounds with `rem + vw` preferred values
+- `.tri-card` has `container-type: inline-size` enabling `@container` queries for widget-level responsive adaptation
 - Glass-morphism pattern: `background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(var(--blur-md));`
 - Widget card structure: `.tri-card` > `.widget-header` + `.widget-body`
 - Widget header: `.widget-label` + `.widget-header-right` > `.live-dot` + `.widget-timestamp`
@@ -100,6 +103,7 @@ A visual storyboard for iterating on components, available only during `npm run 
 | `/showcase/repositories-languages` | `repositories-languages.astro` | PinnedRepos, TopRepos, RepoShowcase, StarredRepoList, + 9 language/profile widgets |
 | `/showcase/activity-feeds` | `activity-feeds.astro` | DevActivityLog, DevActivityTimeline, DevActivityCards, DevActivityByRepo, DevActivityPulse, ActivityFeed |
 | `/showcase/reading-books` | `reading-books.astro` | ReadingFeed, Bookshelf, BookModal |
+| `/showcase/responsive-preview` | `responsive-preview.astro` | 4 device iframes + interactive widget scale slider (6 widgets at adjustable container widths) |
 
 Each component page renders all 45 components in 3 states (skeleton, empty, active) using data from `data/showcase-empty.json`, `data/*.json`, and `.query.ts` co-located exports.
 
@@ -127,15 +131,31 @@ backdrop-filter: blur(var(--blur-md)); /* 16px */
 
 ### Typography
 - Font: `Space Grotesk` (Google Fonts)
-- Scale: `--font-size-xs` (0.42rem) through `--font-size-hero` (2.2rem)
+- 9 fluid tokens: `--font-size-xs` (0.36–0.42rem) through `--font-size-hero` (1.80–2.20rem)
+- All tokens use `clamp(min, preferred, max)` with `rem + vw` preferred values scaling across 600px–1400px viewports
 
-### Responsive Breakpoints
+### Responsive Scaling
+The site uses a hybrid approach: **fluid `clamp()` tokens** for smooth scaling + **structural breakpoints** for layout changes.
+
+| Layer | Mechanism | What it handles |
+|---|---|---|
+| Fluid tokens | `clamp()` in `tokens.css` | Typography (9 tokens), spacing (16 tokens), top-bar height |
+| Container queries | `@container` on `.tri-card` | Widget internals: BPM size, book covers, hydration vessels, contribution grid |
+| Structural breakpoints | `@media` in `layout.css` | Panel stacking (900px), grid columns, identity card layout, safe-area insets |
+
+**Breakpoints** (structural layout changes only — font/spacing scaling is handled by fluid tokens):
+
 | Breakpoint | Behavior |
 |---|---|
-| `1400px` | Adjusts panel proportions |
-| `1100px` | Further layout adjustments |
-| `900px` | Stacks to single column |
-| `600px` | Mobile optimizations |
+| `1100px` | Narrows left panel to 30%, adjusts identity card |
+| `900px` | Stacks to single column, horizontal identity card, 2-col widget grid |
+| `600px` | Single-column widgets, compact identity card, safe-area padding |
+
+**Key rules:**
+- Mobile overrides that fall **below** a fluid token's minimum (e.g., `.id-name` at 1.2rem vs `--font-size-hero` min of 1.80rem) are kept as structural overrides in `layout.css`
+- Component font sizes reference tokens (`var(--font-size-base)`) rather than hardcoded rem values
+- Widget padding uses spacing tokens (`var(--space-12)`, `var(--space-18)`, etc.)
+- The book modal uses fluid `clamp()` for width, padding, and border-radius — no breakpoint overrides
 
 ## Running Locally
 

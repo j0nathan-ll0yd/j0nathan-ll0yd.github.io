@@ -93,7 +93,7 @@
   height: 100dvh;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: calc(var(--top-bar-height) + 4px) 20px 24px 20px;
+  padding: calc(var(--top-bar-height) + var(--space-4)) var(--space-20) var(--space-24) var(--space-20);
   scrollbar-width: thin;
   scrollbar-color: rgba(255,0,110,0.3) transparent;
   scroll-behavior: smooth;
@@ -180,13 +180,6 @@
 
 /* ===== RESPONSIVE ===== */
 
-/* Narrow right panel */
-@media (max-width: 1400px) {
-  .right-panel {
-    padding: calc(var(--top-bar-height) + 4px) 16px 24px 16px;
-  }
-}
-
 /* Tablet: collapse to stacked layout */
 @media (max-width: 1100px) {
   :root {
@@ -195,7 +188,6 @@
   }
 
   .id-name { font-size: 1.8rem; }
-  .identity-card { padding: 32px 24px; }
   .id-bio { font-size: 0.82rem; }
 
   .contrib-cell {
@@ -261,7 +253,7 @@
   }
 
   .id-name { font-size: 1.4rem; margin-bottom: 2px; }
-  .id-title { font-size: 0.65rem; letter-spacing: 3px; margin-bottom: 0; }
+  .id-title { margin-bottom: 0; }
 
   .id-bio { display: none; }
   .id-links {
@@ -321,28 +313,14 @@
     height: 6px;
   }
 
-  .pulse-bpm { font-size: 2.2rem; }
-  .split-metric-value { font-size: 1.3rem; }
   .loc-city-name { font-size: 1.3rem; }
-
-  .gh-dal-terminal {
-    font-size: 0.64rem;
-    padding: 8px 10px;
-    line-height: 1.7;
-  }
 
   .sys-key {
     min-width: 80px;
-    font-size: 0.7rem;
   }
-  .sys-val { font-size: 0.7rem; }
-  .sys-line { font-size: 0.7rem; }
 
   /* Components missing responsive overrides */
-  .sleep-moon-hero { font-size: 1.6rem; }
   .gh-stat-value { font-size: 1.1rem; }
-  .hr-hrv-value { font-size: 1.2rem; }
-  .column-header { letter-spacing: 4px; }
   .map-wrapper { height: 140px; }
 }
 
@@ -392,24 +370,14 @@
     display: none;
   }
 
-  .pulse-bpm { font-size: 2rem; }
-  .split-metric-value { font-size: 1.2rem; }
-
-  .widget-body { padding: 12px 14px 14px; }
-  .widget-header { padding: 10px 14px 6px; }
-
   .shelf-book { width: 76px; }
   .shelf-cover-wrapper { width: 68px; height: 102px; }
-  .shelf-book-title { font-size: 0.55rem; }
-  .shelf-book-author { font-size: 0.48rem; }
-  .shelf-book-status { font-size: 0.42rem; }
 
   /* Components missing responsive overrides */
   .sleep-moon-hero { font-size: 1.4rem; }
   .sleep-moon-wrap svg { width: 56px; height: 56px; }
   .gh-stat-value { font-size: 1rem; }
   .hr-hrv-value { font-size: 1rem; }
-  .column-header { letter-spacing: 3px; font-size: 0.55rem; }
   .map-wrapper { height: 120px; }
   .hydra-layout { gap: 16px; }
   .hydra-bottle-body { width: 44px; height: 88px; }

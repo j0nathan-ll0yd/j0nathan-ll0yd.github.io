@@ -65,7 +65,8 @@ The visual language is built on a dark sci-fi aesthetic with glass-morphism card
 - **Background**: `#06060f` (near-black)
 - **Glass cards**: `rgba(255,255,255,0.07)` background with `rgba(255,255,255,0.1)` borders and `16px` backdrop blur
 - **Neon palette**: Pink (`#ff006e`), Blue (`#3a86ff`), Green (`#06d6a0`), Amber (`#f59e0b`), Purple (`#a855f7`)
-- **Typography**: [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) with a scale from 0.42rem to 2.2rem
+- **Typography**: [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) with fluid `clamp()` tokens scaling from 0.36rem to 2.4rem across 600px–1400px viewports
+- **Responsive scaling**: Fluid `clamp()` design tokens for typography and spacing, CSS Container Queries on `.tri-card` for widget-level adaptation, structural breakpoints at 1100px/900px/600px
 - **Animations**: Particle field, count-up numbers, staggered card reveals, terminal typing, wave effects
 
 ## Technology Stack

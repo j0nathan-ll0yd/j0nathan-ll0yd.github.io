@@ -1,5 +1,19 @@
 ---
+import fs from 'node:fs';
+import path from 'node:path';
 import Showcase from '../layouts/Showcase.astro';
+import HeartRate from '../components/HeartRate.astro';
+import DailyActivity from '../components/DailyActivity.astro';
+import NightSummary from '../components/NightSummary.astro';
+import Hydration from '../components/Hydration.astro';
+import Bookshelf from '../components/Bookshelf.astro';
+import BookModal from '../components/BookModal.astro';
+import ReadingFeed from '../components/ReadingFeed.astro';
+
+const dataDir = path.join(process.cwd(), 'data');
+const health = JSON.parse(fs.readFileSync(path.join(dataDir, 'health.json'), 'utf-8'));
+const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-8'));
+const reading = JSON.parse(fs.readFileSync(path.join(dataDir, 'reading.json'), 'utf-8'));
 
 const devices = [
   { label: 'Mobile', width: 375, height: 812, frame: 'phone' },
@@ -11,7 +25,10 @@ const devices = [
 <Showcase title="Responsive Preview">
   <main class="lib-container">
     <h1 class="lib-page-title">Responsive Preview</h1>
-    <p class="lib-page-desc">Live dashboard rendered at 4 viewport sizes</p>
+    <p class="lib-page-desc">Live dashboard at 4 viewport sizes, plus interactive widget scaling to test container queries and fluid tokens.</p>
+
+    <!-- ===== DEVICE PREVIEW ===== -->
+    <h2 class="lib-section-title">Device Preview</h2>
 
     <div class="rp-toolbar">
       <button class="rp-view-btn active" data-view="grid">Grid</button>
@@ -28,7 +45,7 @@ const devices = [
         <div class="rp-device">
           <div class="rp-device-label">
             <span class="rp-device-name">{d.label}</span>
-            <span class="rp-device-size">{d.width} × {d.height}</span>
+            <span class="rp-device-size">{d.width} &times; {d.height}</span>
           </div>
           <div class={`rp-device-frame rp-frame-${d.frame}`}>
             {d.frame === 'browser' && (
@@ -52,8 +69,57 @@ const devices = [
         </div>
       ))}
     </div>
+
+    <!-- ===== WIDGET SCALE ===== -->
+    <h2 class="lib-section-title">Widget Scale</h2>
+    <p class="lib-page-desc" style="margin-bottom: 20px;">
+      Drag the slider or pick a preset to resize all widget containers. Container queries and fluid tokens adapt each widget to its available width.
+    </p>
+
+    <div class="ws-toolbar">
+      <div class="ws-presets">
+        <button class="ws-preset" data-width="200">200px</button>
+        <button class="ws-preset" data-width="300">300px</button>
+        <button class="ws-preset active" data-width="400">400px</button>
+        <button class="ws-preset" data-width="600">600px</button>
+      </div>
+      <div class="ws-slider-wrap">
+        <input type="range" class="ws-slider" id="ws-slider" min="180" max="620" value="400" step="1">
+        <span class="ws-width-label" id="ws-width-label">400px</span>
+      </div>
+    </div>
+
+    <div class="ws-grid">
+      <div class="ws-widget" style="width: 400px;">
+        <div class="ws-widget-name">HeartRate</div>
+        <HeartRate health={health} />
+      </div>
+      <div class="ws-widget" style="width: 400px;">
+        <div class="ws-widget-name">DailyActivity</div>
+        <DailyActivity health={health} />
+      </div>
+      <div class="ws-widget" style="width: 400px;">
+        <div class="ws-widget-name">NightSummary</div>
+        <NightSummary health={health} />
+      </div>
+      <div class="ws-widget" style="width: 400px;">
+        <div class="ws-widget-name">Hydration</div>
+        <Hydration health={health} />
+      </div>
+      <div class="ws-widget" style="width: 400px;">
+        <div class="ws-widget-name">Bookshelf</div>
+        <Bookshelf books={books} />
+      </div>
+      <div class="ws-widget" style="width: 400px;">
+        <div class="ws-widget-name">ReadingFeed</div>
+        <ReadingFeed reading={reading} />
+      </div>
+    </div>
+
+    <BookModal books={books} />
   </main>
 
+  <!-- Device preview iframe scaling -->
   <script is:inline>
   (function() {
     var frames = document.querySelectorAll('.rp-device');
@@ -113,6 +179,50 @@ const devices = [
     window.addEventListener('resize', scaleFrames);
     window.addEventListener('load', scaleFrames);
     scaleFrames();
+  })();
+  </script>
+
+  <!-- Widget scale slider -->
+  <script is:inline>
+  (function() {
+    var slider = document.getElementById('ws-slider');
+    var label = document.getElementById('ws-width-label');
+    var widgets = document.querySelectorAll('.ws-widget');
+    var presets = document.querySelectorAll('.ws-preset');
+
+    function setWidth(w) {
+      label.textContent = w + 'px';
+      slider.value = w;
+      for (var i = 0; i < widgets.length; i++) {
+        widgets[i].style.width = w + 'px';
+      }
+      for (var j = 0; j < presets.length; j++) {
+        var pw = parseInt(presets[j].getAttribute('data-width'), 10);
+        if (pw === w) {
+          presets[j].classList.add('active');
+        } else {
+          presets[j].classList.remove('active');
+        }
+      }
+    }
+
+    slider.addEventListener('input', function() {
+      var w = parseInt(slider.value, 10);
+      label.textContent = w + 'px';
+      for (var i = 0; i < widgets.length; i++) {
+        widgets[i].style.width = w + 'px';
+      }
+      for (var j = 0; j < presets.length; j++) {
+        presets[j].classList.remove('active');
+      }
+    });
+
+    for (var k = 0; k < presets.length; k++) {
+      presets[k].addEventListener('click', function() {
+        var w = parseInt(this.getAttribute('data-width'), 10);
+        setWidth(w);
+      });
+    }
   })();
   </script>
 </Showcase>

@@ -20,38 +20,38 @@
   /* --- Layout --- */
   --left-width: 35%;
   --right-width: 65%;
-  --top-bar-height: 48px;
+  --top-bar-height: clamp(40px, 2.13rem + 1.00vw, 48px);
 
-  /* --- Typography --- */
+  /* --- Typography (fluid: scales 600px–1400px) --- */
   --font-family: 'Space Grotesk', sans-serif;
   --font-mono: 'Space Grotesk', monospace;
-  --font-size-xs: 0.42rem;
-  --font-size-sm: 0.55rem;
-  --font-size-base: 0.72rem;
-  --font-size-md: 0.82rem;
-  --font-size-lg: 1.05rem;
-  --font-size-xl: 1.5rem;
-  --font-size-2xl: 2rem;
-  --font-size-3xl: 2.4rem;
-  --font-size-hero: 2.2rem;
+  --font-size-xs:   clamp(0.36rem, 0.32rem + 0.12vw, 0.42rem);
+  --font-size-sm:   clamp(0.48rem, 0.43rem + 0.14vw, 0.55rem);
+  --font-size-base: clamp(0.62rem, 0.55rem + 0.20vw, 0.72rem);
+  --font-size-md:   clamp(0.72rem, 0.65rem + 0.20vw, 0.82rem);
+  --font-size-lg:   clamp(0.88rem, 0.75rem + 0.34vw, 1.05rem);
+  --font-size-xl:   clamp(1.20rem, 0.98rem + 0.60vw, 1.50rem);
+  --font-size-2xl:  clamp(1.60rem, 1.30rem + 0.80vw, 2.00rem);
+  --font-size-3xl:  clamp(1.90rem, 1.53rem + 1.00vw, 2.40rem);
+  --font-size-hero: clamp(1.80rem, 1.50rem + 0.80vw, 2.20rem);
 
-  /* --- Spacing --- */
-  --space-2: 2px;
-  --space-4: 4px;
-  --space-6: 6px;
-  --space-8: 8px;
-  --space-10: 10px;
-  --space-12: 12px;
-  --space-14: 14px;
-  --space-16: 16px;
-  --space-18: 18px;
-  --space-20: 20px;
-  --space-24: 24px;
-  --space-28: 28px;
-  --space-32: 32px;
-  --space-36: 36px;
-  --space-40: 40px;
-  --space-48: 48px;
+  /* --- Spacing (fluid: scales 600px–1400px) --- */
+  --space-2:  clamp(1px,  0.02rem + 0.13vw, 2px);
+  --space-4:  clamp(3px,  0.14rem + 0.13vw, 4px);
+  --space-6:  clamp(4px,  0.16rem + 0.25vw, 6px);
+  --space-8:  clamp(6px,  0.28rem + 0.25vw, 8px);
+  --space-10: clamp(7px,  0.30rem + 0.38vw, 10px);
+  --space-12: clamp(8px,  0.31rem + 0.50vw, 12px);
+  --space-14: clamp(10px, 0.44rem + 0.50vw, 14px);
+  --space-16: clamp(11px, 0.45rem + 0.63vw, 16px);
+  --space-18: clamp(12px, 0.47rem + 0.75vw, 18px);
+  --space-20: clamp(14px, 0.59rem + 0.75vw, 20px);
+  --space-24: clamp(16px, 0.63rem + 1.00vw, 24px);
+  --space-28: clamp(18px, 0.66rem + 1.25vw, 28px);
+  --space-32: clamp(22px, 0.91rem + 1.25vw, 32px);
+  --space-36: clamp(24px, 0.94rem + 1.50vw, 36px);
+  --space-40: clamp(28px, 1.19rem + 1.50vw, 40px);
+  --space-48: clamp(32px, 1.25rem + 2.00vw, 48px);
 
   /* --- Border Radius --- */
   --radius-sm: 2px;

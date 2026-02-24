@@ -621,3 +621,128 @@ body.library-page {
     grid-template-columns: 1fr;
   }
 }
+
+/* ===== WIDGET SCALE SECTION ===== */
+.ws-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.ws-presets {
+  display: flex;
+  gap: 8px;
+}
+
+.ws-preset {
+  padding: 6px 16px;
+  border-radius: 50px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ws-preset:hover {
+  color: var(--text);
+  border-color: rgba(255,255,255,0.2);
+}
+
+.ws-preset.active {
+  color: var(--neon-green);
+  border-color: var(--neon-green);
+  background: rgba(6,214,160,0.1);
+}
+
+.ws-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ws-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
+  outline: none;
+}
+
+.ws-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--neon-green);
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(6,214,160,0.4);
+}
+
+.ws-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--neon-green);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 8px rgba(6,214,160,0.4);
+}
+
+.ws-width-label {
+  font-family: 'Space Grotesk', monospace;
+  font-size: 0.8rem;
+  color: var(--neon-green);
+  text-shadow: 0 0 8px rgba(6,214,160,0.4);
+  min-width: 50px;
+  text-align: right;
+}
+
+.ws-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.ws-widget {
+  position: relative;
+  max-width: 100%;
+}
+
+.ws-widget-name {
+  font-size: 0.6rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* Force widgets visible inside scale preview (same as .state-render overrides) */
+.ws-widget .tri-card,
+.ws-widget .identity-card,
+.ws-widget .terminal-line,
+.ws-widget .article-list-item,
+.ws-widget .article-list-star,
+.ws-widget .shelf-book {
+  opacity: 1 !important;
+  transform: none !important;
+  animation-delay: 0s !important;
+}
+
+.ws-widget .sleep-moon-pill {
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+.ws-widget .sleep-moon-score-fill {
+  animation: none !important;
+}
