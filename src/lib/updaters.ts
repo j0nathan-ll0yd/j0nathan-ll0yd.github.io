@@ -306,9 +306,9 @@ export function updateBookshelf(data: any): void {
 
   const statusLabels = data.statusLabels;
   const bookMeta = data.bookMeta;
-  const statusOrder: Record<string, number> = { next: 0, in_progress: 1, completed: 2 };
+  const statusOrder: Record<string, number> = { in_progress: 0, next: 1, completed: 2 };
   const sortedBooks = data.books.slice().sort((a: any, b: any) => {
-    return (statusOrder[a.status] || 0) - (statusOrder[b.status] || 0);
+    return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
   });
   const displayBooks = sortedBooks.slice(0, 5);
 
@@ -335,6 +335,7 @@ export function updateBookshelf(data: any): void {
         year: meta.year || null,
         desc: meta.desc || null,
         genres: meta.genres || [],
+        notes: b.notes || null,
       }));
 
       el.setAttribute('aria-label', b.title + ' by ' + b.author);
@@ -360,6 +361,41 @@ export function updateBookshelf(data: any): void {
         status.className = 'shelf-book-status shelf-status-' + b.status;
         status.textContent = statusLabels[b.status];
       }
+
+      // Stars: create-or-update
+      const existingStars = el.querySelector('.shelf-book-stars');
+      if (b.rating) {
+        let starsHtml = '';
+        for (let s = 1; s <= 5; s++) {
+          starsHtml += '<span class="' + (s <= b.rating ? 'star-on' : 'star-off') + '">' + (s <= b.rating ? '\u2605' : '\u2606') + '</span>';
+        }
+        if (existingStars) {
+          existingStars.innerHTML = starsHtml;
+        } else {
+          const starsDiv = document.createElement('div');
+          starsDiv.className = 'shelf-book-stars';
+          starsDiv.innerHTML = starsHtml;
+          status!.insertAdjacentElement('afterend', starsDiv);
+        }
+      } else if (existingStars) {
+        existingStars.remove();
+      }
+
+      // Progress: create-or-update
+      const existingProgress = el.querySelector('.shelf-book-progress');
+      if (b.status === 'in_progress' && b.progress != null) {
+        if (existingProgress) {
+          existingProgress.textContent = b.progress + '%';
+        } else {
+          const progDiv = document.createElement('div');
+          progDiv.className = 'shelf-book-progress';
+          progDiv.textContent = b.progress + '%';
+          const insertAfter = el.querySelector('.shelf-book-stars') || status;
+          insertAfter!.insertAdjacentElement('afterend', progDiv);
+        }
+      } else if (existingProgress) {
+        existingProgress.remove();
+      }
     });
   } else {
     let html = '';
@@ -381,6 +417,7 @@ export function updateBookshelf(data: any): void {
         year: meta.year || null,
         desc: meta.desc || null,
         genres: meta.genres || [],
+        notes: b.notes || null,
       });
       html += '<div class="shelf-book" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" role="button" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
@@ -389,6 +426,16 @@ export function updateBookshelf(data: any): void {
       html += '<div class="shelf-book-title"><span>' + esc(b.title) + '</span></div>';
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';
       html += '<div class="shelf-book-status shelf-status-' + b.status + '">' + statusLabels[b.status] + '</div>';
+      if (b.rating) {
+        html += '<div class="shelf-book-stars">';
+        for (let s = 1; s <= 5; s++) {
+          html += '<span class="' + (s <= b.rating ? 'star-on' : 'star-off') + '">' + (s <= b.rating ? '\u2605' : '\u2606') + '</span>';
+        }
+        html += '</div>';
+      }
+      if (b.status === 'in_progress' && b.progress != null) {
+        html += '<div class="shelf-book-progress">' + b.progress + '%</div>';
+      }
       html += '</div>';
     });
     shelfRow.innerHTML = html;

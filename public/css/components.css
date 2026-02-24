@@ -1323,6 +1323,22 @@
 .shelf-status-in_progress { color: var(--neon-green); text-shadow: 0 0 8px rgba(6,214,160,0.3); }
 .shelf-status-completed { color: var(--neon-amber); text-shadow: 0 0 8px rgba(245,158,11,0.3); }
 
+.shelf-book-stars {
+  font-size: 0.42rem;
+  letter-spacing: 1px;
+  margin-top: 1px;
+}
+.shelf-book-stars .star-on { color: var(--neon-amber); }
+.shelf-book-stars .star-off { color: rgba(255,255,255,0.1); }
+
+.shelf-book-progress {
+  font-size: 0.42rem;
+  color: var(--neon-green);
+  font-weight: 600;
+  margin-top: 1px;
+  text-shadow: 0 0 8px rgba(6,214,160,0.3);
+}
+
 /* ===== BOOK MODAL ===== */
 .book-overlay {
   display: none;
@@ -1512,6 +1528,26 @@
   color: var(--neon-green);
 }
 
+.book-modal-notes {
+  margin-top: 4px;
+}
+.book-modal-notes-label {
+  font-size: 0.42rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px;
+}
+.book-modal-notes-text {
+  font-size: 0.58rem;
+  line-height: 1.55;
+  color: var(--text);
+  font-style: italic;
+  padding-left: 8px;
+  border-left: 2px solid var(--neon-amber);
+}
+
 .book-modal-amazon {
   display: inline-flex;
   align-items: center;
@@ -1532,6 +1568,22 @@
   background: rgba(6,214,160,0.2);
   border-color: rgba(6,214,160,0.4);
   box-shadow: 0 0 12px rgba(6,214,160,0.2);
+}
+
+@media (min-width: 900px) {
+  .book-modal { width: 480px; }
+}
+@media (min-width: 1100px) {
+  .book-modal { width: 520px; }
+}
+@media (max-width: 600px) {
+  .book-modal {
+    width: 100%;
+    max-width: 95vw;
+    border-radius: var(--radius-md);
+  }
+  .book-modal-header { padding: 14px 14px 0; }
+  .book-modal-body { padding: 12px 14px 16px; }
 }
 
 /* === Dev Mode Badge === */

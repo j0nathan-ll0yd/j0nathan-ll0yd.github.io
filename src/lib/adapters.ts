@@ -195,8 +195,9 @@ export function adaptBooks(booksData: any): any {
       status: mappedStatus,
       rating: b.rating ?? null,
       progress,
-      link: 'https://www.amazon.com/dp/' + b.asin,
+      link: 'https://www.amazon.com/dp/' + b.asin + '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl',
       cover: b.mainImage ?? b.cover,
+      notes: b.notes ?? null,
     };
   });
 

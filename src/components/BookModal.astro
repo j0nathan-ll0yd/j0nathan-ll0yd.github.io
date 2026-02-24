@@ -81,6 +81,13 @@
       html += '</div>';
     }
 
+    if (b.status === 'completed' && b.notes) {
+      html += '<div class="book-modal-notes">';
+      html += '<div class="book-modal-notes-label">Notes</div>';
+      html += '<div class="book-modal-notes-text">' + esc(b.notes) + '</div>';
+      html += '</div>';
+    }
+
     if (b.link) {
       html += '<div><a href="' + esc(b.link) + '" target="_blank" rel="noopener" class="book-modal-amazon">View on Amazon &rarr;</a></div>';
     }
