@@ -116,6 +116,10 @@
     overlay.classList.add('visible');
     overlay.setAttribute('aria-hidden', 'false');
 
+    if (typeof window.sa_event === 'function') {
+      window.sa_event('book_open', { title: b.title });
+    }
+
     var closeBtn = document.getElementById('bookModalClose');
     closeBtn.addEventListener('click', function() {
       closeModal();
