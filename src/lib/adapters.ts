@@ -83,7 +83,9 @@ export interface AdaptedBookEntry {
 }
 
 export interface BookMeta {
-  series: string | null;
+  seriesName: string | null;
+  seriesNumber: number | null;
+  seriesTotal: number | null;
   pages: number | null;
   genres: string[];
   year: number | null;
@@ -299,7 +301,9 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
   for (const b of rawBooks) {
     if (b.asin) {
       bookMeta[b.asin] = {
-        series: b.series ?? null,
+        seriesName: b.seriesName ?? b.series ?? null,
+        seriesNumber: b.seriesNumber ?? null,
+        seriesTotal: b.seriesTotal ?? null,
         pages: b.totalPages ?? b.pageCount ?? null,
         genres: b.category ? b.category.split(' > ') : [],
         year: b.publishedYear ?? null,

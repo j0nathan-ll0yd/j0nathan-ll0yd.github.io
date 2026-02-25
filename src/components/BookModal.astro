@@ -63,16 +63,16 @@
     var html = '<div class="book-modal-header">';
     html += '<img class="book-modal-cover" src="' + esc(cover) + '" width="140" height="210" alt="' + esc(b.title) + ' cover">';
     html += '<div class="book-modal-info">';
+    html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
     if (b.series) {
       var seriesHtml = esc(b.series);
       if (b.seriesNumber) {
-        seriesHtml += ' <span style="opacity:0.5">&middot; Book ' + b.seriesNumber;
+        seriesHtml += ' <span style="color:var(--neon-green)">&middot; Book ' + b.seriesNumber;
         if (b.seriesTotal) seriesHtml += ' of ' + b.seriesTotal;
         seriesHtml += '</span>';
       }
       html += '<div class="book-modal-series">' + seriesHtml + '</div>';
     }
-    html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
     html += '<div class="book-modal-author">' + esc(b.author) + '</div>';
     if (b.rating) {
       html += '<div class="book-modal-stars">';

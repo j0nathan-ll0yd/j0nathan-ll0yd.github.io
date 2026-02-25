@@ -53,7 +53,9 @@
   ],
   "bookMeta": {
     "1984820710": {
-      "series": "Shadow of the Leviathan #1",
+      "seriesName": "Shadow of the Leviathan",
+      "seriesNumber": 1,
+      "seriesTotal": 2,
       "pages": 432,
       "genres": [
         "Fantasy",
@@ -63,7 +65,9 @@
       "desc": "In an empire threatened by titanic creatures, an eccentric investigator and her assistant must solve a mysterious murder in a classic whodunit set in a fantastical world. Hugo Award Winner."
     },
     "0525573844": {
-      "series": "The Founders Trilogy #1",
+      "seriesName": "The Founders Trilogy",
+      "seriesNumber": 1,
+      "seriesTotal": 3,
       "pages": 505,
       "genres": [
         "Fantasy",
@@ -73,7 +77,9 @@
       "desc": "In a city that runs on industrialized magic, a talented thief joins a secret war against the magical slave lords who run the city with their decadent hijacked sorcery."
     },
     "0593723848": {
-      "series": "Shadow of the Leviathan #2",
+      "seriesName": "Shadow of the Leviathan",
+      "seriesNumber": 2,
+      "seriesTotal": 2,
       "pages": 461,
       "genres": [
         "Fantasy",
@@ -83,7 +89,9 @@
       "desc": "Ana and Din return to investigate a new series of impossible crimes in the outer rings, where the boundary between human civilization and leviathan territory grows thin."
     },
     "0593128508": {
-      "series": "The Scholomance #1",
+      "seriesName": "The Scholomance",
+      "seriesNumber": 1,
+      "seriesTotal": 3,
       "pages": 336,
       "genres": [
         "Fantasy",
@@ -93,7 +101,9 @@
       "desc": "A school for the magically gifted where failure means death. El Higgins is determined to survive, but dark forces have other plans for her extraordinary powers."
     },
     "B0FBRJY116": {
-      "series": null,
+      "seriesName": null,
+      "seriesNumber": null,
+      "seriesTotal": null,
       "pages": 310,
       "genres": [
         "Tech",

@@ -1251,6 +1251,9 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(245,158,11,0.3) transparent;
   align-items: stretch;
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
 }
 
 .shelf-row::-webkit-scrollbar { height: 4px; }
@@ -1446,12 +1449,11 @@
 }
 
 .book-modal-series {
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
   color: var(--neon-blue);
-  text-shadow: 0 0 6px rgba(58,134,255,0.3);
 }
 
 .book-modal-title {
