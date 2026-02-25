@@ -32,7 +32,7 @@ function getIcon(type: string) {
 
 function getDetail(event: Event): string {
   if (event.type === 'commit' && event.hash) {
-    return event.hash + ' +' + (event.additions || 0) + '/-' + (event.deletions || 0);
+    return '<span style="color:var(--neon-green)">+' + (event.additions || 0) + '</span> <span style="color:var(--neon-red)">-' + (event.deletions || 0) + '</span>';
   }
   if (event.number !== undefined) {
     return '#' + event.number;
@@ -58,7 +58,7 @@ function getDetail(event: Event): string {
             <span class="gh-dal-icon" style={`color: ${icon.color};`}>{icon.symbol}</span>
             <span class="gh-dal-repo">{event.repo}</span>
             <span class="gh-dal-title">{event.title}</span>
-            {detail && <span class="gh-dal-detail">{detail}</span>}
+            {detail && <span class="gh-dal-detail" set:html={detail}></span>}
             <span class="gh-dal-date">{event.date}</span>
           </a>
         );

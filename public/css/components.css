@@ -1159,7 +1159,7 @@
 .gh-dal-repo { color: var(--text); font-weight: 600; flex-shrink: 0; font-size: 0.64rem; }
 .gh-dal-title { color: var(--text-muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gh-dal-detail { color: var(--neon-green); opacity: 0.7; font-size: var(--font-size-xs); flex-shrink: 0; }
-.gh-dal-date { color: rgba(255,255,255,0.2); font-size: var(--font-size-xs); flex-shrink: 0; margin-left: auto; }
+.gh-dal-date { color: var(--text-muted); font-size: var(--font-size-xs); flex-shrink: 0; margin-left: auto; }
 
 /* ===== 13. READING FEED ===== */
 .article-list {

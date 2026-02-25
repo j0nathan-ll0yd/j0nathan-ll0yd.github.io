@@ -239,7 +239,7 @@ export function updateDevActivityLog(events: AdaptedGithubEvent[]): void {
     const icon = iconMap[e.type] || fallbackIcon;
     let detail = '';
     if (e.type === 'commit' && e.hash) {
-      detail = esc(e.hash) + ' +' + (e.additions || 0) + '/-' + (e.deletions || 0);
+      detail = '<span style="color:var(--neon-green)">+' + (e.additions || 0) + '</span> <span style="color:var(--neon-red)">-' + (e.deletions || 0) + '</span>';
     } else if (e.number !== undefined) {
       detail = '#' + e.number;
     }
