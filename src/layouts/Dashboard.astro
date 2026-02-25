@@ -3,7 +3,9 @@ const {
   title = 'Jonathan Lloyd — Human Datastream',
   description = 'Engineering Director. Experienced engineering leader with a demonstrated history of growing teams, scaling infrastructure, and building businesses.',
 } = Astro.props;
-const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const siteUrl = Astro.site?.toString().replace(/\/$/, '');
+const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
+const ogImage = new URL('/assets/og-image.png', Astro.site);
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -12,40 +14,79 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#06060f">
   <meta name="description" content={description}>
+  <meta name="robots" content="index, follow">
   <link rel="canonical" href={canonicalURL}>
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="sitemap" href="/sitemap-index.xml">
 
   <!-- OpenGraph -->
   <meta property="og:title" content={title}>
   <meta property="og:description" content={description}>
-  <meta property="og:type" content="website">
+  <meta property="og:type" content="profile">
   <meta property="og:url" content={canonicalURL}>
-  <meta property="og:image" content={new URL('/assets/avatar.svg', Astro.site)}>
+  <meta property="og:image" content={ogImage}>
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Jonathan Lloyd — Human Datastream dashboard">
   <meta property="og:site_name" content="Jonathan Lloyd — Human Datastream">
+  <meta property="profile:first_name" content="Jonathan">
+  <meta property="profile:last_name" content="Lloyd">
 
   <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content={title}>
   <meta name="twitter:description" content={description}>
-  <meta name="twitter:image" content={new URL('/assets/avatar.svg', Astro.site)}>
+  <meta name="twitter:image" content={ogImage}>
+  <meta name="twitter:image:alt" content="Jonathan Lloyd — Human Datastream dashboard">
 
   <!-- JSON-LD Structured Data -->
   <script type="application/ld+json" set:html={JSON.stringify({
     "@context": "https://schema.org",
-    "@type": "Person",
-    "name": "Jonathan Lloyd",
-    "jobTitle": "Engineering Director",
-    "url": Astro.site?.toString(),
-    "sameAs": [
-      "https://www.linkedin.com/in/lifegames/",
-      "https://github.com/j0nathan-ll0yd"
-    ],
-    "description": description
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": siteUrl + "#website",
+        "name": "Jonathan Lloyd — Human Datastream",
+        "url": siteUrl
+      },
+      {
+        "@type": "ProfilePage",
+        "mainEntity": { "@id": siteUrl + "#person" },
+        "url": canonicalURL.toString()
+      },
+      {
+        "@type": "Person",
+        "@id": siteUrl + "#person",
+        "name": "Jonathan Lloyd",
+        "alternateName": "j0nathan-ll0yd",
+        "jobTitle": "Engineering Director",
+        "url": siteUrl,
+        "image": {
+          "@type": "ImageObject",
+          "url": ogImage.toString()
+        },
+        "sameAs": [
+          "https://www.linkedin.com/in/lifegames/",
+          "https://github.com/j0nathan-ll0yd"
+        ],
+        "knowsAbout": [
+          "Software Engineering",
+          "Engineering Leadership",
+          "Full-Stack Development",
+          "Cloud Infrastructure"
+        ],
+        "description": description
+      }
+    ]
   })} />
+
+  <!-- Preconnect hints -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <link rel="stylesheet" href="/css/tokens.css">
@@ -53,6 +94,15 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   <link rel="stylesheet" href="/css/layout.css">
   <link rel="stylesheet" href="/css/components.css">
   <link rel="stylesheet" href="/css/effects.css">
+
+  {import.meta.env.PROD && (
+    <script is:inline>
+    window.sa_event = window.sa_event || function() {
+      var a = [].slice.call(arguments);
+      (window.sa_event.q = window.sa_event.q || []).push(a);
+    };
+    </script>
+  )}
 </head>
 <body>
   <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -67,8 +117,12 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     });
   }
   </script>
-  <!-- Analytics -->
-  <script async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>
-  <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
+  {import.meta.env.PROD && (
+    <Fragment>
+      <script is:inline async src="https://scripts.simpleanalyticscdn.com/latest.js"></script>
+      <script is:inline async src="https://scripts.simpleanalyticscdn.com/auto-events.js"></script>
+      <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
+    </Fragment>
+  )}
 </body>
 </html>

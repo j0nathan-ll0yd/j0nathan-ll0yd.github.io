@@ -10,6 +10,7 @@
     "generate:types": "node scripts/generate-types.mjs"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.7.0",
     "astro": "^5.0.0"
   },
   "devDependencies": {

@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import AstroPWA from '@vite-pwa/astro';
+import sitemap from '@astrojs/sitemap';
 
 const showcaseDevOnly = {
   name: 'showcase-dev-only',
@@ -23,6 +24,7 @@ const showcaseDevOnly = {
 export default defineConfig({
   site: 'https://j0nathan-ll0yd.github.io',
   output: 'static',
+  trailingSlash: 'never',
   vite: {
     server: {
       proxy: {
@@ -36,6 +38,9 @@ export default defineConfig({
   },
   integrations: [
     showcaseDevOnly,
+    sitemap({
+      filter: (page) => !page.includes('/showcase/')
+    }),
     AstroPWA({
       registerType: 'autoUpdate',
       manifest: {
