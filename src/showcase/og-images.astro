@@ -1,0 +1,37 @@
+---
+import Showcase from '../layouts/Showcase.astro';
+import OGImage from '../components/OGImage.astro';
+
+const avatarUrl = 'https://www.gravatar.com/avatar/e835f8e6deaeb1889200e0072362586d?s=200';
+---
+<Showcase title="OG Image">
+  <div class="lib-container">
+    <h1 class="lib-page-title">OG Image</h1>
+    <p class="lib-page-desc">
+      Open Graph preview image (1200&times;630). Export as PNG for production use.
+    </p>
+
+    <section class="brand-section">
+      <h2 class="brand-section-title">Minimal Photo + Metrics</h2>
+      <div class="og-frame">
+        <OGImage avatarUrl={avatarUrl} />
+      </div>
+    </section>
+
+  </div>
+
+  <style>
+    .og-frame {
+      background: var(--bg);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      overflow: hidden;
+      max-width: 800px;
+    }
+    .og-frame svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+  </style>
+</Showcase>
