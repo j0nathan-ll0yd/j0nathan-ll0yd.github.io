@@ -392,20 +392,34 @@ export function updateBookshelf(data: AdaptedBooks): void {
         existingStars.remove();
       }
 
-      // Progress: create-or-update for in_progress books
+      // Progress bar + label: create-or-update for in_progress books
+      const existingBar = el.querySelector('.shelf-book-progress-bar');
       const existingProgress = el.querySelector('.shelf-book-progress');
       if (b.status === 'in_progress' && b.progress != null) {
+        // Update or create the bar
+        if (existingBar) {
+          const fill = existingBar.querySelector('.shelf-book-progress-fill') as HTMLElement;
+          if (fill) fill.style.width = b.progress + '%';
+        } else {
+          const barDiv = document.createElement('div');
+          barDiv.className = 'shelf-book-progress-bar';
+          barDiv.innerHTML = '<div class="shelf-book-progress-fill" style="width:' + b.progress + '%"></div>';
+          const insertAfter = status;
+          insertAfter!.insertAdjacentElement('afterend', barDiv);
+        }
+        // Update or create the label
         if (existingProgress) {
-          existingProgress.textContent = b.progress + '% COMPLETE';
+          existingProgress.textContent = b.progress + '%';
         } else {
           const progDiv = document.createElement('div');
           progDiv.className = 'shelf-book-progress';
-          progDiv.textContent = b.progress + '% COMPLETE';
-          const insertAfter = status;
-          insertAfter!.insertAdjacentElement('afterend', progDiv);
+          progDiv.textContent = b.progress + '%';
+          const bar = el.querySelector('.shelf-book-progress-bar');
+          bar!.insertAdjacentElement('afterend', progDiv);
         }
-      } else if (existingProgress) {
-        existingProgress.remove();
+      } else {
+        if (existingBar) existingBar.remove();
+        if (existingProgress) existingProgress.remove();
       }
     });
   } else {
@@ -439,7 +453,8 @@ export function updateBookshelf(data: AdaptedBooks): void {
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';
       html += '<div class="shelf-book-status shelf-status-' + b.status + '">' + (b.status === 'in_progress' ? 'READING' : statusLabels[b.status]) + '</div>';
       if (b.status === 'in_progress' && b.progress != null) {
-        html += '<div class="shelf-book-progress">' + b.progress + '% COMPLETE</div>';
+        html += '<div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width:' + b.progress + '%"></div></div>';
+        html += '<div class="shelf-book-progress">' + b.progress + '%</div>';
       } else if (b.rating) {
         html += '<div class="shelf-book-stars">';
         for (let s = 1; s <= 5; s++) {

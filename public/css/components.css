@@ -1275,8 +1275,6 @@
 }
 
 .shelf-book-active {
-  background: rgba(245,158,11,0.04);
-  border-color: rgba(245,158,11,0.25);
   padding: 8px 6px;
   opacity: 1;
 }
