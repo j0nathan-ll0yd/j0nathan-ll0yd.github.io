@@ -43,6 +43,12 @@
   100% { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes shelfScan {
+  0% { top: -2px; }
+  50% { top: calc(100% - 2px); }
+  100% { top: -2px; }
+}
+
 @keyframes hydraSteam {
   0%, 100% { opacity: 0.2; transform: translateY(0) scaleY(1); }
   50% { opacity: 0.5; transform: translateY(-4px) scaleY(1.3); }

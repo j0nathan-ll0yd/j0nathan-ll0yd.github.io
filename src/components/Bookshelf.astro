@@ -73,8 +73,13 @@ const displayBooks = sortedBooks.slice(0, 5);
             {b.status === 'in_progress' ? (
               <Fragment>
                 <div class="shelf-book-status shelf-status-in_progress">READING</div>
-                {b.progress != null && (
-                  <div class="shelf-book-progress">{b.progress}% COMPLETE</div>
+                {b.progress != null && b.progress > 1 && (
+                  <Fragment>
+                    <div class="shelf-book-progress-bar">
+                      <div class="shelf-book-progress-fill" style={`width: ${b.progress}%`}></div>
+                    </div>
+                    <div class="shelf-book-progress">{b.progress}%</div>
+                  </Fragment>
                 )}
               </Fragment>
             ) : (

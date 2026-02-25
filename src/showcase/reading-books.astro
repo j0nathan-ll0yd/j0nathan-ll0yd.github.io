@@ -145,6 +145,553 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
       </div>
     </div>
 
+    <!-- ==================== 2b. ACTIVE BOOK VARIATIONS ==================== -->
+    <div class="component-section">
+      <div class="component-name">Active Book Highlight Variations</div>
+      <div class="component-description">
+        15 visual treatments for the currently-reading book. Each mini-shelf shows the active book (first) alongside two normal books for contrast. V1–V10 are subtle/static; V11–V15 are animated and dramatic.
+      </div>
+
+      <div class="variation-grid">
+
+        <!-- V1 — Subtle Lift -->
+        <div class="variation-card shelf-v1">
+          <span class="variation-label">V1 — Subtle Lift</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V2 — Enlarged Cover -->
+        <div class="variation-card shelf-v2">
+          <span class="variation-label">V2 — Enlarged Cover</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V3 — Neon Border Pulse -->
+        <div class="variation-card shelf-v3">
+          <span class="variation-label">V3 — Neon Border Pulse</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V4 — Radial Spotlight -->
+        <div class="variation-card shelf-v4">
+          <span class="variation-label">V4 — Radial Spotlight</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V5 — Frosted Glass -->
+        <div class="variation-card shelf-v5">
+          <span class="variation-label">V5 — Frosted Glass</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V6 — Progress Ring -->
+        <div class="variation-card shelf-v6">
+          <span class="variation-label">V6 — Progress Ring</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+                <svg class="shelf-v6-ring" width="50" height="50" viewBox="0 0 50 50">
+                  <circle cx="25" cy="25" r="21" stroke="rgba(245,158,11,0.15)" stroke-width="3" fill="none"/>
+                  <circle cx="25" cy="25" r="21" stroke="var(--neon-amber)" stroke-width="3" fill="none"
+                    stroke-linecap="round" stroke-dasharray="132" stroke-dashoffset="76.6"
+                    style="filter: drop-shadow(0 0 4px rgba(245,158,11,0.4)); transform: rotate(-90deg); transform-origin: center;"/>
+                </svg>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V7 — Corner Ribbon -->
+        <div class="variation-card shelf-v7">
+          <span class="variation-label">V7 — Corner Ribbon</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V8 — 3D Tilt -->
+        <div class="variation-card shelf-v8">
+          <span class="variation-label">V8 — 3D Tilt</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V9 — Floating Badge -->
+        <div class="variation-card shelf-v9">
+          <span class="variation-label">V9 — Floating Badge</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <span class="shelf-v9-badge">Now Reading</span>
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V10 — Glowing Underline -->
+        <div class="variation-card shelf-v10">
+          <span class="variation-label">V10 — Glowing Underline</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-v10-bar"><div class="shelf-v10-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V11 — Breathing Scale -->
+        <div class="variation-card shelf-v11">
+          <span class="variation-label">V11 — Breathing Scale</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V12 — Neon Aura -->
+        <div class="variation-card shelf-v12">
+          <span class="variation-label">V12 — Neon Aura</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V13 — Scan Line -->
+        <div class="variation-card shelf-v13">
+          <span class="variation-label">V13 — Scan Line</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V14 — Rotating Border -->
+        <div class="variation-card shelf-v14">
+          <span class="variation-label">V14 — Rotating Border</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-v14-border-wrap">
+                  <div class="shelf-cover-wrapper">
+                    <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                  </div>
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- V15 — Holographic Shimmer -->
+        <div class="variation-card shelf-v15">
+          <span class="variation-label">V15 — Holographic Shimmer</span>
+          <div class="variation-render">
+            <div class="shelf-row">
+              <div class="shelf-book shelf-book-active">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/0525573844.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Foundryside" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Foundryside</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-in_progress">READING</div>
+                <div class="shelf-book-progress-bar"><div class="shelf-book-progress-fill" style="width: 42%"></div></div>
+                <div class="shelf-book-progress">42%</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/1984820710.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="The Tainted Cup" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>The Tainted Cup</span></div>
+                <div class="shelf-book-author">Robert Jackson Bennett</div>
+                <div class="shelf-book-status shelf-status-completed">Recently Finished</div>
+              </div>
+              <div class="shelf-book">
+                <div class="shelf-cover-wrapper">
+                  <img src="https://m.media-amazon.com/images/P/B0FBRJY116.01._SCLZZZZZZZ_SX200_.jpg" width="80" height="120" alt="Crafting Engineering Strategy" loading="lazy">
+                </div>
+                <div class="shelf-book-title"><span>Crafting Engineering Strategy</span></div>
+                <div class="shelf-book-author">Will Larson</div>
+                <div class="shelf-book-status shelf-status-next">Up Next</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- ==================== 3. BOOK MODAL ==================== -->
     <div class="component-section">
       <div class="component-name">BookModal</div>

@@ -1275,15 +1275,33 @@
 }
 
 .shelf-book-active {
-  background: rgba(245,158,11,0.12);
-  border-color: rgba(245,158,11,0.4);
-  box-shadow: 0 0 16px rgba(245,158,11,0.25), 0 0 32px rgba(245,158,11,0.1);
+  background: rgba(245,158,11,0.04);
+  border-color: rgba(245,158,11,0.25);
   padding: 8px 6px;
+  opacity: 1;
+}
+
+.shelf-book-active .shelf-cover-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.shelf-book-active .shelf-cover-wrapper::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--neon-amber), transparent);
+  box-shadow: 0 0 12px rgba(245,158,11,0.6), 0 0 30px rgba(245,158,11,0.3);
+  animation: shelfScan 2.5s ease-in-out infinite;
+  z-index: 2;
 }
 
 .shelf-book-active .shelf-cover-wrapper img {
-  border-color: rgba(245,158,11,0.4);
-  box-shadow: 0 4px 16px rgba(245,158,11,0.25);
+  border-color: rgba(245,158,11,0.3);
+  box-shadow: 0 4px 16px rgba(245,158,11,0.2);
 }
 
 .shelf-cover-wrapper {
@@ -1356,6 +1374,20 @@
   margin-top: 1px;
   text-shadow: 0 0 8px rgba(245,158,11,0.3);
   text-align: center;
+}
+
+.shelf-book-progress-bar {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 2px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+.shelf-book-progress-fill {
+  height: 100%;
+  background: var(--neon-amber);
+  border-radius: 2px;
 }
 
 /* ===== BOOK MODAL ===== */
@@ -1547,6 +1579,12 @@
   background: rgba(245,158,11,0.1);
   border: 1px solid rgba(245,158,11,0.2);
   color: var(--neon-amber);
+}
+
+.book-modal-tag-sep {
+  color: var(--text-muted);
+  font-size: 0.6rem;
+  margin-right: 2px;
 }
 
 .book-modal-notes {

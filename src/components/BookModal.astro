@@ -42,11 +42,18 @@
 
   function normalizeGenres(g) {
     if (!g) return [];
-    if (Array.isArray(g)) return g;
-    if (typeof g === 'string') {
-      return g.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
-    }
-    return [];
+    var items = [];
+    if (Array.isArray(g)) { items = g; }
+    else if (typeof g === 'string') { items = [g]; }
+    else { return []; }
+    var result = [];
+    items.forEach(function(s) {
+      String(s).split(',').forEach(function(part) {
+        var t = part.trim();
+        if (t.length > 0) result.push(t);
+      });
+    });
+    return result;
   }
 
   function openModal(b) {
@@ -95,7 +102,7 @@
     var genreList = normalizeGenres(b.genres);
     if (genreList.length) {
       html += '<div class="book-modal-tags">';
-      genreList.forEach(function(g) { html += '<span class="book-modal-tag">' + esc(g) + '</span>'; });
+      genreList.forEach(function(g, i) { if (i > 0) html += '<span class="book-modal-tag-sep">,</span>'; html += '<span class="book-modal-tag">' + esc(g) + '</span>'; });
       html += '</div>';
     }
 
