@@ -1168,14 +1168,16 @@
 
 .article-list-item {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 4px;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-4);
   border-bottom: 1px solid rgba(255,255,255,0.04);
   transition: transform 0.2s ease, background 0.2s ease;
   opacity: 0;
   animation: fadeSlideRight 0.4s ease-out forwards;
   cursor: default;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .article-list-item:last-child {
@@ -1185,60 +1187,51 @@
 @media (hover: hover) {
   .article-list-item:hover {
     transform: translateX(6px);
-    background: rgba(6,214,160,0.04);
+    background: rgba(245,158,11,0.04);
   }
   .article-list-item:hover .article-list-title {
-    color: var(--neon-green);
+    color: var(--neon-amber);
   }
 }
 
-.article-list-star {
+.article-list-icon {
   flex-shrink: 0;
   width: 14px;
-  margin-top: 2px;
-  font-size: 0.7rem;
-  color: var(--neon-amber);
-  opacity: 0;
-  visibility: hidden;
-}
-
-.article-list-star.visible {
-  opacity: 1;
-  visibility: visible;
-}
-
-.article-list-content {
-  flex: 1;
-  min-width: 0;
+  height: 14px;
+  color: var(--text-muted);
 }
 
 .article-list-title {
-  font-size: 0.82rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   line-height: 1.35;
   color: var(--text);
   transition: color 0.2s ease;
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.article-list-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 3px;
-  font-size: 0.62rem;
-  font-family: 'Space Grotesk', monospace;
-  letter-spacing: 0.5px;
+  min-width: 0;
 }
 
 .article-list-source {
-  color: rgba(6,214,160,0.7);
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  color: rgba(245,158,11,0.7);
+  letter-spacing: 0.5px;
 }
 
 .article-list-date {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
   color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.article-list-date::before {
+  content: "\2014\00a0";
+  color: rgba(255,255,255,0.15);
 }
 
 /* ===== 14. BOOKSHELF ===== */

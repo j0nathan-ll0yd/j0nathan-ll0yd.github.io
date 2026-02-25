@@ -431,7 +431,7 @@ body.library-page {
 .state-render .left-panel-bio,
 .state-render .terminal-line,
 .state-render .article-list-item,
-.state-render .article-list-star,
+.state-render .article-list-icon,
 .state-render .shelf-book {
   opacity: 1 !important;
   transform: none !important;
@@ -731,7 +731,7 @@ body.library-page {
 .ws-widget .identity-card,
 .ws-widget .terminal-line,
 .ws-widget .article-list-item,
-.ws-widget .article-list-star,
+.ws-widget .article-list-icon,
 .ws-widget .shelf-book {
   opacity: 1 !important;
   transform: none !important;

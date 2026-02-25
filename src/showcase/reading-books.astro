@@ -22,15 +22,15 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
     <div class="component-section">
       <div class="component-name">ReadingFeed</div>
       <div class="component-description">
-        A curated list of recently read or saved articles. Each item features an optional star for favorites, a title that highlights on hover, and metadata showing the source domain and relative date.
+        A curated list of recently read or saved articles. Each item shows a document icon, title, source domain in parentheses, and a right-aligned relative date on a single line. Titles highlight green on hover.
       </div>
-      <div class="component-classes">.article-list, .article-list-item, .article-list-star, .article-list-title</div>
+      <div class="component-classes">.article-list, .article-list-item, .article-list-icon, .article-list-title, .article-list-source, .article-list-date</div>
 
       <div class="state-grid">
         <div class="state-column">
           <span class="state-label state-label-skeleton">Skeleton</span>
           <div class="state-render">
-            <div class="tri-card tri-card-accent-green">
+            <div class="tri-card tri-card-accent-amber">
               <div class="widget-header">
                 <span class="widget-label">Reading Feed</span>
                 <div class="widget-header-right">
@@ -40,33 +40,29 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
               </div>
               <div class="widget-body">
                 <ul class="article-list" style="list-style: none; padding: 0; margin: 0;">
-                  <li class="article-list-item" style="display: flex; gap: 10px; align-items: flex-start; padding: 6px 0;">
+                  <li class="article-list-item" style="display: flex; gap: 8px; align-items: center; padding: 6px 0; white-space: nowrap;">
                     <span class="skeleton-bar" style="width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px;"></span>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                      <span class="skeleton-bar" style="width: 80%; height: 13px;"></span>
-                      <span class="skeleton-bar" style="width: 40%; height: 10px;"></span>
-                    </div>
+                    <span class="skeleton-bar" style="width: 55%; height: 13px;"></span>
+                    <span class="skeleton-bar" style="width: 15%; height: 10px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 12%; height: 10px; flex-shrink: 0; margin-left: auto;"></span>
                   </li>
-                  <li class="article-list-item" style="display: flex; gap: 10px; align-items: flex-start; padding: 6px 0;">
+                  <li class="article-list-item" style="display: flex; gap: 8px; align-items: center; padding: 6px 0; white-space: nowrap;">
                     <span class="skeleton-bar" style="width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px;"></span>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                      <span class="skeleton-bar" style="width: 65%; height: 13px;"></span>
-                      <span class="skeleton-bar" style="width: 35%; height: 10px;"></span>
-                    </div>
+                    <span class="skeleton-bar" style="width: 45%; height: 13px;"></span>
+                    <span class="skeleton-bar" style="width: 12%; height: 10px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 14%; height: 10px; flex-shrink: 0; margin-left: auto;"></span>
                   </li>
-                  <li class="article-list-item" style="display: flex; gap: 10px; align-items: flex-start; padding: 6px 0;">
+                  <li class="article-list-item" style="display: flex; gap: 8px; align-items: center; padding: 6px 0; white-space: nowrap;">
                     <span class="skeleton-bar" style="width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px;"></span>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                      <span class="skeleton-bar" style="width: 75%; height: 13px;"></span>
-                      <span class="skeleton-bar" style="width: 45%; height: 10px;"></span>
-                    </div>
+                    <span class="skeleton-bar" style="width: 50%; height: 13px;"></span>
+                    <span class="skeleton-bar" style="width: 10%; height: 10px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 13%; height: 10px; flex-shrink: 0; margin-left: auto;"></span>
                   </li>
-                  <li class="article-list-item" style="display: flex; gap: 10px; align-items: flex-start; padding: 6px 0;">
+                  <li class="article-list-item" style="display: flex; gap: 8px; align-items: center; padding: 6px 0; white-space: nowrap;">
                     <span class="skeleton-bar" style="width: 14px; height: 14px; flex-shrink: 0; border-radius: 2px;"></span>
-                    <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                      <span class="skeleton-bar" style="width: 70%; height: 13px;"></span>
-                      <span class="skeleton-bar" style="width: 38%; height: 10px;"></span>
-                    </div>
+                    <span class="skeleton-bar" style="width: 48%; height: 13px;"></span>
+                    <span class="skeleton-bar" style="width: 13%; height: 10px; flex-shrink: 0;"></span>
+                    <span class="skeleton-bar" style="width: 11%; height: 10px; flex-shrink: 0; margin-left: auto;"></span>
                   </li>
                 </ul>
               </div>
