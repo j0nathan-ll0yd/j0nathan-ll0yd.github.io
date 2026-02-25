@@ -14,10 +14,40 @@ const displayBooks = sortedBooks.slice(0, 5);
   <div class="widget-header">
     <span class="widget-label">Bookshelf</span>
     <div class="widget-header-right">
+      <button id="bookshelfAuthBtn" title="Authenticate to edit" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;opacity:0.4;transition:opacity 0.2s" aria-label="Toggle authentication">&#x1F512;</button>
       <div class="live-dot"></div>
       <span class="widget-timestamp">library</span>
     </div>
   </div>
+  <script is:inline>
+  (function() {
+    var btn = document.getElementById('bookshelfAuthBtn');
+    if (!btn) return;
+    function updateIcon() {
+      var authed = localStorage.getItem('portal_api_token') && localStorage.getItem('portal_api_url');
+      btn.innerHTML = authed ? '&#x1F513;' : '&#x1F512;';
+      btn.style.opacity = authed ? '0.8' : '0.4';
+    }
+    updateIcon();
+    btn.addEventListener('click', function() {
+      if (localStorage.getItem('portal_api_token') && localStorage.getItem('portal_api_url')) {
+        if (confirm('Sign out? This will clear your stored API credentials.')) {
+          localStorage.removeItem('portal_api_token');
+          localStorage.removeItem('portal_api_url');
+          updateIcon();
+        }
+      } else {
+        var url = prompt('API Base URL (e.g. https://xxx.execute-api.us-east-1.amazonaws.com/prod/api):');
+        if (!url) return;
+        var token = prompt('Bearer Token:');
+        if (!token) return;
+        localStorage.setItem('portal_api_url', url.replace(/\/$/, ''));
+        localStorage.setItem('portal_api_token', token);
+        updateIcon();
+      }
+    });
+  })();
+  </script>
   <div class="widget-body">
     <div class="skeleton-state">
       <div style="display: flex; gap: 16px;">
@@ -54,10 +84,14 @@ const displayBooks = sortedBooks.slice(0, 5);
           link: `https://www.amazon.com/dp/${asin}?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl`,
           notes: b.notes || null,
           series: meta.series || null,
+          seriesNumber: meta.seriesNumber || null,
+          seriesTotal: meta.seriesTotal || null,
           pages: meta.pages || null,
           year: meta.year || null,
+          publicationDate: meta.publicationDate || null,
           desc: meta.desc || null,
-          genres: meta.genres || []
+          genres: meta.genres || [],
+          cover: meta.cover || null
         });
         return (
           <div class={`shelf-book${b.status === 'in_progress' ? ' shelf-book-active' : ''}`} style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" role="button" aria-label={`${b.title} by ${b.author}`}>
