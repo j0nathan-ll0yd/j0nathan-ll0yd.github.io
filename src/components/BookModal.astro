@@ -40,6 +40,15 @@
     return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function normalizeGenres(g) {
+    if (!g) return [];
+    if (Array.isArray(g)) return g;
+    if (typeof g === 'string') {
+      return g.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+    }
+    return [];
+  }
+
   function openModal(b) {
     var asin = b.asin;
     var cover = b.cover || ('https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX200_.jpg');
@@ -47,7 +56,15 @@
     var html = '<div class="book-modal-header">';
     html += '<img class="book-modal-cover" src="' + esc(cover) + '" width="80" height="120" alt="' + esc(b.title) + ' cover">';
     html += '<div class="book-modal-info">';
-    if (b.series) html += '<div class="book-modal-series">' + esc(b.series) + '</div>';
+    if (b.series) {
+      var seriesHtml = esc(b.series);
+      if (b.seriesNumber) {
+        seriesHtml += ' <span style="opacity:0.5">&middot; Book ' + b.seriesNumber;
+        if (b.seriesTotal) seriesHtml += ' of ' + b.seriesTotal;
+        seriesHtml += '</span>';
+      }
+      html += '<div class="book-modal-series">' + seriesHtml + '</div>';
+    }
     html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
     html += '<div class="book-modal-author">' + esc(b.author) + '</div>';
     if (b.rating) {
@@ -75,9 +92,10 @@
 
     if (b.desc) html += '<div class="book-modal-desc">' + esc(b.desc) + '</div>';
 
-    if (b.genres && b.genres.length) {
+    var genreList = normalizeGenres(b.genres);
+    if (genreList.length) {
       html += '<div class="book-modal-tags">';
-      b.genres.forEach(function(g) { html += '<span class="book-modal-tag">' + esc(g) + '</span>'; });
+      genreList.forEach(function(g) { html += '<span class="book-modal-tag">' + esc(g) + '</span>'; });
       html += '</div>';
     }
 
@@ -92,14 +110,6 @@
       html += '<div><a href="' + esc(b.link) + '" target="_blank" rel="noopener" class="book-modal-amazon">View on Amazon &rarr;</a></div>';
     }
 
-    // Edit button (shown only when authenticated)
-    var token = localStorage.getItem('portal_api_token');
-    var apiUrl = localStorage.getItem('portal_api_url');
-    if (token && apiUrl) {
-      html += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.06)">';
-      html += '<button class="book-modal-edit-btn" id="bookModalEdit" style="font:bold 11px/1 monospace;letter-spacing:2px;color:var(--neon-amber,#f5a623);background:rgba(245,166,35,0.1);border:1px solid rgba(245,166,35,0.2);padding:10px 20px;border-radius:8px;cursor:pointer;width:100%">EDIT METADATA</button>';
-      html += '</div>';
-    }
     html += '</div>';
 
     modal.innerHTML = html;
@@ -111,14 +121,6 @@
       closeModal();
     });
     closeBtn.focus();
-
-    // Wire up edit button
-    var editBtn = document.getElementById('bookModalEdit');
-    if (editBtn) {
-      editBtn.addEventListener('click', function() {
-        openEditMode(b);
-      });
-    }
 
     trapFocus(overlay);
   }
@@ -156,105 +158,6 @@
           first.focus();
         }
       }
-    });
-  }
-
-  function editField(label, name, value, type) {
-    var inputType = type || 'text';
-    return '<div style="margin-bottom:10px"><label style="display:block;font:bold 10px/1 monospace;letter-spacing:1px;color:rgba(255,255,255,0.4);margin-bottom:4px">' + esc(label) + '</label>' +
-      '<input name="' + esc(name) + '" type="' + inputType + '" value="' + esc(value || '') + '" style="width:100%;box-sizing:border-box;font:14px monospace;color:#e0e0e0;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px"></div>';
-  }
-
-  function editTextarea(label, name, value) {
-    return '<div style="margin-bottom:10px"><label style="display:block;font:bold 10px/1 monospace;letter-spacing:1px;color:rgba(255,255,255,0.4);margin-bottom:4px">' + esc(label) + '</label>' +
-      '<textarea name="' + esc(name) + '" rows="4" style="width:100%;box-sizing:border-box;font:13px monospace;color:#e0e0e0;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:8px 12px;resize:vertical">' + esc(value || '') + '</textarea></div>';
-  }
-
-  function openEditMode(b) {
-    var html = '<div class="book-modal-header">';
-    html += '<div class="book-modal-info" style="flex:1">';
-    html += '<div style="font:bold 14px/1 monospace;letter-spacing:2px;color:var(--neon-amber,#f5a623);margin-bottom:8px">EDIT METADATA</div>';
-    html += '</div>';
-    html += '<button class="book-modal-close" id="bookModalClose" aria-label="Close">&times;</button>';
-    html += '</div>';
-
-    html += '<form id="bookEditForm" style="padding:0 4px">';
-    html += editField('Title', 'title', b.title);
-    html += editField('Series', 'series', b.series);
-    html += '<div style="display:flex;gap:10px">';
-    html += '<div style="flex:1">' + editField('Series #', 'seriesNumber', b.seriesNumber, 'number') + '</div>';
-    html += '<div style="flex:1">' + editField('Series Total', 'seriesTotal', b.seriesTotal, 'number') + '</div>';
-    html += '</div>';
-    html += editTextarea('Description', 'description', b.desc);
-    html += editField('Publication Date', 'publicationDate', b.publicationDate);
-    html += editField('Publication Year', 'publicationYear', b.year, 'number');
-    html += editField('Categories', 'category', b.genres ? b.genres.join(', ') : '');
-
-    html += '<div style="display:flex;gap:10px;margin-top:16px">';
-    html += '<button type="submit" style="flex:1;font:bold 12px/1 monospace;letter-spacing:2px;color:var(--neon-amber,#f5a623);background:rgba(245,166,35,0.15);border:1px solid rgba(245,166,35,0.3);padding:12px;border-radius:10px;cursor:pointer">SAVE</button>';
-    html += '<button type="button" id="editCancel" style="flex:1;font:bold 12px/1 monospace;letter-spacing:2px;color:rgba(255,255,255,0.4);background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);padding:12px;border-radius:10px;cursor:pointer">CANCEL</button>';
-    html += '</div>';
-    html += '<div id="editStatus" style="margin-top:10px;font:12px monospace;text-align:center;min-height:18px"></div>';
-    html += '</form>';
-
-    modal.innerHTML = html;
-
-    document.getElementById('bookModalClose').addEventListener('click', function() { closeModal(); });
-    document.getElementById('editCancel').addEventListener('click', function() { openModal(b); });
-
-    document.getElementById('bookEditForm').addEventListener('submit', function(e) {
-      e.preventDefault();
-      var statusEl = document.getElementById('editStatus');
-      statusEl.style.color = 'rgba(245,166,35,0.7)';
-      statusEl.textContent = 'Saving...';
-
-      var form = e.target;
-      var payload = { asin: b.asin };
-      var titleVal = form.elements.title.value.trim();
-      if (titleVal) payload.title = titleVal;
-
-      var seriesVal = form.elements.series.value.trim();
-      payload.series = seriesVal || null;
-
-      var snVal = form.elements.seriesNumber.value;
-      payload.seriesNumber = snVal ? parseInt(snVal, 10) : null;
-
-      var stVal = form.elements.seriesTotal.value;
-      payload.seriesTotal = stVal ? parseInt(stVal, 10) : null;
-
-      var descVal = form.elements.description.value.trim();
-      payload.description = descVal || null;
-
-      var pdVal = form.elements.publicationDate.value.trim();
-      payload.publicationDate = pdVal || null;
-
-      var pyVal = form.elements.publicationYear.value;
-      payload.publicationYear = pyVal ? parseInt(pyVal, 10) : null;
-
-      var catVal = form.elements.category.value.trim();
-      payload.category = catVal || null;
-
-      var apiUrl = localStorage.getItem('portal_api_url');
-      var token = localStorage.getItem('portal_api_token');
-
-      fetch(apiUrl + '/books/update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify(payload)
-      }).then(function(res) {
-        if (!res.ok) throw new Error('HTTP ' + res.status);
-        return res.json();
-      }).then(function() {
-        statusEl.style.color = '#4ade80';
-        statusEl.textContent = 'Saved! Reload to see changes.';
-        setTimeout(function() { closeModal(); }, 1500);
-      }).catch(function(err) {
-        statusEl.style.color = '#f87171';
-        statusEl.textContent = 'Error: ' + err.message;
-      });
     });
   }
 
