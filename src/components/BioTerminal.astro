@@ -47,6 +47,24 @@ const terminalLines = profile.terminalLines;
   var termBody = document.getElementById('terminalBody');
   if (!termBody) return;
   var lines = termBody.querySelectorAll('.terminal-line');
+  var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (prefersReducedMotion) {
+    for (var j = 0; j < lines.length; j++) {
+      var line = lines[j];
+      line.classList.add('visible');
+      var cmd = line.getAttribute('data-cmd');
+      var output = line.getAttribute('data-output');
+      if (cmd !== null) {
+        var cs = line.querySelector('.terminal-command');
+        if (cs) cs.textContent = cmd;
+      } else if (output !== null) {
+        var os = line.querySelector('.terminal-output');
+        if (os) os.textContent = output;
+      }
+    }
+    return;
+  }
 
   function typeText(spanEl, text, callback) {
     var i = 0;

@@ -16,6 +16,7 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 0;
+  will-change: transform;
 }
 
 /* ===== SKIP LINK (WCAG 2.4.1) ===== */

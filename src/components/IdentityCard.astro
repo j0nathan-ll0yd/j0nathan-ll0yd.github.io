@@ -2,9 +2,9 @@
 const { profile } = Astro.props;
 ---
 <div class="identity-card" id="identityCard">
-  <img class="id-avatar" src={profile.avatar} alt="Jonathan Lloyd">
+  <img class="id-avatar" src={profile.avatar} alt="Jonathan Lloyd profile photo" fetchpriority="high">
   <div class="id-info-inline">
-    <div class="id-name">{profile.name}</div>
+    <h1 class="id-name">{profile.name}</h1>
     <div class="id-title">{profile.title}</div>
   </div>
   <div class="id-bio">{profile.bio}</div>

@@ -25,9 +25,9 @@
   /* --- Typography (fluid: scales 600px–1400px) --- */
   --font-family: 'Space Grotesk', sans-serif;
   --font-mono: 'Space Grotesk', monospace;
-  --font-size-xs:   clamp(0.36rem, 0.32rem + 0.12vw, 0.42rem);
-  --font-size-sm:   clamp(0.48rem, 0.43rem + 0.14vw, 0.55rem);
-  --font-size-base: clamp(0.62rem, 0.55rem + 0.20vw, 0.72rem);
+  --font-size-xs:   clamp(0.625rem, 0.58rem + 0.12vw, 0.72rem);
+  --font-size-sm:   clamp(0.7rem, 0.64rem + 0.14vw, 0.78rem);
+  --font-size-base: clamp(0.72rem, 0.65rem + 0.20vw, 0.82rem);
   --font-size-md:   clamp(0.72rem, 0.65rem + 0.20vw, 0.82rem);
   --font-size-lg:   clamp(0.88rem, 0.75rem + 0.34vw, 1.05rem);
   --font-size-xl:   clamp(1.20rem, 0.98rem + 0.60vw, 1.50rem);

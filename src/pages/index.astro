@@ -88,7 +88,7 @@ try {
 
     <!-- TOP BAR -->
     <header class="top-bar">
-      <h1 class="top-bar-title">Human Datastream</h1>
+      <div class="top-bar-title">Human Datastream</div>
       <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label="Current time"></div>
     </header>
 
@@ -125,6 +125,7 @@ try {
 
   <!-- Particles -->
   <script is:inline>
+  window.addEventListener('load', function() {
   (function() {
     var canvas = document.getElementById('particle-canvas');
     if (!canvas || typeof THREE === 'undefined') return;
@@ -312,6 +313,7 @@ try {
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
   })();
+  });
   </script>
 
   <!-- Live Clock -->
@@ -355,20 +357,6 @@ try {
           card.classList.add('visible');
         }, 400 + colIdx * 150 + rowIdx * 100);
       });
-    });
-  })();
-  </script>
-
-  <!-- Auto-Reload (5 min) -->
-  <script is:inline>
-  (function() {
-    var INTERVAL = 300000;
-    var loadTime = Date.now();
-    var timer = setTimeout(function() { location.reload(); }, INTERVAL);
-    document.addEventListener('visibilitychange', function() {
-      if (!document.hidden && (Date.now() - loadTime) >= INTERVAL) {
-        location.reload();
-      }
     });
   })();
   </script>

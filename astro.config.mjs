@@ -46,7 +46,7 @@ export default defineConfig({
       manifest: {
         name: 'Jonathan Lloyd — Human Datastream',
         short_name: 'Human Datastream',
-        description: 'Senior Software Engineer portfolio dashboard',
+        description: 'Engineering Director portfolio dashboard',
         start_url: '/',
         scope: '/',
         theme_color: '#06060f',
