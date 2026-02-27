@@ -1234,6 +1234,37 @@
   color: rgba(255,255,255,0.15);
 }
 
+/* Notes icon (speech bubble) for articles with annotations */
+.article-list-note {
+  flex-shrink: 0;
+  position: relative;
+  cursor: help;
+  display: flex;
+  align-items: center;
+}
+
+.article-list-note-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--neon-amber);
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.article-list-note:hover .article-list-note-icon {
+  opacity: 1;
+}
+
+/* Make linked article titles inherit the hover behavior */
+a.article-list-title {
+  text-decoration: none;
+  color: var(--text);
+}
+
+a.article-list-title:hover {
+  color: var(--neon-amber);
+}
+
 /* ===== 14. BOOKSHELF ===== */
 .shelf-row {
   display: flex;

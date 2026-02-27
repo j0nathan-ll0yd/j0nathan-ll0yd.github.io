@@ -19,6 +19,12 @@
       "valClass": "sys-val-amber"
     },
     {
+      "key": "Articles",
+      "value": "PENDING",
+      "dotClass": "sys-dot-amber",
+      "valClass": "sys-val-amber"
+    },
+    {
       "key": "Github Events",
       "value": "PENDING",
       "dotClass": "sys-dot-amber",

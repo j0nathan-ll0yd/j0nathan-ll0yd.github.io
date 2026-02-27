@@ -1,6 +1,6 @@
 import { classifyHeartRate, buildECGPath, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
-import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry } from './adapters';
+import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
 
 const ACCENT_CLASSES = [
   'tri-card-accent-pink', 'tri-card-accent-blue', 'tri-card-accent-green',
@@ -259,6 +259,42 @@ export function updateDevActivityLog(events: AdaptedGithubEvent[]): void {
     html += '</a>';
   });
   html += '</div>';
+
+  body.innerHTML = html;
+  card.classList.remove('is-loading');
+}
+
+export function updateReadingFeed(articles: AdaptedArticle[]): void {
+  const card = document.getElementById('cardReading');
+  if (!card) return;
+
+  if (!articles || articles.length === 0) return;
+
+  const body = card.querySelector('.widget-body');
+  if (!body) return;
+
+  let html = '<ul class="article-list">';
+  articles.forEach((a: AdaptedArticle, i: number) => {
+    html += '<li class="article-list-item" style="animation-delay: ' + (i * 0.07) + 's">';
+    if (a.hasNotes) {
+      html += '<span class="article-list-note" title="' + esc(a.noteText || '') + '">';
+      html += '<svg class="article-list-note-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">';
+      html += '<path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V3z" stroke="currentColor" stroke-width="1.2"/>';
+      html += '<line x1="5" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1"/>';
+      html += '<line x1="5" y1="8.5" x2="9" y2="8.5" stroke="currentColor" stroke-width="1"/>';
+      html += '</svg>';
+      html += '</span>';
+    }
+    if (a.url) {
+      html += '<a class="article-list-title" href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + esc(a.title) + '</a>';
+    } else {
+      html += '<span class="article-list-title">' + esc(a.title) + '</span>';
+    }
+    html += '<span class="article-list-source">(' + esc(a.source) + ')</span>';
+    html += '<span class="article-list-date">' + esc(a.date) + '</span>';
+    html += '</li>';
+  });
+  html += '</ul>';
 
   body.innerHTML = html;
   card.classList.remove('is-loading');

@@ -5,7 +5,7 @@ import {
   formatPhase,
   computeSleepPercentages,
 } from './sleep';
-import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport } from '../types/exports';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport } from '../types/exports';
 
 // ── Adapted output types (what adapters produce for updaters) ──────
 
@@ -68,6 +68,15 @@ export interface AdaptedGithubEvent {
   additions?: number;
   deletions?: number;
   url: string;
+}
+
+export interface AdaptedArticle {
+  title: string;
+  url: string;
+  source: string;
+  date: string;
+  hasNotes: boolean;
+  noteText: string | null;
 }
 
 export interface AdaptedBookEntry {
@@ -327,4 +336,39 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
       upcoming: next,
     },
   };
+}
+
+export function adaptArticles(data: ArticlesExport | null): AdaptedArticle[] {
+  if (!data || !data.articles) return [];
+
+  const now = Date.now();
+
+  return data.articles
+    .slice()
+    .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
+    .slice(0, 10)
+    .map((a) => {
+      const msAgo = now - new Date(a.savedAt).getTime();
+      const minutesAgo = Math.floor(msAgo / 60000);
+      const hoursAgo = Math.floor(minutesAgo / 60);
+      const daysAgo = Math.floor(hoursAgo / 24);
+      const weeksAgo = Math.floor(daysAgo / 7);
+      let date: string;
+      if (weeksAgo > 0) date = weeksAgo + 'w ago';
+      else if (daysAgo > 0) date = daysAgo + 'd ago';
+      else if (hoursAgo > 0) date = hoursAgo + 'h ago';
+      else date = minutesAgo + 'm ago';
+
+      const hasNotes = Array.isArray(a.notes) && a.notes.length > 0;
+      const noteText = hasNotes ? a.notes.map((n) => n.comment).join('\n') : null;
+
+      return {
+        title: a.articleTitle,
+        url: a.articleUrl,
+        source: a.sourceTitle || '',
+        date,
+        hasNotes,
+        noteText,
+      };
+    });
 }
