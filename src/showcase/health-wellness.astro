@@ -102,13 +102,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
       <div class="component-description">
         Two-column layout showing movement and energy metrics for the current day.
       </div>
-      <div class="component-classes">.tri-card-accent-green, .split-cols, .split-col, .split-col-title, .split-metric, .split-metric-value</div>
+      <div class="component-classes">.tri-card-accent-red, .split-cols, .split-col, .split-col-title, .split-metric, .split-metric-value</div>
 
       <div class="state-grid">
         <div class="state-column">
           <span class="state-label state-label-skeleton">Skeleton</span>
           <div class="state-render">
-            <div class="tri-card tri-card-accent-green">
+            <div class="tri-card tri-card-accent-red">
               <div class="widget-header">
                 <span class="widget-label">Daily Activity</span>
                 <div class="widget-header-right">
@@ -393,13 +393,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
       <div class="component-description">
         Current location card with city name, coordinates, and an embedded Leaflet dark-theme map. Contains id="leafletMap" so only one component instance per page.
       </div>
-      <div class="component-classes">.tri-card-accent-green, .loc-city-name, .loc-coordinates, .map-wrapper, .map-overlay</div>
+      <div class="component-classes">.tri-card-accent-pink, .loc-city-name, .loc-coordinates, .map-wrapper, .map-overlay</div>
 
       <div class="state-grid">
         <div class="state-column">
           <span class="state-label state-label-skeleton">Skeleton</span>
           <div class="state-render">
-            <div class="tri-card tri-card-accent-green">
+            <div class="tri-card tri-card-accent-pink">
               <div class="widget-header">
                 <span class="widget-label">Current Location</span>
                 <div class="widget-header-right">
@@ -419,7 +419,7 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
           <span class="state-label state-label-empty">Empty</span>
           <div class="state-render">
             <!-- Static HTML: avoids duplicate #leafletMap -->
-            <div class="tri-card tri-card-accent-green">
+            <div class="tri-card tri-card-accent-pink">
               <div class="widget-header">
                 <span class="widget-label">Current Location</span>
                 <div class="widget-header-right">

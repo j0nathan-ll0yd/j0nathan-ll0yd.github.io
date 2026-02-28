@@ -10,6 +10,15 @@ const sourceMap: Record<string, string> = {
   'Github Events': 'githubEvents',
   'Github Stars': 'starredRepos',
 };
+
+const keyColorMap: Record<string, string> = {
+  'Health': 'sys-key-red',
+  'Sleep': 'sys-key-purple',
+  'Books': 'sys-key-amber',
+  'Articles': 'sys-key-amber',
+  'Github Events': 'sys-key-green',
+  'Github Stars': 'sys-key-green',
+};
 ---
 <div class="left-panel-status" id="cardSystem">
   <div class="left-status-header">
@@ -23,7 +32,7 @@ const sourceMap: Record<string, string> = {
     {lines.map((line: any, idx: number) => (
       <div class="sys-line" data-source={sourceMap[line.key] || ''} style={`animation-delay: ${idx * 0.1}s`}>
         <div class={`sys-dot ${line.dotClass}`} style={`animation-delay: ${idx * 0.3}s`}></div>
-        <span class="sys-key">{line.key}:</span>
+        <span class={`sys-key${keyColorMap[line.key] ? ' ' + keyColorMap[line.key] : ''}`}>{line.key}:</span>
         <span class={line.valClass || 'sys-val'} set:html={line.value}></span>
       </div>
     ))}

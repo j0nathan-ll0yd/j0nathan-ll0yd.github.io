@@ -16,9 +16,10 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
 // the real active state comes from live API data, so we simulate it here.
 const activeSystem = {
   lines: [
-    { key: "Health", value: 'ACTIVE <span class="sys-val">(15m ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
-    { key: "Sleep", value: 'ACTIVE <span class="sys-val">(15m ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
-    { key: "Books", value: 'ACTIVE <span class="sys-val">(3d ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
+    { key: "Health", value: 'ACTIVE <span class="sys-val">(15m ago)</span>', dotClass: "sys-dot-red", valClass: "sys-val-green" },
+    { key: "Sleep", value: 'ACTIVE <span class="sys-val">(15m ago)</span>', dotClass: "sys-dot-purple", valClass: "sys-val-green" },
+    { key: "Books", value: 'ACTIVE <span class="sys-val">(3d ago)</span>', dotClass: "sys-dot-amber", valClass: "sys-val-green" },
+    { key: "Articles", value: 'ACTIVE <span class="sys-val">(1h ago)</span>', dotClass: "sys-dot-amber", valClass: "sys-val-green" },
     { key: "Github Events", value: 'ACTIVE <span class="sys-val">(2h ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
     { key: "Github Stars", value: 'ACTIVE <span class="sys-val">(4h ago)</span>', dotClass: "sys-dot-green", valClass: "sys-val-green" },
   ]

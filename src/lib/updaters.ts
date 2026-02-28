@@ -273,30 +273,64 @@ export function updateReadingFeed(articles: AdaptedArticle[]): void {
   const body = card.querySelector('.widget-body');
   if (!body) return;
 
-  let html = '<ul class="article-list">';
-  articles.forEach((a: AdaptedArticle, i: number) => {
-    html += '<li class="article-list-item" style="animation-delay: ' + (i * 0.07) + 's">';
-    if (a.hasNotes) {
-      html += '<span class="article-list-note" title="' + esc(a.noteText || '') + '">';
-      html += '<svg class="article-list-note-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">';
-      html += '<path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V3z" stroke="currentColor" stroke-width="1.2"/>';
-      html += '<line x1="5" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1"/>';
-      html += '<line x1="5" y1="8.5" x2="9" y2="8.5" stroke="currentColor" stroke-width="1"/>';
-      html += '</svg>';
-      html += '</span>';
-    }
-    if (a.url) {
-      html += '<a class="article-list-title" href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + esc(a.title) + '</a>';
-    } else {
-      html += '<span class="article-list-title">' + esc(a.title) + '</span>';
-    }
-    html += '<span class="article-list-source">(' + esc(a.source) + ')</span>';
-    html += '<span class="article-list-date">' + esc(a.date) + '</span>';
-    html += '</li>';
-  });
-  html += '</ul>';
+  const PAGE_SIZE = 10;
+  const totalPages = Math.ceil(articles.length / PAGE_SIZE);
+  let currentPage = 1;
 
-  body.innerHTML = html;
+  function renderPage(page: number): void {
+    const start = (page - 1) * PAGE_SIZE;
+    const pageArticles = articles.slice(start, start + PAGE_SIZE);
+
+    let html = '<ul class="article-list" aria-live="polite">';
+    pageArticles.forEach((a: AdaptedArticle, i: number) => {
+      html += '<li class="article-list-item" style="animation-delay: ' + (i * 0.07) + 's">';
+      if (a.hasNotes) {
+        html += '<span class="article-list-note" title="' + esc(a.noteText || '') + '">';
+        html += '<svg class="article-list-note-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true">';
+        html += '<path d="M2 3a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V3z" stroke="currentColor" stroke-width="1.2"/>';
+        html += '<line x1="5" y1="6" x2="11" y2="6" stroke="currentColor" stroke-width="1"/>';
+        html += '<line x1="5" y1="8.5" x2="9" y2="8.5" stroke="currentColor" stroke-width="1"/>';
+        html += '</svg>';
+        html += '</span>';
+      }
+      if (a.url) {
+        html += '<a class="article-list-title" href="' + esc(a.url) + '" target="_blank" rel="noopener noreferrer">' + esc(a.title) + '</a>';
+      } else {
+        html += '<span class="article-list-title">' + esc(a.title) + '</span>';
+      }
+      html += '<span class="article-list-source">(' + esc(a.source) + ')</span>';
+      html += '<span class="article-list-date">' + esc(a.date) + '</span>';
+      html += '</li>';
+    });
+    html += '</ul>';
+
+    if (totalPages > 1) {
+      html += '<div class="article-pagination">';
+      for (let p = 1; p <= totalPages; p++) {
+        const activeClass = p === page ? ' article-page-active' : '';
+        const ariaCurrent = p === page ? ' aria-current="page"' : '';
+        html += '<button class="article-page-btn' + activeClass + '"' + ariaCurrent + ' data-page="' + p + '" aria-label="Page ' + p + ' of ' + totalPages + '">' + p + '</button>';
+      }
+      html += '</div>';
+    }
+
+    body.innerHTML = html;
+
+    if (totalPages > 1) {
+      const buttons = body.querySelectorAll('.article-page-btn');
+      buttons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetPage = parseInt((btn as HTMLElement).dataset.page || '1', 10);
+          if (targetPage !== currentPage) {
+            currentPage = targetPage;
+            renderPage(currentPage);
+          }
+        });
+      });
+    }
+  }
+
+  renderPage(currentPage);
   card.classList.remove('is-loading');
 }
 
@@ -304,7 +338,12 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
   const container = document.getElementById('systemStatus');
   if (!container) return;
 
-  var SOURCE_COLORS: Record<string, string> = { books: 'amber' };
+  var SOURCE_LINE_COLORS: Record<string, string> = {
+    health: 'red',
+    sleep: 'purple',
+    books: 'amber',
+    articles: 'amber',
+  };
 
   const lines = container.querySelectorAll('.sys-line');
   lines.forEach((line) => {
@@ -313,17 +352,24 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
 
     const dot = line.querySelector('.sys-dot');
     const valEl = line.querySelector('[class*="sys-val"]');
+    const keyEl = line.querySelector('[class*="sys-key"]');
     if (!dot || !valEl) return;
 
     const ts = timestamps[source];
     if (ts) {
       const ago = formatRelativeTime(ts);
-      const color = SOURCE_COLORS[source] || 'green';
-      dot.className = 'sys-dot sys-dot-' + color;
-      valEl.className = 'sys-val-' + color;
+      const lineColor = SOURCE_LINE_COLORS[source] || 'green';
+      dot.className = 'sys-dot sys-dot-' + lineColor;
+      if (keyEl) {
+        keyEl.className = 'sys-key sys-key-' + lineColor;
+      }
+      valEl.className = 'sys-val-green';
       valEl.innerHTML = 'ACTIVE <span class="sys-val">(' + ago + ')</span>';
     } else {
       dot.className = 'sys-dot sys-dot-red';
+      if (keyEl) {
+        keyEl.className = 'sys-key';
+      }
       valEl.className = 'sys-val-red';
       valEl.textContent = 'OFFLINE';
     }
