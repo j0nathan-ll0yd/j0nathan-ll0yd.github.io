@@ -70,7 +70,7 @@ Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboa
 - Glass-morphism pattern: `background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(var(--blur-md));`
 - Widget card structure: `.tri-card` > `.widget-header` + `.widget-body`
 - Widget header: `.widget-label` + `.widget-header-right` > `.live-dot` + `.widget-timestamp`
-- Accent classes: `.tri-card-accent-pink`, `-blue`, `-green`, `-amber`, `-purple`
+- Accent classes: `.tri-card-accent-pink`, `-blue`, `-green`, `-amber`, `-purple`, `-red`, `-cyan`, `-orange`, `-indigo`
 
 ### JavaScript (Inline Scripts)
 - ES5 only: `var`, IIFEs, `function` declarations -- no `let`/`const`/arrow functions
@@ -119,13 +119,19 @@ Each component page renders all 45 components in 3 states (skeleton, empty, acti
 | `--neon-amber` | `#f59e0b` | Warning, heart rate |
 | `--neon-purple` | `#a855f7` | Sleep, night summary |
 | `--neon-red` | `#ef4444` | Alert states |
+| `--neon-cyan` | `#00d4ff` | Info, data streams |
+| `--neon-orange` | `#ff6b00` | Urgency, degraded state |
+| `--neon-indigo` | `#818cf8` | Deep/premium, cognitive |
 | `--text` | `#f0f0f0` | Primary text |
 | `--text-muted` | `#9ca3af` | Secondary text |
 
 ### Glass-morphism
 ```css
-background: var(--glass-bg);        /* rgba(255,255,255,0.07) */
+background: var(--glass-bg-inset);     /* rgba(255,255,255,0.03) - recessed */
+background: var(--glass-bg);           /* rgba(255,255,255,0.07) - default */
+background: var(--glass-bg-raised);    /* rgba(255,255,255,0.11) - elevated */
 border: 1px solid var(--glass-border); /* rgba(255,255,255,0.1) */
+border: 1px solid var(--glass-border-strong); /* rgba(255,255,255,0.18) - emphasis */
 backdrop-filter: blur(var(--blur-md)); /* 16px */
 ```
 

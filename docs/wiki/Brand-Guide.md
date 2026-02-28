@@ -20,6 +20,19 @@ A legacy interactive reference page is preserved at `legacy/brand-guide.html`.
 | `--neon-amber` | `#f59e0b` | Warning states, heart rate |
 | `--neon-purple` | `#a855f7` | Sleep, night summary |
 | `--neon-red` | `#ef4444` | Alert states |
+| `--neon-cyan` | `#00d4ff` | Info, data streams, system output |
+| `--neon-orange` | `#ff6b00` | Urgency, degraded state |
+| `--neon-indigo` | `#818cf8` | Deep/premium, cognitive |
+
+### High-Contrast Variants
+
+For small text or `prefers-contrast: more` contexts, use these AAA-compliant alternatives:
+
+| Token | Hex | Base Color | Contrast vs #06060f |
+|---|---|---|---|
+| `--neon-pink-hc` | `#ff69b4` | `--neon-pink` | 7.62:1 |
+| `--neon-purple-hc` | `#c084fc` | `--neon-purple` | 7.64:1 |
+| `--neon-red-hc` | `#f87171` | `--neon-red` | 7.29:1 |
 
 ### Background & Text
 
@@ -48,6 +61,16 @@ backdrop-filter: blur(var(--blur-md)); /* 16px                   */
 | `--blur-lg` | `24px` |
 | `--blur-xl` | `32px` |
 
+### Surface Elevation
+
+| Token | Value | Usage |
+|---|---|---|
+| `--glass-bg-inset` | `rgba(255,255,255,0.03)` | Recessed panels, nested backgrounds |
+| `--glass-bg` | `rgba(255,255,255,0.07)` | Default card surface |
+| `--glass-bg-raised` | `rgba(255,255,255,0.11)` | Elevated elements, hover states |
+| `--glass-border` | `rgba(255,255,255,0.1)` | Default borders |
+| `--glass-border-strong` | `rgba(255,255,255,0.18)` | High-emphasis borders |
+
 ### Glow Shadows
 
 Each accent color has a matching glow token for hover/focus states:
@@ -55,8 +78,10 @@ Each accent color has a matching glow token for hover/focus states:
 ```css
 --glow-pink: 0 0 20px rgba(255,0,110,0.3), 0 0 40px rgba(255,0,110,0.15);
 --glow-blue: 0 0 20px rgba(58,134,255,0.3), 0 0 40px rgba(58,134,255,0.15);
-/* ... green, amber, purple */
+/* ... green, amber, purple, red, cyan, orange, indigo */
 ```
+
+All glow tokens: `--glow-pink`, `--glow-blue`, `--glow-green`, `--glow-amber`, `--glow-purple`, `--glow-red`, `--glow-cyan`, `--glow-orange`, `--glow-indigo`
 
 ## Typography
 
@@ -104,11 +129,15 @@ Every dashboard widget follows the `.tri-card` pattern:
 | `.tri-card-accent-green` | `--neon-green` | Mind column widgets |
 | `.tri-card-accent-amber` | `--neon-amber` | Heart rate |
 | `.tri-card-accent-purple` | `--neon-purple` | Night summary |
+| `.tri-card-accent-red` | `--neon-red` | Alert states |
+| `.tri-card-accent-cyan` | `--neon-cyan` | (available) |
+| `.tri-card-accent-orange` | `--neon-orange` | (available) |
+| `.tri-card-accent-indigo` | `--neon-indigo` | (available) |
 
 ### Live Dots
 
 Status indicators in widget headers. Matching color classes:
-- `.live-dot-pink`, `.live-dot-blue`, `.live-dot-green`, `.live-dot-amber`, `.live-dot-purple`
+- `.live-dot-pink`, `.live-dot-blue`, `.live-dot-green`, `.live-dot-amber`, `.live-dot-purple`, `.live-dot-red`, `.live-dot-cyan`, `.live-dot-orange`, `.live-dot-indigo`
 
 ## Layout System
 

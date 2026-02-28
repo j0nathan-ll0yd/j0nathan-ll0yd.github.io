@@ -5,6 +5,7 @@ import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, Boo
 const ACCENT_CLASSES = [
   'tri-card-accent-pink', 'tri-card-accent-blue', 'tri-card-accent-green',
   'tri-card-accent-amber', 'tri-card-accent-red', 'tri-card-accent-purple',
+  'tri-card-accent-cyan', 'tri-card-accent-orange', 'tri-card-accent-indigo',
 ];
 
 function esc(s: string | null | undefined): string {

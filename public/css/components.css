@@ -43,6 +43,15 @@
   .tri-card-accent-red.visible:hover {
     box-shadow: 0 0 30px rgba(239,68,68,0.15), 0 4px 20px rgba(0,0,0,0.3);
   }
+  .tri-card-accent-cyan.visible:hover {
+    box-shadow: 0 0 30px rgba(0,212,255,0.15), 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .tri-card-accent-orange.visible:hover {
+    box-shadow: 0 0 30px rgba(255,107,0,0.15), 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .tri-card-accent-indigo.visible:hover {
+    box-shadow: 0 0 30px rgba(129,140,248,0.15), 0 4px 20px rgba(0,0,0,0.3);
+  }
 }
 
 .tri-card-accent-pink {
@@ -61,7 +70,7 @@
 }
 
 .tri-card-accent-purple {
-  border-top: 2px solid #a855f7;
+  border-top: 2px solid var(--neon-purple);
   box-shadow: 0 0 20px rgba(168,85,247,0.08);
 }
 
@@ -71,8 +80,23 @@
 }
 
 .tri-card-accent-red {
-  border-top: 2px solid #ef4444;
+  border-top: 2px solid var(--neon-red);
   box-shadow: 0 0 20px rgba(239,68,68,0.08);
+}
+
+.tri-card-accent-cyan {
+  border-top: 2px solid var(--neon-cyan);
+  box-shadow: 0 0 20px rgba(0,212,255,0.08);
+}
+
+.tri-card-accent-orange {
+  border-top: 2px solid var(--neon-orange);
+  box-shadow: 0 0 20px rgba(255,107,0,0.08);
+}
+
+.tri-card-accent-indigo {
+  border-top: 2px solid var(--neon-indigo);
+  box-shadow: 0 0 20px rgba(129,140,248,0.08);
 }
 
 /* ===== WIDGET HEADER ===== */
@@ -118,8 +142,8 @@
 }
 
 .live-dot-red {
-  background: #ef4444;
-  box-shadow: 0 0 8px #ef4444;
+  background: var(--neon-red);
+  box-shadow: 0 0 8px var(--neon-red);
 }
 
 .live-dot-blue {
@@ -128,8 +152,23 @@
 }
 
 .live-dot-purple {
-  background: #a855f7;
-  box-shadow: 0 0 8px #a855f7;
+  background: var(--neon-purple);
+  box-shadow: 0 0 8px var(--neon-purple);
+}
+
+.live-dot-cyan {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px var(--neon-cyan);
+}
+
+.live-dot-orange {
+  background: var(--neon-orange);
+  box-shadow: 0 0 8px var(--neon-orange);
+}
+
+.live-dot-indigo {
+  background: var(--neon-indigo);
+  box-shadow: 0 0 8px var(--neon-indigo);
 }
 
 .widget-timestamp {
@@ -443,6 +482,30 @@
 .sys-key-red { color: var(--neon-red); }
 .sys-key-purple { color: var(--neon-purple); }
 
+.sys-val-purple { color: var(--neon-purple); }
+.sys-val-blue { color: var(--neon-blue); }
+
+.sys-dot-cyan {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 8px var(--neon-cyan);
+}
+.sys-key-cyan { color: var(--neon-cyan); }
+.sys-val-cyan { color: var(--neon-cyan); }
+
+.sys-dot-orange {
+  background: var(--neon-orange);
+  box-shadow: 0 0 8px var(--neon-orange);
+}
+.sys-key-orange { color: var(--neon-orange); }
+.sys-val-orange { color: var(--neon-orange); }
+
+.sys-dot-indigo {
+  background: var(--neon-indigo);
+  box-shadow: 0 0 8px var(--neon-indigo);
+}
+.sys-key-indigo { color: var(--neon-indigo); }
+.sys-val-indigo { color: var(--neon-indigo); }
+
 /* ===== 4. COMMAND BAR ===== */
 /* (styles in layout.css: .top-bar, .top-bar-title, .top-bar-clock) */
 
@@ -707,7 +770,7 @@
 .sleep-moon-hero {
   font-size: var(--font-size-2xl);
   font-weight: 700;
-  color: #a855f7;
+  color: var(--neon-purple);
   text-shadow: 0 0 16px rgba(168,85,247,0.6), 0 0 40px rgba(168,85,247,0.25);
   line-height: 1;
   margin-bottom: 6px;
@@ -733,13 +796,13 @@
 .sleep-moon-score-fill {
   height: 100%;
   border-radius: 2px;
-  background: linear-gradient(90deg, var(--neon-blue), #a855f7);
+  background: linear-gradient(90deg, var(--neon-blue), var(--neon-purple));
   animation: sleepMoonScoreFill 1.2s ease-out both;
 }
 .sleep-moon-score-val {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #a855f7;
+  color: var(--neon-purple);
 }
 .sleep-moon-pills {
   display: flex;
@@ -774,7 +837,7 @@
   font-style: italic;
 }
 .sleep-moon-insight span {
-  color: #a855f7;
+  color: var(--neon-purple);
 }
 
 /* ===== 9. HYDRATION ===== */

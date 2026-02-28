@@ -86,6 +86,33 @@ import Showcase from '../layouts/Showcase.astro';
         </div>
 
         <div class="swatch">
+          <div class="swatch-color" style="background: #00d4ff;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Neon Cyan</div>
+            <div class="swatch-hex">#00d4ff</div>
+            <div class="swatch-var">--neon-cyan</div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #ff6b00;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Neon Orange</div>
+            <div class="swatch-hex">#ff6b00</div>
+            <div class="swatch-var">--neon-orange</div>
+          </div>
+        </div>
+
+        <div class="swatch">
+          <div class="swatch-color" style="background: #818cf8;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Neon Indigo</div>
+            <div class="swatch-hex">#818cf8</div>
+            <div class="swatch-var">--neon-indigo</div>
+          </div>
+        </div>
+
+        <div class="swatch">
           <div class="swatch-color" style="background: rgba(255,255,255,0.07); border-bottom: 1px solid rgba(255,255,255,0.06);"></div>
           <div class="swatch-info">
             <div class="swatch-name">Glass</div>
@@ -199,7 +226,60 @@ import Showcase from '../layouts/Showcase.astro';
         <div class="glow-sample" style="background: var(--neon-green); box-shadow: var(--glow-green); color: #06060f;">Green</div>
         <div class="glow-sample" style="background: var(--neon-amber); box-shadow: var(--glow-amber); color: #06060f;">Amber</div>
         <div class="glow-sample" style="background: var(--neon-purple); box-shadow: var(--glow-purple); color: #fff;">Purple</div>
-        <div class="glow-sample" style="background: var(--neon-red); box-shadow: 0 0 20px rgba(239,68,68,0.3), 0 0 40px rgba(239,68,68,0.15); color: #fff;">Red</div>
+        <div class="glow-sample" style="background: var(--neon-red); box-shadow: var(--glow-red); color: #fff;">Red</div>
+        <div class="glow-sample" style="background: var(--neon-cyan); box-shadow: var(--glow-cyan); color: #06060f;">Cyan</div>
+        <div class="glow-sample" style="background: var(--neon-orange); box-shadow: var(--glow-orange); color: #fff;">Orange</div>
+        <div class="glow-sample" style="background: var(--neon-indigo); box-shadow: var(--glow-indigo); color: #fff;">Indigo</div>
+      </div>
+    </section>
+
+    <!-- ===== SURFACE ELEVATION ===== -->
+    <section class="brand-section">
+      <h2 class="brand-section-title">Surface Elevation</h2>
+      <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+        <div class="glass-panel" style="background: var(--glass-bg-inset); border: 1px solid var(--glass-border); flex: 1; min-width: 140px;">
+          Inset (0.03)
+        </div>
+        <div class="glass-panel" style="background: var(--glass-bg); border: 1px solid var(--glass-border); flex: 1; min-width: 140px;">
+          Default (0.07)
+        </div>
+        <div class="glass-panel" style="background: var(--glass-bg-raised); border: 1px solid var(--glass-border-strong); flex: 1; min-width: 140px;">
+          Raised (0.11)
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== HIGH-CONTRAST VARIANTS ===== -->
+    <section class="brand-section">
+      <h2 class="brand-section-title">High-Contrast Variants</h2>
+      <p style="color: var(--text-muted); font-size: var(--font-size-base); margin-bottom: 16px;">
+        AAA-compliant alternatives for small text or prefers-contrast: more contexts.
+      </p>
+      <div class="swatch-grid">
+        <div class="swatch">
+          <div class="swatch-color" style="background: #ff69b4;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Pink HC</div>
+            <div class="swatch-hex">#ff69b4 (7.62:1)</div>
+            <div class="swatch-var">--neon-pink-hc</div>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #c084fc;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Purple HC</div>
+            <div class="swatch-hex">#c084fc (7.64:1)</div>
+            <div class="swatch-var">--neon-purple-hc</div>
+          </div>
+        </div>
+        <div class="swatch">
+          <div class="swatch-color" style="background: #f87171;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Red HC</div>
+            <div class="swatch-hex">#f87171 (7.29:1)</div>
+            <div class="swatch-var">--neon-red-hc</div>
+          </div>
+        </div>
       </div>
     </section>
 
