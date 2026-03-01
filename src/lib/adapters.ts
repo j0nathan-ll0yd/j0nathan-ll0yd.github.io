@@ -310,7 +310,7 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
   for (const b of rawBooks) {
     if (b.asin) {
       bookMeta[b.asin] = {
-        seriesName: b.seriesName ?? b.series ?? null,
+        seriesName: b.series ?? null,
         seriesNumber: b.seriesNumber ?? null,
         seriesTotal: b.seriesTotal ?? null,
         pages: b.totalPages ?? b.pageCount ?? null,
@@ -346,7 +346,7 @@ export function adaptArticles(data: ArticlesExport | null): AdaptedArticle[] {
   return data.articles
     .slice()
     .sort((a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime())
-    .slice(0, 10)
+    .slice(0, 30)
     .map((a) => {
       const msAgo = now - new Date(a.savedAt).getTime();
       const minutesAgo = Math.floor(msAgo / 60000);

@@ -280,6 +280,7 @@ export function updateReadingFeed(articles: AdaptedArticle[]): void {
   let currentPage = 1;
 
   function renderPage(page: number): void {
+    if (!body) return;
     const start = (page - 1) * PAGE_SIZE;
     const pageArticles = articles.slice(start, start + PAGE_SIZE);
 
