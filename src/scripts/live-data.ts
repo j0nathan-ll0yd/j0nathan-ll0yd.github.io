@@ -11,9 +11,10 @@ import {
   updateDevActivityLog,
   updateReadingFeed,
   updateSystemStatus,
+  updateLocation,
 } from '../lib/updaters';
 
-const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading'];
+const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading', 'cardLocation'];
 
 initDevMode();
 
@@ -82,6 +83,14 @@ setTimeout(async () => {
       updateReadingFeed(adaptArticles(data.articles));
     } catch (e) {
       console.warn('[live-data] Articles update failed:', e);
+    }
+  }
+
+  if (data.location) {
+    try {
+      updateLocation(data.location);
+    } catch (e) {
+      console.warn('[live-data] Location update failed:', e);
     }
   }
 

@@ -1,6 +1,7 @@
 import { classifyHeartRate, buildECGPath, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
 import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
+import type { LocationExport } from '../types/exports';
 
 const ACCENT_CLASSES = [
   'tri-card-accent-pink', 'tri-card-accent-blue', 'tri-card-accent-green',
@@ -375,6 +376,57 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
       valEl.textContent = 'OFFLINE';
     }
   });
+}
+
+export function updateLocation(data: LocationExport): void {
+  const card = document.getElementById('cardLocation');
+  if (!card) return;
+
+  // Top city
+  const topCity = data.cityBreakdown[0]?.city ?? null;
+  const cityEl = card.querySelector('[data-loc="city"]');
+  if (cityEl && topCity) cityEl.textContent = topCity;
+
+  // Total visits
+  const totalVisitsEl = card.querySelector('[data-loc="total-visits"]');
+  if (totalVisitsEl) totalVisitsEl.textContent = String(data.totalVisits);
+
+  // Top places (up to 3)
+  const placesList = card.querySelector('[data-loc="places-list"]');
+  if (placesList && data.topPlaces.length > 0) {
+    placesList.innerHTML = data.topPlaces.slice(0, 3).map((p, i) => {
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
+      const cat = p.category ? `<span class="loc-place-cat">${esc(p.category)}</span>` : '';
+      return `<div class="loc-place-row">
+        <span class="loc-place-medal">${medal}</span>
+        <span class="loc-place-name">${esc(p.name)}</span>${cat}
+        <span class="loc-place-count">${p.visitCount}v</span>
+      </div>`;
+    }).join('');
+  }
+
+  // 30-day activity heatmap (last 30 of last90Days)
+  const heatmapEl = card.querySelector('[data-loc="heatmap"]');
+  if (heatmapEl && data.last90Days.length > 0) {
+    const days = data.last90Days.slice(-30);
+    const maxCount = Math.max(...days.map(d => d.count), 1);
+    heatmapEl.innerHTML = days.map(d => {
+      const intensity = d.count / maxCount;
+      const opacity = d.count === 0 ? 0.08 : 0.2 + intensity * 0.8;
+      const title = `${d.date}: ${d.count} visits`;
+      return `<div class="loc-heat-cell" style="opacity:${opacity.toFixed(2)}" title="${esc(title)}"></div>`;
+    }).join('');
+  }
+
+  // City breakdown (top 3)
+  const cityListEl = card.querySelector('[data-loc="city-list"]');
+  if (cityListEl && data.cityBreakdown.length > 0) {
+    cityListEl.innerHTML = data.cityBreakdown.slice(0, 3).map(c =>
+      `<div class="loc-city-row"><span class="loc-city-name">${esc(c.city)}</span><span class="loc-city-count">${c.visitCount}</span></div>`
+    ).join('');
+  }
+
+  card.classList.remove('is-loading');
 }
 
 function formatRelativeTime(isoString: string): string {

@@ -131,3 +131,25 @@ export interface WorkoutsExport {
   }[];
 }
 
+export interface LocationExport {
+  generatedAt: string;
+  totalVisits: number;
+  last90Days: {
+    date: string;
+    count: number;
+    uniquePlaces: number;
+    totalDurationMinutes: number;
+  }[];
+  topPlaces: {
+    name: string;
+    category: string | null;
+    visitCount: number;
+    totalDurationMinutes: number;
+    lastVisitAt: string | null;
+  }[];
+  cityBreakdown: {
+    city: string;
+    visitCount: number;
+  }[];
+}
+

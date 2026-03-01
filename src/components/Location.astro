@@ -1,67 +1,198 @@
 ---
-const { profile } = Astro.props;
-const city = profile.location.split(',')[0];
-const lat = profile.coordinates[0];
-const lng = profile.coordinates[1];
-const coordStr = lat.toFixed(4) + '\u00b0N, ' + Math.abs(lng).toFixed(4) + '\u00b0W';
+// Location card — displays aggregated visit stats fetched from CloudFront
+// No raw coordinates are shown — only place names and city-level data
 ---
 <div class="tri-card tri-card-accent-pink" id="cardLocation">
   <div class="widget-header">
-    <h3 class="widget-label">Current Location</h3>
+    <h3 class="widget-label">Location</h3>
     <div class="widget-header-right">
       <div class="live-dot"></div>
       <span class="widget-timestamp">live</span>
     </div>
   </div>
   <div class="widget-body">
-    <div class="loc-city-name">{city}</div>
-    <div class="loc-coordinates">{coordStr}</div>
-    <div class="map-wrapper">
-      <div id="leafletMap" style="width:100%;height:100%;"></div>
-      <div class="map-overlay"></div>
+    <div class="skeleton-state">
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="skeleton-bar" style="width: 120px; height: 24px;"></div>
+        <div class="skeleton-bar" style="width: 80px; height: 12px;"></div>
+        <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+          {Array.from({length: 30}).map(() => (
+            <div class="skeleton-bar" style="width: 14px; height: 14px; border-radius: 2px;"></div>
+          ))}
+        </div>
+        <div class="skeleton-bar" style="width: 160px; height: 12px;"></div>
+        <div class="skeleton-bar" style="width: 140px; height: 12px;"></div>
+        <div class="skeleton-bar" style="width: 150px; height: 12px;"></div>
+      </div>
     </div>
-    <div class="map-meta-row">
-      <span>ZOOM: <span class="map-meta-value">13</span></span>
-      <span>TILE: <span class="map-meta-value">DARK MATTER</span></span>
-      <span>SRC: <span class="map-meta-value">OSM</span></span>
+
+    <div class="loc-content">
+      <div class="loc-hero-row">
+        <div class="loc-city-name" data-loc="city">—</div>
+        <div class="loc-visits-badge">
+          <span class="loc-visits-value" data-loc="total-visits">—</span>
+          <span class="loc-visits-label">visits (90d)</span>
+        </div>
+      </div>
+
+      <div class="loc-section-label">Activity</div>
+      <div class="loc-heatmap" data-loc="heatmap">
+        {Array.from({length: 30}).map(() => (
+          <div class="loc-heat-cell" style="opacity:0.08"></div>
+        ))}
+      </div>
+
+      <div class="loc-section-label">Top Places</div>
+      <div class="loc-places-list" data-loc="places-list">
+        <div class="loc-place-row loc-placeholder">
+          <span class="loc-place-name">—</span>
+        </div>
+      </div>
+
+      <div class="loc-section-label">Cities</div>
+      <div class="loc-city-list" data-loc="city-list">
+        <div class="loc-city-row loc-placeholder">
+          <span class="loc-city-name">—</span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<script is:inline define:vars={{ lat, lng }}>
-(function() {
-  if (typeof L === 'undefined') {
-    window.addEventListener('load', init);
-  } else {
-    init();
+<style>
+  .loc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
-  function init() {
-    var el = document.getElementById('leafletMap');
-    if (!el || typeof L === 'undefined') return;
-    var map = L.map('leafletMap', {
-      center: [lat, lng],
-      zoom: 13,
-      zoomControl: false,
-      attributionControl: false,
-      dragging: false,
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      touchZoom: false,
-      boxZoom: false,
-      keyboard: false
-    });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd',
-      maxZoom: 19
-    }).addTo(map);
-    var pulseIcon = L.divIcon({
-      className: '',
-      html: '<div class="map-marker-pulse"><div class="map-marker-ring"></div><div class="map-marker-dot"></div></div>',
-      iconSize: [16, 16],
-      iconAnchor: [8, 8]
-    });
-    L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
-    setTimeout(function() { map.invalidateSize(); }, 300);
+
+  .loc-hero-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
   }
-})();
-</script>
+
+  .loc-city-name {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--neon-pink, #ff2d78);
+    text-shadow: 0 0 10px rgba(255, 45, 120, 0.5);
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .loc-visits-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+  }
+
+  .loc-visits-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--neon-blue, #00d4ff);
+    line-height: 1;
+  }
+
+  .loc-visits-label {
+    font-size: 0.6rem;
+    color: var(--text-muted, rgba(255,255,255,0.4));
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .loc-section-label {
+    font-size: 0.6rem;
+    color: var(--text-muted, rgba(255,255,255,0.4));
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+
+  .loc-heatmap {
+    display: grid;
+    grid-template-columns: repeat(30, 1fr);
+    gap: 2px;
+  }
+
+  .loc-heat-cell {
+    height: 14px;
+    border-radius: 2px;
+    background-color: var(--neon-green, #00ff88);
+    transition: opacity 0.3s ease;
+  }
+
+  .loc-heat-cell:hover {
+    opacity: 1 !important;
+    box-shadow: 0 0 6px rgba(0, 255, 136, 0.8);
+  }
+
+  .loc-places-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .loc-place-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
+  .loc-place-medal {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  .loc-place-name {
+    flex: 1;
+    color: var(--text-primary, rgba(255,255,255,0.9));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .loc-place-cat {
+    font-size: 0.65rem;
+    color: var(--text-muted, rgba(255,255,255,0.4));
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+  }
+
+  .loc-place-count {
+    font-size: 0.7rem;
+    color: var(--neon-blue, #00d4ff);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .loc-city-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .loc-city-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+  }
+
+  .loc-city-count {
+    color: var(--neon-pink, #ff2d78);
+    font-weight: 600;
+    font-size: 0.7rem;
+  }
+
+  .loc-placeholder {
+    opacity: 0.3;
+  }
+</style>

@@ -24,4 +24,5 @@ export const ENDPOINTS = {
   starredRepos: '/github-starred-repos.json',
   githubEvents: '/github-events.json',
   articles: '/articles.json',
+  location: '/location.json',
 } as const;

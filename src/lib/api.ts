@@ -1,5 +1,5 @@
 import { CLOUDFRONT_BASE, ENDPOINTS } from './constants';
-import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport } from '../types/exports';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport } from '../types/exports';
 
 // In dev mode, Vite proxies /api/live/* to CloudFront to avoid CORS issues.
 // In production, fetch directly from CloudFront (CORS allows j0nathan-ll0yd.github.io).
@@ -12,6 +12,7 @@ export interface FetchResult {
   books: BooksExport | null;
   githubEvents: GithubEventsExport | null;
   articles: ArticlesExport | null;
+  location: LocationExport | null;
   timestamps: Record<string, string | null>;
 }
 
@@ -32,7 +33,7 @@ async function fetchWithTimeout<T>(url: string, timeoutMs: number = 5000): Promi
 export async function fetchAllEndpoints(): Promise<FetchResult> {
   // starredRepos is fetched solely for its generatedAt timestamp (System Status widget).
   // Its payload is not used elsewhere — StarredRepoList is build-time only.
-  const [health, sleep, workouts, books, githubEvents, starredRepos, articles] = await Promise.all([
+  const [health, sleep, workouts, books, githubEvents, starredRepos, articles, location] = await Promise.all([
     fetchWithTimeout<HealthExport>(BASE + ENDPOINTS.health),
     fetchWithTimeout<SleepExport>(BASE + ENDPOINTS.sleep),
     fetchWithTimeout<WorkoutsExport>(BASE + ENDPOINTS.workouts),
@@ -40,10 +41,11 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     fetchWithTimeout<GithubEventsExport>(BASE + ENDPOINTS.githubEvents),
     fetchWithTimeout<{ generatedAt: string }>(BASE + ENDPOINTS.starredRepos),
     fetchWithTimeout<ArticlesExport>(BASE + ENDPOINTS.articles),
+    fetchWithTimeout<LocationExport>(BASE + ENDPOINTS.location),
   ]);
 
   return {
-    health, sleep, workouts, books, githubEvents, articles,
+    health, sleep, workouts, books, githubEvents, articles, location,
     timestamps: {
       health: health?.generatedAt ?? null,
       sleep: sleep?.generatedAt ?? null,
@@ -51,6 +53,7 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
       githubEvents: githubEvents?.generatedAt ?? null,
       starredRepos: starredRepos?.generatedAt ?? null,
       articles: articles?.generatedAt ?? null,
+      location: location?.generatedAt ?? null,
     },
   };
 }
