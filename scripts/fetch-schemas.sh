@@ -15,6 +15,7 @@ SCHEMAS=(
   "github-events-export.schema.json"
   "github-starred-repos-export.schema.json"
   "articles-export.schema.json"
+  "location-export.schema.json"
 )
 
 DEST="$(dirname "$0")/../schemas"
