@@ -11,6 +11,9 @@ import Workouts from '../components/Workouts.astro';
 import NightSummary from '../components/NightSummary.astro';
 import Hydration from '../components/Hydration.astro';
 import Location from '../components/Location.astro';
+import ContributionGraph from '../components/location/ContributionGraph.astro';
+import WeeklyPulse from '../components/location/WeeklyPulse.astro';
+import ExplorerRadar from '../components/location/ExplorerRadar.astro';
 import StarredRepoList from '../components/github/StarredRepoList.astro';
 import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
 import DevActivityLog from '../components/github/DevActivityLog.astro';
@@ -105,14 +108,17 @@ try {
           <NightSummary health={health} />
           <Hydration health={health} />
           <Location profile={profile} />
+          <ContributionGraph />
+          <WeeklyPulse />
+          <ExplorerRadar />
         </section>
 
         <!-- COLUMN 2: MIND -->
         <section class="triptych-column triptych-column-mind" aria-label="Mind">
           <h2 class="column-header column-header-green">Mind</h2>
-          <StarredRepoList repos={starredRepos} />
           <DevActivityLog events={github.devActivity} />
           <ReadingFeed reading={reading} />
+          <StarredRepoList repos={starredRepos} />
           <Bookshelf books={books} />
         </section>
 

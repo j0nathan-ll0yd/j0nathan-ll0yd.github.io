@@ -134,6 +134,11 @@ export interface WorkoutsExport {
 export interface LocationExport {
   generatedAt: string;
   totalVisits: number;
+  totalPlaces: number;
+  totalDurationHours: number;
+  citiesVisited: number;
+  currentCity: string | null;
+  lastSeen: string | null;
   last90Days: {
     date: string;
     count: number;
@@ -151,5 +156,20 @@ export interface LocationExport {
     city: string;
     visitCount: number;
   }[];
+  categoryBreakdown: {
+    category: string;
+    visitCount: number;
+    totalMinutes: number;
+  }[];
+  streaks: {
+    currentStreak: number;
+    longestStreak: number;
+    totalActiveDays: number;
+  };
+  explorationStats: {
+    totalNeighborhoods: number;
+    totalCities: number;
+    totalStates: number;
+  };
 }
 

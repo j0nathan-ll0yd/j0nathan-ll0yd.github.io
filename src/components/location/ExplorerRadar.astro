@@ -1,0 +1,268 @@
+---
+// ExplorerRadar.astro — Animated CSS radar/sonar with category blips
+// No raw coordinates — only aggregated place category data
+---
+<div class="tri-card tri-card-accent-blue" id="cardExplorerRadar">
+  <div class="widget-header">
+    <h3 class="widget-label">Explorer Radar</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">live</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div class="er-skeleton-radar">
+        <div class="er-skeleton-ring er-skeleton-ring-1"></div>
+        <div class="er-skeleton-ring er-skeleton-ring-2"></div>
+        <div class="er-skeleton-ring er-skeleton-ring-3"></div>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+        <div class="skeleton-bar" style="width: 60px; height: 12px;"></div>
+        <div class="skeleton-bar" style="width: 70px; height: 12px;"></div>
+        <div class="skeleton-bar" style="width: 55px; height: 12px;"></div>
+      </div>
+    </div>
+
+    <div class="er-content">
+      <div class="er-radar-wrapper">
+        <svg
+          class="er-svg"
+          viewBox="0 0 200 200"
+          data-loc="radar-svg"
+          aria-hidden="true"
+        >
+          <defs>
+            <radialGradient id="sweepGradient" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="rgba(0,212,255,0)" />
+              <stop offset="100%" stop-color="rgba(0,212,255,0)" />
+            </radialGradient>
+            <clipPath id="radarClip">
+              <circle cx="100" cy="100" r="90" />
+            </clipPath>
+          </defs>
+
+          <!-- Background circle -->
+          <circle cx="100" cy="100" r="90" fill="rgba(0,0,0,0.3)" stroke="rgba(0,212,255,0.1)" stroke-width="1" />
+
+          <!-- Concentric rings -->
+          <circle cx="100" cy="100" r="30" fill="none" stroke="rgba(0,212,255,0.15)" stroke-width="1" />
+          <circle cx="100" cy="100" r="60" fill="none" stroke="rgba(0,212,255,0.15)" stroke-width="1" />
+          <circle cx="100" cy="100" r="90" fill="none" stroke="rgba(0,212,255,0.15)" stroke-width="1" />
+
+          <!-- Cross hairs -->
+          <line x1="100" y1="10" x2="100" y2="190" stroke="rgba(0,212,255,0.08)" stroke-width="1" />
+          <line x1="10" y1="100" x2="190" y2="100" stroke="rgba(0,212,255,0.08)" stroke-width="1" />
+
+          <!-- Rotating sweep (clip to circle) -->
+          <g clip-path="url(#radarClip)">
+            <g class="er-sweep" data-loc="radar-sweep">
+              <!-- Sweep wedge using a conic-gradient approximation in SVG -->
+              <path
+                d="M 100 100 L 100 10 A 90 90 0 0 1 145 117 Z"
+                fill="url(#sweepFade)"
+                opacity="0.7"
+              />
+              <!-- Sweep line -->
+              <line
+                x1="100" y1="100"
+                x2="100" y2="10"
+                stroke="var(--neon-blue, #00d4ff)"
+                stroke-width="1.5"
+                opacity="0.9"
+              />
+            </g>
+          </g>
+
+          <!-- Category blips (will be replaced by updater) -->
+          <g class="er-blips" data-loc="radar-blips">
+            <circle class="er-blip er-blip--placeholder" cx="100" cy="55" r="4" opacity="0" />
+          </g>
+
+          <!-- Center dot and count -->
+          <circle cx="100" cy="100" r="4" fill="var(--neon-blue, #00d4ff)" opacity="0.8" />
+          <text
+            x="100" y="118"
+            class="er-center-text"
+            text-anchor="middle"
+            data-loc="radar-center"
+          >—</text>
+
+          <!-- Sweep gradient definition -->
+          <defs>
+            <linearGradient id="sweepFade" x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+              <stop offset="0%" stop-color="rgba(0,212,255,0.3)" />
+              <stop offset="100%" stop-color="rgba(0,212,255,0.0)" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <!-- Category labels around radar -->
+        <div class="er-labels" data-loc="radar-labels">
+          <!-- Populated by updater -->
+        </div>
+      </div>
+
+      <div class="er-category-list" data-loc="radar-category-list">
+        <div class="er-category-row er-placeholder">
+          <span class="er-category-dot" style="background: var(--neon-blue, #00d4ff);"></span>
+          <span class="er-category-name">—</span>
+          <span class="er-category-count">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .er-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .er-radar-wrapper {
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+
+  .er-svg {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    display: block;
+    overflow: visible;
+  }
+
+  .er-center-text {
+    fill: var(--neon-blue, #00d4ff);
+    font-size: 10px;
+    font-weight: 700;
+    text-shadow: 0 0 6px rgba(0, 212, 255, 0.8);
+  }
+
+  /* Rotating sweep */
+  .er-sweep {
+    transform-origin: 100px 100px;
+    animation: radar-sweep 4s linear infinite;
+  }
+
+  @keyframes radar-sweep {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* Blip pulse */
+  .er-blip {
+    fill: var(--neon-blue, #00d4ff);
+    animation: blip-pulse 2s ease-in-out infinite;
+  }
+
+  .er-blip--placeholder {
+    animation: none;
+  }
+
+  @keyframes blip-pulse {
+    0%, 100% {
+      opacity: 0.9;
+      r: 4;
+      filter: drop-shadow(0 0 4px rgba(0, 212, 255, 0.9));
+    }
+    50% {
+      opacity: 0.4;
+      r: 5;
+      filter: drop-shadow(0 0 8px rgba(0, 212, 255, 0.5));
+    }
+  }
+
+  /* Labels overlay */
+  .er-labels {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .er-label {
+    position: absolute;
+    font-size: 0.6rem;
+    color: var(--neon-blue, #00d4ff);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    text-shadow: 0 0 4px rgba(0, 212, 255, 0.6);
+    transform: translate(-50%, -50%);
+  }
+
+  /* Category list below radar */
+  .er-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .er-category-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+  }
+
+  .er-category-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .er-category-name {
+    flex: 1;
+    color: var(--text-primary, rgba(255,255,255,0.9));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .er-category-count {
+    font-size: 0.7rem;
+    color: var(--neon-blue, #00d4ff);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  .er-placeholder {
+    opacity: 0.3;
+  }
+
+  /* Skeleton radar */
+  .er-skeleton-radar {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto;
+  }
+
+  .er-skeleton-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .er-skeleton-ring-1 {
+    width: 40px;
+    height: 40px;
+  }
+
+  .er-skeleton-ring-2 {
+    width: 80px;
+    height: 80px;
+  }
+
+  .er-skeleton-ring-3 {
+    width: 120px;
+    height: 120px;
+  }
+</style>

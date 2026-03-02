@@ -430,6 +430,221 @@ export function updateLocation(data: LocationExport): void {
   card.classList.remove('is-loading');
 }
 
+export function updateContributionGraph(data: LocationExport): void {
+  const card = document.getElementById('cardContributionGraph');
+  if (!card) return;
+
+  const grid = card.querySelector<HTMLElement>('[data-loc="contrib-grid"]');
+  if (!grid) return;
+
+  // Build a map of date -> day data for quick lookup
+  const dayMap = new Map<string, { count: number; uniquePlaces: number }>();
+  for (const d of data.last90Days) {
+    dayMap.set(d.date, { count: d.count, uniquePlaces: d.uniquePlaces });
+  }
+
+  // Build array of 91 days ending today (newest = index 90)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Find the Monday that starts our 13-week grid (91 days back, aligned to Monday)
+  const startDate = new Date(today);
+  // Go back 90 days, then rewind to the preceding Monday
+  startDate.setDate(startDate.getDate() - 90);
+  const dayOfWeek = startDate.getDay(); // 0=Sun, 1=Mon, ...
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  startDate.setDate(startDate.getDate() - daysToMonday);
+
+  // Build 91 cells (13 cols x 7 rows = Mon-Sun columns)
+  const cells: { date: Date; dateStr: string; count: number; uniquePlaces: number }[] = [];
+  for (let i = 0; i < 91; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    const day = dayMap.get(iso);
+    cells.push({ date: d, dateStr: iso, count: day?.count ?? 0, uniquePlaces: day?.uniquePlaces ?? 0 });
+  }
+
+  const maxCount = Math.max(...cells.map(c => c.count), 1);
+
+  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // Replace grid cells
+  grid.innerHTML = cells.map(c => {
+    const opacity = c.count === 0 ? 0.08 : 0.2 + (c.count / maxCount) * 0.8;
+    const dayName = DAY_NAMES[c.date.getDay()];
+    const monthName = MONTH_NAMES[c.date.getMonth()];
+    const dayNum = c.date.getDate();
+    const title = `${dayName} ${monthName} ${dayNum}: ${c.count} visit${c.count !== 1 ? 's' : ''}, ${c.uniquePlaces} place${c.uniquePlaces !== 1 ? 's' : ''}`;
+    return `<div class="contrib-cell" style="opacity:${opacity.toFixed(2)}" title="${esc(title)}"></div>`;
+  }).join('');
+
+  // Update month labels (one per column = one per week)
+  const monthsEl = card.querySelector<HTMLElement>('[data-loc="contrib-months"]');
+  if (monthsEl) {
+    const monthLabels: string[] = [];
+    for (let col = 0; col < 13; col++) {
+      const firstDayOfCol = cells[col * 7];
+      if (firstDayOfCol) {
+        monthLabels.push(MONTH_NAMES[firstDayOfCol.date.getMonth()]!);
+      } else {
+        monthLabels.push('');
+      }
+    }
+    monthsEl.innerHTML = monthLabels.map(m => `<span class="cg-month-label">${esc(m)}</span>`).join('');
+  }
+
+  const totalVisits = cells.reduce((sum, c) => sum + c.count, 0);
+  const activeDays = cells.filter(c => c.count > 0).length;
+
+  const totalEl = card.querySelector('[data-loc="contrib-total"]');
+  if (totalEl) totalEl.textContent = String(totalVisits);
+
+  const activeDaysEl = card.querySelector('[data-loc="contrib-active-days"]');
+  if (activeDaysEl) activeDaysEl.textContent = String(activeDays);
+
+  card.classList.remove('is-loading');
+}
+
+export function updateWeeklyPulse(data: LocationExport): void {
+  const card = document.getElementById('cardWeeklyPulse');
+  if (!card) return;
+
+  // Group last90Days into ISO weeks (Mon-Sun), take last 12
+  const weekMap = new Map<string, number>();
+  for (const d of data.last90Days) {
+    const date = new Date(d.date);
+    // ISO week key: find the Monday of this week
+    const day = date.getDay();
+    const daysToMon = day === 0 ? 6 : day - 1;
+    const mon = new Date(date);
+    mon.setDate(mon.getDate() - daysToMon);
+    const key = mon.toISOString().slice(0, 10);
+    weekMap.set(key, (weekMap.get(key) ?? 0) + d.count);
+  }
+
+  const sortedWeeks = [...weekMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  const weeks = sortedWeeks.slice(-12);
+
+  if (weeks.length === 0) {
+    card.classList.remove('is-loading');
+    return;
+  }
+
+  const counts = weeks.map(([, count]) => count);
+  const maxCount = Math.max(...counts, 1);
+  const minCount = Math.min(...counts);
+
+  const W = 300;
+  const H = 80;
+  const padding = 4;
+
+  // Build polyline points
+  const points = counts.map((count, i) => {
+    const x = padding + (i / (counts.length - 1 || 1)) * (W - padding * 2);
+    // Invert Y so peaks go up
+    const normalised = maxCount === minCount ? 0.5 : (count - minCount) / (maxCount - minCount);
+    const y = H - padding - normalised * (H - padding * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const pointsStr = points.join(' ');
+
+  // Add a closing point at bottom for fill
+  const firstX = padding;
+  const lastX = padding + (W - padding * 2);
+  const fillPoints = `${firstX},${H} ${pointsStr} ${lastX},${H}`;
+
+  const pathEl = card.querySelector<SVGPolylineElement>('[data-loc="pulse-path"]');
+  if (pathEl) pathEl.setAttribute('points', pointsStr);
+
+  const fillEl = card.querySelector<SVGPolylineElement>('[data-loc="pulse-fill"]');
+  if (fillEl) fillEl.setAttribute('points', fillPoints);
+
+  // Current week = last week in array
+  const currentWeekCount = counts[counts.length - 1] ?? 0;
+  const avgCount = Math.round(counts.reduce((s, c) => s + c, 0) / counts.length);
+
+  const currentEl = card.querySelector('[data-loc="pulse-current"]');
+  if (currentEl) currentEl.textContent = String(currentWeekCount);
+
+  const avgEl = card.querySelector('[data-loc="pulse-avg"]');
+  if (avgEl) avgEl.textContent = String(avgCount);
+
+  card.classList.remove('is-loading');
+}
+
+export function updateExplorerRadar(data: LocationExport): void {
+  const card = document.getElementById('cardExplorerRadar');
+  if (!card) return;
+
+  const blipsEl = card.querySelector<SVGGElement>('[data-loc="radar-blips"]');
+  const labelsEl = card.querySelector<HTMLElement>('[data-loc="radar-labels"]');
+  const centerEl = card.querySelector<SVGTextElement>('[data-loc="radar-center"]');
+  const categoryListEl = card.querySelector<HTMLElement>('[data-loc="radar-category-list"]');
+
+  const categories = data.categoryBreakdown;
+
+  if (!categories || categories.length === 0) {
+    card.classList.remove('is-loading');
+    return;
+  }
+
+  const maxVisits = Math.max(...categories.map(c => c.visitCount), 1);
+
+  // SVG center and radius
+  const cx = 100;
+  const cy = 100;
+  const maxR = 80; // outer ring radius
+  const minR = 15; // min distance from center
+
+  // Build blips
+  if (blipsEl) {
+    blipsEl.innerHTML = categories.map((cat, i) => {
+      const angle = (i / categories.length) * 2 * Math.PI - Math.PI / 2;
+      // More visits = smaller distance (stronger signal = closer to center)
+      const normalised = cat.visitCount / maxVisits;
+      const r = minR + (1 - normalised) * (maxR - minR);
+      const x = cx + r * Math.cos(angle);
+      const y = cy + r * Math.sin(angle);
+      const blipR = 4 + normalised * 4; // r=4 to r=8
+      return `<circle class="er-blip" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${blipR.toFixed(1)}" title="${esc(cat.category)}"/>`;
+    }).join('');
+  }
+
+  // Build category labels positioned around the radar
+  if (labelsEl) {
+    const wrapperRect = card.querySelector('.er-radar-wrapper')?.getBoundingClientRect();
+    labelsEl.innerHTML = categories.map((cat, i) => {
+      const angle = (i / categories.length) * 2 * Math.PI - Math.PI / 2;
+      // Labels go outside the outer ring
+      const labelR = 54; // percentage of wrapper size; use % positioning
+      // Convert angle to percentage-based positioning within the wrapper
+      const xPct = 50 + labelR * Math.cos(angle);
+      const yPct = 50 + labelR * Math.sin(angle);
+      return `<span class="er-label" style="left:${xPct.toFixed(1)}%;top:${yPct.toFixed(1)}%">${esc(cat.category)}</span>`;
+    }).join('');
+  }
+
+  // Update center text with total visit count
+  const totalVisits = categories.reduce((sum, c) => sum + c.visitCount, 0);
+  if (centerEl) centerEl.textContent = String(categories.length) + ' cats';
+
+  // Build category list below the radar
+  if (categoryListEl) {
+    categoryListEl.innerHTML = categories.slice(0, 6).map(cat => {
+      return `<div class="er-category-row">
+        <span class="er-category-dot" style="background: var(--neon-blue, #00d4ff);"></span>
+        <span class="er-category-name">${esc(cat.category)}</span>
+        <span class="er-category-count">${cat.visitCount}</span>
+      </div>`;
+    }).join('');
+  }
+
+  card.classList.remove('is-loading');
+}
+
 function formatRelativeTime(isoString: string): string {
   const msAgo = Date.now() - new Date(isoString).getTime();
   const minutesAgo = Math.max(0, Math.floor(msAgo / 60000));
