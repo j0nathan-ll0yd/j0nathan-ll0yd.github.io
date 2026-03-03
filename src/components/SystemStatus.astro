@@ -31,7 +31,7 @@ const keyColorMap: Record<string, string> = {
     </div>
   </div>
   <div id="systemStatus">
-    {lines.map((line: any, idx: number) => (
+    {lines.filter((line: any) => import.meta.env.DEV || line.key !== 'Location').map((line: any, idx: number) => (
       <div class="sys-line" data-source={sourceMap[line.key] || ''} style={`animation-delay: ${idx * 0.1}s`}>
         <div class={`sys-dot ${line.dotClass}`} style={`animation-delay: ${idx * 0.3}s`}></div>
         <span class={`sys-key${keyColorMap[line.key] ? ' ' + keyColorMap[line.key] : ''}`}>{line.key}:</span>

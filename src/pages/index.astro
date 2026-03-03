@@ -106,8 +106,8 @@ try {
           <Workouts health={health} />
           <Hydration health={health} />
           <NightSummary health={health} />
-          <PlaceLeaderboardV3 />
-          <ExplorationOdometerV3 />
+          {import.meta.env.DEV && <PlaceLeaderboardV3 />}
+          {import.meta.env.DEV && <ExplorationOdometerV3 />}
         </section>
 
         <!-- COLUMN 2: MIND -->
