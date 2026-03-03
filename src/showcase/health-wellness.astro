@@ -7,11 +7,11 @@ import DailyActivity from '../components/DailyActivity.astro';
 import Workouts from '../components/Workouts.astro';
 import NightSummary from '../components/NightSummary.astro';
 import Hydration from '../components/Hydration.astro';
-import Location from '../components/Location.astro';
+
 
 const dataDir = path.join(process.cwd(), 'data');
 const health = JSON.parse(fs.readFileSync(path.join(dataDir, 'health.json'), 'utf-8'));
-const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
+
 const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json'), 'utf-8'));
 const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
 ---
@@ -874,7 +874,75 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
         <div class="state-column">
           <span class="state-label state-label-active">Active</span>
           <div class="state-render">
-            <Location profile={profile} />
+            <!-- Hand-written: Location component was removed from src/components/ -->
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <h3 class="widget-label">Location</h3>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">live</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="loc-content">
+                  <div class="loc-hero-row">
+                    <div class="loc-city-name">San Francisco</div>
+                    <div class="loc-visits-badge">
+                      <span class="loc-visits-value">142</span>
+                      <span class="loc-visits-label">visits (90d)</span>
+                    </div>
+                  </div>
+                  <div class="loc-section-label">Activity</div>
+                  <div class="loc-heatmap">
+                    <div class="loc-heat-cell" style="opacity:0.08"></div>
+                    <div class="loc-heat-cell" style="opacity:0.2"></div>
+                    <div class="loc-heat-cell" style="opacity:0.5"></div>
+                    <div class="loc-heat-cell" style="opacity:0.3"></div>
+                    <div class="loc-heat-cell" style="opacity:0.08"></div>
+                    <div class="loc-heat-cell" style="opacity:0.7"></div>
+                    <div class="loc-heat-cell" style="opacity:0.4"></div>
+                    <div class="loc-heat-cell" style="opacity:0.1"></div>
+                    <div class="loc-heat-cell" style="opacity:0.9"></div>
+                    <div class="loc-heat-cell" style="opacity:0.6"></div>
+                    <div class="loc-heat-cell" style="opacity:0.3"></div>
+                    <div class="loc-heat-cell" style="opacity:0.08"></div>
+                    <div class="loc-heat-cell" style="opacity:0.5"></div>
+                    <div class="loc-heat-cell" style="opacity:0.2"></div>
+                    <div class="loc-heat-cell" style="opacity:0.8"></div>
+                    <div class="loc-heat-cell" style="opacity:0.4"></div>
+                    <div class="loc-heat-cell" style="opacity:0.1"></div>
+                    <div class="loc-heat-cell" style="opacity:0.6"></div>
+                    <div class="loc-heat-cell" style="opacity:0.3"></div>
+                    <div class="loc-heat-cell" style="opacity:0.08"></div>
+                    <div class="loc-heat-cell" style="opacity:0.5"></div>
+                    <div class="loc-heat-cell" style="opacity:0.7"></div>
+                    <div class="loc-heat-cell" style="opacity:0.2"></div>
+                    <div class="loc-heat-cell" style="opacity:0.4"></div>
+                    <div class="loc-heat-cell" style="opacity:0.08"></div>
+                    <div class="loc-heat-cell" style="opacity:0.9"></div>
+                    <div class="loc-heat-cell" style="opacity:0.3"></div>
+                    <div class="loc-heat-cell" style="opacity:0.6"></div>
+                    <div class="loc-heat-cell" style="opacity:0.1"></div>
+                    <div class="loc-heat-cell" style="opacity:0.5"></div>
+                  </div>
+                  <div class="loc-section-label">Top Places</div>
+                  <div class="loc-places-list">
+                    <div class="loc-place-row">
+                      <span class="loc-place-name">Mission District</span>
+                    </div>
+                    <div class="loc-place-row">
+                      <span class="loc-place-name">SoMa</span>
+                    </div>
+                  </div>
+                  <div class="loc-section-label">Cities</div>
+                  <div class="loc-city-list">
+                    <div class="loc-city-row">
+                      <span class="loc-city-name">San Francisco</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
