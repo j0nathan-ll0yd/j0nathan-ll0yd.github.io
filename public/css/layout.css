@@ -418,7 +418,8 @@
   }
 
   .id-bio {
-    display: none;  /* fully hide only on small mobile */
+    font-size: var(--font-size-xs);
+    width: 100%;
   }
 
   .id-name { font-size: 1.2rem; }
