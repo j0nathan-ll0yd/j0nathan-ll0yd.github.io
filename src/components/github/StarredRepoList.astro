@@ -119,4 +119,15 @@ const { repos } = Astro.props;
     min-width: 72px;
     text-align: right;
   }
+
+  @container (max-width: 350px) {
+    .gh-sl-row { flex-wrap: wrap; gap: 4px 10px; }
+    .gh-sl-name { flex-basis: 100%; }
+    .gh-sl-lang { min-width: auto; }
+    .gh-sl-date { min-width: auto; margin-left: auto; }
+  }
+
+  @container (max-width: 250px) {
+    .gh-sl-lang, .gh-sl-date { display: none; }
+  }
 </style>

@@ -4,7 +4,7 @@
   backdrop-filter: blur(var(--blur-lg));
   -webkit-backdrop-filter: blur(var(--blur-lg));
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
   container-type: inline-size;
   opacity: 0;
@@ -188,8 +188,8 @@
   backdrop-filter: blur(var(--blur-lg));
   -webkit-backdrop-filter: blur(var(--blur-lg));
   border: 1px solid var(--glass-border);
-  border-radius: 20px;
-  padding: 40px 32px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-40) var(--space-32);
   width: 100%;
   max-width: 380px;
   text-align: center;
@@ -206,6 +206,7 @@
 .id-avatar {
   width: 100px;
   height: 100px;
+  aspect-ratio: 1;
   border-radius: 50%;
   border: 3px solid rgba(129,140,248,0.5);
   box-shadow:
@@ -260,20 +261,20 @@
 
 .id-links {
   display: flex;
-  gap: 10px;
+  gap: var(--space-10);
   justify-content: center;
   flex-wrap: wrap;
 }
 
 .neon-pill {
   display: inline-block;
-  padding: 10px 24px;
+  padding: var(--space-10) var(--space-24);
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 50px;
+  border-radius: var(--radius-pill);
   color: var(--text);
   text-decoration: none;
   font-family: 'Space Grotesk', sans-serif;
-  font-size: 0.78rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   letter-spacing: 2px;
   text-transform: uppercase;
@@ -299,18 +300,18 @@
 /* ===== 2. BIO TERMINAL ===== */
 .terminal-container {
   background: rgba(0,0,0,0.5);
-  border-radius: 0 0 20px 20px;
+  border-radius: 0 0 var(--radius-xl) var(--radius-xl);
   overflow: hidden;
   font-family: 'Space Grotesk', monospace;
-  font-size: 0.72rem;
+  font-size: var(--font-size-base);
   line-height: 1.7;
 }
 
 .terminal-titlebar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
+  gap: var(--space-6);
+  padding: var(--space-8) var(--space-12);
   background: rgba(58,134,255,0.06);
   border-bottom: 1px solid rgba(58,134,255,0.08);
 }
@@ -335,7 +336,7 @@
 }
 
 .terminal-body {
-  padding: 14px 14px 16px;
+  padding: var(--space-14) var(--space-14) var(--space-16);
   min-height: 120px;
 }
 
@@ -386,8 +387,8 @@
   backdrop-filter: blur(var(--blur-lg));
   -webkit-backdrop-filter: blur(var(--blur-lg));
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
-  padding: 14px 20px 16px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-14) var(--space-20) var(--space-16);
   opacity: 0;
   transform: translateX(-30px);
   transition: opacity 0.8s ease, transform 0.8s ease;
@@ -433,9 +434,9 @@
 .sys-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   padding: 6px 0;
-  font-size: 0.78rem;
+  font-size: var(--font-size-sm);
   font-family: 'Space Grotesk', monospace;
   border-bottom: 1px solid rgba(255,255,255,0.03);
 }
@@ -531,7 +532,7 @@
 }
 
 .pulse-bpm-unit {
-  font-size: 0.65rem;
+  font-size: var(--font-size-xs);
   font-weight: 400;
   color: var(--text-muted);
   letter-spacing: 2px;
@@ -545,7 +546,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 2px;
-  border-radius: 20px;
+  border-radius: var(--radius-xl);
   padding: 4px 12px;
   margin-top: 4px;
 }
@@ -689,8 +690,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px 0;
-  gap: 12px;
+  padding: var(--space-20) 0;
+  gap: var(--space-12);
 }
 
 .workout-rest-icon {
@@ -700,14 +701,14 @@
 }
 
 .workout-rest-heading {
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
   font-weight: 600;
   color: var(--neon-pink);
   text-shadow: 0 0 12px rgba(255,0,110,0.4);
 }
 
 .workout-rest-sub {
-  font-size: 0.65rem;
+  font-size: var(--font-size-xs);
   color: var(--text-muted);
   letter-spacing: 1px;
 }
@@ -724,8 +725,8 @@
 .workout-sub-card {
   background: rgba(0,0,0,0.25);
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 12px;
-  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-14) var(--space-16);
   margin-bottom: 10px;
 }
 .workout-sub-card:last-child { margin-bottom: 0; }
@@ -733,14 +734,14 @@
 .workout-sub-top {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   margin-bottom: 10px;
 }
 
 .workout-sub-icon { width: 28px; height: 28px; flex-shrink: 0; }
 
 .workout-sub-type {
-  font-size: 0.85rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--neon-pink);
   text-shadow: 0 0 10px rgba(255,0,110,0.4);
@@ -748,7 +749,7 @@
 
 .workout-sub-stats {
   display: flex;
-  gap: 16px;
+  gap: var(--space-16);
   flex-wrap: wrap;
 }
 
@@ -763,7 +764,7 @@
 }
 
 .workout-stat-value {
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--text);
 }
@@ -772,7 +773,7 @@
 .sleep-moon-top {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: var(--space-16);
   margin-bottom: 14px;
 }
 .sleep-moon-wrap {
@@ -792,7 +793,7 @@
 .sleep-moon-score-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .sleep-moon-score-label {
   font-size: var(--font-size-xs);
@@ -814,7 +815,7 @@
   animation: sleepMoonScoreFill 1.2s ease-out both;
 }
 .sleep-moon-score-val {
-  font-size: 0.72rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--neon-purple);
 }
@@ -827,7 +828,7 @@
 .sleep-moon-pill {
   flex: 1;
   min-width: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 4px;
   text-align: center;
   border: 1px solid rgba(255,255,255,0.06);
@@ -841,7 +842,7 @@
   margin-bottom: 2px;
 }
 .sleep-moon-pill-val {
-  font-size: 0.72rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
 }
 .sleep-moon-insight {
@@ -857,7 +858,7 @@
 /* ===== 9. HYDRATION ===== */
 .hydra-layout {
   display: flex;
-  gap: 24px;
+  gap: var(--space-24);
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 4px;
@@ -867,7 +868,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 
 .hydra-bottle {
@@ -991,7 +992,7 @@
 }
 
 .hydra-val {
-  font-size: 1.1rem;
+  font-size: var(--font-size-lg);
   font-weight: 700;
   line-height: 1;
 }
@@ -1090,7 +1091,7 @@
 }
 
 .loc-coordinates {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   font-family: 'Space Grotesk', monospace;
   font-weight: 300;
   color: var(--text-muted);
@@ -1102,7 +1103,7 @@
 .map-wrapper {
   width: 100%;
   height: 160px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   position: relative;
   border: 1px solid rgba(255,0,110,0.12);
@@ -1117,7 +1118,7 @@
   inset: 0;
   z-index: 500;
   pointer-events: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   box-shadow: inset 0 0 40px rgba(6,6,15,0.6);
   border: 1px solid rgba(255,0,110,0.08);
 }
@@ -1199,7 +1200,7 @@
 
 .gh-stats-row {
   display: flex;
-  gap: 24px;
+  gap: var(--space-24);
 }
 
 .gh-stat-value {
@@ -1219,7 +1220,7 @@
 .gh-dal-terminal {
   background: rgba(0,0,0,0.4);
   border: 1px solid rgba(6,214,160,0.1);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   font-family: 'Space Grotesk', monospace;
   font-size: var(--font-size-base);
@@ -1229,7 +1230,7 @@
 .gh-dal-line {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: var(--space-6);
   flex-wrap: nowrap;
   white-space: nowrap;
   overflow: hidden;
@@ -1391,7 +1392,7 @@ a.article-list-title:hover {
 /* ===== 14. BOOKSHELF ===== */
 .shelf-row {
   display: flex;
-  gap: 14px;
+  gap: var(--space-14);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   padding-bottom: 6px;
@@ -1416,7 +1417,7 @@ a.article-list-title:hover {
   animation: shelfFadeIn 0.4s ease-out forwards;
   transition: transform 0.2s ease;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 6px 4px;
 }
 
@@ -1462,6 +1463,7 @@ a.article-list-title:hover {
 .shelf-cover-wrapper img {
   width: 100%;
   height: 100%;
+  aspect-ratio: 2 / 3;
   border-radius: 4px;
   object-fit: cover;
   border: 1px solid rgba(255,255,255,0.08);
@@ -1486,7 +1488,7 @@ a.article-list-title:hover {
 }
 
 .shelf-book-author {
-  font-size: 0.58rem;
+  font-size: var(--font-size-xs);
   font-family: 'Space Grotesk', monospace;
   color: var(--text-muted);
   text-align: center;
@@ -1566,11 +1568,14 @@ a.article-list-title:hover {
   border-radius: clamp(var(--radius-md), 2vw, var(--radius-xl));
   box-shadow: 0 16px 60px rgba(0,0,0,0.6), 0 0 30px rgba(245,158,11,0.1);
   animation: bookModalIn 0.3s ease-out;
+  padding-left: max(var(--space-24), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--space-24), env(safe-area-inset-right, 0px));
+  padding-bottom: max(var(--space-24), env(safe-area-inset-bottom, 0px));
 }
 
 .book-modal-header {
   display: flex;
-  gap: 20px;
+  gap: var(--space-20);
   padding: clamp(18px, 3vw, 28px) clamp(18px, 3vw, 28px) clamp(16px, 2vw, 24px);
   border-bottom: 1px solid rgba(255,255,255,0.04);
   position: relative;
@@ -1579,6 +1584,7 @@ a.article-list-title:hover {
 .book-modal-cover {
   width: 140px;
   height: 210px;
+  aspect-ratio: 2 / 3;
   border-radius: 8px;
   object-fit: cover;
   border: 1px solid rgba(255,255,255,0.1);
@@ -1591,7 +1597,7 @@ a.article-list-title:hover {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
   justify-content: center;
 }
 
@@ -1611,14 +1617,14 @@ a.article-list-title:hover {
 }
 
 .book-modal-author {
-  font-size: 0.78rem;
+  font-size: var(--font-size-sm);
   font-family: 'Space Grotesk', monospace;
   color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 
 .book-modal-stars {
-  font-size: 0.85rem;
+  font-size: var(--font-size-lg);
   letter-spacing: 2px;
   margin-top: 2px;
 }
@@ -1635,7 +1641,7 @@ a.article-list-title:hover {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   color: var(--text-muted);
-  font-size: 0.9rem;
+  font-size: var(--font-size-lg);
   font-family: inherit;
   padding: 0;
   display: flex;
@@ -1650,20 +1656,20 @@ a.article-list-title:hover {
   padding: clamp(16px, 3vw, 24px) clamp(18px, 3vw, 28px) clamp(20px, 3vw, 28px);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-16);
 }
 
 .book-modal-stats {
   display: flex;
-  gap: 10px;
+  gap: var(--space-10);
 }
 
 .book-modal-stat {
   flex: 1;
   text-align: center;
-  padding: 12px 8px;
+  padding: var(--space-12) var(--space-8);
   background: rgba(255,255,255,0.03);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid rgba(255,255,255,0.04);
 }
 
@@ -1701,7 +1707,7 @@ a.article-list-title:hover {
 }
 
 .book-modal-desc {
-  font-size: 0.88rem;
+  font-size: var(--font-size-lg);
   line-height: 1.65;
   color: rgba(255,255,255,0.6);
   display: -webkit-box;
@@ -1747,7 +1753,7 @@ a.article-list-title:hover {
   margin-bottom: 6px;
 }
 .book-modal-notes-text {
-  font-size: 0.88rem;
+  font-size: var(--font-size-lg);
   line-height: 1.65;
   color: var(--text);
   font-style: italic;
@@ -1759,12 +1765,12 @@ a.article-list-title:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.65rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 1.5px;
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: var(--space-10) var(--space-20);
+  border-radius: var(--radius-md);
   background: rgba(245,158,11,0.12);
   border: 1px solid rgba(245,158,11,0.25);
   color: var(--neon-amber);
@@ -1830,11 +1836,64 @@ a.article-list-title:hover {
   transition: opacity 0.3s ease;
 }
 
+/* Book modal mobile: near full-screen */
+@media (max-width: 600px) {
+  .book-modal {
+    width: calc(100vw - 16px);
+    max-width: none;
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--radius-lg);
+    margin: 8px;
+  }
+
+  .book-modal-header {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-14);
+  }
+
+  .book-modal-cover {
+    width: 120px;
+    height: 180px;
+  }
+
+  .book-modal-close {
+    top: 8px;
+    right: 8px;
+  }
+}
+
+@media (max-width: 374px) {
+  .book-modal {
+    width: 100vw;
+    max-height: 100dvh;
+    border-radius: var(--radius-sm);
+    margin: 0;
+  }
+
+  .book-modal-cover {
+    width: 100px;
+    height: 150px;
+  }
+}
+
+/* Touch target sizing for mobile (WCAG 2.5.8) */
+@media (max-width: 900px) {
+  .neon-pill {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
 /* ===== CONTAINER QUERIES ===== */
 @container (max-width: 200px) {
   .pulse-bpm { font-size: var(--font-size-xl); }
   .split-metric-value { font-size: var(--font-size-lg); }
   .widget-label { letter-spacing: 1.5px; }
+  .widget-body { padding: 10px 12px 12px; }
 }
 
 @container (max-width: 280px) {
@@ -1861,4 +1920,11 @@ a.article-list-title:hover {
 @container (min-width: 301px) and (max-width: 450px) {
   .contrib-grid { justify-content: flex-end; }
   .contrib-cell { width: 6px; height: 6px; }
+}
+
+/* Widget body padding scales with container */
+@container (min-width: 500px) {
+  .widget-body {
+    padding: var(--space-18) var(--space-24) var(--space-24);
+  }
 }
