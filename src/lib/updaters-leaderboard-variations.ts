@@ -21,7 +21,12 @@ export function updatePlaceLeaderboardV3(data: LocationExport): void {
   if (!podiumEl || !listEl) { card.classList.remove('is-loading'); return; }
 
   const places = data.topPlaces.slice(0, 8);
-  if (places.length === 0) { card.classList.remove('is-loading'); return; }
+  if (places.length === 0) {
+    podiumEl.innerHTML = '<div style="text-align:center;color:var(--text-muted,#9ca3af);font-size:0.75rem;padding:16px 0;">No places recorded yet</div>';
+    listEl.innerHTML = '';
+    card.classList.remove('is-loading');
+    return;
+  }
 
   const podium = places.slice(0, 3);
   const rest = places.slice(3);
