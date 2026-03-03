@@ -101,6 +101,11 @@
   background: rgba(255,255,255,0.06);
 }
 
+@keyframes hudScan {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(100vh); }
+}
+
 /* ===== REDUCED MOTION (WCAG 2.3.3) ===== */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
