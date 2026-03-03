@@ -16,16 +16,26 @@ const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-
 const reading = JSON.parse(fs.readFileSync(path.join(dataDir, 'reading.json'), 'utf-8'));
 
 const devices = [
-  { label: 'Mobile', width: 375, height: 812, frame: 'phone' },
-  { label: 'Tablet', width: 768, height: 1024, frame: 'tablet' },
-  { label: 'Desktop', width: 1440, height: 900, frame: 'browser' },
-  { label: 'Large Desktop', width: 2560, height: 1440, frame: 'ultra' },
+  /* ── Phones ── */
+  { label: 'iPhone SE',       width: 375,  height: 812,  frame: 'phone',   category: 'Phones' },
+  { label: 'iPhone 16',       width: 390,  height: 844,  frame: 'phone',   category: 'Phones' },
+  { label: 'Android (Pixel)', width: 412,  height: 915,  frame: 'phone',   category: 'Phones' },
+  { label: 'iPhone Pro Max',  width: 430,  height: 932,  frame: 'phone',   category: 'Phones' },
+  /* ── Tablets ── */
+  { label: 'iPad Portrait',   width: 768,  height: 1024, frame: 'tablet',  category: 'Tablets' },
+  { label: 'iPad Landscape',  width: 1024, height: 768,  frame: 'tablet',  category: 'Tablets' },
+  /* ── Desktops ── */
+  { label: 'Laptop',          width: 1366, height: 768,  frame: 'browser', category: 'Desktops' },
+  { label: 'Desktop HD',      width: 1920, height: 1080, frame: 'browser', category: 'Desktops' },
 ];
+
+/* Group devices by category for section headers */
+const categories = [...new Set(devices.map(d => d.category))];
 ---
 <Showcase title="Responsive Preview">
   <main class="lib-container">
     <h1 class="lib-page-title">Responsive Preview</h1>
-    <p class="lib-page-desc">Live dashboard at 4 viewport sizes, plus interactive widget scaling to test container queries and fluid tokens.</p>
+    <p class="lib-page-desc">Live dashboard at 8 real-world viewport sizes (phones, tablets, desktops), plus interactive widget scaling to test container queries and fluid tokens.</p>
 
     <!-- ===== DEVICE PREVIEW ===== -->
     <h2 class="lib-section-title">Device Preview</h2>
@@ -41,32 +51,40 @@ const devices = [
     </div>
 
     <div class="rp-container rp-grid-mode">
-      {devices.map((d, i) => (
-        <div class="rp-device">
-          <div class="rp-device-label">
-            <span class="rp-device-name">{d.label}</span>
-            <span class="rp-device-size">{d.width} &times; {d.height}</span>
-          </div>
-          <div class={`rp-device-frame rp-frame-${d.frame}`}>
-            {d.frame === 'browser' && (
-              <div class="rp-browser-chrome">
-                <div class="rp-traffic-dot rp-dot-red"></div>
-                <div class="rp-traffic-dot rp-dot-yellow"></div>
-                <div class="rp-traffic-dot rp-dot-green"></div>
+      {categories.map(cat => (
+        <Fragment>
+          <div class="rp-category-header">{cat}</div>
+          {devices.filter(d => d.category === cat).map(d => {
+            const i = devices.indexOf(d);
+            return (
+              <div class="rp-device" data-category={cat}>
+                <div class="rp-device-label">
+                  <span class="rp-device-name">{d.label}</span>
+                  <span class="rp-device-size">{d.width} &times; {d.height}</span>
+                </div>
+                <div class={`rp-device-frame rp-frame-${d.frame}`}>
+                  {d.frame === 'browser' && (
+                    <div class="rp-browser-chrome">
+                      <div class="rp-traffic-dot rp-dot-red"></div>
+                      <div class="rp-traffic-dot rp-dot-yellow"></div>
+                      <div class="rp-traffic-dot rp-dot-green"></div>
+                    </div>
+                  )}
+                  {d.frame === 'phone' && <div class="rp-phone-notch"></div>}
+                  <div class="rp-iframe-wrapper">
+                    <iframe
+                      src="/"
+                      width={String(d.width)}
+                      height={String(d.height)}
+                      title={`${d.label} preview (${d.width}px)`}
+                      loading={i === 0 ? 'eager' : 'lazy'}
+                    ></iframe>
+                  </div>
+                </div>
               </div>
-            )}
-            {d.frame === 'phone' && <div class="rp-phone-notch"></div>}
-            <div class="rp-iframe-wrapper">
-              <iframe
-                src="/"
-                width={String(d.width)}
-                height={String(d.height)}
-                title={`${d.label} preview (${d.width}px)`}
-                loading={i === 0 ? 'eager' : 'lazy'}
-              ></iframe>
-            </div>
-          </div>
-        </div>
+            );
+          })}
+        </Fragment>
       ))}
     </div>
 
@@ -123,6 +141,7 @@ const devices = [
   <script is:inline>
   (function() {
     var frames = document.querySelectorAll('.rp-device');
+    var headers = document.querySelectorAll('.rp-category-header');
     var gridBtn = document.querySelector('[data-view="grid"]');
     var focusBtn = document.querySelector('[data-view="focus"]');
     var focusSelect = document.querySelector('.rp-focus-select');
@@ -145,12 +164,19 @@ const devices = [
       }
     }
 
+    function showHeaders(visible) {
+      for (var h = 0; h < headers.length; h++) {
+        headers[h].style.display = visible ? '' : 'none';
+      }
+    }
+
     gridBtn.addEventListener('click', function() {
       container.classList.remove('rp-focus-mode');
       container.classList.add('rp-grid-mode');
       gridBtn.classList.add('active');
       focusBtn.classList.remove('active');
       focusSelect.style.display = 'none';
+      showHeaders(true);
       for (var i = 0; i < frames.length; i++) frames[i].style.display = '';
       scaleFrames();
     });
@@ -161,6 +187,7 @@ const devices = [
       focusBtn.classList.add('active');
       gridBtn.classList.remove('active');
       focusSelect.style.display = '';
+      showHeaders(false);
       var idx = parseInt(focusSelect.value, 10);
       for (var i = 0; i < frames.length; i++) {
         frames[i].style.display = i === idx ? '' : 'none';
