@@ -207,11 +207,11 @@
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  border: 3px solid rgba(255,0,110,0.5);
+  border: 3px solid rgba(129,140,248,0.5);
   box-shadow:
-    0 0 20px rgba(255,0,110,0.3),
-    0 0 40px rgba(255,0,110,0.15),
-    0 0 60px rgba(255,0,110,0.05);
+    0 0 20px rgba(129,140,248,0.3),
+    0 0 40px rgba(129,140,248,0.15),
+    0 0 60px rgba(129,140,248,0.05);
   margin: 0 auto 24px;
   display: block;
   animation: avatarGlow 4s ease-in-out infinite;
@@ -222,11 +222,11 @@
   font-weight: 700;
   letter-spacing: -0.5px;
   text-shadow:
-    0 0 10px rgba(255,0,110,0.8),
-    0 0 30px rgba(255,0,110,0.5),
-    0 0 60px rgba(255,0,110,0.2),
-    0 0 10px rgba(58,134,255,0.6),
-    0 0 40px rgba(58,134,255,0.3);
+    0 0 10px rgba(129,140,248,0.8),
+    0 0 30px rgba(129,140,248,0.5),
+    0 0 60px rgba(129,140,248,0.2),
+    0 0 10px rgba(129,140,248,0.4),
+    0 0 40px rgba(129,140,248,0.2);
   margin-bottom: 8px;
   animation: glowPulse 4s ease-in-out infinite;
 }
@@ -245,8 +245,17 @@
   font-weight: 300;
   color: rgba(255,255,255,0.6);
   line-height: 1.7;
-  margin-bottom: 28px;
+  margin-bottom: 12px;
   text-wrap: balance;
+}
+
+.id-tagline {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(129,140,248,0.45);
+  margin-bottom: 28px;
 }
 
 .id-links {
@@ -274,17 +283,17 @@
 
 @media (hover: hover) {
   .neon-pill:hover {
-    border-color: var(--neon-pink);
-    box-shadow: 0 0 15px rgba(255,0,110,0.25), 0 0 30px rgba(255,0,110,0.1);
-    color: var(--neon-pink);
+    border-color: var(--neon-indigo);
+    box-shadow: 0 0 15px rgba(129,140,248,0.25), 0 0 30px rgba(129,140,248,0.1);
+    color: var(--neon-indigo);
     transform: translateY(-2px);
-    background: linear-gradient(135deg, rgba(255,0,110,0.08), rgba(58,134,255,0.08));
+    background: linear-gradient(135deg, rgba(129,140,248,0.08), rgba(99,102,241,0.08));
   }
 }
 
 .neon-pill:active {
-  border-color: var(--neon-pink);
-  color: var(--neon-pink);
+  border-color: var(--neon-indigo);
+  color: var(--neon-indigo);
 }
 
 /* ===== 2. BIO TERMINAL ===== */
@@ -473,6 +482,10 @@
 }
 .sys-val-red { color: var(--neon-red); }
 
+.sys-dot-blue {
+  background: var(--neon-blue);
+  box-shadow: 0 0 8px var(--neon-blue);
+}
 .sys-dot-purple {
   background: var(--neon-purple);
   box-shadow: 0 0 8px var(--neon-purple);
@@ -481,6 +494,7 @@
 .sys-key-green { color: var(--neon-green); }
 .sys-key-red { color: var(--neon-red); }
 .sys-key-purple { color: var(--neon-purple); }
+.sys-key-blue { color: var(--neon-blue); }
 
 .sys-val-purple { color: var(--neon-purple); }
 .sys-val-blue { color: var(--neon-blue); }
