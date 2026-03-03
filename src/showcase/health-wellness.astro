@@ -96,6 +96,190 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
       </div>
     </div>
 
+    <!-- ==================== HEART RATE ZONES ==================== -->
+    <div class="component-section">
+      <div class="component-name">HeartRate &mdash; Zone Gallery</div>
+      <div class="component-description">All 5 heart rate zones with zone-appropriate BPM, HRV, accent colors, and zone badge. Hand-written HTML to avoid SVG filter id="ecgGlow" conflicts.</div>
+      <div class="scenario-grid">
+
+        <!-- Card 1: Bradycardia -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-bradycardia">Bradycardia</div>
+          <div class="scenario-sublabel">~40 BPM &mdash; Deep sleep, very low activity. ECG: 8s cycle. HRV high (62ms).</div>
+          <div class="tri-card tri-card-accent-pink">
+            <div class="widget-header">
+              <h3 class="widget-label">Heart Rate</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-pink"></div>
+                <span class="widget-timestamp">live</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="hr-layout">
+                <div class="hr-ecg-bg" style="opacity: 0.35;">
+                  <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(58,134,255,0.06), transparent); border-radius: 8px;"></div>
+                </div>
+                <div class="hr-overlay">
+                  <div class="hr-overlay-left">
+                    <div>
+                      <span class="pulse-bpm" style="color: #3a86ff; text-shadow: 0 0 16px rgba(58,134,255,0.6), 0 0 40px rgba(58,134,255,0.25);">40</span><span class="pulse-bpm-unit">BPM</span>
+                    </div>
+                    <span class="pulse-status-badge" style="color: var(--neon-blue); background: rgba(58,134,255,0.12); border: 1px solid rgba(58,134,255,0.25);">Bradycardia</span>
+                  </div>
+                  <div class="hr-overlay-right">
+                    <span class="hr-hrv-label">HRV</span>
+                    <span class="hr-hrv-value" style="color: #06d6a0; text-shadow: 0 0 12px rgba(6,214,160,0.5), 0 0 30px rgba(6,214,160,0.2);">62</span>
+                    <span class="hr-hrv-unit">ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Resting Zone -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-resting">Resting Zone</div>
+          <div class="scenario-sublabel">~52 BPM &mdash; Relaxed or light sleep. ECG: 6s cycle. HRV good (55ms).</div>
+          <div class="tri-card tri-card-accent-pink">
+            <div class="widget-header">
+              <h3 class="widget-label">Heart Rate</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-pink"></div>
+                <span class="widget-timestamp">live</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="hr-layout">
+                <div class="hr-ecg-bg" style="opacity: 0.35;">
+                  <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,0,110,0.06), transparent); border-radius: 8px;"></div>
+                </div>
+                <div class="hr-overlay">
+                  <div class="hr-overlay-left">
+                    <div>
+                      <span class="pulse-bpm" style="color: #ff006e; text-shadow: 0 0 16px rgba(255,0,110,0.6), 0 0 40px rgba(255,0,110,0.25);">52</span><span class="pulse-bpm-unit">BPM</span>
+                    </div>
+                    <span class="pulse-status-badge" style="color: var(--neon-green); background: rgba(6,214,160,0.12); border: 1px solid rgba(6,214,160,0.25);">Resting Zone</span>
+                  </div>
+                  <div class="hr-overlay-right">
+                    <span class="hr-hrv-label">HRV</span>
+                    <span class="hr-hrv-value" style="color: #06d6a0; text-shadow: 0 0 12px rgba(6,214,160,0.5), 0 0 30px rgba(6,214,160,0.2);">55</span>
+                    <span class="hr-hrv-unit">ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Normal Zone -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-normal">Normal Zone</div>
+          <div class="scenario-sublabel">~75 BPM &mdash; Daily activity, walking. ECG: 4s cycle. HRV moderate (35ms).</div>
+          <div class="tri-card tri-card-accent-pink">
+            <div class="widget-header">
+              <h3 class="widget-label">Heart Rate</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-pink"></div>
+                <span class="widget-timestamp">live</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="hr-layout">
+                <div class="hr-ecg-bg" style="opacity: 0.35;">
+                  <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,0,110,0.06), transparent); border-radius: 8px;"></div>
+                </div>
+                <div class="hr-overlay">
+                  <div class="hr-overlay-left">
+                    <div>
+                      <span class="pulse-bpm" style="color: #ff006e; text-shadow: 0 0 16px rgba(255,0,110,0.6), 0 0 40px rgba(255,0,110,0.25);">75</span><span class="pulse-bpm-unit">BPM</span>
+                    </div>
+                    <span class="pulse-status-badge" style="color: var(--neon-green); background: rgba(6,214,160,0.12); border: 1px solid rgba(6,214,160,0.25);">Normal Zone</span>
+                  </div>
+                  <div class="hr-overlay-right">
+                    <span class="hr-hrv-label">HRV</span>
+                    <span class="hr-hrv-value" style="color: #f59e0b; text-shadow: 0 0 12px rgba(245,158,11,0.5), 0 0 30px rgba(245,158,11,0.2);">35</span>
+                    <span class="hr-hrv-unit">ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4: Fat Burn -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-fatburn">Fat Burn</div>
+          <div class="scenario-sublabel">~125 BPM &mdash; Moderate exercise, jogging. ECG: 2.5s cycle. HRV lowered (22ms).</div>
+          <div class="tri-card tri-card-accent-amber">
+            <div class="widget-header">
+              <h3 class="widget-label">Heart Rate</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-amber"></div>
+                <span class="widget-timestamp">live</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="hr-layout">
+                <div class="hr-ecg-bg" style="opacity: 0.35;">
+                  <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(245,158,11,0.06), transparent); border-radius: 8px;"></div>
+                </div>
+                <div class="hr-overlay">
+                  <div class="hr-overlay-left">
+                    <div>
+                      <span class="pulse-bpm" style="color: #f59e0b; text-shadow: 0 0 16px rgba(245,158,11,0.6), 0 0 40px rgba(245,158,11,0.25);">125</span><span class="pulse-bpm-unit">BPM</span>
+                    </div>
+                    <span class="pulse-status-badge" style="color: var(--neon-amber); background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.25);">Fat Burn</span>
+                  </div>
+                  <div class="hr-overlay-right">
+                    <span class="hr-hrv-label">HRV</span>
+                    <span class="hr-hrv-value" style="color: #f59e0b; text-shadow: 0 0 12px rgba(245,158,11,0.5), 0 0 30px rgba(245,158,11,0.2);">22</span>
+                    <span class="hr-hrv-unit">ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 5: Peak Zone -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-peak">Peak Zone</div>
+          <div class="scenario-sublabel">~165 BPM &mdash; Intense exercise, sprinting. ECG: 1.5s cycle. HRV stressed (12ms).</div>
+          <div class="tri-card tri-card-accent-red">
+            <div class="widget-header">
+              <h3 class="widget-label">Heart Rate</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-red"></div>
+                <span class="widget-timestamp">live</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="hr-layout">
+                <div class="hr-ecg-bg" style="opacity: 0.35;">
+                  <div style="width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(239,68,68,0.08), transparent); border-radius: 8px;"></div>
+                </div>
+                <div class="hr-overlay">
+                  <div class="hr-overlay-left">
+                    <div>
+                      <span class="pulse-bpm" style="color: #ef4444; text-shadow: 0 0 16px rgba(239,68,68,0.6), 0 0 40px rgba(239,68,68,0.25);">165</span><span class="pulse-bpm-unit">BPM</span>
+                    </div>
+                    <span class="pulse-status-badge" style="color: #ef4444; background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.25);">Peak Zone</span>
+                  </div>
+                  <div class="hr-overlay-right">
+                    <span class="hr-hrv-label">HRV</span>
+                    <span class="hr-hrv-value" style="color: #ef4444; text-shadow: 0 0 12px rgba(239,68,68,0.5), 0 0 30px rgba(239,68,68,0.2);">12</span>
+                    <span class="hr-hrv-unit">ms</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- ==================== 2. DAILY ACTIVITY ==================== -->
     <div class="component-section">
       <div class="component-name">DailyActivity</div>
@@ -290,6 +474,251 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             <NightSummary health={health} />
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ==================== SLEEP QUALITY SCENARIOS ==================== -->
+    <div class="component-section">
+      <div class="component-name">NightSummary &mdash; Quality Scenarios</div>
+      <div class="component-description">4 sleep quality tiers with realistic phase distributions and dynamic insight text. Hand-written HTML to avoid SVG filter id="moonGlow" conflicts.</div>
+      <div class="scenario-grid">
+
+        <!-- Poor Sleep -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-poor">Poor Sleep</div>
+          <div class="scenario-sublabel">Score 35 &mdash; Fragmented, stress-disrupted. Minimal deep sleep, short duration.</div>
+          <div class="tri-card tri-card-accent-purple">
+            <div class="widget-header">
+              <h3 class="widget-label">Night Summary</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-purple"></div>
+                <span class="widget-timestamp">last night</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="sleep-moon-top">
+                <div class="sleep-moon-wrap">
+                  <svg width="70" height="70" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="28" fill="#a855f7" opacity="0.15"/>
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4"/>
+                    <path d="M40,12 A28,28 0 1,1 40,68 A20,20 0 1,0 40,12" fill="#a855f7" opacity="0.3"/>
+                    <circle cx="34" cy="30" r="3" fill="rgba(168,85,247,0.2)"/>
+                    <circle cx="48" cy="45" r="2" fill="rgba(168,85,247,0.15)"/>
+                  </svg>
+                </div>
+                <div class="sleep-moon-info">
+                  <div class="sleep-moon-hero">4h 12m</div>
+                  <div class="sleep-moon-score-row">
+                    <span class="sleep-moon-score-label">Score</span>
+                    <div class="sleep-moon-score-track">
+                      <div class="sleep-moon-score-fill" style="width: 35%;"></div>
+                    </div>
+                    <span class="sleep-moon-score-val">35</span>
+                  </div>
+                </div>
+              </div>
+              <div class="sleep-moon-pills">
+                <div class="sleep-moon-pill" style="background: #1e40af15;">
+                  <div class="sleep-moon-pill-label">Deep</div>
+                  <div class="sleep-moon-pill-val" style="color: #1e40af;">8m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #a855f715;">
+                  <div class="sleep-moon-pill-label">REM</div>
+                  <div class="sleep-moon-pill-val" style="color: #a855f7;">32m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #3a86ff15;">
+                  <div class="sleep-moon-pill-label">Core</div>
+                  <div class="sleep-moon-pill-val" style="color: #3a86ff;">2h 48m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #f59e0b15;">
+                  <div class="sleep-moon-pill-label">Awake</div>
+                  <div class="sleep-moon-pill-val" style="color: #f59e0b;">44m</div>
+                </div>
+              </div>
+              <div class="sleep-moon-insight">
+                <span>3% deep</span> &mdash; <span>13% REM</span> &mdash; fragmented, low recovery
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Average Sleep -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-average">Average Sleep</div>
+          <div class="scenario-sublabel">Score 66 &mdash; Typical short night, adequate REM but low deep sleep.</div>
+          <div class="tri-card tri-card-accent-purple">
+            <div class="widget-header">
+              <h3 class="widget-label">Night Summary</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-purple"></div>
+                <span class="widget-timestamp">last night</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="sleep-moon-top">
+                <div class="sleep-moon-wrap">
+                  <svg width="70" height="70" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="28" fill="#a855f7" opacity="0.15"/>
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4"/>
+                    <path d="M40,12 A28,28 0 1,1 40,68 A20,20 0 1,0 40,12" fill="#a855f7" opacity="0.3"/>
+                    <circle cx="34" cy="30" r="3" fill="rgba(168,85,247,0.2)"/>
+                    <circle cx="48" cy="45" r="2" fill="rgba(168,85,247,0.15)"/>
+                  </svg>
+                </div>
+                <div class="sleep-moon-info">
+                  <div class="sleep-moon-hero">5h 41m</div>
+                  <div class="sleep-moon-score-row">
+                    <span class="sleep-moon-score-label">Score</span>
+                    <div class="sleep-moon-score-track">
+                      <div class="sleep-moon-score-fill" style="width: 66%;"></div>
+                    </div>
+                    <span class="sleep-moon-score-val">66</span>
+                  </div>
+                </div>
+              </div>
+              <div class="sleep-moon-pills">
+                <div class="sleep-moon-pill" style="background: #1e40af15;">
+                  <div class="sleep-moon-pill-label">Deep</div>
+                  <div class="sleep-moon-pill-val" style="color: #1e40af;">17m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #a855f715;">
+                  <div class="sleep-moon-pill-label">REM</div>
+                  <div class="sleep-moon-pill-val" style="color: #a855f7;">1h 50m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #3a86ff15;">
+                  <div class="sleep-moon-pill-label">Core</div>
+                  <div class="sleep-moon-pill-val" style="color: #3a86ff;">3h 33m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #f59e0b15;">
+                  <div class="sleep-moon-pill-label">Awake</div>
+                  <div class="sleep-moon-pill-val" style="color: #f59e0b;">19m</div>
+                </div>
+              </div>
+              <div class="sleep-moon-insight">
+                <span>5% deep</span> &mdash; <span>32% REM</span> &mdash; moderate recovery
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Good Sleep -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-good">Good Sleep</div>
+          <div class="scenario-sublabel">Score 82 &mdash; Solid night, balanced phases within ideal ranges.</div>
+          <div class="tri-card tri-card-accent-purple">
+            <div class="widget-header">
+              <h3 class="widget-label">Night Summary</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-purple"></div>
+                <span class="widget-timestamp">last night</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="sleep-moon-top">
+                <div class="sleep-moon-wrap">
+                  <svg width="70" height="70" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="28" fill="#a855f7" opacity="0.15"/>
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4"/>
+                    <path d="M40,12 A28,28 0 1,1 40,68 A20,20 0 1,0 40,12" fill="#a855f7" opacity="0.3"/>
+                    <circle cx="34" cy="30" r="3" fill="rgba(168,85,247,0.2)"/>
+                    <circle cx="48" cy="45" r="2" fill="rgba(168,85,247,0.15)"/>
+                  </svg>
+                </div>
+                <div class="sleep-moon-info">
+                  <div class="sleep-moon-hero">7h 24m</div>
+                  <div class="sleep-moon-score-row">
+                    <span class="sleep-moon-score-label">Score</span>
+                    <div class="sleep-moon-score-track">
+                      <div class="sleep-moon-score-fill" style="width: 82%;"></div>
+                    </div>
+                    <span class="sleep-moon-score-val">82</span>
+                  </div>
+                </div>
+              </div>
+              <div class="sleep-moon-pills">
+                <div class="sleep-moon-pill" style="background: #1e40af15;">
+                  <div class="sleep-moon-pill-label">Deep</div>
+                  <div class="sleep-moon-pill-val" style="color: #1e40af;">1h 14m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #a855f715;">
+                  <div class="sleep-moon-pill-label">REM</div>
+                  <div class="sleep-moon-pill-val" style="color: #a855f7;">1h 38m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #3a86ff15;">
+                  <div class="sleep-moon-pill-label">Core</div>
+                  <div class="sleep-moon-pill-val" style="color: #3a86ff;">4h 08m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #f59e0b15;">
+                  <div class="sleep-moon-pill-label">Awake</div>
+                  <div class="sleep-moon-pill-val" style="color: #f59e0b;">24m</div>
+                </div>
+              </div>
+              <div class="sleep-moon-insight">
+                <span>17% deep</span> &mdash; <span>22% REM</span> &mdash; restorative sleep
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Excellent Sleep -->
+        <div class="scenario-card">
+          <div class="scenario-label scenario-label-excellent">Excellent Sleep</div>
+          <div class="scenario-sublabel">Score 95 &mdash; Athlete-level recovery, optimal deep and REM phases.</div>
+          <div class="tri-card tri-card-accent-purple">
+            <div class="widget-header">
+              <h3 class="widget-label">Night Summary</h3>
+              <div class="widget-header-right">
+                <div class="live-dot live-dot-purple"></div>
+                <span class="widget-timestamp">last night</span>
+              </div>
+            </div>
+            <div class="widget-body">
+              <div class="sleep-moon-top">
+                <div class="sleep-moon-wrap">
+                  <svg width="70" height="70" viewBox="0 0 80 80">
+                    <circle cx="40" cy="40" r="28" fill="#a855f7" opacity="0.15"/>
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#a855f7" stroke-width="1.5" opacity="0.4"/>
+                    <path d="M40,12 A28,28 0 1,1 40,68 A20,20 0 1,0 40,12" fill="#a855f7" opacity="0.3"/>
+                    <circle cx="34" cy="30" r="3" fill="rgba(168,85,247,0.2)"/>
+                    <circle cx="48" cy="45" r="2" fill="rgba(168,85,247,0.15)"/>
+                  </svg>
+                </div>
+                <div class="sleep-moon-info">
+                  <div class="sleep-moon-hero">8h 05m</div>
+                  <div class="sleep-moon-score-row">
+                    <span class="sleep-moon-score-label">Score</span>
+                    <div class="sleep-moon-score-track">
+                      <div class="sleep-moon-score-fill" style="width: 95%;"></div>
+                    </div>
+                    <span class="sleep-moon-score-val">95</span>
+                  </div>
+                </div>
+              </div>
+              <div class="sleep-moon-pills">
+                <div class="sleep-moon-pill" style="background: #1e40af15;">
+                  <div class="sleep-moon-pill-label">Deep</div>
+                  <div class="sleep-moon-pill-val" style="color: #1e40af;">1h 47m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #a855f715;">
+                  <div class="sleep-moon-pill-label">REM</div>
+                  <div class="sleep-moon-pill-val" style="color: #a855f7;">1h 53m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #3a86ff15;">
+                  <div class="sleep-moon-pill-label">Core</div>
+                  <div class="sleep-moon-pill-val" style="color: #3a86ff;">4h 02m</div>
+                </div>
+                <div class="sleep-moon-pill" style="background: #f59e0b15;">
+                  <div class="sleep-moon-pill-label">Awake</div>
+                  <div class="sleep-moon-pill-val" style="color: #f59e0b;">23m</div>
+                </div>
+              </div>
+              <div class="sleep-moon-insight">
+                <span>22% deep</span> &mdash; <span>23% REM</span> &mdash; deeply restorative, optimal recovery
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
 
