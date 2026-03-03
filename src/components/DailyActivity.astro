@@ -3,11 +3,11 @@ const { health } = Astro.props;
 const q = health.quantities;
 const totalCalories = Math.round(health.derived.totalCalories);
 ---
-<div class="tri-card tri-card-accent-red" id="cardSteps">
+<div class="tri-card tri-card-accent-pink" id="cardSteps">
   <div class="widget-header">
     <h3 class="widget-label">Daily Activity</h3>
     <div class="widget-header-right">
-      <div class="live-dot"></div>
+      <div class="live-dot live-dot-pink"></div>
       <span class="widget-timestamp">today</span>
     </div>
   </div>
