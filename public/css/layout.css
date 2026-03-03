@@ -270,7 +270,7 @@
 /* ===== RESPONSIVE ===== */
 
 /* Tablet: Bento Grid layout */
-@media (min-width: 901px) and (max-width: 1100px) {
+@media (min-width: 768px) and (max-width: 1100px) {
 
   /* --- Page model: switch from fixed-viewport to scrollable --- */
   html, body {
@@ -322,46 +322,63 @@
     padding-bottom: var(--space-24);
   }
 
-  /* --- Horizontal identity card restyle --- */
+  /* --- Variation A: Compact Row identity card ---
+     !important needed: components.css loads AFTER layout.css and sets
+     text-align:center, justify-content:center, large padding/margins
+     at equal specificity. These overrides must win the cascade. */
   .identity-card {
     display: flex;
     align-items: center;
     gap: var(--space-16);
-    text-align: center;
-    padding: var(--space-20);
+    text-align: left !important;
+    padding: var(--space-16) var(--space-24) !important;
     max-width: 100%;
     flex-wrap: wrap;
   }
 
   .id-avatar {
+    order: 1;
     width: 56px;
     height: 56px;
-    margin: 0;
+    margin: 0 !important;
     flex-shrink: 0;
   }
 
   .id-info-inline {
+    order: 2;
     flex: 1;
     min-width: 150px;
   }
 
-  .id-name { font-size: 1.6rem; margin-bottom: 2px; }
-  .id-title { margin-bottom: 0; }
-
-  .id-bio {
-    font-size: var(--font-size-sm);
-    margin-bottom: 4px;
-    width: 100%;
+  .id-name {
+    font-size: var(--font-size-lg) !important;
+    margin-bottom: 2px !important;
   }
 
-  .id-tagline {
-    width: 100%;
+  .id-title {
+    margin-bottom: 0 !important;
   }
 
   .id-links {
+    order: 3;
+    margin-left: auto;
+    flex-shrink: 0;
+    justify-content: flex-end !important;
+  }
+
+  .id-bio {
+    order: 4;
+    font-size: var(--font-size-sm) !important;
+    margin-bottom: 4px !important;
     width: 100%;
-    justify-content: center;
-    margin-top: 4px;
+    padding-top: 14px;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .id-tagline {
+    order: 5;
+    width: 100%;
+    margin-bottom: 0 !important;
   }
 
   .neon-pill {
@@ -408,9 +425,15 @@
     grid-column: 1 / -1;
   }
 
+  /* nth-child(4) = Workouts — positional; update if Body column order changes */
   /* Workouts (child 4: h2=1, HeartRate=2, DailyActivity=3, Workouts=4)
      gets full width because sub-cards need horizontal room */
   .triptych-column-body .tri-card:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  /* Orphan handling: last card spanning odd position gets full width */
+  .triptych-column-body .tri-card:last-child:nth-child(even) {
     grid-column: 1 / -1;
   }
 
@@ -445,10 +468,21 @@
   .identity-card {
     margin-top: calc(var(--space-20) + env(safe-area-inset-top, 0px));
   }
+
+  /* Bio Terminal: 2-column flow at tablet */
+  .terminal-body {
+    columns: 2;
+    column-gap: var(--space-16);
+    column-rule: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .terminal-line {
+    break-inside: avoid;
+  }
 }
 
 /* Mobile: single column layout */
-@media (max-width: 900px) {
+@media (max-width: 767px) {
   html, body {
     overflow: auto;
   }
@@ -601,11 +635,6 @@
   /* Components missing responsive overrides */
   .gh-stat-value { font-size: 1.1rem; }
   .map-wrapper { height: 140px; }
-}
-
-/* Tablet portrait: between mobile and tablet landscape */
-@media (min-width: 601px) and (max-width: 767px) {
-  /* Widgets remain single-column; handled by 900px breakpoint */
 }
 
 /* Small mobile: single column everything */

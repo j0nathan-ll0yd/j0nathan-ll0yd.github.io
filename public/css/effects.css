@@ -116,7 +116,7 @@
 }
 
 /* ===== MOBILE PERFORMANCE ===== */
-@media (max-width: 900px) {
+@media (max-width: 767px) {
   .id-avatar {
     box-shadow: var(--glow-indigo-sm);
     animation: none;
