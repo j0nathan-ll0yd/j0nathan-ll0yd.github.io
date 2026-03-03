@@ -1836,14 +1836,12 @@ a.article-list-title:hover {
   transition: opacity 0.3s ease;
 }
 
-/* Book modal mobile: near full-screen */
-@media (max-width: 600px) {
+/* Book modal tablet/mobile: widen and stack header */
+@media (max-width: 900px) {
   .book-modal {
-    width: calc(100vw - 16px);
+    width: calc(100vw - 32px);
     max-width: none;
-    max-height: calc(100dvh - 16px);
-    border-radius: var(--radius-lg);
-    margin: 8px;
+    max-height: calc(100dvh - 32px);
   }
 
   .book-modal-header {
@@ -1853,9 +1851,23 @@ a.article-list-title:hover {
     gap: var(--space-14);
   }
 
+  .book-modal-title {
+    font-size: var(--font-size-xl);
+  }
+
   .book-modal-cover {
     width: 120px;
     height: 180px;
+  }
+}
+
+/* Book modal small mobile: near full-screen */
+@media (max-width: 600px) {
+  .book-modal {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: var(--radius-lg);
+    margin: 8px;
   }
 
   .book-modal-close {
