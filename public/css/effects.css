@@ -109,3 +109,24 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ===== MOBILE PERFORMANCE ===== */
+@media (max-width: 900px) {
+  .id-avatar {
+    box-shadow: var(--glow-indigo-sm);
+    animation: none;
+  }
+  .id-name {
+    text-shadow: 0 0 10px rgba(129,140,248,0.6), 0 0 30px rgba(129,140,248,0.3);
+    animation: none;
+  }
+}
+
+@media print {
+  #particle-canvas, .top-bar, .book-overlay { display: none !important; }
+  .command-layout { display: block; height: auto; }
+  .left-panel { position: static; width: 100%; padding: 20px; }
+  .left-panel::after { display: none; }
+  .right-panel { margin-left: 0; width: 100%; height: auto; overflow: visible; }
+  .tri-card { opacity: 1 !important; transform: none !important; break-inside: avoid; border: 1px solid #ccc; background: white; color: black; backdrop-filter: none; }
+}

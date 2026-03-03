@@ -60,6 +60,7 @@
   --left-width: 35%;
   --right-width: 65%;
   --top-bar-height: clamp(40px, 2.13rem + 1.00vw, 48px);
+  --max-site-width: 2400px;   /* cap layout at ultra-wide */
 
   /* --- Typography (fluid: scales 600px–1400px) --- */
   --font-family: 'Space Grotesk', sans-serif;
@@ -93,12 +94,12 @@
   --space-48: clamp(32px, 1.25rem + 2.00vw, 48px);
 
   /* --- Border Radius --- */
-  --radius-sm: 2px;
-  --radius-md: 8px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-pill: 50px;
-  --radius-circle: 50%;
+  --radius-sm: 2px;                                          /* keep fixed - too small to scale */
+  --radius-md: 8px;                                         /* keep fixed - 6-8px range too narrow for meaningful fluid scaling */
+  --radius-lg: clamp(12px, 0.50rem + 0.50vw, 16px);
+  --radius-xl: clamp(14px, 0.56rem + 0.75vw, 20px);
+  --radius-pill: 50px;                                       /* keep fixed - pill shape is intentional */
+  --radius-circle: 50%;                                      /* keep fixed */
 
   /* --- Blur --- */
   --blur-sm: 8px;
@@ -116,4 +117,15 @@
   --glow-cyan: 0 0 20px rgba(0,212,255,0.3), 0 0 40px rgba(0,212,255,0.15);
   --glow-orange: 0 0 20px rgba(255,107,0,0.3), 0 0 40px rgba(255,107,0,0.15);
   --glow-indigo: 0 0 20px rgba(129,140,248,0.3), 0 0 40px rgba(129,140,248,0.15);
+
+  /* --- Glow Shadows (reduced for mobile performance) --- */
+  --glow-pink-sm: 0 0 12px rgba(255,0,110,0.25);
+  --glow-blue-sm: 0 0 12px rgba(58,134,255,0.25);
+  --glow-green-sm: 0 0 12px rgba(6,214,160,0.25);
+  --glow-amber-sm: 0 0 12px rgba(245,158,11,0.25);
+  --glow-purple-sm: 0 0 12px rgba(168,85,247,0.25);
+  --glow-red-sm: 0 0 12px rgba(239,68,68,0.25);
+  --glow-cyan-sm: 0 0 12px rgba(0,212,255,0.25);
+  --glow-orange-sm: 0 0 12px rgba(255,107,0,0.25);
+  --glow-indigo-sm: 0 0 12px rgba(129,140,248,0.25);
 }
