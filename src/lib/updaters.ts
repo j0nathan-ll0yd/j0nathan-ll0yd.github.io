@@ -362,7 +362,7 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
   var SOURCE_LINE_COLORS: Record<string, string> = {
     health: 'red',
     sleep: 'purple',
-    location: 'purple',
+    location: 'blue',
     books: 'amber',
     articles: 'amber',
   };
