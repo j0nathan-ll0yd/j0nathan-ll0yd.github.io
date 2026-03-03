@@ -1,0 +1,264 @@
+---
+import Showcase from '../layouts/Showcase.astro';
+
+const overlays = [
+  {
+    id: 'do-not-disturb',
+    name: 'Do Not Disturb',
+    file: '/previews/mw-1-do-not-disturb.html',
+    accent: 'red',
+    description: 'Red no-entry icon with live PST clock, shift schedule (07:00–15:00), and a pulsing "Shift Active" badge. The most explicit work-hours blocker.',
+    features: ['Live PST clock', 'Shift schedule display', 'Pulsing badge', 'Mobile-responsive grid'],
+  },
+  {
+    id: 'deep-focus-protocol',
+    name: 'Deep Focus Protocol',
+    file: '/previews/mw-2-deep-focus-protocol.html',
+    accent: 'amber',
+    description: 'Amber countdown ring with an SVG progress arc that fills as the work day progresses. Scanline drift animation adds a CRT feel.',
+    features: ['SVG countdown ring', 'Progress arc', 'Scanline animation', 'Hours/minutes remaining'],
+  },
+  {
+    id: 'access-suspended',
+    name: 'Access Suspended',
+    file: '/previews/mw-3-access-suspended.html',
+    accent: 'red',
+    description: 'Terminal-style 403 error page with typewriter log lines that reveal sequentially, a blinking cursor, and a live countdown to shift end.',
+    features: ['403 error aesthetic', 'Typewriter log reveal', 'Blinking cursor', 'Countdown timer'],
+  },
+  {
+    id: 'stealth-mode',
+    name: 'Stealth Mode',
+    file: '/previews/mw-4-stealth-mode.html',
+    accent: 'green',
+    description: 'Minimal radar blip with concentric pulse rings. Content is hidden by default and only reveals on hover or tap — the most discreet option.',
+    features: ['Radar pulse animation', 'Hover/tap to reveal', 'Touch support', 'Near-blank screen'],
+  },
+  {
+    id: 'in-the-zone',
+    name: 'In The Zone',
+    file: '/previews/mw-5-in-the-zone.html',
+    accent: 'purple',
+    description: 'Purple-themed flow state display with canvas EEG brainwave animation, fluctuating focus score, and elapsed/remaining time stats.',
+    features: ['Canvas EEG waves', 'Focus score', 'Elapsed/remaining stats', 'Radial gradient background'],
+  },
+];
+---
+<Showcase title="Full-Screen Overlays">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Full-Screen Overlays</h1>
+    <p class="lib-page-desc">
+      Work-hours overlays that cover the entire dashboard during a configured shift window (default 07:00–15:00 PST). Each checks the current PST time and auto-shows/hides. All are ES5, IIFE-wrapped, and respect <code>prefers-reduced-motion</code>.
+    </p>
+
+    <div class="fso-nav">
+      {overlays.map((o, i) => (
+        <button
+          class:list={['fso-nav-btn', `fso-nav-btn-${o.accent}`, { active: i === 0 }]}
+          data-target={o.id}
+        >
+          {o.name}
+        </button>
+      ))}
+    </div>
+
+    {overlays.map((o, i) => (
+      <div class:list={['fso-panel', { active: i === 0 }]} id={`panel-${o.id}`}>
+        <div class="component-section">
+          <div class="component-name">{o.name}</div>
+          <div class="component-description">{o.description}</div>
+          <div class="component-classes">
+            {o.features.map((f, fi) => (
+              <Fragment>
+                {fi > 0 && ', '}
+                {f}
+              </Fragment>
+            ))}
+          </div>
+
+          <div class="fso-preview-frame">
+            <div class="fso-preview-bar">
+              <div class="fso-preview-dots">
+                <span class="fso-dot fso-dot-red"></span>
+                <span class="fso-dot fso-dot-amber"></span>
+                <span class="fso-dot fso-dot-green"></span>
+              </div>
+              <span class="fso-preview-title">{o.name}</span>
+              <a href={o.file} target="_blank" class="fso-open-link">Open ↗</a>
+            </div>
+            <iframe
+              src={o.file}
+              class="fso-iframe"
+              title={`${o.name} overlay preview`}
+              loading={i === 0 ? 'eager' : 'lazy'}
+            ></iframe>
+          </div>
+        </div>
+      </div>
+    ))}
+
+    <h2 class="lib-section-title">Shared Behavior</h2>
+    <div class="component-section">
+      <div class="component-description">
+        All five overlays share a common contract:
+      </div>
+      <table class="fso-spec-table">
+        <thead>
+          <tr><th>Property</th><th>Value</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Position</td><td><code>position: fixed; inset: 0; z-index: 9999</code></td></tr>
+          <tr><td>Background</td><td><code>#06060f</code> (matches page bg)</td></tr>
+          <tr><td>Work window</td><td>07:00–15:00 PST (configurable)</td></tr>
+          <tr><td>Time check</td><td><code>toLocaleString</code> with <code>America/Los_Angeles</code></td></tr>
+          <tr><td>Refresh</td><td>Clock every 1s, work-hours check every 60s</td></tr>
+          <tr><td>JS style</td><td>ES5, IIFE-wrapped, no build step</td></tr>
+          <tr><td>a11y</td><td><code>prefers-reduced-motion: reduce</code> disables animations</td></tr>
+          <tr><td>Preview note</td><td>Work-hours check is <strong>inverted</strong> in preview files so the overlay is visible outside 07:00–15:00</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</Showcase>
+
+<style>
+  /* ── Tab navigation ── */
+  .fso-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 32px;
+  }
+  .fso-nav-btn {
+    padding: 6px 16px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-muted);
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .fso-nav-btn:hover { background: rgba(255, 255, 255, 0.06); }
+  .fso-nav-btn.active.fso-nav-btn-red    { border-color: var(--neon-red);    color: var(--neon-red);    background: rgba(239, 68, 68, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-amber  { border-color: var(--neon-amber);  color: var(--neon-amber);  background: rgba(245, 158, 11, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-green  { border-color: var(--neon-green);  color: var(--neon-green);  background: rgba(6, 214, 160, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-purple { border-color: var(--neon-purple); color: var(--neon-purple); background: rgba(168, 85, 247, 0.08); }
+
+  /* ── Panels ── */
+  .fso-panel { display: none; }
+  .fso-panel.active { display: block; }
+
+  /* ── Preview frame (browser chrome) ── */
+  .fso-preview-frame {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+  .fso-preview-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .fso-preview-dots { display: flex; gap: 6px; }
+  .fso-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  .fso-dot-red   { background: #ef4444; }
+  .fso-dot-amber { background: #f59e0b; }
+  .fso-dot-green { background: #06d6a0; }
+  .fso-preview-title {
+    flex: 1;
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .fso-open-link {
+    font-size: 0.6rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-decoration: none;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+  }
+  .fso-open-link:hover { opacity: 1; }
+
+  /* ── Iframe ── */
+  .fso-iframe {
+    width: 100%;
+    height: 560px;
+    border: none;
+    background: #06060f;
+  }
+
+  /* ── Spec table ── */
+  .fso-spec-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.72rem;
+    margin-top: 12px;
+  }
+  .fso-spec-table th,
+  .fso-spec-table td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .fso-spec-table th {
+    font-size: 0.55rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .fso-spec-table td { color: var(--text); }
+  .fso-spec-table code {
+    font-size: 0.65rem;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--neon-cyan);
+  }
+
+  @media (max-width: 600px) {
+    .fso-iframe { height: 420px; }
+    .fso-nav-btn { font-size: 0.6rem; padding: 5px 12px; }
+  }
+</style>
+
+<script is:inline>
+(function() {
+  var buttons = document.querySelectorAll('.fso-nav-btn');
+  var panels = document.querySelectorAll('.fso-panel');
+
+  for (var i = 0; i < buttons.length; i++) {
+    (function(btn) {
+      btn.addEventListener('click', function() {
+        var target = btn.getAttribute('data-target');
+        for (var j = 0; j < buttons.length; j++) {
+          buttons[j].classList.remove('active');
+        }
+        for (var k = 0; k < panels.length; k++) {
+          panels[k].classList.remove('active');
+        }
+        btn.classList.add('active');
+        var panel = document.getElementById('panel-' + target);
+        if (panel) panel.classList.add('active');
+      });
+    })(buttons[i]);
+  }
+})();
+</script>

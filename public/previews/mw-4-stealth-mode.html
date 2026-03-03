@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stealth Mode — Man @ Work</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #06060f;
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 40px;
+      cursor: default;
+    }
+    .overlay.active {
+      display: flex;
+    }
+    /* Radar blip */
+    .radar {
+      position: relative;
+      width: 160px;
+      height: 160px;
+    }
+    .blip {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #06d6a0;
+      box-shadow: 0 0 16px rgba(6, 214, 160, 0.8), 0 0 40px rgba(6, 214, 160, 0.3);
+    }
+    .blip-ring {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid rgba(6, 214, 160, 0.4);
+      border-radius: 50%;
+      animation: blip-pulse 3s ease-out infinite;
+    }
+    .blip-ring:nth-child(2) { animation-delay: 0s; }
+    .blip-ring:nth-child(3) { animation-delay: 1s; }
+    .blip-ring:nth-child(4) { animation-delay: 2s; }
+    /* Hidden text - appears on hover/tap */
+    .hidden-content {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .overlay:hover .hidden-content,
+    .hidden-content.revealed {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .hidden-name {
+      font-size: 1.2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: #06d6a0;
+    }
+    .hidden-status {
+      font-size: 0.65rem;
+      font-weight: 400;
+      color: #9ca3af;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .hidden-time {
+      font-size: 0.6rem;
+      font-weight: 400;
+      color: rgba(6, 214, 160, 0.5);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.1em;
+    }
+    .hint {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.5rem;
+      font-weight: 400;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.1);
+      transition: opacity 0.6s ease;
+    }
+    .overlay:hover .hint,
+    .hint.hidden {
+      opacity: 0;
+    }
+    .off-duty-msg {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+    .off-duty-msg .text {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    @keyframes blip-pulse {
+      0% { width: 8px; height: 8px; opacity: 0.6; }
+      100% { width: 140px; height: 140px; opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .blip-ring { animation: none; opacity: 0; }
+      .hidden-content { opacity: 1; transform: none; transition: none; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay" id="overlay">
+    <div class="radar">
+      <div class="blip"></div>
+      <div class="blip-ring"></div>
+      <div class="blip-ring"></div>
+      <div class="blip-ring"></div>
+    </div>
+    <div class="hidden-content" id="hiddenContent">
+      <div class="hidden-name">Jonathan Lloyd</div>
+      <div class="hidden-status">Stealth mode active</div>
+      <div class="hidden-time" id="stealthTime">Back online at 15:00 PST</div>
+    </div>
+    <div class="hint" id="hint">Hover to reveal</div>
+  </div>
+
+  <div class="off-duty-msg" id="offDutyMsg">
+    <span class="text">Off-duty — overlay inactive. (Change hour check to test.)</span>
+  </div>
+
+  <script>
+    (function() {
+      var overlay = document.getElementById('overlay');
+      var offDutyMsg = document.getElementById('offDutyMsg');
+
+      // Touch support for mobile (no hover)
+      overlay.addEventListener('touchstart', function() {
+        var content = document.getElementById('hiddenContent');
+        var hint = document.getElementById('hint');
+        content.classList.toggle('revealed');
+        hint.classList.toggle('hidden');
+      });
+
+      function getPSTHour() {
+        var pst = new Date().toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour12: false });
+        var parts = pst.split(', ');
+        var timeParts = parts[1].split(':');
+        return parseInt(timeParts[0], 10);
+      }
+
+      function checkTime() {
+        var hour = getPSTHour();
+        var isWorkHours = !(hour >= 7 && hour < 15); // inverted for preview
+        if (isWorkHours) {
+          overlay.classList.add('active');
+          offDutyMsg.style.display = 'none';
+        } else {
+          overlay.classList.remove('active');
+          offDutyMsg.style.display = 'flex';
+        }
+      }
+
+      checkTime();
+      setInterval(checkTime, 60000);
+    })();
+  </script>
+</body>
+</html>
