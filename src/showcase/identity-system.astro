@@ -155,6 +155,64 @@ const activeSystem = {
       </div>
     </div>
 
+    <!-- ==================== TABLET VARIATIONS ==================== -->
+    <h2 class="lib-section-title">Tablet Variations</h2>
+    <p class="lib-page-desc" style="margin-bottom: 24px;">
+      Two layout explorations for the identity card at tablet viewport widths (~1000px). Each variation uses the same profile data in a distinct arrangement.
+    </p>
+
+    <!-- Variation A: Compact Row -->
+    <div class="component-section">
+      <div class="component-name">Variation A &mdash; Compact Row</div>
+      <div class="component-description">
+        Horizontal flex layout. Avatar 56px inline with name and title. Social links pushed right. Bio and tagline span the full width below.
+      </div>
+      <div class="tablet-variation">
+        <div class="tv-a" style="background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: 20px 24px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <img src={profile.avatar} alt="Avatar" style="width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--neon-indigo); flex-shrink: 0;" />
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: var(--font-size-lg); font-weight: 700; color: var(--text); text-shadow: 0 0 12px rgba(129,140,248,0.5);">{profile.name}</div>
+              <div style="font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-top: 2px;">{profile.title}</div>
+            </div>
+            <nav style="display: flex; gap: 8px; margin-left: auto; flex-shrink: 0;" aria-label="Social">
+              <a href={profile.github} class="neon-pill" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href={profile.linkedin} class="neon-pill" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            </nav>
+          </div>
+          <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--glass-border);">
+            <p style="font-size: var(--font-size-sm); color: var(--text-muted); font-style: italic; margin: 0 0 6px;">{profile.bio}</p>
+            <p style="font-size: var(--font-size-base); font-weight: 700; color: #818cf8; text-shadow: 0 0 20px rgba(129,140,248,0.6), 0 0 40px rgba(129,140,248,0.3); letter-spacing: 4px; text-transform: uppercase; margin: 0;">WELCOME TO MY HUMAN DATASTREAM.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Variation E: Profile Sidebar -->
+    <div class="component-section">
+      <div class="component-name">Variation E &mdash; Profile Sidebar</div>
+      <div class="component-description">
+        Grid with a fixed 180px left column for avatar, name, and title. Right column holds bio, tagline, and links — like a mini profile card next to content.
+      </div>
+      <div class="tablet-variation">
+        <div class="tv-e" style="background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: 24px; display: grid; grid-template-columns: 180px 1fr; gap: 24px;">
+          <div style="display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;">
+            <img src={profile.avatar} alt="Avatar" style="width: 72px; height: 72px; border-radius: 50%; border: 2px solid var(--neon-indigo); box-shadow: 0 0 16px rgba(129,140,248,0.3);" />
+            <div style="font-size: var(--font-size-sm); font-weight: 700; color: var(--text); text-shadow: 0 0 10px rgba(129,140,248,0.4);">{profile.name}</div>
+            <div style="font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); line-height: 1.4;">{profile.title}</div>
+          </div>
+          <div style="display: flex; flex-direction: column; justify-content: center; gap: 10px; border-left: 1px solid var(--glass-border); padding-left: 24px;">
+            <p style="font-size: var(--font-size-sm); color: var(--text-muted); font-style: italic; margin: 0; line-height: 1.6;">{profile.bio}</p>
+            <p style="font-size: var(--font-size-base); font-weight: 700; color: #818cf8; text-shadow: 0 0 20px rgba(129,140,248,0.6), 0 0 40px rgba(129,140,248,0.3); letter-spacing: 4px; text-transform: uppercase; margin: 0;">WELCOME TO MY HUMAN DATASTREAM.</p>
+            <nav style="display: flex; gap: 8px; flex-wrap: wrap;" aria-label="Social">
+              <a href={profile.github} class="neon-pill" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href={profile.linkedin} class="neon-pill" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <h2 class="lib-section-title">System</h2>
 
     <!-- ==================== 3. SYSTEM STATUS ==================== -->
