@@ -87,6 +87,7 @@ try {
       <SystemStatus system={system} />
     </aside>
 
+
     <!-- TOP BAR -->
     <header class="top-bar">
       <div class="top-bar-title">Human Datastream</div>
@@ -309,10 +310,17 @@ try {
       renderer.render(scene, camera);
     }
 
+    var resizeTimeout;
     window.addEventListener('resize', function() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(function() {
+        var w = canvas.clientWidth || window.innerWidth;
+        var h = canvas.clientHeight || window.innerHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h, false);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, window.innerWidth <= 900 ? 1.5 : 2));
+      }, 150);
     });
   })();
   });
