@@ -199,6 +199,60 @@
   .right-panel {
     max-width: calc(var(--max-site-width) * 0.65);
   }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .hud-frame {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .hud-frame::before {
+    content: '';
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    width: 60px;
+    height: 60px;
+    border-top: 1px solid rgba(255,0,110,0.15);
+    border-left: 1px solid rgba(255,0,110,0.15);
+  }
+
+  .hud-frame::after {
+    content: '';
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    width: 60px;
+    height: 60px;
+    border-bottom: 1px solid rgba(255,0,110,0.15);
+    border-right: 1px solid rgba(255,0,110,0.15);
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,0,110,0.15) 20%, rgba(255,0,110,0.3) 50%, rgba(255,0,110,0.15) 80%, transparent 100%);
+    z-index: -1;
+    pointer-events: none;
+    animation: hudScan 8s linear infinite;
+    will-change: transform;
+  }
+
 }
 
 /* Beyond 2560px: increase font scaling ceiling */
@@ -215,19 +269,181 @@
 
 /* ===== RESPONSIVE ===== */
 
-/* Tablet: collapse to stacked layout */
-@media (max-width: 1100px) {
-  :root {
-    --left-width: 30%;
-    --right-width: 70%;
+/* Tablet: Bento Grid layout */
+@media (min-width: 901px) and (max-width: 1100px) {
+
+  /* --- Page model: switch from fixed-viewport to scrollable --- */
+  html, body {
+    overflow: auto;
   }
 
-  .id-name { font-size: 1.8rem; }
-  .id-bio { font-size: 0.82rem; }
+  .command-layout {
+    flex-direction: column;
+    height: auto;
+  }
+
+  /* --- Collapse left panel (same as mobile) --- */
+  .left-panel {
+    display: contents;
+  }
+
+  .left-panel::after {
+    display: none;
+  }
+
+  /* --- Width/centering for promoted left-panel children --- */
+  /* !important needed: layout.css loads before components.css, which sets
+     max-width: 380px on .identity-card and .left-panel-bio at equal specificity */
+  .identity-card,
+  .left-panel-bio,
+  .left-panel-status {
+    width: calc(100% - var(--space-16) * 2) !important;
+    max-width: 100% !important;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: var(--space-16);
+    padding-right: var(--space-16);
+  }
+
+  /* --- Order values for display:contents children --- */
+  .identity-card {
+    order: 1;
+    margin-top: var(--space-20);
+  }
+
+  .left-panel-bio {
+    order: 2;
+  }
+
+  .left-panel-status {
+    order: 99;
+    margin-top: var(--space-12);
+    padding-top: var(--space-12);
+    padding-bottom: var(--space-24);
+  }
+
+  /* --- Horizontal identity card restyle --- */
+  .identity-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-16);
+    text-align: center;
+    padding: var(--space-20);
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .id-avatar {
+    width: 56px;
+    height: 56px;
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  .id-info-inline {
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .id-name { font-size: 1.6rem; margin-bottom: 2px; }
+  .id-title { margin-bottom: 0; }
+
+  .id-bio {
+    font-size: var(--font-size-sm);
+    margin-bottom: 4px;
+    width: 100%;
+  }
+
+  .id-tagline {
+    width: 100%;
+  }
+
+  .id-links {
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
+
+  .neon-pill {
+    padding: 6px 16px;
+    font-size: 0.68rem;
+  }
+
+  /* --- Top bar: sticky, full width --- */
+  .top-bar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 100%;
+    order: 0;
+    z-index: 20;
+  }
+
+  /* --- Right panel: full width, scrollable --- */
+  .right-panel {
+    margin-left: 0;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    padding: var(--space-12) var(--space-16) var(--space-24);
+    padding-bottom: calc(var(--space-24) + env(safe-area-inset-bottom, 0px));
+    order: 4;
+  }
+
+  /* --- Triptych: single-column --- */
+  .triptych-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-12);
+  }
+
+  /* --- Body column: 2-col Bento sub-grid --- */
+  .triptych-column-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-12);
+  }
+
+  /* Column header spans full width */
+  .triptych-column-body .column-header {
+    grid-column: 1 / -1;
+  }
+
+  /* Workouts (child 4: h2=1, HeartRate=2, DailyActivity=3, Workouts=4)
+     gets full width because sub-cards need horizontal room */
+  .triptych-column-body .tri-card:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  /* Mind column: full-width stacked (flex column) */
+  .triptych-column-mind {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-12);
+  }
+
+  /* Hide vertical gutter lines between columns */
+  .triptych-column::before {
+    display: none;
+  }
+
+  /* Contribution grid: condensed at tablet */
+  .contrib-grid {
+    overflow: hidden;
+    justify-content: flex-end;
+  }
 
   .contrib-cell {
     width: 6px;
     height: 6px;
+  }
+
+  /* Component adjustments for tablet */
+  .gh-stat-value { font-size: 1.1rem; }
+  .map-wrapper { height: 140px; }
+
+  /* Safe-area insets for notched tablets */
+  .identity-card {
+    margin-top: calc(var(--space-20) + env(safe-area-inset-top, 0px));
   }
 }
 
@@ -253,8 +469,8 @@
   .identity-card,
   .left-panel-bio,
   .left-panel-status {
-    width: calc(100% - var(--space-16) * 2);
-    max-width: 100%;
+    width: calc(100% - var(--space-16) * 2) !important;
+    max-width: 100% !important;
     margin-left: auto;
     margin-right: auto;
     padding-left: var(--space-16);
@@ -280,10 +496,9 @@
   .identity-card {
     display: flex;
     align-items: center;
-    gap: var(--space-16);                     /* was: 16px */
+    gap: var(--space-16);
     text-align: center;
-    padding: var(--space-20);                 /* was: 20px */
-    max-width: 100%;
+    padding: var(--space-20);
     flex-wrap: wrap;
   }
 
