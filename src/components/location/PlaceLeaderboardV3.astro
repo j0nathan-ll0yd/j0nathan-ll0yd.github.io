@@ -1,0 +1,186 @@
+---
+---
+<div class="tri-card tri-card-accent-purple" id="cardPlaceLeaderboardV3">
+  <div class="widget-header">
+    <h3 class="widget-label">Top Places</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">since 3/2/26</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <div class="skeleton-bar" style="width: 100%; height: 38px; border-radius: 6px;"></div>
+        <div class="skeleton-bar" style="width: 100%; height: 32px; border-radius: 6px;"></div>
+        <div class="skeleton-bar" style="width: 100%; height: 32px; border-radius: 6px;"></div>
+        <div style="height: 1px; background: rgba(255,255,255,0.04); margin: 2px 0;"></div>
+        <div class="skeleton-bar" style="width: 100%; height: 18px; border-radius: 3px;"></div>
+        <div class="skeleton-bar" style="width: 90%; height: 18px; border-radius: 3px;"></div>
+      </div>
+    </div>
+    <div class="lb-v3-content">
+      <div class="lb-v3-podium" data-loc="lb-v3-podium">
+        <div class="lb-v3-podium-row lb-v3-placeholder">
+          <span class="lb-v3-podium-rank">--</span>
+          <div class="lb-v3-podium-info">
+            <span class="lb-v3-podium-name">Waiting for data&hellip;</span>
+          </div>
+          <span class="lb-v3-podium-count">--</span>
+        </div>
+      </div>
+      <div class="lb-v3-list" data-loc="lb-v3-list"></div>
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  .lb-v3-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .lb-v3-podium {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .lb-v3-podium-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    border-left: 3px solid transparent;
+  }
+
+  .lb-v3-podium-row[data-rank="1"] {
+    border-left-color: #FFD700;
+    background: rgba(255, 215, 0, 0.04);
+  }
+  .lb-v3-podium-row[data-rank="2"] {
+    border-left-color: #C0C0C0;
+  }
+  .lb-v3-podium-row[data-rank="3"] {
+    border-left-color: #CD7F32;
+  }
+
+  .lb-v3-podium-rank {
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    color: rgba(168, 85, 247, 0.5);
+  }
+
+  .lb-v3-podium-row[data-rank="1"] .lb-v3-podium-rank { color: #FFD700; }
+  .lb-v3-podium-row[data-rank="2"] .lb-v3-podium-rank { color: #C0C0C0; }
+  .lb-v3-podium-row[data-rank="3"] .lb-v3-podium-rank { color: #CD7F32; }
+
+  .lb-v3-podium-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lb-v3-podium-name {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text, #f0f0f0);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lb-v3-podium-row[data-rank="1"] .lb-v3-podium-name {
+    font-weight: 600;
+    color: #fff;
+  }
+
+  .lb-v3-podium-cat {
+    font-size: 0.52rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 1px 6px;
+    border-radius: 3px;
+    border: 1px solid;
+    display: inline-block;
+    width: fit-content;
+  }
+
+  .lb-v3-podium-count {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--neon-purple, #a855f7);
+    flex-shrink: 0;
+    text-align: right;
+  }
+
+  .lb-v3-podium-row[data-rank="1"] .lb-v3-podium-count {
+    color: #FFD700;
+  }
+
+  .lb-v3-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-top: 8px;
+  }
+
+  .lb-v3-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+
+  .lb-v3-list-rank {
+    font-size: 0.6rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgba(168, 85, 247, 0.4);
+    width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .lb-v3-list-name {
+    flex: 1;
+    color: var(--text-muted, #9ca3af);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lb-v3-list-cat {
+    font-size: 0.5rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid;
+    flex-shrink: 0;
+  }
+
+  .lb-v3-list-count {
+    font-size: 0.65rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgba(168, 85, 247, 0.55);
+    text-align: right;
+    min-width: 24px;
+    flex-shrink: 0;
+  }
+</style>

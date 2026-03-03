@@ -1,0 +1,115 @@
+---
+---
+<div class="tri-card tri-card-accent-indigo" id="cardCityConstellation">
+  <div class="widget-header">
+    <h3 class="widget-label">City Constellation</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">cities</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div class="skeleton-bar" style="width: 140px; height: 110px; border-radius: 8px;"></div>
+        <div class="skeleton-bar" style="width: 160px; height: 10px;"></div>
+        <div class="skeleton-bar" style="width: 140px; height: 10px;"></div>
+        <div class="skeleton-bar" style="width: 120px; height: 10px;"></div>
+      </div>
+    </div>
+    <div class="cc-content">
+      <div class="cc-svg-wrapper">
+        <svg class="cc-svg" viewBox="0 0 200 160" data-loc="constellation-svg">
+          <!-- populated by updater: lines + circle nodes -->
+        </svg>
+      </div>
+      <div class="cc-city-list" data-loc="constellation-list">
+        <!-- populated by updater -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .cc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cc-svg-wrapper {
+    display: flex;
+    justify-content: center;
+  }
+
+  .cc-svg {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    overflow: visible;
+  }
+
+  .cc-svg .constellation-line {
+    stroke: rgba(129, 140, 248, 0.15);
+    stroke-width: 1;
+    fill: none;
+  }
+
+  .cc-svg .constellation-node {
+    fill: var(--neon-indigo, #818cf8);
+    filter: drop-shadow(0 0 4px rgba(129, 140, 248, 0.6));
+    cursor: default;
+  }
+
+  .cc-svg .constellation-node-primary {
+    animation: constellation-pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes constellation-pulse {
+    0%, 100% {
+      opacity: 0.9;
+      filter: drop-shadow(0 0 4px rgba(129, 140, 248, 0.6));
+    }
+    50% {
+      opacity: 1;
+      filter: drop-shadow(0 0 10px rgba(129, 140, 248, 0.9));
+    }
+  }
+
+  .cc-city-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .cc-city-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.72rem;
+  }
+
+  .cc-city-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--neon-indigo, #818cf8);
+    flex-shrink: 0;
+    box-shadow: 0 0 4px rgba(129, 140, 248, 0.5);
+  }
+
+  .cc-city-name {
+    flex: 1;
+    color: var(--text, #f0f0f0);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cc-city-visits {
+    color: var(--neon-indigo, #818cf8);
+    font-weight: 600;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+  }
+</style>

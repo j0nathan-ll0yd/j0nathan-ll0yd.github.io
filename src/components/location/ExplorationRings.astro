@@ -1,0 +1,147 @@
+---
+---
+<div class="tri-card tri-card-accent-pink" id="cardExplorationRings">
+  <div class="widget-header">
+    <h3 class="widget-label">Exploration Rings</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">progress</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div class="skeleton-bar" style="width: 100px; height: 100px; border-radius: 50%;"></div>
+        <div class="skeleton-bar" style="width: 140px; height: 10px;"></div>
+        <div class="skeleton-bar" style="width: 120px; height: 10px;"></div>
+        <div class="skeleton-bar" style="width: 100px; height: 10px;"></div>
+      </div>
+    </div>
+    <div class="er-content">
+      <div class="er-svg-wrapper">
+        <svg class="er-rings" viewBox="0 0 120 120" aria-label="Exploration progress rings">
+          <!-- Background rings (faint) -->
+          <circle class="er-bg-ring er-bg-neighborhoods" cx="60" cy="60" r="52"/>
+          <circle class="er-bg-ring er-bg-cities" cx="60" cy="60" r="40"/>
+          <circle class="er-bg-ring er-bg-states" cx="60" cy="60" r="28"/>
+          <!-- Foreground rings (progress) -->
+          <circle class="er-ring er-ring-neighborhoods" cx="60" cy="60" r="52" data-loc="ring-neighborhoods"/>
+          <circle class="er-ring er-ring-cities" cx="60" cy="60" r="40" data-loc="ring-cities"/>
+          <circle class="er-ring er-ring-states" cx="60" cy="60" r="28" data-loc="ring-states"/>
+        </svg>
+      </div>
+      <div class="er-legend">
+        <div class="er-legend-row">
+          <span class="er-legend-dot" style="background: var(--neon-pink, #ff006e);"></span>
+          <span class="er-legend-label">Neighborhoods</span>
+          <span class="er-legend-count" data-loc="ring-neighborhoods-count">—</span>
+        </div>
+        <div class="er-legend-row">
+          <span class="er-legend-dot" style="background: var(--neon-blue, #3a86ff);"></span>
+          <span class="er-legend-label">Cities</span>
+          <span class="er-legend-count" data-loc="ring-cities-count">—</span>
+        </div>
+        <div class="er-legend-row">
+          <span class="er-legend-dot" style="background: var(--neon-green, #06d6a0);"></span>
+          <span class="er-legend-label">States</span>
+          <span class="er-legend-count" data-loc="ring-states-count">—</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .er-svg-wrapper {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 10px;
+  }
+
+  .er-rings {
+    width: 120px;
+    height: 120px;
+    overflow: visible;
+  }
+
+  .er-bg-ring {
+    fill: none;
+    stroke-width: 8;
+  }
+
+  .er-bg-neighborhoods {
+    stroke: rgba(255, 0, 110, 0.12);
+  }
+
+  .er-bg-cities {
+    stroke: rgba(58, 134, 255, 0.12);
+  }
+
+  .er-bg-states {
+    stroke: rgba(6, 214, 160, 0.12);
+  }
+
+  .er-ring {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transform: rotate(-90deg);
+    transform-origin: center;
+    transition: stroke-dashoffset 1s ease;
+  }
+
+  .er-ring-neighborhoods {
+    stroke: var(--neon-pink, #ff006e);
+    filter: drop-shadow(0 0 4px rgba(255, 0, 110, 0.6));
+    /* circumference = 2 * PI * 52 ≈ 326.7 — set by updater */
+    stroke-dasharray: 326.7;
+    stroke-dashoffset: 326.7;
+  }
+
+  .er-ring-cities {
+    stroke: var(--neon-blue, #3a86ff);
+    filter: drop-shadow(0 0 4px rgba(58, 134, 255, 0.6));
+    /* circumference = 2 * PI * 40 ≈ 251.3 — set by updater */
+    stroke-dasharray: 251.3;
+    stroke-dashoffset: 251.3;
+  }
+
+  .er-ring-states {
+    stroke: var(--neon-green, #06d6a0);
+    filter: drop-shadow(0 0 4px rgba(6, 214, 160, 0.6));
+    /* circumference = 2 * PI * 28 ≈ 175.9 — set by updater */
+    stroke-dasharray: 175.9;
+    stroke-dashoffset: 175.9;
+  }
+
+  .er-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .er-legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+  }
+
+  .er-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .er-legend-label {
+    flex: 1;
+    color: var(--text-muted, #9ca3af);
+  }
+
+  .er-legend-count {
+    color: var(--text, #f0f0f0);
+    font-weight: 600;
+    font-size: 0.65rem;
+  }
+</style>

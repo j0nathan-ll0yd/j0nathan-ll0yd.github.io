@@ -13,6 +13,12 @@
       "valClass": "sys-val-amber"
     },
     {
+      "key": "Location",
+      "value": "PENDING",
+      "dotClass": "sys-dot-amber",
+      "valClass": "sys-val-amber"
+    },
+    {
       "key": "Books",
       "value": "PENDING",
       "dotClass": "sys-dot-amber",

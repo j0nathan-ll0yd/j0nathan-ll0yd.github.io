@@ -1,0 +1,125 @@
+---
+---
+<div class="tri-card tri-card-accent-amber" id="cardStreakFlame">
+  <div class="widget-header">
+    <h3 class="widget-label">Streak</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">streak</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+        <div class="skeleton-bar" style="width: 40px; height: 40px; border-radius: 50%;"></div>
+        <div class="skeleton-bar" style="width: 80px; height: 32px;"></div>
+        <div class="skeleton-bar" style="width: 120px; height: 12px;"></div>
+      </div>
+    </div>
+    <div class="sf-content">
+      <div class="sf-hero">
+        <svg class="sf-icon" viewBox="0 0 24 32" aria-hidden="true">
+          <path d="M12 0 C12 0 4 10 4 18 C4 24 8 28 12 32 C16 28 20 24 20 18 C20 10 12 0 12 0Z"
+                fill="var(--neon-amber, #f59e0b)" opacity="0.9"/>
+          <path d="M12 8 C12 8 8 14 8 20 C8 23 10 26 12 28 C14 26 16 23 16 20 C16 14 12 8 12 8Z"
+                fill="var(--neon-orange, #ff6b00)" opacity="0.7"/>
+        </svg>
+        <span class="sf-big-number" data-loc="streak-current">--</span>
+        <span class="sf-big-label">day streak</span>
+      </div>
+      <div class="sf-divider"></div>
+      <div class="sf-supporting">
+        <div class="sf-stat">
+          <span class="sf-stat-value" data-loc="streak-longest">--</span>
+          <span class="sf-stat-label">Longest</span>
+        </div>
+        <div class="sf-stat">
+          <span class="sf-stat-value" data-loc="streak-active">--</span>
+          <span class="sf-stat-label">Active Days</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .sf-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .sf-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .sf-icon {
+    width: 36px;
+    height: auto;
+    filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));
+    animation: flame-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes flame-pulse {
+    0%, 100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.6));
+    }
+    50% {
+      transform: scale(1.08);
+      filter: drop-shadow(0 0 14px rgba(245, 158, 11, 0.9));
+    }
+  }
+
+  .sf-big-number {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--neon-amber, #f59e0b);
+    text-shadow: 0 0 16px rgba(245, 158, 11, 0.5), 0 0 40px rgba(245, 158, 11, 0.2);
+    line-height: 1;
+  }
+
+  .sf-big-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted, #9ca3af);
+  }
+
+  .sf-divider {
+    width: 60px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245, 158, 11, 0.3), transparent);
+    margin: 10px auto;
+  }
+
+  .sf-supporting {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  .sf-stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .sf-stat-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--neon-amber, #f59e0b);
+    text-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  }
+
+  .sf-stat-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted, #9ca3af);
+  }
+</style>

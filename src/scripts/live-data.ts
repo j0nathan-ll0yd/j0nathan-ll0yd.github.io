@@ -11,13 +11,11 @@ import {
   updateDevActivityLog,
   updateReadingFeed,
   updateSystemStatus,
-  updateLocation,
-  updateContributionGraph,
-  updateWeeklyPulse,
-  updateExplorerRadar,
 } from '../lib/updaters';
+import { updatePlaceLeaderboardV3 } from '../lib/updaters-leaderboard-variations';
+import { updateExplorationOdometerV3 } from '../lib/updaters-odometer-variations';
 
-const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading', 'cardLocation', 'cardContributionGraph', 'cardWeeklyPulse', 'cardExplorerRadar'];
+const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading', 'cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'];
 
 initDevMode();
 
@@ -91,10 +89,8 @@ setTimeout(async () => {
 
   if (data.location) {
     try {
-      updateLocation(data.location);
-      updateContributionGraph(data.location);
-      updateWeeklyPulse(data.location);
-      updateExplorerRadar(data.location);
+      updatePlaceLeaderboardV3(data.location);
+      updateExplorationOdometerV3(data.location);
     } catch (e) {
       console.warn('[live-data] Location update failed:', e);
     }

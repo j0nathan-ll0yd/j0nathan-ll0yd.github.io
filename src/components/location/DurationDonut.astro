@@ -1,0 +1,101 @@
+---
+---
+<div class="tri-card tri-card-accent-orange" id="cardDurationDonut">
+  <div class="widget-header">
+    <h3 class="widget-label">Time Spent</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">all time</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div class="skeleton-bar" style="width: 120px; height: 120px; border-radius: 50%; margin: 0 auto;"></div>
+    </div>
+    <div class="dd-content">
+      <div class="dd-donut-wrapper">
+        <div class="dd-donut" data-loc="donut-ring">
+          <div class="dd-hole">
+            <span class="dd-total" data-loc="donut-total">---</span>
+            <span class="dd-total-label">hours</span>
+          </div>
+        </div>
+      </div>
+      <div class="dd-legend" data-loc="donut-legend">
+        <!-- populated by updater -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .dd-content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .dd-donut-wrapper {
+    display: flex;
+    justify-content: center;
+  }
+
+  .dd-donut {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    position: relative;
+    background: conic-gradient(var(--neon-orange, #ff6b00) 0% 100%);
+  }
+
+  .dd-hole {
+    position: absolute;
+    inset: 20px;
+    border-radius: 50%;
+    background: var(--bg, #06060f);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .dd-total {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--neon-orange, #ff6b00);
+    text-shadow: 0 0 10px rgba(255, 107, 0, 0.5);
+    line-height: 1;
+  }
+
+  .dd-total-label {
+    font-size: 0.55rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted, #9ca3af);
+    margin-top: 2px;
+  }
+
+  .dd-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dd-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+  }
+
+  .dd-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .dd-legend-label {
+    color: var(--text-muted, #9ca3af);
+  }
+</style>

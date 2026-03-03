@@ -3,13 +3,31 @@ import { HYDRATION } from './constants';
 import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
 import type { LocationExport } from '../types/exports';
 
+const CATEGORY_COLORS: Record<string, string> = {
+  'Dining':              'var(--neon-orange, #ff6b00)',
+  'Fitness & Outdoors':  'var(--neon-green, #06d6a0)',
+  'Shopping':            'var(--neon-purple, #a855f7)',
+  'Entertainment':       'var(--neon-pink, #ff006e)',
+  'Travel':              'var(--neon-cyan, #00d4ff)',
+  'Health':              'var(--neon-red, #ef4444)',
+  'Work':                'var(--neon-blue, #3a86ff)',
+  'Education':           'var(--neon-indigo, #818cf8)',
+  'Services':            'var(--neon-amber, #f59e0b)',
+};
+const CATEGORY_FALLBACK_COLOR = 'var(--text-muted, #9ca3af)';
+
+export function getCategoryColor(category: string | null): string {
+  if (!category) return CATEGORY_FALLBACK_COLOR;
+  return CATEGORY_COLORS[category] ?? CATEGORY_FALLBACK_COLOR;
+}
+
 const ACCENT_CLASSES = [
   'tri-card-accent-pink', 'tri-card-accent-blue', 'tri-card-accent-green',
   'tri-card-accent-amber', 'tri-card-accent-red', 'tri-card-accent-purple',
   'tri-card-accent-cyan', 'tri-card-accent-orange', 'tri-card-accent-indigo',
 ];
 
-function esc(s: string | null | undefined): string {
+export function esc(s: string | null | undefined): string {
   if (!s) return '';
   return String(s)
     .replace(/&/g, '&amp;')
@@ -344,6 +362,7 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
   var SOURCE_LINE_COLORS: Record<string, string> = {
     health: 'red',
     sleep: 'purple',
+    location: 'purple',
     books: 'amber',
     articles: 'amber',
   };
@@ -379,265 +398,197 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
   });
 }
 
-export function updateLocation(data: LocationExport): void {
-  const card = document.getElementById('cardLocation');
+export function updateExplorationOdometer(data: LocationExport): void {
+  const card = document.getElementById('cardExplorationOdometer');
   if (!card) return;
 
-  // Top city
-  const topCity = data.cityBreakdown[0]?.city ?? null;
-  const cityEl = card.querySelector('[data-loc="city"]');
-  if (cityEl && topCity) cityEl.textContent = topCity;
+  const fields: Record<string, number> = {
+    'odo-visits': data.totalVisits,
+    'odo-places': data.totalPlaces,
+    'odo-cities': data.explorationStats.totalCities,
+    'odo-states': data.explorationStats.totalStates,
+  };
 
-  // Total visits
-  const totalVisitsEl = card.querySelector('[data-loc="total-visits"]');
-  if (totalVisitsEl) totalVisitsEl.textContent = String(data.totalVisits);
+  for (const [key, value] of Object.entries(fields)) {
+    const el = card.querySelector<HTMLElement>(`[data-loc="${key}"]`);
+    if (el) el.textContent = value.toLocaleString();
+  }
 
-  // Top places (up to 3)
-  const placesList = card.querySelector('[data-loc="places-list"]');
-  if (placesList && data.topPlaces.length > 0) {
-    placesList.innerHTML = data.topPlaces.slice(0, 3).map((p, i) => {
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉';
-      const cat = p.category ? `<span class="loc-place-cat">${esc(p.category)}</span>` : '';
-      return `<div class="loc-place-row">
-        <span class="loc-place-medal">${medal}</span>
-        <span class="loc-place-name">${esc(p.name)}</span>${cat}
-        <span class="loc-place-count">${p.visitCount}v</span>
+  const subtitleEl = card.querySelector<HTMLElement>('[data-loc="odo-subtitle"]');
+  if (subtitleEl && data.currentCity) {
+    let text = esc(data.currentCity);
+    if (data.lastSeen) text += ' · ' + formatRelativeTime(data.lastSeen);
+    subtitleEl.innerHTML = text;
+    subtitleEl.style.display = '';
+  }
+
+  card.classList.remove('is-loading');
+}
+
+export function updateStreakFlame(data: LocationExport): void {
+  const card = document.getElementById('cardStreakFlame');
+  if (!card) return;
+
+  const currentEl = card.querySelector('[data-loc="streak-current"]');
+  if (currentEl) currentEl.textContent = String(data.streaks.currentStreak);
+
+  const longestEl = card.querySelector('[data-loc="streak-longest"]');
+  if (longestEl) longestEl.textContent = String(data.streaks.longestStreak);
+
+  const activeEl = card.querySelector('[data-loc="streak-active"]');
+  if (activeEl) activeEl.textContent = String(data.streaks.totalActiveDays);
+
+  card.classList.remove('is-loading');
+}
+
+export function updatePlaceLeaderboard(data: LocationExport): void {
+  const card = document.getElementById('cardPlaceLeaderboard');
+  if (!card) return;
+
+  const listEl = card.querySelector<HTMLElement>('[data-loc="leaderboard-list"]');
+  if (!listEl || data.topPlaces.length === 0) {
+    card.classList.remove('is-loading');
+    return;
+  }
+
+  const maxVisits = Math.max(...data.topPlaces.map(p => p.visitCount), 1);
+
+  listEl.innerHTML = data.topPlaces.slice(0, 8).map((place, i) => {
+    const barWidth = ((place.visitCount / maxVisits) * 100).toFixed(1);
+    const catColor = getCategoryColor(place.category);
+    const catBadge = place.category
+      ? `<span class="pl-cat" style="color:${catColor};border-color:${catColor}">${esc(place.category)}</span>`
+      : '';
+    return `<div class="pl-row">
+      <span class="pl-rank">${i + 1}</span>
+      <span class="pl-name">${esc(place.name)}</span>
+      ${catBadge}
+      <div class="pl-bar-wrapper"><div class="pl-bar-fill" style="width:${barWidth}%"></div></div>
+      <span class="pl-visits">${place.visitCount}</span>
+    </div>`;
+  }).join('');
+
+  card.classList.remove('is-loading');
+}
+
+export function updateRhythmBars(data: LocationExport): void {
+  const card = document.getElementById('cardRhythmBars');
+  if (!card) return;
+
+  // Group by day of week: 0=Sun,1=Mon,...6=Sat
+  const dayCounts = new Array(7).fill(0);
+  for (const d of data.last90Days) {
+    const dow = new Date(d.date).getDay();
+    dayCounts[dow] += d.count;
+  }
+
+  // Reorder Mon(1)...Sun(0)
+  const ordered = [1, 2, 3, 4, 5, 6, 0].map(i => dayCounts[i]);
+  const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+  const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+  const maxCount = Math.max(...ordered, 1);
+
+  const barsEl = card.querySelector<HTMLElement>('[data-loc="rhythm-bars"]');
+  if (barsEl) {
+    barsEl.innerHTML = ordered.map((count, i) => {
+      const heightPct = ((count / maxCount) * 100).toFixed(1);
+      return `<div class="rb-bar-col">
+        <div class="rb-bar" style="height:${heightPct}%" title="${dayNames[i]}: ${count} visits"></div>
+        <span class="rb-day">${dayLabels[i]}</span>
       </div>`;
     }).join('');
   }
 
-  // 30-day activity heatmap (last 30 of last90Days)
-  const heatmapEl = card.querySelector('[data-loc="heatmap"]');
-  if (heatmapEl && data.last90Days.length > 0) {
-    const days = data.last90Days.slice(-30);
-    const maxCount = Math.max(...days.map(d => d.count), 1);
-    heatmapEl.innerHTML = days.map(d => {
-      const intensity = d.count / maxCount;
-      const opacity = d.count === 0 ? 0.08 : 0.2 + intensity * 0.8;
-      const title = `${d.date}: ${d.count} visits`;
-      return `<div class="loc-heat-cell" style="opacity:${opacity.toFixed(2)}" title="${esc(title)}"></div>`;
-    }).join('');
+  const maxIdx = ordered.indexOf(Math.max(...ordered));
+  const busiestEl = card.querySelector('[data-loc="rhythm-busiest"]');
+  if (busiestEl) busiestEl.textContent = dayNames[maxIdx] ?? '—';
+
+  card.classList.remove('is-loading');
+}
+
+export function updateWaffleGrid(data: LocationExport): void {
+  const card = document.getElementById('cardWaffleGrid');
+  if (!card) return;
+
+  const cats = [...data.categoryBreakdown].sort((a, b) => b.totalMinutes - a.totalMinutes);
+  const totalMinutes = cats.reduce((s, c) => s + c.totalMinutes, 0);
+
+  if (totalMinutes === 0) {
+    card.classList.remove('is-loading');
+    return;
   }
 
-  // City breakdown (top 3)
-  const cityListEl = card.querySelector('[data-loc="city-list"]');
-  if (cityListEl && data.cityBreakdown.length > 0) {
-    cityListEl.innerHTML = data.cityBreakdown.slice(0, 3).map(c =>
-      `<div class="loc-city-row"><span class="loc-city-name">${esc(c.city)}</span><span class="loc-city-count">${c.visitCount}</span></div>`
+  // Assign cells out of 100, rounding so they sum to 100
+  let remaining = 100;
+  const catCells: { category: string; cells: number; color: string; pct: number }[] = [];
+  cats.forEach((cat, i) => {
+    const pct = cat.totalMinutes / totalMinutes;
+    const cells = i === cats.length - 1 ? remaining : Math.round(pct * 100);
+    remaining -= cells;
+    catCells.push({ category: cat.category, cells, color: getCategoryColor(cat.category), pct });
+  });
+
+  // Build 100 cells
+  const cellColors: string[] = [];
+  const cellTitles: string[] = [];
+  for (const { category, cells, color, pct } of catCells) {
+    for (let j = 0; j < cells; j++) {
+      cellColors.push(color);
+      cellTitles.push(`${category}: ${(pct * 100).toFixed(0)}%`);
+    }
+  }
+
+  const gridEl = card.querySelector<HTMLElement>('[data-loc="waffle-grid"]');
+  if (gridEl) {
+    gridEl.innerHTML = cellColors.map((color, i) =>
+      `<div class="wg-cell" style="background:${color}" title="${esc(cellTitles[i] ?? '')}"></div>`
+    ).join('');
+  }
+
+  const legendEl = card.querySelector<HTMLElement>('[data-loc="waffle-legend"]');
+  if (legendEl) {
+    legendEl.innerHTML = catCells.map(({ category, color, pct }) =>
+      `<div class="wg-legend-item">
+        <div class="wg-legend-dot" style="background:${color}"></div>
+        <span class="wg-legend-label">${esc(category)} ${(pct * 100).toFixed(0)}%</span>
+      </div>`
     ).join('');
   }
 
   card.classList.remove('is-loading');
 }
 
-export function updateContributionGraph(data: LocationExport): void {
-  const card = document.getElementById('cardContributionGraph');
+export function updateCategoryTerrain(data: LocationExport): void {
+  const card = document.getElementById('cardCategoryTerrain');
   if (!card) return;
 
-  const grid = card.querySelector<HTMLElement>('[data-loc="contrib-grid"]');
-  if (!grid) return;
+  const cats = [...data.categoryBreakdown].sort((a, b) => b.totalMinutes - a.totalMinutes);
+  const totalMinutes = cats.reduce((s, c) => s + c.totalMinutes, 0);
 
-  // Build a map of date -> day data for quick lookup
-  const dayMap = new Map<string, { count: number; uniquePlaces: number }>();
-  for (const d of data.last90Days) {
-    dayMap.set(d.date, { count: d.count, uniquePlaces: d.uniquePlaces });
-  }
-
-  // Build array of 91 days ending today (newest = index 90)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Find the Monday that starts our 13-week grid (91 days back, aligned to Monday)
-  const startDate = new Date(today);
-  // Go back 90 days, then rewind to the preceding Monday
-  startDate.setDate(startDate.getDate() - 90);
-  const dayOfWeek = startDate.getDay(); // 0=Sun, 1=Mon, ...
-  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  startDate.setDate(startDate.getDate() - daysToMonday);
-
-  // Build 91 cells (13 cols x 7 rows = Mon-Sun columns)
-  const cells: { date: Date; dateStr: string; count: number; uniquePlaces: number }[] = [];
-  for (let i = 0; i < 91; i++) {
-    const d = new Date(startDate);
-    d.setDate(d.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
-    const day = dayMap.get(iso);
-    cells.push({ date: d, dateStr: iso, count: day?.count ?? 0, uniquePlaces: day?.uniquePlaces ?? 0 });
-  }
-
-  const maxCount = Math.max(...cells.map(c => c.count), 1);
-
-  const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-  // Replace grid cells
-  grid.innerHTML = cells.map(c => {
-    const opacity = c.count === 0 ? 0.08 : 0.2 + (c.count / maxCount) * 0.8;
-    const dayName = DAY_NAMES[c.date.getDay()];
-    const monthName = MONTH_NAMES[c.date.getMonth()];
-    const dayNum = c.date.getDate();
-    const title = `${dayName} ${monthName} ${dayNum}: ${c.count} visit${c.count !== 1 ? 's' : ''}, ${c.uniquePlaces} place${c.uniquePlaces !== 1 ? 's' : ''}`;
-    return `<div class="contrib-cell" style="opacity:${opacity.toFixed(2)}" title="${esc(title)}"></div>`;
-  }).join('');
-
-  // Update month labels (one per column = one per week)
-  const monthsEl = card.querySelector<HTMLElement>('[data-loc="contrib-months"]');
-  if (monthsEl) {
-    const monthLabels: string[] = [];
-    for (let col = 0; col < 13; col++) {
-      const firstDayOfCol = cells[col * 7];
-      if (firstDayOfCol) {
-        monthLabels.push(MONTH_NAMES[firstDayOfCol.date.getMonth()]!);
-      } else {
-        monthLabels.push('');
-      }
-    }
-    monthsEl.innerHTML = monthLabels.map(m => `<span class="cg-month-label">${esc(m)}</span>`).join('');
-  }
-
-  const totalVisits = cells.reduce((sum, c) => sum + c.count, 0);
-  const activeDays = cells.filter(c => c.count > 0).length;
-
-  const totalEl = card.querySelector('[data-loc="contrib-total"]');
-  if (totalEl) totalEl.textContent = String(totalVisits);
-
-  const activeDaysEl = card.querySelector('[data-loc="contrib-active-days"]');
-  if (activeDaysEl) activeDaysEl.textContent = String(activeDays);
-
-  card.classList.remove('is-loading');
-}
-
-export function updateWeeklyPulse(data: LocationExport): void {
-  const card = document.getElementById('cardWeeklyPulse');
-  if (!card) return;
-
-  // Group last90Days into ISO weeks (Mon-Sun), take last 12
-  const weekMap = new Map<string, number>();
-  for (const d of data.last90Days) {
-    const date = new Date(d.date);
-    // ISO week key: find the Monday of this week
-    const day = date.getDay();
-    const daysToMon = day === 0 ? 6 : day - 1;
-    const mon = new Date(date);
-    mon.setDate(mon.getDate() - daysToMon);
-    const key = mon.toISOString().slice(0, 10);
-    weekMap.set(key, (weekMap.get(key) ?? 0) + d.count);
-  }
-
-  const sortedWeeks = [...weekMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-  const weeks = sortedWeeks.slice(-12);
-
-  if (weeks.length === 0) {
+  if (totalMinutes === 0) {
     card.classList.remove('is-loading');
     return;
   }
 
-  const counts = weeks.map(([, count]) => count);
-  const maxCount = Math.max(...counts, 1);
-  const minCount = Math.min(...counts);
-
-  const W = 300;
-  const H = 80;
-  const padding = 4;
-
-  // Build polyline points
-  const points = counts.map((count, i) => {
-    const x = padding + (i / (counts.length - 1 || 1)) * (W - padding * 2);
-    // Invert Y so peaks go up
-    const normalised = maxCount === minCount ? 0.5 : (count - minCount) / (maxCount - minCount);
-    const y = H - padding - normalised * (H - padding * 2);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-
-  const pointsStr = points.join(' ');
-
-  // Add a closing point at bottom for fill
-  const firstX = padding;
-  const lastX = padding + (W - padding * 2);
-  const fillPoints = `${firstX},${H} ${pointsStr} ${lastX},${H}`;
-
-  const pathEl = card.querySelector<SVGPolylineElement>('[data-loc="pulse-path"]');
-  if (pathEl) pathEl.setAttribute('points', pointsStr);
-
-  const fillEl = card.querySelector<SVGPolylineElement>('[data-loc="pulse-fill"]');
-  if (fillEl) fillEl.setAttribute('points', fillPoints);
-
-  // Current week = last week in array
-  const currentWeekCount = counts[counts.length - 1] ?? 0;
-  const avgCount = Math.round(counts.reduce((s, c) => s + c, 0) / counts.length);
-
-  const currentEl = card.querySelector('[data-loc="pulse-current"]');
-  if (currentEl) currentEl.textContent = String(currentWeekCount);
-
-  const avgEl = card.querySelector('[data-loc="pulse-avg"]');
-  if (avgEl) avgEl.textContent = String(avgCount);
-
-  card.classList.remove('is-loading');
-}
-
-export function updateExplorerRadar(data: LocationExport): void {
-  const card = document.getElementById('cardExplorerRadar');
-  if (!card) return;
-
-  const blipsEl = card.querySelector<SVGGElement>('[data-loc="radar-blips"]');
-  const labelsEl = card.querySelector<HTMLElement>('[data-loc="radar-labels"]');
-  const centerEl = card.querySelector<SVGTextElement>('[data-loc="radar-center"]');
-  const categoryListEl = card.querySelector<HTMLElement>('[data-loc="radar-category-list"]');
-
-  const categories = data.categoryBreakdown;
-
-  if (!categories || categories.length === 0) {
-    card.classList.remove('is-loading');
-    return;
-  }
-
-  const maxVisits = Math.max(...categories.map(c => c.visitCount), 1);
-
-  // SVG center and radius
-  const cx = 100;
-  const cy = 100;
-  const maxR = 80; // outer ring radius
-  const minR = 15; // min distance from center
-
-  // Build blips
-  if (blipsEl) {
-    blipsEl.innerHTML = categories.map((cat, i) => {
-      const angle = (i / categories.length) * 2 * Math.PI - Math.PI / 2;
-      // More visits = smaller distance (stronger signal = closer to center)
-      const normalised = cat.visitCount / maxVisits;
-      const r = minR + (1 - normalised) * (maxR - minR);
-      const x = cx + r * Math.cos(angle);
-      const y = cy + r * Math.sin(angle);
-      const blipR = 4 + normalised * 4; // r=4 to r=8
-      return `<circle class="er-blip" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${blipR.toFixed(1)}" title="${esc(cat.category)}"/>`;
+  const barEl = card.querySelector<HTMLElement>('[data-loc="terrain-bar"]');
+  if (barEl) {
+    barEl.innerHTML = cats.map((cat, i) => {
+      const pct = ((cat.totalMinutes / totalMinutes) * 100).toFixed(2);
+      const color = getCategoryColor(cat.category);
+      const firstClass = i === 0 ? ' ct-segment-first' : '';
+      const lastClass = i === cats.length - 1 ? ' ct-segment-last' : '';
+      return `<div class="ct-segment${firstClass}${lastClass}" style="flex-basis:${pct}%;background:${color}" title="${esc(cat.category)}: ${parseFloat(pct).toFixed(0)}%"></div>`;
     }).join('');
   }
 
-  // Build category labels positioned around the radar
+  const labelsEl = card.querySelector<HTMLElement>('[data-loc="terrain-labels"]');
   if (labelsEl) {
-    const wrapperRect = card.querySelector('.er-radar-wrapper')?.getBoundingClientRect();
-    labelsEl.innerHTML = categories.map((cat, i) => {
-      const angle = (i / categories.length) * 2 * Math.PI - Math.PI / 2;
-      // Labels go outside the outer ring
-      const labelR = 54; // percentage of wrapper size; use % positioning
-      // Convert angle to percentage-based positioning within the wrapper
-      const xPct = 50 + labelR * Math.cos(angle);
-      const yPct = 50 + labelR * Math.sin(angle);
-      return `<span class="er-label" style="left:${xPct.toFixed(1)}%;top:${yPct.toFixed(1)}%">${esc(cat.category)}</span>`;
-    }).join('');
-  }
-
-  // Update center text with total visit count
-  const totalVisits = categories.reduce((sum, c) => sum + c.visitCount, 0);
-  if (centerEl) centerEl.textContent = String(categories.length) + ' cats';
-
-  // Build category list below the radar
-  if (categoryListEl) {
-    categoryListEl.innerHTML = categories.slice(0, 6).map(cat => {
-      return `<div class="er-category-row">
-        <span class="er-category-dot" style="background: var(--neon-blue, #00d4ff);"></span>
-        <span class="er-category-name">${esc(cat.category)}</span>
-        <span class="er-category-count">${cat.visitCount}</span>
+    labelsEl.innerHTML = cats.map(cat => {
+      const pct = ((cat.totalMinutes / totalMinutes) * 100).toFixed(0);
+      const color = getCategoryColor(cat.category);
+      return `<div class="ct-label">
+        <div class="ct-label-dot" style="background:${color}"></div>
+        <span class="ct-label-text">${esc(cat.category)} ${pct}%</span>
       </div>`;
     }).join('');
   }
@@ -645,7 +596,186 @@ export function updateExplorerRadar(data: LocationExport): void {
   card.classList.remove('is-loading');
 }
 
-function formatRelativeTime(isoString: string): string {
+export function updateExplorationRings(data: LocationExport): void {
+  const card = document.getElementById('cardExplorationRings');
+  if (!card) return;
+
+  const RING_TARGETS = { neighborhoods: 50, cities: 10, states: 5 };
+  const rings: { key: string; actual: number; target: number; r: number; countKey: string }[] = [
+    { key: 'ring-neighborhoods', actual: data.explorationStats.totalNeighborhoods, target: RING_TARGETS.neighborhoods, r: 52, countKey: 'ring-neighborhoods-count' },
+    { key: 'ring-cities', actual: data.explorationStats.totalCities, target: RING_TARGETS.cities, r: 40, countKey: 'ring-cities-count' },
+    { key: 'ring-states', actual: data.explorationStats.totalStates, target: RING_TARGETS.states, r: 28, countKey: 'ring-states-count' },
+  ];
+
+  for (const ring of rings) {
+    const progress = Math.min(ring.actual / ring.target, 1);
+    const circumference = 2 * Math.PI * ring.r;
+    const offset = circumference * (1 - progress);
+
+    const ringEl = card.querySelector<SVGCircleElement>(`[data-loc="${ring.key}"]`);
+    if (ringEl) {
+      ringEl.style.strokeDasharray = String(circumference);
+      ringEl.style.strokeDashoffset = String(offset);
+    }
+
+    const countEl = card.querySelector(`[data-loc="${ring.countKey}"]`);
+    if (countEl) countEl.textContent = `${ring.actual} of ${ring.target}`;
+  }
+
+  card.classList.remove('is-loading');
+}
+
+export function updateDurationDonut(data: LocationExport): void {
+  const card = document.getElementById('cardDurationDonut');
+  if (!card) return;
+
+  const cats = [...data.categoryBreakdown].sort((a, b) => b.totalMinutes - a.totalMinutes);
+  const totalMinutes = cats.reduce((s, c) => s + c.totalMinutes, 0);
+
+  const totalEl = card.querySelector('[data-loc="donut-total"]');
+  if (totalEl) totalEl.textContent = String(Math.round(data.totalDurationHours));
+
+  if (totalMinutes > 0) {
+    let cumPct = 0;
+    const segments = cats.map(cat => {
+      const pct = (cat.totalMinutes / totalMinutes) * 100;
+      const start = cumPct;
+      cumPct += pct;
+      return { color: getCategoryColor(cat.category), start, end: cumPct };
+    });
+
+    const gradient = segments.map(s =>
+      `${s.color} ${s.start.toFixed(2)}% ${s.end.toFixed(2)}%`
+    ).join(', ');
+
+    const donutEl = card.querySelector<HTMLElement>('[data-loc="donut-ring"]');
+    if (donutEl) donutEl.style.background = `conic-gradient(${gradient})`;
+
+    const legendEl = card.querySelector<HTMLElement>('[data-loc="donut-legend"]');
+    if (legendEl) {
+      legendEl.innerHTML = cats.map(cat => {
+        const pct = ((cat.totalMinutes / totalMinutes) * 100).toFixed(0);
+        const color = getCategoryColor(cat.category);
+        return `<div class="wg-legend-item">
+          <div class="wg-legend-dot" style="background:${color}"></div>
+          <span class="wg-legend-label">${esc(cat.category)} ${pct}%</span>
+        </div>`;
+      }).join('');
+    }
+  }
+
+  card.classList.remove('is-loading');
+}
+
+export function updateStreakCalendar(data: LocationExport): void {
+  const card = document.getElementById('cardStreakCalendar');
+  if (!card) return;
+
+  const days30 = data.last90Days.slice(-30);
+  const activeDates = new Set(days30.filter(d => d.count > 0).map(d => d.date));
+
+  // Determine which dates are in the current streak (working backwards from today)
+  const streakDates = new Set<string>();
+  const today = new Date();
+  for (let i = 0; i < data.streaks.currentStreak; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    streakDates.add(d.toISOString().slice(0, 10));
+  }
+
+  // Align to Monday: find the weekday of the first day
+  const firstDay = days30[0];
+  let leadingEmpties = 0;
+  if (firstDay) {
+    const dow = new Date(firstDay.date).getDay(); // 0=Sun
+    leadingEmpties = dow === 0 ? 6 : dow - 1; // Mon=0 offset
+  }
+
+  const gridEl = card.querySelector<HTMLElement>('[data-loc="streak-calendar-grid"]');
+  if (gridEl) {
+    let html = '';
+    for (let i = 0; i < leadingEmpties; i++) {
+      html += '<div class="sc-cell sc-cell-empty"></div>';
+    }
+    for (const day of days30) {
+      const dayNum = new Date(day.date).getDate();
+      const isActive = activeDates.has(day.date);
+      const isStreak = streakDates.has(day.date);
+      let cls = 'sc-cell';
+      if (isActive) cls += ' sc-cell-active';
+      if (isStreak) cls += ' sc-cell-streak';
+      html += `<div class="${cls}" title="${esc(day.date)}">${dayNum}</div>`;
+    }
+    gridEl.innerHTML = html;
+  }
+
+  const countEl = card.querySelector('[data-loc="streak-calendar-count"]');
+  if (countEl) countEl.textContent = String(data.streaks.currentStreak);
+
+  card.classList.remove('is-loading');
+}
+
+export function updateCityConstellation(data: LocationExport): void {
+  const card = document.getElementById('cardCityConstellation');
+  if (!card) return;
+
+  const cities = data.cityBreakdown;
+  if (!cities || cities.length === 0) {
+    card.classList.remove('is-loading');
+    return;
+  }
+
+  const maxVisits = Math.max(...cities.map(c => c.visitCount), 1);
+  const cx = 100;
+  const cy = 80;
+  const radius = 55;
+  const N = cities.length;
+
+  // Compute node positions
+  const nodes = cities.map((city, i) => {
+    const angle = (i / N) * 2 * Math.PI - Math.PI / 2;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+    const r = 4 + (city.visitCount / maxVisits) * 8;
+    return { x, y, r, city };
+  });
+
+  const svgEl = card.querySelector<SVGSVGElement>('[data-loc="constellation-svg"]');
+  if (svgEl) {
+    let svgHtml = '';
+    // Draw connecting lines
+    for (let i = 0; i < nodes.length; i++) {
+      const next = nodes[(i + 1) % nodes.length];
+      svgHtml += `<line x1="${nodes[i].x.toFixed(1)}" y1="${nodes[i].y.toFixed(1)}" x2="${next.x.toFixed(1)}" y2="${next.y.toFixed(1)}" stroke="rgba(129,140,248,0.15)" stroke-width="1"/>`;
+    }
+    // Draw nodes
+    nodes.forEach((node, i) => {
+      const isPrimary = i === 0;
+      const pulseClass = isPrimary ? ' class="cc-node-primary"' : '';
+      svgHtml += `<circle${pulseClass} cx="${node.x.toFixed(1)}" cy="${node.y.toFixed(1)}" r="${node.r.toFixed(1)}" fill="var(--neon-indigo, #818cf8)" opacity="0.9" title="${esc(node.city.city)}">
+        <title>${esc(node.city.city)}: ${node.city.visitCount} visits</title>
+      </circle>`;
+    });
+    svgEl.innerHTML = svgHtml;
+  }
+
+  const listEl = card.querySelector<HTMLElement>('[data-loc="constellation-list"]');
+  if (listEl) {
+    listEl.innerHTML = cities.slice(0, 6).map((city, i) => {
+      const barWidth = ((city.visitCount / maxVisits) * 100).toFixed(1);
+      return `<div class="cc-city-row">
+        <span class="cc-city-rank">${i + 1}</span>
+        <span class="cc-city-name">${esc(city.city)}</span>
+        <div class="cc-city-bar-wrapper"><div class="cc-city-bar-fill" style="width:${barWidth}%"></div></div>
+        <span class="cc-city-count">${city.visitCount}</span>
+      </div>`;
+    }).join('');
+  }
+
+  card.classList.remove('is-loading');
+}
+
+export function formatRelativeTime(isoString: string): string {
   const msAgo = Date.now() - new Date(isoString).getTime();
   const minutesAgo = Math.max(0, Math.floor(msAgo / 60000));
   const hoursAgo = Math.floor(minutesAgo / 60);

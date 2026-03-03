@@ -1,0 +1,215 @@
+---
+import Showcase from '../layouts/Showcase.astro';
+import ExplorationOdometerV3 from '../components/location/ExplorationOdometerV3.astro';
+import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro';
+---
+<Showcase title="Location Widget Variations">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Location Widget Variations</h1>
+    <p class="lib-page-desc">
+      ExplorationOdometer and PlaceLeaderboard location widgets.
+    </p>
+
+    <h2 style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon-purple); margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid rgba(168,85,247,0.2);">
+      ExplorationOdometer
+    </h2>
+
+    <!-- ==================== ODOMETER V3: Gradient Home ==================== -->
+    <div class="component-section">
+      <div class="component-name">Gradient Home</div>
+      <div class="component-description">Gradient text city name with home icon and days-since-tracking counter</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-purple is-loading">
+              <div class="widget-header"><h3 class="widget-label">Exploration</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">since 3/2/26</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                    <div class="skeleton-bar" style="flex: 1; height: 40px; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 40px; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 40px; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 40px; border-radius: 4px;"></div>
+                  </div>
+                  <div class="skeleton-bar" style="height: 24px; border-radius: 4px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-purple">
+              <div class="widget-header"><h3 class="widget-label">Exploration</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">since 3/2/26</span></div></div>
+              <div class="widget-body">
+                <div style="display:flex;flex-direction:column;gap:14px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;">
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;"><span style="font-size:1.5rem;font-weight:700;color:var(--text-muted)">---</span><span style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)">Visits</span></div>
+                    <div style="width:1px;height:28px;background:rgba(255,255,255,0.08);flex-shrink:0;"></div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;"><span style="font-size:1.5rem;font-weight:700;color:var(--text-muted)">---</span><span style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)">Places</span></div>
+                    <div style="width:1px;height:28px;background:rgba(255,255,255,0.08);flex-shrink:0;"></div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;"><span style="font-size:1.5rem;font-weight:700;color:var(--text-muted)">---</span><span style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)">Cities</span></div>
+                    <div style="width:1px;height:28px;background:rgba(255,255,255,0.08);flex-shrink:0;"></div>
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1;"><span style="font-size:1.5rem;font-weight:700;color:var(--text-muted)">---</span><span style="font-size:0.55rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted)">States</span></div>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding-top:10px;border-top:1px solid rgba(168,85,247,0.12);"><span style="color:var(--text-muted);font-size:0.7rem;">---</span><span style="color:rgba(255,255,255,0.35);font-size:0.65rem;">---</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <ExplorationOdometerV3 />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon-purple); margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid rgba(168,85,247,0.2);">
+      PlaceLeaderboard Variations
+    </h2>
+
+    <!-- ==================== LEADERBOARD V3: Medal Podium ==================== -->
+    <div class="component-section">
+      <div class="component-name">V3: Medal Podium</div>
+      <div class="component-description">Top 3 places in a medal podium section, remaining in compact list</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-purple is-loading">
+              <div class="widget-header"><h3 class="widget-label">Top Places</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">since 3/2/26</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div class="skeleton-bar" style="width: 100%; height: 38px; border-radius: 6px;"></div>
+                    <div class="skeleton-bar" style="width: 100%; height: 32px; border-radius: 6px;"></div>
+                    <div class="skeleton-bar" style="width: 100%; height: 32px; border-radius: 6px;"></div>
+                    <div style="height: 1px; background: rgba(255,255,255,0.04); margin: 2px 0;"></div>
+                    <div class="skeleton-bar" style="width: 100%; height: 18px; border-radius: 3px;"></div>
+                    <div class="skeleton-bar" style="width: 90%; height: 18px; border-radius: 3px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-purple">
+              <div class="widget-header"><h3 class="widget-label">Top Places</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">since 3/2/26</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No places recorded</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <PlaceLeaderboardV3 />
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script>
+    import { updateExplorationOdometerV3 } from '../lib/updaters-odometer-variations';
+    import { updatePlaceLeaderboardV3 } from '../lib/updaters-leaderboard-variations';
+    import type { LocationExport } from '../types/exports';
+
+    // Generate 90 days of realistic visit data
+    function generateLast90Days(): LocationExport['last90Days'] {
+      const days: LocationExport['last90Days'] = [];
+      const now = new Date();
+      for (let i = 89; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const dow = d.getDay();
+        // Weekdays busier, weekends more varied
+        const isWeekday = dow >= 1 && dow <= 5;
+        const base = isWeekday ? 4 : 2;
+        const variance = isWeekday ? 6 : 8;
+        // Some days have zero activity (roughly 1 in 7)
+        const isOff = Math.sin(i * 2.7 + 0.5) > 0.8;
+        const count = isOff ? 0 : base + Math.floor(Math.abs(Math.sin(i * 1.3 + 2.1)) * variance);
+        const uniquePlaces = Math.max(1, Math.floor(count * 0.6));
+        const totalDurationMinutes = count * (30 + Math.floor(Math.abs(Math.cos(i * 0.7)) * 90));
+        days.push({ date: dateStr, count, uniquePlaces, totalDurationMinutes });
+      }
+      return days;
+    }
+
+    const sampleLocation: LocationExport = {
+      generatedAt: new Date().toISOString(),
+      totalVisits: 2847,
+      totalPlaces: 312,
+      totalDurationHours: 6891,
+      citiesVisited: 8,
+      currentCity: 'San Francisco',
+      lastSeen: new Date(Date.now() - 25 * 60000).toISOString(),
+      last90Days: generateLast90Days(),
+      // Power-law distribution: each rank ~60-70% of previous (Zipf's law)
+      topPlaces: [
+        { name: "WeWork SOMA", category: 'Work', visitCount: 847, totalDurationMinutes: 203280, lastVisitAt: new Date(Date.now() - 86400000).toISOString() },
+        { name: "Barry's Bootcamp", category: 'Fitness & Outdoors', visitCount: 312, totalDurationMinutes: 18720, lastVisitAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+        { name: 'Blue Bottle Coffee', category: 'Dining', visitCount: 187, totalDurationMinutes: 5610, lastVisitAt: new Date(Date.now() - 86400000).toISOString() },
+        { name: 'Whole Foods Market', category: 'Shopping', visitCount: 143, totalDurationMinutes: 8580, lastVisitAt: new Date(Date.now() - 3 * 86400000).toISOString() },
+        { name: 'Golden Gate Park', category: 'Fitness & Outdoors', visitCount: 98, totalDurationMinutes: 17640, lastVisitAt: new Date(Date.now() - 5 * 86400000).toISOString() },
+        { name: 'AMC Metreon 16', category: 'Entertainment', visitCount: 74, totalDurationMinutes: 13320, lastVisitAt: new Date(Date.now() - 7 * 86400000).toISOString() },
+        { name: 'Powell St BART', category: 'Travel', visitCount: 67, totalDurationMinutes: 2010, lastVisitAt: new Date(Date.now() - 2 * 86400000).toISOString() },
+        { name: 'Tartine Bakery', category: 'Dining', visitCount: 41, totalDurationMinutes: 2460, lastVisitAt: new Date(Date.now() - 10 * 86400000).toISOString() },
+      ],
+      cityBreakdown: [
+        { city: 'San Francisco', visitCount: 1847 },
+        { city: 'Oakland', visitCount: 284 },
+        { city: 'Berkeley', visitCount: 167 },
+        { city: 'San Jose', visitCount: 93 },
+        { city: 'Palo Alto', visitCount: 68 },
+        { city: 'Sausalito', visitCount: 41 },
+        { city: 'Mill Valley', visitCount: 28 },
+        { city: 'Napa', visitCount: 17 },
+      ],
+      categoryBreakdown: [
+        { category: 'Work', visitCount: 847, totalMinutes: 203280 },
+        { category: 'Dining', visitCount: 418, totalMinutes: 25080 },
+        { category: 'Fitness & Outdoors', visitCount: 312, totalMinutes: 56160 },
+        { category: 'Shopping', visitCount: 198, totalMinutes: 17820 },
+        { category: 'Entertainment', visitCount: 124, totalMinutes: 22320 },
+        { category: 'Travel', visitCount: 89, totalMinutes: 10680 },
+        { category: 'Health', visitCount: 67, totalMinutes: 12060 },
+        { category: 'Education', visitCount: 34, totalMinutes: 12240 },
+        { category: 'Services', visitCount: 28, totalMinutes: 5040 },
+      ],
+      // 42-day streak: just under 50-day milestone (creates "almost there" urgency)
+      streaks: {
+        currentStreak: 42,
+        longestStreak: 67,
+        totalActiveDays: 284,
+      },
+      // Ring fill rates: 76% / 80% / 80% (sweet spot: 65-85% looks most compelling)
+      explorationStats: {
+        totalNeighborhoods: 38,
+        totalCities: 8,
+        totalStates: 4,
+      },
+    };
+
+    // Call updaters
+    const updaters = [
+      updateExplorationOdometerV3,
+      updatePlaceLeaderboardV3,
+    ];
+    for (const fn of updaters) {
+      try { fn(sampleLocation); } catch (e) { console.warn('[showcase]', e); }
+    }
+  </script>
+</Showcase>

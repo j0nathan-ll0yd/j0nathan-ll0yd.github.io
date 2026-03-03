@@ -1,0 +1,80 @@
+---
+---
+<div class="tri-card tri-card-accent-purple" id="cardWaffleGrid">
+  <div class="widget-header">
+    <h3 class="widget-label">Time Map</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">categories</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px;">
+        {Array.from({length: 100}).map(() => (
+          <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+        ))}
+      </div>
+    </div>
+    <div class="wg-content">
+      <div class="wg-grid" data-loc="waffle-grid">
+        {Array.from({length: 100}).map((_, i) => (
+          <div class="wg-cell" style="background: rgba(255,255,255,0.05);"></div>
+        ))}
+      </div>
+      <div class="wg-legend" data-loc="waffle-legend">
+        <!-- populated by updater -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .wg-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .wg-grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 2px;
+  }
+
+  .wg-cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    transition: opacity 0.2s ease, box-shadow 0.2s ease;
+    cursor: default;
+  }
+
+  .wg-cell:hover {
+    opacity: 0.8;
+    box-shadow: 0 0 6px currentColor;
+  }
+
+  .wg-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .wg-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+  }
+
+  .wg-legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .wg-legend-label {
+    color: var(--text-muted, #9ca3af);
+  }
+</style>

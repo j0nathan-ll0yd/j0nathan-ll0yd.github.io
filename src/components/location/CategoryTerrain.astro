@@ -1,0 +1,100 @@
+---
+---
+<div class="tri-card tri-card-accent-green" id="cardCategoryTerrain">
+  <div class="widget-header">
+    <h3 class="widget-label">Time Terrain</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">categories</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div class="skeleton-bar" style="width: 100%; height: 16px; border-radius: 8px;"></div>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <div class="skeleton-bar" style="width: 60px; height: 12px;"></div>
+        <div class="skeleton-bar" style="width: 70px; height: 12px;"></div>
+        <div class="skeleton-bar" style="width: 50px; height: 12px;"></div>
+      </div>
+    </div>
+    <div class="ct-content">
+      <div class="ct-bar" data-loc="terrain-bar">
+        <!-- segments populated by updater -->
+      </div>
+      <div class="ct-labels" data-loc="terrain-labels">
+        <!-- labels populated by updater -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .ct-bar {
+    display: flex;
+    height: 16px;
+    border-radius: 8px;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .ct-segment {
+    height: 100%;
+    transition: flex-basis 0.5s ease;
+    position: relative;
+    cursor: default;
+  }
+
+  .ct-segment:first-child {
+    border-radius: 8px 0 0 8px;
+  }
+
+  .ct-segment:last-child {
+    border-radius: 0 8px 8px 0;
+  }
+
+  .ct-segment:only-child {
+    border-radius: 8px;
+  }
+
+  .ct-segment:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: var(--text, #f0f0f0);
+    font-size: 0.6rem;
+    padding: 3px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .ct-labels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .ct-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+  }
+
+  .ct-label-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .ct-label-text {
+    color: var(--text-muted, #9ca3af);
+  }
+</style>

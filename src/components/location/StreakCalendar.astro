@@ -1,0 +1,108 @@
+---
+---
+<div class="tri-card tri-card-accent-green" id="cardStreakCalendar">
+  <div class="widget-header">
+    <h3 class="widget-label">Streak Calendar</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">30d</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;">
+        {Array.from({length: 35}).map(() => (
+          <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+        ))}
+      </div>
+    </div>
+    <div class="sc-content">
+      <div class="sc-day-headers">
+        <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+      </div>
+      <div class="sc-grid" data-loc="streak-calendar-grid">
+        <!-- populated by updater -->
+      </div>
+      <div class="sc-streak-row">
+        <span class="sc-streak-label">Current streak:</span>
+        <span class="sc-streak-value" data-loc="streak-calendar-count">--</span>
+        <span class="sc-streak-unit">days</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .sc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .sc-day-headers {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+    margin-bottom: 2px;
+  }
+
+  .sc-day-headers span {
+    font-size: 0.5rem;
+    text-align: center;
+    color: var(--text-muted, #9ca3af);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .sc-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 3px;
+  }
+
+  .sc-cell {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: var(--text-muted, #9ca3af);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .sc-cell-active {
+    background: rgba(6, 214, 160, 0.15);
+    color: var(--neon-green, #06d6a0);
+    text-shadow: 0 0 4px rgba(6, 214, 160, 0.4);
+  }
+
+  .sc-cell-streak {
+    border-bottom: 2px solid var(--neon-green, #06d6a0);
+    box-shadow: 0 2px 4px rgba(6, 214, 160, 0.3);
+  }
+
+  .sc-cell-empty {
+    background: transparent;
+  }
+
+  .sc-streak-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    font-size: 0.65rem;
+    color: var(--text-muted, #9ca3af);
+  }
+
+  .sc-streak-value {
+    color: var(--neon-green, #06d6a0);
+    font-weight: 700;
+    font-size: 0.8rem;
+    text-shadow: 0 0 8px rgba(6, 214, 160, 0.4);
+  }
+
+  .sc-streak-unit {
+    color: var(--text-muted, #9ca3af);
+  }
+</style>

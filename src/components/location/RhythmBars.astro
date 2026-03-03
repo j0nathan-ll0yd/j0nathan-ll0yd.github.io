@@ -1,0 +1,125 @@
+---
+---
+<div class="tri-card tri-card-accent-blue" id="cardRhythmBars">
+  <div class="widget-header">
+    <h3 class="widget-label">Weekly Rhythm</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <span class="widget-timestamp">90d</span>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; gap: 8px; align-items: flex-end; height: 80px;">
+        <div class="skeleton-bar" style="flex: 1; height: 45px;"></div>
+        <div class="skeleton-bar" style="flex: 1; height: 70px;"></div>
+        <div class="skeleton-bar" style="flex: 1; height: 55px;"></div>
+        <div class="skeleton-bar" style="flex: 1; height: 80px;"></div>
+        <div class="skeleton-bar" style="flex: 1; height: 65px;"></div>
+        <div class="skeleton-bar" style="flex: 1; height: 35px;"></div>
+        <div class="skeleton-bar" style="flex: 1; height: 30px;"></div>
+      </div>
+    </div>
+    <div class="rb-content">
+      <div class="rb-bars" data-loc="rhythm-bars">
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-mon"></div>
+          <span class="rb-day">M</span>
+        </div>
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-tue"></div>
+          <span class="rb-day">T</span>
+        </div>
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-wed"></div>
+          <span class="rb-day">W</span>
+        </div>
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-thu"></div>
+          <span class="rb-day">T</span>
+        </div>
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-fri"></div>
+          <span class="rb-day">F</span>
+        </div>
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-sat"></div>
+          <span class="rb-day">S</span>
+        </div>
+        <div class="rb-bar-col">
+          <div class="rb-bar" style="height: 2px;" data-loc="rhythm-bar-sun"></div>
+          <span class="rb-day">S</span>
+        </div>
+      </div>
+      <div class="rb-stats">
+        <span class="rb-stat-label">Busiest:</span>
+        <span class="rb-stat-value" data-loc="rhythm-busiest">---</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .rb-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .rb-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 80px;
+  }
+
+  .rb-bar-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .rb-bar {
+    width: 100%;
+    border-radius: 3px 3px 0 0;
+    background: var(--neon-blue, #3a86ff);
+    transition: height 0.5s ease;
+    min-height: 2px;
+    box-shadow: 0 0 6px rgba(58, 134, 255, 0.3);
+  }
+
+  .rb-bar:hover {
+    box-shadow: 0 0 12px rgba(58, 134, 255, 0.6);
+  }
+
+  .rb-day {
+    font-size: 0.55rem;
+    color: var(--text-muted, #9ca3af);
+    text-transform: uppercase;
+  }
+
+  .rb-stats {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .rb-stat-label {
+    font-size: 0.6rem;
+    color: var(--text-muted, #9ca3af);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .rb-stat-value {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--neon-blue, #3a86ff);
+    text-shadow: 0 0 6px rgba(58, 134, 255, 0.4);
+  }
+</style>

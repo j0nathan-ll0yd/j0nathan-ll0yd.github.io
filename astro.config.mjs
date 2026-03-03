@@ -17,6 +17,7 @@ const showcaseDevOnly = {
         injectRoute({ pattern: '/showcase/reading-books', entrypoint: 'src/showcase/reading-books.astro' });
         injectRoute({ pattern: '/showcase/responsive-preview', entrypoint: 'src/showcase/responsive-preview.astro' });
         injectRoute({ pattern: '/showcase/og-images', entrypoint: 'src/showcase/og-images.astro' });
+        injectRoute({ pattern: '/showcase/location-widgets', entrypoint: 'src/showcase/location-widgets.astro' });
       }
     }
   }
