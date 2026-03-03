@@ -104,7 +104,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-12) var(--space-18) var(--space-8);
+  padding: var(--space-12) var(--space-18) var(--space-10);
   border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
@@ -179,7 +179,7 @@
 }
 
 .widget-body {
-  padding: var(--space-14) var(--space-18) var(--space-18);
+  padding: var(--space-10) var(--space-18) var(--space-16);
 }
 
 /* ===== 1. IDENTITY CARD ===== */
@@ -415,7 +415,7 @@
 }
 
 .left-panel-bio .widget-header {
-  padding: 12px 16px 8px;
+  padding: var(--space-12) var(--space-18) var(--space-10);
 }
 
 .left-panel-bio .widget-body {
@@ -726,7 +726,7 @@
   background: rgba(0,0,0,0.25);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--radius-lg);
-  padding: var(--space-14) var(--space-16);
+  padding: var(--space-12) var(--space-16);
   margin-bottom: 10px;
 }
 .workout-sub-card:last-child { margin-bottom: 0; }
@@ -1221,7 +1221,7 @@
   background: rgba(0,0,0,0.4);
   border: 1px solid rgba(6,214,160,0.1);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: var(--space-10) var(--space-12);
   font-family: 'Space Grotesk', monospace;
   font-size: var(--font-size-base);
   line-height: 1.35;
@@ -1820,7 +1820,7 @@ a.article-list-title:hover {
   inset: 0;
   z-index: 1;
   background: var(--glass-bg);
-  padding: 14px 18px 18px;
+  padding: var(--space-10) var(--space-18) var(--space-16);
 }
 .tri-card.is-loading .widget-body {
   position: relative;
@@ -1905,7 +1905,7 @@ a.article-list-title:hover {
   .pulse-bpm { font-size: var(--font-size-xl); }
   .split-metric-value { font-size: var(--font-size-lg); }
   .widget-label { letter-spacing: 1.5px; }
-  .widget-body { padding: 10px 12px 12px; }
+  .widget-body { padding: var(--space-8) var(--space-10) var(--space-10); }
 }
 
 @container (max-width: 280px) {
@@ -1937,6 +1937,6 @@ a.article-list-title:hover {
 /* Widget body padding scales with container */
 @container (min-width: 500px) {
   .widget-body {
-    padding: var(--space-18) var(--space-24) var(--space-24);
+    padding: var(--space-14) var(--space-24) var(--space-20);
   }
 }
