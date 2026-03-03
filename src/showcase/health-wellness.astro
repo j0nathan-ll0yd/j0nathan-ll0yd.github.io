@@ -116,11 +116,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.35;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 8s;">
-                    <defs><filter id="ecgGlow1"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 52.0 26 55 L 34 55 L 38 57.0 L 44 17.5 L 50 59.0 L 56 55 Q 68 50.0 80 55 L 100 55 L 110 55 Q 118 52.0 126 55 L 134 55 L 138 57.0 L 144 17.5 L 150 59.0 L 156 55 Q 168 50.0 180 55 L 200 55 L 210 55 Q 218 52.0 226 55 L 234 55 L 238 57.0 L 244 17.5 L 250 59.0 L 256 55 Q 268 50.0 280 55 L 300 55 L 310 55 Q 318 52.0 326 55 L 334 55 L 338 57.0 L 344 17.5 L 350 59.0 L 356 55 Q 368 50.0 380 55 L 400 55 L 410 55 Q 418 52.0 426 55 L 434 55 L 438 57.0 L 444 17.5 L 450 59.0 L 456 55 Q 468 50.0 480 55 L 500 55 L 510 55 Q 518 52.0 526 55 L 534 55 L 538 57.0 L 544 17.5 L 550 59.0 L 556 55 Q 568 50.0 580 55 L 600 55 L 610 55 Q 618 52.0 626 55 L 634 55 L 638 57.0 L 644 17.5 L 650 59.0 L 656 55 Q 668 50.0 680 55 L 700 55 L 710 55 Q 718 52.0 726 55 L 734 55 L 738 57.0 L 744 17.5 L 750 59.0 L 756 55 Q 768 50.0 780 55 L 800 55" style="stroke: #3a86ff; filter: url(#ecgGlow1);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.35;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="40"
+                    data-hrv="62"
+                    data-stroke="#3a86ff"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -154,11 +156,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.35;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 6s;">
-                    <defs><filter id="ecgGlow2"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 51.1 26 55 L 34 55 L 38 57.6 L 44 15.2 L 50 60.2 L 56 55 Q 68 48.5 80 55 L 100 55 L 110 55 Q 118 51.1 126 55 L 134 55 L 138 57.6 L 144 15.2 L 150 60.2 L 156 55 Q 168 48.5 180 55 L 200 55 L 210 55 Q 218 51.1 226 55 L 234 55 L 238 57.6 L 244 15.2 L 250 60.2 L 256 55 Q 268 48.5 280 55 L 300 55 L 310 55 Q 318 51.1 326 55 L 334 55 L 338 57.6 L 344 15.2 L 350 60.2 L 356 55 Q 368 48.5 380 55 L 400 55 L 410 55 Q 418 51.1 426 55 L 434 55 L 438 57.6 L 444 15.2 L 450 60.2 L 456 55 Q 468 48.5 480 55 L 500 55 L 510 55 Q 518 51.1 526 55 L 534 55 L 538 57.6 L 544 15.2 L 550 60.2 L 556 55 Q 568 48.5 580 55 L 600 55 L 610 55 Q 618 51.1 626 55 L 634 55 L 638 57.6 L 644 15.2 L 650 60.2 L 656 55 Q 668 48.5 680 55 L 700 55 L 710 55 Q 718 51.1 726 55 L 734 55 L 738 57.6 L 744 15.2 L 750 60.2 L 756 55 Q 768 48.5 780 55 L 800 55" style="stroke: #ff006e; filter: url(#ecgGlow2);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.35;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="52"
+                    data-hrv="55"
+                    data-stroke="#ff006e"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -192,11 +196,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.35;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 4s;">
-                    <defs><filter id="ecgGlow3"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 49.4 26 55 L 34 55 L 38 58.8 L 44 10.9 L 50 62.5 L 56 55 Q 68 45.6 80 55 L 100 55 L 110 55 Q 118 49.4 126 55 L 134 55 L 138 58.8 L 144 10.9 L 150 62.5 L 156 55 Q 168 45.6 180 55 L 200 55 L 210 55 Q 218 49.4 226 55 L 234 55 L 238 58.8 L 244 10.9 L 250 62.5 L 256 55 Q 268 45.6 280 55 L 300 55 L 310 55 Q 318 49.4 326 55 L 334 55 L 338 58.8 L 344 10.9 L 350 62.5 L 356 55 Q 368 45.6 380 55 L 400 55 L 410 55 Q 418 49.4 426 55 L 434 55 L 438 58.8 L 444 10.9 L 450 62.5 L 456 55 Q 468 45.6 480 55 L 500 55 L 510 55 Q 518 49.4 526 55 L 534 55 L 538 58.8 L 544 10.9 L 550 62.5 L 556 55 Q 568 45.6 580 55 L 600 55 L 610 55 Q 618 49.4 626 55 L 634 55 L 638 58.8 L 644 10.9 L 650 62.5 L 656 55 Q 668 45.6 680 55 L 700 55 L 710 55 Q 718 49.4 726 55 L 734 55 L 738 58.8 L 744 10.9 L 750 62.5 L 756 55 Q 768 45.6 780 55 L 800 55" style="stroke: #ff006e; filter: url(#ecgGlow3);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.35;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="75"
+                    data-hrv="35"
+                    data-stroke="#ff006e"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -230,11 +236,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.4;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 2.5s;">
-                    <defs><filter id="ecgGlow4"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 45.6 26 55 L 34 55 L 38 61.2 L 44 1.6 L 50 67.5 L 56 55 Q 68 39.4 80 55 L 100 55 L 110 55 Q 118 45.6 126 55 L 134 55 L 138 61.2 L 144 1.6 L 150 67.5 L 156 55 Q 168 39.4 180 55 L 200 55 L 210 55 Q 218 45.6 226 55 L 234 55 L 238 61.2 L 244 1.6 L 250 67.5 L 256 55 Q 268 39.4 280 55 L 300 55 L 310 55 Q 318 45.6 326 55 L 334 55 L 338 61.2 L 344 1.6 L 350 67.5 L 356 55 Q 368 39.4 380 55 L 400 55 L 410 55 Q 418 45.6 426 55 L 434 55 L 438 61.2 L 444 1.6 L 450 67.5 L 456 55 Q 468 39.4 480 55 L 500 55 L 510 55 Q 518 45.6 526 55 L 534 55 L 538 61.2 L 544 1.6 L 550 67.5 L 556 55 Q 568 39.4 580 55 L 600 55 L 610 55 Q 618 45.6 626 55 L 634 55 L 638 61.2 L 644 1.6 L 650 67.5 L 656 55 Q 668 39.4 680 55 L 700 55 L 710 55 Q 718 45.6 726 55 L 734 55 L 738 61.2 L 744 1.6 L 750 67.5 L 756 55 Q 768 39.4 780 55 L 800 55" style="stroke: #f59e0b; filter: url(#ecgGlow4);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.4;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="125"
+                    data-hrv="22"
+                    data-stroke="#f59e0b"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -268,11 +276,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.5;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 1.5s;">
-                    <defs><filter id="ecgGlow5"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 44.2 26 55 L 34 55 L 38 62.2 L 44 -2.0 L 50 69.4 L 56 55 Q 68 37.0 80 55 L 100 55 L 110 55 Q 118 44.2 126 55 L 134 55 L 138 62.2 L 144 -2.0 L 150 69.4 L 156 55 Q 168 37.0 180 55 L 200 55 L 210 55 Q 218 44.2 226 55 L 234 55 L 238 62.2 L 244 -2.0 L 250 69.4 L 256 55 Q 268 37.0 280 55 L 300 55 L 310 55 Q 318 44.2 326 55 L 334 55 L 338 62.2 L 344 -2.0 L 350 69.4 L 356 55 Q 368 37.0 380 55 L 400 55 L 410 55 Q 418 44.2 426 55 L 434 55 L 438 62.2 L 444 -2.0 L 450 69.4 L 456 55 Q 468 37.0 480 55 L 500 55 L 510 55 Q 518 44.2 526 55 L 534 55 L 538 62.2 L 544 -2.0 L 550 69.4 L 556 55 Q 568 37.0 580 55 L 600 55 L 610 55 Q 618 44.2 626 55 L 634 55 L 638 62.2 L 644 -2.0 L 650 69.4 L 656 55 Q 668 37.0 680 55 L 700 55 L 710 55 Q 718 44.2 726 55 L 734 55 L 738 62.2 L 744 -2.0 L 750 69.4 L 756 55 Q 768 37.0 780 55 L 800 55" style="stroke: #ef4444; filter: url(#ecgGlow5);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.5;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="165"
+                    data-hrv="12"
+                    data-stroke="#ef4444"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -306,11 +316,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.35;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 8s;">
-                    <defs><filter id="ecgGlow6"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 51.9 26 55 L 34 55 L 38 57.1 L 44 17.1 L 50 59.2 L 56 55 Q 68 49.8 80 55 L 100 55 L 110 55 Q 118 51.9 126 55 L 134 55 L 138 57.1 L 144 17.1 L 150 59.2 L 156 55 Q 168 49.8 180 55 L 200 55 L 210 55 Q 218 51.9 226 55 L 234 55 L 238 57.1 L 244 17.1 L 250 59.2 L 256 55 Q 268 49.8 280 55 L 300 55 L 310 55 Q 318 51.9 326 55 L 334 55 L 338 57.1 L 344 17.1 L 350 59.2 L 356 55 Q 368 49.8 380 55 L 400 55 L 410 55 Q 418 51.9 426 55 L 434 55 L 438 57.1 L 444 17.1 L 450 59.2 L 456 55 Q 468 49.8 480 55 L 500 55 L 510 55 Q 518 51.9 526 55 L 534 55 L 538 57.1 L 544 17.1 L 550 59.2 L 556 55 Q 568 49.8 580 55 L 600 55 L 610 55 Q 618 51.9 626 55 L 634 55 L 638 57.1 L 644 17.1 L 650 59.2 L 656 55 Q 668 49.8 680 55 L 700 55 L 710 55 Q 718 51.9 726 55 L 734 55 L 738 57.1 L 744 17.1 L 750 59.2 L 756 55 Q 768 49.8 780 55 L 800 55" style="stroke: #3a86ff; filter: url(#ecgGlow6);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.35;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="42"
+                    data-hrv="80"
+                    data-stroke="#3a86ff"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -344,11 +356,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.35;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 6s;">
-                    <defs><filter id="ecgGlow7"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 50.9 26 55 L 34 55 L 38 57.8 L 44 14.7 L 50 60.5 L 56 55 Q 68 48.1 80 55 L 100 55 L 110 55 Q 118 50.9 126 55 L 134 55 L 138 57.8 L 144 14.7 L 150 60.5 L 156 55 Q 168 48.1 180 55 L 200 55 L 210 55 Q 218 50.9 226 55 L 234 55 L 238 57.8 L 244 14.7 L 250 60.5 L 256 55 Q 268 48.1 280 55 L 300 55 L 310 55 Q 318 50.9 326 55 L 334 55 L 338 57.8 L 344 14.7 L 350 60.5 L 356 55 Q 368 48.1 380 55 L 400 55 L 410 55 Q 418 50.9 426 55 L 434 55 L 438 57.8 L 444 14.7 L 450 60.5 L 456 55 Q 468 48.1 480 55 L 500 55 L 510 55 Q 518 50.9 526 55 L 534 55 L 538 57.8 L 544 14.7 L 550 60.5 L 556 55 Q 568 48.1 580 55 L 600 55 L 610 55 Q 618 50.9 626 55 L 634 55 L 638 57.8 L 644 14.7 L 650 60.5 L 656 55 Q 668 48.1 680 55 L 700 55 L 710 55 Q 718 50.9 726 55 L 734 55 L 738 57.8 L 744 14.7 L 750 60.5 L 756 55 Q 768 48.1 780 55 L 800 55" style="stroke: #ff006e; filter: url(#ecgGlow7);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.35;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="55"
+                    data-hrv="70"
+                    data-stroke="#ff006e"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -382,11 +396,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.35;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 4s;">
-                    <defs><filter id="ecgGlow8"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 48.6 26 55 L 34 55 L 38 59.2 L 44 9.1 L 50 63.5 L 56 55 Q 68 44.4 80 55 L 100 55 L 110 55 Q 118 48.6 126 55 L 134 55 L 138 59.2 L 144 9.1 L 150 63.5 L 156 55 Q 168 44.4 180 55 L 200 55 L 210 55 Q 218 48.6 226 55 L 234 55 L 238 59.2 L 244 9.1 L 250 63.5 L 256 55 Q 268 44.4 280 55 L 300 55 L 310 55 Q 318 48.6 326 55 L 334 55 L 338 59.2 L 344 9.1 L 350 63.5 L 356 55 Q 368 44.4 380 55 L 400 55 L 410 55 Q 418 48.6 426 55 L 434 55 L 438 59.2 L 444 9.1 L 450 63.5 L 456 55 Q 468 44.4 480 55 L 500 55 L 510 55 Q 518 48.6 526 55 L 534 55 L 538 59.2 L 544 9.1 L 550 63.5 L 556 55 Q 568 44.4 580 55 L 600 55 L 610 55 Q 618 48.6 626 55 L 634 55 L 638 59.2 L 644 9.1 L 650 63.5 L 656 55 Q 668 44.4 680 55 L 700 55 L 710 55 Q 718 48.6 726 55 L 734 55 L 738 59.2 L 744 9.1 L 750 63.5 L 756 55 Q 768 44.4 780 55 L 800 55" style="stroke: #ff006e; filter: url(#ecgGlow8);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.35;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="85"
+                    data-hrv="18"
+                    data-stroke="#ff006e"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -420,11 +436,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.4;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 2.5s;">
-                    <defs><filter id="ecgGlow9"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 46.8 26 55 L 34 55 L 38 60.5 L 44 4.4 L 50 66.0 L 56 55 Q 68 41.2 80 55 L 100 55 L 110 55 Q 118 46.8 126 55 L 134 55 L 138 60.5 L 144 4.4 L 150 66.0 L 156 55 Q 168 41.2 180 55 L 200 55 L 210 55 Q 218 46.8 226 55 L 234 55 L 238 60.5 L 244 4.4 L 250 66.0 L 256 55 Q 268 41.2 280 55 L 300 55 L 310 55 Q 318 46.8 326 55 L 334 55 L 338 60.5 L 344 4.4 L 350 66.0 L 356 55 Q 368 41.2 380 55 L 400 55 L 410 55 Q 418 46.8 426 55 L 434 55 L 438 60.5 L 444 4.4 L 450 66.0 L 456 55 Q 468 41.2 480 55 L 500 55 L 510 55 Q 518 46.8 526 55 L 534 55 L 538 60.5 L 544 4.4 L 550 66.0 L 556 55 Q 568 41.2 580 55 L 600 55 L 610 55 Q 618 46.8 626 55 L 634 55 L 638 60.5 L 644 4.4 L 650 66.0 L 656 55 Q 668 41.2 680 55 L 700 55 L 710 55 Q 718 46.8 726 55 L 734 55 L 738 60.5 L 744 4.4 L 750 66.0 L 756 55 Q 768 41.2 780 55 L 800 55" style="stroke: #f59e0b; filter: url(#ecgGlow9);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.4;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="110"
+                    data-hrv="28"
+                    data-stroke="#f59e0b"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -458,11 +476,13 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
             </div>
             <div class="widget-body">
               <div class="hr-layout">
-                <div class="hr-ecg-bg" style="opacity: 0.5;">
-                  <svg class="ecg-svg" viewBox="0 0 800 100" preserveAspectRatio="none" style="animation-duration: 1.5s;">
-                    <defs><filter id="ecgGlow10"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-                    <path class="ecg-line" d="M 0 55 L 10 55 Q 18 44.2 26 55 L 34 55 L 38 62.2 L 44 -2.0 L 50 69.4 L 56 55 Q 68 37.0 80 55 L 100 55 L 110 55 Q 118 44.2 126 55 L 134 55 L 138 62.2 L 144 -2.0 L 150 69.4 L 156 55 Q 168 37.0 180 55 L 200 55 L 210 55 Q 218 44.2 226 55 L 234 55 L 238 62.2 L 244 -2.0 L 250 69.4 L 256 55 Q 268 37.0 280 55 L 300 55 L 310 55 Q 318 44.2 326 55 L 334 55 L 338 62.2 L 344 -2.0 L 350 69.4 L 356 55 Q 368 37.0 380 55 L 400 55 L 410 55 Q 418 44.2 426 55 L 434 55 L 438 62.2 L 444 -2.0 L 450 69.4 L 456 55 Q 468 37.0 480 55 L 500 55 L 510 55 Q 518 44.2 526 55 L 534 55 L 538 62.2 L 544 -2.0 L 550 69.4 L 556 55 Q 568 37.0 580 55 L 600 55 L 610 55 Q 618 44.2 626 55 L 634 55 L 638 62.2 L 644 -2.0 L 650 69.4 L 656 55 Q 668 37.0 680 55 L 700 55 L 710 55 Q 718 44.2 726 55 L 734 55 L 738 62.2 L 744 -2.0 L 750 69.4 L 756 55 Q 768 37.0 780 55 L 800 55" style="stroke: #ef4444; filter: url(#ecgGlow10);"/>
-                  </svg>
+                <div class="hr-ecg-bg ecg-canvas-bg" style="opacity: 0.5;">
+                  <canvas class="ecg-canvas"
+                    data-bpm="180"
+                    data-hrv="8"
+                    data-stroke="#ef4444"
+                    width="400" height="120">
+                  </canvas>
                 </div>
                 <div class="hr-overlay">
                   <div class="hr-overlay-left">
@@ -1155,3 +1175,374 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
 
   </main>
 </Showcase>
+
+<script is:inline>
+(function() {
+  var canvases = document.querySelectorAll('.ecg-canvas');
+  if (!canvases.length) return;
+
+  var motionReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- Waveform generator: ECGSYN Gaussian model ----
+  function ecgBeat(bpm, numSamples) {
+    var hrFact = Math.sqrt(bpm / 60);
+    // [amplitude, center, baseWidth, isQRS]
+    var waves = [
+      [0.15,  0.12, 0.040, false],  // P
+      [-0.10, 0.28, 0.015, true],   // Q
+      [1.00,  0.32, 0.018, true],   // R
+      [-0.25, 0.38, 0.020, true],   // S
+      [0.30,  0.58, 0.070, false]   // T
+    ];
+    var samples = [];
+    var i, j, t, val, w, width, center, exponent;
+    for (i = 0; i < numSamples; i++) {
+      t = i / numSamples;
+      val = 0;
+      for (j = 0; j < waves.length; j++) {
+        w = waves[j];
+        width = w[3] ? w[2] : w[2] / hrFact;
+        center = w[1];
+        // T-wave shifts earlier at high HR (QT shortening)
+        if (j === 4) {
+          center = 0.58 - (hrFact - 1) * 0.08;
+          if (center < 0.42) center = 0.42;
+        }
+        exponent = (t - center) / width;
+        val += w[0] * Math.exp(-0.5 * exponent * exponent);
+      }
+      samples[i] = val;
+    }
+    return samples;
+  }
+
+  // ---- HRV beat spacing jitter ----
+  function nextRR(meanRR, sdnn) {
+    var jitter = (Math.random() - 0.5) * 2 * sdnn;
+    var rr = meanRR + jitter;
+    if (rr < 250) rr = 250;
+    if (rr > 2000) rr = 2000;
+    return rr;
+  }
+
+  // ---- Draw medical grid (call once on init/resize) ----
+  function drawGrid(ctx, w, h) {
+    var gridSpacing = 20;
+    var i;
+    ctx.save();
+    ctx.lineWidth = 0.5;
+    // Minor grid
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    for (i = 0; i <= w; i += gridSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(Math.round(i) + 0.5, 0);
+      ctx.lineTo(Math.round(i) + 0.5, h);
+      ctx.stroke();
+    }
+    for (i = 0; i <= h; i += gridSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, Math.round(i) + 0.5);
+      ctx.lineTo(w, Math.round(i) + 0.5);
+      ctx.stroke();
+    }
+    // Major grid (every 5th line)
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    for (i = 0; i <= w; i += gridSpacing * 5) {
+      ctx.beginPath();
+      ctx.moveTo(Math.round(i) + 0.5, 0);
+      ctx.lineTo(Math.round(i) + 0.5, h);
+      ctx.stroke();
+    }
+    for (i = 0; i <= h; i += gridSpacing * 5) {
+      ctx.beginPath();
+      ctx.moveTo(0, Math.round(i) + 0.5);
+      ctx.lineTo(w, Math.round(i) + 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---- Redraw grid in a strip (used by sweep erase bar) ----
+  function redrawGridStrip(ctx, x, stripW, h) {
+    var gridSpacing = 20;
+    var i, gx, gy;
+    var x1 = x;
+    var x2 = x + stripW;
+    ctx.save();
+    ctx.lineWidth = 0.5;
+    // Minor vertical lines in strip
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    var firstMinor = Math.floor(x1 / gridSpacing) * gridSpacing;
+    for (gx = firstMinor; gx <= x2; gx += gridSpacing) {
+      if (gx >= x1 && gx <= x2) {
+        ctx.beginPath();
+        ctx.moveTo(Math.round(gx) + 0.5, 0);
+        ctx.lineTo(Math.round(gx) + 0.5, h);
+        ctx.stroke();
+      }
+    }
+    // Minor horizontal lines (full width, so always draw in strip)
+    for (gy = 0; gy <= h; gy += gridSpacing) {
+      ctx.beginPath();
+      ctx.moveTo(x1, Math.round(gy) + 0.5);
+      ctx.lineTo(x2, Math.round(gy) + 0.5);
+      ctx.stroke();
+    }
+    // Major vertical lines in strip
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    var firstMajor = Math.floor(x1 / (gridSpacing * 5)) * (gridSpacing * 5);
+    for (gx = firstMajor; gx <= x2; gx += gridSpacing * 5) {
+      if (gx >= x1 && gx <= x2) {
+        ctx.beginPath();
+        ctx.moveTo(Math.round(gx) + 0.5, 0);
+        ctx.lineTo(Math.round(gx) + 0.5, h);
+        ctx.stroke();
+      }
+    }
+    // Major horizontal lines in strip
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    for (gy = 0; gy <= h; gy += gridSpacing * 5) {
+      ctx.beginPath();
+      ctx.moveTo(x1, Math.round(gy) + 0.5);
+      ctx.lineTo(x2, Math.round(gy) + 0.5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // ---- Resize canvas buffer to CSS size * DPR ----
+  function resizeCanvas(widget) {
+    var rect = widget.canvas.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    widget.canvas.width = Math.round(rect.width * dpr);
+    widget.canvas.height = Math.round(rect.height * dpr);
+    widget.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    widget.canvasW = rect.width;
+    widget.canvasH = rect.height;
+    // Fill background
+    widget.ctx.fillStyle = '#06060f';
+    widget.ctx.fillRect(0, 0, rect.width, rect.height);
+    // Draw grid
+    drawGrid(widget.ctx, rect.width, rect.height);
+    // Reset cursor
+    widget.cursorX = 0;
+    widget.prevX = 0;
+    widget.prevY = rect.height * 0.6;
+  }
+
+  // ---- Render one frame per widget ----
+  function renderWidget(widget, now) {
+    var ctx = widget.ctx;
+    var w = widget.canvasW;
+    var h = widget.canvasH;
+
+    // Advance cursor
+    var elapsed = now - widget.lastFrameTime;
+    if (elapsed > 100) elapsed = 100; // cap large gaps (e.g. tab switch)
+    widget.lastFrameTime = now;
+    var advance = (elapsed / 1000) * widget.pixelsPerSecond;
+    var x = widget.cursorX + advance;
+    var wrapped = false;
+    if (x >= w) {
+      x = x - w;
+      wrapped = true;
+    }
+
+    var clearWidth = Math.max(10, w * 0.04);
+
+    // Handle wrap-around clear
+    if (wrapped) {
+      // Clear from old position to right edge
+      ctx.fillStyle = '#06060f';
+      ctx.fillRect(Math.round(widget.cursorX), 0, Math.ceil(w - widget.cursorX), h);
+      redrawGridStrip(ctx, Math.round(widget.cursorX), Math.ceil(w - widget.cursorX), h);
+    }
+    // Clear strip ahead of current cursor
+    ctx.fillStyle = '#06060f';
+    ctx.fillRect(Math.round(x), 0, Math.ceil(clearWidth), h);
+    redrawGridStrip(ctx, Math.round(x), Math.ceil(clearWidth), h);
+
+    // Determine beat sample
+    var baseline = h * 0.6;
+    var amplitude = h * 0.48;
+    var sample = 0;
+
+    if (now >= widget.nextBeatTime) {
+      widget.currentRR = nextRR(widget.meanRR, widget.hrv);
+      widget.nextBeatTime = now + widget.currentRR;
+      widget.beatStartTime = now;
+      var activeFraction = 0.55 + 0.30 * (1 - Math.exp(-(widget.bpm - 40) / 80));
+      widget.beatDurationMs = widget.currentRR * activeFraction;
+    }
+
+    var timeSinceBeat = now - widget.beatStartTime;
+    if (timeSinceBeat >= 0 && timeSinceBeat < widget.beatDurationMs) {
+      var progress = timeSinceBeat / widget.beatDurationMs;
+      var idx = Math.floor(progress * widget.samplesPerBeat);
+      if (idx >= widget.samplesPerBeat) idx = widget.samplesPerBeat - 1;
+      sample = widget.beatSamples[idx];
+    }
+
+    var y = baseline - sample * amplitude;
+
+    // Draw ECG line segment (connect prev to current)
+    if (!wrapped) {
+      // Glow: wide dim stroke
+      ctx.beginPath();
+      ctx.moveTo(Math.round(widget.prevX), Math.round(widget.prevY));
+      ctx.lineTo(Math.round(x), Math.round(y));
+      ctx.strokeStyle = widget.stroke;
+      ctx.globalAlpha = 0.25;
+      ctx.lineWidth = 3.5;
+      ctx.stroke();
+      // Core: narrow bright stroke
+      ctx.beginPath();
+      ctx.moveTo(Math.round(widget.prevX), Math.round(widget.prevY));
+      ctx.lineTo(Math.round(x), Math.round(y));
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    } else {
+      // Just place a dot at new position after wrap, no connecting line
+      ctx.beginPath();
+      ctx.arc(Math.round(x), Math.round(y), 1.5, 0, Math.PI * 2);
+      ctx.fillStyle = widget.stroke;
+      ctx.globalAlpha = 1.0;
+      ctx.fill();
+    }
+
+    widget.cursorX = x;
+    widget.prevX = x;
+    widget.prevY = y;
+  }
+
+  // ---- Draw a single static PQRST waveform (reduced motion) ----
+  function drawStaticWaveform(widget) {
+    var ctx = widget.ctx;
+    var w = widget.canvasW;
+    var h = widget.canvasH;
+    var baseline = h * 0.6;
+    var amplitude = h * 0.48;
+    var samples = widget.beatSamples;
+    var n = samples.length;
+    // Draw waveform centered in canvas, covering 60% of width
+    var waveW = w * 0.6;
+    var startX = w * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(0, baseline);
+    ctx.lineTo(startX, baseline);
+    var i, x, y;
+    for (i = 0; i < n; i++) {
+      x = startX + (i / (n - 1)) * waveW;
+      y = baseline - samples[i] * amplitude;
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.lineTo(w, baseline);
+    ctx.strokeStyle = widget.stroke;
+    ctx.globalAlpha = 0.7;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1.0;
+  }
+
+  // ---- Shared animation loop ----
+  var widgets = [];
+
+  function animationLoop(timestamp) {
+    var i;
+    for (i = 0; i < widgets.length; i++) {
+      if (widgets[i].isVisible) {
+        renderWidget(widgets[i], timestamp);
+      }
+    }
+    requestAnimationFrame(animationLoop);
+  }
+
+  // ---- Initialize widgets ----
+  var i, canvas, ctx, bpm, hrv, stroke, widget, now;
+  now = performance.now();
+
+  for (i = 0; i < canvases.length; i++) {
+    canvas = canvases[i];
+    ctx = canvas.getContext('2d', { alpha: false });
+    bpm = parseInt(canvas.getAttribute('data-bpm'), 10);
+    hrv = parseInt(canvas.getAttribute('data-hrv'), 10);
+    stroke = canvas.getAttribute('data-stroke');
+
+    widget = {
+      canvas: canvas,
+      ctx: ctx,
+      bpm: bpm,
+      hrv: hrv,
+      stroke: stroke,
+      beatSamples: ecgBeat(bpm, 64),
+      samplesPerBeat: 64,
+      cursorX: 0,
+      canvasW: 0,
+      canvasH: 0,
+      pixelsPerSecond: 50,
+      meanRR: 60000 / bpm,
+      nextBeatTime: now + Math.random() * (60000 / bpm),
+      beatStartTime: now - 9999,
+      beatProgress: 0,
+      beatDurationMs: 0,
+      currentRR: 60000 / bpm,
+      lastFrameTime: now,
+      prevX: 0,
+      prevY: 0,
+      isVisible: false
+    };
+
+    widgets.push(widget);
+    resizeCanvas(widget);
+
+    if (motionReduced) {
+      drawStaticWaveform(widget);
+    }
+  }
+
+  if (motionReduced) return;
+
+  // ---- IntersectionObserver ----
+  var observer = new IntersectionObserver(function(entries) {
+    var j, k, entry;
+    for (j = 0; j < entries.length; j++) {
+      entry = entries[j];
+      for (k = 0; k < widgets.length; k++) {
+        if (widgets[k].canvas === entry.target) {
+          widgets[k].isVisible = entry.isIntersecting;
+          if (entry.isIntersecting) {
+            // Reset lastFrameTime to avoid large elapsed gap after being off-screen
+            widgets[k].lastFrameTime = performance.now();
+          }
+          break;
+        }
+      }
+    }
+  }, { threshold: 0.1 });
+
+  for (i = 0; i < widgets.length; i++) {
+    observer.observe(widgets[i].canvas);
+  }
+
+  // ---- Debounced resize ----
+  var resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function() {
+      var k;
+      for (k = 0; k < widgets.length; k++) {
+        resizeCanvas(widgets[k]);
+      }
+    }, 200);
+  });
+
+  // ---- Start animation ----
+  requestAnimationFrame(animationLoop);
+})();
+</script>

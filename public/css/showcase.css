@@ -843,3 +843,15 @@ body.library-page {
   .scenario-grid { grid-template-columns: 1fr; }
 }
 
+/* ECG canvas positioning (showcase only) */
+.ecg-canvas-bg {
+  /* .hr-ecg-bg already provides position:absolute; inset:0; overflow:hidden; border-radius:6px */
+  /* This class adds canvas-specific display behavior */
+}
+
+.ecg-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+

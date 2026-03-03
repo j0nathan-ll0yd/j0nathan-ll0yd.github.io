@@ -108,6 +108,41 @@ export function buildECGPath(heartRate: number): string {
   return p;
 }
 
+/**
+ * Generate physiologically accurate ECG samples for one cardiac cycle.
+ * Uses the ECGSYN Gaussian sum model (PQRST waves).
+ * @param bpm - Heart rate in beats per minute
+ * @param samplesPerBeat - Number of sample points to generate
+ * @returns Array of normalized amplitude values (approx -0.3 to 1.0)
+ */
+export function generateECGSamples(bpm: number, samplesPerBeat: number): number[] {
+  const hrFact = Math.sqrt(bpm / 60);
+  // [amplitude, center, baseWidth, isQRS]
+  const waves: [number, number, number, boolean][] = [
+    [0.15,  0.12, 0.040, false],  // P
+    [-0.10, 0.28, 0.015, true],   // Q
+    [1.00,  0.32, 0.018, true],   // R
+    [-0.25, 0.38, 0.020, true],   // S
+    [0.30,  0.58, 0.070, false],  // T
+  ];
+
+  const samples: number[] = new Array(samplesPerBeat);
+  for (let i = 0; i < samplesPerBeat; i++) {
+    const t = i / samplesPerBeat;
+    let val = 0;
+    for (let j = 0; j < waves.length; j++) {
+      const [amp, baseCenter, baseWidth, isQRS] = waves[j];
+      const width = isQRS ? baseWidth : baseWidth / hrFact;
+      // T-wave center shifts earlier at high HR (QT shortening)
+      const center = j === 4 ? 0.58 - (hrFact - 1) * 0.08 : baseCenter;
+      const exponent = (t - center) / width;
+      val += amp * Math.exp(-0.5 * exponent * exponent);
+    }
+    samples[i] = val;
+  }
+  return samples;
+}
+
 export interface HRVColor {
   color: string;
   shadow: string;
