@@ -39,7 +39,7 @@ const showcaseDevOnly = {
 };
 
 export default defineConfig({
-  site: 'https://j0nathan-ll0yd.github.io',
+  site: 'https://jonathanlloyd.me',
   output: 'static',
   trailingSlash: 'never',
   vite: {

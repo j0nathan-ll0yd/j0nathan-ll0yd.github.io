@@ -2,7 +2,7 @@ import { CLOUDFRONT_BASE, ENDPOINTS } from './constants';
 import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport } from '../types/exports';
 
 // In dev mode, Vite proxies /api/live/* to CloudFront to avoid CORS issues.
-// In production, fetch directly from CloudFront (CORS allows j0nathan-ll0yd.github.io).
+// In production, fetch directly from CloudFront (CORS allows jonathanlloyd.me).
 const BASE = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
 
 export interface FetchResult {
