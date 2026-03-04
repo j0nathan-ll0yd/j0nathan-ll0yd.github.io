@@ -7,7 +7,7 @@ export function updateFocusOverlay(data: FocusExport | null): void {
   if (!overlay) return;
   if (clockInterval) { clearInterval(clockInterval); clockInterval = null; }
 
-  if (data?.currentFocus === 'Do Not Disturb') {
+  if (data?.currentFocus === 'Work') {
     overlay.style.display = 'flex';
     const clockEl = document.getElementById('focusClock');
     if (clockEl) {
