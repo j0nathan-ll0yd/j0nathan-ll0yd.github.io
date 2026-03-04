@@ -1,4 +1,4 @@
-import { classifyHeartRate, buildECGPath, classifyHRV } from './heart-rate';
+import { classifyHeartRate, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
 import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
 import type { LocationExport } from '../types/exports';
@@ -64,15 +64,10 @@ export function updateHeartRate(data: AdaptedHealth): void {
     hrvEl.style.textShadow = hrvStyle.shadow;
   }
 
-  const ecgPath = document.getElementById('hrEcgPath');
-  if (ecgPath) {
-    ecgPath.setAttribute('d', buildECGPath(hr));
-    ecgPath.style.stroke = zone.ecgStroke;
-  }
-
-  const ecgSvg = document.getElementById('hrEcgSvg');
-  if (ecgSvg) {
-    ecgSvg.style.animationDuration = zone.ecgSpeed;
+  // Update canvas ECG parameters
+  const ecgUpdate = (window as any).__ecgUpdate;
+  if (typeof ecgUpdate === 'function') {
+    ecgUpdate(hr, hrv, zone.ecgStroke);
   }
 
   const ecgBg = document.getElementById('hrEcgBg');

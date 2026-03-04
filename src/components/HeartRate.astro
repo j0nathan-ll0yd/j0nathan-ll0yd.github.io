@@ -1,12 +1,11 @@
 ---
-import { classifyHeartRate, buildECGPath, classifyHRV } from '../lib/heart-rate';
+import { classifyHeartRate, classifyHRV } from '../lib/heart-rate';
 
 const { health } = Astro.props;
 const hr = Math.round(health.quantities.heartRate.value);
 const hrv = Math.round(health.quantities.hrvSDNN.value);
 
 const state = classifyHeartRate(hr);
-const ecgPath = buildECGPath(hr);
 const { color: hrvColor, shadow: hrvShadow } = classifyHRV(hrv);
 ---
 <div class={`tri-card ${state.accentClass}`} id="cardHR">
@@ -32,18 +31,12 @@ const { color: hrvColor, shadow: hrvShadow } = classifyHRV(hrv);
     </div>
     <div class="hr-layout">
       <div class="hr-ecg-bg" id="hrEcgBg" style={`opacity: ${state.ecgOpacity}`}>
-        <svg class="ecg-svg" id="hrEcgSvg" viewBox="0 0 800 100" preserveAspectRatio="none" style={`animation-duration: ${state.ecgSpeed}`}>
-          <defs>
-            <filter id="ecgGlow">
-              <feGaussianBlur stdDeviation="2" result="blur"/>
-              <feMerge>
-                <feMergeNode in="blur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
-          </defs>
-          <path class="ecg-line" id="hrEcgPath" d={ecgPath} style={`stroke: ${state.ecgStroke}`}/>
-        </svg>
+        <canvas class="ecg-canvas" id="hrEcgCanvas"
+          data-bpm={String(hr)}
+          data-hrv={String(hrv)}
+          data-stroke={state.ecgStroke}
+          width="400" height="120">
+        </canvas>
       </div>
       <div class="hr-overlay">
         <div class="hr-overlay-left">

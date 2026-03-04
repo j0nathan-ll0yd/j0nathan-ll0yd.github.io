@@ -371,6 +371,332 @@ try {
   })();
   </script>
 
+  <!-- Canvas ECG Animation -->
+  <script is:inline>
+  (function() {
+    var canvas = document.getElementById('hrEcgCanvas');
+    if (!canvas) return;
+
+    var ctx = canvas.getContext('2d', { alpha: false });
+    var motionReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ---- Waveform generator: ECGSYN Gaussian model ----
+    function ecgBeat(bpm, numSamples) {
+      var hrFact = Math.sqrt(bpm / 60);
+      var waves = [
+        [0.15,  0.12, 0.040, false],
+        [-0.10, 0.28, 0.015, true],
+        [1.00,  0.32, 0.018, true],
+        [-0.25, 0.38, 0.020, true],
+        [0.30,  0.58, 0.070, false]
+      ];
+      var samples = [];
+      var i, j, t, val, w, width, center, exponent;
+      for (i = 0; i < numSamples; i++) {
+        t = i / numSamples;
+        val = 0;
+        for (j = 0; j < waves.length; j++) {
+          w = waves[j];
+          width = w[3] ? w[2] : w[2] / hrFact;
+          center = w[1];
+          if (j === 4) {
+            center = 0.58 - (hrFact - 1) * 0.08;
+            if (center < 0.42) center = 0.42;
+          }
+          exponent = (t - center) / width;
+          val += w[0] * Math.exp(-0.5 * exponent * exponent);
+        }
+        samples[i] = val;
+      }
+      return samples;
+    }
+
+    // ---- HRV beat spacing jitter ----
+    function nextRR(meanRR, sdnn) {
+      var jitter = (Math.random() - 0.5) * 2 * sdnn;
+      var rr = meanRR + jitter;
+      if (rr < 250) rr = 250;
+      if (rr > 2000) rr = 2000;
+      return rr;
+    }
+
+    // ---- Draw medical grid ----
+    function drawGrid(gctx, gw, gh) {
+      var gridSpacing = 20;
+      var i;
+      gctx.save();
+      gctx.lineWidth = 0.5;
+      gctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      for (i = 0; i <= gw; i += gridSpacing) {
+        gctx.beginPath();
+        gctx.moveTo(Math.round(i) + 0.5, 0);
+        gctx.lineTo(Math.round(i) + 0.5, gh);
+        gctx.stroke();
+      }
+      for (i = 0; i <= gh; i += gridSpacing) {
+        gctx.beginPath();
+        gctx.moveTo(0, Math.round(i) + 0.5);
+        gctx.lineTo(gw, Math.round(i) + 0.5);
+        gctx.stroke();
+      }
+      gctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      for (i = 0; i <= gw; i += gridSpacing * 5) {
+        gctx.beginPath();
+        gctx.moveTo(Math.round(i) + 0.5, 0);
+        gctx.lineTo(Math.round(i) + 0.5, gh);
+        gctx.stroke();
+      }
+      for (i = 0; i <= gh; i += gridSpacing * 5) {
+        gctx.beginPath();
+        gctx.moveTo(0, Math.round(i) + 0.5);
+        gctx.lineTo(gw, Math.round(i) + 0.5);
+        gctx.stroke();
+      }
+      gctx.restore();
+    }
+
+    // ---- Redraw grid in a strip (sweep erase bar) ----
+    function redrawGridStrip(gctx, sx, stripW, gh) {
+      var gridSpacing = 20;
+      var gx, gy;
+      var x2 = sx + stripW;
+      gctx.save();
+      gctx.lineWidth = 0.5;
+      gctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      var firstMinor = Math.floor(sx / gridSpacing) * gridSpacing;
+      for (gx = firstMinor; gx <= x2; gx += gridSpacing) {
+        if (gx >= sx && gx <= x2) {
+          gctx.beginPath();
+          gctx.moveTo(Math.round(gx) + 0.5, 0);
+          gctx.lineTo(Math.round(gx) + 0.5, gh);
+          gctx.stroke();
+        }
+      }
+      for (gy = 0; gy <= gh; gy += gridSpacing) {
+        gctx.beginPath();
+        gctx.moveTo(sx, Math.round(gy) + 0.5);
+        gctx.lineTo(x2, Math.round(gy) + 0.5);
+        gctx.stroke();
+      }
+      gctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      var firstMajor = Math.floor(sx / (gridSpacing * 5)) * (gridSpacing * 5);
+      for (gx = firstMajor; gx <= x2; gx += gridSpacing * 5) {
+        if (gx >= sx && gx <= x2) {
+          gctx.beginPath();
+          gctx.moveTo(Math.round(gx) + 0.5, 0);
+          gctx.lineTo(Math.round(gx) + 0.5, gh);
+          gctx.stroke();
+        }
+      }
+      for (gy = 0; gy <= gh; gy += gridSpacing * 5) {
+        gctx.beginPath();
+        gctx.moveTo(sx, Math.round(gy) + 0.5);
+        gctx.lineTo(x2, Math.round(gy) + 0.5);
+        gctx.stroke();
+      }
+      gctx.restore();
+    }
+
+    // ---- Widget state ----
+    var bpm = parseInt(canvas.getAttribute('data-bpm'), 10) || 72;
+    var hrv = parseInt(canvas.getAttribute('data-hrv'), 10) || 40;
+    var stroke = canvas.getAttribute('data-stroke') || '#f59e0b';
+    var now = performance.now();
+
+    var wgt = {
+      canvas: canvas,
+      ctx: ctx,
+      bpm: bpm,
+      hrv: hrv,
+      stroke: stroke,
+      beatSamples: ecgBeat(bpm, 64),
+      samplesPerBeat: 64,
+      cursorX: 0,
+      canvasW: 0,
+      canvasH: 0,
+      pixelsPerSecond: 50,
+      meanRR: 60000 / bpm,
+      nextBeatTime: now + Math.random() * (60000 / bpm),
+      beatStartTime: now - 9999,
+      beatDurationMs: 0,
+      currentRR: 60000 / bpm,
+      lastFrameTime: now,
+      prevX: 0,
+      prevY: 0,
+      isVisible: false
+    };
+
+    // ---- Resize canvas buffer to CSS size * DPR ----
+    function resizeCanvas() {
+      var rect = wgt.canvas.getBoundingClientRect();
+      var dpr = window.devicePixelRatio || 1;
+      wgt.canvas.width = Math.round(rect.width * dpr);
+      wgt.canvas.height = Math.round(rect.height * dpr);
+      wgt.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      wgt.canvasW = rect.width;
+      wgt.canvasH = rect.height;
+      wgt.ctx.fillStyle = '#06060f';
+      wgt.ctx.fillRect(0, 0, rect.width, rect.height);
+      drawGrid(wgt.ctx, rect.width, rect.height);
+      wgt.cursorX = 0;
+      wgt.prevX = 0;
+      wgt.prevY = rect.height * 0.6;
+    }
+
+    // ---- Render one frame ----
+    function renderFrame(ts) {
+      var elapsed = ts - wgt.lastFrameTime;
+      if (elapsed > 100) elapsed = 100;
+      wgt.lastFrameTime = ts;
+      var advance = (elapsed / 1000) * wgt.pixelsPerSecond;
+      var x = wgt.cursorX + advance;
+      var wrapped = false;
+      var w = wgt.canvasW;
+      var h = wgt.canvasH;
+      if (x >= w) {
+        x = x - w;
+        wrapped = true;
+      }
+      var clearWidth = Math.max(10, w * 0.04);
+      if (wrapped) {
+        ctx.fillStyle = '#06060f';
+        ctx.fillRect(Math.round(wgt.cursorX), 0, Math.ceil(w - wgt.cursorX), h);
+        redrawGridStrip(ctx, Math.round(wgt.cursorX), Math.ceil(w - wgt.cursorX), h);
+      }
+      ctx.fillStyle = '#06060f';
+      ctx.fillRect(Math.round(x), 0, Math.ceil(clearWidth), h);
+      redrawGridStrip(ctx, Math.round(x), Math.ceil(clearWidth), h);
+
+      var baseline = h * 0.6;
+      var amplitude = h * 0.48;
+      var sample = 0;
+
+      if (ts >= wgt.nextBeatTime) {
+        wgt.currentRR = nextRR(wgt.meanRR, wgt.hrv);
+        wgt.nextBeatTime = ts + wgt.currentRR;
+        wgt.beatStartTime = ts;
+        var activeFraction = 0.55 + 0.30 * (1 - Math.exp(-(wgt.bpm - 40) / 80));
+        wgt.beatDurationMs = wgt.currentRR * activeFraction;
+      }
+
+      var timeSinceBeat = ts - wgt.beatStartTime;
+      if (timeSinceBeat >= 0 && timeSinceBeat < wgt.beatDurationMs) {
+        var progress = timeSinceBeat / wgt.beatDurationMs;
+        var idx = Math.floor(progress * wgt.samplesPerBeat);
+        if (idx >= wgt.samplesPerBeat) idx = wgt.samplesPerBeat - 1;
+        sample = wgt.beatSamples[idx];
+      }
+
+      var y = baseline - sample * amplitude;
+
+      if (!wrapped) {
+        ctx.beginPath();
+        ctx.moveTo(Math.round(wgt.prevX), Math.round(wgt.prevY));
+        ctx.lineTo(Math.round(x), Math.round(y));
+        ctx.strokeStyle = wgt.stroke;
+        ctx.globalAlpha = 0.25;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(Math.round(wgt.prevX), Math.round(wgt.prevY));
+        ctx.lineTo(Math.round(x), Math.round(y));
+        ctx.globalAlpha = 1.0;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+      } else {
+        ctx.beginPath();
+        ctx.arc(Math.round(x), Math.round(y), 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = wgt.stroke;
+        ctx.globalAlpha = 1.0;
+        ctx.fill();
+      }
+
+      wgt.cursorX = x;
+      wgt.prevX = x;
+      wgt.prevY = y;
+    }
+
+    // ---- Draw static PQRST waveform (reduced motion) ----
+    function drawStaticWaveform() {
+      var w = wgt.canvasW;
+      var h = wgt.canvasH;
+      var baseline = h * 0.6;
+      var amplitude = h * 0.48;
+      var samples = wgt.beatSamples;
+      var n = samples.length;
+      var waveW = w * 0.6;
+      var startX = w * 0.2;
+      ctx.beginPath();
+      ctx.moveTo(0, baseline);
+      ctx.lineTo(startX, baseline);
+      var i, px, py;
+      for (i = 0; i < n; i++) {
+        px = startX + (i / (n - 1)) * waveW;
+        py = baseline - samples[i] * amplitude;
+        if (i === 0) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
+      }
+      ctx.lineTo(w, baseline);
+      ctx.strokeStyle = wgt.stroke;
+      ctx.globalAlpha = 0.7;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    }
+
+    resizeCanvas();
+
+    if (motionReduced) {
+      drawStaticWaveform();
+    }
+
+    // ---- Live-data bridge ----
+    window.__ecgUpdate = function(newBpm, newHrv, newStroke) {
+      wgt.bpm = newBpm;
+      wgt.hrv = newHrv;
+      wgt.stroke = newStroke;
+      wgt.meanRR = 60000 / newBpm;
+      wgt.beatSamples = ecgBeat(newBpm, 64);
+    };
+
+    if (motionReduced) return;
+
+    // ---- IntersectionObserver ----
+    var observer = new IntersectionObserver(function(entries) {
+      var j;
+      for (j = 0; j < entries.length; j++) {
+        if (entries[j].target === wgt.canvas) {
+          wgt.isVisible = entries[j].isIntersecting;
+          if (entries[j].isIntersecting) {
+            wgt.lastFrameTime = performance.now();
+          }
+        }
+      }
+    }, { threshold: 0.1 });
+    observer.observe(wgt.canvas);
+
+    // ---- Debounced resize ----
+    var resizeTimer;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeCanvas, 200);
+    });
+
+    // ---- Animation loop ----
+    function animLoop(timestamp) {
+      if (wgt.isVisible) {
+        renderFrame(timestamp);
+      }
+      requestAnimationFrame(animLoop);
+    }
+    requestAnimationFrame(animLoop);
+  })();
+  </script>
+
   <!-- Live Data Integration -->
   <script>
     import '../scripts/live-data';
