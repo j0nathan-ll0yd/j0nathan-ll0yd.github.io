@@ -8,6 +8,32 @@ A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi command 
 
 The dashboard displays 13 interactive widgets organized in a split-panel layout with a fixed left panel (identity) and a scrollable right panel (body + mind columns). Astro generates static HTML at build time, shipping 0 KB of JavaScript by default. Interactive elements (particles, map, animations) use selective `is:inline` scripts.
 
+## Site Identity & SEO
+
+The site positions Jonathan Lloyd as a backend engineer whose portfolio **is** the technical showcase -- a living data dashboard tracking body and mind in an AI-centric world.
+
+### Core Statement
+
+> Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics and constant updates of his whole body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.
+
+### Metadata by Surface
+
+| Surface | Copy |
+|---------|------|
+| **Page Title** | Jonathan Lloyd — Human Datastream |
+| **Meta Description** | A living data dashboard by engineer, Jonathan Lloyd — tracking body (health, activity, hydration) and mind (coding, reading). Jack into his human datastream. |
+| **OG / Twitter Description** | Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics tracking body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream. |
+| **JSON-LD WebSite** | *(Core statement, verbatim)* |
+| **JSON-LD Person** | Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric. |
+| **PWA Manifest** | Living data dashboard — tracking body and mind. Jack into his human datastream. |
+| **OG Image Title** | J LLOYD, ENGINEER, HUMAN DATASTREAM |
+| **OG Image Quote** | Jack into his human datastream |
+| **Keywords** | backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site |
+
+### JSON-LD knowsAbout
+
+Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrastructure, Data Visualization, Serverless Architecture, TypeScript, Go, AWS
+
 ## Architecture
 
 ```

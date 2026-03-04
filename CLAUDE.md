@@ -4,6 +4,40 @@
 
 Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboard. Built with Astro (static site generation) and hosted on GitHub Pages. The site ships 0 KB JavaScript by default, with selective `is:inline` scripts for particles, map, and animations.
 
+## Site Identity & SEO
+
+The site positions Jonathan Lloyd as a backend engineer whose portfolio **is** the technical showcase -- a living data dashboard tracking body and mind in an AI-centric world. All metadata copy derives from the core statement below.
+
+### Core Statement
+
+> Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics and constant updates of his whole body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.
+
+### Metadata by Surface
+
+| Surface | Copy | Location |
+|---------|------|----------|
+| **Page Title** | Jonathan Lloyd — Human Datastream | `Dashboard.astro` frontmatter default |
+| **Meta Description** | A living data dashboard by engineer, Jonathan Lloyd — tracking body (health, activity, hydration) and mind (coding, reading). Jack into his human datastream. | `Dashboard.astro` `description` prop |
+| **OG / Twitter Description** | Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics tracking body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream. | `Dashboard.astro` `ogDescription` prop |
+| **JSON-LD WebSite** | *(Core statement, verbatim)* | `Dashboard.astro` JSON-LD block |
+| **JSON-LD Person** | Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard -- real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric. | `Dashboard.astro` JSON-LD block |
+| **PWA Manifest** | Living data dashboard -- tracking body and mind. Jack into his human datastream. | `astro.config.mjs` + `public/manifest.webmanifest` |
+| **OG Image Title** | J LLOYD, ENGINEER, HUMAN DATASTREAM | `src/components/OGImage.astro` |
+| **OG Image Quote** | Jack into his human datastream | `src/components/OGImage.astro` |
+| **Keywords** | backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site | `Dashboard.astro` keywords meta tag |
+
+### JSON-LD knowsAbout
+
+Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrastructure, Data Visualization, Serverless Architecture, TypeScript, Go, AWS
+
+### Key SEO Architecture Decisions
+
+- `og:type` is `"profile"` (not `"website"`) -- enables `profile:first_name`/`profile:last_name` tags
+- `ogDescription` is a separate prop from `description` -- allows longer copy for social cards vs. Google snippet
+- JSON-LD `Person.description` is hardcoded (not the meta description prop) -- richer, personality-forward copy for structured data
+- Keywords meta tag targets Bing/DuckDuckGo (Google ignores it)
+- `robots.txt` blocks AI scraping bots (GPTBot, ClaudeBot, CCBot, etc.) but allows search engines and AI search (PerplexityBot, OAI-SearchBot)
+
 ## Repository Structure
 
 ```
