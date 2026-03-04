@@ -42,7 +42,8 @@ export default defineConfig({
   integrations: [
     showcaseDevOnly,
     sitemap({
-      filter: (page) => !page.includes('/showcase/')
+      filter: (page) => !page.includes('/showcase/'),
+      lastmod: new Date()
     }),
     AstroPWA({
       registerType: 'autoUpdate',
@@ -61,7 +62,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest}'],
+        globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
         runtimeCaching: [{
           urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/.*/,
           handler: 'NetworkFirst',

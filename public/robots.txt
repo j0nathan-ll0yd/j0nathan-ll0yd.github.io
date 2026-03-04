@@ -22,4 +22,10 @@ Disallow: /
 User-agent: Bytespider
 Disallow: /
 
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
 Sitemap: https://j0nathan-ll0yd.github.io/sitemap-index.xml

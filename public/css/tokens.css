@@ -1,3 +1,13 @@
+/* System font fallback sized to match Space Grotesk metrics */
+@font-face {
+  font-family: 'Space Grotesk Fallback';
+  src: local('Arial');
+  size-adjust: 106%;
+  ascent-override: 90%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
 /* ===== SELF-HOSTED FONT (variable woff2, one file per subset) ===== */
 /* vietnamese */
 @font-face {
@@ -63,8 +73,8 @@
   --max-site-width: 2400px;   /* cap layout at ultra-wide */
 
   /* --- Typography (fluid: scales 600px–1400px) --- */
-  --font-family: 'Space Grotesk', sans-serif;
-  --font-mono: 'Space Grotesk', monospace;
+  --font-family: 'Space Grotesk', 'Space Grotesk Fallback', sans-serif;
+  --font-mono: 'Space Grotesk', 'Space Grotesk Fallback', monospace;
   --font-size-xs:   clamp(0.625rem, 0.58rem + 0.12vw, 0.72rem);
   --font-size-sm:   clamp(0.7rem, 0.64rem + 0.14vw, 0.78rem);
   --font-size-base: clamp(0.72rem, 0.65rem + 0.20vw, 0.82rem);

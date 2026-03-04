@@ -2,6 +2,7 @@
 const {
   title = 'Jonathan Lloyd — Human Datastream',
   description = 'Engineering Director. Experienced engineering leader with a demonstrated history of growing teams, scaling infrastructure, and building businesses.',
+  robots = 'index, follow',
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
 const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
@@ -15,13 +16,16 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="theme-color" content="#06060f">
   <meta name="color-scheme" content="dark">
   <meta name="description" content={description}>
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content={robots}>
   <!-- Security: CSP (GitHub Pages cannot set HTTP headers) -->
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://scripts.simpleanalyticscdn.com; style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com https://m.media-amazon.com https://www.gravatar.com https://queue.simpleanalyticscdn.com; connect-src 'self' https://queue.simpleanalyticscdn.com;">
   <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="author" content="Jonathan Lloyd">
+  <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <link rel="apple-touch-icon" href="/assets/icon-192.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="sitemap" href="/sitemap-index.xml">
 
@@ -53,12 +57,18 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
         "@type": "WebSite",
         "@id": siteUrl + "#website",
         "name": "Jonathan Lloyd — Human Datastream",
-        "url": siteUrl
+        "url": siteUrl,
+        "inLanguage": "en-US",
+        "publisher": { "@id": siteUrl + "#person" }
       },
       {
         "@type": "ProfilePage",
+        "@id": siteUrl + "#profilepage",
         "mainEntity": { "@id": siteUrl + "#person" },
-        "url": canonicalURL.toString()
+        "url": canonicalURL.toString(),
+        "dateCreated": "2024-01-01",
+        "dateModified": new Date().toISOString().split('T')[0],
+        "inLanguage": "en-US"
       },
       {
         "@type": "Person",
@@ -81,6 +91,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
           "Full-Stack Development",
           "Cloud Infrastructure"
         ],
+        "knowsLanguage": ["en"],
         "description": description
       }
     ]
@@ -89,7 +100,9 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <!-- Font preload (critical for swap timing) -->
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 
-  <!-- Preconnect hints -->
+  <!-- DNS prefetch fallbacks + preconnect hints -->
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  <link rel="dns-prefetch" href="https://unpkg.com">
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="preconnect" href="https://unpkg.com" crossorigin>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
