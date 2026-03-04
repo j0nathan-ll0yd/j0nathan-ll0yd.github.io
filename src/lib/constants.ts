@@ -25,4 +25,5 @@ export const ENDPOINTS = {
   githubEvents: '/github-events.json',
   articles: '/articles.json',
   location: '/location.json',
+  focus: '/focus.json',
 } as const;

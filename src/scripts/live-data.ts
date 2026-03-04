@@ -1,5 +1,8 @@
 import { isDevMode, initDevMode } from '../lib/dev-mode';
-import { fetchAllEndpoints } from '../lib/api';
+import { fetchAllEndpoints, fetchWithTimeout } from '../lib/api';
+import { updateFocusOverlay } from '../lib/updaters-focus';
+import type { FocusExport } from '../types/exports';
+import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
 import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents, adaptArticles } from '../lib/adapters';
 import {
   updateHeartRate,
@@ -32,6 +35,13 @@ if (!isDevMode()) {
 
 // Wait for card reveal animation to complete (~1200ms)
 setTimeout(async () => {
+  // Focus overlay — runs regardless of data mode (page-level concern)
+  const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
+  try {
+    const focusData = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus);
+    updateFocusOverlay(focusData);
+  } catch { /* graceful fallback — no overlay on failure */ }
+
   if (isDevMode()) return;
 
   const data = await fetchAllEndpoints();

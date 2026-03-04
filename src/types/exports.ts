@@ -131,6 +131,11 @@ export interface WorkoutsExport {
   }[];
 }
 
+export interface FocusExport {
+  generatedAt: string;
+  currentFocus: string;
+}
+
 export interface LocationExport {
   generatedAt: string;
   totalVisits: number;
