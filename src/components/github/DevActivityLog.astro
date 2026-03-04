@@ -54,7 +54,7 @@ function getDetail(event: Event): string {
         const icon = getIcon(event.type);
         const detail = getDetail(event);
         return (
-          <a class="gh-dal-line" href={event.url || undefined} target={event.url ? '_blank' : undefined} rel={event.url ? 'noopener noreferrer' : undefined}>
+          <a class="gh-dal-line" href={event.url || undefined} target={event.url ? '_blank' : undefined} rel={event.url ? 'noopener noreferrer' : undefined} data-sa-link-event="activity_click">
             <span class="gh-dal-icon" style={`color: ${icon.color};`}>{icon.symbol}</span>
             <span class="gh-dal-repo">{event.repo}</span>
             <span class="gh-dal-title">{event.title}</span>

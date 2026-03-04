@@ -28,7 +28,7 @@ const { repos } = Astro.props;
     <div class="gh-starred-list">
       {repos.map((repo: Repo) => (
         <div class="gh-sl-row">
-          <a class="gh-sl-name" href={repo.url} target="_blank" rel="noopener noreferrer">
+          <a class="gh-sl-name" href={repo.url} target="_blank" rel="noopener noreferrer" data-sa-link-event="repo_click">
             <span class="gh-sl-owner">{repo.owner}/</span>{repo.name}
           </a>
           <span class="gh-sl-stars">&#9733; {repo.stars.toLocaleString()}</span>
