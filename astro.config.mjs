@@ -1,4 +1,6 @@
 import { defineConfig } from 'astro/config';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import AstroPWA from '@vite-pwa/astro';
 import sitemap from '@astrojs/sitemap';
 
@@ -20,6 +22,17 @@ const showcaseDevOnly = {
         injectRoute({ pattern: '/showcase/location-widgets', entrypoint: 'src/showcase/location-widgets.astro' });
         injectRoute({ pattern: '/showcase/fullscreen-overlays', entrypoint: 'src/showcase/fullscreen-overlays.astro' });
       }
+    },
+    'astro:server:setup'({ server }) {
+      server.middlewares.use('/previews', (req, res, next) => {
+        const filePath = join(process.cwd(), 'src/showcase/previews', req.url);
+        if (existsSync(filePath) && filePath.endsWith('.html')) {
+          res.setHeader('Content-Type', 'text/html');
+          res.end(readFileSync(filePath, 'utf-8'));
+        } else {
+          next();
+        }
+      });
     }
   }
 };
