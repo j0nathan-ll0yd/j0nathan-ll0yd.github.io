@@ -18,6 +18,7 @@ import Bookshelf from '../components/Bookshelf.astro';
 import BookModal from '../components/BookModal.astro';
 import ComingSoon from '../components/ComingSoon.astro';
 import FocusOverlay from '../components/FocusOverlay.astro';
+import DndOverlay from '../components/DndOverlay.astro';
 import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro';
 import ExplorationOdometerV3 from '../components/location/ExplorationOdometerV3.astro';
 
@@ -77,6 +78,7 @@ try {
 ---
 <Dashboard>
   <FocusOverlay />
+  <DndOverlay />
   {import.meta.env.PROD && <ComingSoon />}
   <canvas id="particle-canvas" aria-hidden="true"></canvas>
 
