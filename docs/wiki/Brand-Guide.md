@@ -1,6 +1,6 @@
 # Brand Guide
 
-Design system documentation for the Command Center portfolio. All tokens are defined in `public/css/tokens.css`.
+Design system documentation for the Human Datastream portfolio. All tokens are defined in `public/css/tokens.css`.
 
 ## Overview
 

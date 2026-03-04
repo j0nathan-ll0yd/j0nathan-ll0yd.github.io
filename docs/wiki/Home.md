@@ -1,6 +1,6 @@
-# Command Center
+# Human Datastream
 
-A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi command center with glass-morphism aesthetics and a Three.js particle background. Built with [Astro](https://astro.build) and hosted on GitHub Pages.
+A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboard with glass-morphism aesthetics and a Three.js particle background. Built with [Astro](https://astro.build) and hosted on GitHub Pages.
 
 ## Quick Start
 
@@ -76,5 +76,5 @@ Deployment is automatic via GitHub Actions on push to `master`.
 ```
 
 - **Left panel** (35%): Identity card, bio terminal with typing animation, system status
-- **Top bar**: "Command Center" title and live clock
+- **Top bar**: "Human Datastream" title and live clock
 - **Right panel** (65%): Two-column triptych grid -- Body (health/fitness) and Mind (coding/reading)

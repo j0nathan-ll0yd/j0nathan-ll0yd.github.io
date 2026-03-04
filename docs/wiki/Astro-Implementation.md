@@ -1,6 +1,6 @@
 # Astro Implementation
 
-Technical overview of the Command Center portfolio built with Astro.
+Technical overview of the Human Datastream portfolio built with Astro.
 
 ## Architecture Overview
 

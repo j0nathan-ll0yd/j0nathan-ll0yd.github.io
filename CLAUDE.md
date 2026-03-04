@@ -1,8 +1,8 @@
-# CLAUDE.md -- Command Center Portfolio
+# CLAUDE.md -- Human Datastream Portfolio
 
 ## Project Overview
 
-Personal portfolio site for Jonathan Lloyd, styled as a "Command Center" dashboard. Built with Astro (static site generation) and hosted on GitHub Pages. The site ships 0 KB JavaScript by default, with selective `is:inline` scripts for particles, map, and animations.
+Personal portfolio site for Jonathan Lloyd, styled as a "Human Datastream" dashboard. Built with Astro (static site generation) and hosted on GitHub Pages. The site ships 0 KB JavaScript by default, with selective `is:inline` scripts for particles, map, and animations.
 
 ## Site Identity & SEO
 
