@@ -42,7 +42,7 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     fetchWithTimeout<GithubEventsExport>(BASE + ENDPOINTS.githubEvents),
     fetchWithTimeout<{ generatedAt: string }>(BASE + ENDPOINTS.starredRepos),
     fetchWithTimeout<ArticlesExport>(BASE + ENDPOINTS.articles),
-    fetchWithTimeout<LocationExport>(BASE + ENDPOINTS.location),
+    import.meta.env.DEV ? fetchWithTimeout<LocationExport>(BASE + ENDPOINTS.location) : Promise.resolve(null),
     fetchWithTimeout<FocusExport>(BASE + ENDPOINTS.focus),
   ]);
 

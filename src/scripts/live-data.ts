@@ -18,7 +18,10 @@ import {
 import { updatePlaceLeaderboardV3 } from '../lib/updaters-leaderboard-variations';
 import { updateExplorationOdometerV3 } from '../lib/updaters-odometer-variations';
 
-const LIVE_CARDS = ['cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading', 'cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'];
+const LIVE_CARDS = [
+  'cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading',
+  ...(import.meta.env.DEV ? ['cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'] : []),
+];
 
 initDevMode();
 
