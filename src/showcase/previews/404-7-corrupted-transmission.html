@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Corrupted Transmission -- 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Static noise overlay on body */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          transparent,
+          transparent 2px,
+          rgba(255,107,0,0.015) 2px,
+          rgba(255,107,0,0.015) 4px
+        );
+      pointer-events: none;
+      z-index: 50;
+      animation: scanlines-drift 8s linear infinite;
+    }
+
+    @keyframes scanlines-drift {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 200px; }
+    }
+
+    /* CRT outer glow vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.7) 100%);
+      pointer-events: none;
+      z-index: 51;
+    }
+
+    /* CRT monitor frame */
+    .crt-frame {
+      position: relative;
+      width: min(700px, 90vw);
+      aspect-ratio: 4 / 3;
+      border-radius: 20px / 40px;
+      border: 3px solid rgba(255,107,0,0.15);
+      overflow: hidden;
+      background: #06060f;
+      box-shadow:
+        0 0 0 1px rgba(255,107,0,0.05),
+        0 0 40px rgba(255,107,0,0.08),
+        inset 0 0 60px rgba(0,0,0,0.5);
+    }
+
+    /* CRT barrel distortion edge darkening */
+    .crt-frame::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%);
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Static noise texture */
+    .crt-noise {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      animation: noise-shift 0.1s steps(1) infinite;
+      opacity: 0.04;
+      background-image:
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+    }
+
+    @keyframes noise-shift {
+      0%   { background-position: 0 0; }
+      10%  { background-position: -5px -10px; }
+      20%  { background-position: -15px 5px; }
+      30%  { background-position: 7px -25px; }
+      40%  { background-position: -5px 25px; }
+      50%  { background-position: -15px 10px; }
+      60%  { background-position: 15px 0px; }
+      70%  { background-position: 0px 15px; }
+      80%  { background-position: 3px 35px; }
+      90%  { background-position: -10px 10px; }
+      100% { background-position: 0 0; }
+    }
+
+    /* VHS tracking lines */
+    .tracking-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: rgba(255,255,255,0.08);
+      z-index: 6;
+      pointer-events: none;
+    }
+    .tracking-line:nth-child(1) { animation: track-1 4.3s linear infinite; }
+    .tracking-line:nth-child(2) { animation: track-2 3.7s linear infinite; }
+    .tracking-line:nth-child(3) { animation: track-3 5.1s linear infinite; }
+
+    @keyframes track-1 {
+      0%   { top: -3px; }
+      100% { top: 100%; }
+    }
+    @keyframes track-2 {
+      0%   { top: 30%; }
+      100% { top: 130%; }
+    }
+    @keyframes track-3 {
+      0%   { top: 60%; }
+      100% { top: 160%; }
+    }
+
+    /* Horizontal tear / tracking error band */
+    .tear-band {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 24px;
+      z-index: 7;
+      pointer-events: none;
+      overflow: hidden;
+      animation: tear-pos 7.3s steps(1) infinite;
+    }
+
+    .tear-band::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,107,0,0.06);
+      animation: tear-shift 0.08s steps(1) infinite;
+    }
+
+    @keyframes tear-pos {
+      0%   { top: 20%; }
+      14%  { top: 45%; }
+      28%  { top: 70%; }
+      42%  { top: 15%; }
+      57%  { top: 60%; }
+      71%  { top: 30%; }
+      85%  { top: 80%; }
+      100% { top: 20%; }
+    }
+
+    @keyframes tear-shift {
+      0%   { transform: translateX(0); }
+      25%  { transform: translateX(12px); }
+      50%  { transform: translateX(-8px); }
+      75%  { transform: translateX(5px); }
+      100% { transform: translateX(0); }
+    }
+
+    /* Color bars overlay - flashes briefly */
+    .color-bars {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: flex;
+      flex-direction: row;
+      opacity: 0;
+      pointer-events: none;
+      animation: color-bars-flash 7s ease-in-out infinite;
+    }
+
+    .color-bars .bar {
+      flex: 1;
+      height: 100%;
+    }
+    .color-bars .bar:nth-child(1) { background: #ef4444; }
+    .color-bars .bar:nth-child(2) { background: #ff6b00; }
+    .color-bars .bar:nth-child(3) { background: #f59e0b; }
+    .color-bars .bar:nth-child(4) { background: #06d6a0; }
+    .color-bars .bar:nth-child(5) { background: #00d4ff; }
+    .color-bars .bar:nth-child(6) { background: #3a86ff; }
+    .color-bars .bar:nth-child(7) { background: #a855f7; }
+
+    @keyframes color-bars-flash {
+      0%    { opacity: 0; }
+      90%   { opacity: 0; }
+      92%   { opacity: 0.85; }
+      95%   { opacity: 0; }
+      97%   { opacity: 0.6; }
+      100%  { opacity: 0; }
+    }
+
+    /* Main content area */
+    .crt-content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 8;
+      padding: 24px;
+    }
+
+    /* Garbled/scrambled header that resolves */
+    .garbled-label {
+      font-size: clamp(0.45rem, 1vw, 0.6rem);
+      font-weight: 500;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: rgba(255,107,0,0.5);
+      margin-bottom: 12px;
+      text-shadow: 0 0 6px rgba(255,107,0,0.4);
+      animation: garble-label 6s steps(1) infinite;
+    }
+
+    @keyframes garble-label {
+      0%   { opacity: 0.5; }
+      5%   { opacity: 0.2; letter-spacing: 0.4em; }
+      10%  { opacity: 0.8; letter-spacing: 0.25em; }
+      15%  { opacity: 0.1; }
+      20%  { opacity: 0.6; }
+      100% { opacity: 0.5; }
+    }
+
+    /* Main headline */
+    .main-text {
+      position: relative;
+      font-size: clamp(1.8rem, 5vw, 3.2rem);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #ff6b00;
+      text-align: center;
+      text-shadow:
+        0 0 10px rgba(255,107,0,0.8),
+        0 0 20px rgba(255,107,0,0.4),
+        0 0 40px rgba(255,107,0,0.2);
+      animation: text-glitch 5s steps(1) infinite;
+      line-height: 1.1;
+    }
+
+    /* RGB split ghost layers */
+    .main-text::before {
+      content: 'TRANSMISSION';
+      position: absolute;
+      top: 0;
+      left: 2px;
+      color: rgba(0,212,255,0.4);
+      text-shadow: none;
+      clip-path: inset(30% 0 40% 0);
+      animation: ghost-r 5s steps(1) infinite;
+      pointer-events: none;
+    }
+
+    .main-text::after {
+      content: 'TRANSMISSION';
+      position: absolute;
+      top: 0;
+      left: -2px;
+      color: rgba(239,68,68,0.3);
+      text-shadow: none;
+      clip-path: inset(60% 0 10% 0);
+      animation: ghost-b 5s steps(1) infinite;
+      pointer-events: none;
+    }
+
+    @keyframes ghost-r {
+      0%   { transform: translateX(0); clip-path: inset(30% 0 40% 0); }
+      10%  { transform: translateX(4px); clip-path: inset(10% 0 60% 0); }
+      20%  { transform: translateX(-2px); clip-path: inset(50% 0 20% 0); }
+      30%  { transform: translateX(6px); clip-path: inset(0% 0 70% 0); }
+      40%  { transform: translateX(0); clip-path: inset(30% 0 40% 0); }
+      100% { transform: translateX(0); clip-path: inset(30% 0 40% 0); }
+    }
+
+    @keyframes ghost-b {
+      0%   { transform: translateX(0); clip-path: inset(60% 0 10% 0); }
+      15%  { transform: translateX(-4px); clip-path: inset(40% 0 30% 0); }
+      25%  { transform: translateX(3px); clip-path: inset(70% 0 0% 0); }
+      35%  { transform: translateX(-6px); clip-path: inset(20% 0 50% 0); }
+      45%  { transform: translateX(0); clip-path: inset(60% 0 10% 0); }
+      100% { transform: translateX(0); clip-path: inset(60% 0 10% 0); }
+    }
+
+    @keyframes text-glitch {
+      0%   { transform: skewX(0deg); }
+      5%   { transform: skewX(-1deg) translateX(3px); }
+      6%   { transform: skewX(0deg); }
+      20%  { transform: skewX(0deg); }
+      21%  { transform: skewX(0.5deg) translateX(-2px); }
+      22%  { transform: skewX(0deg); }
+      100% { transform: skewX(0deg); }
+    }
+
+    .main-text-line2 {
+      display: block;
+      font-size: clamp(2.5rem, 7vw, 5rem);
+    }
+
+    .error-code {
+      margin-top: 16px;
+      font-size: clamp(0.55rem, 1.2vw, 0.75rem);
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(255,107,0,0.6);
+      text-shadow: 0 0 8px rgba(255,107,0,0.4);
+      animation: error-flicker 8s steps(1) infinite;
+    }
+
+    @keyframes error-flicker {
+      0%   { opacity: 0.6; }
+      8%   { opacity: 0.1; }
+      9%   { opacity: 0.8; }
+      10%  { opacity: 0.6; }
+      45%  { opacity: 0.6; }
+      46%  { opacity: 0.2; }
+      47%  { opacity: 0.7; }
+      48%  { opacity: 0.6; }
+      100% { opacity: 0.6; }
+    }
+
+    /* Phosphor scan line that rolls */
+    .phosphor-roll {
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 80px;
+      background: linear-gradient(
+        to bottom,
+        transparent 0%,
+        rgba(255,107,0,0.03) 50%,
+        transparent 100%
+      );
+      z-index: 9;
+      pointer-events: none;
+      animation: phosphor-roll 3s linear infinite;
+    }
+
+    @keyframes phosphor-roll {
+      0%   { top: -80px; }
+      100% { top: 100%; }
+    }
+
+    /* Return link */
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #ff6b00;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 1px solid #ff6b00;
+      outline-offset: 4px;
+      opacity: 1;
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      body::before { animation: none; }
+      .crt-noise { animation: none; }
+      .tracking-line { animation: none; top: -100px; }
+      .tear-band { animation: none; top: 35%; }
+      .tear-band::before { animation: none; }
+      .color-bars { animation: none; opacity: 0; }
+      .garbled-label { animation: none; opacity: 0.6; }
+      .main-text { animation: none; }
+      .main-text::before { animation: none; display: none; }
+      .main-text::after { animation: none; display: none; }
+      .error-code { animation: none; opacity: 0.6; }
+      .phosphor-roll { animation: none; display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="crt-frame" role="main">
+    <!-- Decorative layers -->
+    <div class="crt-noise" aria-hidden="true"></div>
+    <div class="tracking-line" aria-hidden="true"></div>
+    <div class="tracking-line" aria-hidden="true"></div>
+    <div class="tracking-line" aria-hidden="true"></div>
+    <div class="tear-band" aria-hidden="true"></div>
+    <div class="phosphor-roll" aria-hidden="true"></div>
+
+    <!-- SMPTE color bars flash -->
+    <div class="color-bars" aria-hidden="true">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+
+    <!-- Main content -->
+    <div class="crt-content">
+      <div class="garbled-label">VHS-C // SIGNAL LOST // REC</div>
+      <div class="main-text" aria-label="Transmission Corrupted">
+        TRANSMISSION
+        <span class="main-text-line2">CORRUPTED</span>
+      </div>
+      <div class="error-code">ERROR 404 &mdash; SIGNAL UNRECOVERABLE</div>
+    </div>
+  </div>
+
+  <a href="/" class="return-link">Return to Dashboard</a>
+</body>
+</html>

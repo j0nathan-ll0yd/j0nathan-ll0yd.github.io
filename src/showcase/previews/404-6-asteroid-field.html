@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Asteroid Field — 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Star field */
+    .stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.5);
+      animation: drift-slow linear infinite;
+    }
+
+    @keyframes drift-slow {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-110vw); }
+    }
+
+    /* Asteroids layer */
+    .asteroids {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1;
+      overflow: hidden;
+    }
+
+    .asteroid {
+      position: absolute;
+      font-family: monospace;
+      color: rgba(58, 134, 255, 0.45);
+      animation: asteroid-drift linear infinite;
+      white-space: nowrap;
+      text-shadow: 0 0 6px rgba(58, 134, 255, 0.2);
+    }
+
+    @keyframes asteroid-drift {
+      from { transform: translateX(110vw); }
+      to   { transform: translateX(-30vw); }
+    }
+
+    /* Center content */
+    .content {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      pointer-events: none;
+    }
+
+    .error-label {
+      font-size: 0.5rem;
+      font-weight: 600;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: rgba(58, 134, 255, 0.5);
+    }
+
+    .nav-error {
+      font-size: clamp(1.1rem, 3vw, 1.4rem);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #f0f0f0;
+      text-shadow: 0 0 20px rgba(58, 134, 255, 0.2);
+    }
+
+    .sector-text {
+      font-size: clamp(0.55rem, 1.5vw, 0.7rem);
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+
+    /* Ship element */
+    .ship {
+      position: fixed;
+      z-index: 20;
+      font-size: 1.1rem;
+      color: #3a86ff;
+      text-shadow: 0 0 10px rgba(58, 134, 255, 0.9), 0 0 20px rgba(58, 134, 255, 0.4);
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+      font-family: monospace;
+      line-height: 1;
+      transition: none;
+      will-change: left, top;
+    }
+
+    /* Engine trail dots */
+    .trail {
+      position: fixed;
+      z-index: 19;
+      pointer-events: none;
+      border-radius: 50%;
+      background: rgba(58, 134, 255, 0.6);
+      transform: translate(-50%, -50%);
+      animation: trail-fade 0.4s ease-out forwards;
+    }
+
+    @keyframes trail-fade {
+      from { opacity: 0.6; width: 4px; height: 4px; }
+      to   { opacity: 0; width: 2px; height: 2px; }
+    }
+
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #3a86ff;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+      pointer-events: all;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 2px solid #3a86ff;
+      outline-offset: 4px;
+      border-radius: 2px;
+      opacity: 1;
+    }
+
+    @media (max-width: 600px) {
+      .nav-error { font-size: 1rem; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .star { animation: none !important; }
+      .asteroid { animation: none !important; }
+      .trail { display: none !important; }
+      .ship { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stars" id="stars" aria-hidden="true"></div>
+  <div class="asteroids" id="asteroids" aria-hidden="true"></div>
+
+  <div class="ship" id="ship" aria-hidden="true">&gt;-=</div>
+
+  <div class="content" role="main">
+    <div class="error-label">Error 404</div>
+    <div class="nav-error">Navigation Error</div>
+    <div class="sector-text">Sector 404 &mdash; Uncharted Asteroid Field</div>
+  </div>
+
+  <a href="/" class="return-link">Return to Dashboard</a>
+
+  <script>
+    (function() {
+      var ship = document.getElementById('ship');
+      var starsContainer = document.getElementById('stars');
+      var asteroidsContainer = document.getElementById('asteroids');
+
+      var targetX = window.innerWidth / 2;
+      var targetY = window.innerHeight / 2;
+      var currentX = targetX;
+      var currentY = targetY;
+      var LERP = 0.1;
+      var animFrame = null;
+      var lastTrailTime = 0;
+      var lastTime = 0;
+      var FRAME_MS = 33;
+
+      // ---- Build star field ----
+      var STAR_COUNT = 55;
+      var i, el, dur, delay, yPos, opacity;
+
+      for (i = 0; i < STAR_COUNT; i++) {
+        el = document.createElement('span');
+        el.className = 'star';
+        yPos = Math.random() * 100;
+        opacity = 0.3 + Math.random() * 0.5;
+        dur = 12 + Math.random() * 14; // 12-26s (slower than asteroids)
+        delay = -(Math.random() * dur); // start at random phase
+        el.style.top = yPos + 'vh';
+        el.style.left = (Math.random() * 100) + 'vw';
+        el.style.opacity = String(opacity);
+        el.style.width = (1 + Math.round(Math.random())) + 'px';
+        el.style.height = el.style.width;
+        el.style.animationDuration = dur + 's';
+        el.style.animationDelay = delay + 's';
+        starsContainer.appendChild(el);
+      }
+
+      // ---- Build asteroid field ----
+      var asteroidChars = ['*', '**', '***', 'o', 'oo', '@', '@@', '#', '##', '* *', '@ @', '* @ *'];
+      var ASTEROID_COUNT = 12;
+
+      for (i = 0; i < ASTEROID_COUNT; i++) {
+        el = document.createElement('span');
+        el.className = 'asteroid';
+        var charChoice = asteroidChars[Math.floor(Math.random() * asteroidChars.length)];
+        el.textContent = charChoice;
+        yPos = 5 + Math.random() * 88; // 5%-93% vertical
+        var size = 0.8 + Math.random() * 1.4; // 0.8-2.2rem
+        var opa = 0.25 + Math.random() * 0.4; // 0.25-0.65
+        dur = 6 + Math.random() * 10; // 6-16s (faster than stars)
+        delay = -(Math.random() * dur);
+        el.style.top = yPos + 'vh';
+        el.style.fontSize = size + 'rem';
+        el.style.opacity = String(opa);
+        el.style.animationDuration = dur + 's';
+        el.style.animationDelay = delay + 's';
+        asteroidsContainer.appendChild(el);
+      }
+
+      // ---- Mouse / touch tracking ----
+      function onMouseMove(e) {
+        targetX = e.clientX;
+        targetY = e.clientY;
+      }
+
+      function onTouchMove(e) {
+        if (e.touches && e.touches.length > 0) {
+          targetX = e.touches[0].clientX;
+          targetY = e.touches[0].clientY;
+          e.preventDefault();
+        }
+      }
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchstart', function(e) {
+        if (e.touches && e.touches.length > 0) {
+          targetX = e.touches[0].clientX;
+          targetY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      // ---- Trail spawner ----
+      function spawnTrail(x, y) {
+        var dot = document.createElement('div');
+        dot.className = 'trail';
+        // offset behind the ship (to the left since ship faces right)
+        dot.style.left = (x - 18) + 'px';
+        dot.style.top = y + 'px';
+        document.body.appendChild(dot);
+        setTimeout(function() {
+          if (dot.parentNode) dot.parentNode.removeChild(dot);
+        }, 420);
+      }
+
+      // ---- RAF loop ----
+      function loop(now) {
+        animFrame = requestAnimationFrame(loop);
+        if (!lastTime) lastTime = now;
+        var delta = now - lastTime;
+        if (delta < FRAME_MS) return;
+        lastTime = now - (delta % FRAME_MS);
+
+        // Lerp toward target
+        currentX += (targetX - currentX) * LERP;
+        currentY += (targetY - currentY) * LERP;
+
+        ship.style.left = currentX + 'px';
+        ship.style.top  = currentY + 'px';
+
+        // Spawn trail every ~100ms if ship is moving
+        var dx = targetX - currentX;
+        var dy = targetY - currentY;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 8 && now - lastTrailTime > 100) {
+          spawnTrail(currentX, currentY);
+          lastTrailTime = now;
+        }
+      }
+
+      animFrame = requestAnimationFrame(loop);
+
+      // ---- Cleanup on hidden ----
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          cancelAnimationFrame(animFrame);
+        } else {
+          lastTime = 0;
+          animFrame = requestAnimationFrame(loop);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

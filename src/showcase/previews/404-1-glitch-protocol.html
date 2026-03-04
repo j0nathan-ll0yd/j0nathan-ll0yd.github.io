@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Glitch Protocol -- 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.15) 2px,
+        rgba(0, 0, 0, 0.15) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+      animation: scanline-drift 8s linear infinite;
+    }
+
+    /* Horizontal bar flicker */
+    body::after {
+      content: '';
+      position: fixed;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: rgba(239, 68, 68, 0.25);
+      pointer-events: none;
+      z-index: 11;
+      animation: bar-flicker 3.7s ease-in-out infinite;
+    }
+
+    @keyframes scanline-drift {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 100px; }
+    }
+
+    @keyframes bar-flicker {
+      0%   { top: 10%; opacity: 0; }
+      5%   { opacity: 1; }
+      10%  { top: 10%; opacity: 0; }
+      40%  { top: 65%; opacity: 0; }
+      42%  { opacity: 0.8; }
+      44%  { opacity: 0; }
+      70%  { top: 30%; opacity: 0; }
+      72%  { opacity: 1; }
+      74%  { opacity: 0; }
+      100% { top: 30%; opacity: 0; }
+    }
+
+    .glitch-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 404 hero with RGB split */
+    .glitch-404 {
+      font-size: clamp(5rem, 10vw, 10rem);
+      font-weight: 700;
+      color: #f0f0f0;
+      position: relative;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      animation: glitch-main 2.5s steps(1) infinite;
+    }
+
+    /* Red channel offset */
+    .glitch-404::before {
+      content: '404';
+      position: absolute;
+      top: 0;
+      left: 0;
+      color: #ef4444;
+      mix-blend-mode: screen;
+      animation: glitch-red 2.5s steps(1) infinite;
+      clip-path: inset(0 0 0 0);
+    }
+
+    /* Cyan channel offset */
+    .glitch-404::after {
+      content: '404';
+      position: absolute;
+      top: 0;
+      left: 0;
+      color: #00d4ff;
+      mix-blend-mode: screen;
+      animation: glitch-cyan 2.5s steps(1) infinite;
+      clip-path: inset(0 0 0 0);
+    }
+
+    @keyframes glitch-main {
+      0%   { transform: translate(0, 0); }
+      5%   { transform: translate(-2px, 1px); }
+      6%   { transform: translate(0, 0); }
+      35%  { transform: translate(0, 0); }
+      36%  { transform: translate(1px, -1px); }
+      37%  { transform: translate(0, 0); }
+      72%  { transform: translate(0, 0); }
+      73%  { transform: translate(-1px, 2px); }
+      74%  { transform: translate(0, 0); }
+      100% { transform: translate(0, 0); }
+    }
+
+    @keyframes glitch-red {
+      0%   { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+      5%   { transform: translate(-3px, 0); clip-path: inset(20% 0 40% 0); opacity: 1; }
+      6%   { transform: translate(2px, 0);  clip-path: inset(60% 0 10% 0); opacity: 1; }
+      7%   { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+      35%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+      36%  { transform: translate(-4px, 1px); clip-path: inset(10% 0 70% 0); opacity: 1; }
+      37%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+      72%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+      73%  { transform: translate(-2px, 0); clip-path: inset(45% 0 20% 0); opacity: 1; }
+      74%  { transform: translate(3px, 0);  clip-path: inset(5% 0 80% 0); opacity: 1; }
+      75%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+      100% { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    }
+
+    @keyframes glitch-cyan {
+      0%   { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+      5%   { transform: translate(3px, 0); clip-path: inset(40% 0 30% 0); opacity: 1; }
+      6%   { transform: translate(-1px, 0);clip-path: inset(70% 0 5% 0);  opacity: 1; }
+      7%   { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+      35%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+      36%  { transform: translate(4px, -1px); clip-path: inset(30% 0 50% 0); opacity: 1; }
+      37%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+      72%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+      73%  { transform: translate(2px, 0); clip-path: inset(15% 0 55% 0); opacity: 1; }
+      74%  { transform: translate(-3px, 0);clip-path: inset(80% 0 2% 0);  opacity: 1; }
+      75%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+      100% { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    }
+
+    .glitch-subtitle {
+      font-size: clamp(0.6rem, 1.2vw, 0.75rem);
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      animation: flicker-text 4s steps(1) infinite;
+    }
+
+    @keyframes flicker-text {
+      0%   { opacity: 1; }
+      48%  { opacity: 1; }
+      49%  { opacity: 0.2; }
+      50%  { opacity: 1; }
+      80%  { opacity: 1; }
+      81%  { opacity: 0; }
+      82%  { opacity: 1; }
+      100% { opacity: 1; }
+    }
+
+    .glitch-sub2 {
+      font-size: clamp(0.55rem, 1vw, 0.65rem);
+      font-weight: 400;
+      letter-spacing: 0.1em;
+      color: rgba(239, 68, 68, 0.5);
+      text-transform: lowercase;
+    }
+
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #ef4444;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 2px solid #ef4444;
+      outline-offset: 4px;
+      border-radius: 2px;
+      opacity: 1;
+    }
+
+    /* Reduced motion: static fallback, no animations */
+    @media (prefers-reduced-motion: reduce) {
+      body::before { animation: none; }
+      body::after { display: none; }
+      .glitch-404 { animation: none; color: #ef4444; }
+      .glitch-404::before { display: none; }
+      .glitch-404::after { display: none; }
+      .glitch-subtitle { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="glitch-container" aria-label="404 error page">
+    <div class="glitch-404" aria-hidden="true">404</div>
+    <div class="glitch-subtitle">Glitch Protocol Engaged</div>
+    <div class="glitch-sub2">datastream integrity compromised</div>
+  </div>
+  <a href="/" class="return-link">Return to Dashboard</a>
+</body>
+</html>

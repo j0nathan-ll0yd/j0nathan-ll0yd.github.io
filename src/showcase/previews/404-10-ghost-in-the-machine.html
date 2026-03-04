@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ghost in the Machine -- 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /* Subtle radial ambient glow at center */
+      background-image: radial-gradient(ellipse at 50% 50%, rgba(129, 140, 248, 0.03) 0%, #06060f 70%);
+    }
+
+    /* Large watermark "404" behind everything */
+    .watermark {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(6rem, 20vw, 12rem);
+      font-weight: 700;
+      color: rgba(129, 140, 248, 0.04);
+      letter-spacing: -0.02em;
+      pointer-events: none;
+      user-select: none;
+      z-index: 0;
+    }
+
+    /* Main scene container */
+    .scene {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+      z-index: 1;
+    }
+
+    /* Ghost wrapper for bob animation */
+    .ghost-wrap {
+      position: relative;
+      width: 120px;
+      height: 200px;
+      animation: phase 4s ease-in-out infinite;
+    }
+
+    /* Ghost body */
+    .ghost-body {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 120px;
+      height: 150px;
+      border-radius: 60px 60px 0 0;
+      background: linear-gradient(
+        180deg,
+        rgba(129, 140, 248, 0.18) 0%,
+        rgba(129, 140, 248, 0.06) 70%,
+        rgba(129, 140, 248, 0.02) 100%
+      );
+      box-shadow:
+        0 0 40px rgba(129, 140, 248, 0.12),
+        0 0 80px rgba(129, 140, 248, 0.06),
+        inset 0 0 30px rgba(129, 140, 248, 0.04);
+    }
+
+    /* Wavy bottom drips via radial-gradient mask */
+    .ghost-body::after {
+      content: '';
+      position: absolute;
+      bottom: -18px;
+      left: 0;
+      width: 100%;
+      height: 22px;
+      background:
+        radial-gradient(circle at 12.5% 0%, rgba(129, 140, 248, 0.06) 50%, transparent 50%),
+        radial-gradient(circle at 37.5% 0%, rgba(129, 140, 248, 0.06) 50%, transparent 50%),
+        radial-gradient(circle at 62.5% 0%, rgba(129, 140, 248, 0.06) 50%, transparent 50%),
+        radial-gradient(circle at 87.5% 0%, rgba(129, 140, 248, 0.06) 50%, transparent 50%);
+      background-size: 30px 22px;
+      background-repeat: no-repeat;
+    }
+
+    /* Ghost eyes */
+    .ghost-eyes {
+      position: absolute;
+      top: 52px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 22px;
+    }
+    .ghost-eye {
+      width: 12px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(129, 140, 248, 0.55);
+      box-shadow: 0 0 8px rgba(129, 140, 248, 0.4);
+    }
+
+    /* Phasing / bobbing animation */
+    @keyframes phase {
+      0%   { opacity: 0.35; transform: translateY(0px); }
+      25%  { opacity: 0.75; transform: translateY(-6px); }
+      50%  { opacity: 0.9;  transform: translateY(-8px); }
+      75%  { opacity: 0.65; transform: translateY(-3px); }
+      100% { opacity: 0.35; transform: translateY(0px); }
+    }
+
+    /* Floating particles container */
+    .particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+    .particle {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(129, 140, 248, 0.35);
+      animation: float-up linear infinite;
+    }
+
+    @keyframes float-up {
+      0%   { transform: translateX(0) translateY(0);   opacity: 0; }
+      10%  { opacity: 1; }
+      80%  { opacity: 0.4; }
+      100% { transform: translateX(var(--drift)) translateY(-70vh); opacity: 0; }
+    }
+
+    /* Text block */
+    .ghost-text {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      animation: text-breathe 4s ease-in-out infinite;
+    }
+    .ghost-text-line {
+      font-size: 0.75rem;
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(129, 140, 248, 0.65);
+    }
+
+    @keyframes text-breathe {
+      0%, 100% { opacity: 0.55; }
+      50%       { opacity: 0.85; }
+    }
+
+    /* Return link */
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #818cf8;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 1px solid #818cf8;
+      outline-offset: 4px;
+      opacity: 1;
+    }
+
+    /* Reduced motion: disable all animations, show static state */
+    @media (prefers-reduced-motion: reduce) {
+      .ghost-wrap {
+        animation: none;
+        opacity: 0.7;
+        transform: none;
+      }
+      .ghost-text {
+        animation: none;
+        opacity: 0.75;
+      }
+      .particle {
+        animation: none;
+        opacity: 0.3;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="watermark" aria-hidden="true">404</div>
+
+  <!-- Floating particles (generated by JS) -->
+  <div class="particles" id="particles" aria-hidden="true"></div>
+
+  <main class="scene">
+    <div class="ghost-wrap" aria-label="Ghost silhouette">
+      <div class="ghost-body">
+        <div class="ghost-eyes" aria-hidden="true">
+          <div class="ghost-eye"></div>
+          <div class="ghost-eye"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ghost-text" role="heading" aria-level="1">
+      <span class="ghost-text-line">The page you seek</span>
+      <span class="ghost-text-line">exists between dimensions</span>
+    </div>
+  </main>
+
+  <a href="/" class="return-link">Return to Dashboard</a>
+
+  <script>
+    (function() {
+      var container = document.getElementById('particles');
+      var isReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      /* Particle config */
+      var PARTICLE_COUNT = 14;
+
+      /* Sizes: min/max px */
+      var SIZES = [3, 4, 5, 6];
+      /* Duration range: 6-14s */
+      var DUR_MIN = 6;
+      var DUR_MAX = 14;
+      /* Horizontal drift range: -40px to +40px */
+      var DRIFT_RANGE = 80;
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function randInt(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+      }
+
+      function createParticle() {
+        var el = document.createElement('div');
+        el.className = 'particle';
+
+        var size = randInt(SIZES);
+        var duration = rand(DUR_MIN, DUR_MAX);
+        var delay = rand(0, DUR_MAX); /* stagger start times */
+        var leftPct = rand(20, 80); /* cluster around center horizontally */
+        var bottomPct = rand(-5, 30); /* start near/below ghost */
+        var drift = rand(-DRIFT_RANGE / 2, DRIFT_RANGE / 2);
+        var opacity = rand(0.15, 0.5);
+
+        el.style.width = size + 'px';
+        el.style.height = size + 'px';
+        el.style.left = leftPct + '%';
+        el.style.bottom = bottomPct + '%';
+        el.style.setProperty('--drift', drift + 'px');
+        el.style.animationDuration = duration + 's';
+        el.style.animationDelay = '-' + delay + 's'; /* negative delay = pre-started */
+        el.style.opacity = opacity;
+
+        /* Slight size variation in opacity via background */
+        var alpha = rand(0.2, 0.5);
+        el.style.background = 'rgba(129, 140, 248, ' + alpha + ')';
+
+        container.appendChild(el);
+      }
+
+      /* In reduced-motion, place particles static at mid-travel */
+      if (isReducedMotion) {
+        for (var i = 0; i < PARTICLE_COUNT; i++) {
+          var el = document.createElement('div');
+          el.className = 'particle';
+          var size = SIZES[i % SIZES.length];
+          el.style.width = size + 'px';
+          el.style.height = size + 'px';
+          el.style.left = rand(25, 75) + '%';
+          el.style.bottom = rand(25, 65) + '%';
+          el.style.opacity = '0.2';
+          el.style.animation = 'none';
+          container.appendChild(el);
+        }
+      } else {
+        for (var j = 0; j < PARTICLE_COUNT; j++) {
+          createParticle();
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

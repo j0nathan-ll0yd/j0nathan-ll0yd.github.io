@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Black Hole -- 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+
+    /* Star field background */
+    .stars {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .star {
+      position: absolute;
+      border-radius: 50%;
+      background: #f0f0f0;
+    }
+
+    /* Radial glow from center */
+    .center-glow {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(168,85,247,0.06) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Main 404 layout */
+    .four-o-four {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(8px, 2vw, 24px);
+      z-index: 10;
+    }
+
+    /* The "4" numerals */
+    .digit-four {
+      font-size: clamp(4rem, 10vw, 8rem);
+      font-weight: 700;
+      color: #a855f7;
+      text-shadow:
+        0 0 20px rgba(168,85,247,0.6),
+        0 0 40px rgba(168,85,247,0.3);
+      line-height: 1;
+      position: relative;
+    }
+
+    .digit-four.left {
+      transform: rotate(3deg) translateX(4px);
+    }
+
+    .digit-four.right {
+      transform: rotate(-3deg) translateX(-4px);
+    }
+
+    /* The vortex "0" container */
+    .vortex-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: clamp(80px, 15vw, 160px);
+      height: clamp(80px, 15vw, 160px);
+    }
+
+    /* Dark core of black hole */
+    .vortex-core {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle,
+        #06060f 30%,
+        rgba(168,85,247,0.12) 60%,
+        transparent 75%
+      );
+      box-shadow:
+        0 0 0 1px rgba(168,85,247,0.1),
+        0 0 20px rgba(168,85,247,0.15),
+        inset 0 0 20px rgba(168,85,247,0.08);
+      z-index: 2;
+    }
+
+    /* Inner spinning swirl */
+    .vortex-swirl {
+      position: absolute;
+      inset: 8%;
+      border-radius: 50%;
+      border: 1px solid rgba(168,85,247,0.15);
+      border-top-color: rgba(168,85,247,0.4);
+      border-right-color: rgba(168,85,247,0.25);
+      animation: vortex-spin 3s linear infinite;
+      z-index: 3;
+    }
+
+    .vortex-swirl-2 {
+      position: absolute;
+      inset: 20%;
+      border-radius: 50%;
+      border: 1px solid rgba(168,85,247,0.1);
+      border-bottom-color: rgba(168,85,247,0.3);
+      animation: vortex-spin 2s linear infinite reverse;
+      z-index: 3;
+    }
+
+    @keyframes vortex-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    /* Accretion disk rings */
+    .accretion-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid rgba(168,85,247,0.35);
+      transform: scaleY(0.35);
+      animation: ring-spin 8s linear infinite;
+      z-index: 1;
+    }
+
+    .accretion-ring.outer {
+      width: 140%;
+      height: 140%;
+      border-color: rgba(168,85,247,0.35);
+      box-shadow: 0 0 8px rgba(168,85,247,0.2);
+      animation-duration: 8s;
+    }
+
+    .accretion-ring.inner {
+      width: 115%;
+      height: 115%;
+      border-color: rgba(168,85,247,0.2);
+      animation-duration: 5s;
+      animation-direction: reverse;
+    }
+
+    @keyframes ring-spin {
+      from { transform: scaleY(0.35) rotate(0deg); }
+      to   { transform: scaleY(0.35) rotate(360deg); }
+    }
+
+    /* Particle container - positioned absolutely relative to vortex */
+    .particle-field {
+      position: absolute;
+      inset: -150px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Individual spiraling particles */
+    .particle {
+      position: absolute;
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: #a855f7;
+      top: 50%;
+      left: 50%;
+      transform-origin: 0 0;
+    }
+
+    /* Caption below */
+    .caption {
+      margin-top: clamp(16px, 3vw, 28px);
+      font-size: clamp(0.55rem, 1.2vw, 0.75rem);
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(168,85,247,0.65);
+      text-align: center;
+      text-shadow: 0 0 10px rgba(168,85,247,0.3);
+      z-index: 10;
+      position: relative;
+    }
+
+    /* Return link */
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #a855f7;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 1px solid #a855f7;
+      outline-offset: 4px;
+      opacity: 1;
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .vortex-swirl { animation: none; }
+      .vortex-swirl-2 { animation: none; }
+      .accretion-ring { animation: none; }
+      .accretion-ring.outer { transform: scaleY(0.35); }
+      .accretion-ring.inner { transform: scaleY(0.35); }
+      .particle { animation: none !important; opacity: 0.4; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Starfield -->
+  <div class="stars" id="stars" aria-hidden="true"></div>
+  <div class="center-glow" aria-hidden="true"></div>
+
+  <!-- Main 404 display -->
+  <div class="four-o-four" role="main" aria-label="404 - Black Hole">
+    <div class="digit-four left" aria-hidden="true">4</div>
+
+    <div class="vortex-wrap">
+      <!-- Accretion disk rings (behind core) -->
+      <div class="accretion-ring outer" aria-hidden="true"></div>
+      <div class="accretion-ring inner" aria-hidden="true"></div>
+      <!-- Particle field around vortex -->
+      <div class="particle-field" id="particleField" aria-hidden="true"></div>
+      <!-- Dark core with swirls -->
+      <div class="vortex-core" aria-hidden="true">
+        <div class="vortex-swirl"></div>
+        <div class="vortex-swirl-2"></div>
+      </div>
+    </div>
+
+    <div class="digit-four right" aria-hidden="true">4</div>
+  </div>
+
+  <div class="caption">Event Horizon Reached</div>
+
+  <a href="/" class="return-link">Return to Dashboard</a>
+
+  <script>
+    (function() {
+      /* ---- Generate static star field ---- */
+      var starsEl = document.getElementById('stars');
+      var starCount = 28;
+      var i, star, size, x, y;
+
+      for (i = 0; i < starCount; i++) {
+        star = document.createElement('div');
+        star.className = 'star';
+        size = Math.random() < 0.7 ? 1 : 2;
+        x = Math.random() * 100;
+        y = Math.random() * 100;
+        star.style.width = size + 'px';
+        star.style.height = size + 'px';
+        star.style.left = x + '%';
+        star.style.top = y + '%';
+        star.style.opacity = (0.2 + Math.random() * 0.5).toFixed(2);
+        starsEl.appendChild(star);
+      }
+
+      /* ---- Generate spiraling particles ---- */
+      var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var field = document.getElementById('particleField');
+      var particleCount = 18;
+
+      /* fieldSize matches inset: -150px so center is at 50%/50% of particle-field */
+      /* particle-field is 300px wider/taller than vortex (150px each side) */
+      /* We position relative to center of particle-field */
+
+      for (i = 0; i < particleCount; i++) {
+        (function(idx) {
+          var p = document.createElement('span');
+          p.className = 'particle';
+
+          /* Random starting angle and radius */
+          var startAngle = Math.random() * 360;
+          var startRadius = 90 + Math.random() * 110; /* px from center */
+          var duration = 3 + Math.random() * 5;       /* seconds to spiral in */
+          var delay = Math.random() * 6;               /* stagger start */
+          var opacity = 0.3 + Math.random() * 0.6;
+          var size = Math.random() < 0.4 ? 2 : 3;
+
+          p.style.width = size + 'px';
+          p.style.height = size + 'px';
+          p.style.opacity = opacity.toFixed(2);
+
+          if (prefersReducedMotion) {
+            /* Place at mid-orbit, no animation */
+            var rad = startAngle * Math.PI / 180;
+            var midRadius = startRadius * 0.6;
+            var cx = 150 + Math.cos(rad) * midRadius - size / 2;
+            var cy = 150 + Math.sin(rad) * midRadius - size / 2;
+            p.style.left = cx + 'px';
+            p.style.top = cy + 'px';
+            p.style.transform = 'none';
+            field.appendChild(p);
+          } else {
+            /* Build spiral keyframes as a style block */
+            var animName = 'spiral-' + idx;
+            var keyframeSteps = 20;
+            var kf = '@keyframes ' + animName + ' {';
+            var j, pct, angle, radius, cx, cy, rad;
+
+            for (j = 0; j <= keyframeSteps; j++) {
+              pct = (j / keyframeSteps * 100).toFixed(1);
+              /* spiral: angle increases, radius decreases from start to ~0 */
+              angle = startAngle + (j / keyframeSteps) * 720; /* 2 full rotations */
+              radius = startRadius * (1 - j / keyframeSteps);
+              rad = angle * Math.PI / 180;
+              cx = 150 + Math.cos(rad) * radius - size / 2;
+              cy = 150 + Math.sin(rad) * radius - size / 2;
+              var o = (j < keyframeSteps) ? opacity.toFixed(2) : '0';
+              kf += pct + '% { left: ' + cx.toFixed(1) + 'px; top: ' + cy.toFixed(1) + 'px; opacity: ' + o + '; }';
+            }
+            kf += '}';
+
+            /* Inject keyframes */
+            var styleEl = document.createElement('style');
+            styleEl.textContent = kf;
+            document.head.appendChild(styleEl);
+
+            /* Set initial position (start of spiral) */
+            var initRad = startAngle * Math.PI / 180;
+            var initCx = 150 + Math.cos(initRad) * startRadius - size / 2;
+            var initCy = 150 + Math.sin(initRad) * startRadius - size / 2;
+            p.style.left = initCx.toFixed(1) + 'px';
+            p.style.top = initCy.toFixed(1) + 'px';
+
+            p.style.animation = animName + ' ' + duration.toFixed(2) + 's ' + delay.toFixed(2) + 's linear infinite';
+
+            field.appendChild(p);
+          }
+        })(i);
+      }
+    })();
+  </script>
+</body>
+</html>

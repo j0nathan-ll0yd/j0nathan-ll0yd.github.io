@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heartbeat Flatline — 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .monitor {
+      position: relative;
+      width: min(680px, 94vw);
+      background: rgba(6, 6, 15, 0.95);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: 12px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ECG grid background */
+    .monitor::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 12px;
+      background-image:
+        linear-gradient(rgba(245, 158, 11, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 158, 11, 0.04) 1px, transparent 1px);
+      background-size: 24px 24px;
+      pointer-events: none;
+    }
+
+    .monitor-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .monitor-label {
+      font-size: 0.5rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(245, 158, 11, 0.5);
+    }
+
+    .bpm-display {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+
+    .bpm-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+      color: #f59e0b;
+      text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+      transition: color 1s ease;
+    }
+
+    .bpm-number.critical {
+      color: #ef4444;
+      text-shadow: 0 0 20px rgba(239, 68, 68, 0.5);
+    }
+
+    .bpm-label {
+      font-size: 0.45rem;
+      font-weight: 600;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: rgba(245, 158, 11, 0.5);
+    }
+
+    /* ECG SVG trace area */
+    .ecg-container {
+      position: relative;
+      width: 100%;
+      height: clamp(100px, 20vw, 160px);
+      overflow: hidden;
+    }
+
+    .ecg-svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    /* The scrolling ECG line */
+    .ecg-trace {
+      fill: none;
+      stroke: #f59e0b;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 4px rgba(245, 158, 11, 0.7));
+    }
+
+    .ecg-trace.flatline {
+      stroke: #ef4444;
+      filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.8));
+    }
+
+    /* Scan line cursor */
+    .scan-line {
+      stroke: rgba(245, 158, 11, 0.3);
+      stroke-width: 1;
+    }
+
+    .monitor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: relative;
+      z-index: 1;
+    }
+
+    .vital-indicators {
+      display: flex;
+      gap: 16px;
+    }
+
+    .vital-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .vital-key {
+      font-size: 0.4rem;
+      font-weight: 600;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: rgba(245, 158, 11, 0.4);
+    }
+
+    .vital-value {
+      font-size: 0.65rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      color: rgba(245, 158, 11, 0.7);
+    }
+
+    .status-text {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #06d6a0;
+      text-shadow: 0 0 8px rgba(6, 214, 160, 0.5);
+      transition: color 0.5s ease, text-shadow 0.5s ease;
+    }
+
+    .status-text.warning {
+      color: #f59e0b;
+      text-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+    }
+
+    .status-text.critical {
+      color: #ef4444;
+      text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+      animation: status-blink 1s step-end infinite;
+    }
+
+    @keyframes status-blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    /* Flatline pulse glow */
+    .flatline-glow {
+      animation: flatline-pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes flatline-pulse {
+      0%, 100% { filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.5)); }
+      50% { filter: drop-shadow(0 0 12px rgba(239, 68, 68, 1.0)); }
+    }
+
+    .error-code {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: clamp(4rem, 12vw, 8rem);
+      font-weight: 700;
+      color: rgba(245, 158, 11, 0.03);
+      letter-spacing: 0.1em;
+      pointer-events: none;
+      user-select: none;
+      z-index: 0;
+    }
+
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #f59e0b;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 2px solid #f59e0b;
+      outline-offset: 4px;
+      border-radius: 2px;
+      opacity: 1;
+    }
+
+    @media (max-width: 600px) {
+      .monitor { padding: 16px; gap: 12px; }
+      .bpm-number { font-size: 1.8rem; }
+      .vital-indicators { gap: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ecg-trace,
+      .ecg-trace.flatline,
+      .status-text.critical,
+      .flatline-glow {
+        animation: none !important;
+        transition: none !important;
+      }
+      /* Show static flatline state */
+      #ecgCanvas { display: none; }
+      #staticFlatline { display: block !important; }
+      .bpm-number { color: #ef4444 !important; text-shadow: 0 0 20px rgba(239,68,68,0.5) !important; }
+      .status-text { color: #ef4444 !important; text-shadow: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <span class="error-code" aria-hidden="true">404</span>
+
+  <div class="monitor" role="main">
+    <div class="monitor-header">
+      <div>
+        <div class="monitor-label">ECG Monitor — Unit 404</div>
+      </div>
+      <div class="bpm-display" aria-live="polite" aria-atomic="true">
+        <div class="bpm-number" id="bpmNumber">72</div>
+        <div class="bpm-label">BPM</div>
+      </div>
+    </div>
+
+    <div class="ecg-container" aria-hidden="true">
+      <canvas id="ecgCanvas" style="width:100%;height:100%;display:block;"></canvas>
+      <!-- Reduced-motion static fallback (hidden by default) -->
+      <svg id="staticFlatline" style="display:none;width:100%;height:100%;" viewBox="0 0 680 140" preserveAspectRatio="none">
+        <line x1="0" y1="70" x2="680" y2="70" stroke="#ef4444" stroke-width="2"
+              filter="url(#flatGlow)" stroke-linecap="round"/>
+        <defs>
+          <filter id="flatGlow">
+            <feGaussianBlur stdDeviation="3" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+      </svg>
+    </div>
+
+    <div class="monitor-footer">
+      <div class="vital-indicators">
+        <div class="vital-item">
+          <span class="vital-key">SpO2</span>
+          <span class="vital-value" id="spo2Val">98%</span>
+        </div>
+        <div class="vital-item">
+          <span class="vital-key">Resp</span>
+          <span class="vital-value" id="respVal">16/min</span>
+        </div>
+        <div class="vital-item">
+          <span class="vital-key">Temp</span>
+          <span class="vital-value" id="tempVal">37.0°C</span>
+        </div>
+      </div>
+      <div class="status-text" id="statusText">VITALS NOMINAL</div>
+    </div>
+  </div>
+
+  <a href="/" class="return-link">Return to Dashboard</a>
+
+  <script>
+    (function() {
+      var canvas = document.getElementById('ecgCanvas');
+      var ctx = canvas.getContext('2d');
+      var bpmEl = document.getElementById('bpmNumber');
+      var statusEl = document.getElementById('statusText');
+      var spo2El = document.getElementById('spo2Val');
+      var respEl = document.getElementById('respVal');
+      var tempEl = document.getElementById('tempVal');
+
+      var W, H, midY;
+      var tracePoints = [];
+      var scrollX = 0;
+      var phase = 'beating'; // 'beating' | 'flatline'
+      var beatCycle = 0;
+      var maxBeats = 4;
+      var animFrame = null;
+      var lastTime = 0;
+      var FRAME_MS = 33; // ~30fps
+
+      // PQRST waveform as relative Y offsets from midline, sampled at intervals
+      // Each beat occupies ~200 px worth of x-travel at 1px/step
+      function makePQRST(amplitude) {
+        var pts = [];
+        var i;
+        // Flat pre-P segment (30 steps)
+        for (i = 0; i < 30; i++) pts.push(0);
+        // P-wave: small bump (20 steps)
+        for (i = 0; i < 20; i++) {
+          var t = i / 19;
+          pts.push(-amplitude * 0.15 * Math.sin(Math.PI * t));
+        }
+        // PR segment (20 steps)
+        for (i = 0; i < 20; i++) pts.push(0);
+        // Q dip (8 steps)
+        for (i = 0; i < 8; i++) {
+          var t = i / 7;
+          pts.push(amplitude * 0.15 * Math.sin(Math.PI * t));
+        }
+        // R spike up (10 steps)
+        for (i = 0; i < 10; i++) {
+          var t = i / 9;
+          pts.push(-amplitude * Math.sin(Math.PI * t));
+        }
+        // S dip (8 steps)
+        for (i = 0; i < 8; i++) {
+          var t = i / 7;
+          pts.push(amplitude * 0.25 * Math.sin(Math.PI * t));
+        }
+        // ST segment (20 steps)
+        for (i = 0; i < 20; i++) pts.push(0);
+        // T-wave (24 steps)
+        for (i = 0; i < 24; i++) {
+          var t = i / 23;
+          pts.push(-amplitude * 0.3 * Math.sin(Math.PI * t));
+        }
+        // Post-T flat (40 steps)
+        for (i = 0; i < 40; i++) pts.push(0);
+        return pts;
+      }
+
+      function resize() {
+        var rect = canvas.parentElement.getBoundingClientRect();
+        W = Math.round(rect.width);
+        H = Math.round(rect.height);
+        canvas.width = W;
+        canvas.height = H;
+        midY = H / 2;
+      }
+
+      function buildTrace() {
+        tracePoints = [];
+        var amplitude = H * 0.35;
+        var beat = makePQRST(amplitude);
+        var i, j;
+        // Repeat beat maxBeats times
+        for (i = 0; i < maxBeats; i++) {
+          for (j = 0; j < beat.length; j++) {
+            tracePoints.push(beat[j]);
+          }
+        }
+        // Flatline: extend to 3x canvas width
+        var flatLen = W * 3;
+        for (i = 0; i < flatLen; i++) {
+          tracePoints.push(0);
+        }
+      }
+
+      var beatTotalLen; // length of beating section
+      function init() {
+        resize();
+        buildTrace();
+        // beating section length
+        var amplitude = H * 0.35;
+        var beatLen = makePQRST(amplitude).length;
+        beatTotalLen = beatLen * maxBeats;
+        scrollX = 0;
+        phase = 'beating';
+        bpmEl.textContent = '72';
+        bpmEl.classList.remove('critical');
+        statusEl.className = 'status-text';
+        statusEl.textContent = 'VITALS NOMINAL';
+        spo2El.textContent = '98%';
+        respEl.textContent = '16/min';
+        tempEl.textContent = '37.0\u00b0C';
+        lastTime = 0;
+        if (animFrame) cancelAnimationFrame(animFrame);
+        animFrame = requestAnimationFrame(loop);
+      }
+
+      var bpmDropStarted = false;
+      var bpmDropInterval = null;
+      var currentBpm = 72;
+
+      function startBpmDrop() {
+        if (bpmDropStarted) return;
+        bpmDropStarted = true;
+        statusEl.className = 'status-text warning';
+        statusEl.textContent = 'VITALS DEGRADING';
+        currentBpm = 72;
+        bpmDropInterval = setInterval(function() {
+          currentBpm -= 4;
+          if (currentBpm <= 0) {
+            currentBpm = 0;
+            clearInterval(bpmDropInterval);
+            bpmEl.textContent = '0';
+            bpmEl.classList.add('critical');
+            statusEl.className = 'status-text critical';
+            statusEl.textContent = 'ERROR 404 \u2014 VITALS LOST';
+            spo2El.textContent = '---';
+            respEl.textContent = '---';
+            tempEl.textContent = '---';
+            return;
+          }
+          bpmEl.textContent = String(currentBpm);
+        }, 55); // drops 72->0 over ~1s (18 steps * 55ms)
+      }
+
+      function draw() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Draw visible segment of tracePoints centered on canvas
+        var startIdx = scrollX - W;
+        if (startIdx < 0) startIdx = 0;
+        var endIdx = scrollX;
+        if (endIdx > tracePoints.length) endIdx = tracePoints.length;
+
+        var isFlatlinePhase = (scrollX > beatTotalLen);
+
+        ctx.beginPath();
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        if (isFlatlinePhase) {
+          ctx.strokeStyle = '#ef4444';
+          ctx.shadowColor = 'rgba(239,68,68,0.8)';
+          ctx.shadowBlur = 8;
+        } else {
+          ctx.strokeStyle = '#f59e0b';
+          ctx.shadowColor = 'rgba(245,158,11,0.7)';
+          ctx.shadowBlur = 6;
+        }
+
+        var drawn = false;
+        for (var i = startIdx; i < endIdx; i++) {
+          var x = W - (endIdx - i);
+          var y = midY + tracePoints[i];
+          if (!drawn) {
+            ctx.moveTo(x, y);
+            drawn = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+        }
+        if (drawn) ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Scan cursor
+        ctx.beginPath();
+        ctx.strokeStyle = isFlatlinePhase ? 'rgba(239,68,68,0.25)' : 'rgba(245,158,11,0.25)';
+        ctx.lineWidth = 1;
+        ctx.moveTo(W - 1, 0);
+        ctx.lineTo(W - 1, H);
+        ctx.stroke();
+      }
+
+      function loop(now) {
+        animFrame = requestAnimationFrame(loop);
+        if (!lastTime) lastTime = now;
+        var delta = now - lastTime;
+        if (delta < FRAME_MS) return;
+        lastTime = now - (delta % FRAME_MS);
+
+        // Advance scroll by ~2px per frame (speed tuned so beats feel right)
+        scrollX += 2;
+
+        // Trigger BPM drop when we hit flatline
+        if (scrollX >= beatTotalLen && !bpmDropStarted) {
+          startBpmDrop();
+          phase = 'flatline';
+        }
+
+        // Stop advancing after trace ends
+        if (scrollX >= tracePoints.length) {
+          scrollX = tracePoints.length;
+        }
+
+        draw();
+      }
+
+      // Debounced resize
+      var resizeTimer = null;
+      window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(init, 200);
+      });
+
+      init();
+    })();
+  </script>
+</body>
+</html>

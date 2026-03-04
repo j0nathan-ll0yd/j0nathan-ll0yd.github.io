@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Reboot -- 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', monospace;
+      color: #00d4ff;
+      font-size: 0.72rem;
+      line-height: 1.6;
+    }
+    /* CRT scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.04) 2px,
+        rgba(0, 0, 0, 0.04) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+    .bios-container {
+      position: fixed;
+      inset: 0;
+      padding: 40px 48px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .bios-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 28px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(0, 212, 255, 0.15);
+    }
+    .bios-logo {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #00d4ff;
+      text-shadow: 0 0 10px rgba(0, 212, 255, 0.6);
+    }
+    .bios-ver {
+      font-size: 0.55rem;
+      color: rgba(0, 212, 255, 0.5);
+      letter-spacing: 0.05em;
+      text-align: right;
+    }
+    .bios-copyright {
+      font-size: 0.55rem;
+      color: rgba(0, 212, 255, 0.35);
+      margin-top: 2px;
+      text-align: right;
+    }
+    .bios-log {
+      flex: 1;
+      overflow: hidden;
+    }
+    .log-line {
+      display: block;
+      min-height: 1.6em;
+      white-space: pre;
+    }
+    .log-line.ok { color: #00d4ff; }
+    .log-line.ok-text { color: #06d6a0; }
+    .log-line.blank { color: transparent; }
+    .log-line.dim { color: rgba(0, 212, 255, 0.4); }
+    .log-line.error { color: #ef4444; font-weight: 700; text-shadow: 0 0 8px rgba(239, 68, 68, 0.5); }
+    .log-line.sector-404 {
+      color: #00d4ff;
+      text-shadow: 0 0 10px rgba(0, 212, 255, 0.7);
+      background: rgba(0, 212, 255, 0.04);
+    }
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 1em;
+      background: #00d4ff;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #00d4ff;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 1px solid #00d4ff;
+      outline-offset: 4px;
+      opacity: 1;
+    }
+    @media (max-width: 600px) {
+      .bios-container { padding: 24px 20px; }
+      .bios-header { flex-direction: column; gap: 8px; }
+      .bios-ver, .bios-copyright { text-align: left; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cursor { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bios-container" aria-live="polite" aria-label="BIOS boot sequence">
+    <div class="bios-header">
+      <div class="bios-logo">HUMAN DATASTREAM</div>
+      <div>
+        <div class="bios-ver">BIOS v4.0.4 -- 2026</div>
+        <div class="bios-copyright">Copyright (c) 2026 Datastream Systems</div>
+      </div>
+    </div>
+    <div class="bios-log" id="biosLog" aria-atomic="false"></div>
+  </div>
+
+  <a href="/" class="return-link">Return to Dashboard</a>
+
+  <script>
+    (function() {
+      var log = document.getElementById('biosLog');
+      var lines = [];
+      var cursorEl = null;
+      var isReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      /* Line definitions: [cssClass, text, delayBefore(ms), specialType] */
+      /* specialType: 'memory', 'progress', 'sector404', 'prompt' */
+      var sequence = [
+        ['dim',   'Initializing POST...', 200, ''],
+        ['blank', '', 100, ''],
+        ['ok',    'CPU: Neural Processing Unit ', 200, 'progress'],
+        ['ok',    'Memory Test: ', 400, 'memory'],
+        ['ok',    'Storage: Datastream Array ', 600, 'progress'],
+        ['ok',    'Network: Quantum Mesh ', 400, 'progress'],
+        ['blank', '', 200, ''],
+        ['dim',   'Scanning sectors...', 300, ''],
+        ['ok',    '  SECTOR 001 ', 600, 'progress'],
+        ['ok',    '  SECTOR 042 ', 400, 'progress'],
+        ['ok',    '  SECTOR 127 ', 400, 'progress'],
+        ['ok',    '  SECTOR 256 ', 400, 'progress'],
+        ['sector-404', '  SECTOR 404 ', 800, 'progress-error'],
+        ['blank', '', 400, ''],
+        ['error', '*** BAD SECTOR DETECTED ***', 1000, ''],
+        ['error', '  Sector 404: Page data not found', 200, ''],
+        ['error', '  Integrity: COMPROMISED', 200, ''],
+        ['error', '  Recovery: FAILED', 200, ''],
+        ['blank', '', 600, ''],
+        ['ok',    'REBOOT? [Y/N] ', 800, 'prompt']
+      ];
+
+      var dotsFull = '............................ ';
+      var dotsOK   = dotsFull + 'OK';
+      var dotsERR  = dotsFull + 'ERROR';
+
+      function padDots(label, suffix) {
+        /* Build fixed-width dot leader */
+        var total = 44;
+        var dots = '';
+        var count = total - label.length - suffix.length;
+        if (count < 4) { count = 4; }
+        for (var i = 0; i < count; i++) { dots += '.'; }
+        return dots + suffix;
+      }
+
+      function appendLine(cssClass, text) {
+        var span = document.createElement('span');
+        span.className = 'log-line ' + cssClass;
+        span.textContent = text;
+        log.appendChild(span);
+        return span;
+      }
+
+      function animateMemory(spanEl, callback) {
+        var start = 0;
+        var end = 65536;
+        var duration = 900;
+        var startTime = null;
+        function step(ts) {
+          if (!startTime) { startTime = ts; }
+          var elapsed = ts - startTime;
+          var progress = elapsed / duration;
+          if (progress > 1) { progress = 1; }
+          var val = Math.round(start + (end - start) * progress);
+          spanEl.textContent = 'Memory Test: ' + val + ' KB';
+          if (progress < 1) {
+            requestAnimationFrame(step);
+          } else {
+            spanEl.textContent = 'Memory Test: ' + end + ' KB ' + padDots('Memory Test: ' + end + ' KB', 'OK');
+            if (callback) { callback(); }
+          }
+        }
+        requestAnimationFrame(step);
+      }
+
+      function animateProgress(spanEl, label, suffix, callback) {
+        var totalDots = 28;
+        var i = 0;
+        var interval = setInterval(function() {
+          var bar = '';
+          for (var d = 0; d < i; d++) { bar += '.'; }
+          for (var e = i; e < totalDots; e++) { bar += ' '; }
+          spanEl.textContent = label + bar;
+          i++;
+          if (i > totalDots) {
+            clearInterval(interval);
+            spanEl.textContent = label + padDots(label, suffix);
+            if (callback) { callback(); }
+          }
+        }, 20);
+      }
+
+      function removeCursor() {
+        if (cursorEl && cursorEl.parentNode) {
+          cursorEl.parentNode.removeChild(cursorEl);
+        }
+        cursorEl = null;
+      }
+
+      function addCursor(parentEl) {
+        removeCursor();
+        cursorEl = document.createElement('span');
+        cursorEl.className = 'cursor';
+        cursorEl.setAttribute('aria-hidden', 'true');
+        parentEl.appendChild(cursorEl);
+      }
+
+      function runSequence(index) {
+        if (index >= sequence.length) { return; }
+        var item = sequence[index];
+        var cssClass = item[0];
+        var text = item[1];
+        var delay = item[2];
+        var type = item[3];
+
+        setTimeout(function() {
+          removeCursor();
+
+          if (type === 'progress') {
+            var span = appendLine(cssClass, text);
+            addCursor(span);
+            animateProgress(span, text, 'OK', function() {
+              removeCursor();
+              runSequence(index + 1);
+            });
+
+          } else if (type === 'progress-error') {
+            var span = appendLine(cssClass, text);
+            addCursor(span);
+            animateProgress(span, text, 'ERROR', function() {
+              span.className = 'log-line error';
+              span.style.fontWeight = '700';
+              removeCursor();
+              runSequence(index + 1);
+            });
+
+          } else if (type === 'memory') {
+            var span = appendLine(cssClass, text + '0 KB');
+            addCursor(span);
+            animateMemory(span, function() {
+              removeCursor();
+              runSequence(index + 1);
+            });
+
+          } else if (type === 'prompt') {
+            var span = appendLine(cssClass, text);
+            addCursor(span);
+            /* Final prompt -- no continuation */
+            document.body.focus();
+
+          } else {
+            appendLine(cssClass, text);
+            runSequence(index + 1);
+          }
+        }, delay);
+      }
+
+      function showAllStatic() {
+        appendLine('dim', 'Initializing POST...');
+        appendLine('blank', '');
+        appendLine('ok', 'CPU: Neural Processing Unit ' + padDots('CPU: Neural Processing Unit ', 'OK'));
+        appendLine('ok', 'Memory Test: 65536 KB ' + padDots('Memory Test: 65536 KB ', 'OK'));
+        appendLine('ok', 'Storage: Datastream Array ' + padDots('Storage: Datastream Array ', 'OK'));
+        appendLine('ok', 'Network: Quantum Mesh ' + padDots('Network: Quantum Mesh ', 'OK'));
+        appendLine('blank', '');
+        appendLine('dim', 'Scanning sectors...');
+        appendLine('ok', '  SECTOR 001 ' + padDots('  SECTOR 001 ', 'OK'));
+        appendLine('ok', '  SECTOR 042 ' + padDots('  SECTOR 042 ', 'OK'));
+        appendLine('ok', '  SECTOR 127 ' + padDots('  SECTOR 127 ', 'OK'));
+        appendLine('ok', '  SECTOR 256 ' + padDots('  SECTOR 256 ', 'OK'));
+        appendLine('error', '  SECTOR 404 ' + padDots('  SECTOR 404 ', 'ERROR'));
+        appendLine('blank', '');
+        appendLine('error', '*** BAD SECTOR DETECTED ***');
+        appendLine('error', '  Sector 404: Page data not found');
+        appendLine('error', '  Integrity: COMPROMISED');
+        appendLine('error', '  Recovery: FAILED');
+        appendLine('blank', '');
+        var promptLine = appendLine('ok', 'REBOOT? [Y/N] ');
+        addCursor(promptLine);
+      }
+
+      function handleKey(e) {
+        var key = e.key || e.keyCode;
+        if (key === 'y' || key === 'Y' || key === 89) {
+          window.location.href = '/';
+        } else if (key === 'n' || key === 'N' || key === 78) {
+          /* Clear and replay */
+          while (log.firstChild) { log.removeChild(log.firstChild); }
+          cursorEl = null;
+          runSequence(0);
+        }
+      }
+
+      document.addEventListener('keydown', handleKey);
+      document.body.focus();
+
+      if (isReducedMotion) {
+        showAllStatic();
+      } else {
+        runSequence(0);
+      }
+    })();
+  </script>
+</body>
+</html>

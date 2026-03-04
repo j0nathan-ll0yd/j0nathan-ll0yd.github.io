@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminal Traceroute -- 404</title>
+  <style>
+    @font-face {
+      font-family: 'Space Grotesk';
+      font-style: normal;
+      font-weight: 300 700;
+      font-display: swap;
+      src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', monospace;
+      color: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* Subtle scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.03) 2px,
+        rgba(0, 0, 0, 0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .terminal {
+      width: min(640px, 92vw);
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(6, 214, 160, 0.2);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Terminal header bar */
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: rgba(6, 214, 160, 0.05);
+      border-bottom: 1px solid rgba(6, 214, 160, 0.12);
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .terminal-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .terminal-dot-red    { background: #ef4444; opacity: 0.7; }
+    .terminal-dot-amber  { background: #f59e0b; opacity: 0.7; }
+    .terminal-dot-green  { background: #06d6a0; opacity: 0.7; }
+
+    .terminal-title {
+      font-size: 0.6rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      color: rgba(6, 214, 160, 0.6);
+      margin-left: 8px;
+    }
+
+    /* Terminal body */
+    .terminal-body {
+      padding: 20px 24px 24px;
+      min-height: 320px;
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+
+    .terminal-line {
+      font-size: clamp(0.6rem, 1.1vw, 0.72rem);
+      line-height: 1.7;
+      color: #06d6a0;
+      white-space: pre;
+      text-shadow: 0 0 6px rgba(6, 214, 160, 0.5);
+      min-height: 1.7em;
+    }
+
+    .terminal-line.empty {
+      min-height: 1.7em;
+    }
+
+    .terminal-line.dim {
+      color: rgba(6, 214, 160, 0.55);
+      text-shadow: 0 0 4px rgba(6, 214, 160, 0.25);
+    }
+
+    .terminal-line.error {
+      color: rgba(6, 214, 160, 0.45);
+    }
+
+    .terminal-line.final {
+      color: rgba(6, 214, 160, 0.8);
+      margin-top: 0;
+    }
+
+    /* Blinking cursor */
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 1em;
+      background: #06d6a0;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+      box-shadow: 0 0 6px rgba(6, 214, 160, 0.6);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    .return-link {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #06d6a0;
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    .return-link:hover { opacity: 1; }
+    .return-link:focus {
+      outline: 2px solid #06d6a0;
+      outline-offset: 4px;
+      border-radius: 2px;
+      opacity: 1;
+    }
+
+    /* Reduced motion: show all lines immediately, no typewriter, no cursor blink */
+    @media (prefers-reduced-motion: reduce) {
+      .cursor { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="terminal" role="main" aria-label="Terminal traceroute output">
+    <div class="terminal-header">
+      <div class="terminal-dots" aria-hidden="true">
+        <div class="terminal-dot terminal-dot-red"></div>
+        <div class="terminal-dot terminal-dot-amber"></div>
+        <div class="terminal-dot terminal-dot-green"></div>
+      </div>
+      <div class="terminal-title">root@datastream:~</div>
+    </div>
+    <div class="terminal-body" id="terminalBody">
+      <!-- Lines injected by JS -->
+    </div>
+  </div>
+  <a href="/" class="return-link">Return to Dashboard</a>
+
+  <script>
+    (function() {
+      var body = document.getElementById('terminalBody');
+
+      // Line definitions: text, delay before this line starts (ms), char speed (ms per char)
+      // type: 'normal' | 'empty' | 'dim' | 'error' | 'final'
+      var lines = [
+        { text: '$ traceroute lost-page.io',                                        delay: 200,  speed: 35, type: 'normal' },
+        { text: 'traceroute to lost-page.io (404.0.0.1), 8 hops max',               delay: 400,  speed: 25, type: 'dim'    },
+        { text: '',                                                                   delay: 100,  speed: 0,  type: 'empty'  },
+        { text: ' 1  gateway.datastream    1.2 ms    0.9 ms    1.1 ms',          delay: 300,  speed: 20, type: 'normal' },
+        { text: ' 2  router.local-net          3.4 ms    2.8 ms    3.1 ms',          delay: 250,  speed: 20, type: 'normal' },
+        { text: ' 3  isp-edge.upstream         12.7 ms   11.3 ms   12.1 ms',         delay: 350,  speed: 20, type: 'normal' },
+        { text: ' 4  core-switch.backbone      28.4 ms   27.9 ms   29.0 ms',         delay: 400,  speed: 20, type: 'normal' },
+        { text: ' 5  * * *  request timed out',                                      delay: 900,  speed: 22, type: 'error'  },
+        { text: ' 6  * * *  request timed out',                                      delay: 900,  speed: 22, type: 'error'  },
+        { text: ' 7  * * *  request timed out',                                      delay: 900,  speed: 22, type: 'error'  },
+        { text: ' 8  * * *  request timed out',                                      delay: 900,  speed: 22, type: 'error'  },
+        { text: '',                                                                   delay: 300,  speed: 0,  type: 'empty'  },
+        { text: 'All routes to destination expired.',                                 delay: 600,  speed: 28, type: 'final'  },
+        { text: 'Error 404: page not found in any known datastream.',                 delay: 300,  speed: 28, type: 'final'  }
+      ];
+
+      var cursorEl = null;
+      var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function createLineEl(type) {
+        var el = document.createElement('div');
+        el.className = 'terminal-line' + (type !== 'normal' ? ' ' + type : '');
+        body.appendChild(el);
+        return el;
+      }
+
+      function scrollToBottom() {
+        body.scrollTop = body.scrollHeight;
+      }
+
+      // Place cursor at end of given element
+      function attachCursor(el) {
+        if (cursorEl) {
+          if (cursorEl.parentNode) {
+            cursorEl.parentNode.removeChild(cursorEl);
+          }
+        }
+        cursorEl = document.createElement('span');
+        cursorEl.className = 'cursor';
+        cursorEl.setAttribute('aria-hidden', 'true');
+        el.appendChild(cursorEl);
+        scrollToBottom();
+      }
+
+      // Typewrite text into el, then call done()
+      function typeText(el, text, speed, done) {
+        if (text === '') {
+          if (done) { done(); }
+          return;
+        }
+        var i = 0;
+        // Cursor starts at the element
+        attachCursor(el);
+
+        function typeChar() {
+          if (i >= text.length) {
+            if (done) { done(); }
+            return;
+          }
+          el.textContent = text.slice(0, i + 1);
+          attachCursor(el);
+          i++;
+          setTimeout(typeChar, speed);
+        }
+        typeChar();
+      }
+
+      // Process lines sequentially using accumulated timeout
+      function showAllStatic() {
+        // Reduced motion: render all lines immediately without animation
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          var el = createLineEl(line.type);
+          el.textContent = line.text;
+        }
+        // Add cursor at end
+        var lastEl = body.lastChild;
+        if (lastEl) { attachCursor(lastEl); }
+      }
+
+      function runSequence() {
+        var accumulated = 0;
+
+        function processLine(index) {
+          if (index >= lines.length) {
+            // All done, cursor blinks at end
+            return;
+          }
+          var line = lines[index];
+          accumulated += line.delay;
+
+          (function(ln, acc) {
+            setTimeout(function() {
+              var el = createLineEl(ln.type);
+              if (ln.text === '') {
+                // Empty line -- just advance
+                scrollToBottom();
+                processLine(index + 1);
+              } else {
+                typeText(el, ln.text, ln.speed, function() {
+                  processLine(index + 1);
+                });
+              }
+            }, acc);
+          })(line, accumulated);
+
+          // Accumulate typing time for next line's start
+          // Each char takes `speed` ms, so total typing time = text.length * speed
+          accumulated += line.text.length * line.speed;
+        }
+
+        processLine(0);
+      }
+
+      if (reducedMotion) {
+        showAllStatic();
+      } else {
+        runSequence();
+      }
+    })();
+  </script>
+</body>
+</html>

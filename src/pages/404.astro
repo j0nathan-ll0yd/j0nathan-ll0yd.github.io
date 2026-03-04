@@ -2,16 +2,224 @@
 import Dashboard from '../layouts/Dashboard.astro';
 ---
 <Dashboard title="Page Not Found — Jonathan Lloyd" description="The requested page could not be found." robots="noindex">
-  <main id="main-content" class="command-layout" style="display:flex;align-items:center;justify-content:center;min-height:100vh;">
-    <div class="tri-card" style="max-width:480px;text-align:center;padding:var(--space-32);">
-      <div class="widget-header">
-        <span class="widget-label">SIGNAL LOST</span>
-      </div>
-      <div class="widget-body">
-        <p style="font-size:var(--font-size-hero);margin-bottom:var(--space-16);color:var(--neon-red);">404</p>
-        <p style="color:var(--text-muted);margin-bottom:var(--space-24);">The requested datastream could not be located.</p>
-        <a href="/" style="color:var(--neon-blue);text-decoration:none;">Return to Command Center</a>
-      </div>
+  <main id="main-content" class="glitch-page">
+    <div class="glitch-container" aria-label="404 error page">
+      <div class="glitch-404" aria-hidden="true">404</div>
+      <div class="glitch-subtitle">Glitch Protocol Engaged</div>
+      <div class="glitch-sub2">datastream integrity compromised</div>
     </div>
+    <a href="/" class="glitch-return">Return to Dashboard</a>
   </main>
 </Dashboard>
+
+<style is:global>
+  /* 404 Glitch Protocol — full-page takeover */
+  .glitch-page {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Scanline overlay */
+  .glitch-page::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.15) 2px,
+      rgba(0, 0, 0, 0.15) 4px
+    );
+    pointer-events: none;
+    z-index: 10;
+    animation: glitch-scanline 8s linear infinite;
+  }
+
+  /* Horizontal bar flicker */
+  .glitch-page::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: rgba(239, 68, 68, 0.25);
+    pointer-events: none;
+    z-index: 11;
+    animation: glitch-bar 3.7s ease-in-out infinite;
+  }
+
+  @keyframes glitch-scanline {
+    0% { background-position: 0 0; }
+    100% { background-position: 0 100px; }
+  }
+
+  @keyframes glitch-bar {
+    0%   { top: 10%; opacity: 0; }
+    5%   { opacity: 1; }
+    10%  { top: 10%; opacity: 0; }
+    40%  { top: 65%; opacity: 0; }
+    42%  { opacity: 0.8; }
+    44%  { opacity: 0; }
+    70%  { top: 30%; opacity: 0; }
+    72%  { opacity: 1; }
+    74%  { opacity: 0; }
+    100% { top: 30%; opacity: 0; }
+  }
+
+  .glitch-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-24);
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 404 hero with RGB split */
+  .glitch-404 {
+    font-size: clamp(5rem, 10vw, 10rem);
+    font-weight: 700;
+    color: var(--text);
+    position: relative;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    animation: glitch-main 2.5s steps(1) infinite;
+  }
+
+  /* Red channel offset */
+  .glitch-404::before {
+    content: '404';
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: var(--neon-red);
+    mix-blend-mode: screen;
+    animation: glitch-red 2.5s steps(1) infinite;
+    clip-path: inset(0 0 0 0);
+  }
+
+  /* Cyan channel offset */
+  .glitch-404::after {
+    content: '404';
+    position: absolute;
+    top: 0;
+    left: 0;
+    color: var(--neon-cyan);
+    mix-blend-mode: screen;
+    animation: glitch-cyan 2.5s steps(1) infinite;
+    clip-path: inset(0 0 0 0);
+  }
+
+  @keyframes glitch-main {
+    0%   { transform: translate(0, 0); }
+    5%   { transform: translate(-2px, 1px); }
+    6%   { transform: translate(0, 0); }
+    35%  { transform: translate(0, 0); }
+    36%  { transform: translate(1px, -1px); }
+    37%  { transform: translate(0, 0); }
+    72%  { transform: translate(0, 0); }
+    73%  { transform: translate(-1px, 2px); }
+    74%  { transform: translate(0, 0); }
+    100% { transform: translate(0, 0); }
+  }
+
+  @keyframes glitch-red {
+    0%   { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    5%   { transform: translate(-3px, 0); clip-path: inset(20% 0 40% 0); opacity: 1; }
+    6%   { transform: translate(2px, 0);  clip-path: inset(60% 0 10% 0); opacity: 1; }
+    7%   { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    35%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    36%  { transform: translate(-4px, 1px); clip-path: inset(10% 0 70% 0); opacity: 1; }
+    37%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    72%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    73%  { transform: translate(-2px, 0); clip-path: inset(45% 0 20% 0); opacity: 1; }
+    74%  { transform: translate(3px, 0);  clip-path: inset(5% 0 80% 0); opacity: 1; }
+    75%  { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+    100% { transform: translate(0, 0);    clip-path: inset(0 0 100% 0); opacity: 0; }
+  }
+
+  @keyframes glitch-cyan {
+    0%   { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    5%   { transform: translate(3px, 0); clip-path: inset(40% 0 30% 0); opacity: 1; }
+    6%   { transform: translate(-1px, 0);clip-path: inset(70% 0 5% 0);  opacity: 1; }
+    7%   { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    35%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    36%  { transform: translate(4px, -1px); clip-path: inset(30% 0 50% 0); opacity: 1; }
+    37%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    72%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    73%  { transform: translate(2px, 0); clip-path: inset(15% 0 55% 0); opacity: 1; }
+    74%  { transform: translate(-3px, 0);clip-path: inset(80% 0 2% 0);  opacity: 1; }
+    75%  { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+    100% { transform: translate(0, 0);   clip-path: inset(0 0 100% 0); opacity: 0; }
+  }
+
+  .glitch-subtitle {
+    font-size: clamp(0.6rem, 1.2vw, 0.75rem);
+    font-weight: 500;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    animation: glitch-flicker 4s steps(1) infinite;
+  }
+
+  @keyframes glitch-flicker {
+    0%   { opacity: 1; }
+    48%  { opacity: 1; }
+    49%  { opacity: 0.2; }
+    50%  { opacity: 1; }
+    80%  { opacity: 1; }
+    81%  { opacity: 0; }
+    82%  { opacity: 1; }
+    100% { opacity: 1; }
+  }
+
+  .glitch-sub2 {
+    font-size: clamp(0.55rem, 1vw, 0.65rem);
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    color: rgba(239, 68, 68, 0.5);
+    text-transform: lowercase;
+  }
+
+  .glitch-return {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.7rem;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--neon-red);
+    text-decoration: none;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .glitch-return:hover { opacity: 1; }
+  .glitch-return:focus {
+    outline: 2px solid var(--neon-red);
+    outline-offset: 4px;
+    border-radius: 2px;
+    opacity: 1;
+  }
+
+  /* Reduced motion: static fallback */
+  @media (prefers-reduced-motion: reduce) {
+    .glitch-page::before { animation: none; }
+    .glitch-page::after { display: none; }
+    .glitch-404 { animation: none; color: var(--neon-red); }
+    .glitch-404::before { display: none; }
+    .glitch-404::after { display: none; }
+    .glitch-subtitle { animation: none; opacity: 1; }
+  }
+</style>
