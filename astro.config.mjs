@@ -77,6 +77,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
+        navigateFallbackDenylist: [/\.xml$/],
         runtimeCaching: [{
           urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/.*/,
           handler: 'NetworkFirst',
