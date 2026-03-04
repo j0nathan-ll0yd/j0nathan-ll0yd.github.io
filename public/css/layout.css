@@ -197,6 +197,7 @@
   }
 
   .right-panel {
+    margin-left: calc(var(--max-site-width) * 0.35);
     max-width: calc(var(--max-site-width) * 0.65);
   }
 
@@ -239,19 +240,6 @@
     border-right: 1px solid rgba(255,0,110,0.15);
   }
 
-  body::after {
-    content: '';
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,0,110,0.15) 20%, rgba(255,0,110,0.3) 50%, rgba(255,0,110,0.15) 80%, transparent 100%);
-    z-index: -1;
-    pointer-events: none;
-    animation: hudScan 8s linear infinite;
-    will-change: transform;
-  }
 
 }
 
