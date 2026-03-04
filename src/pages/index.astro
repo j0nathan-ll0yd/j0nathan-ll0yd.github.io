@@ -16,7 +16,6 @@ import DevActivityLog from '../components/github/DevActivityLog.astro';
 import ReadingFeed from '../components/ReadingFeed.astro';
 import Bookshelf from '../components/Bookshelf.astro';
 import BookModal from '../components/BookModal.astro';
-import ComingSoon from '../components/ComingSoon.astro';
 import FocusOverlay from '../components/FocusOverlay.astro';
 import DndOverlay from '../components/DndOverlay.astro';
 import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro';
@@ -79,7 +78,6 @@ try {
 <Dashboard>
   <FocusOverlay />
   <DndOverlay />
-  {import.meta.env.PROD && <ComingSoon />}
   <canvas id="particle-canvas" aria-hidden="true"></canvas>
 
   <div class="command-layout">
