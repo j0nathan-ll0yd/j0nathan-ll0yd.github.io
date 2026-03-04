@@ -20,7 +20,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="robots" content={robots}>
   <meta name="keywords" content="backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site">
   <!-- Security: CSP (GitHub Pages cannot set HTTP headers) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://unpkg.com https://scripts.simpleanalyticscdn.com; style-src 'self' 'unsafe-inline' https://unpkg.com; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com https://m.media-amazon.com https://www.gravatar.com https://queue.simpleanalyticscdn.com; connect-src 'self' https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://scripts.simpleanalyticscdn.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://www.gravatar.com https://queue.simpleanalyticscdn.com; connect-src 'self' https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="author" content="Jonathan Lloyd">
   <meta property="og:locale" content="en_US">
@@ -110,10 +110,8 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
 
   <!-- DNS prefetch fallbacks + preconnect hints -->
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-  <link rel="dns-prefetch" href="https://unpkg.com">
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-  <link rel="preconnect" href="https://unpkg.com" crossorigin>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/layout.css">
@@ -135,7 +133,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <a href="#main-content" class="skip-link">Skip to main content</a>
   <slot />
   <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" defer></script>
-  <script is:inline src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="" defer></script>
+  <script is:inline src="/vendor/leaflet/leaflet.js" defer></script>
   <!-- Service Worker -->
   <script is:inline>
   if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
