@@ -22,7 +22,7 @@ The site positions Jonathan Lloyd as a backend engineer whose portfolio **is** t
 | **JSON-LD WebSite** | *(Core statement, verbatim)* | `Dashboard.astro` JSON-LD block |
 | **JSON-LD Person** | Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard -- real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric. | `Dashboard.astro` JSON-LD block |
 | **PWA Manifest** | Living data dashboard -- tracking body and mind. Jack into his human datastream. | `astro.config.mjs` + `public/manifest.webmanifest` |
-| **OG Image Title** | J LLOYD, ENGINEER, HUMAN DATASTREAM | `src/components/OGImage.astro` |
+| **OG Image Title** | ENGINEERING DIRECTOR | `src/components/OGImage.astro` |
 | **OG Image Quote** | Jack into his human datastream | `src/components/OGImage.astro` |
 | **Keywords** | backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site | `Dashboard.astro` keywords meta tag |
 
