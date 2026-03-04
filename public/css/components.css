@@ -753,6 +753,13 @@
   color: var(--neon-pink);
   text-shadow: 0 0 10px rgba(255,0,110,0.4);
 }
+a.workout-sub-type {
+  text-decoration: none;
+}
+a.workout-sub-type:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 
 .workout-sub-stats {
   display: flex;

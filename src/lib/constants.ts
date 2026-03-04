@@ -14,6 +14,10 @@ export const STATUS_LABELS: Record<string, string> = {
   finished: 'Finished',
 } as const;
 
+export const ACTIVITY_TYPE_MAP: Record<string, { label: string; url?: string }> = {
+  'Other': { label: "Barry's Bootcamp", url: 'https://share.barrys.com/jsvsl' },
+};
+
 export const CLOUDFRONT_BASE = 'https://d2nfgi9u0n3jr6.cloudfront.net';
 
 export const ENDPOINTS = {

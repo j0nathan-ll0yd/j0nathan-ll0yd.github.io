@@ -1,4 +1,4 @@
-import { HYDRATION, STATUS_LABELS } from './constants';
+import { HYDRATION, STATUS_LABELS, ACTIVITY_TYPE_MAP } from './constants';
 import {
   computeTotalSleepSeconds,
   formatDuration,
@@ -52,6 +52,7 @@ export interface AdaptedSleep {
 
 export interface WorkoutEntry {
   activityType: string;
+  activityUrl?: string;
   duration: number | null;
   energyBurned: number | null;
   distance: number | null;
@@ -238,7 +239,13 @@ export function adaptSleep(sleepData: SleepExport, healthData: HealthExport | nu
 
 export function adaptWorkouts(workoutsData: WorkoutsExport | null): WorkoutEntry[] | null {
   if (workoutsData === null) return null;
-  return workoutsData.workouts;
+  return workoutsData.workouts.map((w) => {
+    const mapped = ACTIVITY_TYPE_MAP[w.activityType];
+    if (mapped) {
+      return { ...w, activityType: mapped.label, activityUrl: mapped.url };
+    }
+    return w;
+  });
 }
 
 export function adaptGithubEvents(data: GithubEventsExport | null): AdaptedGithubEvent[] {

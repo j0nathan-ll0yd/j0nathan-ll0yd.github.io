@@ -146,7 +146,9 @@ export function updateWorkouts(data: WorkoutEntry[] | null): void {
     html += '<div class="workout-sub-card">';
     html += '<div class="workout-sub-top">';
     html += getIcon(w.activityType);
-    html += '<div class="workout-sub-type">' + esc(w.activityType) + '</div>';
+    html += w.activityUrl
+      ? '<a class="workout-sub-type" href="' + esc(w.activityUrl) + '" target="_blank" rel="noopener noreferrer">' + esc(w.activityType) + '</a>'
+      : '<div class="workout-sub-type">' + esc(w.activityType) + '</div>';
     html += '</div>';
     html += '<div class="workout-sub-stats">';
     html += '<div class="workout-stat"><div class="workout-stat-label">Duration</div><div class="workout-stat-value">' + fmtDuration(w.duration ?? 0) + '</div></div>';

@@ -43,7 +43,11 @@ function fmtDuration(seconds: number): string {
                 <path d="M14 8 L14 14 L19 14" stroke="var(--neon-pink)" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
               </svg>
             )}
-            <div class="workout-sub-type">{w.activity_type}</div>
+            {w.activity_type === "Barry's Bootcamp" ? (
+              <a class="workout-sub-type" href="https://share.barrys.com/jsvsl" target="_blank" rel="noopener noreferrer">{w.activity_type}</a>
+            ) : (
+              <div class="workout-sub-type">{w.activity_type}</div>
+            )}
           </div>
           <div class="workout-sub-stats">
             <div class="workout-stat">
