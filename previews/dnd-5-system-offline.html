@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>System Offline — Do Not Disturb</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      font-family: 'Space Grotesk', sans-serif;
+      background: #06060f;
+      color: #f0f0f0;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #06060f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .badge {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: rgba(255, 0, 110, 0.1);
+      border: 1px solid rgba(255, 0, 110, 0.3);
+      border-radius: 20px;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #ff006e;
+    }
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #ff006e;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+
+    /* CRT content block */
+    .crt-content {
+      width: min(400px, 80vw);
+      height: 200px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 4px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: absolute;
+      animation: crt-shutdown 2.5s ease-in forwards;
+    }
+    .stat-line {
+      font-family: 'Space Grotesk', monospace;
+      font-size: 0.75rem;
+      color: rgba(255, 255, 255, 0.6);
+      line-height: 2;
+      text-align: left;
+      white-space: pre;
+    }
+    @keyframes crt-shutdown {
+      0%   { height: 200px; width: min(400px, 80vw); opacity: 1; border-radius: 4px; }
+      35%  { height: 2px;   width: min(400px, 80vw); opacity: 1; border-radius: 0; padding: 0; }
+      55%  { height: 2px;   width: 4px;              opacity: 1; border-radius: 0; padding: 0; }
+      65%  { height: 2px;   width: 4px;              opacity: 0; padding: 0; }
+      100% { height: 2px;   width: 4px;              opacity: 0; padding: 0; }
+    }
+
+    /* Final offline state */
+    .final-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: absolute;
+      opacity: 0;
+      animation: fade-in 1s ease forwards;
+      animation-delay: 3s;
+    }
+    .power-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 3px solid #ff006e;
+      border-top-color: transparent;
+      position: relative;
+      box-shadow: 0 0 30px rgba(255, 0, 110, 0.3), 0 0 60px rgba(255, 0, 110, 0.1);
+      animation: glow-pulse 4s ease-in-out infinite;
+    }
+    .power-icon::after {
+      content: '';
+      position: absolute;
+      width: 3px;
+      height: 20px;
+      background: #ff006e;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 2px;
+    }
+    @keyframes glow-pulse {
+      0%, 100% { box-shadow: 0 0 30px rgba(255, 0, 110, 0.2), 0 0 60px rgba(255, 0, 110, 0.05); }
+      50%       { box-shadow: 0 0 40px rgba(255, 0, 110, 0.4), 0 0 80px rgba(255, 0, 110, 0.15); }
+    }
+    .heading {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #ff006e;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      margin-top: 24px;
+    }
+    .clock-section {
+      margin-top: 24px;
+      text-align: center;
+    }
+    .clock-label {
+      font-size: 0.55rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #9ca3af;
+    }
+    #focusClock {
+      display: block;
+      font-size: 1rem;
+      font-weight: 700;
+      color: #f59e0b;
+      font-variant-numeric: tabular-nums;
+      margin: 8px 0;
+    }
+    .clock-zone {
+      font-size: 0.55rem;
+      color: #9ca3af;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .crt-content { display: none; }
+      .final-state { opacity: 1; animation: none; }
+      .power-icon { animation: none; box-shadow: 0 0 30px rgba(255, 0, 110, 0.3); }
+      .dot { animation: none; }
+    }
+
+    @media (max-width: 600px) {
+      .badge { top: 16px; right: 16px; }
+      .power-icon { width: 48px; height: 48px; }
+      .heading { font-size: 1.2rem; }
+      .crt-content { width: 90vw; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <div class="badge"><span class="dot"></span> Offline</div>
+
+    <!-- CRT content that shrinks away -->
+    <div class="crt-content">
+      <div class="stat-line">&gt; Heart Rate    72 BPM</div>
+      <div class="stat-line">&gt; Location      San Francisco</div>
+      <div class="stat-line">&gt; Steps Today   8,421</div>
+      <div class="stat-line">&gt; Focus Score   94%</div>
+      <div class="stat-line">&gt; Status        Online</div>
+    </div>
+
+    <!-- Final state that fades in after CRT completes -->
+    <div class="final-state">
+      <div class="power-icon"></div>
+      <div class="heading">SYSTEM OFFLINE</div>
+      <div class="clock-section">
+        <div class="clock-label">Current Time (PST)</div>
+        <span id="focusClock">--:--:--</span>
+        <div class="clock-zone">Pacific Standard Time</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      function updateClock() {
+        var now = new Date();
+        var time = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        document.getElementById('focusClock').textContent = time;
+      }
+      updateClock();
+      setInterval(updateClock, 1000);
+    })();
+  </script>
+</body>
+</html>

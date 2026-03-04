@@ -1,19 +1,19 @@
 ---
 import Showcase from '../layouts/Showcase.astro';
 
-const overlays = [
+const workOverlays = [
   {
-    id: 'do-not-disturb',
-    name: 'Do Not Disturb',
-    file: '/previews/mw-1-do-not-disturb.html',
+    id: 'shift-active',
+    name: 'Shift Active',
+    file: '/previews/work-1-shift-active.html',
     accent: 'red',
     description: 'Red no-entry icon with live PST clock, shift schedule (07:00–15:00), and a pulsing "Shift Active" badge. The most explicit work-hours blocker.',
     features: ['Live PST clock', 'Shift schedule display', 'Pulsing badge', 'Mobile-responsive grid'],
   },
   {
-    id: 'deep-focus-protocol',
-    name: 'Deep Focus Protocol',
-    file: '/previews/mw-2-deep-focus-protocol.html',
+    id: 'deep-focus',
+    name: 'Deep Focus',
+    file: '/previews/work-2-deep-focus.html',
     accent: 'amber',
     description: 'Amber countdown ring with an SVG progress arc that fills as the work day progresses. Scanline drift animation adds a CRT feel.',
     features: ['SVG countdown ring', 'Progress arc', 'Scanline animation', 'Hours/minutes remaining'],
@@ -21,7 +21,7 @@ const overlays = [
   {
     id: 'access-suspended',
     name: 'Access Suspended',
-    file: '/previews/mw-3-access-suspended.html',
+    file: '/previews/work-3-access-suspended.html',
     accent: 'red',
     description: 'Terminal-style 403 error page with typewriter log lines that reveal sequentially, a blinking cursor, and a live countdown to shift end.',
     features: ['403 error aesthetic', 'Typewriter log reveal', 'Blinking cursor', 'Countdown timer'],
@@ -29,7 +29,7 @@ const overlays = [
   {
     id: 'stealth-mode',
     name: 'Stealth Mode',
-    file: '/previews/mw-4-stealth-mode.html',
+    file: '/previews/work-4-stealth-mode.html',
     accent: 'green',
     description: 'Minimal radar blip with concentric pulse rings. Content is hidden by default and only reveals on hover or tap — the most discreet option.',
     features: ['Radar pulse animation', 'Hover/tap to reveal', 'Touch support', 'Near-blank screen'],
@@ -37,10 +37,53 @@ const overlays = [
   {
     id: 'in-the-zone',
     name: 'In The Zone',
-    file: '/previews/mw-5-in-the-zone.html',
+    file: '/previews/work-5-in-the-zone.html',
     accent: 'purple',
     description: 'Purple-themed flow state display with canvas EEG brainwave animation, fluctuating focus score, and elapsed/remaining time stats.',
     features: ['Canvas EEG waves', 'Focus score', 'Elapsed/remaining stats', 'Radial gradient background'],
+  },
+];
+
+const dndOverlays = [
+  {
+    id: 'meeting-in-progress',
+    name: 'Meeting in Progress',
+    file: '/previews/dnd-1-meeting-in-progress.html',
+    accent: 'blue',
+    description: 'Glass card with a CSS muted-microphone icon and breathing blue glow on the border. A calm "Meeting in Progress" badge pulses above the live clock.',
+    features: ['CSS muted-mic icon', 'Breathing glow border', 'Glass card', 'Live PST clock'],
+  },
+  {
+    id: 'away',
+    name: 'Away',
+    file: '/previews/dnd-2-away.html',
+    accent: 'indigo',
+    description: 'Lock-screen aesthetic with a frosted-glass circle containing a CSS lock icon. "Away" heading uses an indigo gradient. Prominent live clock below.',
+    features: ['CSS lock icon', 'Gradient text heading', 'Lock-screen layout', 'Fade-in entrance'],
+  },
+  {
+    id: 'privacy-screen',
+    name: 'Privacy Screen',
+    file: '/previews/dnd-3-privacy-screen.html',
+    accent: 'cyan',
+    description: 'Frosted glass blur wall with a CSS shield icon. Mock data rows are progressively obscured by animated blur overlays. No terminal chrome.',
+    features: ['Frosted blur overlays', 'CSS shield icon', 'Staggered blur reveal', 'Mock data rows'],
+  },
+  {
+    id: 'be-right-back',
+    name: 'Be Right Back',
+    file: '/previews/dnd-4-be-right-back.html',
+    accent: 'orange',
+    description: 'Warm, casual card with a CSS pause icon and a horizontal progress bar that drains over 15 minutes. MM:SS countdown above the bar.',
+    features: ['CSS pause icon', 'Horizontal draining bar', '15-min countdown', 'Live PST clock'],
+  },
+  {
+    id: 'system-offline',
+    name: 'System Offline',
+    file: '/previews/dnd-5-system-offline.html',
+    accent: 'pink',
+    description: 'CRT power-down effect: dashboard content shrinks to a line, then a dot, then fades out. "SYSTEM OFFLINE" and a pink-glowing power icon appear after the sequence.',
+    features: ['CRT shutdown animation', 'CSS power icon', 'Pink standby glow', 'Phased reveal'],
   },
 ];
 ---
@@ -48,11 +91,17 @@ const overlays = [
   <main class="lib-container">
     <h1 class="lib-page-title">Full-Screen Overlays</h1>
     <p class="lib-page-desc">
-      Work-hours overlays that cover the entire dashboard during a configured shift window (default 07:00–15:00 PST). Each checks the current PST time and auto-shows/hides. All are ES5, IIFE-wrapped, and respect <code>prefers-reduced-motion</code>.
+      Ten overlay screens across two Apple Focus categories. All are self-contained HTML, ES5 IIFE-wrapped, and respect <code>prefers-reduced-motion</code>.
     </p>
 
-    <div class="fso-nav">
-      {overlays.map((o, i) => (
+    <!-- ── Work Mode ── -->
+    <h2 class="lib-section-title">Work Mode</h2>
+    <p class="lib-page-desc">
+      Scheduled work-hours screens with shift times, countdowns, and focus indicators. These overlays auto-activate during the 07:00–15:00 PST work window.
+    </p>
+
+    <div class="fso-nav" data-group="work">
+      {workOverlays.map((o, i) => (
         <button
           class:list={['fso-nav-btn', `fso-nav-btn-${o.accent}`, { active: i === 0 }]}
           data-target={o.id}
@@ -62,45 +111,102 @@ const overlays = [
       ))}
     </div>
 
-    {overlays.map((o, i) => (
-      <div class:list={['fso-panel', { active: i === 0 }]} id={`panel-${o.id}`}>
-        <div class="component-section">
-          <div class="component-name">{o.name}</div>
-          <div class="component-description">{o.description}</div>
-          <div class="component-classes">
-            {o.features.map((f, fi) => (
-              <Fragment>
-                {fi > 0 && ', '}
-                {f}
-              </Fragment>
-            ))}
-          </div>
-
-          <div class="fso-preview-frame">
-            <div class="fso-preview-bar">
-              <div class="fso-preview-dots">
-                <span class="fso-dot fso-dot-red"></span>
-                <span class="fso-dot fso-dot-amber"></span>
-                <span class="fso-dot fso-dot-green"></span>
-              </div>
-              <span class="fso-preview-title">{o.name}</span>
-              <a href={o.file} target="_blank" class="fso-open-link">Open ↗</a>
+    <div class="fso-panel-group" data-group="work">
+      {workOverlays.map((o, i) => (
+        <div class:list={['fso-panel', { active: i === 0 }]} id={`panel-${o.id}`}>
+          <div class="component-section">
+            <div class="component-name">{o.name}</div>
+            <div class="component-description">{o.description}</div>
+            <div class="component-classes">
+              {o.features.map((f, fi) => (
+                <Fragment>
+                  {fi > 0 && ', '}
+                  {f}
+                </Fragment>
+              ))}
             </div>
-            <iframe
-              src={o.file}
-              class="fso-iframe"
-              title={`${o.name} overlay preview`}
-              loading={i === 0 ? 'eager' : 'lazy'}
-            ></iframe>
+
+            <div class="fso-preview-frame">
+              <div class="fso-preview-bar">
+                <div class="fso-preview-dots">
+                  <span class="fso-dot fso-dot-red"></span>
+                  <span class="fso-dot fso-dot-amber"></span>
+                  <span class="fso-dot fso-dot-green"></span>
+                </div>
+                <span class="fso-preview-title">{o.name}</span>
+                <a href={o.file} target="_blank" class="fso-open-link">Open ↗</a>
+              </div>
+              <iframe
+                src={o.file}
+                class="fso-iframe"
+                title={`${o.name} overlay preview`}
+                loading={i === 0 ? 'eager' : 'lazy'}
+              ></iframe>
+            </div>
           </div>
         </div>
-      </div>
-    ))}
+      ))}
+    </div>
 
+    <!-- ── Do Not Disturb ── -->
+    <h2 class="lib-section-title" style="margin-top: var(--space-48, 48px)">Do Not Disturb</h2>
+    <p class="lib-page-desc">
+      Temporary privacy screens for meetings, away status, or when you don't want stats visible. Always-on — no time-based gating.
+    </p>
+
+    <div class="fso-nav" data-group="dnd">
+      {dndOverlays.map((o, i) => (
+        <button
+          class:list={['fso-nav-btn', `fso-nav-btn-${o.accent}`, { active: i === 0 }]}
+          data-target={o.id}
+        >
+          {o.name}
+        </button>
+      ))}
+    </div>
+
+    <div class="fso-panel-group" data-group="dnd">
+      {dndOverlays.map((o, i) => (
+        <div class:list={['fso-panel', { active: i === 0 }]} id={`panel-${o.id}`}>
+          <div class="component-section">
+            <div class="component-name">{o.name}</div>
+            <div class="component-description">{o.description}</div>
+            <div class="component-classes">
+              {o.features.map((f, fi) => (
+                <Fragment>
+                  {fi > 0 && ', '}
+                  {f}
+                </Fragment>
+              ))}
+            </div>
+
+            <div class="fso-preview-frame">
+              <div class="fso-preview-bar">
+                <div class="fso-preview-dots">
+                  <span class="fso-dot fso-dot-red"></span>
+                  <span class="fso-dot fso-dot-amber"></span>
+                  <span class="fso-dot fso-dot-green"></span>
+                </div>
+                <span class="fso-preview-title">{o.name}</span>
+                <a href={o.file} target="_blank" class="fso-open-link">Open ↗</a>
+              </div>
+              <iframe
+                src={o.file}
+                class="fso-iframe"
+                title={`${o.name} overlay preview`}
+                loading={i === 0 ? 'eager' : 'lazy'}
+              ></iframe>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+
+    <!-- ── Shared Behavior ── -->
     <h2 class="lib-section-title">Shared Behavior</h2>
     <div class="component-section">
       <div class="component-description">
-        All five overlays share a common contract:
+        All ten overlays share a common contract:
       </div>
       <table class="fso-spec-table">
         <thead>
@@ -109,12 +215,13 @@ const overlays = [
         <tbody>
           <tr><td>Position</td><td><code>position: fixed; inset: 0; z-index: 9999</code></td></tr>
           <tr><td>Background</td><td><code>#06060f</code> (matches page bg)</td></tr>
-          <tr><td>Work window</td><td>07:00–15:00 PST (configurable)</td></tr>
-          <tr><td>Time check</td><td><code>toLocaleString</code> with <code>America/Los_Angeles</code></td></tr>
-          <tr><td>Refresh</td><td>Clock every 1s, work-hours check every 60s</td></tr>
+          <tr><td>Category</td><td><strong>Work Mode:</strong> time-based auto-show/hide (07:00–15:00 PST) · <strong>DND:</strong> always-on, no time check, display immediately on load</td></tr>
+          <tr><td>Work window</td><td>07:00–15:00 PST (Work Mode overlays only)</td></tr>
+          <tr><td>Time check</td><td><strong>Work Mode:</strong> <code>toLocaleString</code> with <code>America/Los_Angeles</code> · <strong>DND:</strong> clock display only, no hour check</td></tr>
+          <tr><td>Refresh</td><td><strong>Work Mode:</strong> clock every 1s, work-hours check every 60s · <strong>DND:</strong> clock every 1s only</td></tr>
           <tr><td>JS style</td><td>ES5, IIFE-wrapped, no build step</td></tr>
           <tr><td>a11y</td><td><code>prefers-reduced-motion: reduce</code> disables animations</td></tr>
-          <tr><td>Preview note</td><td>Work-hours check is <strong>inverted</strong> in preview files so the overlay is visible outside 07:00–15:00</td></tr>
+          <tr><td>Preview note</td><td><strong>Work Mode:</strong> work-hours check is <strong>inverted</strong> in preview files so the overlay is visible outside 07:00–15:00 · <strong>DND:</strong> no inversion needed (always visible)</td></tr>
         </tbody>
       </table>
     </div>
@@ -147,6 +254,11 @@ const overlays = [
   .fso-nav-btn.active.fso-nav-btn-amber  { border-color: var(--neon-amber);  color: var(--neon-amber);  background: rgba(245, 158, 11, 0.08); }
   .fso-nav-btn.active.fso-nav-btn-green  { border-color: var(--neon-green);  color: var(--neon-green);  background: rgba(6, 214, 160, 0.08); }
   .fso-nav-btn.active.fso-nav-btn-purple { border-color: var(--neon-purple); color: var(--neon-purple); background: rgba(168, 85, 247, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-blue   { border-color: var(--neon-blue);   color: var(--neon-blue);   background: rgba(58, 134, 255, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-indigo { border-color: var(--neon-indigo); color: var(--neon-indigo); background: rgba(129, 140, 248, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-cyan   { border-color: var(--neon-cyan);   color: var(--neon-cyan);   background: rgba(0, 212, 255, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-orange { border-color: var(--neon-orange); color: var(--neon-orange); background: rgba(255, 107, 0, 0.08); }
+  .fso-nav-btn.active.fso-nav-btn-pink   { border-color: var(--neon-pink);   color: var(--neon-pink);   background: rgba(255, 0, 110, 0.08); }
 
   /* ── Panels ── */
   .fso-panel { display: none; }
@@ -241,24 +353,31 @@ const overlays = [
 
 <script is:inline>
 (function() {
-  var buttons = document.querySelectorAll('.fso-nav-btn');
-  var panels = document.querySelectorAll('.fso-panel');
+  var navs = document.querySelectorAll('.fso-nav[data-group]');
+  for (var g = 0; g < navs.length; g++) {
+    var nav = navs[g];
+    var groupName = nav.getAttribute('data-group');
+    var buttons = nav.querySelectorAll('.fso-nav-btn');
+    var panelGroup = document.querySelector('.fso-panel-group[data-group="' + groupName + '"]');
+    if (!panelGroup) continue;
+    var panels = panelGroup.querySelectorAll('.fso-panel');
 
-  for (var i = 0; i < buttons.length; i++) {
-    (function(btn) {
-      btn.addEventListener('click', function() {
-        var target = btn.getAttribute('data-target');
-        for (var j = 0; j < buttons.length; j++) {
-          buttons[j].classList.remove('active');
-        }
-        for (var k = 0; k < panels.length; k++) {
-          panels[k].classList.remove('active');
-        }
-        btn.classList.add('active');
-        var panel = document.getElementById('panel-' + target);
-        if (panel) panel.classList.add('active');
-      });
-    })(buttons[i]);
+    for (var i = 0; i < buttons.length; i++) {
+      (function(btn, groupButtons, groupPanels) {
+        btn.addEventListener('click', function() {
+          var target = btn.getAttribute('data-target');
+          for (var j = 0; j < groupButtons.length; j++) {
+            groupButtons[j].classList.remove('active');
+          }
+          for (var k = 0; k < groupPanels.length; k++) {
+            groupPanels[k].classList.remove('active');
+          }
+          btn.classList.add('active');
+          var panel = document.getElementById('panel-' + target);
+          if (panel) panel.classList.add('active');
+        });
+      })(buttons[i], buttons, panels);
+    }
   }
 })();
 </script>

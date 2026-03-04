@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Screen — Do Not Disturb</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: #06060f;
+      font-family: 'Space Grotesk', sans-serif;
+      color: #f0f0f0;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #06060f;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+    }
+    .badge {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      background: rgba(0, 212, 255, 0.08);
+      font-size: 0.55rem;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #00d4ff;
+    }
+    .badge .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #00d4ff;
+      animation: pulse-dot 2s ease-in-out infinite;
+    }
+    .shield-wrap {
+      position: relative;
+      width: 60px;
+      height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .shield-fill {
+      position: absolute;
+      inset: 0;
+      clip-path: polygon(50% 100%, 0% 12%, 5% 0%, 95% 0%, 100% 12%);
+      background: rgba(0, 212, 255, 0.15);
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+      animation: glow-pulse 4s ease-in-out infinite;
+    }
+    .shield-border {
+      position: absolute;
+      inset: -2px;
+      clip-path: polygon(50% 100%, 0% 12%, 5% 0%, 95% 0%, 100% 12%);
+      border: 2px solid rgba(0, 212, 255, 0.4);
+    }
+    .heading {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #00d4ff;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      margin-top: 24px;
+      text-align: center;
+    }
+    .data-rows {
+      margin-top: 24px;
+      max-width: 360px;
+      width: 100%;
+    }
+    .data-row {
+      position: relative;
+      margin-bottom: 6px;
+    }
+    .data-row-text {
+      font-size: 0.8rem;
+      color: rgba(255, 255, 255, 0.3);
+      padding: 10px 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border-radius: 6px;
+    }
+    .data-row-blur {
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      background: rgba(0, 212, 255, 0.04);
+      border-radius: 6px;
+      border: 1px solid rgba(0, 212, 255, 0.1);
+      opacity: 0;
+      animation: blur-in 0.6s ease forwards;
+    }
+    .data-row:nth-child(1) .data-row-blur { animation-delay: 0.3s; }
+    .data-row:nth-child(2) .data-row-blur { animation-delay: 0.6s; }
+    .data-row:nth-child(3) .data-row-blur { animation-delay: 0.9s; }
+    .data-row:nth-child(4) .data-row-blur { animation-delay: 1.2s; }
+    .data-row:nth-child(5) .data-row-blur { animation-delay: 1.5s; }
+    .divider {
+      width: min(360px, 88vw);
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 24px 0;
+    }
+    .clock-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+    .clock-label {
+      font-size: 0.55rem;
+      font-weight: 500;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: #9ca3af;
+    }
+    .clock-time {
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      font-variant-numeric: tabular-nums;
+      color: #00d4ff;
+    }
+    .clock-zone {
+      font-size: 0.6rem;
+      font-weight: 400;
+      color: #9ca3af;
+      letter-spacing: 0.1em;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    @keyframes glow-pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.15); }
+      50% { box-shadow: 0 0 35px rgba(0, 212, 255, 0.35); }
+    }
+    @keyframes blur-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @media (max-width: 600px) {
+      .heading { font-size: 1.1rem; }
+      .data-row-text { font-size: 0.7rem; }
+      .overlay { padding: 24px 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .badge .dot { animation: none; opacity: 1; }
+      .shield-fill { animation: none; box-shadow: 0 0 20px rgba(0, 212, 255, 0.15); }
+      .data-row-blur { animation: none; opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="overlay">
+    <div class="badge">
+      <span class="dot"></span>
+      Privacy Mode
+    </div>
+
+    <div class="shield-wrap">
+      <div class="shield-fill"></div>
+      <div class="shield-border"></div>
+    </div>
+
+    <div class="heading">Content Redacted</div>
+
+    <div class="data-rows">
+      <div class="data-row">
+        <div class="data-row-text">Heart Rate: 72 BPM</div>
+        <div class="data-row-blur"></div>
+      </div>
+      <div class="data-row">
+        <div class="data-row-text">Location: San Francisco, CA</div>
+        <div class="data-row-blur"></div>
+      </div>
+      <div class="data-row">
+        <div class="data-row-text">Daily Steps: 8,421</div>
+        <div class="data-row-blur"></div>
+      </div>
+      <div class="data-row">
+        <div class="data-row-text">Sleep Duration: 7h 23m</div>
+        <div class="data-row-blur"></div>
+      </div>
+      <div class="data-row">
+        <div class="data-row-text">Status: Online</div>
+        <div class="data-row-blur"></div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="clock-section">
+      <span class="clock-label">Current Time (PST)</span>
+      <span class="clock-time" id="focusClock">--:--:--</span>
+      <span class="clock-zone">Pacific Standard Time</span>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      var clockEl = document.getElementById('focusClock');
+
+      function update() {
+        var now = new Date();
+        var time = now.toLocaleString('en-US', {
+          timeZone: 'America/Los_Angeles',
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+        clockEl.textContent = time;
+      }
+
+      update();
+      setInterval(update, 1000);
+    })();
+  </script>
+</body>
+</html>
