@@ -105,7 +105,11 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     ]
   })} />
 
-  <!-- Font preload (critical for swap timing) -->
+  <!-- Font preload (critical for swap timing)
+     Dev note: Chrome warns "preloaded but not used within a few seconds" on localhost.
+     This is a Vite dev-server timing artifact — the middleware stack delays CSS delivery
+     enough for Chrome's ~3s timer to fire before @font-face claims the font. Harmless;
+     does not occur in production where static files are served directly. -->
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
 
   <!-- DNS prefetch fallbacks + preconnect hints -->
