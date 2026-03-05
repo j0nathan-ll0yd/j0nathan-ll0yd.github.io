@@ -84,6 +84,7 @@ try {
 
     <!-- LEFT PANEL: Identity -->
     <aside class="left-panel" aria-label="Profile">
+      <h2 class="sr-only">Profile Details</h2>
       <IdentityCard profile={profile} />
       <BioTerminal profile={profile} />
       <SystemStatus system={system} />
@@ -131,9 +132,14 @@ try {
   <!-- Particles -->
   <script is:inline>
   window.addEventListener('load', function() {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  function loadThreeAndInit() {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+    s.onload = function() {
   (function() {
     var canvas = document.getElementById('particle-canvas');
-    if (!canvas || typeof THREE === 'undefined') return;
+    if (!canvas) return;
 
     var scene = new THREE.Scene();
     var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -305,12 +311,7 @@ try {
 
       renderer.render(scene, camera);
     }
-    var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!prefersReducedMotion) {
-      animate();
-    } else {
-      renderer.render(scene, camera);
-    }
+    animate();
 
     var resizeTimeout;
     window.addEventListener('resize', function() {
@@ -325,6 +326,14 @@ try {
       }, 150);
     });
   })();
+    };
+    document.head.appendChild(s);
+  }
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(loadThreeAndInit, { timeout: 3000 });
+  } else {
+    setTimeout(loadThreeAndInit, 0);
+  }
   });
   </script>
 

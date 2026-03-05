@@ -215,7 +215,17 @@
     0 0 60px rgba(129,140,248,0.05);
   margin: 0 auto 24px;
   display: block;
-  animation: avatarGlow 4s ease-in-out infinite;
+  position: relative;
+}
+
+.id-avatar::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  box-shadow: 0 0 30px rgba(129,140,248,0.5), 0 0 60px rgba(129,140,248,0.25);
+  animation: avatarGlowPulse 4s ease-in-out infinite;
+  pointer-events: none;
 }
 
 .id-name {
@@ -1461,6 +1471,8 @@ a.article-list-title:hover {
   box-shadow: 0 0 12px rgba(245,158,11,0.6), 0 0 30px rgba(245,158,11,0.3);
   animation: shelfScan 2.5s ease-in-out infinite;
   z-index: 2;
+  will-change: top;
+  contain: layout;
 }
 
 .shelf-book-active .shelf-cover-wrapper img {
@@ -1472,6 +1484,7 @@ a.article-list-title:hover {
   width: 95px;
   height: 143px;
   margin: 0 auto 6px;
+  contain: layout style;
 }
 
 .shelf-cover-wrapper img {
@@ -1825,7 +1838,12 @@ a.article-list-title:hover {
 /* === Hydration Liquid Transition === */
 .hydra-liquid {
   transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: height;
+  contain: layout style;
 }
+
+/* === Hydration Card CLS Prevention === */
+#cardHydration .widget-body { min-height: 160px; }
 
 /* === Skeleton Loading Overlay === */
 .tri-card.is-loading .skeleton-state {

@@ -800,7 +800,7 @@ export function updateBookshelf(data: AdaptedBooks): void {
     displayBooks.forEach((b, i: number) => {
       const el = existingBooks[i];
       const meta = bookMeta[b.asin] || {} as BookMeta;
-      const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX200_.jpg');
+      const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX160_.jpg');
 
       el.setAttribute('data-book', JSON.stringify({
         title: b.title,
@@ -906,7 +906,7 @@ export function updateBookshelf(data: AdaptedBooks): void {
     let html = '';
     displayBooks.forEach((b, i: number) => {
       const meta = bookMeta[b.asin] || {} as BookMeta;
-      const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX200_.jpg');
+      const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX160_.jpg');
       const bookData = JSON.stringify({
         title: b.title,
         author: b.author,
@@ -927,7 +927,7 @@ export function updateBookshelf(data: AdaptedBooks): void {
         notes: b.notes || null,
       });
       var activeClass = b.status === 'in_progress' ? ' shelf-book-active' : '';
-      html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" role="button" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
+      html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
       html += '<img src="' + esc(coverSrc) + '" width="80" height="120" alt="' + esc(b.title) + '" loading="lazy">';
       html += '</div>';
