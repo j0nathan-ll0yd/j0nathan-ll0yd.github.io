@@ -1835,6 +1835,62 @@ a.article-list-title:hover {
   border: 1px solid rgba(6, 214, 160, 0.25);
 }
 
+/* === Poll Status Indicator === */
+.poll-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono, 'Space Grotesk', monospace);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-left: 12px;
+  vertical-align: middle;
+}
+
+.poll-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.poll-dot--ok {
+  background: var(--neon-green);
+  box-shadow: 0 0 6px var(--neon-green);
+  animation: poll-pulse 2s ease-in-out infinite;
+}
+
+.poll-dot--warn {
+  background: var(--neon-amber);
+  box-shadow: 0 0 6px var(--neon-amber);
+}
+
+.poll-dot--error {
+  background: var(--neon-red, #ef4444);
+  box-shadow: 0 0 6px var(--neon-red, #ef4444);
+}
+
+.poll-dot--off {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.poll-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+@keyframes poll-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* === Widget Update Transition === */
+.widget-updating {
+  opacity: 0.7;
+  transition: opacity 150ms ease;
+}
+
 /* === Hydration Liquid Transition === */
 .hydra-liquid {
   transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1);

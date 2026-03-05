@@ -94,6 +94,10 @@ try {
     <!-- TOP BAR -->
     <header class="top-bar">
       <div class="top-bar-title">Human Datastream</div>
+      <span id="pollStatus" class="poll-status">
+        <span class="poll-dot poll-dot--off"></span>
+        <span class="poll-label"></span>
+      </span>
       <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label="Current time"></div>
     </header>
 
@@ -724,53 +728,6 @@ try {
         }
       }
     });
-  })();
-  </script>
-
-  <!-- Auto Reload (5 min) -->
-  <script is:inline>
-  (function() {
-    var INTERVAL = 300000;
-    var remaining = INTERVAL;
-    var startedAt = 0;
-    var timerId = null;
-
-    function reload() {
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(function() { location.reload(); }, { timeout: 2000 });
-      } else {
-        location.reload();
-      }
-    }
-
-    function start(delay) {
-      remaining = delay !== undefined ? delay : remaining;
-      startedAt = Date.now();
-      timerId = setTimeout(reload, remaining);
-    }
-
-    function stop() {
-      if (timerId !== null) {
-        remaining = remaining - (Date.now() - startedAt);
-        if (remaining < 0) { remaining = 0; }
-        clearTimeout(timerId);
-        timerId = null;
-      }
-    }
-
-    document.addEventListener('visibilitychange', function() {
-      if (document.hidden) {
-        stop();
-      } else {
-        if (remaining <= 0) {
-          reload();
-        } else {
-          start();
-        }
-      }
-    });
-
-    if (!document.hidden) { start(INTERVAL); }
   })();
   </script>
 

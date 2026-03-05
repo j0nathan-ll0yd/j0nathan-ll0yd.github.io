@@ -1,7 +1,8 @@
 import { isDevMode, initDevMode } from '../lib/dev-mode';
 import { fetchAllEndpoints, fetchWithTimeout } from '../lib/api';
 import { updateFocusOverlay } from '../lib/updaters-focus';
-import type { FocusExport } from '../types/exports';
+import { updatePollStatus } from '../lib/updaters-status';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport } from '../types/exports';
 import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
 import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents, adaptArticles } from '../lib/adapters';
 import {
@@ -17,6 +18,7 @@ import {
 } from '../lib/updaters';
 import { updatePlaceLeaderboardV3 } from '../lib/updaters-leaderboard-variations';
 import { updateExplorationOdometerV3 } from '../lib/updaters-odometer-variations';
+import { PollEngine, type ResourceKey } from '../lib/poll-engine';
 
 const LIVE_CARDS = [
   'cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading',
@@ -25,7 +27,65 @@ const LIVE_CARDS = [
 
 initDevMode();
 
-// Add skeleton loading state to live-data cards (skip in dev mode)
+// ── Module-scoped state for cross-resource dependencies ──────────────
+let lastHealth: HealthExport | undefined;
+let lastSleep: SleepExport | undefined;
+const timestamps: Record<string, string | null> = {};
+
+// ── Per-resource incremental update dispatch ─────────────────────────
+function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
+  try {
+    timestamps[key] = (rawData as { generatedAt?: string }).generatedAt ?? null;
+
+    switch (key) {
+      case 'health': {
+        lastHealth = rawData as HealthExport;
+        const health = adaptHealth(lastHealth, lastSleep ?? null);
+        updateHeartRate(health);
+        updateDailyActivity(health);
+        updateHydration(health);
+        break;
+      }
+      case 'sleep': {
+        lastSleep = rawData as SleepExport;
+        updateNightSummary(adaptSleep(lastSleep, lastHealth ?? null));
+        if (lastHealth) {
+          const health = adaptHealth(lastHealth, lastSleep);
+          updateHeartRate(health);
+        }
+        break;
+      }
+      case 'workouts':
+        updateWorkouts(adaptWorkouts(rawData as WorkoutsExport));
+        break;
+      case 'books':
+        updateBookshelf(adaptBooks(rawData as BooksExport));
+        break;
+      case 'githubEvents':
+        updateDevActivityLog(adaptGithubEvents(rawData as GithubEventsExport));
+        break;
+      case 'articles':
+        updateReadingFeed(adaptArticles(rawData as ArticlesExport));
+        break;
+      case 'location':
+        updatePlaceLeaderboardV3(rawData as LocationExport);
+        updateExplorationOdometerV3(rawData as LocationExport);
+        break;
+      case 'focus':
+        updateFocusOverlay(rawData as FocusExport);
+        break;
+      case 'starredRepos':
+        // Only used for its generatedAt timestamp (already extracted above)
+        break;
+    }
+
+    updateSystemStatus(timestamps);
+  } catch (e) {
+    console.warn(`[live-data] ${key} incremental update failed:`, e);
+  }
+}
+
+// ── Skeleton loading ─────────────────────────────────────────────────
 let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
 if (!isDevMode()) {
   LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.add('is-loading'));
@@ -36,7 +96,7 @@ if (!isDevMode()) {
   }, 8000);
 }
 
-// Wait for card reveal animation to complete (~1200ms)
+// ── Initial fetch + start continuous polling ─────────────────────────
 setTimeout(async () => {
   // Focus overlay — runs regardless of data mode (page-level concern)
   const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
@@ -49,6 +109,12 @@ setTimeout(async () => {
 
   const data = await fetchAllEndpoints();
 
+  // Cache raw data for cross-resource dependencies
+  if (data.health) lastHealth = data.health;
+  if (data.sleep) lastSleep = data.sleep;
+  Object.assign(timestamps, data.timestamps);
+
+  // ── Initial DOM updates (identical to previous one-shot behavior) ──
   if (data.health) {
     try {
       const health = adaptHealth(data.health, data.sleep);
@@ -114,4 +180,13 @@ setTimeout(async () => {
   // Clean up any remaining skeletons (handles partial endpoint failures)
   LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.remove('is-loading'));
   if (fallbackTimer) clearTimeout(fallbackTimer);
+
+  // ── Start continuous polling ───────────────────────────────────────
+  const engine = new PollEngine({
+    onUpdate: handleResourceUpdate,
+    onError: (key, err) => console.warn(`[poll] ${key} error:`, err.message),
+    onStatusChange: updatePollStatus,
+  });
+  engine.seed(data.timestamps);
+  engine.start();
 }, 1200);

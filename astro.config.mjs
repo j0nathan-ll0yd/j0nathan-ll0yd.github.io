@@ -79,12 +79,13 @@ export default defineConfig({
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
         navigateFallbackDenylist: [/\.xml$/],
         runtimeCaching: [{
-          urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/.*/,
+          // Exclude poll requests (?_poll=1) so they bypass the SW entirely
+          urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/(?!.*[?&]_poll=).*$/,
           handler: 'NetworkFirst',
           options: {
             cacheName: 'live-data',
             networkTimeoutSeconds: 5,
-            expiration: { maxAgeSeconds: 300 }
+            expiration: { maxAgeSeconds: 60 }
           }
         }]
       }
