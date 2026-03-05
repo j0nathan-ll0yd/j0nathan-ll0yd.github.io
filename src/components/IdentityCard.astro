@@ -2,7 +2,10 @@
 const { profile } = Astro.props;
 ---
 <div class="identity-card" id="identityCard">
-  <img class="id-avatar" src={profile.avatar} alt="Jonathan Lloyd profile photo" fetchpriority="high">
+  <picture>
+    <source srcset="/assets/avatar.webp" type="image/webp">
+    <img class="id-avatar" src="/assets/avatar.jpg" alt="Jonathan Lloyd profile photo" fetchpriority="high" width="200" height="200">
+  </picture>
   <div class="id-info-inline">
     <h1 class="id-name">{profile.name}</h1>
     <div class="id-title">{profile.title}</div>

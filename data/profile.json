@@ -9,7 +9,7 @@
   "linkedin": "https://www.linkedin.com/in/lifegames/",
   "github": "https://github.com/j0nathan-ll0yd",
   "bio": "100% pure, old fashioned, home-grown human, born free right here in the real world.",
-  "avatar": "https://www.gravatar.com/avatar/e835f8e6deaeb1889200e0072362586d?s=200",
+  "avatar": "/assets/avatar.webp",
   "terminalLines": [
     {
       "type": "prompt",
