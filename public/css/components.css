@@ -492,7 +492,7 @@
   background: var(--neon-red);
   box-shadow: 0 0 8px var(--neon-red);
 }
-.sys-val-red { color: var(--neon-red); }
+.sys-val-red { color: var(--neon-red-hc); }
 
 .sys-dot-blue {
   background: var(--neon-blue);
@@ -504,11 +504,11 @@
 }
 
 .sys-key-green { color: var(--neon-green); }
-.sys-key-red { color: var(--neon-red); }
-.sys-key-purple { color: var(--neon-purple); }
+.sys-key-red { color: var(--neon-red-hc); }
+.sys-key-purple { color: var(--neon-purple-hc); }
 .sys-key-blue { color: var(--neon-blue); }
 
-.sys-val-purple { color: var(--neon-purple); }
+.sys-val-purple { color: var(--neon-purple-hc); }
 .sys-val-blue { color: var(--neon-blue); }
 
 .sys-dot-cyan {
@@ -665,7 +665,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 3px;
-  color: var(--neon-red);
+  color: var(--neon-red-hc);
   text-shadow: 0 0 6px rgba(239,68,68,0.3);
   margin-bottom: 12px;
 }
@@ -809,7 +809,7 @@ a.workout-sub-type:hover {
 .sleep-moon-hero {
   font-size: var(--font-size-2xl);
   font-weight: 700;
-  color: var(--neon-purple);
+  color: var(--neon-purple-hc);
   text-shadow: 0 0 16px rgba(168,85,247,0.6), 0 0 40px rgba(168,85,247,0.25);
   line-height: 1;
   margin-bottom: 6px;
@@ -841,7 +841,7 @@ a.workout-sub-type:hover {
 .sleep-moon-score-val {
   font-size: var(--font-size-base);
   font-weight: 600;
-  color: var(--neon-purple);
+  color: var(--neon-purple-hc);
 }
 .sleep-moon-pills {
   display: flex;
@@ -876,7 +876,7 @@ a.workout-sub-type:hover {
   font-style: italic;
 }
 .sleep-moon-insight span {
-  color: var(--neon-purple);
+  color: var(--neon-purple-hc);
 }
 
 /* ===== 9. HYDRATION ===== */

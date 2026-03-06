@@ -97,7 +97,7 @@ if (!isDevMode()) {
 }
 
 // ── Initial fetch + start continuous polling ─────────────────────────
-setTimeout(async () => {
+const startFetch = async () => {
   // Focus overlay — runs regardless of data mode (page-level concern)
   const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
   try {
@@ -189,4 +189,10 @@ setTimeout(async () => {
   });
   engine.seed(data.timestamps);
   engine.start();
-}, 1200);
+};
+
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(() => startFetch(), { timeout: 500 });
+} else {
+  setTimeout(startFetch, 200);
+}

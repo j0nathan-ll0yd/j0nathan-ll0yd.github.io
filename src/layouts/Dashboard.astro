@@ -20,7 +20,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="robots" content={robots}>
   <meta name="keywords" content="backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site">
   <!-- Security: CSP (GitHub Pages cannot set HTTP headers) -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://scripts.simpleanalyticscdn.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://queue.simpleanalyticscdn.com; connect-src 'self' https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://scripts.simpleanalyticscdn.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://queue.simpleanalyticscdn.com; connect-src 'self' https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="author" content="Jonathan Lloyd">
   <meta property="og:locale" content="en_US">
@@ -111,21 +111,286 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
      enough for Chrome's ~3s timer to fire before @font-face claims the font. Harmless;
      does not occur in production where static files are served directly. -->
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
 
   <!-- DNS prefetch fallbacks + preconnect hints -->
-  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
-  <link rel="dns-prefetch" href="https://d2nfgi9u0n3jr6.cloudfront.net">
-  <link rel="preconnect" href="https://d2nfgi9u0n3jr6.cloudfront.net" crossorigin>
-  <link rel="dns-prefetch" href="https://m.media-amazon.com">
+  <link rel="preconnect" href="https://d2nfgi9u0n3jr6.cloudfront.net">
   <link rel="preconnect" href="https://m.media-amazon.com" crossorigin>
   <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
-  <link rel="preconnect" href="https://scripts.simpleanalyticscdn.com" crossorigin>
   <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">
-  <link rel="preconnect" href="https://queue.simpleanalyticscdn.com" crossorigin>
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/css/tokens.css">
-  <link rel="stylesheet" href="/css/base.css">
+  <style is:inline>/* System font fallback sized to match Space Grotesk metrics */
+@font-face {
+  font-family: 'Space Grotesk Fallback';
+  src: local('Arial');
+  size-adjust: 106%;
+  ascent-override: 90%;
+  descent-override: 22%;
+  line-gap-override: 0%;
+}
+
+/* ===== SELF-HOSTED FONT (variable woff2, one file per subset) ===== */
+/* vietnamese */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-vietnamese.woff2') format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ===== DESIGN TOKENS ===== */
+:root {
+  /* --- Color Palette --- */
+  --bg: #06060f;
+  --neon-pink: #ff006e;
+  --neon-blue: #3a86ff;
+  --neon-green: #06d6a0;
+  --neon-amber: #f59e0b;
+  --neon-purple: #a855f7;
+  --neon-red: #ef4444;
+  --neon-cyan: #00d4ff;
+  --neon-orange: #ff6b00;
+  --neon-indigo: #818cf8;
+
+  /* --- Glass-morphism --- */
+  --glass-bg: rgba(255,255,255,0.07);
+  --glass-border: rgba(255,255,255,0.1);
+  --glass-bg-inset: rgba(255,255,255,0.03);
+  --glass-bg-raised: rgba(255,255,255,0.11);
+  --glass-border-strong: rgba(255,255,255,0.18);
+
+  /* --- Text --- */
+  --text: #f0f0f0;
+  --text-muted: #9ca3af;
+  /* --- High-contrast variants (AAA >=7.0:1 against --bg) --- */
+  --neon-pink-hc: #ff69b4;
+  --neon-purple-hc: #c084fc;
+  --neon-red-hc: #f87171;
+
+  /* --- Layout --- */
+  --left-width: 35%;
+  --right-width: 65%;
+  --top-bar-height: clamp(40px, 2.13rem + 1.00vw, 48px);
+  --max-site-width: 2400px;
+
+  /* --- Typography (fluid: scales 600px–1400px) --- */
+  --font-family: 'Space Grotesk', 'Space Grotesk Fallback', sans-serif;
+  --font-mono: 'Space Grotesk', 'Space Grotesk Fallback', monospace;
+  --font-size-xs:   clamp(0.625rem, 0.58rem + 0.12vw, 0.72rem);
+  --font-size-sm:   clamp(0.7rem, 0.64rem + 0.14vw, 0.78rem);
+  --font-size-base: clamp(0.72rem, 0.65rem + 0.20vw, 0.82rem);
+  --font-size-md:   clamp(0.72rem, 0.65rem + 0.20vw, 0.82rem);
+  --font-size-lg:   clamp(0.88rem, 0.75rem + 0.34vw, 1.05rem);
+  --font-size-xl:   clamp(1.20rem, 0.98rem + 0.60vw, 1.50rem);
+  --font-size-2xl:  clamp(1.60rem, 1.30rem + 0.80vw, 2.00rem);
+  --font-size-3xl:  clamp(1.90rem, 1.53rem + 1.00vw, 2.40rem);
+  --font-size-hero: clamp(1.80rem, 1.50rem + 0.80vw, 2.20rem);
+
+  /* --- Spacing (fluid: scales 600px–1400px) --- */
+  --space-2:  clamp(1px,  0.02rem + 0.13vw, 2px);
+  --space-4:  clamp(3px,  0.14rem + 0.13vw, 4px);
+  --space-6:  clamp(4px,  0.16rem + 0.25vw, 6px);
+  --space-8:  clamp(6px,  0.28rem + 0.25vw, 8px);
+  --space-10: clamp(7px,  0.30rem + 0.38vw, 10px);
+  --space-12: clamp(8px,  0.31rem + 0.50vw, 12px);
+  --space-14: clamp(10px, 0.44rem + 0.50vw, 14px);
+  --space-16: clamp(11px, 0.45rem + 0.63vw, 16px);
+  --space-18: clamp(12px, 0.47rem + 0.75vw, 18px);
+  --space-20: clamp(14px, 0.59rem + 0.75vw, 20px);
+  --space-24: clamp(16px, 0.63rem + 1.00vw, 24px);
+  --space-28: clamp(18px, 0.66rem + 1.25vw, 28px);
+  --space-32: clamp(22px, 0.91rem + 1.25vw, 32px);
+  --space-36: clamp(24px, 0.94rem + 1.50vw, 36px);
+  --space-40: clamp(28px, 1.19rem + 1.50vw, 40px);
+  --space-48: clamp(32px, 1.25rem + 2.00vw, 48px);
+
+  /* --- Border Radius --- */
+  --radius-sm: 2px;
+  --radius-md: 8px;
+  --radius-lg: clamp(12px, 0.50rem + 0.50vw, 16px);
+  --radius-xl: clamp(14px, 0.56rem + 0.75vw, 20px);
+  --radius-pill: 50px;
+  --radius-circle: 50%;
+
+  /* --- Blur --- */
+  --blur-sm: 8px;
+  --blur-md: 16px;
+  --blur-lg: 24px;
+  --blur-xl: 32px;
+
+  /* --- Glow Shadows --- */
+  --glow-pink: 0 0 20px rgba(255,0,110,0.3), 0 0 40px rgba(255,0,110,0.15);
+  --glow-blue: 0 0 20px rgba(58,134,255,0.3), 0 0 40px rgba(58,134,255,0.15);
+  --glow-green: 0 0 20px rgba(6,214,160,0.3), 0 0 40px rgba(6,214,160,0.15);
+  --glow-amber: 0 0 20px rgba(245,158,11,0.3), 0 0 40px rgba(245,158,11,0.15);
+  --glow-purple: 0 0 20px rgba(168,85,247,0.3), 0 0 40px rgba(168,85,247,0.15);
+  --glow-red: 0 0 20px rgba(239,68,68,0.3), 0 0 40px rgba(239,68,68,0.15);
+  --glow-cyan: 0 0 20px rgba(0,212,255,0.3), 0 0 40px rgba(0,212,255,0.15);
+  --glow-orange: 0 0 20px rgba(255,107,0,0.3), 0 0 40px rgba(255,107,0,0.15);
+  --glow-indigo: 0 0 20px rgba(129,140,248,0.3), 0 0 40px rgba(129,140,248,0.15);
+
+  /* --- Glow Shadows (reduced for mobile performance) --- */
+  --glow-pink-sm: 0 0 12px rgba(255,0,110,0.25);
+  --glow-blue-sm: 0 0 12px rgba(58,134,255,0.25);
+  --glow-green-sm: 0 0 12px rgba(6,214,160,0.25);
+  --glow-amber-sm: 0 0 12px rgba(245,158,11,0.25);
+  --glow-purple-sm: 0 0 12px rgba(168,85,247,0.25);
+  --glow-red-sm: 0 0 12px rgba(239,68,68,0.25);
+  --glow-cyan-sm: 0 0 12px rgba(0,212,255,0.25);
+  --glow-orange-sm: 0 0 12px rgba(255,107,0,0.25);
+  --glow-indigo-sm: 0 0 12px rgba(129,140,248,0.25);
+}
+
+/* ===== CSS RESET & GLOBAL STYLES ===== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  height: 100dvh;
+  font-family: 'Space Grotesk', 'Space Grotesk Fallback', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ===== @SUPPORTS FALLBACKS ===== */
+@supports not (backdrop-filter: blur(1px)) {
+  .top-bar,
+  .identity-card,
+  .left-panel-status,
+  .tri-card,
+  .book-overlay,
+  .book-modal {
+    background: rgba(6, 6, 15, 0.95);
+  }
+}
+
+@supports not (container-type: inline-size) {
+  .tri-card {
+    container-type: normal;
+  }
+}
+
+/* ===== HIGH CONTRAST (WCAG 1.4.11) ===== */
+@media (prefers-contrast: more) {
+  :root {
+    --glass-bg: rgba(0, 0, 0, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.3);
+    --glass-border-strong: rgba(255, 255, 255, 0.5);
+    --text-muted: #d1d5db;
+  }
+}
+
+/* ===== FORCED COLORS (Windows High Contrast) ===== */
+@media (forced-colors: active) {
+  .tri-card,
+  .identity-card,
+  .left-panel-status,
+  .book-modal {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+  }
+
+  .live-dot,
+  .sys-dot {
+    background: Highlight;
+    box-shadow: none;
+  }
+
+  .neon-pill {
+    border: 1px solid LinkText;
+    color: LinkText;
+  }
+
+  .skip-link {
+    background: Highlight;
+    color: HighlightText;
+  }
+}
+
+/* Three.js canvas */
+#particle-canvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  will-change: transform;
+}
+
+/* ===== SKIP LINK (WCAG 2.4.1) ===== */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 16px;
+  background: var(--neon-pink);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 0 0 8px 8px;
+  z-index: 10000;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* ===== FOCUS INDICATORS (WCAG 2.4.7) ===== */
+:focus-visible {
+  outline: 2px solid var(--neon-pink);
+  outline-offset: 2px;
+}
+
+.neon-pill:focus-visible {
+  outline: 2px solid var(--neon-pink);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(255, 0, 110, 0.25);
+}
+
+.shelf-book:focus-visible {
+  outline: 2px solid var(--neon-green);
+  outline-offset: 2px;
+}
+
+.book-modal-close:focus-visible {
+  outline: 2px solid var(--neon-blue);
+  outline-offset: 2px;
+}</style>
   <link rel="stylesheet" href="/css/layout.css">
   <link rel="stylesheet" href="/css/components.css" media="print" onload="this.media='all'">
   <noscript><link rel="stylesheet" href="/css/components.css"></noscript>

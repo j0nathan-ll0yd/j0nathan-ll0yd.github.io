@@ -42,6 +42,7 @@ export default defineConfig({
   site: 'https://jonathanlloyd.me',
   output: 'static',
   trailingSlash: 'never',
+  build: { inlineStylesheets: 'always' },
   vite: {
     server: {
       proxy: {
