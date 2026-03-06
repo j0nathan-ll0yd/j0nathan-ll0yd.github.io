@@ -205,7 +205,7 @@ export function updateHydration(data: AdaptedHealth): void {
   const waterLiq = document.getElementById('hydraWaterLiq');
   if (waterLiq) {
     const waterPct = Math.min(waterOz / HYDRATION.waterMax, 1) * 100;
-    waterLiq.style.height = waterPct + '%';
+    waterLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
   }
 
   const waterVal = document.getElementById('hydraWaterVal');
@@ -216,7 +216,7 @@ export function updateHydration(data: AdaptedHealth): void {
   const coffeeLiq = document.getElementById('hydraCoffeeLiq');
   if (coffeeLiq) {
     const caffeinePct = Math.min(caffeineMg / HYDRATION.caffeineMax, 1) * 100;
-    coffeeLiq.style.height = caffeinePct + '%';
+    coffeeLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
   }
 
   const coffeeVal = document.getElementById('hydraCoffeeVal');
@@ -801,7 +801,9 @@ export function updateBookshelf(data: AdaptedBooks): void {
     displayBooks.forEach((b, i: number) => {
       const el = existingBooks[i];
       const meta = bookMeta[b.asin] || {} as BookMeta;
-      const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX160_.jpg');
+      const coverSrc = b.cover
+        ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
+        : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
 
       el.setAttribute('data-book', JSON.stringify({
         title: b.title,
@@ -907,7 +909,9 @@ export function updateBookshelf(data: AdaptedBooks): void {
     let html = '';
     displayBooks.forEach((b, i: number) => {
       const meta = bookMeta[b.asin] || {} as BookMeta;
-      const coverSrc = b.cover || ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX160_.jpg');
+      const coverSrc = b.cover
+        ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
+        : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
       const bookData = JSON.stringify({
         title: b.title,
         author: b.author,
