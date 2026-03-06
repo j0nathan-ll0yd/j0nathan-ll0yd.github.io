@@ -21,7 +21,7 @@ interface PollEngineOptions {
 // Fast tier: resources that change frequently (iOS syncs multiple times per hour)
 const FAST_KEYS: ResourceKey[] = ['health', 'sleep', 'workouts', 'focus'];
 // Slow tier: resources that change infrequently
-const SLOW_KEYS: ResourceKey[] = ['books', 'articles', 'githubEvents', 'starredRepos'];
+const SLOW_KEYS: ResourceKey[] = ['books', 'articles', 'githubEvents', 'starredRepos', 'theatreReviews'];
 // DEV-only: location polling (tree-shaken in production)
 const DEV_KEYS: ResourceKey[] = import.meta.env.DEV ? ['location'] : [];
 

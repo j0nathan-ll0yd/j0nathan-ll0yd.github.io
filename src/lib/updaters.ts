@@ -362,6 +362,7 @@ export function updateSystemStatus(timestamps: Record<string, string | null>): v
     location: 'blue',
     books: 'amber',
     articles: 'amber',
+    theatreReviews: 'yellow',
   };
 
   const lines = container.querySelectorAll('.sys-line');

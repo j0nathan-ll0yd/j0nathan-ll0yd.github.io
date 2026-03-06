@@ -1,5 +1,5 @@
 import { CLOUDFRONT_BASE, ENDPOINTS } from './constants';
-import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport } from '../types/exports';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport, TheatreReviewsExport } from '../types/exports';
 
 // In dev mode, Vite proxies /api/live/* to CloudFront to avoid CORS issues.
 // In production, fetch directly from CloudFront (CORS allows jonathanlloyd.me).
@@ -14,6 +14,7 @@ export interface FetchResult {
   articles: ArticlesExport | null;
   location: LocationExport | null;
   focus: FocusExport | null;
+  theatreReviews: TheatreReviewsExport | null;
   timestamps: Record<string, string | null>;
 }
 
@@ -34,7 +35,7 @@ export async function fetchWithTimeout<T>(url: string, timeoutMs: number = 5000)
 export async function fetchAllEndpoints(): Promise<FetchResult> {
   // starredRepos is fetched solely for its generatedAt timestamp (System Status widget).
   // Its payload is not used elsewhere — StarredRepoList is build-time only.
-  const [health, sleep, workouts, books, githubEvents, starredRepos, articles, location, focus] = await Promise.all([
+  const [health, sleep, workouts, books, githubEvents, starredRepos, articles, location, focus, theatreReviews] = await Promise.all([
     fetchWithTimeout<HealthExport>(BASE + ENDPOINTS.health),
     fetchWithTimeout<SleepExport>(BASE + ENDPOINTS.sleep),
     fetchWithTimeout<WorkoutsExport>(BASE + ENDPOINTS.workouts),
@@ -44,10 +45,11 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     fetchWithTimeout<ArticlesExport>(BASE + ENDPOINTS.articles),
     import.meta.env.DEV ? fetchWithTimeout<LocationExport>(BASE + ENDPOINTS.location) : Promise.resolve(null),
     fetchWithTimeout<FocusExport>(BASE + ENDPOINTS.focus),
+    fetchWithTimeout<TheatreReviewsExport>(BASE + ENDPOINTS.theatreReviews),
   ]);
 
   return {
-    health, sleep, workouts, books, githubEvents, articles, location, focus,
+    health, sleep, workouts, books, githubEvents, articles, location, focus, theatreReviews,
     timestamps: {
       health: health?.generatedAt ?? null,
       sleep: sleep?.generatedAt ?? null,
@@ -57,6 +59,7 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
       articles: articles?.generatedAt ?? null,
       location: location?.generatedAt ?? null,
       focus: focus?.generatedAt ?? null,
+      theatreReviews: theatreReviews?.generatedAt ?? null,
     },
   };
 }

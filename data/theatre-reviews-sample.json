@@ -1,0 +1,85 @@
+{
+  "generatedAt": "2026-03-06T22:20:53.208Z",
+  "source": "coasttocoastreviews.com",
+  "totalReviews": 6,
+  "reviews": [
+    {
+      "title": "Stranger Things: The First Shadow",
+      "slug": "stranger-things-the-first-shadow",
+      "url": "https://www.coasttocoastreviews.com/show-reviews/stranger-things-the-first-shadow",
+      "author": "Jonathan Lloyd",
+      "publishedAt": "Wed, 01 Oct 2025 02:00:00 +0000",
+      "rating": "B-",
+      "ratingNumeric": 2.7,
+      "excerpt": "Stranger Things: The First Shadow combines the dark edge of Carrie, the camp of High School Musical, and the spectacle of Harry Potter and the Cursed Child to explore the early story of Henry Creel…",
+      "imageUrl": "https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1763167689805-QSUH4CHS6SFTUOGWNDS8/stranger-things-the-first-shadow.jpg?format=500w",
+      "imageWidth": 1500,
+      "imageHeight": 2375
+    },
+    {
+      "title": "Art",
+      "slug": "art",
+      "url": "https://www.coasttocoastreviews.com/show-reviews/art",
+      "author": "Jonathan Lloyd",
+      "publishedAt": "Thu, 02 Oct 2025 02:00:00 +0000",
+      "rating": "B-",
+      "ratingNumeric": 2.7,
+      "excerpt": "Art explores the shifting dynamics of a decades-long friendship after Serge buys an expensive painting that looks like a blank canvas. As Marc rejects the purchase and Yvan gets stuck in the middle,…",
+      "imageUrl": "https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1763167534805-SSOOEELF7F80V9DV6CAK/art.jpg?format=500w",
+      "imageWidth": 1500,
+      "imageHeight": 2373
+    },
+    {
+      "title": "Prince F*ggot",
+      "slug": "prince-fggot",
+      "url": "https://www.coasttocoastreviews.com/show-reviews/prince-fggot",
+      "author": "Jonathan Lloyd",
+      "publishedAt": "Fri, 03 Oct 2025 02:00:00 +0000",
+      "rating": "B+",
+      "ratingNumeric": 3.3,
+      "excerpt": "Prince Faggot imagines a world where Prince George becomes the first openly gay royal, weaving a tender love story with the pressures of monarchy and public scrutiny. As George and Dev navigate fami…",
+      "imageUrl": "https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1763167806504-XJ3MGGFX162PRWK5600U/prince-faggot.jpg?format=500w",
+      "imageWidth": 1500,
+      "imageHeight": 2118
+    },
+    {
+      "title": "Operation Mincemeat",
+      "slug": "operation-mincemeat",
+      "url": "https://www.coasttocoastreviews.com/show-reviews/operation-mincemeat",
+      "author": "Jonathan Lloyd",
+      "publishedAt": "Wed, 26 Mar 2025 02:02:00 +0000",
+      "rating": null,
+      "ratingNumeric": null,
+      "excerpt": "A bold, irreverent WWII musical, Operation Mincemeat features five actors playing 80+ roles with madcap energy. Though inventive and darkly funny, it stumbles with verbose songs and an overlong endi…",
+      "imageUrl": "https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1743471102063-735W07W5S8V5AFJ9RUXC/operation-mincemeat-the-musical.jpg?format=500w",
+      "imageWidth": 1060,
+      "imageHeight": 1650
+    },
+    {
+      "title": "Job",
+      "slug": "job",
+      "url": "https://www.coasttocoastreviews.com/show-reviews/job",
+      "author": "Jonathan Lloyd",
+      "publishedAt": "Wed, 11 Sep 2024 02:01:00 +0000",
+      "rating": null,
+      "ratingNumeric": null,
+      "excerpt": "Job is a tense Broadway chamber play starring Peter Friedman (Succession) and Sydney Lemmon (Fear the Walking Dead). Set in a therapist's office, it explores trauma, content moderation, and moral am…",
+      "imageUrl": null,
+      "imageWidth": null,
+      "imageHeight": null
+    },
+    {
+      "title": "Suffs",
+      "slug": "suffs",
+      "url": "https://www.coasttocoastreviews.com/show-reviews/suffs",
+      "author": "Jonathan Lloyd",
+      "publishedAt": "Wed, 06 Nov 2024 03:00:00 +0000",
+      "rating": null,
+      "ratingNumeric": null,
+      "excerpt": "Suffs is a bold musical by Shaina Taub chronicling the women's suffrage movement with an all-female cast, clever staging, and standout songs like \"Worth It\" and \"Keep Marching.\" Though dense and ove…",
+      "imageUrl": "https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1743473031155-B7FBKZ5GKRAK9I2NEU1X/suffs.jpg?format=500w",
+      "imageWidth": 1052,
+      "imageHeight": 1681
+    }
+  ]
+}

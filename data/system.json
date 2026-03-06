@@ -41,6 +41,12 @@
       "value": "PENDING",
       "dotClass": "sys-dot-amber",
       "valClass": "sys-val-amber"
+    },
+    {
+      "key": "Theatre Reviews",
+      "value": "PENDING",
+      "dotClass": "sys-dot-amber",
+      "valClass": "sys-val-amber"
     }
   ]
 }

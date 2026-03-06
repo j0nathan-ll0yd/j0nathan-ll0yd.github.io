@@ -20,6 +20,7 @@ import FocusOverlay from '../components/FocusOverlay.astro';
 import DndOverlay from '../components/DndOverlay.astro';
 import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro';
 import ExplorationOdometerV3 from '../components/location/ExplorationOdometerV3.astro';
+import TheatreReviews from '../components/TheatreReviews.astro';
 
 const dataDir = path.join(process.cwd(), 'data');
 const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
@@ -123,6 +124,7 @@ try {
           <ReadingFeed reading={reading} />
           <StarredRepoList repos={starredRepos} />
           <Bookshelf books={books} />
+          <TheatreReviews />
         </section>
 
       </div>

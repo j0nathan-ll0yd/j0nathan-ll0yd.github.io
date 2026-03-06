@@ -1,0 +1,122 @@
+<div class="tri-card tri-card-accent-yellow" id="cardTheatreReviews">
+  <div class="widget-header">
+    <h3 class="widget-label">Theatre Reviews</h3>
+    <div class="widget-header-right">
+      <div class="live-dot"></div>
+      <a class="widget-timestamp theatre-count-link" id="theatreCount" href="https://www.coasttocoastreviews.com" target="_blank" rel="noopener noreferrer">reviews</a>
+    </div>
+  </div>
+  <div class="widget-body">
+    <div class="skeleton-state">
+      <div style="display: flex; gap: 14px; overflow: hidden;">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="skeleton-bar" style="width: 95px; height: 143px; border-radius: 4px;"></div>
+          <div class="skeleton-bar" style="width: 76px; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 56px; height: 8px;"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="skeleton-bar" style="width: 95px; height: 143px; border-radius: 4px;"></div>
+          <div class="skeleton-bar" style="width: 68px; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 48px; height: 8px;"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 6px;">
+          <div class="skeleton-bar" style="width: 95px; height: 143px; border-radius: 4px;"></div>
+          <div class="skeleton-bar" style="width: 72px; height: 10px;"></div>
+          <div class="skeleton-bar" style="width: 52px; height: 8px;"></div>
+        </div>
+      </div>
+    </div>
+    <div id="theatreRow" class="theatre-row"></div>
+  </div>
+</div>
+
+<style is:global>
+  .tri-card-accent-yellow {
+    border-top: 2px solid #ffd600;
+    box-shadow: 0 0 20px rgba(255,214,0,0.08);
+  }
+
+  .theatre-row {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 0 0 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,214,0,0.3) transparent;
+    list-style: none;
+    margin: 0;
+  }
+  .theatre-row::-webkit-scrollbar { height: 4px; }
+  .theatre-row::-webkit-scrollbar-track { background: transparent; }
+  .theatre-row::-webkit-scrollbar-thumb { background: rgba(255,214,0,0.3); border-radius: 4px; }
+
+  .theatre-count-link {
+    text-decoration: none;
+    color: inherit;
+    transition: color 0.2s ease;
+  }
+  .theatre-count-link:hover { color: #ffd600; }
+
+  .theatre-card {
+    flex-shrink: 0;
+    width: 105px;
+    scroll-snap-align: start;
+    text-decoration: none;
+    color: inherit;
+    text-align: center;
+    padding: 6px 4px;
+    border-radius: var(--radius-md);
+    transition: transform 0.2s ease;
+  }
+
+  @media (hover: hover) {
+    .theatre-card:hover { transform: translateY(-4px); }
+    .theatre-card:hover .theatre-title { color: #ffd600; }
+  }
+
+  .theatre-poster-wrap {
+    position: relative;
+    width: 95px;
+    height: 143px;
+    margin: 0 auto 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(255,214,0,0.12), rgba(58,134,255,0.08));
+  }
+
+  .theatre-poster-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+
+  .theatre-grade {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    font-family: 'Space Grotesk', monospace;
+    line-height: 1;
+    padding: 4px 7px;
+    border: 1.5px solid;
+    border-radius: 4px;
+    background: rgba(6,6,15,0.85);
+    backdrop-filter: blur(4px);
+    letter-spacing: 0.5px;
+  }
+
+  .theatre-title {
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    line-height: 1.3;
+    text-align: center;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: color 0.2s ease;
+  }
+</style>

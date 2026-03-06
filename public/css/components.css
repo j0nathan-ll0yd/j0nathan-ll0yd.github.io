@@ -531,6 +531,11 @@
 }
 .sys-key-indigo { color: var(--neon-indigo); }
 .sys-val-indigo { color: var(--neon-indigo); }
+.sys-dot-yellow {
+  background: #ffd600;
+  box-shadow: 0 0 8px #ffd600;
+}
+.sys-key-yellow { color: #ffd600; }
 
 /* ===== 4. COMMAND BAR ===== */
 /* (styles in layout.css: .top-bar, .top-bar-title, .top-bar-clock) */

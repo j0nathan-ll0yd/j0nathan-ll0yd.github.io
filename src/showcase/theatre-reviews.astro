@@ -1,0 +1,205 @@
+---
+import Showcase from '../layouts/Showcase.astro';
+
+const reviews = [
+  { title: 'Stranger Things: The First Shadow', rating: 'B-', ratingNumeric: 2.7, publishedAt: '2025-10-01', excerpt: 'Stranger Things: The First Shadow combines the dark edge of Carrie, the camp of High School Musical, and the spectacle of Harry Potter and the Cursed Child...', imageUrl: 'https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1763167689805-QSUH4CHS6SFTUOGWNDS8/stranger-things-the-first-shadow.jpg?format=500w' },
+  { title: 'Art', rating: 'B-', ratingNumeric: 2.7, publishedAt: '2025-10-02', excerpt: 'Art explores the shifting dynamics of a decades-long friendship after Serge buys an expensive painting that looks like a blank canvas...', imageUrl: 'https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1763167534805-SSOOEELF7F80V9DV6CAK/art.jpg?format=500w' },
+  { title: "Prince F*ggot", rating: 'B+', ratingNumeric: 3.3, publishedAt: '2025-10-03', excerpt: 'Prince Faggot imagines a world where Prince George becomes the first openly gay royal, weaving a tender love story with the pressures of monarchy...', imageUrl: 'https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1763167806504-XJ3MGGFX162PRWK5600U/prince-faggot.jpg?format=500w' },
+  { title: 'Operation Mincemeat', rating: null, ratingNumeric: null, publishedAt: '2025-03-26', excerpt: 'A bold, irreverent WWII musical, Operation Mincemeat features five actors playing 80+ roles with madcap energy...', imageUrl: 'https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1743471102063-735W07W5S8V5AFJ9RUXC/operation-mincemeat-the-musical.jpg?format=500w' },
+  { title: 'Job', rating: null, ratingNumeric: null, publishedAt: '2024-09-11', excerpt: "Job is a tense Broadway chamber play starring Peter Friedman and Sydney Lemmon. Set in a therapist's office, it explores trauma and moral ambiguity...", imageUrl: null },
+  { title: 'Suffs', rating: null, ratingNumeric: null, publishedAt: '2024-11-06', excerpt: "Suffs is a bold musical by Shaina Taub chronicling the women's suffrage movement with an all-female cast and clever staging...", imageUrl: 'https://images.squarespace-cdn.com/content/v1/67e97cee7efcda77e145c726/1743473031155-B7FBKZ5GKRAK9I2NEU1X/suffs.jpg?format=500w' },
+];
+
+const GRADE_COLORS: Record<string, string> = {
+  'A+': '#06d6a0', 'A': '#06d6a0', 'A-': '#06d6a0',
+  'B+': '#3a86ff', 'B': '#3a86ff', 'B-': '#3a86ff',
+  'C+': '#f59e0b', 'C': '#f59e0b', 'C-': '#f59e0b',
+  'D+': '#ff6b00', 'D': '#ff6b00', 'D-': '#ff6b00',
+  'F': '#ef4444',
+};
+
+const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="95" height="143" viewBox="0 0 95 143"%3E%3Crect width="95" height="143" fill="%230d0d1a"/%3E%3Ctext x="47" y="78" text-anchor="middle" fill="%23333" font-size="28"%3E%F0%9F%8E%AD%3C/text%3E%3C/svg%3E';
+---
+
+<Showcase title="Theatre Reviews">
+  <main class="lib-container">
+    <h1 class="lib-page-title">Theatre Reviews</h1>
+    <p class="lib-page-desc">
+      Theatre Reviews Playbill Carousel widget showing Skeleton, Empty, and Active states. Reviews sourced from Coast to Coast Reviews.
+    </p>
+
+    <!-- ==================== V1: PLAYBILL CAROUSEL ==================== -->
+    <div class="component-section">
+      <div class="component-name">V1: Playbill Carousel</div>
+      <div class="component-description">Horizontal scroll row of 2:3 portrait poster cards. Each card shows poster image, grade badge overlapping poster bottom, and truncated title. Scroll-snapped with hover lift. Yellow playbill accent.</div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-yellow is-loading">
+              <div class="widget-header">
+                <h3 class="widget-label">Theatre Reviews</h3>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display:flex;gap:14px;overflow:hidden;">
+                    {[1,2,3].map(() => (
+                      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0;width:105px;">
+                        <div class="skeleton-bar" style="width:95px;height:143px;border-radius:4px;"></div>
+                        <div class="skeleton-bar" style="width:76px;height:10px;border-radius:3px;"></div>
+                        <div class="skeleton-bar" style="width:56px;height:8px;border-radius:3px;"></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-yellow">
+              <div class="widget-header">
+                <h3 class="widget-label">Theatre Reviews</h3>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">0 reviews</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display:flex;align-items:center;justify-content:center;height:80px;color:var(--text-muted);font-size:0.75rem;letter-spacing:0.05em;">No reviews yet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-yellow">
+              <div class="widget-header">
+                <h3 class="widget-label">Theatre Reviews</h3>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">{reviews.length} reviews</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="sc-theatre-row">
+                  {reviews.map((r, i) => {
+                    const gradeColor = (r.rating && GRADE_COLORS[r.rating]) || '';
+                    return (
+                      <div class="sc-theatre-card" style={`animation-delay: ${i * 0.08}s`}>
+                        <div class="sc-theatre-poster-wrap">
+                          <img
+                            src={r.imageUrl ?? PLACEHOLDER}
+                            width="95"
+                            height="143"
+                            alt={r.title}
+                            loading="lazy"
+                          />
+                          {r.rating && (
+                            <span
+                              class="sc-theatre-grade"
+                              style={`color:${gradeColor};border-color:${gradeColor}`}
+                            >{r.rating}</span>
+                          )}
+                        </div>
+                        <div class="sc-theatre-title"><span>{r.title}</span></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</Showcase>
+
+<style>
+  .tri-card-accent-yellow {
+    border-top: 2px solid #ffd600;
+    box-shadow: 0 0 20px rgba(255,214,0,0.08);
+  }
+
+  .sc-theatre-row {
+    display: flex;
+    gap: 14px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding: 0 0 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,214,0,0.3) transparent;
+  }
+  .sc-theatre-row::-webkit-scrollbar { height: 4px; }
+  .sc-theatre-row::-webkit-scrollbar-track { background: transparent; }
+  .sc-theatre-row::-webkit-scrollbar-thumb { background: rgba(255,214,0,0.3); border-radius: 4px; }
+
+  .sc-theatre-card {
+    flex-shrink: 0;
+    width: 105px;
+    scroll-snap-align: start;
+    text-decoration: none;
+    color: inherit;
+    transition: transform 0.2s ease;
+  }
+
+  @media (hover: hover) {
+    .sc-theatre-card:hover { transform: translateY(-4px); }
+    .sc-theatre-card:hover .sc-theatre-title { color: #ffd600; }
+  }
+
+  .sc-theatre-poster-wrap {
+    position: relative;
+    width: 95px;
+    height: 143px;
+    margin: 0 auto 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba(255,214,0,0.12), rgba(58,134,255,0.08));
+  }
+
+  .sc-theatre-poster-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+  }
+
+  .sc-theatre-grade {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    font-family: 'Space Grotesk', monospace;
+    line-height: 1;
+    padding: 3px 6px;
+    border: 1.5px solid;
+    border-radius: 4px;
+    background: rgba(6,6,15,0.85);
+    backdrop-filter: blur(4px);
+    letter-spacing: 0.5px;
+  }
+
+  .sc-theatre-title {
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    transition: color 0.2s ease;
+  }
+</style>

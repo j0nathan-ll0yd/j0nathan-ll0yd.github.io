@@ -30,4 +30,5 @@ export const ENDPOINTS = {
   articles: '/articles.json',
   location: '/location.json',
   focus: '/focus.json',
+  theatreReviews: '/theatre-reviews.json',
 } as const;

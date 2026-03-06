@@ -178,3 +178,24 @@ export interface LocationExport {
   };
 }
 
+export interface TheatreReviewEntry {
+  title: string;
+  slug: string;
+  url: string;
+  author: string;
+  publishedAt: string;
+  rating: string | null;
+  ratingNumeric: number | null;
+  excerpt: string;
+  imageUrl: string | null;
+  imageWidth: number | null;
+  imageHeight: number | null;
+}
+
+export interface TheatreReviewsExport {
+  generatedAt: string;
+  source: string;
+  totalReviews: number;
+  reviews: TheatreReviewEntry[];
+}
+

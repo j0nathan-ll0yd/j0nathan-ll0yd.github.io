@@ -22,6 +22,7 @@ const showcaseDevOnly = {
         injectRoute({ pattern: '/showcase/location-widgets', entrypoint: 'src/showcase/location-widgets.astro' });
         injectRoute({ pattern: '/showcase/fullscreen-overlays', entrypoint: 'src/showcase/fullscreen-overlays.astro' });
         injectRoute({ pattern: '/showcase/404-pages', entrypoint: 'src/showcase/404-pages.astro' });
+        injectRoute({ pattern: '/showcase/theatre-reviews', entrypoint: 'src/showcase/theatre-reviews.astro' });
       }
     },
     'astro:server:setup'({ server }) {

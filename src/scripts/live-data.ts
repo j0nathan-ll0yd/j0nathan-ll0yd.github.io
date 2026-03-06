@@ -1,8 +1,9 @@
 import { isDevMode, initDevMode } from '../lib/dev-mode';
 import { fetchAllEndpoints, fetchWithTimeout } from '../lib/api';
 import { updateFocusOverlay } from '../lib/updaters-focus';
+import { updateTheatreReviews } from '../lib/updaters-theatre';
 import { updatePollStatus } from '../lib/updaters-status';
-import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport } from '../types/exports';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport, TheatreReviewsExport } from '../types/exports';
 import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
 import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents, adaptArticles } from '../lib/adapters';
 import {
@@ -22,6 +23,7 @@ import { PollEngine, type ResourceKey } from '../lib/poll-engine';
 
 const LIVE_CARDS = [
   'cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading',
+  'cardTheatreReviews',
   ...(import.meta.env.DEV ? ['cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'] : []),
 ];
 
@@ -73,6 +75,9 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
         break;
       case 'focus':
         updateFocusOverlay(rawData as FocusExport);
+        break;
+      case 'theatreReviews':
+        updateTheatreReviews(rawData as TheatreReviewsExport);
         break;
       case 'starredRepos':
         // Only used for its generatedAt timestamp (already extracted above)
@@ -172,6 +177,14 @@ const startFetch = async () => {
       updateExplorationOdometerV3(data.location);
     } catch (e) {
       console.warn('[live-data] Location update failed:', e);
+    }
+  }
+
+  if (data.theatreReviews) {
+    try {
+      updateTheatreReviews(data.theatreReviews);
+    } catch (e) {
+      console.warn('[live-data] Theatre reviews update failed:', e);
     }
   }
 
