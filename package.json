@@ -11,11 +11,9 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.0",
-    "astro": "^5.0.0",
-    "three": "^0.183.2"
+    "astro": "^5.0.0"
   },
   "devDependencies": {
-    "@types/three": "^0.183.1",
     "@vite-pwa/astro": "^1.2.0",
     "json-schema-to-typescript": "^15.0.4"
   }
