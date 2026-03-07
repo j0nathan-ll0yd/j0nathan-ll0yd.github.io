@@ -949,6 +949,7 @@ a.workout-sub-type:hover {
   background: rgba(245,158,11,0.3);
   border-radius: 1px;
   animation: hydraSteam 2s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .hydra-steam-line:nth-child(2) {
@@ -989,8 +990,9 @@ a.workout-sub-type:hover {
   right: 0;
   height: 100%;
   clip-path: inset(100% 0 0 0);
-  transition: clip-path 2s ease;
+  transition: clip-path 2s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: clip-path;
+  contain: layout style;
 }
 
 .hydra-bottle-body .hydra-liquid {
@@ -1551,6 +1553,7 @@ a.article-list-title:hover {
 .shelf-book-active .shelf-cover-wrapper {
   position: relative;
   overflow: hidden;
+  --scan-h: 143px;
 }
 
 .shelf-book-active .shelf-cover-wrapper::after {
@@ -1564,8 +1567,7 @@ a.article-list-title:hover {
   box-shadow: 0 0 12px rgba(245,158,11,0.6), 0 0 30px rgba(245,158,11,0.3);
   animation: shelfScan 2.5s ease-in-out infinite;
   z-index: 2;
-  will-change: top;
-  contain: layout;
+  will-change: transform;
 }
 
 .shelf-book-active .shelf-cover-wrapper img {
@@ -1984,13 +1986,6 @@ a.article-list-title:hover {
   transition: opacity 150ms ease;
 }
 
-/* === Hydration Liquid Transition === */
-.hydra-liquid {
-  transition: clip-path 2s cubic-bezier(0.4, 0, 0.2, 1);
-  will-change: clip-path;
-  contain: layout style;
-}
-
 /* === Hydration Card CLS Prevention === */
 #cardHydration .widget-body { min-height: 160px; }
 
@@ -2091,12 +2086,12 @@ a.article-list-title:hover {
 
 @container (max-width: 280px) {
   .shelf-book { width: 85px; }
-  .shelf-cover-wrapper { width: 76px; height: 114px; }
+  .shelf-cover-wrapper { width: 76px; height: 114px; --scan-h: 114px; }
 }
 
 @container (min-width: 400px) {
   .shelf-book { width: 115px; }
-  .shelf-cover-wrapper { width: 105px; height: 158px; }
+  .shelf-cover-wrapper { width: 105px; height: 158px; --scan-h: 158px; }
 }
 
 @container (max-width: 250px) {
