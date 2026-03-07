@@ -531,6 +531,24 @@
     transition: none !important;
   }
 
+  /* Bio card visible immediately on mobile — prevents CLS from card reveal */
+  .left-panel-bio {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  /* Terminal lines also visible immediately on mobile — prevents secondary CLS
+     from individual line reveals inside the now-visible bio card.
+     Chrome's Layout Instability API treats opacity:0 as visible, so each
+     .terminal-line going from opacity:0 to opacity:1 could register as CLS.
+     The typewriter effect still works: text is typed into <span> elements
+     within these already-visible <div> lines — adding text content, not visibility. */
+  .left-panel-bio .terminal-line {
+    opacity: 1 !important;
+    transition: none !important;
+  }
+
   .id-avatar {
     width: 56px;
     height: 56px;
