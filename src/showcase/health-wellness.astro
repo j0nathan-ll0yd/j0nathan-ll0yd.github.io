@@ -16,12 +16,10 @@ const empty = JSON.parse(fs.readFileSync(path.join(dataDir, 'showcase-empty.json
 const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
 ---
 <Showcase title="Health & Wellness">
-  <link slot="head" rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-  <script slot="head" is:inline src="/vendor/leaflet/leaflet.js"></script>
   <main class="lib-container">
     <h1 class="lib-page-title">Health &amp; Wellness</h1>
     <p class="lib-page-desc">
-      The six health and wellness components: heart rate with ECG waveform, daily activity metrics, workout tracking, sleep summary, hydration levels, and current location with map.
+      Seven health and wellness components: heart rate with ECG waveform and zone gallery, daily activity metrics, workout tracking, sleep summary with quality scenarios, and hydration levels.
     </p>
 
     <h2 class="lib-section-title">Vitals</h2>
@@ -947,7 +945,7 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
       </div>
     </div>
 
-    <h2 class="lib-section-title">Intake &amp; Location</h2>
+    <h2 class="lib-section-title">Intake</h2>
 
     <!-- ==================== 5. HYDRATION ==================== -->
     <div class="component-section">
@@ -1036,138 +1034,6 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
           <span class="state-label state-label-active">Active</span>
           <div class="state-render">
             <Hydration health={health} />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ==================== 6. LOCATION ==================== -->
-    <div class="component-section">
-      <div class="component-name">Location</div>
-      <div class="component-description">
-        Current location card with city name, coordinates, and an embedded Leaflet dark-theme map. Contains id="leafletMap" so only one component instance per page.
-      </div>
-      <div class="component-classes">.tri-card-accent-pink, .loc-city-name, .loc-coordinates, .map-wrapper, .map-overlay</div>
-
-      <div class="state-grid">
-        <div class="state-column">
-          <span class="state-label state-label-skeleton">Skeleton</span>
-          <div class="state-render">
-            <div class="tri-card tri-card-accent-pink">
-              <div class="widget-header">
-                <span class="widget-label">Current Location</span>
-                <div class="widget-header-right">
-                  <div class="live-dot"></div>
-                  <span class="widget-timestamp">---</span>
-                </div>
-              </div>
-              <div class="widget-body">
-                <div class="skeleton-bar" style="width: 120px; height: 16px; margin-bottom: 6px;"></div>
-                <div class="skeleton-bar" style="width: 160px; height: 10px; margin-bottom: 12px;"></div>
-                <div class="skeleton-bar" style="width: 100%; height: 120px; border-radius: 8px;"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="state-column">
-          <span class="state-label state-label-empty">Empty</span>
-          <div class="state-render">
-            <!-- Static HTML: avoids duplicate #leafletMap -->
-            <div class="tri-card tri-card-accent-pink">
-              <div class="widget-header">
-                <span class="widget-label">Current Location</span>
-                <div class="widget-header-right">
-                  <div class="live-dot"></div>
-                  <span class="widget-timestamp">live</span>
-                </div>
-              </div>
-              <div class="widget-body">
-                <div class="loc-city-name" style="color: var(--text-muted);">---</div>
-                <div class="loc-coordinates" style="color: var(--text-muted);">0.0000&deg;N, 0.0000&deg;W</div>
-                <div class="map-wrapper" style="display: flex; align-items: center; justify-content: center;">
-                  <div style="color: var(--text-muted); font-size: var(--font-size-xs); text-transform: uppercase; letter-spacing: 2px;">Location unavailable</div>
-                </div>
-                <div class="map-meta-row">
-                  <span>ZOOM: <span class="map-meta-value">--</span></span>
-                  <span>TILE: <span class="map-meta-value">--</span></span>
-                  <span>SRC: <span class="map-meta-value">--</span></span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="state-column">
-          <span class="state-label state-label-active">Active</span>
-          <div class="state-render">
-            <!-- Hand-written: Location component was removed from src/components/ -->
-            <div class="tri-card tri-card-accent-pink">
-              <div class="widget-header">
-                <h3 class="widget-label">Location</h3>
-                <div class="widget-header-right">
-                  <div class="live-dot"></div>
-                  <span class="widget-timestamp">live</span>
-                </div>
-              </div>
-              <div class="widget-body">
-                <div class="loc-content">
-                  <div class="loc-hero-row">
-                    <div class="loc-city-name">San Francisco</div>
-                    <div class="loc-visits-badge">
-                      <span class="loc-visits-value">142</span>
-                      <span class="loc-visits-label">visits (90d)</span>
-                    </div>
-                  </div>
-                  <div class="loc-section-label">Activity</div>
-                  <div class="loc-heatmap">
-                    <div class="loc-heat-cell" style="opacity:0.08"></div>
-                    <div class="loc-heat-cell" style="opacity:0.2"></div>
-                    <div class="loc-heat-cell" style="opacity:0.5"></div>
-                    <div class="loc-heat-cell" style="opacity:0.3"></div>
-                    <div class="loc-heat-cell" style="opacity:0.08"></div>
-                    <div class="loc-heat-cell" style="opacity:0.7"></div>
-                    <div class="loc-heat-cell" style="opacity:0.4"></div>
-                    <div class="loc-heat-cell" style="opacity:0.1"></div>
-                    <div class="loc-heat-cell" style="opacity:0.9"></div>
-                    <div class="loc-heat-cell" style="opacity:0.6"></div>
-                    <div class="loc-heat-cell" style="opacity:0.3"></div>
-                    <div class="loc-heat-cell" style="opacity:0.08"></div>
-                    <div class="loc-heat-cell" style="opacity:0.5"></div>
-                    <div class="loc-heat-cell" style="opacity:0.2"></div>
-                    <div class="loc-heat-cell" style="opacity:0.8"></div>
-                    <div class="loc-heat-cell" style="opacity:0.4"></div>
-                    <div class="loc-heat-cell" style="opacity:0.1"></div>
-                    <div class="loc-heat-cell" style="opacity:0.6"></div>
-                    <div class="loc-heat-cell" style="opacity:0.3"></div>
-                    <div class="loc-heat-cell" style="opacity:0.08"></div>
-                    <div class="loc-heat-cell" style="opacity:0.5"></div>
-                    <div class="loc-heat-cell" style="opacity:0.7"></div>
-                    <div class="loc-heat-cell" style="opacity:0.2"></div>
-                    <div class="loc-heat-cell" style="opacity:0.4"></div>
-                    <div class="loc-heat-cell" style="opacity:0.08"></div>
-                    <div class="loc-heat-cell" style="opacity:0.9"></div>
-                    <div class="loc-heat-cell" style="opacity:0.3"></div>
-                    <div class="loc-heat-cell" style="opacity:0.6"></div>
-                    <div class="loc-heat-cell" style="opacity:0.1"></div>
-                    <div class="loc-heat-cell" style="opacity:0.5"></div>
-                  </div>
-                  <div class="loc-section-label">Top Places</div>
-                  <div class="loc-places-list">
-                    <div class="loc-place-row">
-                      <span class="loc-place-name">Mission District</span>
-                    </div>
-                    <div class="loc-place-row">
-                      <span class="loc-place-name">SoMa</span>
-                    </div>
-                  </div>
-                  <div class="loc-section-label">Cities</div>
-                  <div class="loc-city-list">
-                    <div class="loc-city-row">
-                      <span class="loc-city-name">San Francisco</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

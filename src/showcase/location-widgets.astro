@@ -2,19 +2,27 @@
 import Showcase from '../layouts/Showcase.astro';
 import ExplorationOdometerV3 from '../components/location/ExplorationOdometerV3.astro';
 import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro';
+import CategoryTerrain from '../components/location/CategoryTerrain.astro';
+import CityConstellation from '../components/location/CityConstellation.astro';
+import DurationDonut from '../components/location/DurationDonut.astro';
+import ExplorationRings from '../components/location/ExplorationRings.astro';
+import RhythmBars from '../components/location/RhythmBars.astro';
+import StreakCalendar from '../components/location/StreakCalendar.astro';
+import StreakFlame from '../components/location/StreakFlame.astro';
+import WaffleGrid from '../components/location/WaffleGrid.astro';
 ---
-<Showcase title="Location Widget Variations">
+<Showcase title="Location Widgets">
   <main class="lib-container">
-    <h1 class="lib-page-title">Location Widget Variations</h1>
+    <h1 class="lib-page-title">Location Widgets</h1>
     <p class="lib-page-desc">
-      ExplorationOdometer and PlaceLeaderboard location widgets.
+      Eleven location widgets: exploration odometer, place leaderboard, location overview, streak tracking, rhythm analysis, category breakdowns, city mapping, and exploration progress rings.
     </p>
 
     <h2 style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon-blue); margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid rgba(58,134,255,0.2);">
-      ExplorationOdometer
+      Active Widgets
     </h2>
 
-    <!-- ==================== ODOMETER V3: Gradient Home ==================== -->
+    <!-- ==================== 1. ODOMETER V3: Gradient Home ==================== -->
     <div class="component-section">
       <div class="component-name">Gradient Home</div>
       <div class="component-description">Gradient text city name with home icon and days-since-tracking counter</div>
@@ -69,11 +77,7 @@ import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro'
       </div>
     </div>
 
-    <h2 style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon-blue); margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid rgba(58,134,255,0.2);">
-      PlaceLeaderboard Variations
-    </h2>
-
-    <!-- ==================== LEADERBOARD V3: Medal Podium ==================== -->
+    <!-- ==================== 2. LEADERBOARD V3: Medal Podium ==================== -->
     <div class="component-section">
       <div class="component-name">Medal Podium</div>
       <div class="component-description">Top 3 places in a medal podium section, remaining in compact list</div>
@@ -118,11 +122,475 @@ import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro'
       </div>
     </div>
 
+    <h2 style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon-blue); margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid rgba(58,134,255,0.2);">
+      Location Overview
+    </h2>
+
+    <!-- ==================== 3. LOCATION (relocated from Health & Wellness) ==================== -->
+    <div class="component-section">
+      <div class="component-name">Location</div>
+      <div class="component-description">
+        Location overview card with city name, 90-day visit count, activity heatmap, top places, and city list. Originally housed in Health & Wellness, relocated here for proper categorization.
+      </div>
+
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink is-loading">
+              <div class="widget-header">
+                <span class="widget-label">Current Location</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">---</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div class="skeleton-bar" style="width: 120px; height: 16px; margin-bottom: 6px;"></div>
+                  <div class="skeleton-bar" style="width: 160px; height: 10px; margin-bottom: 12px;"></div>
+                  <div class="skeleton-bar" style="width: 100%; height: 120px; border-radius: 8px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Current Location</span>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">live</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display:flex;align-items:center;justify-content:center;height:80px;color:var(--text-muted);font-size:0.75rem;letter-spacing:0.05em;">Location unavailable</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <h3 class="widget-label">Location</h3>
+                <div class="widget-header-right">
+                  <div class="live-dot"></div>
+                  <span class="widget-timestamp">live</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                    <span style="font-size:1.1rem;font-weight:700;background:linear-gradient(135deg,#ff006e,#3a86ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">San Francisco</span>
+                    <span style="font-size:0.65rem;color:var(--text-muted);">142 visits (90d)</span>
+                  </div>
+                  <div style="display:flex;gap:2px;flex-wrap:wrap;">
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.08);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.2);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.5);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.3);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.08);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.7);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.4);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.1);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.9);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.6);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.3);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.08);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.5);"></div>
+                    <div style="width:8px;height:8px;border-radius:2px;background:rgba(255,0,110,0.2);"></div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:3px;font-size:0.65rem;">
+                    <span style="color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;font-size:0.55rem;">Top Places</span>
+                    <span style="color:var(--text);">Mission District</span>
+                    <span style="color:var(--text);">SoMa</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 style="font-size: 0.85rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--neon-blue); margin: 40px 0 20px; padding-bottom: 8px; border-bottom: 1px solid rgba(58,134,255,0.2);">
+      Available Widgets
+    </h2>
+
+    <!-- ==================== 4. STREAK FLAME ==================== -->
+    <div class="component-section">
+      <div class="component-name">StreakFlame</div>
+      <div class="component-description">Animated flame icon with current streak count, longest streak, and total active days. Amber accent with pulsing glow effect.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-amber is-loading">
+              <div class="widget-header"><h3 class="widget-label">Streak</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">streak</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div class="skeleton-bar" style="width: 40px; height: 40px; border-radius: 50%;"></div>
+                    <div class="skeleton-bar" style="width: 80px; height: 32px;"></div>
+                    <div class="skeleton-bar" style="width: 120px; height: 12px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-amber">
+              <div class="widget-header"><h3 class="widget-label">Streak</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">streak</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No streak data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <StreakFlame />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 5. STREAK CALENDAR ==================== -->
+    <div class="component-section">
+      <div class="component-name">StreakCalendar</div>
+      <div class="component-description">7-column calendar grid showing 30 days of location activity with streak highlighting. Green accent with active day glow.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green is-loading">
+              <div class="widget-header"><h3 class="widget-label">Streak Calendar</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">30d</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px;">
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 4px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header"><h3 class="widget-label">Streak Calendar</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">30d</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No activity recorded</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <StreakCalendar />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 6. RHYTHM BARS ==================== -->
+    <div class="component-section">
+      <div class="component-name">RhythmBars</div>
+      <div class="component-description">7-day bar chart (M-S) showing weekly visit rhythm aggregated over 90 days. Blue accent with hover glow. Shows busiest day stat.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-blue is-loading">
+              <div class="widget-header"><h3 class="widget-label">Weekly Rhythm</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">90d</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: flex; gap: 8px; align-items: flex-end; height: 80px;">
+                    <div class="skeleton-bar" style="flex: 1; height: 45px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 70px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 55px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 80px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 65px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 35px;"></div>
+                    <div class="skeleton-bar" style="flex: 1; height: 30px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-blue">
+              <div class="widget-header"><h3 class="widget-label">Weekly Rhythm</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">90d</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No rhythm data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <RhythmBars />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 7. WAFFLE GRID ==================== -->
+    <div class="component-section">
+      <div class="component-name">WaffleGrid</div>
+      <div class="component-description">10x10 grid of category-colored cells representing time distribution across location categories. Blue accent with hover highlights.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-blue is-loading">
+              <div class="widget-header"><h3 class="widget-label">Time Map</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">categories</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px;">
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                    <div class="skeleton-bar" style="aspect-ratio: 1; border-radius: 2px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-blue">
+              <div class="widget-header"><h3 class="widget-label">Time Map</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">categories</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No category data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <WaffleGrid />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 8. CATEGORY TERRAIN ==================== -->
+    <div class="component-section">
+      <div class="component-name">CategoryTerrain</div>
+      <div class="component-description">Stacked bar chart showing category time distribution with color-coded segments and hover tooltips. Green accent.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green is-loading">
+              <div class="widget-header"><h3 class="widget-label">Time Terrain</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">categories</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div class="skeleton-bar" style="width: 100%; height: 16px; border-radius: 8px;"></div>
+                  <div style="display: flex; gap: 8px; margin-top: 8px;">
+                    <div class="skeleton-bar" style="width: 60px; height: 12px;"></div>
+                    <div class="skeleton-bar" style="width: 70px; height: 12px;"></div>
+                    <div class="skeleton-bar" style="width: 50px; height: 12px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-green">
+              <div class="widget-header"><h3 class="widget-label">Time Terrain</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">categories</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No category data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <CategoryTerrain />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 9. DURATION DONUT ==================== -->
+    <div class="component-section">
+      <div class="component-name">DurationDonut</div>
+      <div class="component-description">CSS conic-gradient donut chart showing time spent per category with center total hours display. Orange accent.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-orange is-loading">
+              <div class="widget-header"><h3 class="widget-label">Time Spent</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">all time</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div class="skeleton-bar" style="width: 120px; height: 120px; border-radius: 50%; margin: 0 auto;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-orange">
+              <div class="widget-header"><h3 class="widget-label">Time Spent</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">all time</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No duration data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <DurationDonut />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 10. EXPLORATION RINGS ==================== -->
+    <div class="component-section">
+      <div class="component-name">ExplorationRings</div>
+      <div class="component-description">SVG progress rings showing exploration coverage for neighborhoods, cities, and states. Pink/blue/green concentric rings with legend counts.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink is-loading">
+              <div class="widget-header"><h3 class="widget-label">Exploration Rings</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">progress</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div class="skeleton-bar" style="width: 100px; height: 100px; border-radius: 50%;"></div>
+                    <div class="skeleton-bar" style="width: 140px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 120px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 100px; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header"><h3 class="widget-label">Exploration Rings</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">progress</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No exploration data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <ExplorationRings />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== 11. CITY CONSTELLATION ==================== -->
+    <div class="component-section">
+      <div class="component-name">CityConstellation</div>
+      <div class="component-description">SVG node-link diagram mapping visited cities as constellation nodes with connecting lines. Indigo accent with pulsing primary node animation.</div>
+      <div class="state-grid">
+        <div class="state-column">
+          <span class="state-label state-label-skeleton">Skeleton</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-indigo is-loading">
+              <div class="widget-header"><h3 class="widget-label">City Constellation</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">cities</span></div></div>
+              <div class="widget-body">
+                <div class="skeleton-state">
+                  <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+                    <div class="skeleton-bar" style="width: 140px; height: 110px; border-radius: 8px;"></div>
+                    <div class="skeleton-bar" style="width: 160px; height: 10px;"></div>
+                    <div class="skeleton-bar" style="width: 140px; height: 10px;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-empty">Empty</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-indigo">
+              <div class="widget-header"><h3 class="widget-label">City Constellation</h3><div class="widget-header-right"><div class="live-dot"></div><span class="widget-timestamp">cities</span></div></div>
+              <div class="widget-body">
+                <div style="text-align: center; color: var(--text-muted); font-size: 0.75rem; padding: 20px 0;">No city data</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Active</span>
+          <div class="state-render">
+            <CityConstellation />
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <script>
     import { updateExplorationOdometerV3 } from '../lib/updaters-odometer-variations';
     import { updatePlaceLeaderboardV3 } from '../lib/updaters-leaderboard-variations';
+    import { updateStreakFlame } from '../lib/updaters';
+    import { updateStreakCalendar } from '../lib/updaters';
+    import { updateRhythmBars } from '../lib/updaters';
+    import { updateWaffleGrid } from '../lib/updaters';
+    import { updateCategoryTerrain } from '../lib/updaters';
+    import { updateDurationDonut } from '../lib/updaters';
+    import { updateExplorationRings } from '../lib/updaters';
+    import { updateCityConstellation } from '../lib/updaters';
     import type { LocationExport } from '../types/exports';
 
     // Generate 90 days of realistic visit data
@@ -203,10 +671,18 @@ import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro'
       },
     };
 
-    // Call updaters
+    // Call all updaters with sample data
     const updaters = [
       updateExplorationOdometerV3,
       updatePlaceLeaderboardV3,
+      updateStreakFlame,
+      updateStreakCalendar,
+      updateRhythmBars,
+      updateWaffleGrid,
+      updateCategoryTerrain,
+      updateDurationDonut,
+      updateExplorationRings,
+      updateCityConstellation,
     ];
     for (const fn of updaters) {
       try { fn(sampleLocation); } catch (e) { console.warn('[showcase]', e); }
