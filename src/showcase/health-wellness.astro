@@ -1039,6 +1039,289 @@ const healthWithWorkouts = { ...health, workouts: health.sampleWorkouts };
       </div>
     </div>
 
+    <h2 class="lib-section-title">Liquid Animation Variations</h2>
+
+    <!-- VARIATION 1: Multi-Layer Parallax Waves -->
+    <div class="component-section">
+      <div class="component-name">V1: Multi-Layer Parallax Waves</div>
+      <div class="component-description">
+        Three SVG wave paths at different speeds, amplitudes, and opacities creating depth illusion. Back wave is slowest and most transparent, front wave is fastest and most opaque.
+      </div>
+      <div class="component-classes">.hydra-v1-liquid, .hydra-v1-wave-back, .hydra-v1-wave-mid, .hydra-v1-wave-front</div>
+
+      <div class="state-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="state-column">
+          <span class="state-label state-label-active">Water Bottle</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout" style="justify-content: center;">
+                  <div class="hydra-vessel hydra-vessel-water">
+                    <div class="hydra-bottle">
+                      <div class="hydra-bottle-cap"></div>
+                      <div class="hydra-bottle-body">
+                        <div class="hydra-liquid hydra-liquid-water hydra-v1-liquid" style="clip-path: inset(30% 0 0 0);">
+                          <svg class="hydra-v1-wave hydra-v1-wave-back" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path d="M0,10 Q10,4 20,10 Q30,16 40,10 Q50,4 60,10 Q70,16 80,10 Q90,4 100,10 Q110,16 120,10 L120,16 L0,16 Z"/>
+                          </svg>
+                          <svg class="hydra-v1-wave hydra-v1-wave-mid" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path d="M0,8 Q15,2 30,8 Q45,14 60,8 Q75,2 90,8 Q105,14 120,8 L120,16 L0,16 Z"/>
+                          </svg>
+                          <svg class="hydra-v1-wave hydra-v1-wave-front" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="hydra-val">64 oz</div>
+                    <div class="hydra-label">Water</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Coffee Mug</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout" style="justify-content: center;">
+                  <div class="hydra-vessel hydra-vessel-coffee">
+                    <div class="hydra-mug">
+                      <div class="hydra-mug-steam">
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                      </div>
+                      <div class="hydra-mug-body">
+                        <div class="hydra-liquid hydra-liquid-coffee hydra-v1-liquid" style="clip-path: inset(40% 0 0 0);">
+                          <svg class="hydra-v1-wave hydra-v1-wave-back" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path d="M0,10 Q10,4 20,10 Q30,16 40,10 Q50,4 60,10 Q70,16 80,10 Q90,4 100,10 Q110,16 120,10 L120,16 L0,16 Z"/>
+                          </svg>
+                          <svg class="hydra-v1-wave hydra-v1-wave-mid" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path d="M0,8 Q15,2 30,8 Q45,14 60,8 Q75,2 90,8 Q105,14 120,8 L120,16 L0,16 Z"/>
+                          </svg>
+                          <svg class="hydra-v1-wave hydra-v1-wave-front" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <div class="hydra-mug-handle"></div>
+                    </div>
+                    <div class="hydra-val">280 mg</div>
+                    <div class="hydra-label">Caffeine</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VARIATION 2: Organic Morphing Surface -->
+    <div class="component-section">
+      <div class="component-name">V2: Organic Morphing Surface</div>
+      <div class="component-description">
+        Two SVG wave paths with different shapes that cross-fade via alternating opacity, creating the illusion of organic surface morphing. Combined with a subtle refraction highlight line that slides across the liquid body.
+      </div>
+      <div class="component-classes">.hydra-v2-liquid, .hydra-v2-wave-a, .hydra-v2-wave-b, .hydra-v2-refraction</div>
+
+      <div class="state-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="state-column">
+          <span class="state-label state-label-active">Water Bottle</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout" style="justify-content: center;">
+                  <div class="hydra-vessel hydra-vessel-water">
+                    <div class="hydra-bottle">
+                      <div class="hydra-bottle-cap"></div>
+                      <div class="hydra-bottle-body">
+                        <div class="hydra-liquid hydra-liquid-water hydra-v2-liquid" style="clip-path: inset(30% 0 0 0);">
+                          <div class="hydra-v2-refraction"></div>
+                          <svg class="hydra-v2-wave hydra-v2-wave-a" viewBox="0 0 120 20" preserveAspectRatio="none">
+                            <path d="M0,10 C10,4 20,4 30,10 C40,16 50,18 60,10 C70,2 80,6 90,12 C100,18 110,14 120,10 L120,20 L0,20 Z"/>
+                          </svg>
+                          <svg class="hydra-v2-wave hydra-v2-wave-b" viewBox="0 0 120 20" preserveAspectRatio="none">
+                            <path d="M0,12 C10,18 20,16 30,8 C40,0 50,4 60,12 C70,18 80,14 90,6 C100,0 110,6 120,12 L120,20 L0,20 Z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="hydra-val">64 oz</div>
+                    <div class="hydra-label">Water</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Coffee Mug</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout" style="justify-content: center;">
+                  <div class="hydra-vessel hydra-vessel-coffee">
+                    <div class="hydra-mug">
+                      <div class="hydra-mug-steam">
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                      </div>
+                      <div class="hydra-mug-body">
+                        <div class="hydra-liquid hydra-liquid-coffee hydra-v2-liquid" style="clip-path: inset(40% 0 0 0);">
+                          <div class="hydra-v2-refraction"></div>
+                          <svg class="hydra-v2-wave hydra-v2-wave-a" viewBox="0 0 120 20" preserveAspectRatio="none">
+                            <path d="M0,10 C10,4 20,4 30,10 C40,16 50,18 60,10 C70,2 80,6 90,12 C100,18 110,14 120,10 L120,20 L0,20 Z"/>
+                          </svg>
+                          <svg class="hydra-v2-wave hydra-v2-wave-b" viewBox="0 0 120 20" preserveAspectRatio="none">
+                            <path d="M0,12 C10,18 20,16 30,8 C40,0 50,4 60,12 C70,18 80,14 90,6 C100,0 110,6 120,12 L120,20 L0,20 Z"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <div class="hydra-mug-handle"></div>
+                    </div>
+                    <div class="hydra-val">280 mg</div>
+                    <div class="hydra-label">Caffeine</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- VARIATION 3: Bubble Particles + Enhanced Liquid -->
+    <div class="component-section">
+      <div class="component-name">V3: Bubble Particles + Glossy Liquid</div>
+      <div class="component-description">
+        CSS-only rising bubble particles with staggered translateY animation, combined with a richer multi-stop liquid gradient and a glossy vertical highlight stripe.
+      </div>
+      <div class="component-classes">.hydra-v3-liquid, .hydra-v3-gloss, .hydra-v3-bubbles, .hydra-v3-bubble</div>
+
+      <div class="state-grid" style="grid-template-columns: 1fr 1fr;">
+        <div class="state-column">
+          <span class="state-label state-label-active">Water Bottle</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout" style="justify-content: center;">
+                  <div class="hydra-vessel hydra-vessel-water">
+                    <div class="hydra-bottle">
+                      <div class="hydra-bottle-cap"></div>
+                      <div class="hydra-bottle-body">
+                        <div class="hydra-liquid hydra-liquid-water hydra-v3-liquid" style="clip-path: inset(30% 0 0 0);">
+                          <div class="hydra-v3-gloss"></div>
+                          <div class="hydra-v3-bubbles">
+                            <div class="hydra-v3-bubble" style="left:20%;animation-delay:0s;"></div>
+                            <div class="hydra-v3-bubble" style="left:45%;animation-delay:0.8s;"></div>
+                            <div class="hydra-v3-bubble" style="left:70%;animation-delay:1.6s;"></div>
+                            <div class="hydra-v3-bubble" style="left:35%;animation-delay:2.4s;"></div>
+                            <div class="hydra-v3-bubble" style="left:60%;animation-delay:0.4s;"></div>
+                            <div class="hydra-v3-bubble" style="left:15%;animation-delay:1.2s;"></div>
+                          </div>
+                          <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="hydra-val">64 oz</div>
+                    <div class="hydra-label">Water</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="state-column">
+          <span class="state-label state-label-active">Coffee Mug</span>
+          <div class="state-render">
+            <div class="tri-card tri-card-accent-pink">
+              <div class="widget-header">
+                <span class="widget-label">Hydration</span>
+                <div class="widget-header-right">
+                  <div class="live-dot live-dot-pink"></div>
+                  <span class="widget-timestamp">today</span>
+                </div>
+              </div>
+              <div class="widget-body">
+                <div class="hydra-layout" style="justify-content: center;">
+                  <div class="hydra-vessel hydra-vessel-coffee">
+                    <div class="hydra-mug">
+                      <div class="hydra-mug-steam">
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                        <div class="hydra-steam-line"></div>
+                      </div>
+                      <div class="hydra-mug-body">
+                        <div class="hydra-liquid hydra-liquid-coffee hydra-v3-liquid" style="clip-path: inset(40% 0 0 0);">
+                          <div class="hydra-v3-gloss"></div>
+                          <div class="hydra-v3-bubbles">
+                            <div class="hydra-v3-bubble" style="left:25%;animation-delay:0.3s;"></div>
+                            <div class="hydra-v3-bubble" style="left:50%;animation-delay:1.1s;"></div>
+                            <div class="hydra-v3-bubble" style="left:72%;animation-delay:1.9s;"></div>
+                            <div class="hydra-v3-bubble" style="left:38%;animation-delay:0.7s;"></div>
+                            <div class="hydra-v3-bubble" style="left:58%;animation-delay:2.2s;"></div>
+                            <div class="hydra-v3-bubble" style="left:12%;animation-delay:1.5s;"></div>
+                          </div>
+                          <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
+                            <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
+                          </svg>
+                        </div>
+                      </div>
+                      <div class="hydra-mug-handle"></div>
+                    </div>
+                    <div class="hydra-val">280 mg</div>
+                    <div class="hydra-label">Caffeine</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 </Showcase>
 

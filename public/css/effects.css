@@ -59,6 +59,73 @@
   50% { transform: translateX(-10px); }
 }
 
+/* V1: Multi-Layer Parallax Waves */
+@keyframes hydraV1WaveBack {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-15px); }
+}
+
+@keyframes hydraV1WaveMid {
+  0%, 100% { transform: translateX(5px); }
+  50% { transform: translateX(-10px); }
+}
+
+@keyframes hydraV1WaveFront {
+  0%, 100% { transform: translateX(-5px); }
+  50% { transform: translateX(-20px); }
+}
+
+/* V2: Organic Morphing Surface */
+@keyframes hydraV2MorphA {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes hydraV2MorphB {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+@keyframes hydraV2Drift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-12px); }
+}
+
+@keyframes hydraV2DriftReverse {
+  0%, 100% { transform: translateX(-12px); }
+  50% { transform: translateX(0); }
+}
+
+@keyframes hydraV2Refract {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(350%); }
+}
+
+/* V3: Bubble Particles + Glossy Liquid */
+@keyframes hydraV3Rise {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-100px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+@keyframes hydraV3GlossShift {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(15px); }
+}
+
+/* Showcase: liquid fill-in rise animation (from empty to inline clip-path value) */
+@keyframes hydraFillIn {
+  from { clip-path: inset(100% 0 0 0); }
+}
+
 @keyframes mapRingPulse {
   0% { transform: scale(1); opacity: 0.8; }
   100% { transform: scale(2.5); opacity: 0; }
