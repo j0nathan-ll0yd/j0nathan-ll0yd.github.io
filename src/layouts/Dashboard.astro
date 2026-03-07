@@ -115,7 +115,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
 
   <!-- DNS prefetch fallbacks + preconnect hints -->
   <link rel="preconnect" href="https://d2nfgi9u0n3jr6.cloudfront.net" crossorigin>
-  <link rel="preconnect" href="https://m.media-amazon.com" crossorigin>
+  <link rel="preconnect" href="https://m.media-amazon.com">
   {import.meta.env.PROD && (
     <link rel="preload" href="https://d2nfgi9u0n3jr6.cloudfront.net/health.json" as="fetch" crossorigin>
     <link rel="preload" href="https://d2nfgi9u0n3jr6.cloudfront.net/sleep.json" as="fetch" crossorigin>

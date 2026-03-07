@@ -102,10 +102,18 @@ const caffeineMg = hydration.caffeineMg ?? 0;
   // the rendering pipeline before we set the target value. Without this, the
   // browser can batch the CSS initial state and the JS update into the same
   // frame, skipping the transition entirely.
+  // Skip transition on initial load to prevent CLS from bubbles becoming visible
+  // during the 2s clip-path animation. Set target value instantly.
+  wLiq.style.transition = 'none';
+  cLiq.style.transition = 'none';
+  wLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
+  cLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
+  // Re-enable transition after two frames so live-data updates animate smoothly
   requestAnimationFrame(function() {
-    void wLiq.offsetHeight;
-    wLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
-    cLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
+    requestAnimationFrame(function() {
+      wLiq.style.transition = '';
+      cLiq.style.transition = '';
+    });
   });
 
   function addRange(container, lo, hi, max, cssClass, labelClass, loLabel, hiLabel) {

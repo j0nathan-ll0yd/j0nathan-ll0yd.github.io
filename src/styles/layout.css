@@ -524,6 +524,13 @@
     flex-wrap: wrap;
   }
 
+  /* Identity card visible immediately on mobile — prevents pollStatus from being LCP */
+  .identity-card {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
   .id-avatar {
     width: 56px;
     height: 56px;
