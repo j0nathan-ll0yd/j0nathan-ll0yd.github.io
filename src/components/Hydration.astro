@@ -40,7 +40,7 @@ const caffeineMg = hydration.caffeineMg ?? 0;
         <div class="hydra-bottle">
           <div class="hydra-bottle-cap"></div>
           <div class="hydra-bottle-body">
-            <div class="hydra-liquid hydra-liquid-water" id="hydraWaterLiq" style="height: 0%;">
+            <div class="hydra-liquid hydra-liquid-water" id="hydraWaterLiq">
               <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
                 <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
               </svg>
@@ -59,7 +59,7 @@ const caffeineMg = hydration.caffeineMg ?? 0;
             <div class="hydra-steam-line"></div>
           </div>
           <div class="hydra-mug-body">
-            <div class="hydra-liquid hydra-liquid-coffee" id="hydraCoffeeLiq" style="height: 0%;">
+            <div class="hydra-liquid hydra-liquid-coffee" id="hydraCoffeeLiq">
               <svg class="hydra-wave" viewBox="0 0 120 16" preserveAspectRatio="none">
                 <path class="hydra-wave-path" d="M0,8 Q15,0 30,8 Q45,16 60,8 Q75,0 90,8 Q105,16 120,8 L120,16 L0,16 Z"/>
               </svg>
@@ -81,8 +81,8 @@ const caffeineMg = hydration.caffeineMg ?? 0;
   if (!wLiq || !cLiq) return;
   var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   requestAnimationFrame(function() {
-    wLiq.style.height = waterPct + '%';
-    cLiq.style.height = caffeinePct + '%';
+    wLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
+    cLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
   });
 
   function addRange(container, lo, hi, max, cssClass, labelClass, loLabel, hiLabel) {
@@ -125,6 +125,7 @@ const caffeineMg = hydration.caffeineMg ?? 0;
     }
     var startTime = null;
     function step(ts) {
+      if (el.dataset.liveUpdated) return;
       if (!startTime) startTime = ts;
       var p = Math.min((ts - startTime) / 1200, 1);
       var eased = 1 - Math.pow(1 - p, 3);

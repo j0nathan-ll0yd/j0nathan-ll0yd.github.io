@@ -208,8 +208,9 @@ export function updateHydration(data: AdaptedHealth): void {
     waterLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
   }
 
-  const waterVal = document.getElementById('hydraWaterVal');
+  const waterVal = document.getElementById('hydraWaterVal') as HTMLElement | null;
   if (waterVal) {
+    waterVal.dataset.liveUpdated = '1';
     waterVal.textContent = waterOz + ' oz';
   }
 
@@ -219,8 +220,9 @@ export function updateHydration(data: AdaptedHealth): void {
     coffeeLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
   }
 
-  const coffeeVal = document.getElementById('hydraCoffeeVal');
+  const coffeeVal = document.getElementById('hydraCoffeeVal') as HTMLElement | null;
   if (coffeeVal) {
+    coffeeVal.dataset.liveUpdated = '1';
     coffeeVal.textContent = caffeineMg + ' mg';
   }
 
