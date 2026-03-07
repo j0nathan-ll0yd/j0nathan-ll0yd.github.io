@@ -98,9 +98,13 @@ const caffeineMg = hydration.caffeineMg ?? 0;
   var cLiq = document.getElementById('hydraCoffeeLiq');
   if (!wLiq || !cLiq) return;
   var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Double-rAF: first frame paints the empty state (inset 100%), second frame
+  // sets the target clip-path so the CSS transition animates the fill rise.
   requestAnimationFrame(function() {
-    wLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
-    cLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
+    requestAnimationFrame(function() {
+      wLiq.style.clipPath = 'inset(' + (100 - waterPct) + '% 0 0 0)';
+      cLiq.style.clipPath = 'inset(' + (100 - caffeinePct) + '% 0 0 0)';
+    });
   });
 
   function addRange(container, lo, hi, max, cssClass, labelClass, loLabel, hiLabel) {
