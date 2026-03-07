@@ -48,6 +48,7 @@ export interface BooksExport {
     isbn13: string | null;
     pageCount: number | null;
     mainImage: string | null;
+    mainImageThumb: string | null;
     images: string | null;
     averageRating: string | null;
     category: string | null;

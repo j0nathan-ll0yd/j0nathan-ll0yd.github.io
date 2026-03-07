@@ -80,16 +80,27 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
         navigateFallbackDenylist: [/\.xml$/],
-        runtimeCaching: [{
-          // CloudFront JSON data — StaleWhileRevalidate for instant repeat visits
-          // Poll requests (?_poll=1) bypass the SW entirely via negative lookahead
-          urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/(?!.*[?&]_poll=).*\.json$/,
-          handler: 'StaleWhileRevalidate',
-          options: {
-            cacheName: 'live-data',
-            expiration: { maxAgeSeconds: 300 }
+        runtimeCaching: [
+          {
+            // CloudFront optimized images — CacheFirst (immutable, content-addressed)
+            urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/images\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'optimized-images',
+              expiration: { maxEntries: 100, maxAgeSeconds: 604800 }
+            }
+          },
+          {
+            // CloudFront JSON data — StaleWhileRevalidate for instant repeat visits
+            // Poll requests (?_poll=1) bypass the SW entirely via negative lookahead
+            urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/(?!.*[?&]_poll=).*\.json$/,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'live-data',
+              expiration: { maxAgeSeconds: 300 }
+            }
           }
-        }]
+        ]
       }
     })
   ]

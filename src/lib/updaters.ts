@@ -803,9 +803,11 @@ export function updateBookshelf(data: AdaptedBooks): void {
     displayBooks.forEach((b, i: number) => {
       const el = existingBooks[i];
       const meta = bookMeta[b.asin] || {} as BookMeta;
-      const coverSrc = b.cover
-        ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
-        : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
+      const coverSrc = b.coverThumb
+        ? b.coverThumb
+        : b.cover
+          ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
+          : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
 
       el.setAttribute('data-book', JSON.stringify({
         title: b.title,
@@ -911,9 +913,11 @@ export function updateBookshelf(data: AdaptedBooks): void {
     let html = '';
     displayBooks.forEach((b, i: number) => {
       const meta = bookMeta[b.asin] || {} as BookMeta;
-      const coverSrc = b.cover
-        ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
-        : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
+      const coverSrc = b.coverThumb
+        ? b.coverThumb
+        : b.cover
+          ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
+          : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
       const bookData = JSON.stringify({
         title: b.title,
         author: b.author,
