@@ -181,8 +181,8 @@
     }
   ],
   "hydration": {
-    "waterOz": 72,
-    "caffeineMg": 280,
+    "waterOz": 0,
+    "caffeineMg": 0,
     "waterMax": 140,
     "caffeineMax": 500,
     "waterRangeLo": 74,
