@@ -39,6 +39,8 @@ export interface AdaptedHealth {
 }
 
 export interface AdaptedSleep {
+  isEmpty: boolean;
+  date: string;
   sleepScore: number;
   sleepDurationFormatted: string;
   sleepPhaseFormatted: Record<string, string>;
@@ -218,9 +220,12 @@ export function adaptSleep(sleepData: SleepExport, healthData: HealthExport | nu
     awake: awake?.seconds ?? 0,
   };
   const totalSleepSeconds = computeTotalSleepSeconds(phases);
+  const isEmpty = totalSleepSeconds === 0;
   const pcts = computeSleepPercentages(phases);
 
   return {
+    isEmpty,
+    date: sleepData.date,
     sleepScore: healthData?.quantities?.sleepScore?.value ?? 0,
     sleepDurationFormatted: formatDuration(totalSleepSeconds),
     sleepPhaseFormatted: {

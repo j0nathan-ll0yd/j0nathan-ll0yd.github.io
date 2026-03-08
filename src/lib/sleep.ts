@@ -27,6 +27,7 @@ export function formatPhase(seconds: number): string {
 
 export function computeSleepPercentages(phases: SleepPhases): { deepPct: number; remPct: number; corePct: number } {
   const totalSleep = phases.rem + phases.deep + phases.core;
+  if (totalSleep === 0) return { deepPct: 0, remPct: 0, corePct: 0 };
   return {
     deepPct: Math.round(phases.deep / totalSleep * 100),
     remPct: Math.round(phases.rem / totalSleep * 100),

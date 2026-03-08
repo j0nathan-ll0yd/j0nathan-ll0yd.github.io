@@ -164,6 +164,35 @@ export function updateWorkouts(data: WorkoutEntry[] | null): void {
 }
 
 export function updateNightSummary(data: AdaptedSleep): void {
+  if (data.isEmpty) {
+    const duration = document.getElementById('sleepDuration');
+    if (duration) duration.textContent = '--';
+
+    const scoreVal = document.getElementById('sleepScoreVal');
+    if (scoreVal) scoreVal.textContent = '--';
+
+    const scoreFill = document.getElementById('sleepScoreFill') as HTMLElement | null;
+    if (scoreFill) scoreFill.style.width = '0%';
+
+    const phases = ['deep', 'rem', 'core', 'awake'];
+    phases.forEach((phase) => {
+      const pill = document.querySelector(`[data-phase="${phase}"]`);
+      if (pill) {
+        const val = pill.querySelector('.sleep-moon-pill-val');
+        if (val) val.textContent = '--';
+      }
+    });
+
+    const insight = document.getElementById('sleepInsight');
+    if (insight) insight.innerHTML = '<span class="sleep-insight-empty">No sleep data recorded</span>';
+
+    const timestamp = document.getElementById('sleepTimestamp');
+    if (timestamp) timestamp.textContent = 'no data';
+
+    document.getElementById('cardSleep')?.classList.remove('is-loading');
+    return;
+  }
+
   const duration = document.getElementById('sleepDuration');
   if (duration) {
     duration.textContent = data.sleepDurationFormatted;
@@ -194,6 +223,9 @@ export function updateNightSummary(data: AdaptedSleep): void {
   if (insight) {
     insight.innerHTML = '<span>' + data.derived.deepPct + '% deep</span> &mdash; <span>' + data.derived.remPct + '% REM</span> &mdash; restorative sleep';
   }
+
+  const timestamp = document.getElementById('sleepTimestamp');
+  if (timestamp) timestamp.textContent = 'last night';
 
   document.getElementById('cardSleep')?.classList.remove('is-loading');
 }
