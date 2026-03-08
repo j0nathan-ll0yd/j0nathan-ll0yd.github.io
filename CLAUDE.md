@@ -37,6 +37,7 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 - JSON-LD `Person.description` is hardcoded (not the meta description prop) -- richer, personality-forward copy for structured data
 - Keywords meta tag targets Bing/DuckDuckGo (Google ignores it)
 - `robots.txt` blocks AI scraping bots (GPTBot, ClaudeBot, CCBot, etc.) but allows search engines and AI search (PerplexityBot, OAI-SearchBot)
+- `llms.txt` provides structured site context for LLMs per the llmstxt.org spec at https://jonathanlloyd.me/llms.txt
 
 ## Repository Structure
 
@@ -62,6 +63,8 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 │   ├── js/
 │   │   ├── particles.js      # Three.js particle background (legacy, now inlined in index.astro)
 │   │   └── clock.js          # Live clock (legacy, now inlined in index.astro)
+│   ├── llms.txt              # LLM site context (llmstxt.org spec)
+│   ├── robots.txt            # Crawl policy (blocks AI scrapers, allows search)
 │   └── manifest.webmanifest  # PWA manifest
 ├── data/
 │   ├── profile.json          # Name, title, bio, avatar, social links
@@ -85,6 +88,7 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 ├── .editorconfig             # 2-space indent, UTF-8, LF
 ├── .gitignore
 ├── .nojekyll                 # Bypass Jekyll on GitHub Pages
+├── AGENTS.md                 # Cross-tool AI coding context (complements CLAUDE.md)
 └── README.md
 ```
 

@@ -1,0 +1,52 @@
+# Jonathan Lloyd -- Human Datastream
+
+> Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics and constant updates of his whole body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.
+
+## About
+
+Jonathan Lloyd is an engineering director and backend engineer based in San Francisco with 24+ years of professional experience. His portfolio site is designed as a sci-fi "Human Datastream" dashboard -- a single-page application that visualizes real-time personal data across two domains: Body and Mind.
+
+- Site: https://jonathanlloyd.me
+- GitHub: https://github.com/j0nathan-ll0yd
+- LinkedIn: https://www.linkedin.com/in/lifegames/
+
+## Site Structure
+
+The dashboard is a single page organized as a split-panel layout:
+
+- **Left Panel (Identity)**: Profile card with avatar, name, title, location, and social links. Bio terminal with a typing animation displaying skills and experience. System status indicators.
+- **Top Bar**: "Human Datastream" title and live clock.
+- **Body Column**: Heart rate with live ECG animation, daily activity (steps, distance, calories), workouts, sleep/night summary, hydration tracking.
+- **Mind Column**: GitHub developer activity log, reading feed (RSS articles), starred repositories, bookshelf with book covers, theatre reviews.
+
+## Data Sources
+
+All data is loaded from JSON files at build time:
+
+- `profile.json` -- Name, title, bio, avatar, social links
+- `health.json` -- Heart rate, steps, sleep, hydration, workouts
+- `github.json` -- Contribution heatmap, recent commits, developer activity
+- `books.json` -- Bookshelf with covers, authors, reading status
+- `reading.json` -- RSS/article feed items
+- `system.json` -- System status indicators
+
+Live data is fetched at runtime from a CloudFront-backed API for starred repos and polling updates.
+
+## Technology
+
+- **Framework**: Astro 5.x (static site generation, 0 KB JS by default)
+- **Interactivity**: Three.js (particle background), Leaflet (map widget), inline ES5 scripts for animations
+- **Design**: Glass-morphism aesthetic on dark background (#06060f), Space Grotesk typography, fluid clamp() responsive tokens, CSS Container Queries
+- **PWA**: @vite-pwa/astro for offline support
+- **Hosting**: GitHub Pages via GitHub Actions
+- **Analytics**: Simple Analytics (privacy-focused)
+
+## Documentation
+
+- [Wiki: Architecture](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Astro-Implementation) -- Components, data flow, build system
+- [Wiki: Brand Guide](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Brand-Guide) -- Colors, typography, glass-morphism, widget structure
+- [Wiki: Why Astro](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Why-Astro) -- Framework evaluation and decision rationale
+
+## Expertise
+
+Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrastructure, Data Visualization, Serverless Architecture, TypeScript, Go, AWS

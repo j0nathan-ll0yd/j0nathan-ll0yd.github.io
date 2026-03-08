@@ -1,7 +1,36 @@
+# Crawlers
 User-agent: *
 Allow: /
+
+# AI scraping/training bots -- blocked
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
 
 User-agent: Bytespider
 Disallow: /
 
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+# AI search bots -- allowed (PerplexityBot, OAI-SearchBot, ChatGPT-User inherit from *)
+
+# LLM context: https://jonathanlloyd.me/llms.txt
 Sitemap: https://jonathanlloyd.me/sitemap-index.xml
