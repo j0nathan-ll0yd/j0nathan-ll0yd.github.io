@@ -1,4 +1,7 @@
 ---
+import fs from 'node:fs';
+import path from 'node:path';
+
 const { books } = Astro.props;
 const bookList = books.books;
 const bookMeta = books.bookMeta;
@@ -9,6 +12,12 @@ const sortedBooks = bookList.slice().sort((a: any, b: any) => {
   return (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99);
 });
 const displayBooks = sortedBooks.slice(0, 5);
+
+const booksDir = path.join(process.cwd(), 'public', 'images', 'books');
+function hasLocalImage(asin: string): boolean {
+  try { return fs.existsSync(path.join(booksDir, `${asin}-card.webp`)); }
+  catch { return false; }
+}
 ---
 <div class="tri-card tri-card-accent-amber" id="cardBooks">
   <div class="widget-header">
@@ -41,9 +50,13 @@ const displayBooks = sortedBooks.slice(0, 5);
     <ul class="shelf-row" id="dashShelfRow" role="list">
       {displayBooks.map((b: any, i: number) => {
         const asin = b.asin || b.isbn;
+        const hasLocal = hasLocalImage(asin);
         const localCard = `/images/books/${asin}-card.webp`;
         const localThumb = `/images/books/${asin}-thumb.webp`;
         const amazonFallback = `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_SX200_.jpg`;
+        const imgSrc = hasLocal ? localCard : amazonFallback;
+        const imgSrcset = hasLocal ? `${localCard} 1x, ${localThumb} 2x` : undefined;
+        const fallbackAttr = hasLocal ? amazonFallback : undefined;
         const meta = bookMeta[asin] || {};
         const bookData = JSON.stringify({
           title: b.title,
@@ -68,7 +81,7 @@ const displayBooks = sortedBooks.slice(0, 5);
         return (
           <li class={`shelf-book${b.status === 'in_progress' ? ' shelf-book-active' : ''}`} style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" aria-label={`${b.title} by ${b.author}`}>
             <div class="shelf-cover-wrapper">
-              <img src={localCard} srcset={`${localCard} 1x, ${localThumb} 2x`} width="80" height="120" alt={b.title} loading="lazy" data-fallback={amazonFallback} onerror="this.src=this.dataset.fallback;this.onerror=null">
+              <img src={imgSrc} srcset={imgSrcset} width="80" height="120" alt={b.title} loading="lazy" data-fallback={fallbackAttr} onerror={fallbackAttr ? "this.srcset='';this.src=this.dataset.fallback;this.onerror=null" : undefined}>
             </div>
             <div class="shelf-book-title"><span>{b.title}</span></div>
             <div class="shelf-book-author">{b.author}</div>

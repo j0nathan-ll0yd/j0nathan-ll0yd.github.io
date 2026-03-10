@@ -27,14 +27,14 @@ const terminalLines = profile.terminalLines;
           } else if (line.type === 'prompt') {
             const parts = line.text.split(' ');
             const cmd = parts.slice(1).join(' ');
-            return <div class="terminal-line" data-cmd={cmd}><span class="terminal-prompt">{parts[0]} </span><span class="terminal-command"></span></div>;
+            return <div class="terminal-line" data-cmd={cmd}><span class="terminal-prompt">{parts[0]} </span><span class="terminal-command">{cmd}</span></div>;
           } else {
             const text = line.text as string;
             const hasArrow = text.startsWith('\u2192');
             if (hasArrow) {
-              return <div class="terminal-line" data-output={text.substring(2)}><span class="terminal-arrow">&rarr; </span><span class="terminal-output"></span></div>;
+              return <div class="terminal-line" data-output={text.substring(2)}><span class="terminal-arrow">&rarr; </span><span class="terminal-output">{text.substring(2)}</span></div>;
             }
-            return <div class="terminal-line" data-output={text}><span class="terminal-output"></span></div>;
+            return <div class="terminal-line" data-output={text}><span class="terminal-output">{text}</span></div>;
           }
         })}
       </div>
@@ -52,19 +52,17 @@ const terminalLines = profile.terminalLines;
 
   if (prefersReducedMotion || isMobile) {
     for (var j = 0; j < lines.length; j++) {
-      var line = lines[j];
-      line.classList.add('visible');
-      var cmd = line.getAttribute('data-cmd');
-      var output = line.getAttribute('data-output');
-      if (cmd !== null) {
-        var cs = line.querySelector('.terminal-command');
-        if (cs) cs.textContent = cmd;
-      } else if (output !== null) {
-        var os = line.querySelector('.terminal-output');
-        if (os) os.textContent = output;
-      }
+      lines[j].classList.add('visible');
     }
     return;
+  }
+
+  // Desktop: clear pre-rendered text so typewriter can re-type it
+  for (var k = 0; k < lines.length; k++) {
+    var cmdSpan = lines[k].querySelector('.terminal-command');
+    var outSpan = lines[k].querySelector('.terminal-output');
+    if (cmdSpan) cmdSpan.textContent = '';
+    if (outSpan) outSpan.textContent = '';
   }
 
   function typeText(spanEl, text, callback) {
