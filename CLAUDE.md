@@ -82,7 +82,7 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 │       └── Why-Astro.md      # Framework evaluation
 ├── .github/
 │   ├── workflows/
-│   │   ├── deploy.yml        # Build + deploy Astro to GitHub Pages
+│   │   ├── deploy.yml        # Build + deploy + Cloudflare purge + image check
 │   │   └── sync-wiki.yml     # Sync docs/wiki/ to GitHub Wiki
 │   └── scripts/              # sync-wiki.sh, generate-sidebar.sh
 ├── .editorconfig             # 2-space indent, UTF-8, LF
@@ -125,7 +125,60 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 | Context | How data is loaded |
 |---|---|
 | Astro build | `fs.readFileSync` from `data/*.json` in `src/pages/index.astro` frontmatter |
-| Future | CloudFront-backed API serving real data |
+| Client-side | Live data fetched from CloudFront (`d2nfgi9u0n3jr6.cloudfront.net`) via `src/lib/api.ts` |
+| Polling | `PollEngine` refreshes fast-tier (30s) and slow-tier (120s) endpoints with `?_poll=1` to bypass SW |
+
+## Image Pipeline
+
+Book covers and theatre posters flow through a multi-stage pipeline ending with same-origin serving via Cloudflare CDN:
+
+```
+Amazon/Squarespace → OptimizeImages Lambda → S3 (WebP) → CloudFront
+                                                              ↓
+                                              npm run fetch:images (run locally)
+                                                              ↓
+                                              public/images/ → git commit → GitHub Pages → Cloudflare CDN
+```
+
+**How it works:**
+1. The backend `OptimizeImages` Lambda downloads images from Amazon (book covers) and Squarespace (theatre posters), optimizes to WebP via sharp, and uploads to S3 at `images/books/{asin}.webp` and `images/theatre/{slug}.webp`
+2. The Lambda rewrites JSON exports (`books.json`, `theatre-reviews.json`) with CloudFront image URLs
+3. **Locally**, run `npm run fetch:images` to download new images from CloudFront to `public/images/`. Commit and push — they are served as same-origin static assets cached by Cloudflare
+4. **In CI**, the `check-images` job runs `--check-only` mode: compares CloudFront image URLs against committed files. If new images are detected, it creates a GitHub issue with instructions to fetch and commit them
+5. The adapter layer (`src/lib/image-utils.ts`) rewrites CloudFront image URLs to local `/images/` paths via `localizeImageUrl()`
+6. If a local image is missing (new book added between deploys), `onerror` fallback swaps the `<img>` src to the original CloudFront URL — the user never sees a broken image
+
+**Key files:**
+- `scripts/fetch-images.mjs` — downloads images locally (`npm run fetch:images`) or checks for new ones (`--check-only`)
+- `src/lib/image-utils.ts` — `localizeImageUrl()` and `imgFallbackAttrs()` helpers
+- `src/lib/adapters.ts` — applies `localizeImageUrl()` to book cover/thumb URLs
+- `src/lib/updaters-theatre.ts` — applies `localizeImageUrl()` to theatre poster URLs
+
+**When you add a new book or theatre review:**
+1. Backend Lambda optimizes the image and updates JSON on CloudFront
+2. Next deploy → CI `check-images` detects the new image → creates a GitHub issue
+3. Run `npm run fetch:images` locally → `git add public/images/ && git commit && git push`
+4. Image is now served from `jonathanlloyd.me`, cached by Cloudflare
+
+## Caching Architecture
+
+Three independent caching layers operating on separate domains with zero overlap:
+
+| Layer | Domain | What it caches | TTL |
+|-------|--------|---------------|-----|
+| **Cloudflare** | `jonathanlloyd.me` | HTML (5min), `/_astro/*` JS/CSS (1yr), images/fonts (1mo), SW (5min) | Per cache rule |
+| **CloudFront** | `d2nfgi9u0n3jr6.cloudfront.net` | JSON data exports (health, sleep, books, etc.) | 5min (s-maxage) |
+| **Workbox SW** | Both (separate rules) | Local images (CacheFirst 30d), CloudFront JSON (StaleWhileRevalidate 5min) | Per strategy |
+
+**JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d2nfgi9u0n3jr6.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. Poll requests (`?_poll=1`) also bypass the Workbox service worker entirely.
+
+**Deploy pipeline:** Push to `master` → Build Astro → Deploy to GitHub Pages → Purge entire Cloudflare cache + Check for new images (parallel).
+
+**Cloudflare cache rules** (configured in dashboard, priority order):
+1. `/_astro/*` — 1 year edge + browser TTL (content-hashed, immutable)
+2. `/sw.js`, `/manifest.webmanifest` — 5 min edge TTL (must stay fresh)
+3. Static media (png, jpg, webp, svg, woff2, ico) — 1 month edge, 1 week browser
+4. HTML catch-all — 5 min edge TTL
 
 ## Component Showcase (Dev Only)
 
