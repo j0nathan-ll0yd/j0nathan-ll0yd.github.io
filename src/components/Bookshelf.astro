@@ -41,7 +41,9 @@ const displayBooks = sortedBooks.slice(0, 5);
     <ul class="shelf-row" id="dashShelfRow" role="list">
       {displayBooks.map((b: any, i: number) => {
         const asin = b.asin || b.isbn;
-        const coverSrc = `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_SX200_.jpg`;
+        const localCard = `/images/books/${asin}-card.webp`;
+        const localThumb = `/images/books/${asin}-thumb.webp`;
+        const amazonFallback = `https://m.media-amazon.com/images/P/${asin}.01._SCLZZZZZZZ_SX200_.jpg`;
         const meta = bookMeta[asin] || {};
         const bookData = JSON.stringify({
           title: b.title,
@@ -66,7 +68,7 @@ const displayBooks = sortedBooks.slice(0, 5);
         return (
           <li class={`shelf-book${b.status === 'in_progress' ? ' shelf-book-active' : ''}`} style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" aria-label={`${b.title} by ${b.author}`}>
             <div class="shelf-cover-wrapper">
-              <img src={coverSrc} width="80" height="120" alt={b.title} loading="lazy">
+              <img src={localCard} srcset={`${localCard} 1x, ${localThumb} 2x`} width="80" height="120" alt={b.title} loading="lazy" data-fallback={amazonFallback} onerror="this.src=this.dataset.fallback;this.onerror=null">
             </div>
             <div class="shelf-book-title"><span>{b.title}</span></div>
             <div class="shelf-book-author">{b.author}</div>
