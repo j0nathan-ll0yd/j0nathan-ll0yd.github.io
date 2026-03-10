@@ -673,6 +673,21 @@ body.library-page {
   transform: none;
 }
 
+/* ===== MOBILE VARIATION WRAPPERS ===== */
+.mobile-variation {
+  width: 375px;
+  max-width: 100%;
+  margin: 0 auto 32px;
+  overflow-x: auto;
+}
+
+.mobile-variation .identity-card {
+  max-width: 100% !important;
+  width: 100% !important;
+  opacity: 1;
+  transform: none;
+}
+
 /* ===== RESPONSIVE PREVIEW PAGE ===== */
 .rp-toolbar {
   display: flex;

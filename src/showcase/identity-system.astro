@@ -30,7 +30,7 @@ const activeSystem = {
   <main class="lib-container">
     <h1 class="lib-page-title">Identity &amp; System</h1>
     <p class="lib-page-desc">
-      Seven identity and system components: personal identity card, terminal-style bio, system status readout, command bar header, coming-soon mission dossier overlay, and two tablet layout variations.
+      Seven identity and system components: personal identity card, terminal-style bio, system status readout, command bar header, coming-soon mission dossier overlay, two tablet layout variations, and four mobile layout variations.
     </p>
 
     <h2 class="lib-section-title">Profile</h2>
@@ -207,6 +207,100 @@ const activeSystem = {
             <nav style="display: flex; gap: 8px; flex-wrap: wrap;" aria-label="Social">
               <a href={profile.github} class="neon-pill" target="_blank" rel="noopener noreferrer">GitHub</a>
               <a href={profile.linkedin} class="neon-pill" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            </nav>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== MOBILE VARIATIONS ==================== -->
+    <h2 class="lib-section-title">Mobile Variations</h2>
+    <p class="lib-page-desc" style="margin-bottom: 24px;">
+      Four layout explorations for the identity card at mobile viewport width (~375px). Each variation uses the same profile data in a distinct arrangement.
+    </p>
+
+    <!-- Mobile Variation A: Current Mobile (Baseline) -->
+    <div class="component-section">
+      <div class="component-name">Mobile Current (Baseline)</div>
+      <div class="component-description">
+        Mirrors the current production mobile layout. Horizontal row with 56px avatar inline with name and title. Bio clamped to 2 lines. Links centered below.
+      </div>
+      <div class="mobile-variation">
+        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: 20px;">
+          <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+            <img src={profile.avatar} alt="Avatar" style="width: 56px; height: 56px; border-radius: 50%; border: 2px solid var(--neon-indigo); flex-shrink: 0;" />
+            <div style="flex: 1; min-width: 150px;">
+              <div style="font-size: 1.4rem; font-weight: 700; color: var(--text); text-shadow: 0 0 12px rgba(129,140,248,0.5);">{profile.name}</div>
+              <div style="font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-top: 2px;">{profile.title}</div>
+            </div>
+          </div>
+          <p style="font-size: var(--font-size-sm); color: var(--text-muted); font-style: italic; margin: 12px 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">{profile.bio}</p>
+          <p style="font-size: var(--font-size-base); font-weight: 700; color: #818cf8; text-shadow: 0 0 20px rgba(129,140,248,0.6), 0 0 40px rgba(129,140,248,0.3); letter-spacing: 4px; text-transform: uppercase; margin: 0 0 8px; width: 100%;">WELCOME TO MY HUMAN DATASTREAM.</p>
+          <nav style="display: flex; gap: 8px; justify-content: center; width: 100%; margin-top: 4px;" aria-label="Social">
+            <a href={profile.github} class="neon-pill" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href={profile.linkedin} class="neon-pill" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Variation B: Stacked Centered -->
+    <div class="component-section">
+      <div class="component-name">Mobile Stacked Centered</div>
+      <div class="component-description">
+        Avatar 64px centered above name. Bio hidden for minimal vertical footprint. Title and links centered below name.
+      </div>
+      <div class="mobile-variation">
+        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: 20px; text-align: center;">
+          <img src={profile.avatar} alt="Avatar" style="width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--neon-indigo); box-shadow: 0 0 16px rgba(129,140,248,0.3); display: block; margin: 0 auto 12px;" />
+          <div style="font-size: var(--font-size-lg); font-weight: 700; color: var(--text); text-shadow: 0 0 12px rgba(129,140,248,0.5); margin-bottom: 4px;">{profile.name}</div>
+          <div style="font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: 14px;">{profile.title}</div>
+          <nav style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;" aria-label="Social">
+            <a href={profile.github} class="neon-pill" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href={profile.linkedin} class="neon-pill" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Variation C: Minimal Header Bar -->
+    <div class="component-section">
+      <div class="component-name">Mobile Minimal Header Bar</div>
+      <div class="component-description">
+        Ultra-compact single row: 36px avatar and name only, social links pushed right. No title, bio, or tagline. Suits a sticky-header pattern (~52px total height).
+      </div>
+      <div class="mobile-variation">
+        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: 8px 16px; display: flex; align-items: center; gap: 12px;">
+          <img src={profile.avatar} alt="Avatar" style="width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--neon-indigo); flex-shrink: 0;" />
+          <div style="font-size: var(--font-size-sm); font-weight: 700; color: var(--text); text-shadow: 0 0 10px rgba(129,140,248,0.4); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{profile.name}</div>
+          <nav style="display: flex; gap: 6px; flex-shrink: 0;" aria-label="Social">
+            <a href={profile.github} class="neon-pill" style="padding: 4px 10px; font-size: var(--font-size-xs);" target="_blank" rel="noopener noreferrer">GitHub</a>
+            <a href={profile.linkedin} class="neon-pill" style="padding: 4px 10px; font-size: var(--font-size-xs);" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile Variation D: Two-Row Compact -->
+    <div class="component-section">
+      <div class="component-name">Mobile Two-Row Compact</div>
+      <div class="component-description">
+        Row 1: 48px avatar with name and title. Row 2: single-line bio and social links with a divider between rows. Balanced information density.
+      </div>
+      <div class="mobile-variation">
+        <div style="background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(16px); border-radius: var(--radius-xl); padding: 16px;">
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <img src={profile.avatar} alt="Avatar" style="width: 48px; height: 48px; border-radius: 50%; border: 2px solid var(--neon-indigo); flex-shrink: 0;" />
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: var(--font-size-md); font-weight: 700; color: var(--text); text-shadow: 0 0 12px rgba(129,140,248,0.5);">{profile.name}</div>
+              <div style="font-size: var(--font-size-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-top: 2px;">{profile.title}</div>
+            </div>
+          </div>
+          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--glass-border); display: flex; align-items: center; gap: 12px;">
+            <p style="font-size: var(--font-size-xs); color: var(--text-muted); font-style: italic; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{profile.bio}</p>
+            <nav style="display: flex; gap: 6px; flex-shrink: 0;" aria-label="Social">
+              <a href={profile.github} class="neon-pill" style="padding: 5px 12px; font-size: var(--font-size-xs);" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href={profile.linkedin} class="neon-pill" style="padding: 5px 12px; font-size: var(--font-size-xs);" target="_blank" rel="noopener noreferrer">LinkedIn</a>
             </nav>
           </div>
         </div>
