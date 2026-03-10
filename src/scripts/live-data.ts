@@ -1,4 +1,3 @@
-import { isDevMode, initDevMode } from '../lib/dev-mode';
 import { fetchAllEndpoints, fetchWithTimeout } from '../lib/api';
 import { updateFocusOverlay } from '../lib/updaters-focus';
 import { updateTheatreReviews } from '../lib/updaters-theatre';
@@ -26,8 +25,6 @@ const LIVE_CARDS = [
   'cardTheatreReviews',
   ...(import.meta.env.DEV ? ['cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'] : []),
 ];
-
-initDevMode();
 
 // ── Module-scoped state for cross-resource dependencies ──────────────
 let lastHealth: HealthExport | undefined;
@@ -91,26 +88,21 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
 }
 
 // ── Skeleton loading ─────────────────────────────────────────────────
-let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-if (!isDevMode()) {
-  LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.add('is-loading'));
+LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.add('is-loading'));
 
-  // Fallback: remove skeletons after 8s if data never arrives
-  fallbackTimer = setTimeout(() => {
-    LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.remove('is-loading'));
-  }, 8000);
-}
+// Fallback: remove skeletons after 8s if data never arrives
+let fallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+  LIVE_CARDS.forEach(id => document.getElementById(id)?.classList.remove('is-loading'));
+}, 8000);
 
 // ── Initial fetch + start continuous polling ─────────────────────────
 const startFetch = async () => {
-  // Focus overlay — runs regardless of data mode (page-level concern)
+  // Focus overlay (page-level concern)
   const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
   try {
     const focusData = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus);
     updateFocusOverlay(focusData);
   } catch { /* graceful fallback — no overlay on failure */ }
-
-  if (isDevMode()) return;
 
   const data = await fetchAllEndpoints();
 

@@ -1,5 +1,4 @@
 import { CLOUDFRONT_BASE, ENDPOINTS } from './constants';
-import { isDevMode } from './dev-mode';
 
 export type ResourceKey = keyof typeof ENDPOINTS;
 type ResourceCallback = (key: ResourceKey, data: unknown) => void;
@@ -52,7 +51,7 @@ export class PollEngine {
   }
 
   start(): void {
-    if (this.running || isDevMode()) return;
+    if (this.running) return;
     this.running = true;
 
     this.fastTimer = setInterval(() => this.pollTier([...FAST_KEYS, ...DEV_KEYS]), FAST_INTERVAL_MS);

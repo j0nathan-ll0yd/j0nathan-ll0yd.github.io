@@ -1906,30 +1906,6 @@ a.article-list-title:hover {
 }
 
 /* === Dev Mode Badge === */
-.data-mode-badge {
-  font-family: var(--font-mono, 'Space Grotesk', monospace);
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border-radius: var(--radius-sm, 4px);
-  margin-left: 12px;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
-
-.data-mode-dev {
-  color: var(--neon-amber);
-  background: rgba(245, 158, 11, 0.12);
-  border: 1px solid rgba(245, 158, 11, 0.25);
-}
-
-.data-mode-live {
-  color: var(--neon-green);
-  background: rgba(6, 214, 160, 0.12);
-  border: 1px solid rgba(6, 214, 160, 0.25);
-}
-
 /* === Poll Status Indicator === */
 .poll-status {
   display: inline-flex;
