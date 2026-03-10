@@ -9,6 +9,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  issues: write
 
 concurrency:
   group: pages
@@ -20,14 +21,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Fetch images from CloudFront
-        run: node scripts/fetch-images.mjs
 
       - name: Build Astro
         uses: withastro/action@v3
@@ -42,6 +35,49 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  check-images:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check for new images
+        id: check
+        continue-on-error: true
+        run: node scripts/fetch-images.mjs --check-only
+
+      - name: Create issue for new images
+        if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          MISSING=$(cat missing-images.txt)
+          gh issue create \
+            --title "New images detected on CloudFront" \
+            --body "$(cat <<EOF
+          The deploy detected new images on CloudFront that are not yet committed to the repo.
+
+          **Missing images:**
+          \`\`\`
+          ${MISSING}
+          \`\`\`
+
+          **To fix:**
+          \`\`\`bash
+          npm run fetch:images
+          git add public/images/
+          git commit -m "Add new optimized images from CloudFront"
+          git push
+          \`\`\`
+          EOF
+          )"
 
   purge-cache:
     needs: deploy

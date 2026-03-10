@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * Downloads optimized images from CloudFront to public/images/ at build time.
- * Images are then served as same-origin static assets, enabling Cloudflare CDN caching.
+ * Downloads optimized images from CloudFront to public/images/.
+ * Images are committed to git and served as same-origin static assets.
  *
- * Usage: node scripts/fetch-images.mjs
+ * Usage:
+ *   node scripts/fetch-images.mjs              # Download new images locally
+ *   node scripts/fetch-images.mjs --check-only  # CI mode: detect new images, exit 1 if found
+ *
  * No npm dependencies required (uses Node built-ins).
  */
 
@@ -15,6 +18,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
 const CLOUDFRONT_BASE = 'https://d2nfgi9u0n3jr6.cloudfront.net';
 const CONCURRENCY = 5;
+const CHECK_ONLY = process.argv.includes('--check-only');
 
 async function fetchJson(endpoint) {
   const res = await fetch(`${CLOUDFRONT_BASE}/${endpoint}`);
@@ -48,7 +52,7 @@ function extractImageUrls(booksData, theatreData) {
 }
 
 function urlToLocalPath(url) {
-  const path = url.slice(CLOUDFRONT_BASE.length); // e.g. /images/books/B08N5WRWNW.webp
+  const path = url.slice(CLOUDFRONT_BASE.length);
   return join(PUBLIC_DIR, path);
 }
 
@@ -66,6 +70,10 @@ async function downloadImage(url) {
 
   if (await fileExists(localPath)) {
     return 'skipped';
+  }
+
+  if (CHECK_ONLY) {
+    return 'missing';
   }
 
   await mkdir(dirname(localPath), { recursive: true });
@@ -108,25 +116,42 @@ async function main() {
   const theatre = theatreData.status === 'fulfilled' ? theatreData.value : null;
 
   if (!books && !theatre) {
-    console.log('No JSON data available. Skipping image fetch.');
+    console.log('No JSON data available. Skipping image check.');
     return;
   }
 
   const urls = extractImageUrls(books, theatre);
-  console.log(`Found ${urls.length} images to fetch.`);
+  console.log(`Found ${urls.length} images in CloudFront manifests.`);
 
   if (urls.length === 0) return;
 
   const results = await runWithConcurrency(urls, downloadImage, CONCURRENCY);
 
+  const missing = results.filter(r => r === 'missing');
   const downloaded = results.filter(r => r === 'downloaded').length;
   const skipped = results.filter(r => r === 'skipped').length;
   const failed = results.filter(r => r === 'failed').length;
 
-  console.log(`Done: ${downloaded} downloaded, ${skipped} skipped, ${failed} failed.`);
+  if (CHECK_ONLY) {
+    if (missing.length > 0) {
+      const missingUrls = urls.filter((_, i) => results[i] === 'missing');
+      console.log(`\n${missing.length} new image(s) detected:`);
+      missingUrls.forEach(u => console.log(`  ${u}`));
+      // Write missing URLs to file for CI to read
+      const outputFile = join(__dirname, '..', 'missing-images.txt');
+      await writeFile(outputFile, missingUrls.join('\n'));
+      process.exit(1);
+    } else {
+      console.log('All images are up to date.');
+    }
+  } else {
+    console.log(`Done: ${downloaded} downloaded, ${skipped} skipped, ${failed} failed.`);
+  }
 }
 
 main().catch(err => {
-  console.error('Image fetch failed:', err.message);
-  // Exit 0 — graceful degradation, onerror fallback handles missing images
+  console.error('Image check failed:', err.message);
+  // Exit 0 in download mode (graceful degradation)
+  // Exit 1 in check mode (surface the error)
+  if (CHECK_ONLY) process.exit(1);
 });
