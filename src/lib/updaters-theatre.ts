@@ -30,8 +30,13 @@ export function updateTheatreReviews(data: TheatreReviewsExport): void {
     html += `<div class="theatre-poster-wrap">`;
     if (r.imageUrl) {
       const localSrc = localizeImageUrl(r.imageUrl);
-      const fallback = imgFallbackAttrs(localSrc, r.imageUrl);
-      html += `<img src="${esc(localSrc ?? r.imageUrl)}" width="95" height="143" alt="${esc(r.title)}" loading="lazy" referrerpolicy="no-referrer"${fallback}>`;
+      const cardUrl = localizeImageUrl((r as any).imageUrlCard ?? null);
+      const fallback = imgFallbackAttrs(cardUrl || localSrc, r.imageUrl);
+      if (cardUrl) {
+        html += `<img src="${esc(cardUrl)}" srcset="${esc(cardUrl)} 1x, ${esc(localSrc ?? r.imageUrl)} 2x" width="95" height="143" alt="${esc(r.title)}" loading="lazy" referrerpolicy="no-referrer"${fallback}>`;
+      } else {
+        html += `<img src="${esc(localSrc ?? r.imageUrl)}" width="95" height="143" alt="${esc(r.title)}" loading="lazy" referrerpolicy="no-referrer"${fallback}>`;
+      }
     }
     if (r.rating) {
       html += `<span class="theatre-grade" style="color:${gradeColor};border-color:${gradeColor}">${esc(r.rating)}</span>`;

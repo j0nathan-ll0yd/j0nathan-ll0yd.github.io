@@ -840,7 +840,8 @@ export function updateBookshelf(data: AdaptedBooks): void {
         ? b.coverThumb
         : b.cover
           ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
-          : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
+          : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX200_.jpg');
+      const cardSrc = b.coverCard || null;
 
       el.setAttribute('data-book', JSON.stringify({
         title: b.title,
@@ -866,7 +867,13 @@ export function updateBookshelf(data: AdaptedBooks): void {
 
       const img = el.querySelector('img') as HTMLImageElement | null;
       if (img) {
-        img.src = coverSrc;
+        if (cardSrc) {
+          img.src = cardSrc;
+          img.srcset = cardSrc + ' 1x, ' + coverSrc + ' 2x';
+        } else {
+          img.src = coverSrc;
+          img.removeAttribute('srcset');
+        }
         img.alt = b.title;
         if (b.cover && coverSrc !== b.cover) {
           const fallbackUrl = b.cover;
@@ -955,7 +962,8 @@ export function updateBookshelf(data: AdaptedBooks): void {
         ? b.coverThumb
         : b.cover
           ? b.cover.replace(/_SY\d+_SX\d+/, '_SY180_SX130')
-          : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX100_.jpg');
+          : ('https://m.media-amazon.com/images/P/' + b.asin + '.01._SCLZZZZZZZ_SX200_.jpg');
+      const cardSrc = b.coverCard || null;
       const bookData = JSON.stringify({
         title: b.title,
         author: b.author,
@@ -978,7 +986,8 @@ export function updateBookshelf(data: AdaptedBooks): void {
       var activeClass = b.status === 'in_progress' ? ' shelf-book-active' : '';
       html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
-      html += '<img src="' + esc(coverSrc) + '" width="80" height="120" alt="' + esc(b.title) + '" loading="lazy"' + imgFallbackAttrs(coverSrc, b.cover) + '>';
+      const srcsetAttr = cardSrc ? ' srcset="' + esc(cardSrc) + ' 1x, ' + esc(coverSrc) + ' 2x"' : '';
+      html += '<img src="' + esc(cardSrc || coverSrc) + '"' + srcsetAttr + ' width="80" height="120" alt="' + esc(b.title) + '" loading="lazy"' + imgFallbackAttrs(cardSrc || coverSrc, b.cover) + '>';
       html += '</div>';
       html += '<div class="shelf-book-title"><span>' + esc(b.title) + '</span></div>';
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';

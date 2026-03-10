@@ -21,7 +21,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="keywords" content="backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site">
   <!-- Security: CSP (GitHub Pages cannot set HTTP headers) -->
   <!-- img-src keeps CloudFront for onerror fallback when local images are missing -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://scripts.simpleanalyticscdn.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; connect-src 'self' https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com; connect-src 'self' https://d2nfgi9u0n3jr6.cloudfront.net https://queue.simpleanalyticscdn.com https://cloudflareinsights.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="author" content="Jonathan Lloyd">
   <meta property="og:locale" content="en_US">
@@ -433,17 +433,24 @@ html, body {
     <Fragment>
       <script is:inline>
       (function() {
-        var scripts = [
-          'https://scripts.simpleanalyticscdn.com/latest.js',
-          'https://scripts.simpleanalyticscdn.com/auto-events.js'
-        ];
-        scripts.forEach(function(src) {
-          var s = document.createElement('script');
-          s.src = src;
-          s.async = true;
-          s.onerror = function() {};
-          document.body.appendChild(s);
-        });
+        function loadSA() {
+          var scripts = [
+            'https://scripts.simpleanalyticscdn.com/latest.js',
+            'https://scripts.simpleanalyticscdn.com/auto-events.js'
+          ];
+          scripts.forEach(function(src) {
+            var s = document.createElement('script');
+            s.src = src;
+            s.async = true;
+            s.onerror = function() {};
+            document.body.appendChild(s);
+          });
+        }
+        if ('requestIdleCallback' in window) {
+          requestIdleCallback(loadSA, { timeout: 3000 });
+        } else {
+          setTimeout(loadSA, 2000);
+        }
       })();
       </script>
       <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>

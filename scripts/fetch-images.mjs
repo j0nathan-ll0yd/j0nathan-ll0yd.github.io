@@ -37,6 +37,9 @@ function extractImageUrls(booksData, theatreData) {
       if (book.mainImageThumb?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(book.mainImageThumb);
       }
+      if (book.mainImageCard?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(book.mainImageCard);
+      }
     }
   }
 
@@ -44,6 +47,9 @@ function extractImageUrls(booksData, theatreData) {
     for (const review of theatreData.reviews) {
       if (review.imageUrl?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(review.imageUrl);
+      }
+      if (review.imageUrlCard?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(review.imageUrlCard);
       }
     }
   }

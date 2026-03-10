@@ -93,6 +93,7 @@ export interface AdaptedBookEntry {
   link: string;
   cover: string | null;
   coverThumb: string | null;
+  coverCard: string | null;
   notes: string | null;
 }
 
@@ -317,6 +318,7 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
       link: 'https://www.amazon.com/dp/' + b.asin + '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl',
       cover: localizeImageUrl(b.mainImage ?? null),
       coverThumb: localizeImageUrl(b.mainImageThumb ?? null),
+      coverCard: localizeImageUrl((b as any).mainImageCard ?? null),
       notes: b.notes ?? null,
     };
   });
