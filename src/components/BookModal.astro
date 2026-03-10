@@ -61,7 +61,8 @@
     var cover = b.cover || ('https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX160_.jpg');
 
     var html = '<div class="book-modal-header">';
-    html += '<img class="book-modal-cover" src="' + esc(cover) + '" width="140" height="210" alt="' + esc(b.title) + ' cover">';
+    var fallbackAttr = (b.cover && cover !== b.cover) ? ' data-fallback="' + esc(b.cover) + '" onerror="this.src=this.dataset.fallback;this.onerror=null"' : '';
+    html += '<img class="book-modal-cover" src="' + esc(cover) + '" width="140" height="210" alt="' + esc(b.title) + ' cover"' + fallbackAttr + '>';
     html += '<div class="book-modal-info">';
     html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
     if (b.series) {

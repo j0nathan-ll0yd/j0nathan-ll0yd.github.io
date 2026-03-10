@@ -2,6 +2,7 @@ import { classifyHeartRate, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
 import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
 import type { LocationExport } from '../types/exports';
+import { imgFallbackAttrs } from './image-utils';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Dining':              'var(--neon-orange, #ff6b00)',
@@ -863,10 +864,15 @@ export function updateBookshelf(data: AdaptedBooks): void {
 
       el.setAttribute('aria-label', b.title + ' by ' + b.author);
 
-      const img = el.querySelector('img');
+      const img = el.querySelector('img') as HTMLImageElement | null;
       if (img) {
-        (img as HTMLImageElement).src = coverSrc;
+        img.src = coverSrc;
         img.alt = b.title;
+        if (b.cover && coverSrc !== b.cover) {
+          const fallbackUrl = b.cover;
+          img.dataset.fallback = fallbackUrl;
+          img.onerror = function() { (this as HTMLImageElement).src = fallbackUrl; this.onerror = null; };
+        }
       }
 
       const title = el.querySelector('.shelf-book-title span');
@@ -972,7 +978,7 @@ export function updateBookshelf(data: AdaptedBooks): void {
       var activeClass = b.status === 'in_progress' ? ' shelf-book-active' : '';
       html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
-      html += '<img src="' + esc(coverSrc) + '" width="80" height="120" alt="' + esc(b.title) + '" loading="lazy">';
+      html += '<img src="' + esc(coverSrc) + '" width="80" height="120" alt="' + esc(b.title) + '" loading="lazy"' + imgFallbackAttrs(coverSrc, b.cover) + '>';
       html += '</div>';
       html += '<div class="shelf-book-title"><span>' + esc(b.title) + '</span></div>';
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';

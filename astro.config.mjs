@@ -79,15 +79,25 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
+        globIgnores: ['images/books/**', 'images/theatre/**'],
         navigateFallbackDenylist: [/\.xml$/],
         runtimeCaching: [
           {
-            // CloudFront optimized images — CacheFirst (immutable, content-addressed)
+            // Local optimized images — CacheFirst (downloaded at build time from CloudFront)
+            urlPattern: /\/images\/(books|theatre)\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'local-images',
+              expiration: { maxEntries: 200, maxAgeSeconds: 2592000 }
+            }
+          },
+          {
+            // CloudFront images fallback — safety net for onerror fallback fetches
             urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/images\//,
             handler: 'CacheFirst',
             options: {
-              cacheName: 'optimized-images',
-              expiration: { maxEntries: 100, maxAgeSeconds: 604800 }
+              cacheName: 'optimized-images-fallback',
+              expiration: { maxEntries: 50, maxAgeSeconds: 604800 }
             }
           },
           {
