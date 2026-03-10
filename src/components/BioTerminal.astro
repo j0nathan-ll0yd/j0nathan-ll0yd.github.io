@@ -48,8 +48,9 @@ const terminalLines = profile.terminalLines;
   if (!termBody) return;
   var lines = termBody.querySelectorAll('.terminal-line');
   var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var isMobile = window.innerWidth < 768;
 
-  if (prefersReducedMotion) {
+  if (prefersReducedMotion || isMobile) {
     for (var j = 0; j < lines.length; j++) {
       var line = lines[j];
       line.classList.add('visible');

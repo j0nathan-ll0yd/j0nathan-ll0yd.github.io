@@ -2,7 +2,7 @@ import { classifyHeartRate, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
 import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
 import type { LocationExport } from '../types/exports';
-import { imgFallbackAttrs } from './image-utils';
+import { imgFallbackAttrs, localizeImageUrl } from './image-utils';
 
 const CATEGORY_COLORS: Record<string, string> = {
   'Dining':              'var(--neon-orange, #ff6b00)',
@@ -822,6 +822,16 @@ export function updateBookshelf(data: AdaptedBooks): void {
   const shelfRow = document.getElementById('dashShelfRow');
   if (!shelfRow) return;
 
+  // Collect ASINs that have local images (present at SSR build time)
+  const ssrBookEls = document.querySelectorAll('#dashShelfRow .shelf-book');
+  const ssrAsins = new Set<string>();
+  ssrBookEls.forEach(el => {
+    try {
+      const data = JSON.parse(el.getAttribute('data-book') || '{}');
+      if (data.asin) ssrAsins.add(data.asin);
+    } catch { /* ignore parse errors */ }
+  });
+
   const statusLabels = data.statusLabels;
   const bookMeta = data.bookMeta;
   const statusOrder: Record<string, number> = { in_progress: 0, next: 1, completed: 2, finished: 2 };
@@ -867,18 +877,21 @@ export function updateBookshelf(data: AdaptedBooks): void {
 
       const img = el.querySelector('img') as HTMLImageElement | null;
       if (img) {
-        if (cardSrc) {
-          img.src = cardSrc;
-          img.srcset = cardSrc + ' 1x, ' + coverSrc + ' 2x';
+        const shouldLocalize = ssrAsins.has(b.asin);
+        const localCardSrc = shouldLocalize ? localizeImageUrl(cardSrc) : cardSrc;
+        const localCoverSrc = shouldLocalize ? localizeImageUrl(coverSrc) : coverSrc;
+        if (localCardSrc) {
+          img.src = localCardSrc;
+          img.srcset = localCardSrc + ' 1x, ' + (localCoverSrc ?? coverSrc) + ' 2x';
         } else {
-          img.src = coverSrc;
+          img.src = localCoverSrc ?? coverSrc;
           img.removeAttribute('srcset');
         }
         img.alt = b.title;
         if (b.cover && coverSrc !== b.cover) {
           const fallbackUrl = b.cover;
           img.dataset.fallback = fallbackUrl;
-          img.onerror = function() { (this as HTMLImageElement).src = fallbackUrl; this.onerror = null; };
+          img.onerror = function() { (this as HTMLImageElement).srcset = ''; (this as HTMLImageElement).src = fallbackUrl; this.onerror = null; };
         }
       }
 
@@ -984,10 +997,15 @@ export function updateBookshelf(data: AdaptedBooks): void {
         notes: b.notes || null,
       });
       var activeClass = b.status === 'in_progress' ? ' shelf-book-active' : '';
+      const shouldLocalize = ssrAsins.has(b.asin);
+      const localCardSrc = shouldLocalize ? localizeImageUrl(cardSrc) : cardSrc;
+      const localCoverSrc = shouldLocalize ? localizeImageUrl(coverSrc) : coverSrc;
+      const displayCardSrc = localCardSrc || null;
+      const displayCoverSrc = localCoverSrc ?? coverSrc;
       html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
-      const srcsetAttr = cardSrc ? ' srcset="' + esc(cardSrc) + ' 1x, ' + esc(coverSrc) + ' 2x"' : '';
-      html += '<img src="' + esc(cardSrc || coverSrc) + '"' + srcsetAttr + ' width="80" height="120" alt="' + esc(b.title) + '" loading="lazy"' + imgFallbackAttrs(cardSrc || coverSrc, b.cover) + '>';
+      const srcsetAttr = displayCardSrc ? ' srcset="' + esc(displayCardSrc) + ' 1x, ' + esc(displayCoverSrc) + ' 2x"' : '';
+      html += '<img src="' + esc(displayCardSrc || displayCoverSrc) + '"' + srcsetAttr + ' width="80" height="120" alt="' + esc(b.title) + '" loading="lazy"' + imgFallbackAttrs(displayCardSrc || displayCoverSrc, b.cover) + '>';
       html += '</div>';
       html += '<div class="shelf-book-title"><span>' + esc(b.title) + '</span></div>';
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';

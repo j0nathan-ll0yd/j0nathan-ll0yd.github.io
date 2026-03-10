@@ -549,6 +549,19 @@
     transition: none !important;
   }
 
+  /* Tri-cards visible immediately on mobile — stagger animation invisible in single-column layout */
+  .tri-card {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  /* System status visible immediately on mobile */
+  .left-panel-status {
+    opacity: 1 !important;
+    transition: none !important;
+  }
+
   .id-avatar {
     width: 56px;
     height: 56px;

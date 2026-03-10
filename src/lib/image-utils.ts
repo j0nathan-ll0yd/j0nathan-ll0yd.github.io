@@ -16,5 +16,5 @@ export function localizeImageUrl(url: string | null): string | null {
  */
 export function imgFallbackAttrs(localSrc: string | null, originalUrl: string | null): string {
   if (!originalUrl || !localSrc || localSrc === originalUrl) return '';
-  return ` data-fallback="${originalUrl}" onerror="this.src=this.dataset.fallback;this.onerror=null"`;
+  return ` data-fallback="${originalUrl}" onerror="this.srcset='';this.src=this.dataset.fallback;this.onerror=null"`;
 }
