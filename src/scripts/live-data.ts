@@ -3,8 +3,9 @@ import { updateFocusOverlay } from '../lib/updaters-focus';
 import { updateTheatreReviews } from '../lib/updaters-theatre';
 import { updatePollStatus } from '../lib/updaters-status';
 import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport, TheatreReviewsExport } from '../types/exports';
-import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
+import { CLOUDFRONT_BASE, ENDPOINTS, WEBSOCKET_URL } from '../lib/constants';
 import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents, adaptArticles } from '../lib/adapters';
+import { WSClient } from '../lib/ws-client';
 import {
   updateHeartRate,
   updateDailyActivity,
@@ -194,6 +195,21 @@ const startFetch = async () => {
   });
   engine.seed(data.timestamps);
   engine.start();
+
+  // ── WebSocket push notifications (additive — polling continues if WS fails) ──
+  const ws = new WSClient({
+    url: WEBSOCKET_URL,
+    onUpdate: (resource) => {
+      const key = resource as ResourceKey;
+      if (key in ENDPOINTS) {
+        engine.pollResource(key).catch(() => {});
+      }
+    },
+    onStateChange: (connected) => {
+      engine.setMode(connected ? 'passive' : 'active');
+    },
+  });
+  ws.connect();
 };
 
 if ('requestIdleCallback' in window) {

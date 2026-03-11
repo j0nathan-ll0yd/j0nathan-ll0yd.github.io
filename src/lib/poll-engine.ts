@@ -9,6 +9,7 @@ export interface PollStatus {
   connected: boolean;
   lastPollAt: string | null;
   errorCounts: Partial<Record<ResourceKey, number>>;
+  wsConnected?: boolean;
 }
 
 interface PollEngineOptions {
@@ -26,6 +27,8 @@ const DEV_KEYS: ResourceKey[] = import.meta.env.DEV ? ['location'] : [];
 
 const FAST_INTERVAL_MS = 30_000;
 const SLOW_INTERVAL_MS = 120_000;
+const PASSIVE_FAST_INTERVAL_MS = 120_000;
+const PASSIVE_SLOW_INTERVAL_MS = 300_000;
 
 const BASE = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
 
@@ -38,6 +41,8 @@ export class PollEngine {
   private lastPollAt: string | null = null;
   private opts: PollEngineOptions;
   private visibilityHandler: (() => void) | null = null;
+  private wsConnected = false;
+  private mode: 'active' | 'passive' = 'active';
 
   constructor(opts: PollEngineOptions) {
     this.opts = opts;
@@ -50,12 +55,23 @@ export class PollEngine {
     }
   }
 
+  /** Switch between active (no WS) and passive (WS connected) polling intervals */
+  setMode(mode: 'active' | 'passive'): void {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this.wsConnected = mode === 'passive';
+    if (this.running) {
+      this.clearTimers();
+      this.startTimers();
+    }
+    this.emitStatus();
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
 
-    this.fastTimer = setInterval(() => this.pollTier([...FAST_KEYS, ...DEV_KEYS]), FAST_INTERVAL_MS);
-    this.slowTimer = setInterval(() => this.pollTier(SLOW_KEYS), SLOW_INTERVAL_MS);
+    this.startTimers();
 
     this.visibilityHandler = () => {
       if (document.hidden) {
@@ -96,6 +112,7 @@ export class PollEngine {
       connected: this.running && navigator.onLine,
       lastPollAt: this.lastPollAt,
       errorCounts: Object.fromEntries(this.errorCounts),
+      wsConnected: this.wsConnected,
     };
   }
 
@@ -107,8 +124,14 @@ export class PollEngine {
     if (!this.running) return;
     // Immediate poll on tab return, then restart timers
     this.pollNow();
-    this.fastTimer = setInterval(() => this.pollTier([...FAST_KEYS, ...DEV_KEYS]), FAST_INTERVAL_MS);
-    this.slowTimer = setInterval(() => this.pollTier(SLOW_KEYS), SLOW_INTERVAL_MS);
+    this.startTimers();
+  }
+
+  private startTimers(): void {
+    const fastMs = this.mode === 'passive' ? PASSIVE_FAST_INTERVAL_MS : FAST_INTERVAL_MS;
+    const slowMs = this.mode === 'passive' ? PASSIVE_SLOW_INTERVAL_MS : SLOW_INTERVAL_MS;
+    this.fastTimer = setInterval(() => this.pollTier([...FAST_KEYS, ...DEV_KEYS]), fastMs);
+    this.slowTimer = setInterval(() => this.pollTier(SLOW_KEYS), slowMs);
   }
 
   private clearTimers(): void {

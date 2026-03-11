@@ -19,7 +19,7 @@ export function updatePollStatus(status: PollStatus): void {
     label.textContent = 'Partial';
   } else if (status.connected) {
     dot.className = 'poll-dot poll-dot--ok';
-    label.textContent = 'Live';
+    label.textContent = status.wsConnected ? 'Live' : 'Polling';
   } else {
     dot.className = 'poll-dot poll-dot--off';
     label.textContent = '';

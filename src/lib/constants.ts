@@ -20,6 +20,8 @@ export const ACTIVITY_TYPE_MAP: Record<string, { label: string; url?: string }> 
 
 export const CLOUDFRONT_BASE = 'https://d2nfgi9u0n3jr6.cloudfront.net';
 
+export const WEBSOCKET_URL = 'wss://0f4imrwcq2.execute-api.us-west-2.amazonaws.com/live';
+
 export const ENDPOINTS = {
   health: '/health.json',
   sleep: '/sleep.json',
