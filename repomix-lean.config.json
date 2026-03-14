@@ -1,0 +1,78 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "style": "xml",
+    "filePath": "repomix-lean-output.xml",
+    "headerText": "Human Datastream (lean) — Astro 5.x portfolio dashboard by Jonathan Lloyd",
+    "instructionFilePath": "repomix-prompt.md",
+    "showLineNumbers": false,
+    "removeComments": false,
+    "compress": false,
+    "topFilesLength": 10,
+    "git": {
+      "sortByChanges": false
+    }
+  },
+  "tokenCount": {
+    "encoding": "cl100k_base"
+  },
+  "include": [
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".editorconfig",
+    "astro.config.mjs",
+    "package.json",
+    "tsconfig.json",
+    "src/env.d.ts",
+    "src/types/exports.ts",
+    "src/lib/constants.ts",
+    "src/lib/image-utils.ts",
+    "public/css/tokens.css",
+    "public/llms.txt",
+    "public/manifest.webmanifest",
+    "src/layouts/*.astro",
+    "src/pages/*.astro",
+    "src/lib/api.ts",
+    "src/lib/adapters.ts",
+    "src/lib/updaters.ts",
+    "src/lib/updaters-status.ts",
+    "src/lib/updaters-theatre.ts",
+    "src/lib/updaters-focus.ts",
+    "src/lib/poll-engine.ts",
+    "src/lib/ws-client.ts",
+    "src/lib/heart-rate.ts",
+    "src/lib/sleep.ts",
+    "src/scripts/*.ts",
+    "public/css/base.css",
+    "public/css/effects.css",
+    "public/css/components.css",
+    "src/styles/layout.css",
+    "data/profile.json",
+    "data/health.json",
+    "data/github.json",
+    "data/books.json",
+    "data/reading.json",
+    "data/system.json"
+  ],
+  "ignore": {
+    "customPatterns": [
+      "src/showcase/**",
+      "previews/**",
+      "src/components/github/*.query.ts",
+      "src/lib/updaters-odometer-variations.ts",
+      "src/lib/updaters-leaderboard-variations.ts",
+      "README.md",
+      "docs/wiki/Home.md",
+      "docs/wiki/Why-Astro.md",
+      "public/vendor/**",
+      "public/fonts/**",
+      "public/images/**",
+      "public/assets/**",
+      "package-lock.json",
+      "data/showcase-empty.json",
+      "data/theatre-reviews-sample.json",
+      "repomix-output.xml",
+      "repomix-lean-output.xml"
+    ]
+  }
+}

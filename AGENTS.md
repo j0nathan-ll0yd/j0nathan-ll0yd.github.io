@@ -24,7 +24,7 @@ Deploy: push to `master` triggers GitHub Actions (withastro/action@v3 -> deploy-
 | `src/components/` | Astro components (one per widget) |
 | `public/css/tokens.css` | Design tokens (colors, typography, spacing) |
 | `public/css/base.css` | Reset, body, scrollbar styles |
-| `public/css/layout.css` | Panel layout, responsive breakpoints |
+| `src/styles/layout.css` | Panel layout, responsive breakpoints |
 | `public/css/components.css` | Widget card styles |
 | `data/*.json` | Build-time data (profile, health, github, books, reading, system) |
 | `astro.config.mjs` | Astro config, PWA, sitemap, dev-only showcase routes |

@@ -7,3 +7,5 @@ dist/
 _site/
 .jekyll-cache/
 .sass-cache/
+repomix-output.xml
+repomix-lean-output.xml
