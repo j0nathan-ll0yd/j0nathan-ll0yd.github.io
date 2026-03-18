@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-03-18T01:54:55.430Z",
+  "books": [
+    {
+      "asin": "F001",
+      "title": "All Fields Book",
+      "author": "Full Author",
+      "series": "Complete Series",
+      "seriesNumber": 1,
+      "seriesTotal": 5,
+      "description": "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam quis nostrud exercitation ullamco laboris nisi aliquip lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim",
+      "publicationDate": "2023-06-15",
+      "publishedYear": 2023,
+      "isbn10": "0123456789",
+      "isbn13": "9780123456789",
+      "pageCount": 350,
+      "mainImage": "https://m.media-amazon.com/images/I/example-all-fields.jpg",
+      "mainImageThumb": "https://m.media-amazon.com/images/I/example-all-fields-thumb.jpg",
+      "images": "https://m.media-amazon.com/images/I/example-extra.jpg",
+      "averageRating": "4.8",
+      "category": "Fiction",
+      "status": "completed",
+      "currentPage": null,
+      "totalPages": 350,
+      "rating": 5,
+      "notes": "Highly recommended to a friend"
+    }
+  ]
+}

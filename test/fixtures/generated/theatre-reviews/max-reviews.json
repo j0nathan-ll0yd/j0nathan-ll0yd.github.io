@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-03-18T01:54:55.432Z",
+  "source": "coasttocoastreviews.com",
+  "totalReviews": 8,
+  "reviews": [
+    {
+      "title": "The Cherry Orchard",
+      "slug": "the-cherry-orchard",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A+",
+      "ratingNumeric": 4.3,
+      "excerpt": "A compelling production of The Cherry Orchard that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Uncle Vanya",
+      "slug": "uncle-vanya",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A",
+      "ratingNumeric": 4,
+      "excerpt": "A compelling production of Uncle Vanya that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Three Sisters",
+      "slug": "three-sisters",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A-",
+      "ratingNumeric": 3.7,
+      "excerpt": "A compelling production of Three Sisters that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "The Seagull",
+      "slug": "the-seagull",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B+",
+      "ratingNumeric": 3.3,
+      "excerpt": "A compelling production of The Seagull that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Pygmalion",
+      "slug": "pygmalion",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B+",
+      "ratingNumeric": 3.3,
+      "excerpt": "A compelling production of Pygmalion that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Arms and the Man",
+      "slug": "arms-and-the-man",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B",
+      "ratingNumeric": 3,
+      "excerpt": "A compelling production of Arms and the Man that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Heartbreak House",
+      "slug": "heartbreak-house",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B-",
+      "ratingNumeric": 2.7,
+      "excerpt": "A compelling production of Heartbreak House that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Major Barbara",
+      "slug": "major-barbara",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "C+",
+      "ratingNumeric": 2.3,
+      "excerpt": "A compelling production of Major Barbara that rewards patient audiences.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    }
+  ]
+}

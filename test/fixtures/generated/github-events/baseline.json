@@ -1,0 +1,52 @@
+{
+  "generatedAt": "2026-03-18T01:54:55.431Z",
+  "events": [
+    {
+      "type": "commit",
+      "repo": "j0nathan-ll0yd/mantle",
+      "title": "Add Aurora DSQL migration support",
+      "date": "2026-03-18",
+      "hash": "a1b2c3d",
+      "additions": 45,
+      "deletions": 8
+    },
+    {
+      "type": "commit",
+      "repo": "j0nathan-ll0yd/j0nathan-ll0yd.github.io",
+      "title": "Update location widget styles",
+      "date": "2026-03-18",
+      "hash": "e4f5g6h",
+      "additions": 22,
+      "deletions": 11
+    },
+    {
+      "type": "commit",
+      "repo": "j0nathan-ll0yd/mantle",
+      "title": "Fix permissions regeneration after table changes",
+      "date": "2026-03-18",
+      "hash": "i7j8k9l",
+      "additions": 7,
+      "deletions": 2
+    },
+    {
+      "type": "pr_merged",
+      "repo": "j0nathan-ll0yd/j0nathan-ll0yd.github.io",
+      "title": "Add theatre reviews widget",
+      "date": "2026-03-18",
+      "hash": "a1b2c3d",
+      "additions": 12,
+      "deletions": 3,
+      "number": 42
+    },
+    {
+      "type": "pr_opened",
+      "repo": "j0nathan-ll0yd/mantle",
+      "title": "Implement unified type sync pipeline",
+      "date": "2026-03-18",
+      "hash": "a1b2c3d",
+      "additions": 12,
+      "deletions": 3,
+      "number": 17
+    }
+  ]
+}

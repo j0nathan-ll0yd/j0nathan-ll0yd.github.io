@@ -1,0 +1,46 @@
+{
+  "generatedAt": "2026-03-18T01:54:55.432Z",
+  "source": "coasttocoastreviews.com",
+  "totalReviews": 3,
+  "reviews": [
+    {
+      "title": "Long Day's Journey Into Night",
+      "slug": "long-days-journey",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A",
+      "ratingNumeric": 4,
+      "excerpt": "A luminous revival that honors the original while finding fresh emotional resonance.",
+      "imageUrl": null,
+      "imageWidth": null,
+      "imageHeight": null
+    },
+    {
+      "title": "Who's Afraid of Virginia Woolf?",
+      "slug": "whos-afraid-of-virginia-woolf",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B+",
+      "ratingNumeric": 3.3,
+      "excerpt": "A luminous revival that honors the original while finding fresh emotional resonance.",
+      "imageUrl": null,
+      "imageWidth": null,
+      "imageHeight": null
+    },
+    {
+      "title": "A Streetcar Named Desire",
+      "slug": "a-streetcar-named-desire",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B",
+      "ratingNumeric": 3,
+      "excerpt": "A luminous revival that honors the original while finding fresh emotional resonance.",
+      "imageUrl": null,
+      "imageWidth": null,
+      "imageHeight": null
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "date": "2026-03-17",
+  "generatedAt": "2026-03-18T01:54:55.429Z",
+  "quantities": {
+    "heartRate": {
+      "value": 42,
+      "unit": "count/min"
+    },
+    "heartRateVariabilitySDNN": {
+      "value": 45,
+      "unit": "ms"
+    },
+    "stepCount": {
+      "value": 6800,
+      "unit": "count"
+    },
+    "distanceWalkingRunning": {
+      "value": 5200,
+      "unit": "m"
+    },
+    "appleExerciseTime": {
+      "value": 52,
+      "unit": "min"
+    },
+    "activeEnergyBurned": {
+      "value": 486,
+      "unit": "kcal"
+    },
+    "basalEnergyBurned": {
+      "value": 1878,
+      "unit": "kcal"
+    },
+    "dietaryWater": {
+      "value": 2202,
+      "unit": "mL"
+    },
+    "dietaryCaffeine": {
+      "value": 0.36,
+      "unit": "g"
+    },
+    "appleSleepingWristTemperature": {
+      "value": 0,
+      "unit": "degC"
+    }
+  }
+}

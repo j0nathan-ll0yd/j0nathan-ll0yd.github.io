@@ -1,0 +1,27 @@
+{
+  "date": "2026-03-17",
+  "generatedAt": "2026-03-18T01:54:55.430Z",
+  "workouts": [
+    {
+      "activityType": "Walking",
+      "duration": 965,
+      "energyBurned": 72,
+      "distance": 1135,
+      "source": "Jonathan's Apple Watch"
+    },
+    {
+      "activityType": "Cycling",
+      "duration": 2700,
+      "energyBurned": 320,
+      "distance": 12000,
+      "source": "Jonathan's Apple Watch"
+    },
+    {
+      "activityType": "Running",
+      "duration": 1800,
+      "energyBurned": 280,
+      "distance": 4500,
+      "source": "Jonathan's Apple Watch"
+    }
+  ]
+}

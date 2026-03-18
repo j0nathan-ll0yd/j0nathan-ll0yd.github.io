@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-03-18T01:54:55.432Z",
+  "source": "coasttocoastreviews.com",
+  "totalReviews": 8,
+  "reviews": [
+    {
+      "title": "A Midsummer Night's Dream",
+      "slug": "a-midsummer-nights-dream",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A+",
+      "ratingNumeric": 4.3,
+      "excerpt": "A transcendent production that redefines the genre entirely.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Hamlet",
+      "slug": "hamlet",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A",
+      "ratingNumeric": 4,
+      "excerpt": "A commanding performance anchors this thoughtful modern staging.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Macbeth",
+      "slug": "macbeth",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "A-",
+      "ratingNumeric": 3.7,
+      "excerpt": "Visually stunning with occasional pacing issues in Act III.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Romeo and Juliet",
+      "slug": "romeo-and-juliet",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B+",
+      "ratingNumeric": 3.3,
+      "excerpt": "Fresh choreography elevates familiar material.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Othello",
+      "slug": "othello",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "B",
+      "ratingNumeric": 3,
+      "excerpt": "Solid ensemble work, but the leads lack chemistry.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "The Tempest",
+      "slug": "the-tempest",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "C",
+      "ratingNumeric": 2,
+      "excerpt": "Ambitious staging undermined by muddled direction.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "Titus Andronicus",
+      "slug": "titus-andronicus",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "D",
+      "ratingNumeric": 1,
+      "excerpt": "Gratuitous staging adds nothing to the text.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    },
+    {
+      "title": "The Comedy of Errors",
+      "slug": "the-comedy-of-errors",
+      "url": "https://coasttocoastreviews.com/reviews/the-glass-menagerie",
+      "author": "Staff Reviewer",
+      "publishedAt": "2026-03-18",
+      "rating": "F",
+      "ratingNumeric": 0,
+      "excerpt": "A complete misfire on every level.",
+      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
+      "imageWidth": 800,
+      "imageHeight": 450
+    }
+  ]
+}
