@@ -7,7 +7,9 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "generate:types": "node scripts/generate-types.mjs",
+    "generate:fixtures": "npx tsx test/fixtures/generate.ts",
+    "validate:fixtures": "npx tsx test/fixtures/validate.ts",
+    "generate:types": "node scripts/generate-types.mjs && npm run validate:fixtures --if-present",
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -29,6 +31,7 @@
     "cheerio": "^1.2.0",
     "jsdom": "^29.0.0",
     "json-schema-to-typescript": "^15.0.4",
+    "tsx": "^4.21.0",
     "vitest": "^4.1.0"
   }
 }

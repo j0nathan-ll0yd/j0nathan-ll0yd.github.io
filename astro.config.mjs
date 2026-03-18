@@ -1,6 +1,6 @@
 import { defineConfig } from 'astro/config';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import AstroPWA from '@vite-pwa/astro';
 import sitemap from '@astrojs/sitemap';
 
@@ -26,6 +26,25 @@ const showcaseDevOnly = {
       }
     },
     'astro:server:setup'({ server }) {
+      const fixtureSet = process.env.FIXTURE_SET;
+      if (fixtureSet) {
+        server.middlewares.use('/api/live', (req, res, next) => {
+          const filename = req.url?.replace(/^\//, '').replace(/\?.*$/, '') ?? '';
+          const dataType = filename.replace('.json', '');
+          const candidates = [
+            join(process.cwd(), 'test/fixtures/generated', dataType, `${fixtureSet}.json`),
+            join(process.cwd(), 'test/fixtures/generated', dataType, 'baseline.json'),
+          ];
+          const match = candidates.find(p => existsSync(p));
+          if (match) {
+            console.log(`[fixtures] ${filename} → ${relative(process.cwd(), match)}`);
+            res.setHeader('Content-Type', 'application/json');
+            res.end(readFileSync(match, 'utf-8'));
+          } else {
+            next();
+          }
+        });
+      }
       server.middlewares.use('/previews', (req, res, next) => {
         const filePath = join(process.cwd(), 'src/showcase/previews', req.url);
         if (existsSync(filePath) && filePath.endsWith('.html')) {
