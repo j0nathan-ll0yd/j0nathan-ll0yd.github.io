@@ -1,0 +1,19 @@
+{
+  "books": [
+    {
+      "title": "Designing Data-Intensive Applications",
+      "author": "Martin Kleppmann",
+      "status": "completed",
+      "cover": "/images/books/placeholder.webp",
+      "thumb": "/images/books/placeholder.webp"
+    },
+    {
+      "title": "The Manager's Path",
+      "author": "Camille Fournier",
+      "status": "in_progress",
+      "cover": "/images/books/placeholder.webp",
+      "thumb": "/images/books/placeholder.webp"
+    }
+  ],
+  "timestamp": "2026-01-15T10:30:00Z"
+}

@@ -1,0 +1,32 @@
+/*
+ * Stabilization stylesheet for visual regression tests.
+ * Hides dynamic content that changes between runs to ensure
+ * deterministic screenshots.
+ */
+
+/* Hide live timestamps and status indicators */
+.widget-timestamp,
+.live-dot,
+[data-live] {
+  visibility: hidden !important;
+}
+
+/* Hide the live clock */
+#liveClock {
+  visibility: hidden !important;
+}
+
+/* Hide Three.js particle canvas (non-deterministic WebGL) */
+#particle-canvas {
+  display: none !important;
+}
+
+/* Freeze all animations and transitions as safety net */
+*,
+*::before,
+*::after {
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+}

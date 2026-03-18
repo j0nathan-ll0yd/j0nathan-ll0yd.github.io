@@ -8,13 +8,17 @@
     "build": "astro build",
     "preview": "astro preview",
     "generate:types": "node scripts/generate-types.mjs",
-    "fetch:images": "node scripts/fetch-images.mjs"
+    "fetch:images": "node scripts/fetch-images.mjs",
+    "test:visual": "npx playwright test",
+    "test:visual:update": "npx playwright test --update-snapshots",
+    "test:visual:ui": "npx playwright test --ui"
   },
   "dependencies": {
     "astro": "^5.0.0"
   },
   "devDependencies": {
     "@astrojs/sitemap": "^3.7.0",
+    "@playwright/test": "^1.58.2",
     "@vite-pwa/astro": "^1.2.0",
     "json-schema-to-typescript": "^15.0.4"
   }

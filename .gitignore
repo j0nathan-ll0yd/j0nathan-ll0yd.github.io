@@ -9,3 +9,8 @@ _site/
 .sass-cache/
 repomix-output.xml
 repomix-lean-output.xml
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/

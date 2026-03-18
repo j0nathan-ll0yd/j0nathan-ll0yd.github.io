@@ -1,0 +1,21 @@
+{
+  "workouts": [
+    {
+      "type": "Other",
+      "duration": 55,
+      "calories": 620,
+      "heartRateAvg": 148,
+      "heartRateMax": 178,
+      "date": "2026-01-15T07:00:00Z"
+    },
+    {
+      "type": "Running",
+      "duration": 32,
+      "calories": 380,
+      "heartRateAvg": 155,
+      "heartRateMax": 172,
+      "date": "2026-01-14T06:30:00Z"
+    }
+  ],
+  "timestamp": "2026-01-15T10:30:00Z"
+}
