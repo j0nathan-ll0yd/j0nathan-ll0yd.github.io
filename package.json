@@ -9,6 +9,10 @@
     "preview": "astro preview",
     "generate:types": "node scripts/generate-types.mjs",
     "fetch:images": "node scripts/fetch-images.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "npx playwright test",
     "test:visual:update": "npx playwright test --update-snapshots",
     "test:visual:ui": "npx playwright test --ui"
@@ -20,6 +24,11 @@
     "@astrojs/sitemap": "^3.7.0",
     "@playwright/test": "^1.58.2",
     "@vite-pwa/astro": "^1.2.0",
-    "json-schema-to-typescript": "^15.0.4"
+    "@vitest/coverage-v8": "^4.1.0",
+    "ajv": "^8.18.0",
+    "cheerio": "^1.2.0",
+    "jsdom": "^29.0.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "vitest": "^4.1.0"
   }
 }
