@@ -80,12 +80,21 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 │       ├── Astro-Implementation.md  # Architecture and components
 │       ├── Brand-Guide.md    # Design system reference
 │       └── Why-Astro.md      # Framework evaluation
+├── tests/
+│   ├── visual/
+│   │   ├── dashboard.spec.ts # Visual regression tests (4 viewports × 4 tests)
+│   │   ├── screenshot.css    # Stabilization stylesheet (hides dynamic content)
+│   │   └── __screenshots__/  # Baseline PNGs organized by viewport project
+│   └── fixtures/             # Stable JSON fixtures for API route interception
 ├── .github/
 │   ├── workflows/
 │   │   ├── deploy.yml        # Build + deploy + Cloudflare purge + image check
+│   │   ├── visual-tests.yml  # Playwright visual regression tests on PRs
 │   │   └── sync-wiki.yml     # Sync docs/wiki/ to GitHub Wiki
 │   └── scripts/              # sync-wiki.sh, generate-sidebar.sh
+├── playwright.config.ts      # Playwright config (4 viewport projects, webServer)
 ├── .editorconfig             # 2-space indent, UTF-8, LF
+├── .gitattributes            # Binary marker for screenshot PNGs
 ├── .gitignore
 ├── .nojekyll                 # Bypass Jekyll on GitHub Pages
 ├── AGENTS.md                 # Cross-tool AI coding context (complements CLAUDE.md)
@@ -263,6 +272,66 @@ npm run build     # Outputs to dist/
 npm run preview   # Preview build locally
 ```
 
+## Visual Regression Testing
+
+Screenshot tests using Playwright's built-in `toHaveScreenshot()` capture the dashboard at 4 viewport sizes to prevent layout regressions.
+
+### Test Architecture
+
+```
+playwright.config.ts          # 4 viewport projects, webServer: build && preview
+tests/visual/
+  dashboard.spec.ts           # 4 tests × 4 viewports = 16 total
+  screenshot.css              # Hides dynamic content for stable screenshots
+  __screenshots__/            # Baseline PNGs committed to git (~1.3MB)
+    desktop-1400/             # 1400×900
+    tablet-1100/              # 1100×800
+    tablet-768/               # 768×1024
+    mobile-600/               # 600×900
+tests/fixtures/               # 10 JSON files stubbing all CloudFront endpoints
+```
+
+### Key Design Decisions
+
+- **Chromium only** -- single-engine rendering eliminates cross-browser noise
+- **4 viewports** map to structural breakpoints in `layout.css` (1100px, 768px, 600px) plus default desktop
+- **Baselines in git** -- ~16 PNGs at ~1.3MB total; no Git LFS needed
+- **CSS stylePath** hides dynamic content: `#liveClock`, `.widget-timestamp`, `.live-dot`, `#particle-canvas`
+- **Route interception** stubs all 10 CloudFront endpoints (`src/lib/constants.ts` ENDPOINTS) with fixture JSON
+- **Service worker blocked** via `serviceWorkers: 'block'` to prevent Workbox caching interference
+- **Cross-OS rendering** -- font rendering differs macOS↔Linux; for CI, generate baselines inside the Playwright Docker container (`mcr.microsoft.com/playwright:v1.52.0-noble`)
+
+### Commands
+
+```bash
+npm run test:visual          # Compare against baselines
+npm run test:visual:update   # Regenerate baselines after intentional changes
+npm run test:visual:ui       # Interactive Playwright UI mode
+```
+
+### When to Update Baselines
+
+After intentional visual changes (new widget, layout shift, design token update):
+
+```bash
+npm run test:visual:update
+git add tests/visual/__screenshots__/
+git commit -m "Update visual baselines for [describe change]"
+```
+
+### Adding New Tests
+
+To screenshot a new widget, add a test in `tests/visual/dashboard.spec.ts`:
+
+```typescript
+test('widget name', async ({ page }) => {
+  const widget = page.locator('.your-selector');
+  await expect(widget).toHaveScreenshot('widget-name.png', { stylePath });
+});
+```
+
+Then run `npm run test:visual:update` to generate the new baseline.
+
 ## Rules and Guardrails
 
 ### DO NOT
@@ -275,4 +344,5 @@ npm run preview   # Preview build locally
 - Follow the widget HTML structure: `.tri-card` > `.widget-header` + `.widget-body`
 - Test all four responsive breakpoints (1400px, 1100px, 900px, 600px)
 - Run `npm run build` to verify changes compile correctly
+- Run `npm run test:visual` after CSS or layout changes to catch visual regressions
 - Refer to `docs/wiki/` for detailed documentation on architecture, design system, and decisions

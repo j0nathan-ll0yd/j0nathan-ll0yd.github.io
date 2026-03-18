@@ -15,6 +15,16 @@ npm run preview   # preview production build
 
 Deploy: push to `master` triggers GitHub Actions (withastro/action@v3 -> deploy-pages@v4).
 
+## Visual Regression Tests
+
+```bash
+npm run test:visual          # compare against baselines (16 tests across 4 viewports)
+npm run test:visual:update   # regenerate baselines after intentional visual changes
+npm run test:visual:ui       # interactive Playwright UI
+```
+
+Tests use Playwright `toHaveScreenshot()`. Baselines live in `tests/visual/__screenshots__/`. Dynamic content (clock, timestamps, particles) hidden via `tests/visual/screenshot.css`. CloudFront API calls stubbed with `tests/fixtures/*.json`.
+
 ## Key Files
 
 | Path | Purpose |
@@ -28,6 +38,10 @@ Deploy: push to `master` triggers GitHub Actions (withastro/action@v3 -> deploy-
 | `public/css/components.css` | Widget card styles |
 | `data/*.json` | Build-time data (profile, health, github, books, reading, system) |
 | `astro.config.mjs` | Astro config, PWA, sitemap, dev-only showcase routes |
+| `playwright.config.ts` | Visual regression test config (4 viewport projects) |
+| `tests/visual/dashboard.spec.ts` | Screenshot tests (full-page + widget-level) |
+| `tests/visual/screenshot.css` | Stabilization stylesheet (hides dynamic content) |
+| `tests/fixtures/*.json` | Stable JSON fixtures for CloudFront API mocking |
 | `docs/wiki/` | Architecture docs (synced to GitHub Wiki) |
 
 ## Conventions

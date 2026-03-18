@@ -70,9 +70,12 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 │   ├── js/                   # particles.js, clock.js
 │   └── manifest.webmanifest  # PWA manifest
 ├── data/                     # 6 JSON files (read at build time)
+├── tests/
+│   ├── visual/               # Playwright visual regression tests + baselines
+│   └── fixtures/             # Stable JSON fixtures for API mocking
 ├── docs/wiki/                # Documentation (synced to GitHub Wiki)
 ├── legacy/                   # Old root site preserved for reference
-└── .github/workflows/        # Deploy + wiki sync actions
+└── .github/workflows/        # Deploy + wiki sync + visual test actions
 ```
 
 ## Running Locally
@@ -82,6 +85,53 @@ npm install
 npm run dev       # http://localhost:4321
 npm run build     # Outputs to dist/
 npm run preview   # Preview build locally
+```
+
+## Visual Regression Testing
+
+Screenshot tests capture the dashboard at 4 viewport sizes to catch layout regressions before they ship. Built with [Playwright](https://playwright.dev)'s built-in `toHaveScreenshot()` comparison.
+
+### Viewports Tested
+
+| Project | Width | Breakpoint |
+|---------|-------|------------|
+| `desktop-1400` | 1400px | Default desktop layout |
+| `tablet-1100` | 1100px | Left panel narrows to 30% |
+| `tablet-768` | 768px | Mobile/tablet transition |
+| `mobile-600` | 600px | Single-column, compact layout |
+
+### Running Tests
+
+```bash
+npm run test:visual          # Compare against baselines
+npm run test:visual:update   # Regenerate baselines after intentional changes
+npm run test:visual:ui       # Interactive UI mode for debugging
+```
+
+### How It Works
+
+- Tests build the site (`npm run build`) and serve it via `astro preview`
+- CloudFront API responses are intercepted with stable fixture data (`tests/fixtures/`)
+- Dynamic content (clock, timestamps, live indicators, particle canvas) is hidden via a stabilization stylesheet (`tests/visual/screenshot.css`)
+- Baseline screenshots are committed to git in `tests/visual/__screenshots__/`
+- Service worker is blocked to prevent Workbox caching interference
+
+### Updating Baselines
+
+When you make intentional visual changes:
+
+```bash
+npm run test:visual:update   # Regenerate baselines
+git add tests/visual/__screenshots__/
+git commit -m "Update visual baselines for [describe change]"
+```
+
+**Note:** Baselines are OS-sensitive (font rendering differs between macOS and Linux). For CI consistency, generate baselines inside the Playwright Docker container:
+
+```bash
+docker run --rm -v $(pwd):/app -w /app \
+  mcr.microsoft.com/playwright:v1.52.0-noble \
+  npx playwright test --update-snapshots
 ```
 
 ## Design System
@@ -103,6 +153,7 @@ The visual language is built on a dark sci-fi aesthetic with glass-morphism card
 - [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) -- Typography
 - [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa) -- Progressive Web App support
 - [Simple Analytics](https://simpleanalytics.com) -- Privacy-focused analytics
+- [Playwright](https://playwright.dev) -- Visual regression testing
 
 ## Documentation
 
