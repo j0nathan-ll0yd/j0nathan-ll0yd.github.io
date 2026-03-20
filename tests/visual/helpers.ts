@@ -12,13 +12,7 @@ const WEBSOCKET_URL = 'wss://0f4imrwcq2.execute-api.us-west-2.amazonaws.com';
 
 export const stylePath = path.join(import.meta.dirname, 'screenshot.css');
 
-/**
- * Widget selectors for element-level screenshots.
- *
- * StarredRepoList is excluded: it has no id attribute and its class
- * .tri-card-accent-green is shared with DevActivityLog.
- * Follow-up: add id="cardStarredRepos" to src/components/github/StarredRepoList.astro.
- */
+/** Widget selectors for element-level screenshots. */
 export const WIDGET_SELECTORS = {
   identityCard: '#identityCard',
   bioTerminal: '#cardBio',
@@ -30,6 +24,7 @@ export const WIDGET_SELECTORS = {
   nightSummary: '#cardSleep',
   devActivityLog: '#cardDevLog',
   readingFeed: '#cardReading',
+  starredRepos: '#cardStarredRepos',
   bookshelf: '#cardBooks',
   theatreReviews: '#cardTheatreReviews',
   topBar: '.top-bar',

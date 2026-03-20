@@ -72,6 +72,11 @@ test.describe('Widgets - populated', () => {
     await expect(widget).toHaveScreenshot('widget-bookshelf.png', { stylePath });
   });
 
+  test('starred repos', async ({ page }) => {
+    const widget = page.locator(WIDGET_SELECTORS.starredRepos);
+    await expect(widget).toHaveScreenshot('widget-starred-repos.png', { stylePath });
+  });
+
   test('theatre reviews', async ({ page }) => {
     const widget = page.locator(WIDGET_SELECTORS.theatreReviews);
     await expect(widget).toHaveScreenshot('widget-theatre-reviews.png', { stylePath });
