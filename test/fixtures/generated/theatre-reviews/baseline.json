@@ -12,7 +12,6 @@
       "rating": "A",
       "ratingNumeric": 4,
       "excerpt": "A luminous revival that honors the original while finding fresh emotional resonance.",
-      "imageUrl": "https://coasttocoastreviews.com/images/the-glass-menagerie.jpg",
       "imageWidth": 800,
       "imageHeight": 450
     },
@@ -25,7 +24,6 @@
       "rating": "B+",
       "ratingNumeric": 3.3,
       "excerpt": "A gripping production with a towering central performance, though the pacing lags in Act II.",
-      "imageUrl": "https://coasttocoastreviews.com/images/death-of-a-salesman.jpg",
       "imageWidth": 800,
       "imageHeight": 450
     },
@@ -38,7 +36,6 @@
       "rating": "C",
       "ratingNumeric": 2,
       "excerpt": "The existential dread is palpable, but this staging fails to unlock Beckett's dark humor.",
-      "imageUrl": "https://coasttocoastreviews.com/images/waiting-for-godot.jpg",
       "imageWidth": 800,
       "imageHeight": 450
     }

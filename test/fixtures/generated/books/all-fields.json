@@ -14,8 +14,6 @@
       "isbn10": "0123456789",
       "isbn13": "9780123456789",
       "pageCount": 350,
-      "mainImage": "https://m.media-amazon.com/images/I/example-all-fields.jpg",
-      "mainImageThumb": "https://m.media-amazon.com/images/I/example-all-fields-thumb.jpg",
       "images": "https://m.media-amazon.com/images/I/example-extra.jpg",
       "averageRating": "4.8",
       "category": "Fiction",
