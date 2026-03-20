@@ -30,3 +30,47 @@
   transition-duration: 0s !important;
   transition-delay: 0s !important;
 }
+
+/* Freeze ECG canvas (non-deterministic animation even with animation-duration: 0s) */
+#hrEcgCanvas {
+  visibility: hidden !important;
+}
+
+/* Hide focus overlay clock (dynamic time) */
+#focusClock {
+  visibility: hidden !important;
+}
+
+/* Hide DnD overlay clock (dynamic time) */
+#dndClock {
+  visibility: hidden !important;
+}
+
+/* Hide poll status indicator (non-deterministic state) */
+.poll-dot {
+  visibility: hidden !important;
+}
+
+/* Hide system status relative timestamps (e.g. "3 hours ago") */
+[class*="sys-val-"] .sys-val {
+  visibility: hidden !important;
+}
+
+/* Ensure all cards are visible (bypass staggered reveal) */
+.identity-card,
+.tri-card,
+.left-panel-bio,
+.left-panel-status {
+  opacity: 1 !important;
+  transform: none !important;
+  visibility: visible !important;
+}
+
+/* Unlock full-page capture at responsive viewports.
+   Dashboard.astro sets html,body { height: 100dvh } which caps document height
+   even when overflow switches to auto at responsive breakpoints. Without this
+   override, Playwright's fullPage:true captures only the viewport height. */
+html, body {
+  height: auto !important;
+  overflow: visible !important;
+}
