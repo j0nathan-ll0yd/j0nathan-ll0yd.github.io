@@ -17,7 +17,8 @@
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "npx playwright test",
     "test:visual:update": "npx playwright test --update-snapshots",
-    "test:visual:ui": "npx playwright test --ui"
+    "test:visual:ui": "npx playwright test --ui",
+    "compliance": "node scripts/widget-compliance.mjs"
   },
   "dependencies": {
     "astro": "^5.0.0"

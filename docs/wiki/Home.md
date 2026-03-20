@@ -20,6 +20,7 @@ Deployment is automatic via GitHub Actions on push to `master`.
 
 - **[Astro Implementation](Astro-Implementation.md)** -- Architecture, components, data flow, and build system
 - **[Brand Guide](Brand-Guide.md)** -- Colors, typography, glass-morphism, widget structure, responsive breakpoints
+- **[Widget Specification](Widget-Specification.md)** -- Requirements, testing, and compliance for all widgets
 - **[Why Astro](Why-Astro.md)** -- Framework evaluation and decision rationale
 
 ## Technology Stack
@@ -41,7 +42,7 @@ Deployment is automatic via GitHub Actions on push to `master`.
 ├── package.json              # Dependencies and scripts
 ├── tsconfig.json             # TypeScript configuration
 ├── src/
-│   ├── components/           # 14 .astro components
+│   ├── components/           # 56 .astro components (15 production + 35 sandbox + 6 non-widget)
 │   ├── layouts/              # Dashboard.astro (head, scripts, analytics)
 │   └── pages/                # index.astro (data loading, page composition)
 ├── public/
