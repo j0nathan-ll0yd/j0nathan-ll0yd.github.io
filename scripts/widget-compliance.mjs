@@ -16,8 +16,8 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 
 // --- Production widget registry (source of truth: index.astro imports) ---
 const PRODUCTION_WIDGETS = [
-  { name: 'IdentityCard', file: 'IdentityCard.astro', id: 'identityCard', status: 'shipped' },
-  { name: 'BioTerminal', file: 'BioTerminal.astro', id: 'cardBio', status: 'shipped' },
+  { name: 'IdentityCard', file: 'IdentityCard.astro', id: 'identityCard', status: 'shipped', unitTestApplicable: false },
+  { name: 'BioTerminal', file: 'BioTerminal.astro', id: 'cardBio', status: 'shipped', unitTestApplicable: false },
   { name: 'SystemStatus', file: 'SystemStatus.astro', id: 'cardSystem', status: 'shipped' },
   { name: 'HeartRate', file: 'HeartRate.astro', id: 'cardHR', status: 'shipped' },
   { name: 'DailyActivity', file: 'DailyActivity.astro', id: 'cardSteps', status: 'shipped' },
@@ -26,7 +26,7 @@ const PRODUCTION_WIDGETS = [
   { name: 'NightSummary', file: 'NightSummary.astro', id: 'cardSleep', status: 'shipped' },
   { name: 'DevActivityLog', file: 'github/DevActivityLog.astro', id: 'cardDevLog', status: 'shipped' },
   { name: 'ReadingFeed', file: 'ReadingFeed.astro', id: 'cardReading', status: 'shipped' },
-  { name: 'StarredRepoList', file: 'github/StarredRepoList.astro', id: null, status: 'shipped' },
+  { name: 'StarredRepoList', file: 'github/StarredRepoList.astro', id: 'cardStarredRepos', status: 'shipped' },
   { name: 'Bookshelf', file: 'Bookshelf.astro', id: 'cardBooks', status: 'shipped' },
   { name: 'TheatreReviews', file: 'TheatreReviews.astro', id: 'cardTheatreReviews', status: 'shipped' },
   { name: 'PlaceLeaderboardV3', file: 'location/PlaceLeaderboardV3.astro', id: 'cardPlaceLeaderboardV3', status: 'dev-only' },
@@ -139,6 +139,7 @@ function checkHasUnitTests(widget, testFiles) {
     DevActivityLog: ['adaptGithubEvents', 'updateDevActivityLog'],
     ReadingFeed: ['adaptArticles', 'updateReadingFeed'],
     Bookshelf: ['adaptBooks', 'updateBookshelf'],
+    StarredRepoList: ['adaptStarredRepos'],
     TheatreReviews: ['updateTheatreReviews'],
     SystemStatus: ['updateSystemStatus'],
     PlaceLeaderboardV3: ['updatePlaceLeaderboard'],
@@ -255,6 +256,8 @@ function main() {
 
     const varText = r.variations.has ? `${r.variations.count} vars` : 'none';
     const fixText = r.fixtureData.has ? `${r.fixtureData.count} files` : 'none';
+    const screenshotText = r.widget.status === 'dev-only' ? 'DEV' : (r.hasScreenshot ? 'YES' : 'NO');
+    const unitTestText = r.widget.unitTestApplicable === false ? 'N/A' : (r.hasUnitTests ? 'YES' : 'NO');
 
     console.log([
       r.widget.name.padEnd(widths[0]),
@@ -262,9 +265,9 @@ function main() {
       (r.componentExists ? 'YES' : 'NO').padEnd(widths[2]),
       (r.hasId ? 'YES' : 'NO').padEnd(widths[3]),
       (r.inShowcase ? 'YES' : 'NO').padEnd(widths[4]),
-      (r.hasScreenshot ? 'YES' : 'NO').padEnd(widths[5]),
+      screenshotText.padEnd(widths[5]),
       varText.padEnd(widths[6]),
-      (r.hasUnitTests ? 'YES' : 'NO').padEnd(widths[7]),
+      unitTestText.padEnd(widths[7]),
       fixText.padEnd(widths[8]),
     ].join(' '));
   });
@@ -274,9 +277,15 @@ function main() {
   // --- Summary ---
   const withId = results.filter(r => r.hasId).length;
   const inShowcase = results.filter(r => r.inShowcase).length;
-  const withScreenshot = results.filter(r => r.hasScreenshot).length;
+  const shippedResults = results.filter(r => r.widget.status === 'shipped');
+  const devOnlyCount = results.filter(r => r.widget.status === 'dev-only').length;
+  const withScreenshot = shippedResults.filter(r => r.hasScreenshot).length;
+  const shippedTotal = shippedResults.length;
   const withVariations = results.filter(r => r.variations.has).length;
-  const withUnitTests = results.filter(r => r.hasUnitTests).length;
+  const testableResults = results.filter(r => r.widget.unitTestApplicable !== false);
+  const templateOnlyCount = results.filter(r => r.widget.unitTestApplicable === false).length;
+  const withUnitTests = testableResults.filter(r => r.hasUnitTests).length;
+  const testableTotal = testableResults.length;
   const withFixtures = results.filter(r => r.fixtureData.has).length;
   const total = results.length;
 
@@ -285,9 +294,11 @@ function main() {
   console.log(`Component exists:     ${total}/${total}`);
   console.log(`Has widget ID:        ${withId}/${total}${withId < total ? ' (GAPS: ' + results.filter(r => !r.hasId).map(r => r.widget.name).join(', ') + ')' : ''}`);
   console.log(`In showcase:          ${inShowcase}/${total}${inShowcase < total ? ' (GAPS: ' + results.filter(r => !r.inShowcase).map(r => r.widget.name).join(', ') + ')' : ''}`);
-  console.log(`Screenshot tests:     ${withScreenshot}/${total}${withScreenshot < total ? ' (GAPS: ' + results.filter(r => !r.hasScreenshot).map(r => r.widget.name).join(', ') + ')' : ''}`);
+  const screenshotGaps = shippedResults.filter(r => !r.hasScreenshot);
+  console.log(`Screenshot tests:     ${withScreenshot}/${shippedTotal} shipped (${devOnlyCount} dev-only excluded)${screenshotGaps.length > 0 ? ' (GAPS: ' + screenshotGaps.map(r => r.widget.name).join(', ') + ')' : ''}`);
   console.log(`Variation tests:      ${withVariations}/${total}`);
-  console.log(`Unit tests:           ${withUnitTests}/${total}${withUnitTests < total ? ' (GAPS: ' + results.filter(r => !r.hasUnitTests).map(r => r.widget.name).join(', ') + ')' : ''}`);
+  const unitTestGaps = testableResults.filter(r => !r.hasUnitTests);
+  console.log(`Unit tests:           ${withUnitTests}/${testableTotal} testable (${templateOnlyCount} template-only excluded)${unitTestGaps.length > 0 ? ' (GAPS: ' + unitTestGaps.map(r => r.widget.name).join(', ') + ')' : ''}`);
   console.log(`Fixture data:         ${withFixtures}/${total}`);
 
   console.log('\n');
