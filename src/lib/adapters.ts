@@ -1,11 +1,11 @@
-import { HYDRATION, STATUS_LABELS, ACTIVITY_TYPE_MAP } from './constants';
+import { HYDRATION, STATUS_LABELS, ACTIVITY_TYPE_MAP, LANG_COLORS } from './constants';
 import {
   computeTotalSleepSeconds,
   formatDuration,
   formatPhase,
   computeSleepPercentages,
 } from './sleep';
-import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport } from '../types/exports';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, GithubStarredReposExport } from '../types/exports';
 import { localizeImageUrl } from './image-utils';
 
 // ── Adapted output types (what adapters produce for updaters) ──────
@@ -117,6 +117,16 @@ export interface AdaptedBooks {
     completed: number;
     upcoming: number;
   };
+}
+
+export interface AdaptedStarredRepo {
+  owner: string;
+  name: string;
+  url: string;
+  stars: number;
+  language: string;
+  languageColor: string;
+  starredAt: string;
 }
 
 // ── Adapter functions ──────────────────────────────────────────────
@@ -353,6 +363,30 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
       upcoming: next,
     },
   };
+}
+
+export function adaptStarredRepos(data: GithubStarredReposExport, now?: number): AdaptedStarredRepo[] {
+  const ts = now ?? Date.now();
+  return (data.repos || []).slice(0, 5).map((r) => {
+    const msAgo = ts - new Date(r.starredAt).getTime();
+    const hoursAgo = Math.floor(msAgo / 3600000);
+    const daysAgo = Math.floor(hoursAgo / 24);
+    const weeksAgo = Math.floor(daysAgo / 7);
+    let starredAt: string;
+    if (weeksAgo > 0) starredAt = `${weeksAgo} week${weeksAgo > 1 ? 's' : ''} ago`;
+    else if (daysAgo > 0) starredAt = `${daysAgo} day${daysAgo > 1 ? 's' : ''} ago`;
+    else starredAt = `${hoursAgo}h ago`;
+    const lang = r.languages?.[0]?.language || 'Unknown';
+    return {
+      owner: r.ownerLogin,
+      name: r.name,
+      url: r.htmlUrl,
+      stars: r.stargazersCount,
+      language: lang,
+      languageColor: LANG_COLORS[lang] || '#8b949e',
+      starredAt,
+    };
+  });
 }
 
 export function adaptArticles(data: ArticlesExport | null): AdaptedArticle[] {

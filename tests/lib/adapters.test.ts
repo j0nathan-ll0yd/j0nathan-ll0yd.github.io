@@ -6,6 +6,7 @@ import {
   adaptGithubEvents,
   adaptBooks,
   adaptArticles,
+  adaptStarredRepos,
 } from '../../src/lib/adapters';
 import { HYDRATION, STATUS_LABELS } from '../../src/lib/constants';
 import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport } from '../../src/types/exports';
@@ -781,5 +782,155 @@ describe('adaptArticles', () => {
     }]);
     const result = adaptArticles(articles);
     expect(result[0].source).toBe('');
+  });
+});
+
+// ── adaptStarredRepos ─────────────────────────────────────────────
+
+function makeStarredRepo(overrides: Partial<{
+  name: string;
+  ownerLogin: string;
+  ownerHtmlUrl: string;
+  htmlUrl: string;
+  description: string | null;
+  forksCount: number;
+  stargazersCount: number;
+  watchersCount: number;
+  openIssuesCount: number;
+  topics: string[];
+  size: number;
+  licenseKey: string | null;
+  licenseName: string | null;
+  licenseSpdxId: string | null;
+  starredAt: string;
+  languages: { language: string; lines: number }[];
+}> = {}) {
+  return {
+    name: 'test-repo',
+    ownerLogin: 'test-owner',
+    ownerHtmlUrl: 'https://github.com/test-owner',
+    htmlUrl: 'https://github.com/test-owner/test-repo',
+    description: null,
+    forksCount: 0,
+    stargazersCount: 100,
+    watchersCount: 5,
+    openIssuesCount: 2,
+    topics: [],
+    size: 1024,
+    licenseKey: null,
+    licenseName: null,
+    licenseSpdxId: null,
+    starredAt: '2026-01-01T00:00:00Z',
+    languages: [{ language: 'TypeScript', lines: 5000 }],
+    ...overrides,
+  };
+}
+
+describe('adaptStarredRepos', () => {
+  // Fixed reference timestamp: 2026-01-15T12:00:00Z = 1736942400000
+  const NOW = new Date('2026-01-15T12:00:00Z').getTime();
+
+  it('slices to at most 5 repos when given more', () => {
+    const repos = Array.from({ length: 8 }, (_, i) =>
+      makeStarredRepo({ name: `repo-${i}`, starredAt: '2026-01-01T00:00:00Z' })
+    );
+    const result = adaptStarredRepos({ generatedAt: '2026-01-15T12:00:00Z', repos }, NOW);
+    expect(result).toHaveLength(5);
+  });
+
+  it('formats starredAt as weeks ago (plural)', () => {
+    // 14 days before NOW = 2 weeks ago
+    const starredAt = new Date(NOW - 14 * 24 * 3600 * 1000).toISOString();
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ starredAt })] },
+      NOW
+    );
+    expect(result[0].starredAt).toBe('2 weeks ago');
+  });
+
+  it('formats starredAt as week ago (singular)', () => {
+    // 7 days before NOW = 1 week ago
+    const starredAt = new Date(NOW - 7 * 24 * 3600 * 1000).toISOString();
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ starredAt })] },
+      NOW
+    );
+    expect(result[0].starredAt).toBe('1 week ago');
+  });
+
+  it('formats starredAt as days ago (plural)', () => {
+    // 3 days before NOW
+    const starredAt = new Date(NOW - 3 * 24 * 3600 * 1000).toISOString();
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ starredAt })] },
+      NOW
+    );
+    expect(result[0].starredAt).toBe('3 days ago');
+  });
+
+  it('formats starredAt as day ago (singular)', () => {
+    // 1 day before NOW
+    const starredAt = new Date(NOW - 1 * 24 * 3600 * 1000).toISOString();
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ starredAt })] },
+      NOW
+    );
+    expect(result[0].starredAt).toBe('1 day ago');
+  });
+
+  it('formats starredAt as hours ago when less than one day', () => {
+    // 5 hours before NOW
+    const starredAt = new Date(NOW - 5 * 3600 * 1000).toISOString();
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ starredAt })] },
+      NOW
+    );
+    expect(result[0].starredAt).toBe('5h ago');
+  });
+
+  it('resolves primary language from languages array', () => {
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ languages: [{ language: 'Go', lines: 1000 }] })] },
+      NOW
+    );
+    expect(result[0].language).toBe('Go');
+    expect(result[0].languageColor).toBe('#00ADD8');
+  });
+
+  it('falls back to Unknown and default color when no languages', () => {
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ languages: [] })] },
+      NOW
+    );
+    expect(result[0].language).toBe('Unknown');
+    expect(result[0].languageColor).toBe('#8b949e');
+  });
+
+  it('uses default color for unknown language name', () => {
+    const result = adaptStarredRepos(
+      { generatedAt: '2026-01-15T12:00:00Z', repos: [makeStarredRepo({ languages: [{ language: 'FakeLang', lines: 100 }] })] },
+      NOW
+    );
+    expect(result[0].language).toBe('FakeLang');
+    expect(result[0].languageColor).toBe('#8b949e');
+  });
+
+  it('returns empty array when repos is empty', () => {
+    const result = adaptStarredRepos({ generatedAt: '2026-01-15T12:00:00Z', repos: [] }, NOW);
+    expect(result).toEqual([]);
+  });
+
+  it('maps owner, name, url, stars correctly', () => {
+    const repo = makeStarredRepo({
+      ownerLogin: 'octocat',
+      name: 'hello-world',
+      htmlUrl: 'https://github.com/octocat/hello-world',
+      stargazersCount: 42,
+    });
+    const result = adaptStarredRepos({ generatedAt: '2026-01-15T12:00:00Z', repos: [repo] }, NOW);
+    expect(result[0].owner).toBe('octocat');
+    expect(result[0].name).toBe('hello-world');
+    expect(result[0].url).toBe('https://github.com/octocat/hello-world');
+    expect(result[0].stars).toBe(42);
   });
 });

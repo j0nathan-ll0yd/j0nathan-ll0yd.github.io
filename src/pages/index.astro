@@ -12,6 +12,7 @@ import NightSummary from '../components/NightSummary.astro';
 import Hydration from '../components/Hydration.astro';
 import StarredRepoList from '../components/github/StarredRepoList.astro';
 import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
+import { adaptStarredRepos, type AdaptedStarredRepo } from '../lib/adapters';
 import DevActivityLog from '../components/github/DevActivityLog.astro';
 import ReadingFeed from '../components/ReadingFeed.astro';
 import Bookshelf from '../components/Bookshelf.astro';
@@ -30,48 +31,11 @@ const reading = JSON.parse(fs.readFileSync(path.join(dataDir, 'reading.json'), '
 const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-8'));
 const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
 
-const LANG_COLORS: Record<string, string> = {
-  TypeScript: '#3178c6', JavaScript: '#f1e05a', Python: '#3572A5',
-  Java: '#b07219', 'C#': '#178600', 'C++': '#f34b7d', C: '#555555',
-  Go: '#00ADD8', Rust: '#dea584', Swift: '#F05138', Kotlin: '#A97BFF',
-  Ruby: '#701516', PHP: '#4F5D95', Dart: '#00B4AB', Scala: '#c22d40',
-  Shell: '#89e051', Lua: '#000080', Perl: '#0298c3', Haskell: '#5e5086',
-  R: '#198CE7', Julia: '#a270ba', Elixir: '#6e4a7e', Clojure: '#db5855',
-  Erlang: '#B83998', OCaml: '#ef7a08', 'F#': '#b845fc', Zig: '#ec915c',
-  Nim: '#ffc200', V: '#4f87c4', Crystal: '#000100', 'Objective-C': '#438eff',
-  HTML: '#e34c26', CSS: '#563d7c', SCSS: '#c6538c', Vue: '#41b883',
-  Svelte: '#ff3e00', Astro: '#bc52ee', HCL: '#844FBA', Terraform: '#5c4ee5',
-  Dockerfile: '#384d54', Makefile: '#427819', CMake: '#DA3434',
-  PowerShell: '#012456', 'Vim Script': '#199f4b', 'Emacs Lisp': '#c065db',
-  Nix: '#7e7eff', YAML: '#cb171e', TOML: '#9c4221', Markdown: '#083fa1',
-  TeX: '#3D6117',
-};
-
-let starredRepos: { owner: string; name: string; url: string; stars: number; language: string; languageColor: string; starredAt: string }[] = [];
+let starredRepos: AdaptedStarredRepo[] = [];
 try {
   const res = await fetch(`${CLOUDFRONT_BASE}${ENDPOINTS.starredRepos}`);
   const json = await res.json();
-  const now = Date.now();
-  starredRepos = (json.repos || []).slice(0, 5).map((r: any) => {
-    const msAgo = now - new Date(r.starredAt).getTime();
-    const hoursAgo = Math.floor(msAgo / 3600000);
-    const daysAgo = Math.floor(hoursAgo / 24);
-    const weeksAgo = Math.floor(daysAgo / 7);
-    let starredAt: string;
-    if (weeksAgo > 0) starredAt = `${weeksAgo} week${weeksAgo > 1 ? 's' : ''} ago`;
-    else if (daysAgo > 0) starredAt = `${daysAgo} day${daysAgo > 1 ? 's' : ''} ago`;
-    else starredAt = `${hoursAgo}h ago`;
-    const lang = r.languages?.[0]?.language || 'Unknown';
-    return {
-      owner: r.ownerLogin,
-      name: r.name,
-      url: r.htmlUrl,
-      stars: r.stargazersCount,
-      language: lang,
-      languageColor: LANG_COLORS[lang] || '#8b949e',
-      starredAt,
-    };
-  });
+  starredRepos = adaptStarredRepos(json);
 } catch (err) {
   console.warn('[build] Failed to fetch starred repos:', (err as Error).message);
 }
