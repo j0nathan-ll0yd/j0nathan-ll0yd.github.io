@@ -67,7 +67,7 @@ export default defineConfig({
     server: {
       proxy: {
         '/api/live': {
-          target: 'https://d2nfgi9u0n3jr6.cloudfront.net',
+          target: 'https://d3axfz0e3hiiuu.cloudfront.net',
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/live/, ''),
         }
@@ -112,7 +112,7 @@ export default defineConfig({
           },
           {
             // CloudFront images fallback — safety net for onerror fallback fetches
-            urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/images\//,
+            urlPattern: /^https:\/\/d3axfz0e3hiiuu\.cloudfront\.net\/images\//,
             handler: 'CacheFirst',
             options: {
               cacheName: 'optimized-images-fallback',
@@ -122,7 +122,7 @@ export default defineConfig({
           {
             // CloudFront JSON data — StaleWhileRevalidate for instant repeat visits
             // Poll requests (?_poll=1) bypass the SW entirely via negative lookahead
-            urlPattern: /^https:\/\/d2nfgi9u0n3jr6\.cloudfront\.net\/(?!.*[?&]_poll=).*\.json$/,
+            urlPattern: /^https:\/\/d3axfz0e3hiiuu\.cloudfront\.net\/(?!.*[?&]_poll=).*\.json$/,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'live-data',

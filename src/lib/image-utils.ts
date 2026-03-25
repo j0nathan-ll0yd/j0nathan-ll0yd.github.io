@@ -1,4 +1,4 @@
-const CF_IMAGE_PREFIX = 'https://d2nfgi9u0n3jr6.cloudfront.net/images/';
+const CF_IMAGE_PREFIX = 'https://d3axfz0e3hiiuu.cloudfront.net/images/';
 
 /**
  * Converts a CloudFront image URL to a local path for same-origin serving.

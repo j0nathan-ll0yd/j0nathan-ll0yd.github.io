@@ -134,7 +134,7 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 | Context | How data is loaded |
 |---|---|
 | Astro build | `fs.readFileSync` from `data/*.json` in `src/pages/index.astro` frontmatter |
-| Client-side | Live data fetched from CloudFront (`d2nfgi9u0n3jr6.cloudfront.net`) via `src/lib/api.ts` |
+| Client-side | Live data fetched from CloudFront (`d3axfz0e3hiiuu.cloudfront.net`) via `src/lib/api.ts` |
 | Polling | `PollEngine` refreshes fast-tier (30s) and slow-tier (120s) endpoints with `?_poll=1` to bypass SW |
 
 ## Image Pipeline
@@ -176,10 +176,10 @@ Three independent caching layers operating on separate domains with zero overlap
 | Layer | Domain | What it caches | TTL |
 |-------|--------|---------------|-----|
 | **Cloudflare** | `jonathanlloyd.me` | HTML (5min), `/_astro/*` JS/CSS (1yr), images/fonts (1mo), SW (5min) | Per cache rule |
-| **CloudFront** | `d2nfgi9u0n3jr6.cloudfront.net` | JSON data exports (health, sleep, books, etc.) | 5min (s-maxage) |
+| **CloudFront** | `d3axfz0e3hiiuu.cloudfront.net` | JSON data exports (health, sleep, books, etc.) | 5min (s-maxage) |
 | **Workbox SW** | Both (separate rules) | Local images (CacheFirst 30d), CloudFront JSON (StaleWhileRevalidate 5min) | Per strategy |
 
-**JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d2nfgi9u0n3jr6.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. Poll requests (`?_poll=1`) also bypass the Workbox service worker entirely.
+**JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d3axfz0e3hiiuu.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. Poll requests (`?_poll=1`) also bypass the Workbox service worker entirely.
 
 **Deploy pipeline:** Push to `master` → Build Astro → Deploy to GitHub Pages → Purge entire Cloudflare cache + Check for new images (parallel).
 

@@ -566,7 +566,7 @@ describe('adaptBooks', () => {
   });
 
   it('localizes CloudFront mainImage to /images/ path', () => {
-    const books = makeBooks([{ mainImage: 'https://d2nfgi9u0n3jr6.cloudfront.net/images/books/B0TEST.webp' }]);
+    const books = makeBooks([{ mainImage: 'https://d3axfz0e3hiiuu.cloudfront.net/images/books/B0TEST.webp' }]);
     const result = adaptBooks(books);
     expect(result.books[0].cover).toBe('/images/books/B0TEST.webp');
   });

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
-const CLOUDFRONT_BASE = 'https://d2nfgi9u0n3jr6.cloudfront.net';
+const CLOUDFRONT_BASE = 'https://d3axfz0e3hiiuu.cloudfront.net';
 const CONCURRENCY = 5;
 const CHECK_ONLY = process.argv.includes('--check-only');
 
