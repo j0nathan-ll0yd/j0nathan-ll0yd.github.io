@@ -35,9 +35,9 @@ export const ACTIVITY_TYPE_MAP: Record<string, { label: string; url?: string }> 
   'Other': { label: "Barry's Bootcamp", url: 'https://share.barrys.com/jsvsl' },
 };
 
-export const CLOUDFRONT_BASE = 'https://d3axfz0e3hiiuu.cloudfront.net';
+export const CLOUDFRONT_BASE = 'https://d1pfm520aduift.cloudfront.net';
 
-export const WEBSOCKET_URL = 'wss://n7f7kuasbj.execute-api.us-west-2.amazonaws.com/live';
+export const WEBSOCKET_URL = 'wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com/live';
 
 export const ENDPOINTS = {
   health: '/health.json',

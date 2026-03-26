@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { localizeImageUrl, imgFallbackAttrs } from '../../src/lib/image-utils';
 
-const CF_PREFIX = 'https://d3axfz0e3hiiuu.cloudfront.net/images/';
+const CF_PREFIX = 'https://d1pfm520aduift.cloudfront.net/images/';
 
 describe('localizeImageUrl', () => {
   it('converts a CloudFront URL to a local /images/ path', () => {

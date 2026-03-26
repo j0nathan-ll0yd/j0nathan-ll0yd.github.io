@@ -7,8 +7,8 @@ import path from 'path';
 import type { Page } from '@playwright/test';
 import { getScenarioFixtures, scenarioHasWorkouts, type ScenarioName } from './fixtures';
 
-const CLOUDFRONT_BASE = 'https://d3axfz0e3hiiuu.cloudfront.net';
-const WEBSOCKET_URL = 'wss://n7f7kuasbj.execute-api.us-west-2.amazonaws.com';
+const CLOUDFRONT_BASE = 'https://d1pfm520aduift.cloudfront.net';
+const WEBSOCKET_URL = 'wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com';
 
 export const stylePath = path.join(import.meta.dirname, 'screenshot.css');
 
