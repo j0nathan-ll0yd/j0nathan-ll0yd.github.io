@@ -152,7 +152,7 @@ export class PollEngine {
     const timer = setTimeout(() => controller.abort(), 5000);
 
     try {
-      const res = await fetch(url, { signal: controller.signal });
+      const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
       clearTimeout(timer);
 
       if (!res.ok) {

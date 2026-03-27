@@ -177,9 +177,9 @@ Three independent caching layers operating on separate domains with zero overlap
 |-------|--------|---------------|-----|
 | **Cloudflare** | `jonathanlloyd.me` | HTML (5min), `/_astro/*` JS/CSS (1yr), images/fonts (1mo), SW (5min) | Per cache rule |
 | **CloudFront** | `d1pfm520aduift.cloudfront.net` | JSON data exports (health, sleep, books, etc.) | 5min (s-maxage) |
-| **Workbox SW** | Both (separate rules) | Local images (CacheFirst 30d), CloudFront JSON (StaleWhileRevalidate 5min) | Per strategy |
+| **Workbox SW** | Both (separate rules) | Local images (CacheFirst 30d), CloudFront JSON (NetworkFirst 3s timeout) | Per strategy |
 
-**JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d1pfm520aduift.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. Poll requests (`?_poll=1`) also bypass the Workbox service worker entirely.
+**JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d1pfm520aduift.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. All JSON fetches use `cache: 'no-store'` to bypass the browser HTTP cache. The SW uses `NetworkFirst` (3s timeout) so fresh data is always served when online, with cached fallback only when offline. Poll requests (`?_poll=1`) bypass the Workbox service worker entirely. A `pageshow` listener triggers `pollNow()` on bfcache restoration to refresh data when frozen tabs are restored.
 
 **Deploy pipeline:** Push to `master` → Build Astro → Deploy to GitHub Pages → Purge entire Cloudflare cache + Check for new images (parallel).
 

@@ -22,7 +22,7 @@ export async function fetchWithTimeout<T>(url: string, timeoutMs: number = 5000)
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
     if (!res.ok) return null;
     return await res.json() as T;
   } catch {

@@ -31,6 +31,7 @@ const LIVE_CARDS = [
 let lastHealth: HealthExport | undefined;
 let lastSleep: SleepExport | undefined;
 const timestamps: Record<string, string | null> = {};
+let engine: PollEngine | null = null;
 
 // ── Per-resource incremental update dispatch ─────────────────────────
 function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
@@ -188,7 +189,7 @@ const startFetch = async () => {
   if (fallbackTimer) clearTimeout(fallbackTimer);
 
   // ── Start continuous polling ───────────────────────────────────────
-  const engine = new PollEngine({
+  engine = new PollEngine({
     onUpdate: handleResourceUpdate,
     onError: (key, err) => console.warn(`[poll] ${key} error:`, err.message),
     onStatusChange: updatePollStatus,
@@ -202,11 +203,11 @@ const startFetch = async () => {
     onUpdate: (resource) => {
       const key = resource as ResourceKey;
       if (key in ENDPOINTS) {
-        engine.pollResource(key).catch(() => {});
+        engine!.pollResource(key).catch(() => {});
       }
     },
     onStateChange: (connected) => {
-      engine.setMode(connected ? 'passive' : 'active');
+      engine!.setMode(connected ? 'passive' : 'active');
     },
   });
   ws.connect();
@@ -217,3 +218,10 @@ if ('requestIdleCallback' in window) {
 } else {
   setTimeout(startFetch, 200);
 }
+
+// ── bfcache restoration — refresh data without full page reload ──────
+window.addEventListener('pageshow', (event) => {
+  if ((event as PageTransitionEvent).persisted && engine) {
+    engine.pollNow();
+  }
+});

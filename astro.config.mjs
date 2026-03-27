@@ -120,12 +120,14 @@ export default defineConfig({
             }
           },
           {
-            // CloudFront JSON data — StaleWhileRevalidate for instant repeat visits
+            // CloudFront JSON data — NetworkFirst for guaranteed freshness
             // Poll requests (?_poll=1) bypass the SW entirely via negative lookahead
             urlPattern: /^https:\/\/d1pfm520aduift\.cloudfront\.net\/(?!.*[?&]_poll=).*\.json$/,
-            handler: 'StaleWhileRevalidate',
+            handler: 'NetworkFirst',
             options: {
               cacheName: 'live-data',
+              networkTimeoutSeconds: 3,
+              fetchOptions: { cache: 'no-store' },
               expiration: { maxAgeSeconds: 300 }
             }
           }
