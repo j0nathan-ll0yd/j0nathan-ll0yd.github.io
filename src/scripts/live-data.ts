@@ -2,9 +2,9 @@ import { fetchAllEndpoints, fetchWithTimeout } from '../lib/api';
 import { updateFocusOverlay } from '../lib/updaters-focus';
 import { updateTheatreReviews } from '../lib/updaters-theatre';
 import { updatePollStatus } from '../lib/updaters-status';
-import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, LocationExport, FocusExport, TheatreReviewsExport } from '../types/exports';
+import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, GithubStarredReposExport, ArticlesExport, LocationExport, FocusExport, TheatreReviewsExport } from '../types/exports';
 import { CLOUDFRONT_BASE, ENDPOINTS, WEBSOCKET_URL } from '../lib/constants';
-import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents, adaptArticles } from '../lib/adapters';
+import { adaptHealth, adaptSleep, adaptWorkouts, adaptBooks, adaptGithubEvents, adaptStarredRepos, adaptArticles } from '../lib/adapters';
 import { WSClient } from '../lib/ws-client';
 import {
   updateHeartRate,
@@ -15,6 +15,7 @@ import {
   updateBookshelf,
   updateDevActivityLog,
   updateReadingFeed,
+  updateStarredRepos,
   updateSystemStatus,
 } from '../lib/updaters';
 import { updatePlaceLeaderboardV3 } from '../lib/updaters-leaderboard-variations';
@@ -23,7 +24,7 @@ import { PollEngine, type ResourceKey } from '../lib/poll-engine';
 
 const LIVE_CARDS = [
   'cardHR', 'cardSteps', 'cardSleep', 'cardHydration', 'cardBooks', 'cardDevLog', 'cardReading',
-  'cardTheatreReviews',
+  'cardStarredRepos', 'cardTheatreReviews',
   ...(import.meta.env.DEV ? ['cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'] : []),
 ];
 
@@ -79,7 +80,7 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
         updateTheatreReviews(rawData as TheatreReviewsExport);
         break;
       case 'starredRepos':
-        // Only used for its generatedAt timestamp (already extracted above)
+        updateStarredRepos(adaptStarredRepos(rawData as GithubStarredReposExport));
         break;
     }
 
@@ -171,6 +172,14 @@ const startFetch = async () => {
       updateExplorationOdometerV3(data.location);
     } catch (e) {
       console.warn('[live-data] Location update failed:', e);
+    }
+  }
+
+  if (data.starredRepos) {
+    try {
+      updateStarredRepos(adaptStarredRepos(data.starredRepos));
+    } catch (e) {
+      console.warn('[live-data] Starred repos update failed:', e);
     }
   }
 

@@ -1,6 +1,7 @@
 import { classifyHeartRate, classifyHRV } from './heart-rate';
 import { HYDRATION } from './constants';
-import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
+import type { AdaptedHealth, AdaptedSleep, AdaptedBooks, AdaptedGithubEvent, AdaptedStarredRepo, BookMeta, WorkoutEntry, AdaptedArticle } from './adapters';
+import { LANG_COLORS } from './constants';
 import type { LocationExport } from '../types/exports';
 import { imgFallbackAttrs, localizeImageUrl } from './image-utils';
 
@@ -1026,4 +1027,33 @@ export function updateBookshelf(data: AdaptedBooks): void {
   }
 
   document.getElementById('cardBooks')?.classList.remove('is-loading');
+}
+
+export function updateStarredRepos(repos: AdaptedStarredRepo[]): void {
+  const card = document.getElementById('cardStarredRepos');
+  if (!card) return;
+
+  if (!repos || repos.length === 0) return;
+
+  const list = card.querySelector('.gh-starred-list');
+  if (!list) return;
+
+  let html = '';
+  repos.forEach((repo) => {
+    const color = LANG_COLORS[repo.language] || repo.languageColor || '#8b949e';
+    html += '<div class="gh-sl-row">';
+    html += '<a class="gh-sl-name" href="' + esc(repo.url) + '" target="_blank" rel="noopener noreferrer" data-sa-link-event="repo_click">';
+    html += '<span class="gh-sl-owner">' + esc(repo.owner) + '/</span>' + esc(repo.name);
+    html += '</a>';
+    html += '<span class="gh-sl-stars">&#9733; ' + repo.stars.toLocaleString() + '</span>';
+    html += '<span class="gh-sl-lang">';
+    html += '<span class="gh-sl-lang-dot" style="background: ' + color + ';"></span>';
+    html += esc(repo.language);
+    html += '</span>';
+    html += '<span class="gh-sl-date">' + esc(repo.starredAt) + '</span>';
+    html += '</div>';
+  });
+  list.innerHTML = html;
+
+  card.classList.remove('is-loading');
 }
