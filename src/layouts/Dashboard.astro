@@ -26,6 +26,10 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="author" content="Jonathan Lloyd">
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
+  <!-- LLM-friendly alternate versions (backend-composed live on CloudFront) -->
+  <link rel="alternate" type="text/markdown" href="https://d1pfm520aduift.cloudfront.net/llms-full.txt" title="LLM-friendly complete content">
+  <link rel="alternate" type="text/markdown" href="https://d1pfm520aduift.cloudfront.net/llms-small.txt" title="LLM-friendly current-state snapshot">
+  <link rel="alternate" type="text/markdown" href="https://jonathanlloyd.me/llms.txt" title="LLM discovery index">
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="apple-touch-icon" href="/assets/icon-192.png">
@@ -102,6 +106,102 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
         ],
         "knowsLanguage": ["en"],
         "description": "Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric."
+      },
+      {
+        "@type": "Dataset",
+        "@id": siteUrl + "#datastream",
+        "name": "Human Datastream",
+        "description": "Live biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON.",
+        "creator": { "@id": siteUrl + "#person" },
+        "license": "https://jonathanlloyd.me",
+        "isAccessibleForFree": true,
+        "variableMeasured": [
+          "Resting heart rate (7-day aggregate)",
+          "Heart rate variability (7-day aggregate)",
+          "Sleep phases and efficiency (7-day aggregate)",
+          "Hydration (7-day aggregate)",
+          "Activity and workouts (7-day aggregate)",
+          "GitHub commits and repositories",
+          "Books read and currently reading",
+          "Articles starred",
+          "Theatre reviews"
+        ],
+        "distribution": [
+          {
+            "@type": "DataDownload",
+            "name": "LLM discovery index",
+            "encodingFormat": "text/markdown",
+            "contentUrl": "https://jonathanlloyd.me/llms.txt"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "LLM current-state snapshot",
+            "encodingFormat": "text/markdown",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/llms-small.txt"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "LLM complete content",
+            "encodingFormat": "text/markdown",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/llms-full.txt"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Health JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/health.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Sleep JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/sleep.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "GitHub events JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/github-events.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "GitHub starred repos JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Books JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/books.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Articles JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/articles.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Theatre reviews JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Workouts JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/workouts.json"
+          },
+          {
+            "@type": "DataDownload",
+            "name": "Location JSON",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://d1pfm520aduift.cloudfront.net/location.json"
+          }
+        ],
+        "temporalCoverage": "2026-03-04/..",
+        "inLanguage": "en-US"
       }
     ]
   })} />

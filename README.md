@@ -155,6 +155,13 @@ The visual language is built on a dark sci-fi aesthetic with glass-morphism card
 - [Simple Analytics](https://simpleanalytics.com) -- Privacy-focused analytics
 - [Playwright](https://playwright.dev) -- Visual regression testing
 
+## LLM-optimized content
+
+This site publishes an LLM discovery index at [`/llms.txt`](https://jonathanlloyd.me/llms.txt).
+Rich variants (current-state snapshot and complete data dump) are composed by
+the backend on data-change events and served from CloudFront. See
+[LLM Content Spec](docs/wiki/LLM-Content-Spec.md) for the full format.
+
 ## Documentation
 
 Detailed documentation is available in [`docs/wiki/`](docs/wiki/Home.md) and on the [GitHub Wiki](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki):
@@ -162,3 +169,4 @@ Detailed documentation is available in [`docs/wiki/`](docs/wiki/Home.md) and on 
 - [Astro Implementation](docs/wiki/Astro-Implementation.md) -- Architecture, components, data flow
 - [Brand Guide](docs/wiki/Brand-Guide.md) -- Colors, typography, glass-morphism, widget structure
 - [Why Astro](docs/wiki/Why-Astro.md) -- Framework evaluation and decision rationale
+- [LLM Content Spec](docs/wiki/LLM-Content-Spec.md) -- LLM content surface, file inventory, freshness

@@ -4,48 +4,49 @@
 
 ## About
 
-Jonathan Lloyd is an engineering director and backend engineer based in San Francisco with 24+ years of professional experience. His portfolio site is designed as a sci-fi "Human Datastream" dashboard -- a single-page application that visualizes real-time personal data across two domains: Body and Mind.
+Jonathan Lloyd is an engineering director and backend engineer based in San Francisco with 24+ years of professional experience. His portfolio site is a sci-fi "Human Datastream" dashboard -- a single-page application that visualizes real-time personal data across two domains: Body and Mind.
 
 - Site: https://jonathanlloyd.me
 - GitHub: https://github.com/j0nathan-ll0yd
 - LinkedIn: https://www.linkedin.com/in/lifegames/
 
-## Site Structure
+## Live LLM-optimized content
 
-The dashboard is a single page organized as a split-panel layout:
+Auto-composed by the backend whenever source data changes. These files are always fresher than this static discovery index. Body metrics use 7-day aggregates only; GitHub, books, reading, and theatre use full granularity.
 
-- **Left Panel (Identity)**: Profile card with avatar, name, title, location, and social links. Bio terminal with a typing animation displaying skills and experience. System status indicators.
-- **Top Bar**: "Human Datastream" title and live clock.
-- **Body Column**: Heart rate with live ECG animation, daily activity (steps, distance, calories), workouts, sleep/night summary, hydration tracking.
-- **Mind Column**: GitHub developer activity log, reading feed (RSS articles), starred repositories, bookshelf with book covers, theatre reviews.
+- [llms-small.txt (~5 KB)](https://d1pfm520aduift.cloudfront.net/llms-small.txt) -- Current-state snapshot: profile, body aggregates, last 7 days of coding and reading activity, current book
+- [llms-full.txt (~20 KB)](https://d1pfm520aduift.cloudfront.net/llms-full.txt) -- Complete data dump: all domains as structured markdown with tables and source citations
+- [index.md](https://d1pfm520aduift.cloudfront.net/index.md) -- Markdown alias of llms-full.txt for agents expecting .md extensions
 
-## Data Sources
+## Canonical JSON
 
-All data is loaded from JSON files at build time:
+The backend composes the markdown variants from these live JSON sources. LLMs that prefer raw machine-readable data can fetch them directly:
 
-- `profile.json` -- Name, title, bio, avatar, social links
-- `health.json` -- Heart rate, steps, sleep, hydration, workouts
-- `github.json` -- Contribution heatmap, recent commits, developer activity
-- `books.json` -- Bookshelf with covers, authors, reading status
-- `reading.json` -- RSS/article feed items
-- `system.json` -- System status indicators
+- https://d1pfm520aduift.cloudfront.net/health.json -- biometrics (heart rate, HRV, activity, workouts)
+- https://d1pfm520aduift.cloudfront.net/sleep.json -- sleep phases and efficiency
+- https://d1pfm520aduift.cloudfront.net/focus.json -- focus / Do Not Disturb state
+- https://d1pfm520aduift.cloudfront.net/github-events.json -- dev activity, languages, contributions, recent commits
+- https://d1pfm520aduift.cloudfront.net/github-starred-repos.json -- starred repositories
+- https://d1pfm520aduift.cloudfront.net/books.json -- bookshelf with status, ratings, progress
+- https://d1pfm520aduift.cloudfront.net/articles.json -- article feed items
+- https://d1pfm520aduift.cloudfront.net/theatre-reviews.json -- theatre reviews
+- https://d1pfm520aduift.cloudfront.net/workouts.json -- workout sessions and summaries
+- https://d1pfm520aduift.cloudfront.net/location.json -- location aggregates and place summaries
 
-Live data is fetched at runtime from a CloudFront-backed API for starred repos and polling updates.
+All endpoints are served with `Cache-Control: public, s-maxage=300` (5-minute edge TTL).
 
 ## Technology
 
 - **Framework**: Astro 5.x (static site generation, 0 KB JS by default)
-- **Interactivity**: Three.js (particle background), Leaflet (map widget), inline ES5 scripts for animations
-- **Design**: Glass-morphism aesthetic on dark background (#06060f), Space Grotesk typography, fluid clamp() responsive tokens, CSS Container Queries
-- **PWA**: @vite-pwa/astro for offline support
-- **Hosting**: GitHub Pages via GitHub Actions
-- **Analytics**: Simple Analytics (privacy-focused)
+- **Hosting**: GitHub Pages via GitHub Actions, fronted by Cloudflare CDN
+- **Live data**: CloudFront-backed JSON API polled at runtime by the dashboard; same JSON composed into LLM-friendly markdown by the backend
+- **Design**: Glass-morphism, dark theme, fluid `clamp()` responsive tokens, CSS container queries
 
 ## Documentation
 
+- [Wiki: LLM Content Spec](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec) -- Format, URLs, freshness, Level 2 health constraint
 - [Wiki: Architecture](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Astro-Implementation) -- Components, data flow, build system
-- [Wiki: Brand Guide](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Brand-Guide) -- Colors, typography, glass-morphism, widget structure
-- [Wiki: Why Astro](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Why-Astro) -- Framework evaluation and decision rationale
+- [Wiki: Brand Guide](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/Brand-Guide) -- Colors, typography, glass-morphism
 
 ## Expertise
 

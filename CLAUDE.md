@@ -36,8 +36,10 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 - `ogDescription` is a separate prop from `description` -- allows longer copy for social cards vs. Google snippet
 - JSON-LD `Person.description` is hardcoded (not the meta description prop) -- richer, personality-forward copy for structured data
 - Keywords meta tag targets Bing/DuckDuckGo (Google ignores it)
-- `robots.txt` blocks AI scraping bots (GPTBot, ClaudeBot, CCBot, etc.) but allows search engines and AI search (PerplexityBot, OAI-SearchBot)
-- `llms.txt` provides structured site context for LLMs per the llmstxt.org spec at https://jonathanlloyd.me/llms.txt
+- `robots.txt` blocks AI scraping bots (GPTBot, ClaudeBot, CCBot, etc.) but allows search engines and AI search (PerplexityBot, OAI-SearchBot); each blocked bot has `Allow: /llms.txt` before `Disallow: /` (Option A)
+- `llms.txt` is a **discovery index** (not complete content) — it points at backend-composed rich variants on CloudFront: `llms-small.txt`, `llms-full.txt`, `index.md`. See `docs/wiki/LLM-Content-Spec.md` for the full spec.
+- Rich LLM content (`llms-small.txt`, `llms-full.txt`, `index.md`) lives on CloudFront at `d1pfm520aduift.cloudfront.net` and is composed by the backend Lambda on data-change events — do not hand-edit these files here; edits will be overwritten on the next compose run
+- Keep `public/llms.txt` aligned with the backend composer spec in `docs/wiki/LLM-Content-Spec.md` when changing canonical URLs or data sources
 
 ## Repository Structure
 
