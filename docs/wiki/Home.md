@@ -22,6 +22,7 @@ Deployment is automatic via GitHub Actions on push to `master`.
 - **[Brand Guide](Brand-Guide.md)** -- Colors, typography, glass-morphism, widget structure, responsive breakpoints
 - **[Widget Specification](Widget-Specification.md)** -- Requirements, testing, and compliance for all widgets
 - **[Why Astro](Why-Astro.md)** -- Framework evaluation and decision rationale
+- **[LLM Content Spec](LLM-Content-Spec.md)** -- LLM-optimized content surface, file inventory, freshness expectations, Level 2 health granularity constraint
 
 ## Technology Stack
 

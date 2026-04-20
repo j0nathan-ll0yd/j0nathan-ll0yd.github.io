@@ -2,32 +2,44 @@
 User-agent: *
 Allow: /
 
-# AI scraping/training bots -- blocked
+# AI scraping/training bots -- blocked from visual dashboard,
+# LLM discovery index (/llms.txt) allowed per Option A of the
+# LLM Content Delivery plan. Rich variants live on CloudFront
+# (see /llms.txt for URLs) and are governed separately.
 User-agent: GPTBot
+Allow: /llms.txt
 Disallow: /
 
 User-agent: ClaudeBot
+Allow: /llms.txt
 Disallow: /
 
 User-agent: CCBot
+Allow: /llms.txt
 Disallow: /
 
 User-agent: Google-Extended
+Allow: /llms.txt
 Disallow: /
 
 User-agent: anthropic-ai
+Allow: /llms.txt
 Disallow: /
 
 User-agent: Bytespider
+Allow: /llms.txt
 Disallow: /
 
 User-agent: Meta-ExternalAgent
+Allow: /llms.txt
 Disallow: /
 
 User-agent: Applebot-Extended
+Allow: /llms.txt
 Disallow: /
 
 User-agent: Amazonbot
+Allow: /llms.txt
 Disallow: /
 
 # AI search bots -- allowed (PerplexityBot, OAI-SearchBot, ChatGPT-User inherit from *)
