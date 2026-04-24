@@ -34,11 +34,20 @@ function extractImageUrls(booksData, theatreData) {
       if (book.mainImage?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(book.mainImage);
       }
+      if (book.mainImageAvif?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(book.mainImageAvif);
+      }
       if (book.mainImageThumb?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(book.mainImageThumb);
       }
+      if (book.mainImageThumbAvif?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(book.mainImageThumbAvif);
+      }
       if (book.mainImageCard?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(book.mainImageCard);
+      }
+      if (book.mainImageCardAvif?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(book.mainImageCardAvif);
       }
     }
   }
@@ -48,8 +57,14 @@ function extractImageUrls(booksData, theatreData) {
       if (review.imageUrl?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(review.imageUrl);
       }
+      if (review.imageUrlAvif?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(review.imageUrlAvif);
+      }
       if (review.imageUrlCard?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
         urls.push(review.imageUrlCard);
+      }
+      if (review.imageUrlCardAvif?.startsWith(`${CLOUDFRONT_BASE}/images/`)) {
+        urls.push(review.imageUrlCardAvif);
       }
     }
   }

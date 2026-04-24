@@ -81,7 +81,14 @@ function hasLocalImage(asin: string): boolean {
         return (
           <li class={`shelf-book${b.status === 'in_progress' ? ' shelf-book-active' : ''}`} style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" aria-label={`${b.title} by ${b.author}`}>
             <div class="shelf-cover-wrapper">
-              <img src={imgSrc} srcset={imgSrcset} width="80" height="120" alt={b.title} loading="lazy" data-fallback={fallbackAttr} onerror={fallbackAttr ? "this.srcset='';this.src=this.dataset.fallback;this.onerror=null" : undefined}>
+              {b.coverAvif ? (
+                <picture>
+                  <source srcset={`${b.coverCardAvif} 1x, ${b.coverThumbAvif} 2x`} type="image/avif" />
+                  <img src={imgSrc} srcset={imgSrcset} width="80" height="120" alt={b.title} loading="lazy" decoding="async" data-fallback={fallbackAttr} onerror={fallbackAttr ? "this.srcset='';this.src=this.dataset.fallback;this.onerror=null" : undefined} />
+                </picture>
+              ) : (
+                <img src={imgSrc} srcset={imgSrcset} width="80" height="120" alt={b.title} loading="lazy" decoding="async" data-fallback={fallbackAttr} onerror={fallbackAttr ? "this.srcset='';this.src=this.dataset.fallback;this.onerror=null" : undefined} />
+              )}
             </div>
             <div class="shelf-book-title"><span>{b.title}</span></div>
             <div class="shelf-book-author">{b.author}</div>

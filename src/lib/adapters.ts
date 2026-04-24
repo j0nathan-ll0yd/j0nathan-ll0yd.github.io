@@ -94,6 +94,9 @@ export interface AdaptedBookEntry {
   cover: string | null;
   coverThumb: string | null;
   coverCard: string | null;
+  coverAvif: string | null;
+  coverThumbAvif: string | null;
+  coverCardAvif: string | null;
   notes: string | null;
 }
 
@@ -329,6 +332,9 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
       cover: localizeImageUrl(b.mainImage ?? null),
       coverThumb: localizeImageUrl(b.mainImageThumb ?? null),
       coverCard: localizeImageUrl((b as any).mainImageCard ?? null),
+      coverAvif: localizeImageUrl((b as any).mainImageAvif ?? null),
+      coverThumbAvif: localizeImageUrl((b as any).mainImageThumbAvif ?? null),
+      coverCardAvif: localizeImageUrl((b as any).mainImageCardAvif ?? null),
       notes: b.notes ?? null,
     };
   });

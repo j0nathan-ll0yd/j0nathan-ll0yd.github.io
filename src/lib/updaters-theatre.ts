@@ -33,9 +33,13 @@ export function updateTheatreReviews(data: TheatreReviewsExport): void {
       const cardUrl = localizeImageUrl((r as any).imageUrlCard ?? null);
       const fallback = imgFallbackAttrs(cardUrl || localSrc, r.imageUrl);
       if (cardUrl) {
-        html += `<img src="${esc(cardUrl)}" srcset="${esc(cardUrl)} 1x, ${esc(localSrc ?? r.imageUrl)} 2x" width="95" height="143" alt="${esc(r.title)}" loading="lazy" referrerpolicy="no-referrer"${fallback}>`;
+        var avifSrc = r.imageUrlCardAvif ? ('<source srcset="' + esc(r.imageUrlCardAvif) + ' 1x, ' + esc(r.imageUrlAvif ?? r.imageUrl) + ' 2x" type="image/avif">') : '';
+        var imgTag = '<img src="' + esc(cardUrl) + '" srcset="' + esc(cardUrl) + ' 1x, ' + esc(localSrc ?? r.imageUrl) + ' 2x" width="95" height="143" alt="' + esc(r.title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer"' + fallback + '>';
+        html += avifSrc ? ('<picture>' + avifSrc + imgTag + '</picture>') : imgTag;
       } else {
-        html += `<img src="${esc(localSrc ?? r.imageUrl)}" width="95" height="143" alt="${esc(r.title)}" loading="lazy" referrerpolicy="no-referrer"${fallback}>`;
+        var avifSrc = r.imageUrlAvif ? ('<source srcset="' + esc(r.imageUrlAvif) + '" type="image/avif">') : '';
+        var imgTag = '<img src="' + esc(localSrc ?? r.imageUrl) + '" width="95" height="143" alt="' + esc(r.title) + '" loading="lazy" decoding="async" referrerpolicy="no-referrer"' + fallback + '>';
+        html += avifSrc ? ('<picture>' + avifSrc + imgTag + '</picture>') : imgTag;
       }
     }
     if (r.rating) {

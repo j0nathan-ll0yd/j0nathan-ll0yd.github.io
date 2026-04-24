@@ -1006,7 +1006,16 @@ export function updateBookshelf(data: AdaptedBooks): void {
       html += '<div class="shelf-book' + activeClass + '" style="animation-delay: ' + (i * 0.08) + 's" data-book=\'' + bookData.replace(/'/g, '&#39;') + '\' tabindex="0" aria-label="' + esc(b.title) + ' by ' + esc(b.author) + '">';
       html += '<div class="shelf-cover-wrapper">';
       const srcsetAttr = displayCardSrc ? ' srcset="' + esc(displayCardSrc) + ' 1x, ' + esc(displayCoverSrc) + ' 2x"' : '';
-      html += '<img src="' + esc(displayCardSrc || displayCoverSrc) + '"' + srcsetAttr + ' width="80" height="120" alt="' + esc(b.title) + '" loading="lazy"' + imgFallbackAttrs(displayCardSrc || displayCoverSrc, b.cover) + '>';
+      var avifSrcset = '';
+      if (b.coverCardAvif && b.coverThumbAvif) {
+        avifSrcset = ' srcset="' + esc(b.coverCardAvif) + ' 1x, ' + esc(b.coverThumbAvif) + ' 2x" type="image/avif"';
+      }
+      var imgAttrs = 'src="' + esc(displayCardSrc || displayCoverSrc) + '"' + srcsetAttr + ' width="80" height="120" alt="' + esc(b.title) + '" loading="lazy" decoding="async"' + imgFallbackAttrs(displayCardSrc || displayCoverSrc, b.cover);
+      if (avifSrcset) {
+        html += '<picture><source' + avifSrcset + '><img ' + imgAttrs + '></picture>';
+      } else {
+        html += '<img ' + imgAttrs + '>';
+      }
       html += '</div>';
       html += '<div class="shelf-book-title"><span>' + esc(b.title) + '</span></div>';
       html += '<div class="shelf-book-author">' + esc(b.author) + '</div>';
