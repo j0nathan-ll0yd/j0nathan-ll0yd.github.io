@@ -18,3 +18,16 @@ export function imgFallbackAttrs(localSrc: string | null, originalUrl: string | 
   if (!originalUrl || !localSrc || localSrc === originalUrl) return '';
   return ` data-fallback="${originalUrl}" onerror="this.srcset='';this.src=this.dataset.fallback;this.onerror=null"`;
 }
+
+/** Build <picture> markup for an image with AVIF + WebP sources.
+ *  Returns HTML string suitable for both Astro templates and ES5 inline scripts. */
+export function pictureWithAvif(opts: {
+  avifSrcset: string | null;
+  imgAttrs: string;
+}): string {
+  if (opts.avifSrcset) {
+    return '<picture><source srcset="' + opts.avifSrcset + '" type="image/avif">' +
+           '<img ' + opts.imgAttrs + '></picture>';
+  }
+  return '<img ' + opts.imgAttrs + '>';
+}
