@@ -18,7 +18,7 @@ This is Astro's **islands architecture**: the page is static HTML with selective
 
 ### GitHub Actions Deployment
 
-`.github/workflows/deploy.yml` uses the official `withastro/action@v3` to build and `actions/deploy-pages@v4` to deploy to GitHub Pages on every push to `master`.
+`.github/workflows/deploy.yml` uses the official `withastro/action@v3` to build and `actions/deploy-pages@v4` to deploy to GitHub Pages on every push to `main`.
 
 ## Data Flow
 

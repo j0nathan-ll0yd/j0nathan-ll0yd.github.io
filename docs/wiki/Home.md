@@ -14,7 +14,7 @@ npm run build     # Outputs to dist/
 npm run preview   # Preview build locally
 ```
 
-Deployment is automatic via GitHub Actions on push to `master`.
+Deployment is automatic via GitHub Actions on push to `main`.
 
 ## Documentation
 

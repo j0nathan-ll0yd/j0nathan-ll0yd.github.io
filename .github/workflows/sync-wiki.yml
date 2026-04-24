@@ -2,7 +2,7 @@ name: Sync Wiki
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - 'docs/wiki/**'
       - '.github/scripts/sync-wiki.sh'
@@ -61,7 +61,7 @@ jobs:
           cat > wiki/_Footer.md << 'EOF'
           ---
 
-          *This wiki is automatically synced from the [main repository](https://github.com/${{ github.repository }}/tree/master/docs/wiki). To make changes, edit the files in `docs/wiki/` and submit a pull request.*
+          *This wiki is automatically synced from the [main repository](https://github.com/${{ github.repository }}/tree/main/docs/wiki). To make changes, edit the files in `docs/wiki/` and submit a pull request.*
           EOF
 
       - name: Commit and push wiki changes

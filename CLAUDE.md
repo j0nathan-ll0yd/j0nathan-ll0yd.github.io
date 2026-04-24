@@ -193,7 +193,7 @@ Three independent caching layers operating on separate domains with zero overlap
 
 **JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d1pfm520aduift.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. All JSON fetches use `cache: 'no-store'` to bypass the browser HTTP cache. The SW uses `NetworkFirst` (3s timeout) so fresh data is always served when online, with cached fallback only when offline. Poll requests (`?_poll=1`) bypass the Workbox service worker entirely. A `pageshow` listener triggers `pollNow()` on bfcache restoration to refresh data when frozen tabs are restored.
 
-**Deploy pipeline:** Push to `master` → Build Astro → Deploy to GitHub Pages → Purge entire Cloudflare cache + Check for new images (parallel).
+**Deploy pipeline:** Push to `main` → Build Astro → Deploy to GitHub Pages → Purge entire Cloudflare cache + Check for new images (parallel).
 
 **Cloudflare cache rules** (configured in dashboard, priority order):
 1. `/_astro/*` — 1 year edge + browser TTL (content-hashed, immutable)

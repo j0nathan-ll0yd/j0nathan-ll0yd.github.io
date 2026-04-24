@@ -13,7 +13,7 @@ npm run build     # outputs to dist/
 npm run preview   # preview production build
 ```
 
-Deploy: push to `master` triggers GitHub Actions (withastro/action@v3 -> deploy-pages@v4).
+Deploy: push to `main` triggers GitHub Actions (withastro/action@v3 -> deploy-pages@v4).
 
 ## Visual Regression Tests
 
