@@ -131,66 +131,45 @@ These settings must be configured in the Cloudflare dashboard for `jonathanlloyd
 
 #### 1. Transform Rule: Link Response Headers
 
-- **Path:** Rules > Transform Rules > Modify Response Header
+- **Path:** Rules > Rules Overview > Create rule > Response Header Transform Rule
 - **Match:** Hostname equals `jonathanlloyd.me` AND URI Path equals `/`
 - **Action:** Add static header
 - **Header:** `Link`
 - **Value:** `</llms.txt>; rel="describedby"; type="text/plain", </.well-known/api-catalog>; rel="api-catalog", </sitemap-index.xml>; rel="sitemap"`
 
-#### 2. Cloudflare Worker: API Catalog Content-Type
+#### 2. Cloudflare Worker: API Catalog Content-Type ✅ DONE
 
 Cloudflare Transform Rules cannot modify the `Content-Type` response header. A Worker is required instead.
 
-- **Path:** Workers & Pages > Create Worker
-- **Route:** `jonathanlloyd.me/.well-known/api-catalog`
-- **Script:**
+Worker code lives in `cloudflare/api-catalog-content-type.js` with `cloudflare/wrangler.toml`. Deployed via `cd cloudflare && wrangler deploy`. Route: `jonathanlloyd.me/.well-known/api-catalog`.
 
-```javascript
-export default {
-  async fetch(request) {
-    var url = new URL(request.url);
-    if (url.pathname === '/.well-known/api-catalog') {
-      var response = await fetch(request);
-      var newResponse = new Response(response.body, response);
-      newResponse.headers.set('Content-Type',
-        'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"');
-      return newResponse;
-    }
-    return fetch(request);
-  }
-};
-```
-
-GitHub Pages serves extensionless files as `application/octet-stream`. This Worker overrides it to the RFC 9727-required content type. Free tier (100k req/day) is sufficient.
-
-**Alternative:** Test without the Worker first -- the scanner may pass on a 200 response with valid JSON body regardless of Content-Type.
+GitHub Pages serves extensionless files as `application/octet-stream`. This Worker overrides it to `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`. Free tier (100k req/day) is sufficient.
 
 #### 3. Markdown for Agents
 
-- **Path:** AI Crawl Control > Quick Actions (or Rules > Configuration Rules)
-- **Action:** Enable "Markdown for Agents" toggle
-- **Note:** May require Cloudflare Pro plan. When enabled, Cloudflare automatically returns `text/markdown` when agents send `Accept: text/markdown`.
+- **Path:** AI Crawl Control > toggle "Markdown for Agents"
+- **Note:** Requires Cloudflare Pro or Business plan. When enabled, Cloudflare automatically returns `text/markdown` when agents send `Accept: text/markdown`.
 
 ### Score Breakdown
 
-With all static files deployed and Cloudflare configured:
+#### Current (2026-04-24, post-deploy): 88/100
 
 | Check | Status | Notes |
 |---|---|---|
 | robots.txt | PASS | Already passing |
 | Sitemap | PASS | Already passing |
-| Link headers | PASS | Requires Cloudflare Transform Rule |
-| Markdown Negotiation | PASS | Requires Cloudflare Markdown for Agents |
+| Link headers | FAIL | Requires Cloudflare Transform Rule (manual) |
+| Markdown Negotiation | FAIL | Requires Cloudflare Markdown for Agents (Pro plan) |
 | AI bot rules | PASS | Already passing |
 | Content Signals | PASS | Added to robots.txt |
-| API Catalog | PASS | Static file + Cloudflare Content-Type rule |
+| API Catalog | PASS | Worker deployed, Content-Type: application/linkset+json |
 | OAuth/OIDC | SKIP | No auth surface (static portfolio) |
 | OAuth Protected Resource | SKIP | No auth surface (static portfolio) |
 | MCP Server Card | PASS | Static JSON file |
 | Agent Skills | PASS | Static JSON + SKILL.md |
 | WebMCP | PASS | Inline ES5 script with feature detection |
 
-**Projected score:** 83/100 (10/12 checks). OAuth checks are N/A for a static site with no protected APIs.
+#### Maximum possible (after Link headers + Markdown): 100/100 (10/10 scored)
 
 ## Consumers
 
