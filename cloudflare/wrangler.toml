@@ -1,0 +1,10 @@
+name = "api-catalog-content-type"
+main = "api-catalog-content-type.js"
+compatibility_date = "2026-04-24"
+
+[[routes]]
+pattern = "jonathanlloyd.me/*"
+zone_name = "jonathanlloyd.me"
+
+[observability]
+enabled = true

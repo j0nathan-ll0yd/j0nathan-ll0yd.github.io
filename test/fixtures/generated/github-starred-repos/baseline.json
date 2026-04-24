@@ -1,4 +1,45 @@
 {
   "generatedAt": "2026-03-18T01:54:55.431Z",
-  "repos": []
+  "repos": [
+    {
+      "ownerLogin": "code-yeongyu",
+      "name": "oh-my-openagent",
+      "htmlUrl": "https://github.com/code-yeongyu/oh-my-openagent",
+      "stargazersCount": 53920,
+      "languages": [{ "language": "JavaScript", "color": "#f1e05a" }],
+      "starredAt": "2026-03-17T12:00:00Z"
+    },
+    {
+      "ownerLogin": "zindexai",
+      "name": "zindex",
+      "htmlUrl": "https://github.com/zindexai/zindex",
+      "stargazersCount": 5,
+      "languages": [],
+      "starredAt": "2026-03-16T12:00:00Z"
+    },
+    {
+      "ownerLogin": "memvid",
+      "name": "claude-brain",
+      "htmlUrl": "https://github.com/memvid/claude-brain",
+      "stargazersCount": 465,
+      "languages": [{ "language": "TypeScript", "color": "#3178c6" }],
+      "starredAt": "2026-03-16T08:00:00Z"
+    },
+    {
+      "ownerLogin": "alienplatform",
+      "name": "alien",
+      "htmlUrl": "https://github.com/alienplatform/alien",
+      "stargazersCount": 151,
+      "languages": [{ "language": "Shell", "color": "#89e051" }],
+      "starredAt": "2026-03-15T20:00:00Z"
+    },
+    {
+      "ownerLogin": "macOS26",
+      "name": "Agent",
+      "htmlUrl": "https://github.com/macOS26/Agent",
+      "stargazersCount": 380,
+      "languages": [{ "language": "HTML", "color": "#e34c26" }],
+      "starredAt": "2026-03-15T10:00:00Z"
+    }
+  ]
 }

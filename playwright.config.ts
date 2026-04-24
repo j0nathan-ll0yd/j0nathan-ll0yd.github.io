@@ -17,6 +17,7 @@ export default defineConfig({
     url: 'http://localhost:4321/',
     timeout: 120_000,
     reuseExistingServer: !isCI,
+    env: { USE_FIXTURES: 'true' },
   },
 
   use: {

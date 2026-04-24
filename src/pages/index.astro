@@ -32,12 +32,25 @@ const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-
 const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
 
 let starredRepos: AdaptedStarredRepo[] = [];
-try {
-  const res = await fetch(`${CLOUDFRONT_BASE}${ENDPOINTS.starredRepos}`);
-  const json = await res.json();
-  starredRepos = adaptStarredRepos(json);
-} catch (err) {
-  console.warn('[build] Failed to fetch starred repos:', (err as Error).message);
+if (process.env.USE_FIXTURES === 'true') {
+  // Use local fixture for deterministic visual tests
+  const fixturePath = path.join(process.cwd(), 'test', 'fixtures', 'generated', 'github-starred-repos', 'baseline.json');
+  try {
+    const json = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+    // Use fixture generation time as "now" for stable relative dates
+    const fixtureNow = json.generatedAt ? new Date(json.generatedAt).getTime() : undefined;
+    starredRepos = adaptStarredRepos(json, fixtureNow);
+  } catch (err) {
+    console.warn('[build] Failed to read starred repos fixture:', (err as Error).message);
+  }
+} else {
+  try {
+    const res = await fetch(`${CLOUDFRONT_BASE}${ENDPOINTS.starredRepos}`);
+    const json = await res.json();
+    starredRepos = adaptStarredRepos(json);
+  } catch (err) {
+    console.warn('[build] Failed to fetch starred repos:', (err as Error).message);
+  }
 }
 ---
 <Dashboard>
