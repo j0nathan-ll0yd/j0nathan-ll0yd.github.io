@@ -101,6 +101,79 @@ The backend composer must pass these checks (implementation belongs to the backe
 6. **Spec conformance** -- H1 first, blockquote on line 3, required H2 sections present in order
 7. **index.md byte-identity** -- `sha256(dist/index.md) == sha256(dist/llms-full.txt)`
 
+## Agent Readiness (isitagentready.com)
+
+Beyond LLM content, the site publishes machine-readable discovery files for AI agents. These are static files in `public/.well-known/` that Astro copies to `dist/` at build time.
+
+### Static Discovery Files (in this repo)
+
+| File | Spec | Purpose |
+|---|---|---|
+| `public/.well-known/api-catalog` | RFC 9727 (linkset JSON) | Advertises CloudFront data API to agents |
+| `public/.well-known/mcp/server-card.json` | MCP SEP-2127 | Declares read-only data resources for MCP clients |
+| `public/.well-known/agent-skills/index.json` | Agent Skills Discovery v0.2.0 | Skills discovery index |
+| `public/.well-known/agent-skills/portfolio-expert/SKILL.md` | agentskills.io | Curated portfolio context for agents |
+
+### Content Signals
+
+`robots.txt` includes `Content-Signal: search=yes, ai-train=no, ai-input=yes` under `User-agent: *` per the IETF draft-romm-aipref-contentsignals spec. This declares:
+- Search indexing: allowed
+- AI model training: blocked
+- AI input/RAG/grounding: allowed
+
+### WebMCP
+
+`Dashboard.astro` registers browser-side tools via `navigator.modelContext.provideContext()` (W3C Community Draft). Feature-detected -- no-op in browsers without support. Tools: `get_profile`, `get_data_sources`, `get_current_reading`, `get_tech_stack`.
+
+### Cloudflare Configuration (manual, not in this repo)
+
+These settings must be configured in the Cloudflare dashboard for `jonathanlloyd.me`. They cannot be set from GitHub Pages.
+
+#### 1. Transform Rule: Link Response Headers
+
+- **Path:** Rules > Transform Rules > Modify Response Header
+- **Match:** Hostname equals `jonathanlloyd.me` AND URI Path equals `/`
+- **Action:** Add static header
+- **Header:** `Link`
+- **Value:** `</llms.txt>; rel="describedby"; type="text/plain", </.well-known/api-catalog>; rel="api-catalog", </sitemap-index.xml>; rel="sitemap"`
+
+#### 2. Transform Rule: API Catalog Content-Type
+
+- **Path:** Rules > Transform Rules > Modify Response Header
+- **Match:** URI Path equals `/.well-known/api-catalog`
+- **Action:** Set static header
+- **Header:** `Content-Type`
+- **Value:** `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`
+
+GitHub Pages serves extensionless files as `application/octet-stream`. This rule overrides it to the RFC 9727-required content type.
+
+#### 3. Markdown for Agents
+
+- **Path:** AI Crawl Control > Quick Actions (or Rules > Configuration Rules)
+- **Action:** Enable "Markdown for Agents" toggle
+- **Note:** May require Cloudflare Pro plan. When enabled, Cloudflare automatically returns `text/markdown` when agents send `Accept: text/markdown`.
+
+### Score Breakdown
+
+With all static files deployed and Cloudflare configured:
+
+| Check | Status | Notes |
+|---|---|---|
+| robots.txt | PASS | Already passing |
+| Sitemap | PASS | Already passing |
+| Link headers | PASS | Requires Cloudflare Transform Rule |
+| Markdown Negotiation | PASS | Requires Cloudflare Markdown for Agents |
+| AI bot rules | PASS | Already passing |
+| Content Signals | PASS | Added to robots.txt |
+| API Catalog | PASS | Static file + Cloudflare Content-Type rule |
+| OAuth/OIDC | SKIP | No auth surface (static portfolio) |
+| OAuth Protected Resource | SKIP | No auth surface (static portfolio) |
+| MCP Server Card | PASS | Static JSON file |
+| Agent Skills | PASS | Static JSON + SKILL.md |
+| WebMCP | PASS | Inline ES5 script with feature detection |
+
+**Projected score:** 83/100 (10/12 checks). OAuth checks are N/A for a static site with no protected APIs.
+
 ## Consumers
 
 As of 2026, agents known to actively probe `/llms.txt` at root and follow links to richer variants:

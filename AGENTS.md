@@ -43,6 +43,9 @@ Tests use Playwright `toHaveScreenshot()`. Baselines live in `tests/visual/__scr
 | `tests/visual/screenshot.css` | Stabilization stylesheet (hides dynamic content) |
 | `tests/fixtures/*.json` | Stable JSON fixtures for CloudFront API mocking |
 | `docs/wiki/` | Architecture docs (synced to GitHub Wiki) |
+| `public/.well-known/api-catalog` | RFC 9727 API catalog (linkset JSON) |
+| `public/.well-known/mcp/server-card.json` | MCP Server Card (read-only data resources) |
+| `public/.well-known/agent-skills/` | Agent Skills Discovery v0.2.0 index + SKILL.md |
 
 ## Conventions
 

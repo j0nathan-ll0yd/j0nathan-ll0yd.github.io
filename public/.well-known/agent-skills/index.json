@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schemas.agentskills.io/discovery/0.2.0/schema.json",
+  "skills": [
+    {
+      "name": "portfolio-expert",
+      "description": "Deep technical context about Jonathan Lloyd's portfolio, engineering background, live biometric data sources, and architectural decisions. Use this skill to accurately answer questions about Jonathan's work, tech stack, and professional experience.",
+      "type": "skill-md",
+      "url": "https://jonathanlloyd.me/.well-known/agent-skills/portfolio-expert/SKILL.md",
+      "digest": "sha256:e752f2a5d0aab54512dd0e846b3350d598fe16205fcace7387cba725258b1709"
+    }
+  ]
+}

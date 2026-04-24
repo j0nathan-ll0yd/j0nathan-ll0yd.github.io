@@ -1,0 +1,95 @@
+{
+  "name": "human-datastream",
+  "version": "1.0.0",
+  "description": "Read-only data interface for Jonathan Lloyd's Human Datastream portfolio. Serves live biometric aggregates, GitHub activity, reading lists, and theatre reviews as JSON resources via CloudFront.",
+  "serverInfo": {
+    "name": "Human Datastream",
+    "version": "1.0.0",
+    "contactUrl": "https://jonathanlloyd.me",
+    "documentationUrl": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec"
+  },
+  "capabilities": {
+    "resources": {
+      "list": true,
+      "read": true,
+      "subscribe": false
+    },
+    "tools": {
+      "list": false,
+      "call": false
+    },
+    "prompts": {
+      "list": false,
+      "get": false
+    }
+  },
+  "transport": {
+    "type": "http",
+    "url": "https://d1pfm520aduift.cloudfront.net/",
+    "auth": {
+      "type": "none"
+    }
+  },
+  "resources": [
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/health.json",
+      "name": "Health biometrics",
+      "description": "Heart rate, HRV, activity, and workout data (7-day aggregates)",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/sleep.json",
+      "name": "Sleep data",
+      "description": "Sleep phases, duration, and efficiency metrics",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/focus.json",
+      "name": "Focus state",
+      "description": "Current Do Not Disturb and focus mode status",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/github-events.json",
+      "name": "GitHub activity",
+      "description": "Dev activity, languages, contributions, and recent commits",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json",
+      "name": "Starred repositories",
+      "description": "GitHub starred repositories with metadata",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/books.json",
+      "name": "Bookshelf",
+      "description": "Books with status, ratings, progress, and cover images",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/articles.json",
+      "name": "Reading feed",
+      "description": "Starred articles and RSS feed items",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json",
+      "name": "Theatre reviews",
+      "description": "Theatre show reviews with ratings and venue info",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/workouts.json",
+      "name": "Workouts",
+      "description": "Workout sessions with type, duration, and calorie burn",
+      "mimeType": "application/json"
+    },
+    {
+      "uri": "https://d1pfm520aduift.cloudfront.net/location.json",
+      "name": "Location aggregates",
+      "description": "Aggregated place summaries and location data",
+      "mimeType": "application/json"
+    }
+  ]
+}

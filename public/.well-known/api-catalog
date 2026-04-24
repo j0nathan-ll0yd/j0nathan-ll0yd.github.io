@@ -1,0 +1,19 @@
+{
+  "linkset": [
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/llms.txt",
+          "type": "text/plain"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    }
+  ]
+}

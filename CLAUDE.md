@@ -40,6 +40,10 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 - `llms.txt` is a **discovery index** (not complete content) — it points at backend-composed rich variants on CloudFront: `llms-small.txt`, `llms-full.txt`, `index.md`. See `docs/wiki/LLM-Content-Spec.md` for the full spec.
 - Rich LLM content (`llms-small.txt`, `llms-full.txt`, `index.md`) lives on CloudFront at `d1pfm520aduift.cloudfront.net` and is composed by the backend Lambda on data-change events — do not hand-edit these files here; edits will be overwritten on the next compose run
 - Keep `public/llms.txt` aligned with the backend composer spec in `docs/wiki/LLM-Content-Spec.md` when changing canonical URLs or data sources
+- Agent readiness files live in `public/.well-known/` — see `docs/wiki/LLM-Content-Spec.md` § "Agent Readiness" for the full inventory, Cloudflare configuration steps, and score breakdown
+- `robots.txt` includes `Content-Signal: search=yes, ai-train=no, ai-input=yes` per contentsignals.org IETF draft
+- WebMCP tools are registered in `Dashboard.astro` via `navigator.modelContext.provideContext()` with ES5 syntax and feature detection
+- If updating `SKILL.md`, recompute its SHA-256 digest and update `agent-skills/index.json`
 
 ## Repository Structure
 
@@ -65,8 +69,14 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 │   ├── js/
 │   │   ├── particles.js      # Three.js particle background (legacy, now inlined in index.astro)
 │   │   └── clock.js          # Live clock (legacy, now inlined in index.astro)
+│   ├── .well-known/
+│   │   ├── api-catalog       # RFC 9727 API catalog (linkset JSON, extensionless)
+│   │   ├── mcp/server-card.json  # MCP Server Card (read-only data resources)
+│   │   └── agent-skills/     # Agent Skills Discovery v0.2.0
+│   │       ├── index.json    # Skills index with SHA-256 digests
+│   │       └── portfolio-expert/SKILL.md  # Portfolio context skill
 │   ├── llms.txt              # LLM site context (llmstxt.org spec)
-│   ├── robots.txt            # Crawl policy (blocks AI scrapers, allows search)
+│   ├── robots.txt            # Crawl policy (blocks AI scrapers, allows search, Content Signals)
 │   └── manifest.webmanifest  # PWA manifest
 ├── data/
 │   ├── profile.json          # Name, title, bio, avatar, social links
