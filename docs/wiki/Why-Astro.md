@@ -2,7 +2,7 @@
 
 **Decision Date**: February 2026
 **Status**: Approved
-**TL;DR**: Astro scored 10/10 across performance, developer experience, viability, and GitHub Pages fit. It ships 0 KB JavaScript by default, has perfect Lighthouse scores, and was acquired by Cloudflare in January 2026.
+**TL;DR**: Astro scored 10/10 across performance, developer experience, viability, and hosting fit. It ships 0 KB JavaScript by default, has perfect Lighthouse scores, and was acquired by Cloudflare in January 2026. Originally deployed to GitHub Pages; migrated to Cloudflare Pages in April 2026.
 
 ---
 
@@ -13,7 +13,7 @@
 | Performance | High | Lighthouse scores, bundle size, Core Web Vitals |
 | Developer Experience | High | Satisfaction ratings, component model, TypeScript support |
 | Long-term Viability | High | Corporate backing, community size, release cadence |
-| GitHub Pages Fit | High | Static output, deployment simplicity |
+| Hosting Fit | High | Static output, deployment simplicity (GitHub Pages → Cloudflare Pages) |
 | Community & Ecosystem | Medium | npm downloads, learning resources, integrations |
 | Job Market | Low | Relevant but secondary for a personal portfolio |
 
@@ -43,7 +43,7 @@ Four parallel implementations were built to compare frameworks hands-on.
 - Build-time JSON loading via `fs.readFileSync`
 - Perfect Lighthouse scores (40% faster FCP than Next.js, 90% less JavaScript)
 - Cloudflare acquisition ensures long-term viability
-- Official GitHub Pages deployment action (`withastro/action`)
+- Official deployment actions for GitHub Pages and Cloudflare Pages
 
 ### HTMX + Handlebars -- 3/10
 
@@ -146,7 +146,7 @@ The data is unambiguous across every metric that matters:
 2. **Developer Experience**: #1 satisfaction (State of JS 2025). Component-based. TypeScript. HMR.
 3. **Long-term Viability**: Cloudflare acquisition (Jan 2026). MIT-licensed. 113 releases in 2025.
 4. **Community**: 1.25M weekly npm downloads. 56.6K GitHub stars. Growing 2.5x YoY.
-5. **GitHub Pages Fit**: Official deployment action. Static HTML output. `.nojekyll` already in place.
+5. **Hosting Fit**: Static HTML output deploys to any static host. Originally GitHub Pages, migrated to Cloudflare Pages (April 2026) for HTTP header control and `_headers`/`_redirects` support.
 6. **Architecture Match**: Islands architecture is exactly right for static widgets with selective hydration.
 
 ---

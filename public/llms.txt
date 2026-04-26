@@ -37,8 +37,8 @@ All endpoints are served with `Cache-Control: public, s-maxage=300` (5-minute ed
 
 ## Technology
 
-- **Framework**: Astro 5.x (static site generation, 0 KB JS by default)
-- **Hosting**: GitHub Pages via GitHub Actions, fronted by Cloudflare CDN
+- **Framework**: Astro 6.x (static site generation, 0 KB JS by default)
+- **Hosting**: Cloudflare Pages via GitHub Actions
 - **Live data**: CloudFront-backed JSON API polled at runtime by the dashboard; same JSON composed into LLM-friendly markdown by the backend
 - **Design**: Glass-morphism, dark theme, fluid `clamp()` responsive tokens, CSS container queries
 

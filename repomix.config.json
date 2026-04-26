@@ -3,7 +3,7 @@
   "output": {
     "style": "xml",
     "filePath": "repomix-output.xml",
-    "headerText": "Human Datastream — Astro 5.x personal portfolio dashboard by Jonathan Lloyd (jonathanlloyd.me)",
+    "headerText": "Human Datastream — Astro 6.x personal portfolio dashboard by Jonathan Lloyd (jonathanlloyd.me)",
     "instructionFilePath": "repomix-prompt.md",
     "showLineNumbers": false,
     "removeComments": false,
