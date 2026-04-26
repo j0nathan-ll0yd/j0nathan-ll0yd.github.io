@@ -248,13 +248,13 @@ else
     if echo "$ct" | grep -qi 'application/linkset+json'; then
       log_pass "Content-Type is application/linkset+json (RFC 9727 compliant)"
     else
-      log_info "  Content-Type: $ct (GitHub Pages serves as application/octet-stream)"
+      log_info "  Content-Type: $ct (expected application/linkset+json via Cloudflare Worker)"
       log_info "  Fix: Cloudflare Worker to override Content-Type to application/linkset+json"
       log_info "  Scanner may still pass on 200 + valid JSON body"
     fi
   else
     log_fail "api-catalog returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy PR #2 code to GitHub Pages"
+    log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
 fi
 
@@ -323,7 +323,7 @@ else
     fi
   else
     log_fail "server-card.json returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy PR #2 code to GitHub Pages"
+    log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
 fi
 
@@ -364,7 +364,7 @@ else
     fi
   else
     log_fail "agent-skills/index.json returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy PR #2 code to GitHub Pages"
+    log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
   # Check SKILL.md
   skill_status=$(http_status "${BASE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md")
@@ -372,7 +372,7 @@ else
     log_pass "SKILL.md returns 200"
   else
     log_fail "SKILL.md returns HTTP $skill_status (expected 200)"
-    log_info "  Fix: Deploy PR #2 code to GitHub Pages"
+    log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
 fi
 
@@ -406,7 +406,7 @@ else
     fi
   else
     log_fail "WebMCP script not found in page source"
-    log_info "  Fix: Deploy PR #2 code to GitHub Pages"
+    log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
 fi
 
@@ -446,8 +446,8 @@ if [ -z "$BUILD_DIR" ]; then
   wf_status=$(http_status "${BASE_URL}/.well-known/api-catalog")
   if [ "$wf_status" = "404" ]; then
     echo -e "  ${RED}WARNING: .well-known files are NOT deployed!${NC}"
-    echo -e "  PR #2 code has not reached GitHub Pages."
-    echo -e "  Fix: Resolve GitHub Actions billing issue, then push to main."
+    echo -e "  .well-known files have not been deployed to Cloudflare Pages."
+    echo -e "  Fix: Push to main to trigger deploy, or check GitHub Actions status."
   else
     echo -e "  ${GREEN}Deployment appears current.${NC}"
   fi

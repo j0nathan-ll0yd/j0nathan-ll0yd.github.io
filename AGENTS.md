@@ -2,7 +2,7 @@
 
 ## Project
 
-Human Datastream -- personal portfolio site for Jonathan Lloyd. A single-page sci-fi dashboard built with Astro 5.x (static output), hosted on GitHub Pages at https://jonathanlloyd.me.
+Human Datastream -- personal portfolio site for Jonathan Lloyd. A single-page sci-fi dashboard built with Astro 6.x (static output), hosted on Cloudflare Pages at https://jonathanlloyd.me.
 
 ## Build
 
@@ -58,7 +58,6 @@ Tests use Playwright `toHaveScreenshot()`. Baselines live in `tests/visual/__scr
 ## Do Not
 
 - Use ES6+ syntax in inline scripts
-- Remove `.nojekyll` (GitHub Pages needs it)
 - Modify CSS files without testing breakpoints at 1400px, 1100px, 900px, 600px
 
 ## Detailed Context

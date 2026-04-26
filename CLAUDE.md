@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Personal portfolio site for Jonathan Lloyd, styled as a "Human Datastream" dashboard. Built with Astro (static site generation) and hosted on GitHub Pages. The site ships 0 KB JavaScript by default, with selective `is:inline` scripts for particles, map, and animations.
+Personal portfolio site for Jonathan Lloyd, styled as a "Human Datastream" dashboard. Built with Astro (static site generation) and hosted on Cloudflare Pages. The site ships 0 KB JavaScript by default, with selective `is:inline` scripts for particles, map, and animations.
 
 ## Site Identity & SEO
 
@@ -108,7 +108,6 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 ├── .editorconfig             # 2-space indent, UTF-8, LF
 ├── .gitattributes            # Binary marker for screenshot PNGs
 ├── .gitignore
-├── .nojekyll                 # Bypass Jekyll on GitHub Pages
 ├── AGENTS.md                 # Cross-tool AI coding context (complements CLAUDE.md)
 └── README.md
 ```
@@ -158,7 +157,7 @@ Amazon/Squarespace → OptimizeImages Lambda → S3 (WebP) → CloudFront
                                                               ↓
                                               npm run fetch:images (run locally)
                                                               ↓
-                                              public/images/ → git commit → GitHub Pages → Cloudflare CDN
+                                              public/images/ → git commit → Cloudflare Pages
 ```
 
 **How it works:**
@@ -193,7 +192,7 @@ Three independent caching layers operating on separate domains with zero overlap
 
 **JSON freshness guarantee:** JSON data is fetched client-side from CloudFront (`d1pfm520aduift.cloudfront.net`), a completely separate origin from `jonathanlloyd.me`. Cloudflare never sees, touches, or caches JSON requests. This is an architectural invariant. All JSON fetches use `cache: 'no-store'` to bypass the browser HTTP cache. The SW uses `NetworkFirst` (3s timeout) so fresh data is always served when online, with cached fallback only when offline. Poll requests (`?_poll=1`) bypass the Workbox service worker entirely. A `pageshow` listener triggers `pollNow()` on bfcache restoration to refresh data when frozen tabs are restored.
 
-**Deploy pipeline:** Push to `main` → Build Astro → Deploy to GitHub Pages → Purge entire Cloudflare cache + Check for new images (parallel).
+**Deploy pipeline:** Push to `main` → Build Astro → Deploy to Cloudflare Pages + Check for new images (parallel). Cloudflare Pages auto-invalidates cache on deploy.
 
 **Cloudflare cache rules** (configured in dashboard, priority order):
 1. `/_astro/*` — 1 year edge + browser TTL (content-hashed, immutable)
@@ -348,7 +347,6 @@ Then run `npm run test:visual:update` to generate the new baseline.
 
 ### DO NOT
 - Use ES6+ syntax (`let`, `const`, arrow functions, template literals) in inline `<script is:inline>` blocks
-- Remove `.nojekyll` -- GitHub Pages needs it to serve the site without Jekyll processing
 - Modify `public/css/` files without testing all responsive breakpoints
 
 ### DO

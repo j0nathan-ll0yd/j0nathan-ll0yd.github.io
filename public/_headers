@@ -1,0 +1,7 @@
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://d1pfm520aduift.cloudfront.net https://queue.simpleanalyticscdn.com; connect-src 'self' https://d1pfm520aduift.cloudfront.net wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com https://queue.simpleanalyticscdn.com https://cloudflareinsights.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/
+  Link: </llms.txt>; rel="describedby"; type="text/plain", </.well-known/api-catalog>; rel="api-catalog", </sitemap-index.xml>; rel="sitemap"
