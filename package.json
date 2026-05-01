@@ -21,7 +21,7 @@
     "compliance": "node scripts/widget-compliance.mjs"
   },
   "dependencies": {
-    "astro": "^5.0.0"
+    "astro": "^6.0.0"
   },
   "devDependencies": {
     "@astrojs/sitemap": "^3.7.0",

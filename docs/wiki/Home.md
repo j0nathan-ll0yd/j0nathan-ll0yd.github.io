@@ -1,6 +1,6 @@
 # Human Datastream
 
-A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboard with glass-morphism aesthetics and a Three.js particle background. Built with [Astro](https://astro.build) and hosted on GitHub Pages.
+A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboard with glass-morphism aesthetics and a Three.js particle background. Built with [Astro](https://astro.build) and hosted on Cloudflare Pages.
 
 ## Quick Start
 
@@ -57,7 +57,6 @@ Deployment is automatic via GitHub Actions on push to `main`.
 ├── .github/workflows/        # Deploy + wiki sync actions
 ├── .editorconfig             # 2-space indent, UTF-8, LF
 ├── .gitignore
-├── .nojekyll                 # Bypass Jekyll on GitHub Pages
 ├── CLAUDE.md                 # AI assistant instructions
 └── README.md
 ```
