@@ -19,10 +19,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="description" content={description}>
   <meta name="robots" content={robots}>
   <meta name="keywords" content="backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site">
-  <!-- Security: CSP (GitHub Pages cannot set HTTP headers) -->
-  <!-- img-src keeps CloudFront for onerror fallback when local images are missing -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://d1pfm520aduift.cloudfront.net https://queue.simpleanalyticscdn.com; connect-src 'self' https://d1pfm520aduift.cloudfront.net wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com https://queue.simpleanalyticscdn.com https://cloudflareinsights.com; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <!-- Security: CSP + Referrer-Policy served via HTTP headers (public/_headers for Cloudflare Pages) -->
   <meta name="author" content="Jonathan Lloyd">
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
@@ -625,8 +622,8 @@ html, body {
             inputSchema: { type: 'object', properties: {}, required: [] },
             execute: function() {
               var stack = {
-                framework: 'Astro 5.x (static site generation, 0 KB JS by default)',
-                hosting: 'GitHub Pages via GitHub Actions, fronted by Cloudflare CDN',
+                framework: 'Astro 6.x (static site generation, 0 KB JS by default)',
+                hosting: 'Cloudflare Pages via GitHub Actions',
                 liveData: 'CloudFront-backed JSON API polled at runtime',
                 design: 'Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries',
                 font: 'Space Grotesk (self-hosted, variable woff2)',

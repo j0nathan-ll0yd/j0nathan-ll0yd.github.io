@@ -127,7 +127,7 @@ Beyond LLM content, the site publishes machine-readable discovery files for AI a
 
 ### Cloudflare Configuration (manual, not in this repo)
 
-These settings must be configured in the Cloudflare dashboard for `jonathanlloyd.me`. They cannot be set from GitHub Pages.
+These settings are configured in the Cloudflare dashboard for `jonathanlloyd.me`. Note: the Link response header has been migrated to `public/_headers` (version-controlled). The Transform Rule below is the legacy reference; the `_headers` file is now authoritative.
 
 #### 1. Transform Rule: Link Response Headers
 
@@ -143,7 +143,7 @@ Cloudflare Transform Rules cannot modify the `Content-Type` response header. A W
 
 Worker code lives in `cloudflare/api-catalog-content-type.js` with `cloudflare/wrangler.toml`. Deployed via `cd cloudflare && wrangler deploy`. Route: `jonathanlloyd.me/.well-known/api-catalog`.
 
-GitHub Pages serves extensionless files as `application/octet-stream`. This Worker overrides it to `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`. Free tier (100k req/day) is sufficient.
+Cloudflare Pages may serve extensionless files without the correct content type. This Worker overrides it to `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`. Free tier (100k req/day) is sufficient.
 
 #### 3. Markdown for Agents
 

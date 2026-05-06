@@ -1,4 +1,4 @@
-name: Deploy Astro to GitHub Pages
+name: Deploy to Cloudflare Pages
 
 on:
   push:
@@ -7,37 +7,39 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
   issues: write
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: false
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build Astro
-        uses: withastro/action@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=human-datastream
 
   check-images:
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -78,16 +80,3 @@ jobs:
           \`\`\`
           EOF
           )"
-
-  purge-cache:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Purge Cloudflare cache
-        run: |
-          curl -s -X POST \
-            "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{"purge_everything":true}' \
-            --fail-with-body

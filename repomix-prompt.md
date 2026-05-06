@@ -1,4 +1,4 @@
-This is the **Human Datastream** portfolio — a single-page sci-fi dashboard built with Astro 5.x (static output, zero JS by default), hosted on GitHub Pages at jonathanlloyd.me. Created by Jonathan Lloyd.
+This is the **Human Datastream** portfolio — a single-page sci-fi dashboard built with Astro 6.x (static output, zero JS by default), hosted on Cloudflare Pages at jonathanlloyd.me. Created by Jonathan Lloyd.
 
 ## Read CLAUDE.md First
 

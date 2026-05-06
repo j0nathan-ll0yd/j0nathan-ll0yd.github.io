@@ -25,8 +25,8 @@ The portfolio at jonathanlloyd.me is a sci-fi "Human Datastream" dashboard — a
 
 ### Technology Stack
 
-- **Framework:** Astro 5.x (static site generation, 0 KB JS by default)
-- **Hosting:** GitHub Pages via GitHub Actions, fronted by Cloudflare CDN
+- **Framework:** Astro 6.x (static site generation, 0 KB JS by default)
+- **Hosting:** Cloudflare Pages via GitHub Actions
 - **Live data:** CloudFront-backed JSON API polled at runtime
 - **Design:** Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries
 - **Font:** Space Grotesk (self-hosted, variable woff2)
@@ -61,7 +61,7 @@ Backend-composed markdown variants, always fresher than this static skill file:
 
 1. **Zero JS by default** — All rendering is build-time Astro components. No React/Vue/Svelte.
 2. **ES5 inline scripts** — Client JS uses var, IIFEs, function declarations for maximum compatibility.
-3. **Separate data origin** — JSON on CloudFront (d1pfm520aduift.cloudfront.net), HTML on GitHub Pages (jonathanlloyd.me via Cloudflare). Cloudflare never caches JSON.
+3. **Separate data origin** — JSON on CloudFront (d1pfm520aduift.cloudfront.net), HTML on Cloudflare Pages (jonathanlloyd.me). Cloudflare never caches JSON.
 4. **Privacy-first health data** — LLM content uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.
 5. **Image pipeline** — Book covers and theatre posters optimized to WebP by Lambda, downloaded locally at build time, served same-origin via Cloudflare CDN.
 
