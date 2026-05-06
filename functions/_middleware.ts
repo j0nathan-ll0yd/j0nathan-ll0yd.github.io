@@ -50,9 +50,11 @@ export async function onRequest(context) {
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
-  // Link header on homepage
+  // Homepage: disable CDN caching so content negotiation always works
+  // (Cloudflare edge cache bypasses Functions on cache HITs)
   if (url.pathname === '/') {
     headers.set('Link', LINK_HEADER);
+    headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
   }
 
   // API catalog Content-Type override for RFC 9727 compliance
