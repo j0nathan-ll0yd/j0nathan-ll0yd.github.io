@@ -36,7 +36,7 @@ export async function onRequest(context) {
       status: mdResponse.status,
       headers: {
         'Content-Type': 'text/markdown',
-        'Vary': 'Accept',
+        'Cache-Control': 'no-store',
         'x-markdown-tokens': '2500',
       },
     });
@@ -49,7 +49,6 @@ export async function onRequest(context) {
   headers.set('Content-Security-Policy', CSP);
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set('Vary', 'Accept');
 
   // Link header on homepage
   if (url.pathname === '/') {
