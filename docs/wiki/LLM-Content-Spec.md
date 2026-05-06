@@ -125,25 +125,21 @@ Beyond LLM content, the site publishes machine-readable discovery files for AI a
 
 `Dashboard.astro` registers browser-side tools via `navigator.modelContext.provideContext()` (W3C Community Draft). Feature-detected -- no-op in browsers without support. Tools: `get_profile`, `get_data_sources`, `get_current_reading`, `get_tech_stack`.
 
-### Cloudflare Configuration (manual, not in this repo)
+### Cloudflare Configuration (version-controlled)
 
-These settings are configured in the Cloudflare dashboard for `jonathanlloyd.me`. Note: the Link response header has been migrated to `public/_headers` (version-controlled). The Transform Rule below is the legacy reference; the `_headers` file is now authoritative.
+All HTTP header manipulation and content negotiation is handled by the Pages Function middleware at `functions/_middleware.ts`. This replaces the previous Transform Rule and standalone Worker approach.
 
-#### 1. Transform Rule: Link Response Headers
+The middleware handles:
+1. **Security headers** — CSP, X-Content-Type-Options, Referrer-Policy on all responses
+2. **Link header** — LLM discovery links on homepage (`/`)
+3. **API catalog Content-Type** — RFC 9727 `application/linkset+json` override for `/.well-known/api-catalog`
+4. **Markdown negotiation** — Serves `text/markdown` from CloudFront when agents send `Accept: text/markdown`
 
-- **Path:** Rules > Rules Overview > Create rule > Response Header Transform Rule
-- **Match:** Hostname equals `jonathanlloyd.me` AND URI Path equals `/`
-- **Action:** Add static header
-- **Header:** `Link`
-- **Value:** `</llms.txt>; rel="describedby"; type="text/plain", </.well-known/api-catalog>; rel="api-catalog", </sitemap-index.xml>; rel="sitemap"`
+The `_headers` file is NOT used because root middleware disables Cloudflare Pages' `_headers` processing.
 
-#### 2. Cloudflare Worker: API Catalog Content-Type ✅ DONE
+#### Legacy (to be removed after migration)
 
-Cloudflare Transform Rules cannot modify the `Content-Type` response header. A Worker is required instead.
-
-Worker code lives in `cloudflare/api-catalog-content-type.js` with `cloudflare/wrangler.toml`. Deployed via `cd cloudflare && wrangler deploy`. Route: `jonathanlloyd.me/.well-known/api-catalog`.
-
-Cloudflare Pages may serve extensionless files without the correct content type. This Worker overrides it to `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`. Free tier (100k req/day) is sufficient.
+The standalone Worker at `cloudflare/api-catalog-content-type.js` and its route `jonathanlloyd.me/*` should be deleted from the Cloudflare dashboard once the Pages custom domain is active. The Transform Rule for Link headers should also be deleted.
 
 #### 3. Markdown for Agents
 

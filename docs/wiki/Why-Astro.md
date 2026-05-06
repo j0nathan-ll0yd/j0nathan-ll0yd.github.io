@@ -146,7 +146,7 @@ The data is unambiguous across every metric that matters:
 2. **Developer Experience**: #1 satisfaction (State of JS 2025). Component-based. TypeScript. HMR.
 3. **Long-term Viability**: Cloudflare acquisition (Jan 2026). MIT-licensed. 113 releases in 2025.
 4. **Community**: 1.25M weekly npm downloads. 56.6K GitHub stars. Growing 2.5x YoY.
-5. **Hosting Fit**: Static HTML output deploys to any static host. Originally GitHub Pages, migrated to Cloudflare Pages (April 2026) for HTTP header control and `_headers`/`_redirects` support.
+5. **Hosting Fit**: Static HTML output deploys to any static host. Originally GitHub Pages, migrated to Cloudflare Pages (April 2026) for Pages Functions (content negotiation, security headers) and edge CDN performance.
 6. **Architecture Match**: Islands architecture is exactly right for static widgets with selective hydration.
 
 ---
