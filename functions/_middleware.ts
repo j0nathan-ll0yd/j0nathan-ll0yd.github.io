@@ -51,10 +51,11 @@ export async function onRequest(context) {
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
   // Homepage: disable CDN caching so content negotiation always works
-  // (Cloudflare edge cache bypasses Functions on cache HITs)
+  // (Cloudflare edge cache bypasses Functions on cache HITs,
+  //  and Pages overrides Function-set Cache-Control for HTML assets)
   if (url.pathname === '/') {
     headers.set('Link', LINK_HEADER);
-    headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+    headers.set('CDN-Cache-Control', 'no-store');
   }
 
   // API catalog Content-Type override for RFC 9727 compliance
