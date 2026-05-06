@@ -95,7 +95,8 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 │   └── fixtures/             # Stable JSON fixtures for API route interception
 ├── test/fixtures/            # Fixture factory system (generate, validate, variations)
 ├── scripts/                  # fetch-images, generate-types, widget-compliance, agent-readiness
-├── cloudflare/               # Cloudflare Worker for API catalog Content-Type
+├── functions/
+│   └── _middleware.ts        # Pages Function: security headers, content negotiation, API catalog
 ├── docs/wiki/                # Architecture docs (synced to GitHub Wiki via sync-wiki.yml)
 ├── .github/workflows/
 │   ├── deploy.yml            # Build + deploy + Cloudflare purge + image check

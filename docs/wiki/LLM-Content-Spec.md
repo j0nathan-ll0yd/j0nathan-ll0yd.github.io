@@ -134,38 +134,36 @@ The middleware handles:
 2. **Link header** — LLM discovery links on homepage (`/`)
 3. **API catalog Content-Type** — RFC 9727 `application/linkset+json` override for `/.well-known/api-catalog`
 4. **Markdown negotiation** — Serves `text/markdown` from CloudFront when agents send `Accept: text/markdown`
+5. **Homepage cache bypass** — Sets `CDN-Cache-Control: no-store` on `/` (defense-in-depth; primary bypass is the Cache Rule below)
 
 The `_headers` file is NOT used because root middleware disables Cloudflare Pages' `_headers` processing.
 
-#### Legacy (to be removed after migration)
+#### Cache Rule (dashboard-only, not version-controlled)
 
-The standalone Worker at `cloudflare/api-catalog-content-type.js` and its route `jonathanlloyd.me/*` should be deleted from the Cloudflare dashboard once the Pages custom domain is active. The Transform Rule for Link headers should also be deleted.
+A Cache Rule named **"Homepage bypass for content negotiation"** is configured in the Cloudflare dashboard:
+- **Match:** `http.request.uri.path eq "/"`
+- **Action:** Bypass cache
 
-#### 3. Markdown for Agents
-
-- **Path:** AI Crawl Control > toggle "Markdown for Agents"
-- **Note:** Requires Cloudflare Pro or Business plan. When enabled, Cloudflare automatically returns `text/markdown` when agents send `Accept: text/markdown`.
+This is required because Cloudflare Pages caches HTML at the edge and bypasses Pages Functions on cache HITs. Without this rule, `Accept: text/markdown` requests receive cached HTML instead of hitting the middleware for content negotiation. The middleware's `CDN-Cache-Control: no-store` header is a secondary signal; Cloudflare Pages' built-in caching overrides it, so the Cache Rule is the authoritative bypass.
 
 ### Score Breakdown
 
-#### Current (2026-04-24, post-deploy): 88/100
+#### Current (2026-05-05): 100/100
 
 | Check | Status | Notes |
 |---|---|---|
-| robots.txt | PASS | Already passing |
-| Sitemap | PASS | Already passing |
-| Link headers | FAIL | Requires Cloudflare Transform Rule (manual) |
-| Markdown Negotiation | FAIL | Requires Cloudflare Markdown for Agents (Pro plan) |
-| AI bot rules | PASS | Already passing |
-| Content Signals | PASS | Added to robots.txt |
-| API Catalog | PASS | Worker deployed, Content-Type: application/linkset+json |
+| robots.txt | PASS | 9 AI bots blocked, search engines allowed |
+| Sitemap | PASS | sitemap-index.xml |
+| Link headers | PASS | Pages Function middleware sets on `/` |
+| Markdown Negotiation | PASS | Pages Function + Cache Rule bypass |
+| AI bot rules | PASS | 9/9 bots configured |
+| Content Signals | PASS | `search=yes, ai-train=no, ai-input=yes` |
+| API Catalog | PASS | RFC 9727 `application/linkset+json` via middleware |
 | OAuth/OIDC | SKIP | No auth surface (static portfolio) |
 | OAuth Protected Resource | SKIP | No auth surface (static portfolio) |
 | MCP Server Card | PASS | Static JSON file |
 | Agent Skills | PASS | Static JSON + SKILL.md |
 | WebMCP | PASS | Inline ES5 script with feature detection |
-
-#### Maximum possible (after Link headers + Markdown): 100/100 (10/10 scored)
 
 ## Consumers
 
