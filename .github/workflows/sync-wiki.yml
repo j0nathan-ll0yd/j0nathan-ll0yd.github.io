@@ -15,16 +15,16 @@ permissions:
 
 jobs:
   sync-wiki:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, base]
 
     steps:
       - name: Checkout main repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: main
 
       - name: Checkout wiki repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ github.repository }}.wiki
           path: wiki
