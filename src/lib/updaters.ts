@@ -823,13 +823,13 @@ export function updateBookshelf(data: AdaptedBooks): void {
   const shelfRow = document.getElementById('dashShelfRow');
   if (!shelfRow) return;
 
-  // Collect ASINs that have local images (present at SSR build time)
+  // Collect ASINs that have local images (embedded at SSR build time via hasLocal flag)
   const ssrBookEls = document.querySelectorAll('#dashShelfRow .shelf-book');
   const ssrAsins = new Set<string>();
   ssrBookEls.forEach(el => {
     try {
       const data = JSON.parse(el.getAttribute('data-book') || '{}');
-      if (data.asin) ssrAsins.add(data.asin);
+      if (data.asin && data.hasLocal) ssrAsins.add(data.asin);
     } catch { /* ignore parse errors */ }
   });
 

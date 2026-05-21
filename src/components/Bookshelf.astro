@@ -76,7 +76,8 @@ function hasLocalImage(asin: string): boolean {
           publicationDate: meta.publicationDate || null,
           desc: meta.desc || null,
           genres: meta.genres || [],
-          cover: meta.cover || null
+          cover: meta.cover || null,
+          hasLocal: hasLocal
         });
         return (
           <li class={`shelf-book${b.status === 'in_progress' ? ' shelf-book-active' : ''}`} style={`animation-delay: ${i * 0.08}s`} data-book={bookData} tabindex="0" aria-label={`${b.title} by ${b.author}`}>
