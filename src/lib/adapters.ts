@@ -6,7 +6,6 @@ import {
   computeSleepPercentages,
 } from './sleep';
 import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport, GithubStarredReposExport } from '../types/exports';
-import { localizeImageUrl } from './image-utils';
 
 // ── Adapted output types (what adapters produce for updaters) ──────
 
@@ -329,12 +328,12 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
       rating: b.rating ?? null,
       progress,
       link: 'https://www.amazon.com/dp/' + b.asin + '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl',
-      cover: localizeImageUrl(b.mainImage ?? null),
-      coverThumb: localizeImageUrl(b.mainImageThumb ?? null),
-      coverCard: localizeImageUrl(b.mainImageCard ?? null),
-      coverAvif: localizeImageUrl(b.mainImageAvif ?? null),
-      coverThumbAvif: localizeImageUrl(b.mainImageThumbAvif ?? null),
-      coverCardAvif: localizeImageUrl(b.mainImageCardAvif ?? null),
+      cover: b.mainImage ?? null,
+      coverThumb: b.mainImageThumb ?? null,
+      coverCard: b.mainImageCard ?? null,
+      coverAvif: b.mainImageAvif ?? null,
+      coverThumbAvif: b.mainImageThumbAvif ?? null,
+      coverCardAvif: b.mainImageCardAvif ?? null,
       notes: b.notes ?? null,
     };
   });
