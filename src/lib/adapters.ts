@@ -331,10 +331,10 @@ export function adaptBooks(booksData: BooksExport): AdaptedBooks {
       link: 'https://www.amazon.com/dp/' + b.asin + '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl',
       cover: localizeImageUrl(b.mainImage ?? null),
       coverThumb: localizeImageUrl(b.mainImageThumb ?? null),
-      coverCard: localizeImageUrl((b as any).mainImageCard ?? null),
-      coverAvif: localizeImageUrl((b as any).mainImageAvif ?? null),
-      coverThumbAvif: localizeImageUrl((b as any).mainImageThumbAvif ?? null),
-      coverCardAvif: localizeImageUrl((b as any).mainImageCardAvif ?? null),
+      coverCard: localizeImageUrl(b.mainImageCard ?? null),
+      coverAvif: localizeImageUrl(b.mainImageAvif ?? null),
+      coverThumbAvif: localizeImageUrl(b.mainImageThumbAvif ?? null),
+      coverCardAvif: localizeImageUrl(b.mainImageCardAvif ?? null),
       notes: b.notes ?? null,
     };
   });

@@ -11,7 +11,6 @@ export interface ArticlesExport {
     articleUrl: string;
     articleTitle: string;
     articleAuthor: string | null;
-    articleContent: string | null;
     articleFirstImageUrl: string | null;
     articlePublishedAt: string | null;
     articleBoards: string | null;
@@ -19,6 +18,7 @@ export interface ArticlesExport {
     sourceTitle: string | null;
     sourceUrl: string | null;
     sourceFeedUrl: string | null;
+    sourceDomain: string | null;
     articleEngagement: string | null;
     articleEngagementRate: string | null;
     articleFirstHighlight: string | null;
@@ -26,7 +26,6 @@ export interface ArticlesExport {
     savedAt: string;
     notes: {
       comment: string;
-      savedBy: string | null;
       createdAt: string;
     }[];
   }[];
@@ -49,6 +48,10 @@ export interface BooksExport {
     pageCount: number | null;
     mainImage: string | null;
     mainImageThumb: string | null;
+    mainImageCard: string | null;
+    mainImageAvif: string | null;
+    mainImageThumbAvif: string | null;
+    mainImageCardAvif: string | null;
     images: string | null;
     averageRating: string | null;
     category: string | null;
@@ -58,6 +61,11 @@ export interface BooksExport {
     rating: number | null;
     notes: string | null;
   }[];
+}
+
+export interface FocusExport {
+  generatedAt: string;
+  currentFocus: string;
 }
 
 export interface GithubEventsExport {
@@ -110,33 +118,6 @@ export interface HealthExport {
   };
 }
 
-export interface SleepExport {
-  date: string;
-  generatedAt: string;
-  [k: string]:
-    | string
-    | {
-        seconds: number;
-      };
-}
-
-export interface WorkoutsExport {
-  date: string;
-  generatedAt: string;
-  workouts: {
-    activityType: string;
-    duration: number | null;
-    energyBurned: number | null;
-    distance: number | null;
-    source: string;
-  }[];
-}
-
-export interface FocusExport {
-  generatedAt: string;
-  currentFocus: string;
-}
-
 export interface LocationExport {
   generatedAt: string;
   totalVisits: number;
@@ -179,27 +160,44 @@ export interface LocationExport {
   };
 }
 
-export interface TheatreReviewEntry {
-  title: string;
-  slug: string;
-  url: string;
-  author: string;
-  publishedAt: string;
-  rating: string | null;
-  ratingNumeric: number | null;
-  excerpt: string;
-  imageUrl: string | null;
-  imageUrlAvif: string | null;
-  imageUrlCard: string | null;
-  imageUrlCardAvif: string | null;
-  imageWidth: number | null;
-  imageHeight: number | null;
+export interface SleepExport {
+  date: string;
+  generatedAt: string;
+  [k: string]:
+    | string
+    | {
+        seconds: number;
+      };
 }
 
 export interface TheatreReviewsExport {
   generatedAt: string;
-  source: string;
+  source: 'coasttocoastreviews.com';
   totalReviews: number;
-  reviews: TheatreReviewEntry[];
+  reviews: {
+    title: string;
+    slug: string;
+    url: string;
+    author: string;
+    publishedAt: string;
+    rating: string | null;
+    ratingNumeric: number | null;
+    excerpt: string;
+    imageUrl: string | null;
+    imageWidth: number | null;
+    imageHeight: number | null;
+  }[];
+}
+
+export interface WorkoutsExport {
+  date: string;
+  generatedAt: string;
+  workouts: {
+    activityType: string;
+    duration: number | null;
+    energyBurned: number | null;
+    distance: number | null;
+    source: string;
+  }[];
 }
 
