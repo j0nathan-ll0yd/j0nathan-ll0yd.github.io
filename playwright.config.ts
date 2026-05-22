@@ -4,13 +4,13 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: './tests/visual',
-  globalSetup: './tests/visual/global-setup.ts',
+  fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
-  workers: isCI ? 2 : undefined,
+  workers: isCI ? '50%' : undefined,
 
   reporter: isCI
-    ? [['github'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
+    ? [['github'], ['blob'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
     : [['html', { open: 'on-failure' }]],
 
   webServer: {
