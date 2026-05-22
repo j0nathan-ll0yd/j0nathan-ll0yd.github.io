@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
+      - name: Check CSS drift
+        run: npm run check:css-drift
+
       - name: Run visual regression tests
         run: npx playwright test
 
