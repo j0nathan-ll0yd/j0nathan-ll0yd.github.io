@@ -3,7 +3,7 @@ import { setupPage, stylePath } from './helpers';
 
 test.describe('Dashboard - populated', () => {
   test.beforeEach(async ({ page }) => {
-    await setupPage(page, 'populated');
+    await setupPage(page, 'populated', { waitForScrollHeight: true });
   });
 
   test('full page', async ({ page }) => {
@@ -16,7 +16,7 @@ test.describe('Dashboard - populated', () => {
 
 test.describe('Dashboard - empty', () => {
   test.beforeEach(async ({ page }) => {
-    await setupPage(page, 'empty');
+    await setupPage(page, 'empty', { waitForScrollHeight: true });
   });
 
   test('full page', async ({ page }) => {
@@ -29,7 +29,7 @@ test.describe('Dashboard - empty', () => {
 
 test.describe('Dashboard - complex', () => {
   test.beforeEach(async ({ page }) => {
-    await setupPage(page, 'complex');
+    await setupPage(page, 'complex', { waitForScrollHeight: true });
   });
 
   test('full page', async ({ page }) => {
