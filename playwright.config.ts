@@ -32,10 +32,11 @@ export default defineConfig({
 
   expect: {
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.01,
-      threshold: 0.2,
-      animations: 'disabled',
-      scale: 'css',
+      maxDiffPixelRatio: 0.01, // allow up to 1% pixel drift per snapshot
+      threshold: 0.2,          // per-pixel YIQ color tolerance
+      animations: 'disabled',  // freeze CSS animations for determinism
+      caret: 'hide',           // hide blinking text caret
+      scale: 'css',            // use CSS px (not device px) for screenshots
     },
   },
 

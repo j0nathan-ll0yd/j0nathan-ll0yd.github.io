@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
+    "sync:css": "node scripts/sync-design-system.mjs",
     "generate:fixtures": "npx tsx test/fixtures/generate.ts",
     "validate:fixtures": "npx tsx test/fixtures/validate.ts",
     "generate:types": "node scripts/generate-types.mjs && npm run validate:fixtures --if-present",
