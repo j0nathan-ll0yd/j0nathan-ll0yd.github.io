@@ -5,84 +5,98 @@
  * 4b: Per-widget variation screenshots (each test uses its own scenario).
  * 4c: Overlay tests (focus-work, focus-dnd).
  */
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { setupPage, stylePath, WIDGET_SELECTORS } from './helpers';
 
 // ---------------------------------------------------------------------------
 // 4a: Baseline Widget Screenshots (populated scenario)
+//
+// All 14 populated-widget tests share a single page navigation per worker.
+// Without sharing, beforeEach re-navigates 14 times per project × 4 projects =
+// 56 redundant page loads. Tests are pure screenshots (no DOM mutation), so
+// reusing the page is safe. Serial mode is required for shared-page pattern.
 // ---------------------------------------------------------------------------
 
 test.describe('Widgets - populated', () => {
-  test.beforeEach(async ({ page }) => {
+  test.describe.configure({ mode: 'serial' });
+
+  let page: Page;
+
+  test.beforeAll(async ({ browser }) => {
+    page = await browser.newPage();
     await setupPage(page, 'populated');
   });
 
-  test('identity card', async ({ page }) => {
+  test.afterAll(async () => {
+    await page.close();
+  });
+
+  test('identity card', async () => {
     const widget = page.locator(WIDGET_SELECTORS.identityCard);
     await expect(widget).toHaveScreenshot('widget-identity-card.png', { stylePath });
   });
 
-  test('bio terminal', async ({ page }) => {
+  test('bio terminal', async () => {
     const widget = page.locator(WIDGET_SELECTORS.bioTerminal);
     await expect(widget).toHaveScreenshot('widget-bio-terminal.png', { stylePath });
   });
 
-  test('system status', async ({ page }) => {
+  test('system status', async () => {
     const widget = page.locator(WIDGET_SELECTORS.systemStatus);
     await expect(widget).toHaveScreenshot('widget-system-status.png', { stylePath });
   });
 
-  test('heart rate', async ({ page }) => {
+  test('heart rate', async () => {
     const widget = page.locator(WIDGET_SELECTORS.heartRate);
     await expect(widget).toHaveScreenshot('widget-heart-rate.png', { stylePath });
   });
 
-  test('daily activity', async ({ page }) => {
+  test('daily activity', async () => {
     const widget = page.locator(WIDGET_SELECTORS.dailyActivity);
     await expect(widget).toHaveScreenshot('widget-daily-activity.png', { stylePath });
   });
 
-  test('workouts', async ({ page }) => {
+  test('workouts', async () => {
     const widget = page.locator(WIDGET_SELECTORS.workouts);
     await expect(widget).toHaveScreenshot('widget-workouts.png', { stylePath });
   });
 
-  test('hydration', async ({ page }) => {
+  test('hydration', async () => {
     const widget = page.locator(WIDGET_SELECTORS.hydration);
     await expect(widget).toHaveScreenshot('widget-hydration.png', { stylePath });
   });
 
-  test('night summary', async ({ page }) => {
+  test('night summary', async () => {
     const widget = page.locator(WIDGET_SELECTORS.nightSummary);
     await expect(widget).toHaveScreenshot('widget-night-summary.png', { stylePath });
   });
 
-  test('dev activity log', async ({ page }) => {
+  test('dev activity log', async () => {
     const widget = page.locator(WIDGET_SELECTORS.devActivityLog);
     await expect(widget).toHaveScreenshot('widget-dev-activity-log.png', { stylePath });
   });
 
-  test('reading feed', async ({ page }) => {
+  test('reading feed', async () => {
     const widget = page.locator(WIDGET_SELECTORS.readingFeed);
     await expect(widget).toHaveScreenshot('widget-reading-feed.png', { stylePath });
   });
 
-  test('bookshelf', async ({ page }) => {
+  test('bookshelf', async () => {
     const widget = page.locator(WIDGET_SELECTORS.bookshelf);
     await expect(widget).toHaveScreenshot('widget-bookshelf.png', { stylePath });
   });
 
-  test('starred repos', async ({ page }) => {
+  test('starred repos', async () => {
     const widget = page.locator(WIDGET_SELECTORS.starredRepos);
     await expect(widget).toHaveScreenshot('widget-starred-repos.png', { stylePath });
   });
 
-  test('theatre reviews', async ({ page }) => {
+  test('theatre reviews', async () => {
     const widget = page.locator(WIDGET_SELECTORS.theatreReviews);
     await expect(widget).toHaveScreenshot('widget-theatre-reviews.png', { stylePath });
   });
 
-  test('top bar', async ({ page }) => {
+  test('top bar', async () => {
     const widget = page.locator(WIDGET_SELECTORS.topBar);
     await expect(widget).toHaveScreenshot('widget-top-bar.png', { stylePath });
   });
@@ -216,13 +230,13 @@ test.describe('Widget variations - Theatre Reviews', () => {
 
 test.describe('Overlays', () => {
   test('focus overlay', async ({ page }) => {
-    await setupPage(page, 'focus-work');
+    await setupPage(page, 'focus-work', { waitForScrollHeight: true });
     await page.locator('#focusOverlay').waitFor({ state: 'visible', timeout: 10000 });
     await expect(page).toHaveScreenshot('focus-overlay.png', { fullPage: true, stylePath });
   });
 
   test('dnd overlay', async ({ page }) => {
-    await setupPage(page, 'focus-dnd');
+    await setupPage(page, 'focus-dnd', { waitForScrollHeight: true });
     await page.locator('#dndOverlay').waitFor({ state: 'visible', timeout: 10000 });
     await expect(page).toHaveScreenshot('dnd-overlay.png', { fullPage: true, stylePath });
   });
