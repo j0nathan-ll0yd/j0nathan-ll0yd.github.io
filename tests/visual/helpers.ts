@@ -110,11 +110,6 @@ export interface NavigateOptions {
  * reveal animation. Data population is confirmed by skeleton removal below.
  */
 export async function navigateAndWait(page: Page, options: NavigateOptions = {}): Promise<void> {
-  // Bypass the BioTerminal typewriter animation. The component short-circuits
-  // when prefers-reduced-motion is set, marking all lines visible immediately
-  // with full SSR text. Avoids a 15s observer wait and a textContent race that
-  // corrupts the terminal text mid-typing.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await page.evaluate(() => document.fonts.ready);
 
@@ -132,14 +127,46 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
     await page.locator('#cardWorkouts').waitFor({ state: 'visible', timeout: 10000 });
   }
 
-  // BioTerminal honors prefers-reduced-motion: under reduced-motion (set in
-  // playwright.config.ts) the typewriter is skipped and all lines are marked
-  // visible immediately with full text from SSR. No wait needed here.
-
-  // Wait for scroll height to stabilize so fullPage screenshots capture the
-  // entire document. Only relevant for fullPage:true tests -- skip for
-  // widget-locator screenshots where reflow doesn't affect the capture.
+  // Bio terminal + scroll-height stabilization are only needed for fullPage
+  // screenshots and for the populated widgets shared-page navigation that
+  // includes the terminal in its element capture. Widget-variation tests skip
+  // both, since their locator screenshots don't include the terminal and
+  // don't depend on total document height.
   if (options.waitForScrollHeight) {
+    // Wait for the bio terminal typewriter animation to finish. On mobile
+    // (<768px) lines are set visible immediately; on desktop the
+    // IntersectionObserver triggers a sequential typing animation. Scroll the
+    // card into view first to ensure the observer fires at all viewports.
+    const bioCard = page.locator('#cardBio');
+    if (await bioCard.count() > 0) {
+      await bioCard.scrollIntoViewIfNeeded();
+    }
+    await page.waitForFunction(
+      () => {
+        const lines = document.querySelectorAll('#terminalBody .terminal-line');
+        if (lines.length === 0) return true;
+        return lines[lines.length - 1].classList.contains('visible');
+      },
+      { timeout: 15000 },
+    ).catch(async () => {
+      // Fallback: force lines visible if the IntersectionObserver never fires.
+      await page.evaluate(() => {
+        document.querySelectorAll('#terminalBody .terminal-line').forEach((line) => {
+          line.classList.add('visible');
+          const el = line as HTMLElement;
+          const cmd = el.dataset.cmd;
+          const output = el.dataset.output;
+          const cmdSpan = el.querySelector('.terminal-command') as HTMLElement | null;
+          const outSpan = el.querySelector('.terminal-output') as HTMLElement | null;
+          if (cmd && cmdSpan && !cmdSpan.textContent) cmdSpan.textContent = cmd;
+          if (output && outSpan && !outSpan.textContent) outSpan.textContent = output;
+        });
+      });
+    });
+
+    // Wait for scroll height to stabilize so fullPage screenshots capture the
+    // entire document. At responsive breakpoints the layout switches from
+    // height:100dvh to height:auto and the DOM needs time to reflow.
     await page.waitForFunction(
       () => {
         const h = document.documentElement.scrollHeight;

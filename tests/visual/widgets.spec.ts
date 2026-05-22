@@ -24,7 +24,10 @@ test.describe('Widgets - populated', () => {
 
   test.beforeAll(async ({ browser }) => {
     page = await browser.newPage();
-    await setupPage(page, 'populated');
+    // waitForScrollHeight also gates the bio-terminal typewriter wait. The
+    // bio-terminal widget screenshot below requires the typewriter to have
+    // completed (or been forced visible via the fallback).
+    await setupPage(page, 'populated', { waitForScrollHeight: true });
   });
 
   test.afterAll(async () => {
