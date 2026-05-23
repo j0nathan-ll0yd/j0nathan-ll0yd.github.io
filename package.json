@@ -23,6 +23,7 @@
     "compliance": "node scripts/widget-compliance.mjs"
   },
   "dependencies": {
+    "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
     "astro": "^6.0.0"
   },
   "devDependencies": {
