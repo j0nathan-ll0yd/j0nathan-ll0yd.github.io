@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
+    "@lifegames/web": "file:.yalc/@lifegames/web",
     "astro": "^6.0.0"
   },
   "devDependencies": {
