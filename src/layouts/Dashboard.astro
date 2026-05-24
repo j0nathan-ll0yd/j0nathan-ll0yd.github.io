@@ -243,6 +243,8 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     @import '@lifegames/tokens/preamble';
     @import '@lifegames/tokens/css.layered';
     @import '@lifegames/tokens/compat';
+    @import '@lifegames/tokens/components';
+    @import '@lifegames/tokens/effects';
   </style>
   <style is:inline>/* System font fallback sized to match Space Grotesk metrics */
 @font-face {
@@ -432,11 +434,6 @@ html, body {
   <style is:global>
     @import '../styles/layout.css';
   </style>
-  <link rel="stylesheet" href="/css/components.css" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="/css/components.css"></noscript>
-  <link rel="stylesheet" href="/css/effects.css" media="print" onload="this.media='all'">
-  <noscript><link rel="stylesheet" href="/css/effects.css"></noscript>
-
   {import.meta.env.PROD && (
     <script is:inline>
     window.sa_event = window.sa_event || function() {
