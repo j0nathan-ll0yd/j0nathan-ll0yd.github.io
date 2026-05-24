@@ -239,7 +239,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
        Astro processes this <style> (non-inline), resolves the @imports via @lifegames/tokens,
        and inlines the result at build time because astro.config.mjs sets build.inlineStylesheets: 'always'.
        LCP behavior is preserved vs the previous in-file :root token block. -->
-  <style>
+  <style is:global>
     @import '@lifegames/tokens/preamble';
     @import '@lifegames/tokens/css.layered';
     @import '@lifegames/tokens/compat';
