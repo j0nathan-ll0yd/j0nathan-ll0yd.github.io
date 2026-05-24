@@ -3,11 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Dashboard from '../layouts/Dashboard.astro';
 // Production-shaped islands from the design system (typed-props + bundled runtime):
-import { BioTerminal, BookModal, Hydration } from '@lifegames/web/production';
-// IdentityCard NOT swapped: DS template carries widget-header chrome (live-dot,
-// timestamp, skeleton-state) that the consumer fork omits. Aligning the DS
-// template to match (or vice versa) is a separate refactor — out of scope here.
-import IdentityCard from '../components/IdentityCard.astro';
+import { BioTerminal, BookModal, Hydration, IdentityCard } from '@lifegames/web/production';
 import SystemStatus from '../components/SystemStatus.astro';
 import HeartRate from '../components/HeartRate.astro';
 import DailyActivity from '../components/DailyActivity.astro';
