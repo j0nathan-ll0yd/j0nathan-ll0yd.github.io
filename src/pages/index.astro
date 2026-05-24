@@ -3,23 +3,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import Dashboard from '../layouts/Dashboard.astro';
 // Production-shaped islands from the design system (typed-props + bundled runtime):
-import { BioTerminal, BookModal, Hydration, IdentityCard } from '@lifegames/web/production';
-import SystemStatus from '../components/SystemStatus.astro';
-import HeartRate from '../components/HeartRate.astro';
-import DailyActivity from '../components/DailyActivity.astro';
-import Workouts from '../components/Workouts.astro';
-import NightSummary from '../components/NightSummary.astro';
-import StarredRepoList from '../components/github/StarredRepoList.astro';
+import {
+  BioTerminal, BookModal, Hydration, IdentityCard,
+  SystemStatus, HeartRate, DailyActivity, Workouts, NightSummary,
+  StarredRepoList, DevActivityLog, ReadingFeed, Bookshelf,
+  FocusOverlay, DndOverlay, PlaceLeaderboardV3, ExplorationOdometerV3,
+  TheatreReviews,
+} from '@lifegames/web/production';
 import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
 import { adaptStarredRepos, type AdaptedStarredRepo } from '../lib/adapters';
-import DevActivityLog from '../components/github/DevActivityLog.astro';
-import ReadingFeed from '../components/ReadingFeed.astro';
-import Bookshelf from '../components/Bookshelf.astro';
-import FocusOverlay from '../components/FocusOverlay.astro';
-import DndOverlay from '../components/DndOverlay.astro';
-import PlaceLeaderboardV3 from '../components/location/PlaceLeaderboardV3.astro';
-import ExplorationOdometerV3 from '../components/location/ExplorationOdometerV3.astro';
-import TheatreReviews from '../components/TheatreReviews.astro';
 
 const dataDir = path.join(process.cwd(), 'data');
 const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
