@@ -18,8 +18,7 @@
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "npx playwright test",
     "test:visual:update": "npx playwright test --update-snapshots",
-    "test:visual:ui": "npx playwright test --ui",
-    "compliance": "node scripts/widget-compliance.mjs"
+    "test:visual:ui": "npx playwright test --ui"
   },
   "dependencies": {
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",

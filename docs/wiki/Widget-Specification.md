@@ -623,21 +623,7 @@ Sandbox widgets have a lighter checklist:
 
 ## 9. Compliance Matrix
 
-The compliance matrix is generated automatically by running:
-
-```bash
-npm run compliance
-```
-
-This script (`scripts/widget-compliance.mjs`) scans the codebase to produce an up-to-date compliance report. It checks:
-
-1. **Component exists** — `.astro` file in `src/components/`
-2. **Has widget ID** — `id` attribute on root element
-3. **In showcase** — component name appears in a `src/showcase/*.astro` file
-4. **Has screenshot test** — widget key in `WIDGET_SELECTORS` AND test case in `widgets.spec.ts`
-5. **Has variation tests** — variation scenario in `fixtures.ts` targeting this widget's endpoint
-6. **Has unit tests** — adapter/updater function name appears in `tests/lib/*.test.ts`
-7. **Has fixtures** — generated fixture directory exists for the widget's data type
+> **Deprecated (Phase 1):** `scripts/widget-compliance.mjs` and the `npm run compliance` script have been removed. The script referenced `src/showcase/` which was deleted in Phase 1. If compliance enforcement is needed at the catalog level, it will be owned by the Design System as a separate follow-up plan.
 
 ### Canonical Sources of Truth
 
