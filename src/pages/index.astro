@@ -10,8 +10,8 @@ import {
   FocusOverlay, DndOverlay, PlaceLeaderboardV3, ExplorationOdometerV3,
   TheatreReviews,
 } from '@lifegames/web/production';
-import { CLOUDFRONT_BASE, ENDPOINTS } from '../lib/constants';
-import { adaptStarredRepos, type AdaptedStarredRepo } from '../lib/adapters';
+import { CLOUDFRONT_BASE, ENDPOINTS } from '@lifegames/web/runtime/constants';
+import { adaptStarredRepos, type AdaptedStarredRepo } from '@lifegames/web/runtime/adapters';
 
 const dataDir = path.join(process.cwd(), 'data');
 const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
@@ -105,7 +105,7 @@ if (process.env.USE_FIXTURES === 'true') {
   <script>
     window.addEventListener('load', () => {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      import('../scripts/particles').then(m => m.startParticles());
+      import('@lifegames/web/runtime/particles').then(m => m.startParticles());
     });
   </script>
 
@@ -501,6 +501,6 @@ if (process.env.USE_FIXTURES === 'true') {
 
   <!-- Live Data Integration -->
   <script>
-    import '../scripts/live-data';
+    import '@lifegames/web/runtime/live-data';
   </script>
 </Dashboard>

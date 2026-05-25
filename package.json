@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
+    "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx ../lifegames-design-system/packages/schemas/scripts/validate.ts",
     "build": "astro build",
     "preview": "astro preview",
     "generate:fixtures": "npx tsx test/fixtures/generate.ts",
@@ -21,6 +22,7 @@
     "compliance": "node scripts/widget-compliance.mjs"
   },
   "dependencies": {
+    "@lifegames/schemas": "file:.yalc/@lifegames/schemas",
     "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
     "@lifegames/web": "file:.yalc/@lifegames/web",
     "astro": "^6.0.0"
@@ -34,6 +36,8 @@
     "cheerio": "^1.2.0",
     "jsdom": "^29.0.0",
     "json-schema-to-typescript": "^15.0.4",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "tsx": "^4.21.0",
     "vitest": "^4.1.0",
     "wrangler": "^4.88.0"
