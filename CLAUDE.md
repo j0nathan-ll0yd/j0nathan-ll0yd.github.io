@@ -227,3 +227,65 @@ Routes: `/showcase`, `/showcase/brand-guide`, `/showcase/identity-system`, `/sho
 - Run `npm run test:visual` after CSS or layout changes
 - Run `npm run test` after modifying `src/lib/` modules
 - Refer to `docs/wiki/` for detailed architecture documentation
+
+## Design System Integration Rules (from Phase 1.5)
+
+These rules codify behavior from Phase 1 (visual regression discovery) and Phase 1.5 (schema seam wiring) of the lifegames-design-system project. They are enforced at the documentation and code tier; violations cause build failures or visual test failures.
+
+### Rule 1: `<style is:global>` required for Design System CSS [HIGH]
+
+Astro `<style>` blocks consuming `@lifegames/*` CSS imports MUST be marked `<style is:global>`. Without `is:global`, Astro scopes the `@import`-resolved class selectors to the importing component's scope hash, and they do not match elements rendered by Design System production islands (which have their own scope hashes).
+
+**Specifically:** `src/layouts/Dashboard.astro` MUST keep its `<style is:global>` block at lines ~242–248 with all `@lifegames/*` imports. Do NOT remove `is:global` from that block.
+
+**Cost when missed:** 90 visual test failures in a single test cycle (~30 min to diagnose and fix).
+
+### Rule 2: Always import from `@lifegames/web/runtime/*` [HIGH]
+
+Consumer MUST import runtime modules from `@lifegames/web/runtime/*` and never re-introduce `../lib/*` or `../scripts/*` paths. The runtime namespace is the stable public API; `../lib/` paths are internal to the Design System.
+
+**Correct imports:**
+- `import { CLOUDFRONT_BASE, ENDPOINTS } from '@lifegames/web/runtime/constants'` (NOT `'../lib/constants'`)
+- `import { adaptStarredRepos, type AdaptedStarredRepo } from '@lifegames/web/runtime/adapters'` (NOT `'../lib/adapters'`)
+- `import('@lifegames/web/runtime/particles').then(...)` (NOT `'../scripts/particles'`)
+- `import '@lifegames/web/runtime/live-data'` (NOT `'../scripts/live-data'`)
+- ECG canvas: `import { initHeartRateInline } from '@lifegames/web/runtime/heart-rate-init'; initHeartRateInline('hrEcgCanvas')` (NEVER inline a 324-line IIFE — Design System owns this behavior)
+
+**Layout CSS:** `@import '@lifegames/tokens/layout'` (NOT `'../styles/layout.css'`).
+
+### Rule 3: Schema validation is strict in prebuild [HIGH]
+
+`data/*.json` fixtures MUST validate against `@lifegames/schemas` in the prebuild hook. Validation strictness is `additionalProperties: false`. The prebuild hook fails the build on any schema drift.
+
+**Currently validated:** 7 consumer fixtures: `profile`, `system`, `health`, `github`, `reading`, `books`, `theatre-reviews-sample`. Each maps to a Design System–published schema per `packages/schemas/fixture-map.json`.
+
+**When adding a field to a fixture:**
+1. Extend the corresponding schema in the Design System first
+2. Run `pnpm -F @lifegames/schemas codegen` in the Design System repo
+3. Run `pnpm yalc:publish` from the Design System repo
+4. Consumer rebuild succeeds automatically via yalc propagation
+
+### Rule 4: R8 Operational Playbook — Schema Validation Build Failures [MEDIUM]
+
+**If consumer build fails with `ajv: additional property X not allowed` (or similar schema validation error):**
+
+1. **Identify the source:** Is X a new field exported by Lifegames Portal (most likely) or consumer-side drift?
+
+2. **If Lifegames Portal side (most common):**
+   - In the Design System repo, re-sync schemas via `pnpm sync:schemas`
+   - Run `pnpm -F @lifegames/schemas codegen` to regenerate types
+   - Commit the regenerated `vendored/`, `dist/`, and `swift/` files
+   - Run `pnpm yalc:publish` to push updated packages to `.yalc/`
+   - Consumer rebuild succeeds automatically (yalc propagates updates)
+
+3. **If consumer-side drift:**
+   - Either remove the extra field from `data/*.json` (preferred)
+   - OR propose a Design System schema extension in a separate plan and follow step 2
+
+4. **Emergency override (use sparingly, requires explicit commit trailer):**
+   - Temporarily set `additionalProperties: true` on the offending `vendored/*.schema.json` in the Design System
+   - Document the reason with `Rejected: <reason>` in the commit message
+   - This will fail Design System CI (codegen-freshness check); the failure is intentional and acknowledged
+   - Create a follow-up issue to remove the override and fix the schema properly
+
+**Never bypass validation by deleting the prebuild script or removing fields from a schema without going through the Design System commit + yalc-publish loop.**
