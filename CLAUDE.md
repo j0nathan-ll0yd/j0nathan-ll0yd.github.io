@@ -230,7 +230,7 @@ Routes: `/showcase`, `/showcase/brand-guide`, `/showcase/identity-system`, `/sho
 
 ## Design System Integration Rules (from Phase 1.5)
 
-These rules codify behavior from Phase 1 (visual regression discovery) and Phase 1.5 (schema seam wiring) of the lifegames-design-system project. They are enforced at the documentation and code tier; violations cause build failures or visual test failures.
+These rules codify behavior from Phase 1 (visual regression discovery) and Phase 1.5 (schema seam wiring) of the design-system-Lifegames project. They are enforced at the documentation and code tier; violations cause build failures or visual test failures.
 
 ### Rule 1: `<style is:global>` required for Design System CSS [HIGH]
 
