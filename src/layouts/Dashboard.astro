@@ -245,6 +245,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     @import '@lifegames/tokens/compat';
     @import '@lifegames/tokens/components';
     @import '@lifegames/tokens/effects';
+    @import '@lifegames/tokens/reset';
   </style>
   <style is:inline>/* System font fallback sized to match Space Grotesk metrics */
 @font-face {
@@ -291,8 +292,12 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
    --font-size-*, --space-*, --radius-*, --blur-*, --glow-*) resolve via the
    compat layer; --lg-* names resolve from css.layered. Same hex values. */
 
-/* ===== CSS RESET & GLOBAL STYLES ===== */
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+/* ===== GLOBAL STYLES =====
+   Reset is provided by @lifegames/tokens/reset (imported in the layered
+   <style is:global> block above). A universal `* { margin: 0; padding: 0 }`
+   reset MUST NOT be reintroduced here — un-layered styles win over layered
+   styles at any specificity, and that would clobber `.right-panel`'s
+   margin-left in tokens/layout.css, collapsing the dashboard layout. */
 
 html, body {
   height: 100%;
