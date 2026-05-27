@@ -7,6 +7,7 @@
     "dev": "astro dev",
     "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts",
     "build": "astro build",
+    "postbuild": "node scripts/check-live-data-bundle.mjs",
     "preview": "astro preview",
     "generate:fixtures": "npx tsx test/fixtures/generate.ts",
     "validate:fixtures": "npx tsx test/fixtures/validate.ts",
