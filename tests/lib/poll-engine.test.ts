@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { PollEngine } from '../../src/lib/poll-engine';
+import { PollEngine } from '@lifegames/web/runtime/poll-engine';
 
 // Mock constants module
-vi.mock('../../src/lib/constants', () => ({
+vi.mock('@lifegames/web/runtime/constants', () => ({
   CLOUDFRONT_BASE: 'https://mock.cloudfront.net',
   ENDPOINTS: {
     health: '/health.json',

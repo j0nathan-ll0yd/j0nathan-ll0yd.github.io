@@ -22,8 +22,8 @@ import {
   updateBookshelf,
   getCategoryColor,
   esc,
-} from '../../src/lib/updaters';
-import type { AdaptedHealth, AdaptedSleep, WorkoutEntry, AdaptedGithubEvent, AdaptedArticle, AdaptedBooks } from '../../src/lib/adapters';
+} from '@lifegames/web/runtime/updaters';
+import type { AdaptedHealth, AdaptedSleep, WorkoutEntry, AdaptedGithubEvent, AdaptedArticle, AdaptedBooks } from '@lifegames/web/runtime/adapters';
 import type { LocationExport } from '../../src/types/exports';
 
 // ── helpers ───────────────────────────────────────────────────────────────────

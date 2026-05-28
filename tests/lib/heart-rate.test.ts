@@ -4,7 +4,7 @@ import {
   classifyHRV,
   generateECGSamples,
   buildECGPath,
-} from '../../src/lib/heart-rate';
+} from '@lifegames/web/runtime/heart-rate';
 
 describe('classifyHeartRate', () => {
   describe('Bradycardia zone (hr < 45)', () => {

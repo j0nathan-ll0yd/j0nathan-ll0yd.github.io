@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
-import { updateTheatreReviews } from '../../src/lib/updaters-theatre';
+import { updateTheatreReviews } from '@lifegames/web/runtime/updaters-theatre';
 import type { TheatreReviewsExport } from '../../src/types/exports';
 
 function makeExport(reviews: TheatreReviewsExport['reviews'] = []): TheatreReviewsExport {

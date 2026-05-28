@@ -7,8 +7,8 @@ import {
   adaptBooks,
   adaptArticles,
   adaptStarredRepos,
-} from '../../src/lib/adapters';
-import { HYDRATION, STATUS_LABELS } from '../../src/lib/constants';
+} from '@lifegames/web/runtime/adapters';
+import { HYDRATION, STATUS_LABELS } from '@lifegames/web/runtime/constants';
 import type { HealthExport, SleepExport, WorkoutsExport, BooksExport, GithubEventsExport, ArticlesExport } from '../../src/types/exports';
 
 // ── Fixture factories ─────────────────────────────────────────────

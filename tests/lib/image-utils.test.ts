@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { localizeImageUrl, imgFallbackAttrs } from '../../src/lib/image-utils';
+import { localizeImageUrl, imgFallbackAttrs } from '@lifegames/web/runtime/image-utils';
 
 const CF_PREFIX = 'https://d1pfm520aduift.cloudfront.net/images/';
 

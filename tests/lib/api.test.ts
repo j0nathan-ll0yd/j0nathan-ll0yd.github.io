@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchWithTimeout, fetchAllEndpoints } from '../../src/lib/api';
+import { fetchWithTimeout, fetchAllEndpoints } from '@lifegames/web/runtime/api';
 
 // Mock constants module
-vi.mock('../../src/lib/constants', () => ({
+vi.mock('@lifegames/web/runtime/constants', () => ({
   CLOUDFRONT_BASE: 'https://mock.cloudfront.net',
   ENDPOINTS: {
     health: '/health.json',

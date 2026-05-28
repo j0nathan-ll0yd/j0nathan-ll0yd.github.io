@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { esc, getCategoryColor, formatRelativeTime } from '../../src/lib/updaters';
+import { esc, getCategoryColor, formatRelativeTime } from '@lifegames/web/runtime/updaters';
 
 describe('esc', () => {
   it('returns empty string for null', () => {

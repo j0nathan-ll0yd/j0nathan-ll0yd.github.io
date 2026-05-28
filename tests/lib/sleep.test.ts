@@ -4,8 +4,8 @@ import {
   formatDuration,
   formatPhase,
   computeSleepPercentages,
-} from '../../src/lib/sleep';
-import type { SleepPhases } from '../../src/lib/sleep';
+} from '@lifegames/web/runtime/sleep';
+import type { SleepPhases } from '@lifegames/web/runtime/sleep';
 
 describe('computeTotalSleepSeconds', () => {
   it('sums rem + deep + core, excludes awake', () => {

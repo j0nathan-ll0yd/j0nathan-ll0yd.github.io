@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { updateFocusOverlay } from '../../src/lib/updaters-focus';
+import { updateFocusOverlay } from '@lifegames/web/runtime/updaters-focus';
 import type { FocusExport } from '../../src/types/exports';
 
 function setup() {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { WSClient } from '../../src/lib/ws-client';
+import { WSClient } from '@lifegames/web/runtime/ws-client';
 
 // MockWebSocket with controllable event firing
 class MockWebSocket {
