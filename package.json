@@ -13,6 +13,7 @@
     "validate:fixtures": "npx tsx test/fixtures/validate.ts",
     "generate:types": "node scripts/generate-types.mjs && npm run validate:fixtures --if-present",
     "fetch:images": "node scripts/fetch-images.mjs",
+    "test": "npm run test:build",
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "npx playwright test",
     "test:visual:update": "npx playwright test --update-snapshots",
