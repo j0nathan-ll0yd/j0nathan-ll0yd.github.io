@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      astro:
+        patterns:
+          - astro
+          - "@astrojs/*"
+      vite-pwa:
+        patterns:
+          - "@vite-pwa/*"
+          - vite-plugin-pwa
+          - "workbox-*"
+    ignore:
+      # Astro major bumps require manual testing of every page and widget.
+      - dependency-name: astro
+        update-types:
+          - version-update:semver-major
+      # @vite-pwa/astro has known peer-dep mismatch with Astro 6 -- handled
+      # by --legacy-peer-deps. Major bumps risk breaking that workaround.
+      - dependency-name: "@vite-pwa/*"
+        update-types:
+          - version-update:semver-major
+      - dependency-name: vite-plugin-pwa
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
