@@ -36,7 +36,7 @@ jobs:
             .yalc
             yalc.lock
             dist
-          key: ds-dist-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh') }}-ds-${{ steps.ds-info.outputs.sha }}
+          key: ds-dist-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh', 'test/fixtures/build-data/*.json') }}-ds-${{ steps.ds-info.outputs.sha }}
 
       - name: Setup design-system + install dependencies
         if: steps.ds-cache.outputs.cache-hit != 'true'
@@ -44,6 +44,8 @@ jobs:
 
       - name: Build Astro site
         if: steps.ds-cache.outputs.cache-hit != 'true'
+        env:
+          USE_FIXTURES: 'true'
         run: npm run build
 
       - name: Upload DS+dist artifact
