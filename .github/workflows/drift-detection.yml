@@ -1,37 +1,40 @@
 # Drift Detection Workflow
 #
-# Triggers on Cloudflare Pages deploy via repository_dispatch event (type: pages-deployed).
+# Triggers after the "Deploy to Cloudflare Pages" workflow completes successfully
+# on main. Uses GitHub's native workflow_run event -- no PAT, no Cloudflare-side
+# configuration, no relay needed. The drift check screenshots the deployed site and
+# compares against committed drift baselines.
+#
 # Also supports manual trigger via workflow_dispatch for testing.
 #
-# CLOUDFLARE DEPLOY HOOK SETUP:
-#   1. In Cloudflare dashboard → Pages → your project → Settings → Deploy hooks
-#   2. Create a new deploy hook (or use existing) to capture deploy events
-#   3. Create a GitHub Actions incoming webhook that fires repository_dispatch:
-#      - In Cloudflare Pages, go to Settings → Notifications → Add notification
-#      - Event type: "Deployment successful"
-#      - Delivery: Outgoing webhook → URL: https://api.github.com/repos/j0nathan-ll0yd/j0nathan-ll0yd.github.io/dispatches
-#      - Payload must include: {"event_type": "pages-deployed"}
-#      - Include a GitHub Personal Access Token (PAT) with `repo` scope as Authorization header
-#   4. Alternatively, use a Cloudflare Worker triggered on deploy to call the GitHub API
-#
 # THRESHOLD TIER: INFORMATIONAL
-#   This workflow is non-blocking. Failure files a GitHub issue rather than failing CI.
-#   Pixel tolerance is intentionally looser (5%) than regression tests (2.5%) to reduce
-#   false positives from minor rendering differences between production and test environments.
+#   This workflow is non-blocking. Failure files a GitHub issue rather than failing
+#   CI. Pixel tolerance is intentionally looser (5%) than regression tests (2.5%)
+#   to reduce false positives from minor rendering differences between production
+#   and test environments.
 
 name: Drift Detection
 
 on:
-  repository_dispatch:
-    types: [pages-deployed]
+  workflow_run:
+    workflows: ["Deploy to Cloudflare Pages"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
 
 jobs:
   drift-detection:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
