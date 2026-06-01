@@ -6,7 +6,61 @@ on:
   workflow_dispatch:
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-noble
+    outputs:
+      ds-sha: ${{ steps.ds-info.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Resolve DS HEAD SHA for cache key
+        id: ds-info
+        run: |
+          DS_SHA=$(git ls-remote https://github.com/j0nathan-ll0yd/design-system-Lifegames.git refs/heads/main | cut -f1)
+          echo "sha=$DS_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Restore workspace cache
+        uses: actions/cache@v4
+        id: workspace-cache
+        with:
+          path: |
+            node_modules
+            .yalc
+            yalc.lock
+            dist
+          key: workspace-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh') }}-ds-${{ steps.ds-info.outputs.sha }}
+
+      - name: Setup design-system + install dependencies
+        if: steps.workspace-cache.outputs.cache-hit != 'true'
+        run: bash scripts/ci-setup.sh
+
+      - name: Build Astro site
+        if: steps.workspace-cache.outputs.cache-hit != 'true'
+        run: npm run build
+
+      - name: Upload workspace artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-tests-workspace
+          path: |
+            node_modules
+            .yalc
+            yalc.lock
+            dist
+          retention-days: 1
+          include-hidden-files: true
+
   visual-tests:
+    needs: setup
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-noble
@@ -23,10 +77,11 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
-          cache: npm
 
-      - name: Setup design-system + install dependencies
-        run: bash scripts/ci-setup.sh
+      - name: Download workspace artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: visual-tests-workspace
 
       - name: Run visual regression tests
         run: npx playwright test --shard=${{ matrix.shard }}/4
@@ -59,8 +114,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Setup design-system + install dependencies
-        run: bash scripts/ci-setup.sh
+      - name: Install dependencies (Playwright CLI only)
+        run: npm ci --legacy-peer-deps
       - name: Download blob reports
         uses: actions/download-artifact@v8
         with:
