@@ -1,0 +1,28 @@
+{
+  "name": "Jane Doe",
+  "title": "Software Engineer",
+  "location": "Austin, TX",
+  "coordinates": [30.2672, -97.7431],
+  "linkedin": "https://www.linkedin.com/in/test-profile/",
+  "github": "https://github.com/test-user",
+  "bio": "A passionate engineer who loves building things and learning new technologies.",
+  "tagline": "Welcome to my human datastream.",
+  "avatar": "/assets/avatar.webp",
+  "terminalLines": [
+    { "type": "prompt", "text": "$ cat about.txt" },
+    { "type": "output", "text": "→ Jane Doe" },
+    { "type": "output", "text": "→ Software Engineer" },
+    { "type": "output", "text": "→ \"Building things worth building\"" },
+    { "type": "blank", "text": "" },
+    { "type": "prompt", "text": "$ ls skills/" },
+    { "type": "output", "text": "→ typescript  aws  swift  python  go" },
+    { "type": "blank", "text": "" },
+    { "type": "prompt", "text": "$ uptime" },
+    { "type": "output", "text": "→ 10+ years professionally and counting" },
+    { "type": "blank", "text": "" },
+    { "type": "prompt", "text": "$ cat philosophy.txt" },
+    { "type": "output", "text": "→ \"Make it work, make it right, make it fast\"" },
+    { "type": "blank", "text": "" },
+    { "type": "cursor", "text": "" }
+  ]
+}

@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts",
+    "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && tsx scripts/validate-build-fixtures.ts",
+    "validate:build-fixtures": "tsx scripts/validate-build-fixtures.ts",
     "build": "astro build",
     "postbuild": "node scripts/check-live-data-bundle.mjs",
     "preview": "astro preview",
@@ -17,7 +18,9 @@
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "npx playwright test",
     "test:visual:update": "npx playwright test --update-snapshots",
-    "test:visual:ui": "npx playwright test --ui"
+    "test:visual:ui": "npx playwright test --ui",
+    "test:visual:fast": "SKIP_BUILD=true npx playwright test",
+    "test:visual:update:fast": "SKIP_BUILD=true npx playwright test --update-snapshots"
   },
   "dependencies": {
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",

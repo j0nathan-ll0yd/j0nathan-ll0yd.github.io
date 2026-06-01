@@ -1,6 +1,4 @@
 ---
-import fs from 'node:fs';
-import path from 'node:path';
 import Dashboard from '../layouts/Dashboard.astro';
 // Production-shaped islands from the design system (typed-props + bundled runtime):
 import {
@@ -10,38 +8,9 @@ import {
   FocusOverlay, DndOverlay, PlaceLeaderboardV3, ExplorationOdometerV3,
   TheatreReviews,
 } from '@lifegames/web/production';
-import { CLOUDFRONT_BASE, ENDPOINTS } from '@lifegames/web/runtime/constants';
-import { adaptStarredRepos, type AdaptedStarredRepo } from '@lifegames/web/runtime/adapters';
+import { loadDashboardData } from '../lib/load-dashboard-data';
 
-const dataDir = path.join(process.cwd(), 'data');
-const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
-const health = JSON.parse(fs.readFileSync(path.join(dataDir, 'health.json'), 'utf-8'));
-const github = JSON.parse(fs.readFileSync(path.join(dataDir, 'github.json'), 'utf-8'));
-const reading = JSON.parse(fs.readFileSync(path.join(dataDir, 'reading.json'), 'utf-8'));
-const books = JSON.parse(fs.readFileSync(path.join(dataDir, 'books.json'), 'utf-8'));
-const system = JSON.parse(fs.readFileSync(path.join(dataDir, 'system.json'), 'utf-8'));
-
-let starredRepos: AdaptedStarredRepo[] = [];
-if (process.env.USE_FIXTURES === 'true') {
-  // Use local fixture for deterministic visual tests
-  const fixturePath = path.join(process.cwd(), 'test', 'fixtures', 'generated', 'github-starred-repos', 'baseline.json');
-  try {
-    const json = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
-    // Use fixture generation time as "now" for stable relative dates
-    const fixtureNow = json.generatedAt ? new Date(json.generatedAt).getTime() : undefined;
-    starredRepos = adaptStarredRepos(json, fixtureNow);
-  } catch (err) {
-    console.warn('[build] Failed to read starred repos fixture:', (err as Error).message);
-  }
-} else {
-  try {
-    const res = await fetch(`${CLOUDFRONT_BASE}${ENDPOINTS.starredRepos}`);
-    const json = await res.json();
-    starredRepos = adaptStarredRepos(json);
-  } catch (err) {
-    console.warn('[build] Failed to fetch starred repos:', (err as Error).message);
-  }
-}
+const { profile, health, github, reading, books, system, starredRepos } = await loadDashboardData();
 ---
 <Dashboard>
   <FocusOverlay />
