@@ -28,31 +28,29 @@ jobs:
           DS_SHA=$(git ls-remote https://github.com/j0nathan-ll0yd/design-system-Lifegames.git refs/heads/main | cut -f1)
           echo "sha=$DS_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Restore workspace cache
+      - name: Restore DS+dist cache
         uses: actions/cache@v4
-        id: workspace-cache
+        id: ds-cache
         with:
           path: |
-            node_modules
             .yalc
             yalc.lock
             dist
-          key: workspace-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh') }}-ds-${{ steps.ds-info.outputs.sha }}
+          key: ds-dist-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh') }}-ds-${{ steps.ds-info.outputs.sha }}
 
       - name: Setup design-system + install dependencies
-        if: steps.workspace-cache.outputs.cache-hit != 'true'
+        if: steps.ds-cache.outputs.cache-hit != 'true'
         run: bash scripts/ci-setup.sh
 
       - name: Build Astro site
-        if: steps.workspace-cache.outputs.cache-hit != 'true'
+        if: steps.ds-cache.outputs.cache-hit != 'true'
         run: npm run build
 
-      - name: Upload workspace artifact
+      - name: Upload DS+dist artifact
         uses: actions/upload-artifact@v7
         with:
-          name: visual-tests-workspace
+          name: visual-tests-ds-dist
           path: |
-            node_modules
             .yalc
             yalc.lock
             dist
@@ -77,14 +75,15 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: npm
 
-      - name: Download workspace artifact
+      - name: Download DS+dist artifact
         uses: actions/download-artifact@v8
         with:
-          name: visual-tests-workspace
+          name: visual-tests-ds-dist
 
-      - name: Restore executable permissions on node_modules/.bin
-        run: chmod -R +x node_modules/.bin
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Run visual regression tests
         env:
