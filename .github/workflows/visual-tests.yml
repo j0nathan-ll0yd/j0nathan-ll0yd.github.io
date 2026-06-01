@@ -6,7 +6,59 @@ on:
   workflow_dispatch:
 
 jobs:
+  setup:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-noble
+    outputs:
+      ds-sha: ${{ steps.ds-info.outputs.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Resolve DS HEAD SHA for cache key
+        id: ds-info
+        run: |
+          DS_SHA=$(git ls-remote https://github.com/j0nathan-ll0yd/design-system-Lifegames.git refs/heads/main | cut -f1)
+          echo "sha=$DS_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Restore DS+dist cache
+        uses: actions/cache@v4
+        id: ds-cache
+        with:
+          path: |
+            .yalc
+            yalc.lock
+            dist
+          key: ds-dist-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh') }}-ds-${{ steps.ds-info.outputs.sha }}
+
+      - name: Setup design-system + install dependencies
+        if: steps.ds-cache.outputs.cache-hit != 'true'
+        run: bash scripts/ci-setup.sh
+
+      - name: Build Astro site
+        if: steps.ds-cache.outputs.cache-hit != 'true'
+        run: npm run build
+
+      - name: Upload DS+dist artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-tests-ds-dist
+          path: |
+            .yalc
+            yalc.lock
+            dist
+          retention-days: 1
+          include-hidden-files: true
+
   visual-tests:
+    needs: setup
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.58.0-noble
@@ -25,10 +77,17 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Setup design-system + install dependencies
-        run: bash scripts/ci-setup.sh
+      - name: Download DS+dist artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: visual-tests-ds-dist
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Run visual regression tests
+        env:
+          SKIP_BUILD: 'true'
         run: npx playwright test --shard=${{ matrix.shard }}/4
 
       - name: Upload blob report
@@ -59,8 +118,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Setup design-system + install dependencies
-        run: bash scripts/ci-setup.sh
+      - name: Install dependencies (Playwright CLI only)
+        run: npm ci --legacy-peer-deps
       - name: Download blob reports
         uses: actions/download-artifact@v8
         with:
