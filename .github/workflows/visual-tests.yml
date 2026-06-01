@@ -87,6 +87,8 @@ jobs:
         run: chmod -R +x node_modules/.bin
 
       - name: Run visual regression tests
+        env:
+          SKIP_BUILD: 'true'
         run: npx playwright test --shard=${{ matrix.shard }}/4
 
       - name: Upload blob report

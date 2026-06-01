@@ -14,7 +14,7 @@ export default defineConfig({
     : [['html', { open: 'on-failure' }]],
 
   webServer: {
-    command: 'npm run build && npm run preview',
+    command: process.env.SKIP_BUILD ? 'npm run preview' : 'npm run build && npm run preview',
     url: 'http://localhost:4321/',
     timeout: 120_000,
     reuseExistingServer: !isCI,
