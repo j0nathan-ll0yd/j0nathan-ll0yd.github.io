@@ -83,6 +83,9 @@ jobs:
         with:
           name: visual-tests-workspace
 
+      - name: Restore executable permissions on node_modules/.bin
+        run: chmod -R +x node_modules/.bin
+
       - name: Run visual regression tests
         run: npx playwright test --shard=${{ matrix.shard }}/4
 
