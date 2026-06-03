@@ -5,7 +5,6 @@
       "articleUrl": "https://news.ycombinator.com/item?id=notes1",
       "articleTitle": "How to Build Resilient Distributed Systems",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -21,12 +20,10 @@
       "notes": [
         {
           "comment": "Great point about consensus algorithms",
-          "savedBy": null,
           "createdAt": "2026-03-18T01:54:55.432Z"
         },
         {
           "comment": "Follow up on the Raft paper",
-          "savedBy": null,
           "createdAt": "2026-03-18T01:54:55.432Z"
         }
       ]
@@ -35,7 +32,6 @@
       "articleUrl": "https://techcrunch.com/notes2-placeholder",
       "articleTitle": "The Economics of Open Source Sustainability",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -51,7 +47,6 @@
       "notes": [
         {
           "comment": "Relevant to mantle licensing decisions",
-          "savedBy": null,
           "createdAt": "2026-03-18T01:54:55.432Z"
         }
       ]
@@ -60,7 +55,6 @@
       "articleUrl": "https://arstechnica.com/notes3-placeholder",
       "articleTitle": "Aurora DSQL: A Deep Dive into Serverless Postgres",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -76,12 +70,10 @@
       "notes": [
         {
           "comment": "Compare with our current DSQL usage",
-          "savedBy": null,
           "createdAt": "2026-03-18T01:54:55.432Z"
         },
         {
           "comment": "Check the async index creation section",
-          "savedBy": null,
           "createdAt": "2026-03-18T01:54:55.432Z"
         }
       ]

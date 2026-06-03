@@ -14,8 +14,8 @@ export const articlesVariations: Record<string, ArticlesExport> = {
         articleTitle: 'How to Build Resilient Distributed Systems',
         sourceTitle: 'Hacker News',
         notes: [
-          { comment: 'Great point about consensus algorithms', savedBy: null, createdAt: isoTimestamp() },
-          { comment: 'Follow up on the Raft paper', savedBy: null, createdAt: isoTimestamp() },
+          { comment: 'Great point about consensus algorithms', createdAt: isoTimestamp() },
+          { comment: 'Follow up on the Raft paper', createdAt: isoTimestamp() },
         ],
       }),
       createArticle({
@@ -23,7 +23,7 @@ export const articlesVariations: Record<string, ArticlesExport> = {
         articleTitle: 'The Economics of Open Source Sustainability',
         sourceTitle: 'TechCrunch',
         notes: [
-          { comment: 'Relevant to mantle licensing decisions', savedBy: null, createdAt: isoTimestamp() },
+          { comment: 'Relevant to mantle licensing decisions', createdAt: isoTimestamp() },
         ],
       }),
       createArticle({
@@ -31,8 +31,8 @@ export const articlesVariations: Record<string, ArticlesExport> = {
         articleTitle: 'Aurora DSQL: A Deep Dive into Serverless Postgres',
         sourceTitle: 'Ars Technica',
         notes: [
-          { comment: 'Compare with our current DSQL usage', savedBy: null, createdAt: isoTimestamp() },
-          { comment: 'Check the async index creation section', savedBy: null, createdAt: isoTimestamp() },
+          { comment: 'Compare with our current DSQL usage', createdAt: isoTimestamp() },
+          { comment: 'Check the async index creation section', createdAt: isoTimestamp() },
         ],
       }),
     ],

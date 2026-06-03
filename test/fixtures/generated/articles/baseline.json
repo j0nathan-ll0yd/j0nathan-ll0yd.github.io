@@ -5,7 +5,6 @@
       "articleUrl": "https://news.ycombinator.com/item?id=placeholder1",
       "articleTitle": "Ask HN: How do you manage technical debt at scale",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -24,7 +23,6 @@
       "articleUrl": "https://gizmodo.com/placeholder-article-title",
       "articleTitle": "The Future of Wearable Health Monitoring Devices",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -43,7 +41,6 @@
       "articleUrl": "https://techcrunch.com/placeholder-startup-funding",
       "articleTitle": "Developer Tools Startup Raises Series B Round",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -59,7 +56,6 @@
       "notes": [
         {
           "comment": "Interesting approach to the problem space",
-          "savedBy": null,
           "createdAt": "2026-03-18T01:54:55.432Z"
         }
       ]
@@ -68,7 +64,6 @@
       "articleUrl": "https://www.theverge.com/placeholder-review",
       "articleTitle": "Review: The Latest Advances in Open Source AI Tools",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
@@ -87,7 +82,6 @@
       "articleUrl": "https://arstechnica.com/placeholder-deep-dive",
       "articleTitle": "Deep Dive: How Modern Compilers Optimize Code",
       "articleAuthor": null,
-      "articleContent": null,
       "articleFirstImageUrl": null,
       "articlePublishedAt": "2026-03-18",
       "articleBoards": null,
