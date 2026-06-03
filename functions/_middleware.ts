@@ -21,7 +21,14 @@ const LINK_HEADER = [
   '</sitemap-index.xml>; rel="sitemap"',
 ].join(', ');
 
-export async function onRequest(context) {
+// Minimal Cloudflare Pages Function context — only the fields this middleware reads.
+// Avoids pulling in @cloudflare/workers-types just for one signature.
+interface PagesContext {
+  request: Request;
+  next(): Promise<Response>;
+}
+
+export async function onRequest(context: PagesContext): Promise<Response> {
   const { request } = context;
   const url = new URL(request.url);
   const accept = request.headers.get('Accept') || '';

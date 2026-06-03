@@ -22,10 +22,30 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Resolve DS HEAD SHA for cache key
+      - name: Resolve DS ref + SHA for cache key
         id: ds-info
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
         run: |
-          DS_SHA=$(git ls-remote https://github.com/j0nathan-ll0yd/design-system-Lifegames.git refs/heads/main | cut -f1)
+          # For cross-repo coordinated PRs, prefer a same-named branch on design-system
+          # if it exists; otherwise fall back to main. This lets a dashboard PR that
+          # imports a not-yet-merged DS widget verify against the matching DS branch.
+          DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
+          if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
+            CANDIDATE_SHA=$(git ls-remote "$DS_REPO_URL" "refs/heads/$HEAD_REF" | cut -f1)
+          else
+            CANDIDATE_SHA=""
+          fi
+          if [ -n "$CANDIDATE_SHA" ]; then
+            DS_REF="$HEAD_REF"
+            DS_SHA="$CANDIDATE_SHA"
+            echo "Using matching DS branch: $DS_REF ($DS_SHA)"
+          else
+            DS_REF="main"
+            DS_SHA=$(git ls-remote "$DS_REPO_URL" refs/heads/main | cut -f1)
+            echo "No matching DS branch for '$HEAD_REF'; falling back to main ($DS_SHA)"
+          fi
+          echo "ref=$DS_REF" >> "$GITHUB_OUTPUT"
           echo "sha=$DS_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Restore DS+dist cache
@@ -40,6 +60,8 @@ jobs:
 
       - name: Setup design-system + install dependencies
         if: steps.ds-cache.outputs.cache-hit != 'true'
+        env:
+          DS_REF: ${{ steps.ds-info.outputs.ref }}
         run: bash scripts/ci-setup.sh
 
       - name: Build Astro site

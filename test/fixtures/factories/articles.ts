@@ -8,7 +8,6 @@ export function createArticle(
     articleUrl: 'https://example.com/article-placeholder',
     articleTitle: placeholderText(8),
     articleAuthor: null,
-    articleContent: null,
     articleFirstImageUrl: null,
     articlePublishedAt: isoDate(),
     articleBoards: null,
@@ -16,6 +15,7 @@ export function createArticle(
     sourceTitle: 'Example Source',
     sourceUrl: 'https://example.com',
     sourceFeedUrl: null,
+    sourceDomain: null,
     articleEngagement: null,
     articleEngagementRate: null,
     articleFirstHighlight: null,
@@ -55,7 +55,6 @@ export function createArticlesFixture(
         notes: [
           {
             comment: 'Interesting approach to the problem space',
-            savedBy: null,
             createdAt: isoTimestamp(),
           },
         ],

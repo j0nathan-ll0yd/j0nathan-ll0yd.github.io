@@ -1,5 +1,7 @@
-import type { TheatreReviewsExport, TheatreReviewEntry } from '../../../src/types/exports';
+import type { TheatreReviewsExport } from '../../../src/types/exports';
 import { isoDate, isoTimestamp } from './helpers';
+
+type TheatreReviewEntry = TheatreReviewsExport['reviews'][number];
 
 export function createReview(
   overrides?: Partial<TheatreReviewEntry>
