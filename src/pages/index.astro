@@ -8,6 +8,9 @@ import {
   FocusOverlay, DndOverlay, PlaceLeaderboardV3, ExplorationOdometerV3,
   TheatreReviews,
 } from '@lifegames/web/production';
+// MovementRings is not yet promoted to `production/`; import from widgets/health.
+// (DailyActivity is retained until staged-deploy verification per design plan v2 §7.)
+import { MovementRings } from '@lifegames/web/widgets/health';
 import { loadDashboardData } from '../lib/load-dashboard-data';
 
 const { profile, health, github, reading, books, system, starredRepos } = await loadDashboardData();
@@ -45,7 +48,7 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
         <section class="triptych-column triptych-column-body" aria-label="Body">
           <h2 class="column-header column-header-pink">Body</h2>
           <HeartRate health={health} />
-          <DailyActivity health={health} />
+          <MovementRings health={health} />
           <Workouts health={health} />
           <Hydration health={health} />
           <NightSummary health={health} />
