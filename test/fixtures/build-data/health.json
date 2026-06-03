@@ -10,7 +10,10 @@
     "hrvSDNN": { "value": 45.0, "unit": "ms" },
     "respiratoryRate": { "value": 14.5, "unit": "count/min" },
     "restingHeartRate": { "value": 58, "unit": "count/min" },
-    "stepCount": { "value": 8200, "unit": "count" }
+    "stepCount": { "value": 8200, "unit": "count" },
+    "wristTemperatureDelta": { "value": 0.2, "unit": "°C" },
+    "timeInDaylight": { "value": 48, "unit": "min" },
+    "flightsClimbed": { "value": 4, "unit": "count" }
   },
   "sleep": {
     "awake": { "seconds": 900 },
@@ -26,6 +29,17 @@
       "distance": 2400
     }
   ],
+  "goals": {
+    "moveKcal": 500,
+    "exerciseMin": 30,
+    "standHr": 12,
+    "daylightMin": 20
+  },
+  "solar": {
+    "sunriseHHmm": "06:30",
+    "sunsetHHmm": "20:15",
+    "currentProgressPct": 60
+  },
   "ranges": {
     "heartRate": {
       "low": 50,

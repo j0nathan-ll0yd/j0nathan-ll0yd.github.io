@@ -11,7 +11,8 @@ const repoRoot = path.resolve(__dirname, '..');
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
 
-const SCHEMA_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/authored');
+const AUTHORED_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/authored');
+const GENERATED_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/generated');
 const VENDORED_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/vendored');
 const FIXTURE_DIR = path.join(repoRoot, 'test/fixtures/build-data');
 
@@ -38,7 +39,9 @@ const FIXTURES = [
 let failed = 0;
 
 for (const { file, schema } of FIXTURES) {
-  const schemaPath = path.join(SCHEMA_DIR, schema);
+  const authoredPath = path.join(AUTHORED_DIR, schema);
+  const generatedPath = path.join(GENERATED_DIR, schema);
+  const schemaPath = fs.existsSync(authoredPath) ? authoredPath : generatedPath;
   const fixturePath = path.join(FIXTURE_DIR, file);
 
   const schemaDef = JSON.parse(fs.readFileSync(schemaPath, 'utf-8'));
