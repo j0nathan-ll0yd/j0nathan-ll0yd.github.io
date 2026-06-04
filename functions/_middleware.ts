@@ -73,6 +73,24 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     );
   }
 
+  // Never let an error response (4xx/5xx) be cached. Cloudflare Pages serves the
+  // SPA 404 fallback with `Cache-Control: max-age=2592000, public` (30 days),
+  // which means a transient miss (e.g. an image not yet built into a deploy)
+  // gets stuck in browsers' HTTP cache for a month — even after the asset
+  // appears. Force `no-store` on all error responses so the next request
+  // re-checks the origin.
+  //
+  // Also force `no-store` when the SPA fallback is served for an asset-shaped
+  // path (the file extension hints we wanted a binary, but we got HTML back).
+  // This covers Pages configs where the SPA fallback returns 200, not 404.
+  const ASSET_EXT = /\.(?:webp|avif|png|jpe?g|gif|svg|ico|css|js|mjs|woff2?|ttf|otf|map|json|xml|txt)$/i;
+  const looksLikeAsset = ASSET_EXT.test(url.pathname);
+  const respIsHtml = (headers.get('Content-Type') || '').includes('text/html');
+  if (response.status >= 400 || (looksLikeAsset && respIsHtml)) {
+    headers.set('Cache-Control', 'no-store');
+    headers.set('CDN-Cache-Control', 'no-store');
+  }
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
