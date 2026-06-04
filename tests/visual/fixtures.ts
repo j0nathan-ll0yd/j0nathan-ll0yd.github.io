@@ -64,17 +64,17 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
  * Per-widget variation scenarios — each overrides a single endpoint from baseline.
  *
  * HEALTH ENDPOINT COUPLING: Variations that swap /health.json (hr-*, hydration-*)
- * affect HeartRate, DailyActivity, Hydration, and NightSummary simultaneously.
+ * affect HeartRate, Hydration, and NightSummary simultaneously.
  * This is acceptable because only the target widget is screenshotted in variation
  * tests — side effects on other widgets are cosmetic and not captured.
  */
 const WIDGET_VARIATION_SCENARIOS: Record<string, FixtureSet> = {
-  // Heart Rate variations (also affects DailyActivity, Hydration, NightSummary)
+  // Heart Rate variations (also affects Hydration, NightSummary)
   'hr-bradycardia': { ...BASELINE, '/health.json': fixture('health', 'bradycardia') },
   'hr-peak': { ...BASELINE, '/health.json': fixture('health', 'peak') },
   'hr-resting': { ...BASELINE, '/health.json': fixture('health', 'resting') },
 
-  // Hydration variations (also affects HeartRate, DailyActivity, NightSummary)
+  // Hydration variations (also affects HeartRate, NightSummary)
   'hydration-zero': { ...BASELINE, '/health.json': fixture('health', 'zero-hydration') },
   'hydration-max': { ...BASELINE, '/health.json': fixture('health', 'max-hydration') },
 

@@ -3,13 +3,12 @@ import Dashboard from '../layouts/Dashboard.astro';
 // Production-shaped islands from the design system (typed-props + bundled runtime):
 import {
   BioTerminal, BookModal, Hydration, IdentityCard,
-  SystemStatus, HeartRate, DailyActivity, Workouts, NightSummary,
+  SystemStatus, HeartRate, Workouts, NightSummary,
   StarredRepoList, DevActivityLog, ReadingFeed, Bookshelf,
   FocusOverlay, DndOverlay, PlaceLeaderboardV3, ExplorationOdometerV3,
   TheatreReviews,
 } from '@lifegames/web/production';
 // MovementRings is not yet promoted to `production/`; import from widgets/health.
-// (DailyActivity is retained until staged-deploy verification per design plan v2 §7.)
 import { MovementRings } from '@lifegames/web/widgets/health';
 import { loadDashboardData } from '../lib/load-dashboard-data';
 
@@ -49,7 +48,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
           <h2 class="column-header column-header-pink">Body</h2>
           <HeartRate health={health} />
           <MovementRings health={health} />
-          <DailyActivity health={health} />
           <Workouts health={health} />
           <Hydration health={health} />
           <NightSummary health={health} />

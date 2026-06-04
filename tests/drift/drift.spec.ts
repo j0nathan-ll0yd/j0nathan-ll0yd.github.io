@@ -27,7 +27,6 @@ test('production dashboard matches drift baseline', async ({ page }, testInfo) =
       page.locator('#hrEcgCanvas'),
       // Health widgets contain live-updated values
       page.locator('#cardHR'),
-      page.locator('#cardSteps'),
       page.locator('#cardSleep'),
       page.locator('#cardHydration'),
     ],
