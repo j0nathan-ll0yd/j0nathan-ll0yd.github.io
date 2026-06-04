@@ -73,20 +73,40 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     );
   }
 
-  // Never let an error response (4xx/5xx) be cached. Cloudflare Pages serves the
-  // SPA 404 fallback with `Cache-Control: max-age=2592000, public` (30 days),
-  // which means a transient miss (e.g. an image not yet built into a deploy)
-  // gets stuck in browsers' HTTP cache for a month — even after the asset
-  // appears. Force `no-store` on all error responses so the next request
-  // re-checks the origin.
+  // Cloudflare Pages serves the SPA 404 fallback (a `text/html` response) with
+  // `Cache-Control: max-age=2592000, public` (30 days), and Pages re-applies its
+  // default Cache-Control after the Function runs WHENEVER the response is HTML
+  // (per the homepage note at the top of this branch). That means setting
+  // `Cache-Control: no-store` via `headers.set(...)` does nothing on the 404
+  // HTML response — Pages overwrites it on the way out.
   //
-  // Also force `no-store` when the SPA fallback is served for an asset-shaped
-  // path (the file extension hints we wanted a binary, but we got HTML back).
-  // This covers Pages configs where the SPA fallback returns 200, not 404.
+  // The win: for any asset-shaped URL (`.webp`, `.avif`, `.js`, etc.), no human
+  // ever sees the 404 body — it loads via `<img>`/`<script>`/`<link>`. So we
+  // can fully replace the response with an empty `text/plain` body. Pages does
+  // NOT override Cache-Control on non-HTML responses, so our `no-store` sticks
+  // and the browser never caches the 404. Once the asset is uploaded in a later
+  // deploy, the very next request re-checks origin and gets the real bytes.
   const ASSET_EXT = /\.(?:webp|avif|png|jpe?g|gif|svg|ico|css|js|mjs|woff2?|ttf|otf|map|json|xml|txt)$/i;
   const looksLikeAsset = ASSET_EXT.test(url.pathname);
   const respIsHtml = (headers.get('Content-Type') || '').includes('text/html');
-  if (response.status >= 400 || (looksLikeAsset && respIsHtml)) {
+  if (looksLikeAsset && (response.status >= 400 || respIsHtml)) {
+    return new Response('', {
+      status: response.status >= 400 ? response.status : 404,
+      headers: {
+        'Cache-Control': 'no-store',
+        'CDN-Cache-Control': 'no-store',
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Content-Security-Policy': CSP,
+        'X-Content-Type-Options': 'nosniff',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+      },
+    });
+  }
+
+  // Non-asset error responses: still try `no-store`. Pages will likely override
+  // for HTML, but `CDN-Cache-Control` blocks the edge cache and that helps
+  // navigation 404s clear faster than max-age=2592000.
+  if (response.status >= 400) {
     headers.set('Cache-Control', 'no-store');
     headers.set('CDN-Cache-Control', 'no-store');
   }
