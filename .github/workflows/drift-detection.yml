@@ -79,11 +79,33 @@ jobs:
         with:
           script: |
             const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = 'Visual drift detected on production deploy';
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'drift-detected',
+              per_page: 100,
+            });
+            const dup = existing.data.find((i) => i.title === title);
+            if (dup) {
+              core.info(`Open drift issue already exists (#${dup.number}); appending run link instead of creating a duplicate.`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: dup.number,
+                body: `Another drift run detected differences: [View workflow run](${runUrl})`,
+              });
+              return;
+            }
+
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: 'Visual drift detected on production deploy',
-              labels: ['visual-drift', 'automated'],
+              title,
+              labels: ['visual-drift', 'drift-detected', 'automated'],
+              assignees: ['j0nathan-ll0yd'],
               body: [
                 '## Visual Drift Detected',
                 '',
