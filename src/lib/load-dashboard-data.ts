@@ -14,9 +14,19 @@ export type DashboardData = {
   starredRepos: AdaptedStarredRepo[];
 };
 
+/**
+ * Loads the dashboard payload that backs SSR build output.
+ *
+ * @buildtime This function only runs at Astro build time (`pnpm build`),
+ * never in deployed SSR or in the browser. The `console.log` below is
+ * intentionally a plain stdout write — build logs surface in CI/terminal
+ * output, and routing it through a structured logger would add a runtime
+ * dependency for zero observability benefit. If this ever moves to an
+ * SSR/edge code path, swap to a structured logger before doing so.
+ */
 export async function loadDashboardData(): Promise<DashboardData> {
   const useFixtures = process.env.USE_FIXTURES === 'true';
-  console.log('[loadDashboardData] using fixtures: ' + useFixtures);
+  console.log('[build] [loadDashboardData] using fixtures: ' + useFixtures);
 
   const dataDir = useFixtures
     ? path.join(process.cwd(), 'test', 'fixtures', 'build-data')
