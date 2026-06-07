@@ -151,13 +151,58 @@ else
       python3 - <<PY
 import json
 d = json.load(open('/tmp/vp-psi-$f.json'))
-cats = d.get('lighthouseResult', {}).get('categories', {})
-audits = d.get('lighthouseResult', {}).get('audits', {})
+lr = d.get('lighthouseResult', {})
+cats = lr.get('categories', {})
+audits = lr.get('audits', {})
 scores = {k: int(round((cats.get(k, {}).get('score') or 0) * 100)) for k in ['performance','accessibility','best-practices','seo']}
 lcp = audits.get('largest-contentful-paint', {}).get('numericValue', 0) / 1000
 cls = audits.get('cumulative-layout-shift', {}).get('numericValue', 0)
 tbt = audits.get('total-blocking-time', {}).get('numericValue', 0)
 print(f"[$f] perf={scores['performance']} a11y={scores['accessibility']} bp={scores['best-practices']} seo={scores['seo']} LCP={lcp:.2f}s CLS={cls:.3f} TBT={tbt:.0f}ms")
+
+# Surface why the score is not 100: rank failing audits across all four categories
+# by their weighted impact (audit weight * (1 - score)). Includes opportunity savings
+# when present so the report links each failing audit to a concrete fix and cost.
+weighted = []
+for cat_key, cat in cats.items():
+    for ref in cat.get('auditRefs', []) or []:
+        weight = ref.get('weight', 0) or 0
+        if weight <= 0:
+            continue
+        aud = audits.get(ref.get('id'), {})
+        score = aud.get('score')
+        mode = aud.get('scoreDisplayMode', '')
+        if score is None or mode in ('notApplicable', 'manual', 'informative'):
+            continue
+        if score >= 1:
+            continue
+        savings_ms = (aud.get('details') or {}).get('overallSavingsMs')
+        savings_bytes = (aud.get('details') or {}).get('overallSavingsBytes')
+        weighted.append({
+            'cat': cat_key,
+            'id': aud.get('id'),
+            'title': aud.get('title', ''),
+            'score': score,
+            'weight': weight,
+            'impact': weight * (1 - score),
+            'display': aud.get('displayValue') or '',
+            'savings_ms': savings_ms,
+            'savings_bytes': savings_bytes,
+        })
+weighted.sort(key=lambda x: x['impact'], reverse=True)
+top = weighted[:8]
+if top:
+    print(f"[$f] top failing audits:")
+    for a in top:
+        extras = []
+        if a['display']:
+            extras.append(a['display'])
+        if a['savings_ms']:
+            extras.append(f"save {int(a['savings_ms'])}ms")
+        if a['savings_bytes']:
+            extras.append(f"save {int(a['savings_bytes']/1024)}KB")
+        suffix = f" ({'; '.join(extras)})" if extras else ''
+        print(f"  - [{a['cat']}] {a['id']}: {a['title']}{suffix}")
 PY
     done
   fi
@@ -176,7 +221,7 @@ Targets:
 | CLS | <= 0.1 | <= 0.1 |
 | TBT | <= 200ms | <= 200ms |
 
-For each metric that misses target, capture Lighthouse's top opportunity audits (`unused-javascript`, `render-blocking-resources`, `modern-image-formats`, etc.) and include them in the recommendations.
+The python parser above emits the **top 8 failing audits per strategy** ranked by category-weighted impact (`weight * (1 - score)`) with `displayValue`, estimated time savings (`overallSavingsMs`), and estimated byte savings (`overallSavingsBytes`) when present. Include every audit listed under `top failing audits` in the Step 7 Recommendations -- each one is a concrete reason the score is not 100. Common offenders: `unused-javascript`, `render-blocking-resources`, `modern-image-formats`, `unminified-javascript`, `uses-text-compression`, `color-contrast`, `tap-targets`.
 
 ## Step 5: Visual drift against the deployed dashboard
 
