@@ -187,7 +187,7 @@ CI `check-images` job detects new images and creates a GitHub issue.
 | Layer | Domain | TTL | Strategy |
 |-------|--------|-----|----------|
 | Cloudflare | jonathanlloyd.me | HTML 5min, `/_astro/*` 1yr, assets 1mo, SW 5min | Cache by resource type |
-| CloudFront | d1pfm520aduift.cloudfront.net | JSON 5min (s-maxage) | Cache queries, never mutation |
+| CloudFront | d1pfm520aduift.cloudfront.net | JSON 30s (s-maxage=30) | Cache queries, never mutation |
 | Workbox SW | Both | Local images 30d (CacheFirst), CloudFront JSON 3s timeout (NetworkFirst) | Offline-first |
 
 **Invariant:** JSON never cached by Cloudflare (fetched client-side from CloudFront, separate origin). Poll requests use `?_poll=1` bypass. Service worker blocked in tests for determinism.
