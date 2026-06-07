@@ -246,6 +246,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     @import '@lifegames/tokens/components';
     @import '@lifegames/tokens/effects';
     @import '@lifegames/tokens/reset';
+    @import '@lifegames/web/styles/a11y.css';
   </style>
   <style is:inline>/* System font fallback sized to match Space Grotesk metrics */
 @font-face {
@@ -310,18 +311,6 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
 /* ===== @SUPPORTS FALLBACKS ===== */
 @supports not (backdrop-filter: blur(1px)) {
   .top-bar,
@@ -373,7 +362,7 @@ html, body {
     color: LinkText;
   }
 
-  .skip-link {
+  .lg-skip-link {
     background: Highlight;
     color: HighlightText;
   }
@@ -387,30 +376,7 @@ html, body {
   will-change: transform;
 }
 
-/* ===== SKIP LINK (WCAG 2.4.1) ===== */
-.skip-link {
-  position: absolute;
-  top: -100%;
-  left: 16px;
-  background: var(--neon-pink);
-  color: var(--text);
-  padding: 8px 16px;
-  border-radius: 0 0 8px 8px;
-  z-index: 10000;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.skip-link:focus {
-  top: 0;
-}
-
-/* ===== FOCUS INDICATORS (WCAG 2.4.7) ===== */
-:focus-visible {
-  outline: 2px solid var(--neon-pink);
-  outline-offset: 2px;
-}
-
+/* ===== FOCUS INDICATORS (app-specific overrides) ===== */
 .neon-pill:focus-visible {
   outline: 2px solid var(--neon-pink);
   outline-offset: 2px;
@@ -439,146 +405,22 @@ html, body {
   <style is:global>
     @import '@lifegames/tokens/layout';
   </style>
-  {import.meta.env.PROD && (
-    <script is:inline>
-    window.sa_event = window.sa_event || function() {
-      var a = [].slice.call(arguments);
-      (window.sa_event.q = window.sa_event.q || []).push(a);
-    };
-    </script>
-  )}
+  {import.meta.env.PROD && <script is:inline src="/js/sa-stub.js"></script>}
 </head>
 <body>
   <div class="hud-frame" aria-hidden="true"></div>
   <noscript><style>.tri-card,.identity-card,.left-panel-status,.left-panel-bio{opacity:1!important;transform:none!important;}</style></noscript>
-  <a href="#main-content" class="skip-link">Skip to main content</a>
+  <a href="#main-content" class="lg-skip-link">Skip to main content</a>
   <slot />
-  {import.meta.env.DEV && <script is:inline src="/vendor/leaflet/leaflet.js" defer></script>}
+  <!-- Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view -->
+  <script is:inline src="/js/leaflet-lazy.js"></script>
   <!-- Service Worker -->
-  <script is:inline>
-  if ('serviceWorker' in navigator && location.hostname !== 'localhost') {
-    window.addEventListener('load', function() {
-      navigator.serviceWorker.register('/sw.js');
-    });
-  }
-  </script>
+  <script is:inline src="/js/sw-register.js"></script>
   <!-- WebMCP: expose site tools to AI agents via browser (W3C Community Draft) -->
-  <script is:inline>
-  (function() {
-    if (typeof navigator !== 'undefined' && navigator.modelContext && navigator.modelContext.provideContext) {
-      var profile = {
-        name: 'Jonathan Lloyd',
-        title: 'Engineering Director',
-        location: 'San Francisco, CA',
-        experience: '24+ years in software engineering',
-        site: 'https://jonathanlloyd.me',
-        github: 'https://github.com/j0nathan-ll0yd',
-        linkedin: 'https://www.linkedin.com/in/lifegames/',
-        bio: 'Engineering director and backend engineer. Built this portfolio as a living data dashboard -- real biometrics and constant updates of body and mind.',
-        expertise: [
-          'Backend Engineering', 'Software Engineering', 'Engineering Leadership',
-          'Cloud Infrastructure', 'Data Visualization', 'Serverless Architecture',
-          'TypeScript', 'Go', 'AWS'
-        ],
-        interests: ['programming', 'pc gaming', 'musical theatre', 'edm', 'conversation']
-      };
-
-      var dataSources = [
-        { name: 'Health biometrics', url: 'https://d1pfm520aduift.cloudfront.net/health.json', description: 'Heart rate, HRV, activity, workouts (7-day aggregates)' },
-        { name: 'Sleep data', url: 'https://d1pfm520aduift.cloudfront.net/sleep.json', description: 'Sleep phases, duration, efficiency' },
-        { name: 'Focus state', url: 'https://d1pfm520aduift.cloudfront.net/focus.json', description: 'Do Not Disturb and focus mode status' },
-        { name: 'GitHub activity', url: 'https://d1pfm520aduift.cloudfront.net/github-events.json', description: 'Dev activity, languages, contributions, commits' },
-        { name: 'Starred repos', url: 'https://d1pfm520aduift.cloudfront.net/github-starred-repos.json', description: 'GitHub starred repositories' },
-        { name: 'Bookshelf', url: 'https://d1pfm520aduift.cloudfront.net/books.json', description: 'Books with status, ratings, progress' },
-        { name: 'Reading feed', url: 'https://d1pfm520aduift.cloudfront.net/articles.json', description: 'Starred articles and RSS feed items' },
-        { name: 'Theatre reviews', url: 'https://d1pfm520aduift.cloudfront.net/theatre-reviews.json', description: 'Theatre show reviews with ratings' },
-        { name: 'Workouts', url: 'https://d1pfm520aduift.cloudfront.net/workouts.json', description: 'Workout sessions, type, duration, calories' },
-        { name: 'Location', url: 'https://d1pfm520aduift.cloudfront.net/location.json', description: 'Aggregated place summaries' }
-      ];
-
-      navigator.modelContext.provideContext({
-        tools: [
-          {
-            name: 'get_profile',
-            description: 'Returns professional profile: name, title, location, experience, expertise, and social links for Jonathan Lloyd.',
-            inputSchema: { type: 'object', properties: {}, required: [] },
-            execute: function() {
-              return { content: [{ type: 'text', text: JSON.stringify(profile) }] };
-            }
-          },
-          {
-            name: 'get_data_sources',
-            description: 'Returns a list of all live JSON data endpoints on CloudFront with descriptions. Fetch these URLs for real-time data.',
-            inputSchema: { type: 'object', properties: {}, required: [] },
-            execute: function() {
-              return { content: [{ type: 'text', text: JSON.stringify(dataSources) }] };
-            }
-          },
-          {
-            name: 'get_current_reading',
-            description: 'Fetches the current bookshelf from the live API and returns books being read, up next, and recently finished.',
-            inputSchema: { type: 'object', properties: {}, required: [] },
-            execute: function() {
-              return fetch('https://d1pfm520aduift.cloudfront.net/books.json')
-                .then(function(res) { return res.json(); })
-                .then(function(data) {
-                  var books = data.books || [];
-                  var reading = books.filter(function(b) { return b.status === 'reading'; });
-                  var upNext = books.filter(function(b) { return b.status === 'up-next'; });
-                  var finished = books.filter(function(b) { return b.status === 'finished'; }).slice(0, 5);
-                  return { content: [{ type: 'text', text: JSON.stringify({ reading: reading, upNext: upNext, recentlyFinished: finished }) }] };
-                });
-            }
-          },
-          {
-            name: 'get_tech_stack',
-            description: 'Returns the technology stack and architecture details of this portfolio site.',
-            inputSchema: { type: 'object', properties: {}, required: [] },
-            execute: function() {
-              var stack = {
-                framework: 'Astro 6.x (static site generation, 0 KB JS by default)',
-                hosting: 'Cloudflare Pages via GitHub Actions',
-                liveData: 'CloudFront-backed JSON API polled at runtime',
-                design: 'Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries',
-                font: 'Space Grotesk (self-hosted, variable woff2)',
-                llmContent: {
-                  discoveryIndex: 'https://jonathanlloyd.me/llms.txt',
-                  snapshot: 'https://d1pfm520aduift.cloudfront.net/llms-small.txt',
-                  complete: 'https://d1pfm520aduift.cloudfront.net/llms-full.txt'
-                }
-              };
-              return { content: [{ type: 'text', text: JSON.stringify(stack) }] };
-            }
-          }
-        ]
-      });
-    }
-  })();
-  </script>
+  <script is:inline src="/js/webmcp.js"></script>
   {import.meta.env.PROD && (
     <Fragment>
-      <script is:inline>
-      (function() {
-        function loadSA() {
-          var scripts = [
-            'https://scripts.simpleanalyticscdn.com/latest.js',
-            'https://scripts.simpleanalyticscdn.com/auto-events.js'
-          ];
-          scripts.forEach(function(src) {
-            var s = document.createElement('script');
-            s.src = src;
-            s.async = true;
-            s.onerror = function() {};
-            document.body.appendChild(s);
-          });
-        }
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(loadSA, { timeout: 3000 });
-        } else {
-          setTimeout(loadSA, 2000);
-        }
-      })();
-      </script>
+      <script is:inline src="/js/sa-loader.js"></script>
       <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
     </Fragment>
   )}

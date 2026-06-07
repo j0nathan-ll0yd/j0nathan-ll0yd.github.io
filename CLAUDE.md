@@ -95,7 +95,7 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 ├── .github/workflows/
 │   ├── deploy.yml                # Build + deploy + Cloudflare purge
 │   ├── visual-tests.yml          # Playwright regression on PRs (4 viewports)
-│   └── drift-detection.yml       # Drift detection on deploy (single viewport, live dashboard)
+│   └── drift-detection.yml       # Drift detection on deploy (4 viewports, live dashboard)
 │
 └── AGENTS.md                     # Cross-tool AI coding context
 ```
@@ -134,7 +134,7 @@ git add tests/visual/__screenshots__/
 ### Drift Detection (Playwright)
 - **Config:** `playwright.drift.config.ts`
 - **Test file:** `tests/drift/drift.spec.ts`
-- **Viewport:** Single desktop-1400 (no mobile variants)
+- **Viewports:** 4 (desktop-1400, tablet-1100, tablet-768, mobile-600)
 - **Baseline:** Screenshots of live `https://jonathanlloyd.me` (deployed dashboard)
 - **Tolerance:** 5% pixel drift (looser than regression — accommodates real data changes)
 - **Masking:** Volatile regions masked (clock, counters, dates) via `masks.ts`
@@ -165,9 +165,12 @@ All production widgets imported from `@lifegames/web/production` (yalc-linked fr
 - **When schema changes:** Extend Design System schema → `pnpm -F @lifegames/schemas codegen` → `pnpm yalc:publish` → consumer rebuild
 
 ### Inline Scripts
-- ES5 only in `<script is:inline>` blocks: `var`, `function` declarations, IIFEs
-- No `let`, `const`, arrow functions, template literals, classes
+- All inline scripts externalized to `public/js/` files (8 total) for CSP compliance
+- `<script is:inline src="/js/...">` loads external files without bundler processing
+- ES5 only in external JS files under `public/js/`: `var`, `function` declarations, IIFEs
+- No `let`, `const`, arrow functions, template literals, classes in `public/js/*.js`
 - Bundled module scripts (`<script>` without `is:inline`) MAY use modern syntax
+- CSP: `script-src 'self'` — no `'unsafe-inline'` (style-src retains `'unsafe-inline'`)
 
 ## Image Pipeline
 

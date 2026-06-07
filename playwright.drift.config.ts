@@ -40,5 +40,17 @@ export default defineConfig({
       name: 'desktop-1400',
       use: { browserName: 'chromium', viewport: { width: 1400, height: 900 } },
     },
+    {
+      name: 'tablet-1100',
+      use: { browserName: 'chromium', viewport: { width: 1100, height: 900 } },
+    },
+    {
+      name: 'tablet-768',
+      use: { browserName: 'chromium', viewport: { width: 768, height: 1024 } },
+    },
+    {
+      name: 'mobile-600',
+      use: { browserName: 'chromium', viewport: { width: 600, height: 900 } },
+    },
   ],
 });
