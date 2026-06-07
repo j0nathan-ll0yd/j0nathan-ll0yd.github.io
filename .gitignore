@@ -18,3 +18,6 @@ blob-report/
 # yalc (Phase 1 local cross-repo linking; see lifegames-design-system CLAUDE.md)
 .yalc/
 yalc.lock
+
+# Agent enforcement symlinks
+.claude/rules/
