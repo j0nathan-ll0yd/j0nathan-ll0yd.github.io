@@ -6,6 +6,25 @@ on:
   workflow_dispatch:
 
 jobs:
+  contract-check:
+    name: Schema Contract Check
+    if: "!contains(github.event.pull_request.labels.*.name, 'skip-contract-check')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Setup design-system for yalc schemas
+        run: bash scripts/ci-setup.sh
+
+      - name: Verify schema contract
+        run: node scripts/verify-contract.mjs
+
   setup:
     runs-on: ubuntu-latest
     container:

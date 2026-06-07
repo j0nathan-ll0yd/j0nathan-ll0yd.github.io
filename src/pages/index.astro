@@ -30,14 +30,16 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
 
 
     <!-- TOP BAR -->
-    <header class="top-bar">
-      <div class="top-bar-title">Human Datastream</div>
-      <span id="pollStatus" class="poll-status">
-        <span class="poll-dot poll-dot--off"></span>
-        <span class="poll-label"></span>
-      </span>
-      <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label="Current time"></div>
-    </header>
+    <nav aria-label="Dashboard">
+      <header class="top-bar">
+        <div class="top-bar-title">Human Datastream</div>
+        <span id="pollStatus" class="poll-status">
+          <span class="poll-dot poll-dot--off"></span>
+          <span class="poll-label"></span>
+        </span>
+        <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label="Current time"></div>
+      </header>
+    </nav>
 
     <!-- RIGHT PANEL: Triptych Grid -->
     <main id="main-content" class="right-panel">
@@ -81,49 +83,10 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
   </script>
 
   <!-- Live Clock -->
-  <script is:inline>
-  (function() {
-    function updateClock() {
-      var el = document.getElementById('liveClock');
-      if (!el) return;
-      var now = new Date();
-      var h = String(now.getHours()).padStart(2, '0');
-      var m = String(now.getMinutes()).padStart(2, '0');
-      var s = String(now.getSeconds()).padStart(2, '0');
-      el.textContent = h + ':' + m + ':' + s;
-    }
-    updateClock();
-    setInterval(updateClock, 1000);
-  })();
-  </script>
+  <script is:inline src="/js/clock.js"></script>
 
   <!-- Staggered Card Reveal -->
-  <script is:inline>
-  (function() {
-    setTimeout(function() {
-      var id = document.getElementById('identityCard');
-      if (id) id.classList.add('visible');
-    }, 100);
-    setTimeout(function() {
-      var bio = document.getElementById('cardBio');
-      if (bio) bio.classList.add('visible');
-    }, 250);
-    setTimeout(function() {
-      var sys = document.getElementById('cardSystem');
-      if (sys) sys.classList.add('visible');
-    }, 550);
-
-    var columns = document.querySelectorAll('.triptych-column');
-    columns.forEach(function(col, colIdx) {
-      var cards = col.querySelectorAll('.tri-card');
-      cards.forEach(function(card, rowIdx) {
-        setTimeout(function() {
-          card.classList.add('visible');
-        }, 400 + colIdx * 150 + rowIdx * 100);
-      });
-    });
-  })();
-  </script>
+  <script is:inline src="/js/card-reveal.js"></script>
 
   <!-- Canvas ECG Animation: rendered by @lifegames/web/runtime/initHeartRateInline -->
   <script>
@@ -132,23 +95,7 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
   </script>
 
   <!-- Scroll Depth Tracking -->
-  <script is:inline>
-  (function() {
-    var depths = [25, 50, 75, 100];
-    var tracked = {};
-    window.addEventListener('scroll', function() {
-      var docHeight = document.documentElement.scrollHeight - window.innerHeight;
-      if (docHeight <= 0) return;
-      var scrollPct = Math.round((window.scrollY / docHeight) * 100);
-      for (var i = 0; i < depths.length; i++) {
-        if (scrollPct >= depths[i] && !tracked[depths[i]]) {
-          tracked[depths[i]] = true;
-          if (window.sa_event) sa_event('scroll_depth_' + depths[i]);
-        }
-      }
-    });
-  })();
-  </script>
+  <script is:inline src="/js/scroll-depth.js"></script>
 
   <!-- Live Data Integration -->
   <script>
