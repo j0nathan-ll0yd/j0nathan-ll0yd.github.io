@@ -316,6 +316,15 @@ html, body {
   html, body { overflow: hidden; }
 }
 
+/* Reading-feed items are inserted via body.innerHTML by the live-data
+   updater. Chrome sometimes registers the declared CSS animation
+   (animationPlayState=running) without ever scheduling an actual Web
+   Animation instance, leaving items stuck at the `from` keyframe
+   (opacity: 0). Force the resting state to opacity: 1 so items are
+   visible when the animation never fires; the slide-in still plays
+   when it does fire because the keyframe overrides during the run. */
+.article-list-item { opacity: 1; }
+
 /* ===== @SUPPORTS FALLBACKS ===== */
 @supports not (backdrop-filter: blur(1px)) {
   .top-bar,
