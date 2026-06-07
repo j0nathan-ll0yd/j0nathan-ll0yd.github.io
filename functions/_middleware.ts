@@ -4,7 +4,7 @@
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com",
+  "script-src 'self' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   "img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://d1pfm520aduift.cloudfront.net https://queue.simpleanalyticscdn.com",
