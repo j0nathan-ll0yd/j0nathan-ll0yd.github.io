@@ -42,6 +42,10 @@ export default defineConfig({
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
         globIgnores: ['images/books/**', 'images/theatre/**'],
         navigateFallbackDenylist: [/\.xml$/],
+        // Immediate activation so fix deploys reach returning visitors on next
+        // page load instead of waiting for all tabs to close.
+        skipWaiting: true,
+        clientsClaim: true,
         runtimeCaching: [
           {
             // Local optimized images — CacheFirst (downloaded at build time from CloudFront)
