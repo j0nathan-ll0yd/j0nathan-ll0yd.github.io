@@ -129,6 +129,21 @@ curl -sI "https://jonathanlloyd.me${ASTRO_URL}" | grep -i '^cache-control:'
 
 The `Cache-Control` header MUST contain BOTH `max-age=31536000` AND `immutable`. Anything weaker is a HIGH finding -- it bloats client transfer on every deploy.
 
+Probe the PWA service worker activation lifecycle:
+
+```bash
+# The Workbox-generated SW MUST contain both self.skipWaiting() and clientsClaim()
+# so a freshly-deployed SW activates on the next page load and claims existing
+# tabs. Without these, returning visitors get stuck on the precached old HTML
+# until they manually close every tab -- which historically meant a CSS or JS
+# fix would appear "deployed" via curl but invisible to real users for days.
+SW_BODY=$(curl -s 'https://jonathanlloyd.me/sw.js?cb='$(date +%s))
+echo "$SW_BODY" | grep -oE 'self\.skipWaiting|clientsClaim' | sort -u
+# Expect both lines: clientsClaim AND self.skipWaiting
+```
+
+If either directive is missing this is a HIGH finding -- track it back to `astro.config.mjs` `AstroPWA({ workbox: { skipWaiting: true, clientsClaim: true } })`. A regression here silently re-introduces the "fix is deployed but users still see the old version" failure mode.
+
 ## Step 4: PageSpeed Insights (Core Web Vitals)
 
 Requires the `PSI_API_KEY` environment variable (Google Cloud Console -> PageSpeed Insights API; free quota is 25k req/day authenticated, anonymous quota is effectively 0). Without the key, this surface is SKIPPED (not FAIL) -- the verification verdict gates on PSI only when the key is present.
@@ -239,7 +254,76 @@ If baselines exist and the run reports diffs: include the diff filenames in the 
 
 The drift suite masks volatile regions (clock, counters, dates) via `tests/drift/masks.ts` at 5% tolerance. A diff here is high-signal -- it indicates real visual regression on the deployed dashboard.
 
-## Step 6: Live UX verification (BrowserOS MCP)
+## Step 6a: Mobile-viewport probe (Playwright iPhone 13 emulation)
+
+BrowserOS cannot resize its window below ~795px so mobile-specific failures (page-scroll, innerHTML-inserted widget opacity, etc.) slip past Surface 6 unless you emulate explicitly. Run this probe against the **live** site -- it catches the two regression classes that previously shipped to production unnoticed:
+
+1. **Page-level scroll** -- a regression that re-applies `overflow: hidden` to `html, body` without gating it behind `@media (min-width: 1100px)` makes the entire dashboard unscrollable on mobile (PR #40).
+2. **innerHTML-inserted widget opacity** -- updaters that swap content via `body.innerHTML = html` (Reading Feed, others) can leave items stuck at the `from { opacity: 0 }` keyframe because Chrome registers but never schedules the CSS animation. Playwright's regression suite cannot catch this because `animations: 'disabled'` fast-forwards to the final keyframe, masking the bug (PR #42).
+
+Write a one-shot probe to `/tmp/vp-mobile-probe.mjs`, run it from the project root so it resolves `playwright`, and parse the JSON it prints:
+
+```bash
+cat > /tmp/vp-mobile-probe.mjs <<'EOF'
+import { chromium, devices } from 'playwright';
+const browser = await chromium.launch({ headless: true });
+const context = await browser.newContext({ ...devices['iPhone 13'] });
+const page = await context.newPage();
+await page.goto('https://jonathanlloyd.me/?cb=' + Date.now(), { waitUntil: 'networkidle', timeout: 30000 });
+await page.waitForTimeout(8000); // let the live-data updater swap reading feed innerHTML
+await page.evaluate(() => document.getElementById('cardReading')?.scrollIntoView());
+await page.waitForTimeout(1500);
+
+const report = await page.evaluate(() => {
+  const html = getComputedStyle(document.documentElement);
+  const body = getComputedStyle(document.body);
+  // 1) page-level scroll -- mobile MUST be able to scroll past the fold.
+  // At iPhone widths, with html+body height:100dvh + overflow:auto, BODY
+  // (not html) is the scroll container -- body.scrollHeight grows with
+  // content while html stays clamped to the viewport. Check both: neither
+  // axis must be `overflow:hidden`, AND content height must exceed viewport
+  // height somewhere. Programmatic scrollTo() probes are unreliable under
+  // emulation, so this checks the STATE that determines scrollability.
+  const scrollProbe = (() => {
+    // Note: `body` and `html` above are CSSStyleDeclaration objects -- use
+    // document.body / document.documentElement to read DOM measurements.
+    const overflowingContent = document.body.scrollHeight > innerHeight + 200
+      || document.documentElement.scrollHeight > innerHeight + 200;
+    const blocked = html.overflowY === 'hidden' || body.overflowY === 'hidden';
+    return { overflowingContent, blocked };
+  })();
+  // 2) reading-feed item opacity -- innerHTML-inserted items MUST end visible
+  const items = [...document.querySelectorAll('#cardReading .article-list-item')];
+  const sample = items.slice(0, 3).map((it) => parseFloat(getComputedStyle(it).opacity));
+  return {
+    innerW: innerWidth,
+    htmlOverflow: html.overflow,
+    bodyOverflow: body.overflow,
+    bodyScrollH: document.body.scrollHeight,
+    pageScrolls: !scrollProbe.blocked && scrollProbe.overflowingContent,
+    readingItemCount: items.length,
+    readingOpacities: sample,
+    readingAllVisible: items.length > 0 && sample.every((o) => o > 0.5),
+  };
+});
+console.log(JSON.stringify(report, null, 2));
+await browser.close();
+EOF
+cp /tmp/vp-mobile-probe.mjs ./vp-mobile-probe.mjs
+node vp-mobile-probe.mjs | tee /tmp/vp-mobile-probe.json
+rm -f ./vp-mobile-probe.mjs
+```
+
+Verify and classify:
+
+- `pageScrolls === true` -- if false, `html, body { overflow: hidden }` has leaked outside the `@media (min-width: 1100px)` gate in `src/layouts/Dashboard.astro`. **CRITICAL** -- the entire dashboard is unreachable past the first viewport.
+- `htmlOverflow` and `bodyOverflow` are NOT `hidden` (expected `auto` or `visible`) at iPhone 13 width.
+- `readingItemCount >= 8` -- the updater fired and inserted items.
+- `readingAllVisible === true` -- every probed item has `opacity > 0.5`. If items report `opacity: 0` while `readingItemCount > 0`, the innerHTML+animation race has regressed. **HIGH** -- the Reading Feed body looks empty even though pagination renders. The fix lives in the un-layered `.article-list-item { opacity: 1 }` rule in `src/layouts/Dashboard.astro`.
+
+If the probe cannot reach the production URL (network failure, DNS), report this surface as **SKIP** and continue.
+
+## Step 6b: Live UX verification (BrowserOS MCP)
 
 Drive the live site via BrowserOS MCP. The discovery protocol is **take_snapshot -> act -> re-snapshot**. After any navigation, element IDs become invalid and a fresh snapshot is required.
 
@@ -291,7 +375,8 @@ Write `/tmp/prod-verification-$(date -u +%Y-%m-%d).md` AND echo it inline. Use t
 | 3. Security/caching headers | ... | <CSP/CDN-CC/404/_astro state> |
 | 4. PageSpeed mobile/desktop | ... | <perf scores, key vitals> |
 | 5. Visual drift | ... | <diffs or SKIP reason> |
-| 6. Live UX (BrowserOS) | ... | <widget count, console errors, navigation timing> |
+| 6a. Mobile probe (Playwright iPhone 13) | ... | <pageScrolls, reading-feed item opacity> |
+| 6b. Live UX (BrowserOS) | ... | <widget count, console errors, navigation timing> |
 
 ## Findings (severity-ranked)
 
@@ -329,7 +414,7 @@ For each finding above, give: file:line of the likely fix, the specific change, 
 
 - **PASS** -- zero CRITICAL findings, zero HIGH findings, all surfaces score PASS or SKIP.
 - **DEGRADED** -- zero CRITICAL findings, but at least one HIGH finding OR at least one surface DEGRADED (e.g., PSI under target).
-- **FAIL** -- one or more CRITICAL findings (CSP violation, agent-skills digest drift, broken homepage render, no-store missing from `/`, 404 cached, asset 404s wrong body, missing well-known endpoint).
+- **FAIL** -- one or more CRITICAL findings (CSP violation, agent-skills digest drift, broken homepage render, no-store missing from `/`, 404 cached, asset 404s wrong body, missing well-known endpoint, **unscrollable mobile dashboard** from Step 6a).
 
 ## Key Constraints
 
