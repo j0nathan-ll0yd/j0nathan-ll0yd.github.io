@@ -147,7 +147,7 @@ git add tests/visual/__screenshots__/
 - **Viewports:** 4 (desktop-1400, tablet-1100, tablet-768, mobile-600)
 - **Baseline:** Screenshots of live `https://jonathanlloyd.me` (deployed dashboard)
 - **Tolerance:** 5% pixel drift (looser than regression — accommodates real data changes)
-- **Masking:** Volatile regions masked (clock, counters, dates) via `masks.ts`
+- **Masking:** Volatile regions masked inline in `drift.spec.ts` (clock, counters, dates)
 - **Trigger:** `.github/workflows/drift-detection.yml` runs on `workflow_run` off `deploy.yml`
 
 Drift detects live dashboard visual regressions that would escape regression tests. Masking prevents false positives from dynamic data (current time, live counts, etc.).

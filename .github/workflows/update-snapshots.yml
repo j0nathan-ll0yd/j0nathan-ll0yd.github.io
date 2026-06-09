@@ -3,6 +3,12 @@ name: Update Snapshots
 on:
   pull_request:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to remove the label from (optional, only used to clean up the label after commit)'
+        required: false
+        type: string
 
 permissions:
   contents: write      # required for auto-commit back to PR branch
@@ -13,14 +19,17 @@ permissions:
 
 jobs:
   resolve-version:
-    if: github.event.label.name == 'update-snapshots' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || (github.event.label.name == 'update-snapshots' && github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     outputs:
       pw-version: ${{ steps.extract.outputs.version }}
+      target-ref: ${{ steps.target.outputs.ref }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+      - id: target
+        run: echo "ref=${{ github.event.pull_request.head.ref || github.ref_name }}" >> $GITHUB_OUTPUT
       - id: extract
         run: echo "version=$(./scripts/playwright-version.sh)" >> $GITHUB_OUTPUT
       - name: Guard - verify Docker image exists
@@ -37,7 +46,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
+          ref: ${{ needs.resolve-version.outputs.target-ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
@@ -51,12 +60,19 @@ jobs:
           commit_message: "chore: regenerate visual baselines via update-snapshots label"
           file_pattern: 'tests/visual/__screenshots__/**'
       - name: Remove update-snapshots label
+        if: github.event_name == 'pull_request' || inputs.pr_number != ''
         uses: actions/github-script@v7
         with:
           script: |
-            await github.rest.issues.removeLabel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              name: 'update-snapshots'
-            });
+            const prNumber = context.payload.pull_request?.number || parseInt('${{ inputs.pr_number }}');
+            if (!prNumber) return;
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                name: 'update-snapshots'
+              });
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
