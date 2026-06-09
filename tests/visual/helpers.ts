@@ -127,6 +127,8 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
   await page.waitForFunction(
     () => {
       const imgs = Array.from(document.querySelectorAll('img'));
+      // Inlined copy of allImagesComplete() from ./predicates.ts (cannot import inside waitForFunction).
+      // If you change one, update the other.
       return imgs.every((img) => img.complete);
     },
     { timeout: 10000 },
@@ -197,6 +199,8 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
               setTimeout(tick, 150);
               return;
             }
+            // Inlined copy of scrollHeightStable() from ./predicates.ts (cannot import inside waitForFunction).
+            // If you change one, update the other.
             resolve(reads.every((v) => v === reads[0]));
           };
           setTimeout(tick, 150);

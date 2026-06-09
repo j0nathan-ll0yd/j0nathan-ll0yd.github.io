@@ -1,5 +1,20 @@
 name: Update Snapshots
 
+# Update Snapshots Workflow
+#
+# PRIMARY: pull_request: types: [labeled] — add label `update-snapshots` to a PR
+#   to regenerate visual baselines in Docker and auto-commit back to the PR branch.
+#   The workflow self-removes the label after a successful commit.
+#
+# BREAK-GLASS: workflow_dispatch with pr_number input — for cases where the label
+#   trigger fails:
+#     1. Cross-fork PRs (workflow cannot push to external forks).
+#     2. GITHUB_TOKEN cannot trigger workflows from other workflows — chained
+#        workflow triggers may not fire; manual dispatch always works.
+#     3. Label-trigger glitches or you want to re-run without removing/re-adding
+#        the label.
+#   Invoke via:  gh workflow run update-snapshots.yml -f pr_number=NNN
+
 on:
   pull_request:
     types: [labeled]
