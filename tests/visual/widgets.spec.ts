@@ -77,7 +77,8 @@ test.describe('Widgets - populated', () => {
     await expect(widget).toHaveScreenshot('widget-dev-activity-log.png', { stylePath });
   });
 
-  test('reading feed', async () => {
+  test('reading feed', async ({}, testInfo) => {
+    test.fixme(testInfo.project.name === 'desktop-1400', 'Chromium SVG/icon rasterization variance — see PR #44');
     const widget = page.locator(WIDGET_SELECTORS.readingFeed);
     await expect(widget).toHaveScreenshot('widget-reading-feed.png', { stylePath });
   });
