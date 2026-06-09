@@ -5,7 +5,7 @@
  * 4b: Per-widget variation screenshots (each test uses its own scenario).
  * 4c: Overlay tests (focus-work, focus-dnd).
  */
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './pw-fixtures';
 import { setupPage, stylePath, WIDGET_SELECTORS, captureFullPage, stabilizeForLocatorScreenshot } from './helpers';
 
 // ---------------------------------------------------------------------------
@@ -86,9 +86,7 @@ test.describe('Widgets - populated', () => {
     await expect(widget).toHaveScreenshot('widget-bookshelf.png', { stylePath });
   });
 
-  test('starred repos', async ({}, testInfo) => {
-    // Upstream Chromium/pngjs PNG encoder bug on tablet-768 — stabilize does NOT bypass it.
-    test.fixme(testInfo.project.name === 'tablet-768', 'Upstream PNG encoder bug — stabilize insufficient');
+  test('starred repos', async () => {
     await stabilizeForLocatorScreenshot(page);
     const widget = page.locator(WIDGET_SELECTORS.starredRepos);
     await expect(widget).toHaveScreenshot('widget-starred-repos.png', { stylePath });
@@ -184,9 +182,7 @@ test.describe('Widget variations - Bookshelf', () => {
 });
 
 test.describe('Widget variations - Dev Activity Log', () => {
-  test('commits only', async ({ page }, testInfo) => {
-    // Upstream Chromium/pngjs PNG encoder bug — stabilize helper does NOT bypass it.
-    test.fixme(testInfo.project.name === 'desktop-1400', 'Upstream PNG encoder bug — stabilize insufficient');
+  test('commits only', async ({ page }) => {
     await setupPage(page, 'github-commits-only');
     await stabilizeForLocatorScreenshot(page);
     const widget = page.locator('#cardDevLog');
