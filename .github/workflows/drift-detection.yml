@@ -27,9 +27,10 @@ permissions:
   issues: write
 
 jobs:
-  drift-detection:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+  resolve-version:
     runs-on: ubuntu-latest
+    outputs:
+      pw-version: ${{ steps.pw-version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -45,20 +46,39 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
+      - name: Resolve Playwright version
+        id: pw-version
+        run: |
+          PW_VERSION=$(bash scripts/playwright-version.sh)
+          IMAGE="mcr.microsoft.com/playwright:v${PW_VERSION}-noble"
+          # Guard: verify the image exists in the registry before pinning to it
+          if ! docker manifest inspect "$IMAGE" > /dev/null 2>&1; then
+            echo "WARNING: Playwright Docker image $IMAGE not found in registry; falling back to latest-noble"
+            PW_VERSION="latest"
+          fi
+          echo "version=$PW_VERSION" >> "$GITHUB_OUTPUT"
+
+  drift-detection:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    # workflow_run + container is supported; Playwright Docker image includes git for actions/checkout
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: Install OS deps only
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
       - name: Run drift detection tests
         id: drift-tests
@@ -116,7 +136,7 @@ jobs:
                 '',
                 '### Next Steps',
                 '1. Review the uploaded `drift-playwright-report` artifact in the workflow run above',
-                '2. If the drift is intentional, regenerate baselines: `npx playwright test --config=playwright.drift.config.ts --update-snapshots`',
+                '2. If the drift is intentional, regenerate baselines: `npm run test:drift:update:docker`',
                 '3. Commit the updated baselines to dismiss this issue',
                 '4. If unintentional, investigate and revert the production deploy',
               ].join('\n'),

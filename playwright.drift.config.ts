@@ -17,8 +17,15 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
     serviceWorkers: 'block',
+    // Determinism flags eliminate sub-pixel rendering variance across CI/local. Do not remove without verifying baselines still pass.
     launchOptions: {
-      args: ['--force-device-scale-factor=1'],
+      args: [
+        '--force-device-scale-factor=1',
+        '--font-render-hinting=none',          // kills hinting variance across OS
+        '--disable-lcd-text',                  // disables subpixel anti-aliasing
+        '--disable-font-subpixel-positioning', // snaps glyphs to pixel grid
+        '--disable-skia-runtime-opts',         // deterministic Skia rendering path
+      ],
     },
   },
 

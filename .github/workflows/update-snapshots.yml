@@ -1,0 +1,62 @@
+name: Update Snapshots
+
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  contents: write      # required for auto-commit back to PR branch
+  pull-requests: write # required to remove the label after commit
+
+# Note: Auto-commit will fail for cross-fork PRs (cannot push to external forks).
+# Acceptable for personal repo. Workflow self-disables on cross-fork PRs.
+
+jobs:
+  resolve-version:
+    if: github.event.label.name == 'update-snapshots' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      pw-version: ${{ steps.extract.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - id: extract
+        run: echo "version=$(./scripts/playwright-version.sh)" >> $GITHUB_OUTPUT
+      - name: Guard - verify Docker image exists
+        run: |
+          VERSION=$(./scripts/playwright-version.sh)
+          docker manifest inspect "mcr.microsoft.com/playwright:v${VERSION}-noble" \
+            || (echo "::error::Playwright Docker image v${VERSION}-noble not published yet"; exit 1)
+
+  update:
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+      - name: Update visual baselines
+        env:
+          USE_FIXTURES: 'true'
+        run: npx playwright test --update-snapshots
+      - name: Commit updated baselines
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore: regenerate visual baselines via update-snapshots label"
+          file_pattern: 'tests/visual/__screenshots__/**'
+      - name: Remove update-snapshots label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.removeLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              name: 'update-snapshots'
+            });

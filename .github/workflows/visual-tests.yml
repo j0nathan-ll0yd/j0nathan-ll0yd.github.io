@@ -6,6 +6,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      pw-version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Extract Playwright version
+        id: extract
+        run: |
+          VERSION=$(./scripts/playwright-version.sh)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Guard — verify Docker image is published
+        run: |
+          VERSION="${{ steps.extract.outputs.version }}"
+          if ! docker manifest inspect "mcr.microsoft.com/playwright:v${VERSION}-noble" > /dev/null 2>&1; then
+            echo "::error::Playwright Docker image v${VERSION}-noble not published yet -- wait or pin version"
+            exit 1
+          fi
+
   contract-check:
     name: Schema Contract Check
     if: "!contains(github.event.pull_request.labels.*.name, 'skip-contract-check')"
@@ -26,9 +48,10 @@ jobs:
         run: node scripts/verify-contract.mjs
 
   setup:
+    needs: resolve-version
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.0-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
     outputs:
       ds-sha: ${{ steps.ds-info.outputs.sha }}
     steps:
@@ -101,10 +124,10 @@ jobs:
           include-hidden-files: true
 
   visual-tests:
-    needs: setup
+    needs: [resolve-version, setup]
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.0-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
     strategy:
       fail-fast: false
       matrix:

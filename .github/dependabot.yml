@@ -16,6 +16,10 @@ updates:
           - "@vite-pwa/*"
           - vite-plugin-pwa
           - "workbox-*"
+      # Note: This group coordinates npm packages only. Docker image tag race is handled by the manifest-inspect guard in resolve-version job.
+      playwright:
+        patterns:
+          - "@playwright/*"
     ignore:
       # Astro major bumps require manual testing of every page and widget.
       - dependency-name: astro
