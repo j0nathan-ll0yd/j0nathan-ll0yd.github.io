@@ -28,13 +28,17 @@ describe('truncateAtIEND', () => {
     expect(cleaned.subarray(-IEND_SIG.length)).toEqual(IEND_SIG);
   });
 
-  it('uses lastIndexOf so multiple IEND literals do not cut prematurely', () => {
-    const decoy = IEND_SIG; // embedded literal earlier in the buffer
-    const real = IEND_SIG;
+  it('uses indexOf so multiple IEND literals cut at the FIRST (matches pngjs parser)', () => {
+    // pngjs's parser stops at the first IEND it sees. If Chromium emits a buffer
+    // where trailing garbage contains a duplicate IEND signature near the end,
+    // we must cut at the first IEND — matching what pngjs's parser does.
+    const first = IEND_SIG;
     const trailing = Buffer.from([0xaa, 0xbb]);
-    const dirty = Buffer.concat([PNG_HEADER, decoy, Buffer.alloc(50), real, trailing]);
+    const secondAtEnd = IEND_SIG;
+    const dirty = Buffer.concat([PNG_HEADER, Buffer.alloc(20), first, trailing, Buffer.alloc(50), secondAtEnd]);
     const cleaned = truncateAtIEND(dirty);
-    expect(cleaned.length).toBe(dirty.length - trailing.length);
+    // Should cut right after the FIRST IEND (not the second/last)
+    expect(cleaned.length).toBe(PNG_HEADER.length + 20 + IEND_SIG.length);
     expect(cleaned.subarray(-IEND_SIG.length)).toEqual(IEND_SIG);
   });
 
