@@ -6,7 +6,7 @@
  * 4c: Overlay tests (focus-work, focus-dnd).
  */
 import { test, expect, type Page } from '@playwright/test';
-import { setupPage, stylePath, WIDGET_SELECTORS } from './helpers';
+import { setupPage, stylePath, WIDGET_SELECTORS, captureFullPage, stabilizeForLocatorScreenshot } from './helpers';
 
 // ---------------------------------------------------------------------------
 // 4a: Baseline Widget Screenshots (populated scenario)
@@ -69,16 +69,14 @@ test.describe('Widgets - populated', () => {
     await expect(widget).toHaveScreenshot('widget-night-summary.png', { stylePath });
   });
 
-  test('dev activity log', async ({}, testInfo) => {
-    // 3-5% pixel diff on desktop-1400 from residual Chromium SVG rasterization
-    // variance (octicons subpixel rounding). See PR #44 research findings.
-    test.fixme(testInfo.project.name === 'desktop-1400', 'Chromium SVG rasterization variance — see PR #44');
+  test('dev activity log', async () => {
+    await stabilizeForLocatorScreenshot(page);
     const widget = page.locator(WIDGET_SELECTORS.devActivityLog);
     await expect(widget).toHaveScreenshot('widget-dev-activity-log.png', { stylePath });
   });
 
-  test('reading feed', async ({}, testInfo) => {
-    test.fixme(testInfo.project.name === 'desktop-1400', 'Chromium SVG/icon rasterization variance — see PR #44');
+  test('reading feed', async () => {
+    await stabilizeForLocatorScreenshot(page);
     const widget = page.locator(WIDGET_SELECTORS.readingFeed);
     await expect(widget).toHaveScreenshot('widget-reading-feed.png', { stylePath });
   });
@@ -88,13 +86,8 @@ test.describe('Widgets - populated', () => {
     await expect(widget).toHaveScreenshot('widget-bookshelf.png', { stylePath });
   });
 
-  test('starred repos', async ({}, testInfo) => {
-    // tablet-768: PNG encoder corruption. desktop-1400: 5% pixel variance.
-    // Both are GitHub-octicon SVG rasterization issues — see PR #44.
-    test.fixme(
-      testInfo.project.name === 'tablet-768' || testInfo.project.name === 'desktop-1400',
-      'Octicon SVG rasterization variance — see PR #44',
-    );
+  test('starred repos', async () => {
+    await stabilizeForLocatorScreenshot(page);
     const widget = page.locator(WIDGET_SELECTORS.starredRepos);
     await expect(widget).toHaveScreenshot('widget-starred-repos.png', { stylePath });
   });
@@ -189,26 +182,25 @@ test.describe('Widget variations - Bookshelf', () => {
 });
 
 test.describe('Widget variations - Dev Activity Log', () => {
-  test('commits only', async ({ page }, testInfo) => {
-    // Upstream Playwright/Chromium PNG encoder corruption — see PR #44.
-    test.fixme(testInfo.project.name === 'desktop-1400', 'Upstream PNG encoder bug — see PR #44');
+  test('commits only', async ({ page }) => {
     await setupPage(page, 'github-commits-only');
+    await stabilizeForLocatorScreenshot(page);
     const widget = page.locator('#cardDevLog');
     await expect(widget).toHaveScreenshot('github-commits-only.png', { stylePath });
   });
 
-  test('prs only', async ({ page }, testInfo) => {
-    test.fixme(testInfo.project.name === 'desktop-1400', 'Chromium SVG rasterization variance — see PR #44');
+  test('prs only', async ({ page }) => {
     await setupPage(page, 'github-prs-only');
+    await stabilizeForLocatorScreenshot(page);
     const widget = page.locator('#cardDevLog');
     await expect(widget).toHaveScreenshot('github-prs-only.png', { stylePath });
   });
 });
 
 test.describe('Widget variations - Workouts', () => {
-  test('multi workout', async ({ page }, testInfo) => {
-    test.fixme(testInfo.project.name === 'desktop-1400', 'Chromium SVG/icon rasterization variance — see PR #44');
+  test('multi workout', async ({ page }) => {
     await setupPage(page, 'workouts-multi');
+    await stabilizeForLocatorScreenshot(page);
     const workouts = page.locator('#cardWorkouts');
     await expect(workouts).toBeVisible();
     await expect(workouts).toHaveScreenshot('workouts-multi.png', { stylePath });
@@ -244,12 +236,12 @@ test.describe('Overlays', () => {
   test('focus overlay', async ({ page }) => {
     await setupPage(page, 'focus-work', { waitForScrollHeight: true });
     await page.locator('#focusOverlay').waitFor({ state: 'visible', timeout: 10000 });
-    await expect(page).toHaveScreenshot('focus-overlay.png', { fullPage: true, stylePath });
+    await captureFullPage(page, 'focus-overlay.png', { stylePath });
   });
 
   test('dnd overlay', async ({ page }) => {
     await setupPage(page, 'focus-dnd', { waitForScrollHeight: true });
     await page.locator('#dndOverlay').waitFor({ state: 'visible', timeout: 10000 });
-    await expect(page).toHaveScreenshot('dnd-overlay.png', { fullPage: true, stylePath });
+    await captureFullPage(page, 'dnd-overlay.png', { stylePath });
   });
 });
