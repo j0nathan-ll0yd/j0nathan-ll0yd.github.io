@@ -104,7 +104,6 @@ Screenshot tests capture the dashboard at 4 viewport sizes to catch layout regre
 
 ```bash
 npm run test:visual          # Compare against baselines
-npm run test:visual:update   # Regenerate baselines after intentional changes
 npm run test:visual:ui       # Interactive UI mode for debugging
 ```
 
@@ -118,21 +117,33 @@ npm run test:visual:ui       # Interactive UI mode for debugging
 
 ### Updating Baselines
 
-When you make intentional visual changes:
+Baselines are byte-stable only when produced inside the CI-matching Linux/AMD64
+Playwright Docker container — locally-regenerated PNGs on macOS/Rosetta fail
+CI on the next run (Playwright #13873). A runtime guard in `playwright.config.ts`
+refuses to run `--update-snapshots` outside the sanctioned paths.
 
-```bash
-npm run test:visual:update   # Regenerate baselines
-git add tests/visual/__screenshots__/
-git commit -m "Update visual baselines for [describe change]"
-```
+**Pick one** (in preference order):
 
-**Note:** Baselines are OS-sensitive (font rendering differs between macOS and Linux). For CI consistency, generate baselines inside the Playwright Docker container:
+1. **PR label** (preferred): add the `update-snapshots` label to your PR. The
+   `update-snapshots` workflow regenerates both visual and drift baselines in
+   Docker and auto-commits them to your PR branch.
 
-```bash
-docker run --rm -v $(pwd):/app -w /app \
-  mcr.microsoft.com/playwright:v1.52.0-noble \
-  npx playwright test --update-snapshots
-```
+2. **Local Docker regen** (slow on Apple Silicon but byte-stable):
+
+   ```bash
+   npm run test:visual:update:docker   # regression baselines
+   npm run test:drift:update:docker    # drift baselines
+   git add tests/visual/__screenshots__/ tests/drift/__screenshots__/
+   git commit -m "Update visual baselines for [describe change]"
+   ```
+
+3. **Manual CI trigger**:
+
+   ```bash
+   gh workflow run visual-tests.yml -f update_snapshots=true --ref <branch>
+   ```
+
+See `docs/visual-regression-testing.md` for the full guard rationale.
 
 ## Design System
 

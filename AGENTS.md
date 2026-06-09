@@ -18,9 +18,9 @@ Deploy: push to `main` triggers GitHub Actions (withastro/action@v3 -> deploy-pa
 ## Visual Regression Tests
 
 ```bash
-npm run test:visual          # compare against baselines (16 tests across 4 viewports)
-npm run test:visual:update   # regenerate baselines after intentional visual changes
-npm run test:visual:ui       # interactive Playwright UI
+npm run test:visual                # compare against baselines (16 tests across 4 viewports)
+npm run test:visual:update:docker  # regenerate baselines (Docker is the ONLY local path — host regen is blocked)
+npm run test:visual:ui             # interactive Playwright UI
 ```
 
 Tests use Playwright `toHaveScreenshot()`. Baselines live in `tests/visual/__screenshots__/`. Dynamic content (clock, timestamps, particles) hidden via `tests/visual/screenshot.css`. CloudFront API calls stubbed with `tests/fixtures/*.json`.

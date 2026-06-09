@@ -17,10 +17,8 @@
     "test": "npm run test:build",
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "npx playwright test",
-    "test:visual:update": "npx playwright test --update-snapshots",
     "test:visual:ui": "npx playwright test --ui",
     "test:visual:fast": "SKIP_BUILD=true npx playwright test",
-    "test:visual:update:fast": "SKIP_BUILD=true npx playwright test --update-snapshots",
     "test:visual:docker": "./scripts/run-in-docker.sh playwright.config.ts",
     "test:visual:update:docker": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
     "test:drift:update:docker": "./scripts/run-in-docker.sh playwright.drift.config.ts --update-snapshots"
