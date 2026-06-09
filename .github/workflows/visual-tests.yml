@@ -61,6 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
+      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
+      options: --ipc=host --shm-size=2g
     outputs:
       ds-sha: ${{ steps.ds-info.outputs.sha }}
     steps:
@@ -137,6 +140,9 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
+      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
+      options: --ipc=host --shm-size=2g
     strategy:
       fail-fast: false
       matrix:
