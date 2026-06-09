@@ -66,8 +66,10 @@ jobs:
         with:
           ref: ${{ needs.resolve-version.outputs.target-ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+        run: bash scripts/ci-setup.sh
       - name: Update visual baselines
         env:
           USE_FIXTURES: 'true'
