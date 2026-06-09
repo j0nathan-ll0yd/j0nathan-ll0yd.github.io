@@ -1,0 +1,92 @@
+/**
+ * Playwright test fixtures with PNG IEND-truncation patch.
+ *
+ * Imports `test` and `expect` from this file (NOT from `@playwright/test`) so
+ * the worker-scoped `pngTruncation` fixture activates for every test in the
+ * importing file. The patch monkey-patches Playwright's bundled
+ * `pngjs.PNG.sync.read` once per worker process to truncate buffers at the
+ * FIRST PNG IEND chunk — exactly where pngjs's parser stops. This bypasses
+ * the `"unrecognised content at end of stream"` throw raised when Chromium
+ * CDP emits PNGs with trailing bytes after the first IEND.
+ *
+ * Strategy: the patch is applied at MODULE LOAD time (top-level) AND inside a
+ * worker-scoped auto fixture. The module-load patch is the primary mechanism;
+ * the worker fixture is belt-and-suspenders. Both run in worker scope because
+ * Playwright's workers fork via `child_process.fork` and have separate module
+ * caches (see Why-worker-scoped below).
+ *
+ * Why a worker-scoped patch (not globalSetup):
+ *   - globalSetup runs in the main runner process only
+ *     (node_modules/playwright/lib/runner/tasks.js:165-181)
+ *   - Workers are forked via child_process.fork
+ *     (node_modules/playwright/lib/runner/processHost.js:54)
+ *   - Each worker has its own module cache. A globalSetup patch never reaches
+ *     them. The comparator (comparators.js:64-65) runs IN-PROCESS in each
+ *     worker. Therefore the patch must be applied inside worker scope.
+ *
+ * Why createRequire:
+ *   - package.json has `"type": "module"`; bare `require()` is not available.
+ *   - `playwright-core/lib/utilsBundle` is CJS; the CJS-from-ESM pattern is
+ *     `createRequire(import.meta.url)`.
+ *
+ * Kill switch: set `SKIP_PNG_TRUNCATION=1` to disable the patch (useful for
+ * verifying the patch IS the load-bearing fix, or for debugging a future
+ * Playwright upgrade).
+ */
+
+import { test as base, expect, type Page } from '@playwright/test';
+import { createRequire } from 'node:module';
+import { truncateAtIEND } from './png-iend-truncate';
+
+const require = createRequire(import.meta.url);
+
+/**
+ * Apply the PNG.sync.read patch. Idempotent: re-patching is a no-op due to the
+ * name guard. Returns true if patch is in place after the call.
+ */
+function applyPngTruncationPatch(): boolean {
+  if (process.env.SKIP_PNG_TRUNCATION) {
+    return false;
+  }
+  try {
+    const ub = require('playwright-core/lib/utilsBundle');
+    const origRead = ub.PNG.sync.read;
+    if (origRead.name !== 'truncatedRead') {
+      ub.PNG.sync.read = function truncatedRead(buf: Buffer, opts?: unknown) {
+        return origRead(truncateAtIEND(buf), opts);
+      };
+    }
+    return ub.PNG.sync.read.name === 'truncatedRead';
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[pw-fixtures] PNG.sync.read patch FAILED:', err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+// MODULE-LOAD: apply patch immediately when this file is imported. Each worker
+// runs this on its first import of a spec file, before any test code runs.
+const moduleLoadPatchOk = applyPngTruncationPatch();
+if (!moduleLoadPatchOk && !process.env.SKIP_PNG_TRUNCATION) {
+  // eslint-disable-next-line no-console
+  console.warn('[pw-fixtures] module-load patch did NOT take effect — check Playwright internals');
+}
+
+type WorkerFixtures = { pngTruncation: void };
+
+export const test = base.extend<{}, WorkerFixtures>({
+  pngTruncation: [
+    async ({}, use) => {
+      // Belt-and-suspenders: re-apply at fixture activation (idempotent).
+      const ok = applyPngTruncationPatch();
+      if (!ok && !process.env.SKIP_PNG_TRUNCATION) {
+        // eslint-disable-next-line no-console
+        console.warn('[pw-fixtures] fixture-scoped patch did NOT take effect');
+      }
+      await use();
+    },
+    { scope: 'worker', auto: true },
+  ],
+});
+
+export { expect, type Page };
