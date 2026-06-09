@@ -4,8 +4,39 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: 'Regenerate baselines with --update-snapshots and auto-commit back to the branch'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write  # required for the baseline auto-commit job (no-op when update_snapshots is false)
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      pw-version: ${{ steps.extract.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Extract Playwright version
+        id: extract
+        run: |
+          VERSION=$(./scripts/playwright-version.sh)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Guard — verify Docker image is published
+        run: |
+          VERSION="${{ steps.extract.outputs.version }}"
+          if ! docker manifest inspect "mcr.microsoft.com/playwright:v${VERSION}-noble" > /dev/null 2>&1; then
+            echo "::error::Playwright Docker image v${VERSION}-noble not published yet -- wait or pin version"
+            exit 1
+          fi
+
   contract-check:
     name: Schema Contract Check
     if: "!contains(github.event.pull_request.labels.*.name, 'skip-contract-check')"
@@ -26,9 +57,13 @@ jobs:
         run: node scripts/verify-contract.mjs
 
   setup:
+    needs: resolve-version
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.0-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
+      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
+      options: --ipc=host --shm-size=2g
     outputs:
       ds-sha: ${{ steps.ds-info.outputs.sha }}
     steps:
@@ -101,10 +136,13 @@ jobs:
           include-hidden-files: true
 
   visual-tests:
-    needs: setup
+    needs: [resolve-version, setup]
     runs-on: ubuntu-latest
     container:
-      image: mcr.microsoft.com/playwright:v1.58.0-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
+      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
+      options: --ipc=host --shm-size=2g
     strategy:
       fail-fast: false
       matrix:
@@ -131,7 +169,19 @@ jobs:
       - name: Run visual regression tests
         env:
           SKIP_BUILD: 'true'
-        run: npx playwright test --shard=${{ matrix.shard }}/4
+        # In update_snapshots mode, force workers=1 to eliminate the within-shard
+        # write-race that produces truncated PNGs (microsoft/playwright#9760).
+        # Validation mode keeps the default 50% workers for speed.
+        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ inputs.update_snapshots && '--update-snapshots --workers=1' || '' }}
+
+      - name: Upload regenerated baselines
+        if: ${{ inputs.update_snapshots && !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: regenerated-baselines-shard-${{ matrix.shard }}
+          path: tests/visual/__screenshots__/
+          retention-days: 1
+          include-hidden-files: true
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
@@ -150,6 +200,26 @@ jobs:
             test-results/
             playwright-report/
           retention-days: 30
+
+  commit-baselines:
+    if: ${{ inputs.update_snapshots && !cancelled() }}
+    runs-on: ubuntu-latest
+    needs: visual-tests
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download all regenerated baselines
+        uses: actions/download-artifact@v8
+        with:
+          path: tests/visual/__screenshots__/
+          pattern: regenerated-baselines-shard-*
+          merge-multiple: true
+      - name: Commit regenerated baselines
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore: regenerate visual baselines via workflow_dispatch"
+          file_pattern: 'tests/visual/__screenshots__/**'
 
   merge-reports:
     if: ${{ !cancelled() }}

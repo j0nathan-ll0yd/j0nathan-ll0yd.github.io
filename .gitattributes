@@ -1,1 +1,27 @@
+# Binary file types — prevent git from applying line-ending or text-diff
+# normalization that can corrupt these formats during commit/checkout.
+# The `-text -diff` flags are critical for visual regression baseline PNGs to
+# survive git-auto-commit-action without "unrecognised content at end of stream"
+# decode failures by Playwright's libvips/sharp decoder.
+
 tests/visual/__screenshots__/**/*.png binary
+*.png binary
+*.png -text -diff
+*.jpg binary
+*.jpg -text -diff
+*.jpeg binary
+*.jpeg -text -diff
+*.webp binary
+*.webp -text -diff
+*.gif binary
+*.gif -text -diff
+*.ico binary
+*.ico -text -diff
+*.woff binary
+*.woff -text -diff
+*.woff2 binary
+*.woff2 -text -diff
+*.ttf binary
+*.ttf -text -diff
+*.otf binary
+*.otf -text -diff

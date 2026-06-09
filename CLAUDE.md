@@ -15,8 +15,12 @@ npm run preview                  # preview production output
 
 npm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
 npm run test:visual              # Playwright visual regression (4 viewports, 144 tests)
-npm run test:visual:update       # regenerate baselines after intentional visual changes
+npm run test:visual:docker       # run visual regression locally in Docker (matches CI)
+npm run test:visual:update       # regenerate baselines (host — macOS only, fails CI)
+npm run test:visual:update:docker # regenerate baselines in Docker (canonical, matches CI)
 npm run test:visual:ui           # interactive Playwright UI
+
+npm run test:drift:update:docker # regenerate drift baselines in Docker
 
 npm run validate:build-fixtures  # Ajv schema validation of data/*.json fixtures
 npm run generate:fixtures        # regenerate test/fixtures/build-data/*.json
@@ -67,7 +71,6 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 │   │   └── __screenshots__/
 │   └── drift/                    # Playwright: live dashboard drift detection
 │       ├── drift.spec.ts         # Screenshots https://jonathanlloyd.me (with masking)
-│       ├── masks.ts              # Volatile widget masks (clock, counters, dates)
 │       └── __screenshots__/
 │
 ├── scripts/
@@ -125,11 +128,18 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 - **Tolerance:** 2.5% pixel drift (`maxDiffPixelRatio: 0.025`), 0.2 YIQ color threshold
 - **CI:** Generated in Playwright Docker container for cross-OS consistency
 
-After intentional visual changes:
+After intentional visual changes, use Docker to regenerate baselines that match CI:
 ```bash
-npm run test:visual:update
+npm run test:visual:update:docker
 git add tests/visual/__screenshots__/
 ```
+
+**Why Docker is required:** CI runs Playwright in `mcr.microsoft.com/playwright:v${version}-noble` (Linux/FreeType). macOS host uses Quartz rendering — baselines are incompatible and will fail CI.
+
+- **Apple Silicon:** `--platform linux/amd64` runs via Rosetta (2-4x slower). Acceptable tradeoff for determinism.
+- **Prerequisite:** Docker Desktop must be running.
+- **Escape hatch:** `npm run test:visual:update` (host-based) still works for local sanity checks but produces macOS-specific baselines. Never commit these — they will fail CI.
+- **PR label:** Add the `update-snapshots` label to a PR to trigger CI-side baseline regen + auto-commit; label is auto-removed after commit.
 
 ### Drift Detection (Playwright)
 - **Config:** `playwright.drift.config.ts`
@@ -137,7 +147,7 @@ git add tests/visual/__screenshots__/
 - **Viewports:** 4 (desktop-1400, tablet-1100, tablet-768, mobile-600)
 - **Baseline:** Screenshots of live `https://jonathanlloyd.me` (deployed dashboard)
 - **Tolerance:** 5% pixel drift (looser than regression — accommodates real data changes)
-- **Masking:** Volatile regions masked (clock, counters, dates) via `masks.ts`
+- **Masking:** Volatile regions masked inline in `drift.spec.ts` (clock, counters, dates)
 - **Trigger:** `.github/workflows/drift-detection.yml` runs on `workflow_run` off `deploy.yml`
 
 Drift detects live dashboard visual regressions that would escape regression tests. Masking prevents false positives from dynamic data (current time, live counts, etc.).
@@ -245,10 +255,11 @@ What belongs in the design system vs the web repo is governed by `design-system-
 
 **Visual tests fail after CSS changes:**
 1. Verify changes in `npm run preview` locally
-2. Run `npm run test:visual` to check all 4 viewports
-3. If intentional: `npm run test:visual:update` → commit baselines
+2. Run `npm run test:visual:docker` to check all 4 viewports (matches CI)
+3. If intentional: `npm run test:visual:update:docker` → commit baselines
 
 **Drift detection alerts on live deployment:**
-1. Check `tests/drift/masks.ts` — ensure all volatile regions (clock, dynamic counters) are masked
-2. If new volatile widget added, extend mask configuration
+1. Check `tests/drift/drift.spec.ts` — ensure all volatile regions (clock, dynamic counters) are masked
+2. If new volatile widget added, extend the mask configuration in the spec
 3. Redeploy with updated masks; drift detection will re-baseline on next deploy
+4. To regenerate drift baselines locally: `npm run test:drift:update:docker`

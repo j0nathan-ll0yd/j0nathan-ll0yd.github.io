@@ -19,6 +19,8 @@ test('production dashboard matches drift baseline', async ({ page }, testInfo) =
 
   await page.goto(`${SITE_URL}/?bust=${Date.now()}`);
   await page.waitForLoadState('networkidle');
+  // Inject stabilization stylesheet to match regression suite — hides dynamic timestamps/indicators
+  await page.addStyleTag({ path: 'tests/visual/screenshot.css' });
   await expect(page).toHaveScreenshot('drift-full.png', {
     mask: [
       // Dynamic content that changes on every load — mask to avoid false positives
