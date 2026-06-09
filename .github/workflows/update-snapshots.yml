@@ -61,7 +61,7 @@ jobs:
           file_pattern: 'tests/visual/__screenshots__/**'
       - name: Remove update-snapshots label
         if: github.event_name == 'pull_request' || inputs.pr_number != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = context.payload.pull_request?.number || parseInt('${{ inputs.pr_number }}');
