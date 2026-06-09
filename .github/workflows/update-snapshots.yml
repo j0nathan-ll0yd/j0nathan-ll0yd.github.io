@@ -85,7 +85,7 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
           commit_message: "chore: regenerate visual + drift baselines via update-snapshots label"
-          file_pattern: 'tests/{visual,drift}/__screenshots__/**'
+          file_pattern: 'tests/visual/__screenshots__/** tests/drift/__screenshots__/**'
       - name: Remove update-snapshots label
         if: github.event_name == 'pull_request' || inputs.pr_number != ''
         uses: actions/github-script@v9
