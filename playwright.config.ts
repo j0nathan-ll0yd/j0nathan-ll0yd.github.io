@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { CHROMIUM_DETERMINISM_ARGS } from './tests/shared/chromium-launch-args';
 
 const isCI = !!process.env.CI;
 
@@ -26,16 +27,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
     serviceWorkers: 'block',
-    // Determinism flags eliminate sub-pixel rendering variance across CI/local. Do not remove without verifying baselines still pass.
     launchOptions: {
-      args: [
-        '--force-device-scale-factor=1',
-        '--font-render-hinting=none',          // kills hinting variance across OS
-        '--disable-lcd-text',                  // disables subpixel anti-aliasing
-        '--disable-font-subpixel-positioning', // snaps glyphs to pixel grid
-        '--disable-skia-runtime-opts',         // deterministic Skia rendering path
-        '--disable-dev-shm-usage',             // /dev/shm is 64MB in Docker — too small for 3000px fullPage; redirects to /tmp
-      ],
+      // Flags from tests/shared/chromium-launch-args.ts -- single source of truth
+      // shared with playwright.drift.config.ts.
+      args: [...CHROMIUM_DETERMINISM_ARGS],
     },
   },
 

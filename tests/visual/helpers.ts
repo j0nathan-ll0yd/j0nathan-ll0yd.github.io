@@ -4,7 +4,7 @@
  * Provides route interception, navigation/wait logic, and widget selectors.
  */
 import path from 'path';
-import type { Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { getScenarioFixtures, scenarioHasWorkouts, type ScenarioName } from './fixtures';
 
 const CLOUDFRONT_BASE = 'https://d1pfm520aduift.cloudfront.net';
@@ -221,5 +221,72 @@ export async function setupPage(page: Page, scenario: ScenarioName, options?: Na
   await navigateAndWait(page, {
     waitForWorkouts: hasWorkouts,
     waitForScrollHeight: options?.waitForScrollHeight ?? false,
+  });
+}
+
+/**
+ * Capture a fullPage-equivalent screenshot via viewport-grow + clip{}.
+ *
+ * Bypasses Chromium's stitched-capture pipeline (Chromium 331796402,
+ * Playwright #30149, #20859, #35674) which produces truncated/corrupt PNGs
+ * on tall pages. The pngjs decoder Playwright bundles strict-rejects these
+ * truncated buffers with "unrecognised content at end of stream".
+ *
+ * Approach (per Playwright #35674):
+ *   1. Wait for fonts.ready + 2x rAF to ensure layout has settled.
+ *   2. Measure document.documentElement.scrollHeight.
+ *   3. Grow the viewport to {width, height: measured} so the full document
+ *      fits in one frame.
+ *   4. Capture via clip{ x:0, y:0, width, height } (no fullPage stitch).
+ *
+ * Caller is responsible for restoring viewport if the test is in serial
+ * mode (Playwright auto-isolates fresh pages otherwise).
+ *
+ * Depends on screenshot.css (lines 73-76) which sets html/body to
+ * `height: auto !important; overflow: visible !important` -- without that
+ * rule, scrollHeight is capped by `height: 100dvh` and clip captures truncate.
+ */
+export async function captureFullPage(
+  page: Page,
+  screenshotName: string,
+  opts?: { stylePath?: string },
+): Promise<void> {
+  // Stability: fonts + 2x rAF to absorb late layout shifts
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
+
+  const viewport = page.viewportSize();
+  if (!viewport) {
+    throw new Error('captureFullPage: no viewport configured on page');
+  }
+
+  const measuredHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  if (measuredHeight <= 0) {
+    throw new Error(`captureFullPage: scrollHeight is ${measuredHeight} — page may not have loaded`);
+  }
+
+  await page.setViewportSize({ width: viewport.width, height: measuredHeight });
+
+  await expect(page).toHaveScreenshot(screenshotName, {
+    clip: { x: 0, y: 0, width: viewport.width, height: measuredHeight },
+    stylePath: opts?.stylePath,
+  });
+}
+
+/**
+ * Settle the page before capturing a locator-level screenshot.
+ *
+ * Used for widget-level screenshots (`page.locator(...).toHaveScreenshot()`).
+ * Without this wait, the screenshot can be captured mid-composite, producing
+ * truncated/corrupt PNG buffers that the pngjs decoder strict-rejects.
+ *
+ * Cheaper than full captureFullPage settling — only needs fonts.ready + 2x rAF.
+ */
+export async function stabilizeForLocatorScreenshot(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   });
 }

@@ -58,22 +58,34 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
+      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
+      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
+      options: --ipc=host --shm-size=2g
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.resolve-version.outputs.target-ref }}
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+        run: bash scripts/ci-setup.sh
       - name: Update visual baselines
         env:
           USE_FIXTURES: 'true'
         run: npx playwright test --update-snapshots
+      - name: Update drift baselines
+        env:
+          USE_FIXTURES: 'true'
+        run: npx playwright test --config=playwright.drift.config.ts --update-snapshots
+        continue-on-error: true  # drift target site may be unreachable; non-blocking
+      - name: Mark workspace as safe (Docker container uid mismatch)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Commit updated baselines
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "chore: regenerate visual baselines via update-snapshots label"
-          file_pattern: 'tests/visual/__screenshots__/**'
+          commit_message: "chore: regenerate visual + drift baselines via update-snapshots label"
+          file_pattern: 'tests/visual/__screenshots__/** tests/drift/__screenshots__/**'
       - name: Remove update-snapshots label
         if: github.event_name == 'pull_request' || inputs.pr_number != ''
         uses: actions/github-script@v9

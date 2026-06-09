@@ -74,3 +74,12 @@ html, body {
   height: auto !important;
   overflow: visible !important;
 }
+
+/* SVG rendering: snap octicon and other inline-SVG edges to device pixels.
+   Eliminates Chromium MSAA atlas-path raster variance (Chromium 40827297).
+   Trade-off: curves on non-axis-aligned SVG paths may appear jaggier --
+   acceptable for octicon-heavy widgets where all paths are mostly axis-aligned. */
+svg,
+svg * {
+  shape-rendering: crispEdges;
+}
