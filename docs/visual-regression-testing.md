@@ -1,0 +1,372 @@
+# Visual Regression Testing — System Overview
+
+> Comprehensive reference for the Playwright-based visual regression and drift detection systems. Captures the architecture as of 2026-06-09 (post PR #44/#46/#48/#49 sequence) plus the journey of bugs and fixes that produced it.
+
+---
+
+## 1. What it is
+
+Two Playwright projects guard the visual fidelity of `jonathanlloyd.me`:
+
+| Project | Config | What it screenshots | Trigger | Tolerance | Outcome on failure |
+|---|---|---|---|---|---|
+| **Visual regression** | `playwright.config.ts` | The locally-built static dashboard with fixture data | PR + push to `main` | `maxDiffPixelRatio: 0.025` (2.5%) | Blocks PR; runs across 4 viewports × 4 shards |
+| **Drift detection** | `playwright.drift.config.ts` | The deployed production site `https://jonathanlloyd.me` | After every successful Cloudflare Pages deploy (`workflow_run`) | `maxDiffPixelRatio: 0.05` (5%) | Files a GitHub issue, non-blocking |
+
+The two suites share `tests/visual/screenshot.css` and the Playwright Docker image, so a baseline that passes regression should also pass drift after a deploy. They serve different purposes: regression is a **gate**, drift is a **sensor**.
+
+**~176 baseline PNGs** live in `tests/visual/__screenshots__/{projectName}/{spec}/{name}.png` and **3 drift baselines** live in `tests/drift/__screenshots__/`.
+
+Four viewports are exercised: `desktop-1400`, `tablet-1100`, `tablet-768`, `mobile-600`.
+
+---
+
+## 2. Original intent
+
+The dashboard at `jonathanlloyd.me` has dozens of visual states — populated, empty, complex; heart-rate bradycardia/peak/resting; multiple sleep-stage distributions; book-completion variations; focus and DnD overlays; etc. Regressions are easy to introduce because:
+
+- The widgets come from `@lifegames/web/production` (a sibling repo linked via yalc) — a DS-upgrade can change a widget's hex value or padding silently.
+- The build-time HTML uses `data/*.json` while runtime swaps in CloudFront JSON via `@lifegames/web/runtime/live-data`. These two paths render different content.
+- Skeleton-loading, font-load timing, and animation lifecycles all influence what a screenshot captures.
+
+The intent of the regression suite is to lock the rendered output for every (scenario × viewport) combination. The intent of the drift suite is to catch *production* divergences — DS bundles that publish without going through PR, or CloudFront JSON that mutates the dashboard's appearance.
+
+---
+
+## 3. Architecture (current state)
+
+### 3.1 File map
+
+```
+tests/
+├── shared/
+│   └── chromium-launch-args.ts         # Shared Chromium determinism flags
+├── visual/
+│   ├── dashboard.spec.ts               # 3 fullPage dashboard tests
+│   ├── widgets.spec.ts                 # ~40 widget + overlay tests
+│   ├── fixtures.ts                     # Scenario → fixture-file map
+│   ├── helpers.ts                      # interceptRoutes, navigateAndWait,
+│   │                                   #   captureFullPage, stabilizeForLocatorScreenshot
+│   ├── pw-fixtures.ts                  # Worker-scoped PNG.sync.read patch
+│   ├── png-iend-truncate.ts            # Pure-function IEND truncation utility
+│   ├── predicates.ts                   # allImagesComplete, scrollHeightStable
+│   ├── screenshot.css                  # Stabilization stylesheet
+│   ├── global-setup.ts                 # Port-guard (unrelated to pngjs work)
+│   └── __screenshots__/                # Baseline PNGs (CI-owned)
+├── drift/
+│   ├── drift.spec.ts                   # 1 fullPage screenshot of live site per viewport
+│   └── __screenshots__/                # Drift baselines (CI-owned)
+└── build/
+    ├── predicates.test.ts              # Vitest unit tests for predicates
+    └── png-iend-truncate.test.ts       # Vitest unit tests for truncateAtIEND
+
+scripts/
+├── playwright-version.sh               # Extracts Playwright version from package-lock
+└── run-in-docker.sh                    # Local Docker baseline regen wrapper
+
+.github/workflows/
+├── visual-tests.yml                    # PR regression gate (4-shard matrix in Docker)
+├── drift-detection.yml                 # Post-deploy drift sensor
+└── update-snapshots.yml                # Label-triggered baseline regeneration
+```
+
+### 3.2 Determinism stack (defense in depth)
+
+The captured pixels must be byte-stable across runs and across the macOS-developer / Linux-CI boundary. The current stack:
+
+| Layer | Mechanism | Purpose |
+|---|---|---|
+| **Docker image** | `mcr.microsoft.com/playwright:v${VERSION}-noble` resolved dynamically from `package-lock.json` via `scripts/playwright-version.sh` + `docker manifest inspect` guard | Same rendering environment locally and in CI |
+| **Container options** | `--ipc=host --shm-size=2g` on all 3 workflows | Avoid 64MB `/dev/shm` crash on tall fullPage screenshots |
+| **Chromium flags (shared)** | `tests/shared/chromium-launch-args.ts` — `--force-device-scale-factor=1`, `--font-render-hinting=none`, `--disable-lcd-text`, `--disable-font-subpixel-positioning`, `--disable-skia-runtime-opts`, `--disable-dev-shm-usage` | Kill subpixel/font-hinting/skia raster variance |
+| **Software raster** | `--use-gl=swiftshader --disable-gpu --in-process-gpu` | Eliminate Chromium MSAA atlas-path SVG raster non-determinism (Chromium 40827297) |
+| **CSS** | `screenshot.css` injected via `expect.toHaveScreenshot({ stylePath })`. Hides `.widget-timestamp`, `[data-live]`, `#liveClock`, `#hrEcgCanvas`, etc. Freezes animations to 0s. Adds `svg, svg * { shape-rendering: crispEdges }`. Sets `html, body { height: auto; overflow: visible }` to allow fullPage capture | Eliminate dynamic content + SVG octicon variance + dvh height-cap bug |
+| **Stabilization waits** | `helpers.ts:navigateAndWait` — fonts.ready, skeleton removal, images complete, scrollHeight stable for 3 consecutive reads at 150ms intervals | Wait for layout to settle before capture |
+| **Capture strategy** | `helpers.ts:captureFullPage` grows viewport to `document.documentElement.scrollHeight` and captures via `clip{x:0, y:0, width, height}` instead of `fullPage:true` | Bypass Chromium's stitched-capture pipeline that produces truncated PNGs on tall pages (Playwright #35674) |
+| **PNG decoder bypass** | `pw-fixtures.ts` monkey-patches `playwright-core/lib/utilsBundle` `PNG.sync.read` to truncate buffers at the first IEND chunk before pngjs sees them | Bypass `pngjs sync-reader.js:43` strict rejection of bytes after IEND |
+| **Snapshots CI-owned** | Local regen produces ARM64/Rosetta bytes that differ from CI AMD64 (Playwright #13873). Documented; regen via the `update-snapshots` PR label | Single source of byte truth |
+
+### 3.3 Worker-scoped pngjs patch (the load-bearing fix)
+
+Playwright bundles its own pngjs inside `playwright-core/lib/utilsBundleImpl/index.js`. Patching `node_modules/pngjs/` does nothing for Playwright. Workers fork via `child_process.fork` (`node_modules/playwright/lib/runner/processHost.js:54`) with separate module caches; `globalSetup` runs only in the main process and cannot reach them.
+
+The fix lives in `tests/visual/pw-fixtures.ts`:
+
+```ts
+import { test as base, expect, type Page } from '@playwright/test';
+import { createRequire } from 'node:module';
+import { truncateAtIEND } from './png-iend-truncate';
+
+const require = createRequire(import.meta.url);  // package.json has "type": "module"
+
+function applyPngTruncationPatch(): boolean {
+  if (process.env.SKIP_PNG_TRUNCATION) return false;
+  const ub = require('playwright-core/lib/utilsBundle');
+  const origRead = ub.PNG.sync.read;
+  if (origRead.name !== 'truncatedRead') {
+    ub.PNG.sync.read = function truncatedRead(buf, opts) {
+      return origRead(truncateAtIEND(buf), opts);
+    };
+  }
+  return ub.PNG.sync.read.name === 'truncatedRead';
+}
+
+// MODULE-LOAD: runs in each worker the first time it imports a spec that
+// re-exports `test`. The patch is in place before any test code runs.
+applyPngTruncationPatch();
+
+// Belt-and-suspenders worker-scoped auto fixture (idempotent).
+export const test = base.extend<{}, { pngTruncation: void }>({
+  pngTruncation: [
+    async ({}, use) => { applyPngTruncationPatch(); await use(); },
+    { scope: 'worker', auto: true },
+  ],
+});
+
+export { expect, type Page };
+```
+
+Specs import `{ test, expect }` from `'./pw-fixtures'` (NOT `'@playwright/test'`). Each worker that imports the spec executes pw-fixtures.ts at module-load time and patches `PNG.sync.read` in its module cache. The comparator at `playwright-core/lib/server/utils/comparators.js:64-65` then routes through the patched function on every screenshot comparison.
+
+The truncation logic (`png-iend-truncate.ts`):
+
+```ts
+const IEND_SIGNATURE = Buffer.from([0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82]);
+
+export function truncateAtIEND(buf: Buffer): Buffer {
+  if (!Buffer.isBuffer(buf) || buf.length < 16) return buf;
+  const idx = buf.indexOf(IEND_SIGNATURE);  // FIRST occurrence — matches where pngjs stops
+  if (idx === -1) return buf;
+  const end = idx + IEND_SIGNATURE.length;
+  return end === buf.length ? buf : buf.subarray(0, end);
+}
+```
+
+`indexOf` (not `lastIndexOf`) is load-bearing: Chromium emits buffers with the IEND signature at the very end AND an earlier IEND in trailing garbage. pngjs's parser stops at the first IEND it sees, so truncation must cut there.
+
+---
+
+## 4. The journey — bugs and fixes (2026-06-01 → 2026-06-09)
+
+The current architecture is the survivor of a cascading sequence of bug classes. Each PR fixed one class and exposed the next.
+
+### Round 1 — Cross-OS rendering variance (PR #44, merged 2026-06-08)
+
+**Symptom.** Drift detection filed `visual-drift` issues on every production deploy (#25, #28, #30, #32, #38). Locally-regenerated baselines failed CI immediately.
+
+**Root cause.** Baselines were generated on macOS (Quartz font rendering). CI ran on `ubuntu-latest` with `npx playwright install` (Linux FreeType font rendering). The drift workflow ran on bare `ubuntu-latest` with a different rendering environment from the regression suite.
+
+**Fix.**
+- Migrated both regression and drift workflows to `mcr.microsoft.com/playwright:v${VERSION}-noble` Docker image.
+- Dynamic version resolution via `scripts/playwright-version.sh` + `docker manifest inspect` guard so the Docker image tag tracks `@playwright/test` automatically.
+- Added shared `tests/shared/chromium-launch-args.ts` with determinism flags (`--font-render-hinting=none`, etc.).
+- Injected `screenshot.css` into drift tests to hide the same dynamic content the regression suite hides.
+- Wired `--ipc=host --shm-size=2g` container options to all 3 workflows.
+- Extended `update-snapshots.yml` to regenerate both visual AND drift baselines (Option A) on the `update-snapshots` PR label.
+
+**Outcome.** Cross-OS variance eliminated. But CI surfaced 14 stubborn `test.fixme` annotations (PNG encoder corruption on tablet-1100 fullPage + locator screenshots; SVG octicon raster variance on desktop-1400). PR #44 deferred them rather than block.
+
+### Round 2 — SVG octicon raster variance (PR #48, lifted 9 of 14)
+
+**Symptom.** 5 widgets containing GitHub octicon SVGs (dev-activity-log, reading-feed, starred-repos, github-prs-only, workouts-multi) produced 3-5% pixel diffs run-to-run on `desktop-1400`, exceeding the 2.5% threshold.
+
+**Root cause (research-backed).** Chromium issue 40827297: Skia's atlas-path renderer with MSAA = 4 samples produces 5 possible edge values per sample. Skia falls back unpredictably between AA-triangulating, MSAA atlas, and software paths depending on path size, GPU capability, and memory pressure. The same SVG can hit different code paths run-to-run.
+
+**Fix.** Force software raster:
+- `--use-gl=swiftshader` — software OpenGL
+- `--disable-gpu` — no GPU code paths
+- `--in-process-gpu` — single-process determinism
+- Adjunct: `shape-rendering: crispEdges` in `screenshot.css` to snap edges to device pixels.
+
+Trade-off: ~20-40% slower CI test execution. Acceptable.
+
+**Outcome.** 5 octicon-variance fixmes lifted. Plus 4 more class-1 PNG-encoder fixmes were attempted via `captureFullPage` (viewport-grow + clip{} per Playwright #35674) + `stabilizeForLocatorScreenshot` (fonts.ready + 2× rAF). They DID NOT work — same `unrecognised content at end of stream` error. Re-applied targeted fixmes to those 5 cases. Also discovered + fixed multiple pre-existing CI bugs along the way:
+  - `update-snapshots.yml` missing `bash scripts/ci-setup.sh` (yalc DS setup) — workflow could never have regenerated baselines.
+  - Same workflow missing `--ipc=host --shm-size=2g` parity.
+  - `git-auto-commit-action` needed `safe.directory` + space-separated `file_pattern` (brace expansion not supported by git pathspec).
+  - `github-actions[bot]` commits can't trigger `pull_request` event chains → documented `workflow_dispatch` as break-glass manual trigger.
+
+### Round 3 — PNG encoder corruption (PR #49, lifted final 5)
+
+**Symptom.** 5 tests on tablet-1100 fullPage + tablet-768/desktop-1400 locator screenshots threw `Failed to re-generate expected. unrecognised content at end of stream` deterministically across 6+ regen attempts. Even with swiftshader + viewport-grow + crispEdges + stabilize, the bug persisted.
+
+**Root cause investigation.** Four parallel research agents produced 50+ citations:
+
+1. The error originates at `node_modules/pngjs/lib/sync-reader.js:43` — `throw new Error("unrecognised content at end of stream")` when `this._buffer.length > 0` after the parser stops queueing reads. The parser stops after IEND.
+2. Playwright wraps it at `matchers/toMatchSnapshot.js:298-303` as `"Failed to re-generate expected.\n"` during `--update-snapshots`.
+3. The byte path: Chromium CDP → Buffer → `comparators.js:64-65` `import_utilsBundle3.PNG.sync.read(actualBuffer)` → bundled pngjs in `utilsBundleImpl/index.js`.
+4. pngjs has no `forgive()`/`strict()` toggle. The behavior is unconditional.
+5. Playwright bundles its own pngjs; patching `node_modules/pngjs/` has no effect.
+6. Workers fork via `child_process.fork`; globalSetup runs only in the main process. The patch MUST run in worker scope.
+7. `package.json` has `"type": "module"`; bare `require()` is illegal in test files. Need `createRequire(import.meta.url)`.
+
+**Fix attempts (chronological):**
+
+1. **Worker-scoped fixture only** → patch never reached the comparator in time. No smoke-check warning either.
+2. **+ Module-load-time patch** at the top of `pw-fixtures.ts` → patch confirmed applied (`PNG.sync.read.name === 'truncatedRead'`, descriptor writable) but tests still failed.
+3. **+ Diagnostic logging inside `truncatedRead`** → empirically confirmed comparator IS calling our patched function, but truncation was a no-op (`delta=0` for all invocations).
+4. **`lastIndexOf` → `indexOf`** → THIS WAS IT. Chromium's bytes have IEND signature at the very END plus an earlier IEND that pngjs's parser stops at. `lastIndexOf` found the trailing IEND and did nothing; `indexOf` cuts at the FIRST IEND where pngjs actually stops. All 5 baselines regenerated, all 4 visual-tests shards green.
+
+**Outcome.** Zero `test.fixme` annotations in `tests/visual/`. All 14 original fixmes lifted.
+
+---
+
+## 5. Workflows in detail
+
+### 5.1 `visual-tests.yml` — PR gate
+
+Triggers: `pull_request` to `main`, `workflow_dispatch` with `update_snapshots` boolean input.
+
+Jobs:
+- `resolve-version` (bare `ubuntu-latest`) — extracts Playwright version from `package-lock.json`, runs `docker manifest inspect` guard to fail fast if the Playwright Docker image tag isn't published yet.
+- `contract-check` (bare `ubuntu-latest`) — schema contract verification, skippable via `skip-contract-check` label.
+- `setup` (in Docker container) — installs design-system via yalc, builds Astro site, uploads `dist` + `.yalc` as artifact.
+- `visual-tests` (in Docker container, 4-shard matrix, `fail-fast: false`) — runs Playwright in `--shard=N/4`. In `update_snapshots` mode forces `workers=1` to eliminate intra-shard write races (microsoft/playwright#9760).
+- `commit-baselines` (bare `ubuntu-latest`) — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action`.
+- `merge-reports` — merges blob reports from each shard into a single HTML report.
+
+### 5.2 `update-snapshots.yml` — label-triggered baseline regen
+
+Triggers: `pull_request: types: [labeled]` filtered to the `update-snapshots` label; `workflow_dispatch` with `pr_number` input as break-glass manual trigger.
+
+Why both triggers? `GITHUB_TOKEN` cannot trigger workflows from other workflows, so chained workflows (e.g. the regression workflow firing after the auto-commit) often fail silently. `workflow_dispatch` remains valuable as a manual recovery path.
+
+Jobs:
+- `resolve-version` (bare `ubuntu-latest`) — same pattern as visual-tests.
+- `update` (in Docker container with `--ipc=host --shm-size=2g`) — runs `scripts/ci-setup.sh`, then `npx playwright test --update-snapshots`, then `npx playwright test --config=playwright.drift.config.ts --update-snapshots` (Option A — both suites in one workflow), then `git config --global --add safe.directory $GITHUB_WORKSPACE` (Docker container uid mismatch fix), then `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/** tests/drift/__screenshots__/**'` (space-separated, not brace-expansion). Finally removes the `update-snapshots` label.
+
+### 5.3 `drift-detection.yml` — production sensor
+
+Triggers: `workflow_run` after a successful `Deploy to Cloudflare Pages` run; `workflow_dispatch` for manual probes.
+
+Jobs:
+- `resolve-version` (bare `ubuntu-latest`).
+- `drift-detection` (in Docker container with `--ipc=host --shm-size=2g`) — captures `https://jonathanlloyd.me` at 4 viewports, compares against committed drift baselines, files a GitHub issue with `visual-drift` label on failure. Marked `continue-on-error: true` — drift is informational.
+
+Drift suite injects `tests/visual/screenshot.css` so live dynamic content (clocks, timestamps, status indicators) is hidden, matching what the regression suite hides on the fixture-driven build.
+
+---
+
+## 6. How to use it
+
+### 6.1 Run regression locally (fast iteration, bytes won't match CI)
+
+```bash
+npm run test:visual          # 4 viewports × ~44 tests = ~176 tests
+npm run test:visual:ui       # Playwright UI mode
+npm run test:visual:fast     # Skip build (reuse existing dist/)
+```
+
+### 6.2 Regenerate baselines in Docker locally
+
+```bash
+npm run test:visual:update:docker   # regression baselines
+npm run test:drift:update:docker    # drift baselines
+```
+
+Apple Silicon runs via Rosetta (`--platform linux/amd64` explicit). Expect 2-4× slower than native. Note: bytes still differ from CI AMD64 host (Playwright #13873). **Do not commit locally-regenerated baselines.**
+
+### 6.3 Regenerate baselines in CI (canonical)
+
+1. Open or push to a PR.
+2. Add the `update-snapshots` label.
+3. Wait ~5 minutes — the workflow regenerates both visual and drift baselines and auto-commits them to your PR branch.
+4. The label is auto-removed on success.
+5. `GITHUB_TOKEN` doesn't trigger downstream workflow chains, so manually re-run visual-tests after the auto-commit:
+   ```bash
+   gh workflow run visual-tests.yml --ref <branch>
+   ```
+
+### 6.4 Debug failing baselines
+
+| Failure | First step |
+|---|---|
+| Pixel diff > 0.025 on octicon widget | Confirm flags include `--use-gl=swiftshader --disable-gpu --in-process-gpu`. Check `screenshot.css` has `svg, svg * { shape-rendering: crispEdges }`. |
+| `Failed to re-generate expected. unrecognised content at end of stream` | Confirm spec imports from `./pw-fixtures` (not `@playwright/test`). Grep CI log for `[pw-fixtures] module-load patch` (warn-only). |
+| Drift workflow filed an issue | Open the artifact's `drift-playwright-report`. Likely either a new dynamic element missing from `screenshot.css` or a legitimate production change. |
+| Local pixel diff but CI green | Don't regen locally. Use the `update-snapshots` PR label. |
+
+### 6.5 Add a new visual test
+
+```ts
+// tests/visual/my-spec.ts
+import { test, expect } from './pw-fixtures';   // NOT '@playwright/test'
+import { setupPage, stylePath, WIDGET_SELECTORS, captureFullPage } from './helpers';
+
+test('my widget renders', async ({ page }) => {
+  await setupPage(page, 'populated');
+  const widget = page.locator(WIDGET_SELECTORS.something);
+  await expect(widget).toHaveScreenshot('my-widget.png', { stylePath });
+});
+
+// For fullPage captures, use captureFullPage helper (NOT { fullPage: true }):
+test('my full page', async ({ page }) => {
+  await setupPage(page, 'populated', { waitForScrollHeight: true });
+  await captureFullPage(page, 'my-full-page.png', { stylePath });
+});
+```
+
+The `./pw-fixtures` import is load-bearing — it's what triggers the worker-scoped `PNG.sync.read` patch. Without it, your test will fail with the upstream pngjs error.
+
+---
+
+## 7. Known limitations / future work
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| 1 | Worker-scoped patch couples to Playwright's `utilsBundle.PNG.sync.read` internal symbol | LOW-MED | A future Playwright major bump could rename or restructure. Mitigation: smoke-check `console.warn` surfaces in CI logs if patch fails. Kill switch via `SKIP_PNG_TRUNCATION=1`. |
+| 2 | swiftshader software raster slows CI by ~20-40% | LOW | Currently within shard time budget. If `visual-tests` matrix exceeds 15 min, reconsider per-test tolerance bumps as fallback. |
+| 3 | All baselines may contain trailing garbage bytes after IEND | LOW | The patch makes them decode cleanly. If the patch is ever removed, ALL baselines must be regenerated. Documented in `pw-fixtures.ts` JSDoc. |
+| 4 | `indexOf` truncation has theoretical 1/2^64-per-offset collision risk if IDAT data contains the literal 8-byte IEND signature | NEGLIGIBLE | Deflate-compressed IDAT bytes are effectively random. Acceptable. |
+| 5 | Playwright 1.61 may fix the pngjs bug upstream | INFORMATIONAL | When 1.61 stable ships, retest with `SKIP_PNG_TRUNCATION=1` to see if pngjs gained a tolerance flag. If yes, delete `pw-fixtures.ts` patch + truncation utility, regenerate all baselines. |
+| 6 | Drift suite uses `fullPage: true` not `captureFullPage` | MEDIUM | Drift baselines are short pages (live site at top of fold), so stitched-capture has not yet failed. If it ever does, migrate to `captureFullPage`. |
+| 7 | Snapshots are owned by CI; local Docker regen produces different bytes than CI AMD64 hosts (Playwright #13873) | DOCUMENTED | Pre-commit hook idea: block baseline-file commits by non-CI committers. Not yet implemented. |
+| 8 | `chore/upgrade-dependencies` worktree at `/Users/jlloyd/wt/web-Lifegames-Portal-upgrade` holds historical PR #44 work | LOW | Can be removed once the team is confident the new architecture is stable. |
+
+---
+
+## 8. Reference reading
+
+### Upstream issues that shaped the architecture
+- pngjs strict trailing-bytes rejection: https://github.com/pngjs/pngjs/issues/235
+- Playwright "Failed to re-generate" error report: https://github.com/microsoft/playwright/issues/23012
+- Playwright "unrecognised content" bug: https://github.com/microsoft/playwright/issues/18341
+- Playwright fullPage CDP resize bug: https://issues.chromium.org/issues/331796402
+- Playwright fullPage stitched-capture corruption: https://github.com/microsoft/playwright/issues/30149
+- Playwright viewport-grow + clip workaround: https://github.com/microsoft/playwright/issues/35674
+- Chromium MSAA atlas-path non-determinism: https://issues.chromium.org/issues/40827297
+- Chromium GPU-rasterization MSAA timing: https://bugs.chromium.org/p/chromium/issues/detail?id=460486
+- Playwright arm64/amd64 byte difference: https://github.com/microsoft/playwright/issues/13873
+- Playwright Rosetta diff: https://github.com/microsoft/playwright/issues/29073
+- pluggable image comparator feature request: https://github.com/microsoft/playwright/issues/28578
+
+### Standards
+- W3C PNG specification (IEND chunk format §11.2.5): https://www.w3.org/TR/png/
+- MDN `shape-rendering` attribute: https://developer.mozilla.org/en-US/docs/Web/SVG/Reference/Attribute/shape-rendering
+
+### Internal plans
+- `.omc/plans/visual-regression-cross-os.md` — PR #44 plan (Round 1)
+- `.omc/plans/pr44-followup.md` — PR #46/#48 plan (Round 2)
+- `.omc/plans/pngjs-bypass.md` — PR #49 plan (Round 3)
+
+### Commit trail (visual-regression series, 2026-06-08 → 2026-06-09)
+- `407e86d` — PR #44: cross-OS deterministic visual regression + dependency upgrade
+- `2b51d2f` — PR #46: docs + predicate extraction
+- `5dc4d2a` — PR #48: lift 9 fixmes via swiftshader + viewport-grow
+- `04582ab` — PR #49: lift 5 remaining fixmes via worker-scoped pngjs IEND truncation
+
+---
+
+## 9. Glossary
+
+| Term | Meaning |
+|---|---|
+| **Baseline** | Committed PNG that screenshots are compared against. Lives in `tests/visual/__screenshots__/{projectName}/{spec}/{name}.png`. |
+| **Drift baseline** | Committed PNG of the deployed production site. Lives in `tests/drift/__screenshots__/`. |
+| **Comparator** | Playwright's internal pixel-comparison code at `playwright-core/lib/server/utils/comparators.js`. Calls `PNG.sync.read` on actual and expected buffers, then pixelmatch. |
+| **pngjs** | The pure-JS PNG decoder Playwright bundles inside `playwright-core/lib/utilsBundleImpl/index.js`. Strict-rejects buffers with trailing bytes after IEND. |
+| **IEND chunk** | PNG end-of-stream marker. Format: `00 00 00 00 49 45 4E 44 AE 42 60 82` (12 bytes; the last 8 are unique per PNG spec). |
+| **Worker** | A Playwright child process (spawned via `child_process.fork`) that runs a subset of tests. Has its own module cache. Pattern: `workers: '50%'` in CI. |
+| **Shard** | A 1-of-N split of tests for parallel CI execution. The visual-tests workflow uses a 4-shard matrix. |
+| **swiftshader** | Software OpenGL implementation. Used via `--use-gl=swiftshader` to eliminate GPU-driver-dependent SVG raster variance. |
+| **crispEdges** | SVG `shape-rendering` value that snaps edges to device pixels, avoiding subpixel antialiasing variance. |
