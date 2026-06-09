@@ -49,9 +49,17 @@ function applyPngTruncationPatch(): boolean {
     const origRead = ub.PNG.sync.read;
     if (origRead.name !== 'truncatedRead') {
       ub.PNG.sync.read = function truncatedRead(buf: Buffer, opts?: unknown) {
-        return origRead(truncateAtIEND(buf), opts);
+        // DIAGNOSTIC: log every invocation to prove the comparator hits our patch
+        const truncated = truncateAtIEND(buf);
+        // eslint-disable-next-line no-console
+        console.log(`[pw-fixtures] truncatedRead invoked buf.length=${buf?.length} truncated.length=${truncated?.length} delta=${(buf?.length ?? 0) - (truncated?.length ?? 0)}`);
+        return origRead(truncated, opts);
       };
     }
+    // Also check descriptor — if frozen, assignment silently failed
+    const descriptor = Object.getOwnPropertyDescriptor(ub.PNG.sync, 'read');
+    // eslint-disable-next-line no-console
+    console.log(`[pw-fixtures] PNG.sync.read descriptor writable=${descriptor?.writable} configurable=${descriptor?.configurable} value.name=${ub.PNG.sync.read.name}`);
     return ub.PNG.sync.read.name === 'truncatedRead';
   } catch (err) {
     // eslint-disable-next-line no-console
