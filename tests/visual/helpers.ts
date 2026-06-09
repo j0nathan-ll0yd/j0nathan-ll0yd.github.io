@@ -120,6 +120,21 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
     { timeout: 10000 },
   );
 
+  // Wait for every <img> in the document to finish loading (complete === true
+  // OR naturalWidth === 0 for blocked images). Without this, an image that
+  // resolves after fonts.ready can shift layout by a few pixels right before
+  // capture, producing flaky page-height drift even within the same env.
+  await page.waitForFunction(
+    () => {
+      const imgs = Array.from(document.querySelectorAll('img'));
+      return imgs.every((img) => img.complete);
+    },
+    { timeout: 10000 },
+  ).catch(() => {
+    // Non-fatal: some intercepted/aborted images may never report complete.
+    // We continue rather than fail the test.
+  });
+
   // If the scenario has workouts data, wait for the card to become visible
   // (#cardWorkouts starts display: none and is shown by updateWorkouts())
   if (options.waitForWorkouts) {
@@ -166,13 +181,25 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
     // Wait for scroll height to stabilize so fullPage screenshots capture the
     // entire document. At responsive breakpoints the layout switches from
     // height:100dvh to height:auto and the DOM needs time to reflow.
+    //
+    // Require THREE consecutive equal reads at 150ms intervals (~450ms min
+    // settle window) to absorb async layout shifts (image decode, font swap,
+    // late-arriving widget content) that a single 200ms check missed.
     await page.waitForFunction(
       () => {
-        const h = document.documentElement.scrollHeight;
         return new Promise<boolean>((resolve) => {
-          setTimeout(() => {
-            resolve(document.documentElement.scrollHeight === h);
-          }, 200);
+          const reads: number[] = [document.documentElement.scrollHeight];
+          let i = 0;
+          const tick = () => {
+            i++;
+            reads.push(document.documentElement.scrollHeight);
+            if (i < 3) {
+              setTimeout(tick, 150);
+              return;
+            }
+            resolve(reads.every((v) => v === reads[0]));
+          };
+          setTimeout(tick, 150);
         });
       },
       { timeout: 10000 },
