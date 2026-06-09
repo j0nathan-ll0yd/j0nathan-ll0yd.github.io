@@ -25,6 +25,7 @@ export default defineConfig({
         '--disable-lcd-text',                  // disables subpixel anti-aliasing
         '--disable-font-subpixel-positioning', // snaps glyphs to pixel grid
         '--disable-skia-runtime-opts',         // deterministic Skia rendering path
+        '--disable-dev-shm-usage',             // avoid 64MB /dev/shm limit on tall fullPage screenshots
       ],
     },
   },

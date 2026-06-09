@@ -34,6 +34,7 @@ export default defineConfig({
         '--disable-lcd-text',                  // disables subpixel anti-aliasing
         '--disable-font-subpixel-positioning', // snaps glyphs to pixel grid
         '--disable-skia-runtime-opts',         // deterministic Skia rendering path
+        '--disable-dev-shm-usage',             // /dev/shm is 64MB in Docker — too small for 3000px fullPage; redirects to /tmp
       ],
     },
   },

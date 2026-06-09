@@ -163,7 +163,10 @@ jobs:
       - name: Run visual regression tests
         env:
           SKIP_BUILD: 'true'
-        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ inputs.update_snapshots && '--update-snapshots' || '' }}
+        # In update_snapshots mode, force workers=1 to eliminate the within-shard
+        # write-race that produces truncated PNGs (microsoft/playwright#9760).
+        # Validation mode keeps the default 50% workers for speed.
+        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ inputs.update_snapshots && '--update-snapshots --workers=1' || '' }}
 
       - name: Upload regenerated baselines
         if: ${{ inputs.update_snapshots && !cancelled() }}
