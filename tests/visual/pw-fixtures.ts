@@ -6,14 +6,20 @@
  * The fixture monkey-patches Playwright's bundled `pngjs.PNG.sync.read` once per
  * worker process to truncate buffers at the PNG IEND chunk before pngjs sees them.
  *
- * Why a worker-scoped fixture (not globalSetup):
+ * Strategy: the patch is applied at MODULE LOAD time (top-level) AND inside a
+ * worker-scoped auto fixture. The module-load patch is the primary mechanism --
+ * when this file is imported by a spec, the patch fires in that worker's module
+ * cache immediately, before any test runs. The fixture is belt-and-suspenders.
+ *
+ * Why a worker-scoped patch (not globalSetup):
  *   - globalSetup runs in the main runner process only
  *     (node_modules/playwright/lib/runner/tasks.js:165-181)
  *   - Workers are forked via child_process.fork
  *     (node_modules/playwright/lib/runner/processHost.js:54)
  *   - Each worker has its own module cache. A globalSetup patch never reaches them.
  *   - The comparator (comparators.js:64-65) runs IN-PROCESS in each worker.
- *   - Therefore the patch must be applied inside a worker-scoped fixture.
+ *   - The PRINCIPLE is therefore: patch in worker scope. Module-load (this file
+ *     imported by spec) and worker fixture both run in worker scope.
  *
  * Why createRequire:
  *   - package.json has "type": "module"; bare require() is not available.
@@ -30,29 +36,47 @@ import { truncateAtIEND } from './png-iend-truncate';
 
 const require = createRequire(import.meta.url);
 
+/**
+ * Apply the PNG.sync.read patch. Idempotent: re-patching is a no-op due to the
+ * name guard. Returns true if patch is in place after the call.
+ */
+function applyPngTruncationPatch(): boolean {
+  if (process.env.SKIP_PNG_TRUNCATION) {
+    return false;
+  }
+  try {
+    const ub = require('playwright-core/lib/utilsBundle');
+    const origRead = ub.PNG.sync.read;
+    if (origRead.name !== 'truncatedRead') {
+      ub.PNG.sync.read = function truncatedRead(buf: Buffer, opts?: unknown) {
+        return origRead(truncateAtIEND(buf), opts);
+      };
+    }
+    return ub.PNG.sync.read.name === 'truncatedRead';
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn('[pw-fixtures] PNG.sync.read patch FAILED:', err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+// MODULE-LOAD: apply patch immediately when this file is imported. This is the
+// primary mechanism — imports happen in each worker's process before any test
+// code runs, so the patch is in place before the comparator is ever called.
+const moduleLoadPatchOk = applyPngTruncationPatch();
+// eslint-disable-next-line no-console
+console.log(`[pw-fixtures] module-load patch applied=${moduleLoadPatchOk} pid=${process.pid}`);
+
 type WorkerFixtures = { pngTruncation: void };
 
 export const test = base.extend<{}, WorkerFixtures>({
   pngTruncation: [
     async ({}, use) => {
-      if (!process.env.SKIP_PNG_TRUNCATION) {
-        // playwright-core/lib/utilsBundle.js re-exports PNG from the bundled pngjs.
-        // Mutating PNG.sync.read in this worker's module cache is the only correctness
-        // mechanism — covers both page.screenshot and locator.screenshot comparisons
-        // since both flow through comparators.js → PNG.sync.read.
-        const ub = require('playwright-core/lib/utilsBundle');
-        const origRead = ub.PNG.sync.read;
-        if (origRead.name !== 'truncatedRead') {
-          ub.PNG.sync.read = function truncatedRead(buf: Buffer, opts?: unknown) {
-            return origRead(truncateAtIEND(buf), opts);
-          };
-        }
-        // Smoke check: if the patch silently failed (e.g. Playwright restructured
-        // utilsBundle in a future version), this warning surfaces in CI step logs.
-        if (ub.PNG.sync.read.name !== 'truncatedRead') {
-          // eslint-disable-next-line no-console
-          console.warn('[pw-fixtures] PNG.sync.read patch did NOT take effect — check Playwright internals');
-        }
+      // Belt-and-suspenders: re-apply at fixture activation (idempotent).
+      const ok = applyPngTruncationPatch();
+      if (!ok && !process.env.SKIP_PNG_TRUNCATION) {
+        // eslint-disable-next-line no-console
+        console.warn('[pw-fixtures] PNG.sync.read patch did NOT take effect — check Playwright internals');
       }
       await use();
     },
