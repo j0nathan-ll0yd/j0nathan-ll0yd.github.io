@@ -244,6 +244,7 @@ Key decisions:
 ### DO NOT
 - Use ES6+ syntax in `<script is:inline>` blocks
 - Create new `src/components/*.astro` files (all widgets from DS)
+- Hand-edit `.contract-lock.json` -- enforced via Husky pre-commit (`npm run check:contract-lock`) + the `contract-check` CI job. Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`. See `docs/ONBOARDING.md:127` for context.
 - Hand-edit `public/css/*.css` (all styles from DS via `@import`)
 - Import from relative paths like `../lib/` or `../scripts/` (use DS namespace)
 - Hardcode hex colors or pixel values in CSS
