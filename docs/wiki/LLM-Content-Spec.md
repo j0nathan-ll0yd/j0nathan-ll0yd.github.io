@@ -3,16 +3,17 @@
 ## Purpose
 
 Define the LLM-optimized content surface of jonathanlloyd.me for discoverability
-and consistent consumer expectations. All rich variants are composed by the
-backend on data-change events and served from CloudFront; the only file hosted
-on `jonathanlloyd.me` is `/llms.txt`, which exists as a discovery pointer.
+and consistent consumer expectations. All variants -- including the `llms.txt`
+discovery index -- are composed by the backend on data-change events and served
+from CloudFront. `jonathanlloyd.me/llms.txt` is served by a Cloudflare Pages
+Function (`functions/llms.txt.ts`) that proxies the CloudFront-hosted canonical
+artifact with edge caching (`s-maxage=3600, stale-while-revalidate=86400`).
 
 ## File Inventory
 
 | File | Location | Size budget | Purpose |
 |---|---|---|---|
-| `llms.txt` | https://jonathanlloyd.me/llms.txt | ~2 KB | Discovery index. Hand-maintained in `public/llms.txt`. Points at the rich variants on CloudFront. |
-| `llms-small.txt` | https://d1pfm520aduift.cloudfront.net/llms-small.txt | ≤ 8 KB | Current-state snapshot. Backend-composed. Profile + Level-2 body aggregates + Level-1 mind highlights (last 7 days). |
+| `llms.txt` | https://jonathanlloyd.me/llms.txt | ~2 KB | Discovery index. Backend-composed (`composeLlmsTxt`), written to CloudFront, served on `jonathanlloyd.me` via the `functions/llms.txt.ts` Pages Function proxy. Points at the rich variants on CloudFront. |
 | `llms-full.txt` | https://d1pfm520aduift.cloudfront.net/llms-full.txt | ≤ 30 KB | Complete dump. Backend-composed. Profile + Level-2 body + full Level-1 mind/system/streams. |
 | `index.md` | https://d1pfm520aduift.cloudfront.net/index.md | ≤ 30 KB | Byte-identical alias of `llms-full.txt`. Same content, alternate URL for agents expecting `.md` extensions. |
 
@@ -43,28 +44,20 @@ The composer **must not** emit:
 
 ## Required Sections
 
-### `llms.txt` (discovery index)
+### `llms.txt` (backend-composed discovery index)
 
 Must contain, in order:
 1. H1 with site name
 2. Blockquote summary (1-2 sentences)
 3. `## About` -- profile snippet
-4. `## Live LLM-optimized content` -- links to llms-small.txt, llms-full.txt, index.md
+4. `## Live LLM-optimized content` -- links to llms-full.txt and index.md
 5. `## Canonical JSON` -- links to the raw CloudFront JSON endpoints
 6. `## Technology` -- stack summary
 7. `## Documentation` -- wiki links
 8. `## Expertise` -- keyword list
 
-### `llms-small.txt` (backend-composed snapshot)
-
-Must contain, in order:
-1. H1 with "Jonathan Lloyd — Current State"
-2. Blockquote summary
-3. `## Profile` -- identity summary
-4. `## Current state — <date>` -- H3 `### Body` (Level 2 table) + `### Hydration` (aggregate)
-5. `## Mind activity — last 7 days` -- H3 `### GitHub`, `### Recent commits` (top 5), `### Currently reading`, `### Up next`, `### Recently finished` (top 3), `### Starred articles this week`
-6. `## Data freshness` -- table listing `{source, last fetched}` per CloudFront endpoint
-7. Footer: `Composed: <ISO 8601>`
+Spec-conformant Markdown only: single H1, blockquote summary, then `##` sections
+with bullet-link lists. No tables, images, nested headings, or code blocks.
 
 ### `llms-full.txt` (backend-composed complete)
 
@@ -94,7 +87,7 @@ github.io's `robots.txt` lists `Allow: /llms.txt` before `Disallow: /` under eac
 The backend composer must pass these checks (implementation belongs to the backend repo):
 
 1. **Token budgets** -- `bytes/4` estimate within budget per file
-2. **Strict monotonic size** -- `size(llms.txt) < size(llms-small.txt) < size(llms-full.txt) = size(index.md)`
+2. **Strict monotonic size** -- `size(llms.txt) < size(llms-full.txt) = size(index.md)`
 3. **Scalar-leaf coverage** -- every scalar leaf in source JSON is covered, transformed, or explicitly ignored
 4. **No Level-1 leakage in body section** -- regex assertions that body section contains no point-in-time BPM/step/calorie values
 5. **Absolute URLs only** -- regex: no `\](/ ` (relative markdown links)

@@ -77,7 +77,6 @@
               font: 'Space Grotesk (self-hosted, variable woff2)',
               llmContent: {
                 discoveryIndex: 'https://jonathanlloyd.me/llms.txt',
-                snapshot: 'https://d1pfm520aduift.cloudfront.net/llms-small.txt',
                 complete: 'https://d1pfm520aduift.cloudfront.net/llms-full.txt'
               }
             };

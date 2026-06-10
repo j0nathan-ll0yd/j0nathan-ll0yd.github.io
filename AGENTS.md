@@ -33,8 +33,8 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 ├── test/fixtures/                # build-fixture generation + generated build-data/
 ├── tests/                        # build (Vitest), visual + smoke (Playwright)
 ├── scripts/                      # fixture validation, image fetch, type gen, CI setup
-├── public/                       # assets, images, .well-known, llms.txt, manifest
-├── functions/                    # _middleware.ts (Pages Function: security headers)
+├── public/                       # assets, images, .well-known, manifest
+├── functions/                    # _middleware.ts (security headers) + llms.txt.ts (CloudFront proxy)
 └── .github/workflows/            # deploy, visual-tests, smoke-check
 ```
 

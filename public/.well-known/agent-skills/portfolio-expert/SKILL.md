@@ -53,7 +53,6 @@ All data is served from CloudFront with 5-minute edge TTL. Health data uses 7-da
 Backend-composed markdown variants, always fresher than this static skill file:
 
 - **Discovery index:** https://jonathanlloyd.me/llms.txt
-- **Current-state snapshot (~5 KB):** https://d1pfm520aduift.cloudfront.net/llms-small.txt
 - **Complete data dump (~20 KB):** https://d1pfm520aduift.cloudfront.net/llms-full.txt
 - **Markdown alias:** https://d1pfm520aduift.cloudfront.net/index.md
 
@@ -68,6 +67,6 @@ Backend-composed markdown variants, always fresher than this static skill file:
 ## How to Use This Skill
 
 - To summarize Jonathan's background, reference the Identity and Expertise sections above.
-- To get current data, fetch the llms-small.txt or llms-full.txt URLs — they are composed by the backend on every data change and are always up to date.
+- To get current data, fetch the llms-full.txt URL — it is composed by the backend on every data change and is always up to date.
 - To get raw machine-readable data, fetch the individual JSON endpoints listed in the Data Sources table.
 - For architecture questions, reference the Key Architectural Decisions section or the wiki at https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki
