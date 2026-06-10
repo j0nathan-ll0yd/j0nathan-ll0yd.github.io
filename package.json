@@ -24,7 +24,7 @@
     "test:visual:fast": "SKIP_BUILD=true npx playwright test",
     "test:visual:docker": "./scripts/run-in-docker.sh playwright.config.ts",
     "test:visual:update:docker": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
-    "test:drift:update:docker": "./scripts/run-in-docker.sh playwright.drift.config.ts --update-snapshots"
+    "test:smoke": "npx playwright test --config=playwright.smoke.config.ts"
   },
   "dependencies": {
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",

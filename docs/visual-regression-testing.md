@@ -1,23 +1,23 @@
 # Visual Regression Testing — System Overview
 
-> Comprehensive reference for the Playwright-based visual regression and drift detection systems. Captures the architecture as of 2026-06-09 (post PR #44/#46/#48/#49 sequence) plus the journey of bugs and fixes that produced it.
+> Comprehensive reference for the Playwright-based visual regression and production smoke check systems. Captures the architecture as of 2026-06-09 (post smoke-check migration replacing the retired drift-detection suite) plus the journey of bugs and fixes that produced the current state.
 
 ---
 
 ## 1. What it is
 
-Two Playwright projects guard the visual fidelity of `jonathanlloyd.me`:
+Two Playwright projects guard the quality of `jonathanlloyd.me`:
 
-| Project | Config | What it screenshots | Trigger | Tolerance | Outcome on failure |
+| Project | Config | What it tests | Trigger | Assertion style | Outcome on failure |
 |---|---|---|---|---|---|
-| **Visual regression** | `playwright.config.ts` | The locally-built static dashboard with fixture data | PR + push to `main` | `maxDiffPixelRatio: 0.025` (2.5%) | Blocks PR; runs across 4 viewports × 4 shards |
-| **Drift detection** | `playwright.drift.config.ts` | The deployed production site `https://jonathanlloyd.me` | After every successful Cloudflare Pages deploy (`workflow_run`) | `maxDiffPixelRatio: 0.05` (5%) | Files a GitHub issue, non-blocking |
+| **Visual regression** | `playwright.config.ts` | Locally-built static dashboard with fixture data | PR + push to `main` | Pixel diff `maxDiffPixelRatio: 0.025` (2.5%) | Blocks PR; runs across 4 viewports × 4 shards |
+| **Production smoke check** | `playwright.smoke.config.ts` | Live `https://jonathanlloyd.me` | After every successful Cloudflare Pages deploy (`workflow_run`) | DOM/hydration assertions (no pixel diff) | Files a GitHub issue (`smoke-failure` label), non-blocking |
 
-The two suites share `tests/visual/screenshot.css` and the Playwright Docker image, so a baseline that passes regression should also pass drift after a deploy. They serve different purposes: regression is a **gate**, drift is a **sensor**.
+The two suites serve different purposes: regression is a **gate** (pixel-exact correctness of fixture-driven builds), smoke is a **sensor** (real hydration, runtime health, and CSP integrity of the live site).
 
-**~176 baseline PNGs** live in `tests/visual/__screenshots__/{projectName}/{spec}/{name}.png` and **3 drift baselines** live in `tests/drift/__screenshots__/`.
+**~176 baseline PNGs** live in `tests/visual/__screenshots__/{projectName}/{spec}/{name}.png`. The smoke check has no baselines — it asserts DOM state against live production.
 
-Four viewports are exercised: `desktop-1400`, `tablet-1100`, `tablet-768`, `mobile-600`.
+Four viewports are exercised by the regression suite: `desktop-1400`, `tablet-1100`, `tablet-768`, `mobile-600`. The smoke check runs a single `smoke-chromium` project at 1400x900.
 
 ---
 
@@ -29,7 +29,7 @@ The dashboard at `jonathanlloyd.me` has dozens of visual states — populated, e
 - The build-time HTML uses `data/*.json` while runtime swaps in CloudFront JSON via `@lifegames/web/runtime/live-data`. These two paths render different content.
 - Skeleton-loading, font-load timing, and animation lifecycles all influence what a screenshot captures.
 
-The intent of the regression suite is to lock the rendered output for every (scenario × viewport) combination. The intent of the drift suite is to catch *production* divergences — DS bundles that publish without going through PR, or CloudFront JSON that mutates the dashboard's appearance.
+The intent of the regression suite is to lock the rendered output for every (scenario × viewport) combination. The intent of the smoke check is to assert that the live production site is functionally healthy after each deploy — specifically that Astro island hydration ran, service workers registered, and CSP policy is not silently blocking scripts.
 
 ---
 
@@ -40,7 +40,7 @@ The intent of the regression suite is to lock the rendered output for every (sce
 ```
 tests/
 ├── shared/
-│   └── chromium-launch-args.ts         # Shared Chromium determinism flags
+│   └── chromium-launch-args.ts         # Shared Chromium determinism flags (regression only)
 ├── visual/
 │   ├── dashboard.spec.ts               # 3 fullPage dashboard tests
 │   ├── widgets.spec.ts                 # ~40 widget + overlay tests
@@ -53,9 +53,9 @@ tests/
 │   ├── screenshot.css                  # Stabilization stylesheet
 │   ├── global-setup.ts                 # Port-guard (unrelated to pngjs work)
 │   └── __screenshots__/                # Baseline PNGs (CI-owned)
-├── drift/
-│   ├── drift.spec.ts                   # 1 fullPage screenshot of live site per viewport
-│   └── __screenshots__/                # Drift baselines (CI-owned)
+├── smoke/
+│   ├── home.smoke.ts                   # 5 live-prod assertions (hydration, CSP, SW)
+│   └── fixtures.ts                     # Page fixture: CSP violation + error capture
 └── build/
     ├── predicates.test.ts              # Vitest unit tests for predicates
     └── png-iend-truncate.test.ts       # Vitest unit tests for truncateAtIEND
@@ -66,18 +66,18 @@ scripts/
 
 .github/workflows/
 ├── visual-tests.yml                    # PR regression gate (4-shard matrix in Docker)
-├── drift-detection.yml                 # Post-deploy drift sensor
-└── update-snapshots.yml                # Label-triggered baseline regeneration
+├── smoke-check.yml                     # Post-deploy production smoke sensor (native runner)
+└── update-snapshots.yml                # Label-triggered visual baseline regeneration
 ```
 
-### 3.2 Determinism stack (defense in depth)
+### 3.2 Determinism stack (regression suite — defense in depth)
 
-The captured pixels must be byte-stable across runs and across the macOS-developer / Linux-CI boundary. The current stack:
+The captured pixels must be byte-stable across runs and across the macOS-developer / Linux-CI boundary. The current stack applies to the visual regression suite only; the smoke check deliberately omits these constraints because it asserts DOM state, not pixels.
 
 | Layer | Mechanism | Purpose |
 |---|---|---|
 | **Docker image** | `mcr.microsoft.com/playwright:v${VERSION}-noble` resolved dynamically from `package-lock.json` via `scripts/playwright-version.sh` + `docker manifest inspect` guard | Same rendering environment locally and in CI |
-| **Container options** | `--ipc=host --shm-size=2g` on all 3 workflows | Avoid 64MB `/dev/shm` crash on tall fullPage screenshots |
+| **Container options** | `--ipc=host --shm-size=2g` on regression workflows | Avoid 64MB `/dev/shm` crash on tall fullPage screenshots |
 | **Chromium flags (shared)** | `tests/shared/chromium-launch-args.ts` — `--force-device-scale-factor=1`, `--font-render-hinting=none`, `--disable-lcd-text`, `--disable-font-subpixel-positioning`, `--disable-skia-runtime-opts`, `--disable-dev-shm-usage` | Kill subpixel/font-hinting/skia raster variance |
 | **Software raster** | `--use-gl=swiftshader --disable-gpu --in-process-gpu` | Eliminate Chromium MSAA atlas-path SVG raster non-determinism (Chromium 40827297) |
 | **CSS** | `screenshot.css` injected via `expect.toHaveScreenshot({ stylePath })`. Hides `.widget-timestamp`, `[data-live]`, `#liveClock`, `#hrEcgCanvas`, etc. Freezes animations to 0s. Adds `svg, svg * { shape-rendering: crispEdges }`. Sets `html, body { height: auto; overflow: visible }` to allow fullPage capture | Eliminate dynamic content + SVG octicon variance + dvh height-cap bug |
@@ -144,11 +144,37 @@ export function truncateAtIEND(buf: Buffer): Buffer {
 
 `indexOf` (not `lastIndexOf`) is load-bearing: Chromium emits buffers with the IEND signature at the very end AND an earlier IEND in trailing garbage. pngjs's parser stops at the first IEND it sees, so truncation must cut there.
 
+### 3.4 Production smoke check
+
+The smoke check (`playwright.smoke.config.ts`) runs on bare `ubuntu-latest` (no Docker, no SwiftShader, no determinism flags — none are needed for DOM assertions). Key config:
+
+- `baseURL: https://jonathanlloyd.me`
+- `serviceWorkers: 'allow'`
+- `workers: 1`, `retries: 2` on CI
+- `timeout: 45s`
+- Single project: `smoke-chromium` at 1400x900
+
+`tests/smoke/home.smoke.ts` — 5 assertions against live production:
+
+1. **HTTP 200 + shell present** — page returns 200 and `#triptychGrid` is visible.
+2. **All 13 widget containers present** — SSR shell is intact; no widget was accidentally dropped from the build.
+3. **Live-data runtime hydrated** — `.is-loading` skeleton count polls to 0, using the same readiness predicate `tests/visual/helpers.ts` uses.
+4. **Bio terminal typed its content** — last `#terminalBody .terminal-line` gains `.visible` and non-empty text. This is the **#50 CSP-blocked-hydration regression guard**: a widget whose hydration script is CSP-blocked still renders its SSR shell at the correct coordinates (so a pixel diff passes), but the bio terminal's typing animation does not complete — catching the failure in DOM state.
+5. **Service worker registered** — `/sw.js` is registered successfully.
+
+`tests/smoke/fixtures.ts` extends the `page` fixture to capture across each test: CSP violations (`securitypolicyviolation`), unhandled promise rejections / dynamic-import chunk failures, `pageerror`, and allowlisted `console.error`. Teardown asserts:
+
+- No EXTERNAL (URL) script is blocked by CSP.
+- Blocked inline `<script>` count stays ≤ `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 3` (three legacy `is:inline` scripts in design-system components: IdentityCard social-click handler, BookModal click handler, and an SSR fixture block — a standing condition tracked separately for the DS to externalise; reduce to 0 when those scripts are externalised in DS).
+- No JS chunk-load failures.
+- No uncaught page errors.
+- No unexpected console errors (third-party subresource load failures and CSP console noise are allowlisted).
+
 ---
 
 ## 4. The journey — bugs and fixes (2026-06-01 → 2026-06-09)
 
-The current architecture is the survivor of a cascading sequence of bug classes. Each PR fixed one class and exposed the next.
+The current architecture is the survivor of a cascading sequence of bug classes. Each PR fixed one class and exposed the next. The drift detection suite was central to this journey and was subsequently retired — documented here as essential historical context.
 
 ### Round 1 — Cross-OS rendering variance (PR #44, merged 2026-06-08)
 
@@ -162,7 +188,7 @@ The current architecture is the survivor of a cascading sequence of bug classes.
 - Added shared `tests/shared/chromium-launch-args.ts` with determinism flags (`--font-render-hinting=none`, etc.).
 - Injected `screenshot.css` into drift tests to hide the same dynamic content the regression suite hides.
 - Wired `--ipc=host --shm-size=2g` container options to all 3 workflows.
-- Extended `update-snapshots.yml` to regenerate both visual AND drift baselines (Option A) on the `update-snapshots` PR label.
+- Extended `update-snapshots.yml` to regenerate both visual AND drift baselines on the `update-snapshots` PR label.
 
 **Outcome.** Cross-OS variance eliminated. But CI surfaced 14 stubborn `test.fixme` annotations (PNG encoder corruption on tablet-1100 fullPage + locator screenshots; SVG octicon raster variance on desktop-1400). PR #44 deferred them rather than block.
 
@@ -209,6 +235,18 @@ Trade-off: ~20-40% slower CI test execution. Acceptable.
 
 **Outcome.** Zero `test.fixme` annotations in `tests/visual/`. All 14 original fixmes lifted.
 
+### Why drift was retired (post-PR #49)
+
+With the pixel-determinism problems fully solved, the structural limitations of the drift approach became the dominant concern:
+
+**The live-data problem.** Drift pixel-diffed a frozen 3-4 PNG baseline against the live production site. The dashboard displays real data (GitHub activity, reading feed, movement rings, health metrics) with only timestamps masked via `screenshot.css`. Any change to that data — a new commit, a book completed, a workout logged — would shift pixel coordinates enough to produce a diff even when nothing was wrong. The baseline vs live-prod divergence was permanent and growing; the suite could never stay green, and it filed false-positive issues on every deploy that changed real data.
+
+**The hydration-blindness problem.** Drift's pixel approach structurally could not catch the failure it existed for: an Astro island whose hydration script is blocked by CSP (issue #50) still renders its SSR shell at the correct pixel coordinates. The pixel diff passes. The widget is silently dead. Pixel comparison has no signal on this failure class.
+
+**The Docker/QEMU constraint.** The regression suite's determinism requires SwiftShader + Docker to prevent cross-OS raster variance — but that means the local baseline-regen path requires Docker with `--platform linux/amd64` (QEMU on Apple Silicon), and the QEMU+SwiftShader combination intermittently segfaults. The smoke check has no baselines, so it needs none of this infrastructure and runs natively.
+
+**The replacement.** The production smoke check asserts that hydration RAN (DOM signals: skeletons resolved, terminal animation completed, service worker registered) rather than that pixels matched a stale snapshot. It is green on healthy production and high-signal on real failures. It runs natively on `ubuntu-latest` with no Docker/QEMU, immune to the constraints that plagued drift.
+
 ---
 
 ## 5. Workflows in detail
@@ -233,17 +271,18 @@ Why both triggers? `GITHUB_TOKEN` cannot trigger workflows from other workflows,
 
 Jobs:
 - `resolve-version` (bare `ubuntu-latest`) — same pattern as visual-tests.
-- `update` (in Docker container with `--ipc=host --shm-size=2g`) — runs `scripts/ci-setup.sh`, then `npx playwright test --update-snapshots`, then `npx playwright test --config=playwright.drift.config.ts --update-snapshots` (Option A — both suites in one workflow), then `git config --global --add safe.directory $GITHUB_WORKSPACE` (Docker container uid mismatch fix), then `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/** tests/drift/__screenshots__/**'` (space-separated, not brace-expansion). Finally removes the `update-snapshots` label.
+- `update` (in Docker container with `--ipc=host --shm-size=2g`) — runs `scripts/ci-setup.sh`, then `npx playwright test --update-snapshots` to regenerate visual baselines, then `git config --global --add safe.directory $GITHUB_WORKSPACE` (Docker container uid mismatch fix), then `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`. Finally removes the `update-snapshots` label.
 
-### 5.3 `drift-detection.yml` — production sensor
+Note: this workflow regenerates ONLY visual regression baselines. The smoke check has no baselines to regenerate.
+
+### 5.3 `smoke-check.yml` — production smoke sensor
 
 Triggers: `workflow_run` after a successful `Deploy to Cloudflare Pages` run; `workflow_dispatch` for manual probes.
 
 Jobs:
-- `resolve-version` (bare `ubuntu-latest`).
-- `drift-detection` (in Docker container with `--ipc=host --shm-size=2g`) — captures `https://jonathanlloyd.me` at 4 viewports, compares against committed drift baselines, files a GitHub issue with `visual-drift` label on failure. Marked `continue-on-error: true` — drift is informational.
+- `smoke-check` (bare `ubuntu-latest` — no Docker) — checkout → setup-node 22 → `bash scripts/ci-setup.sh` → `npx playwright install --with-deps chromium` → `npm run test:smoke` (`continue-on-error: true`) → upload `smoke-playwright-report` → on failure files a GitHub issue titled "Production smoke check failed after deploy" with labels `smoke-failure`, `automated` (deduped by title).
 
-Drift suite injects `tests/visual/screenshot.css` so live dynamic content (clocks, timestamps, status indicators) is hidden, matching what the regression suite hides on the fixture-driven build.
+The smoke check is non-blocking (informational tier) during initial bake-in. Unlike the retired drift suite, it runs natively without Docker — no QEMU, no SwiftShader, no `--shm-size` workaround needed, and no baseline PNGs to maintain.
 
 ---
 
@@ -257,36 +296,44 @@ npm run test:visual:ui       # Playwright UI mode
 npm run test:visual:fast     # Skip build (reuse existing dist/)
 ```
 
-### 6.2 Regenerate baselines in Docker locally
+### 6.2 Run smoke check locally
 
 ```bash
-npm run test:visual:update:docker   # regression baselines
-npm run test:drift:update:docker    # drift baselines
+npm run test:smoke           # Hits live https://jonathanlloyd.me natively; no Docker needed
+```
+
+The smoke check requires network access to live production and has no baselines to update.
+
+### 6.3 Regenerate regression baselines in Docker locally
+
+```bash
+npm run test:visual:update:docker   # regression baselines only
 ```
 
 Apple Silicon runs via Rosetta (`--platform linux/amd64` explicit). Expect 2-4× slower than native. Note: bytes still differ from CI AMD64 host (Playwright #13873). **Do not commit locally-regenerated baselines.**
 
-### 6.3 Regenerate baselines in CI (canonical)
+### 6.4 Regenerate regression baselines in CI (canonical)
 
 1. Open or push to a PR.
 2. Add the `update-snapshots` label.
-3. Wait ~5 minutes — the workflow regenerates both visual and drift baselines and auto-commits them to your PR branch.
+3. Wait ~5 minutes — the workflow regenerates visual baselines and auto-commits them to your PR branch.
 4. The label is auto-removed on success.
 5. `GITHUB_TOKEN` doesn't trigger downstream workflow chains, so manually re-run visual-tests after the auto-commit:
    ```bash
    gh workflow run visual-tests.yml --ref <branch>
    ```
 
-### 6.4 Debug failing baselines
+### 6.5 Debug failing baselines
 
 | Failure | First step |
 |---|---|
 | Pixel diff > 0.025 on octicon widget | Confirm flags include `--use-gl=swiftshader --disable-gpu --in-process-gpu`. Check `screenshot.css` has `svg, svg * { shape-rendering: crispEdges }`. |
 | `Failed to re-generate expected. unrecognised content at end of stream` | Confirm spec imports from `./pw-fixtures` (not `@playwright/test`). Grep CI log for `[pw-fixtures] module-load patch` (warn-only). |
-| Drift workflow filed an issue | Open the artifact's `drift-playwright-report`. Likely either a new dynamic element missing from `screenshot.css` or a legitimate production change. |
+| Smoke check filed an issue | Open the artifact's `smoke-playwright-report`. Likely a hydration failure, CSP-blocked script, or new console error not in the allowlist. Check test 3 (skeleton count) and test 4 (terminal typing) first — these are the hydration-health canaries. |
+| Smoke check: inline CSP violation count exceeds baseline | A new `is:inline` script was introduced in DS. Update `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS` in `tests/smoke/fixtures.ts` and track the script for externalisation. |
 | Local pixel diff but CI green | Don't regen locally. Use the `update-snapshots` PR label. |
 
-### 6.5 Add a new visual test
+### 6.6 Add a new visual test
 
 ```ts
 // tests/visual/my-spec.ts
@@ -319,9 +366,9 @@ The `./pw-fixtures` import is load-bearing — it's what triggers the worker-sco
 | 3 | All baselines may contain trailing garbage bytes after IEND | LOW | The patch makes them decode cleanly. If the patch is ever removed, ALL baselines must be regenerated. Documented in `pw-fixtures.ts` JSDoc. |
 | 4 | `indexOf` truncation has theoretical 1/2^64-per-offset collision risk if IDAT data contains the literal 8-byte IEND signature | NEGLIGIBLE | Deflate-compressed IDAT bytes are effectively random. Acceptable. |
 | 5 | Playwright 1.61 may fix the pngjs bug upstream | INFORMATIONAL | When 1.61 stable ships, retest with `SKIP_PNG_TRUNCATION=1` to see if pngjs gained a tolerance flag. If yes, delete `pw-fixtures.ts` patch + truncation utility, regenerate all baselines. |
-| 6 | Drift suite uses `fullPage: true` not `captureFullPage` | MEDIUM | Drift baselines are short pages (live site at top of fold), so stitched-capture has not yet failed. If it ever does, migrate to `captureFullPage`. |
-| 7 | Snapshots are owned by CI; local Docker regen produces different bytes than CI AMD64 hosts (Playwright #13873) | PARTIAL | Host `test:visual:update` / `test:visual:update:fast` scripts were deleted from `package.json` to remove the obvious footgun. The only documented regen entry points are `pnpm test:visual:update:docker` (locally) and the two CI workflows. Bare `npx playwright test --update-snapshots` on the host still runs — caught by CI's baseline mismatch on the next run, not blocked at source. |
-| 8 | `chore/upgrade-dependencies` worktree at `/Users/jlloyd/wt/web-Lifegames-Portal-upgrade` holds historical PR #44 work | LOW | Can be removed once the team is confident the new architecture is stable. |
+| 6 | Snapshots are owned by CI; local Docker regen produces different bytes than CI AMD64 hosts (Playwright #13873) | PARTIAL | Host `test:visual:update` / `test:visual:update:fast` scripts were deleted from `package.json` to remove the obvious footgun. The only documented regen entry points are `npm run test:visual:update:docker` (locally) and the CI `update-snapshots` label workflow. Bare `npx playwright test --update-snapshots` on the host still runs — caught by CI's baseline mismatch on the next run, not blocked at source. |
+| 7 | `chore/upgrade-dependencies` worktree at `/Users/jlloyd/wt/web-Lifegames-Portal-upgrade` holds historical PR #44 work | LOW | Can be removed once the team is confident the new architecture is stable. |
+| 8 | Three legacy `is:inline` DS scripts are blocked by CSP and tracked in `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 3` | MED | IdentityCard social-click handler, BookModal click handler, SSR fixture block. Reduce to 0 when DS externalises these scripts. Smoke check will enforce the lower threshold automatically. |
 
 ---
 
@@ -362,11 +409,12 @@ The `./pw-fixtures` import is load-bearing — it's what triggers the worker-sco
 | Term | Meaning |
 |---|---|
 | **Baseline** | Committed PNG that screenshots are compared against. Lives in `tests/visual/__screenshots__/{projectName}/{spec}/{name}.png`. |
-| **Drift baseline** | Committed PNG of the deployed production site. Lives in `tests/drift/__screenshots__/`. |
 | **Comparator** | Playwright's internal pixel-comparison code at `playwright-core/lib/server/utils/comparators.js`. Calls `PNG.sync.read` on actual and expected buffers, then pixelmatch. |
 | **pngjs** | The pure-JS PNG decoder Playwright bundles inside `playwright-core/lib/utilsBundleImpl/index.js`. Strict-rejects buffers with trailing bytes after IEND. |
 | **IEND chunk** | PNG end-of-stream marker. Format: `00 00 00 00 49 45 4E 44 AE 42 60 82` (12 bytes; the last 8 are unique per PNG spec). |
 | **Worker** | A Playwright child process (spawned via `child_process.fork`) that runs a subset of tests. Has its own module cache. Pattern: `workers: '50%'` in CI. |
 | **Shard** | A 1-of-N split of tests for parallel CI execution. The visual-tests workflow uses a 4-shard matrix. |
-| **swiftshader** | Software OpenGL implementation. Used via `--use-gl=swiftshader` to eliminate GPU-driver-dependent SVG raster variance. |
+| **swiftshader** | Software OpenGL implementation. Used via `--use-gl=swiftshader` to eliminate GPU-driver-dependent SVG raster variance. Only used by the regression suite. |
 | **crispEdges** | SVG `shape-rendering` value that snaps edges to device pixels, avoiding subpixel antialiasing variance. |
+| **Smoke check** | The production smoke sensor (`playwright.smoke.config.ts` + `tests/smoke/`). Asserts DOM hydration state and CSP integrity against live production after each deploy. No baselines; no Docker. Replaced the retired drift detection suite. |
+| **Drift detection** (retired) | The former pixel-diff-against-live-prod workflow (`playwright.drift.config.ts`, `tests/drift/`). Retired because live data caused permanent baseline divergence (false positives on every data change), and the pixel-diff approach could not detect CSP-blocked hydration (issue #50). Replaced by the smoke check. |

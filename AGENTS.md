@@ -31,11 +31,11 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 │   └── lib/                      # load-dashboard-data.ts (7 build-time fixtures)
 ├── data/                         # 7 build-time JSON fixtures
 ├── test/fixtures/                # build-fixture generation + generated build-data/
-├── tests/                        # build (Vitest), visual + drift (Playwright)
+├── tests/                        # build (Vitest), visual + smoke (Playwright)
 ├── scripts/                      # fixture validation, image fetch, type gen, CI setup
 ├── public/                       # assets, images, .well-known, llms.txt, manifest
 ├── functions/                    # _middleware.ts (Pages Function: security headers)
-└── .github/workflows/            # deploy, visual-tests, drift-detection
+└── .github/workflows/            # deploy, visual-tests, smoke-check
 ```
 
 `src/` holds only page/layout/route logic. Widgets, tokens, and runtime scripts all live in the Design System and are consumed via the `@lifegames/*` packages.
@@ -75,6 +75,7 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 
 - **Visual baselines:** regenerate only in Docker (`npm run test:visual:update:docker`); host-rendered PNGs fail CI.
 - **Canvas widgets use a deterministic test seam, not hidden pixels:** rAF + RNG defeats Playwright's `animations: 'disabled'`, but never hide a canvas via `visibility: hidden` in `screenshot.css` -- that masks regressions. Each canvas widget exposes a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@lifegames/web/runtime/heart-rate-init`) with `ready`, `seed(n)`, `freezeAt(ms|null)`, `step(frames)`, and `state()`. The seam is gated by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor, so it is `undefined` (dead-code-eliminated) in production. Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`). Seam-driven screenshots need a `--mode test` visual build.
+- **Production smoke check (replaces the retired pixel-drift suite):** `tests/smoke/home.smoke.ts` (config `playwright.smoke.config.ts`, helpers `tests/smoke/fixtures.ts`) asserts the live site at `https://jonathanlloyd.me` actually hydrated -- HTTP 200, all widget containers present, `.is-loading` skeletons cleared, the bio terminal typed its content (the #50 CSP-blocked-hydration regression guard), the service worker registered, and no external-script CSP violation / chunk-load failure / unexpected console error. Runs natively on `ubuntu-latest` (no Docker, no pixel baselines) via `.github/workflows/smoke-check.yml` on `workflow_run` after `deploy.yml`; it is post-deploy and non-blocking (files a `smoke-failure` issue rather than blocking the deploy). Run locally with `npm run test:smoke`. The retired drift suite could not stay green against a live data stream and could not catch a blocked-hydration failure (the SSR shell renders at the correct pixels even when hydration is dead).
 
 ## Do Not
 

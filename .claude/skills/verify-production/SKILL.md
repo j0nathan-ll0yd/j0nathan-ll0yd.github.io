@@ -1,6 +1,6 @@
 ---
 name: verify-production
-description: End-to-end production verification of the live Human Datastream site (jonathanlloyd.me). Probes well-known endpoints, CloudFront JSON sources, security/caching headers, PageSpeed, visual drift, and live UX, then writes a structured report with severity-ranked findings. Triggers on "verify production", "verify the site", "production check", "prod healthcheck", "is the site working", "verify deploy", "check live site".
+description: End-to-end production verification of the live Human Datastream site (jonathanlloyd.me). Probes well-known endpoints, CloudFront JSON sources, security/caching headers, PageSpeed, production smoke check, and live UX, then writes a structured report with severity-ranked findings. Triggers on "verify production", "verify the site", "production check", "prod healthcheck", "is the site working", "verify deploy", "check live site".
 ---
 
 # Verify Production
@@ -238,21 +238,15 @@ Targets:
 
 The python parser above emits the **top 8 failing audits per strategy** ranked by category-weighted impact (`weight * (1 - score)`) with `displayValue`, estimated time savings (`overallSavingsMs`), and estimated byte savings (`overallSavingsBytes`) when present. Include every audit listed under `top failing audits` in the Step 7 Recommendations -- each one is a concrete reason the score is not 100. Common offenders: `unused-javascript`, `render-blocking-resources`, `modern-image-formats`, `unminified-javascript`, `uses-text-compression`, `color-contrast`, `tap-targets`.
 
-## Step 5: Visual drift against the deployed dashboard
+## Step 5: Production smoke check against the deployed dashboard
 
 ```bash
-if [ -d tests/drift/__screenshots__ ] && [ -n "$(ls -A tests/drift/__screenshots__ 2>/dev/null)" ]; then
-  npx playwright test --config playwright.drift.config.ts 2>&1 | tee /tmp/vp-drift.log
-  # Diff images land alongside the failed expectation
-  find test-results -type f -name '*-diff.png' 2>/dev/null | tee /tmp/vp-drift-diffs.txt
-else
-  echo "DRIFT SKIPPED: no baselines under tests/drift/__screenshots__"
-fi
+npx playwright test --config=playwright.smoke.config.ts 2>&1 | tee /tmp/vp-smoke.log
 ```
 
-If baselines exist and the run reports diffs: include the diff filenames in the report. Do **NOT** run `--update-snapshots`. If baselines are missing, report this surface as **SKIP**, not FAIL -- the drift baseline lives separately from the regression baseline and is legitimately absent on a clean checkout (see `tests/drift/drift.spec.ts`).
+This asserts the live site actually **hydrated** -- HTTP 200, every widget container present, the live-data runtime cleared its skeleton states, the bio terminal typed its content (the #50 CSP-blocked-hydration regression class), the service worker registered, and no CSP / chunk-load / console errors fired. It runs natively (no Docker, no pixel baselines), so there is nothing to SKIP on a clean checkout.
 
-The drift suite masks volatile regions (clock, counters, dates) via `tests/drift/masks.ts` at 5% tolerance. A diff here is high-signal -- it indicates real visual regression on the deployed dashboard.
+A failure here is high-signal -- it means a real deploy/hydration regression, not data churn. Include the failing assertion from the log in the report. The smoke check replaced the retired pixel-drift suite, which could not stay green against a live data stream and could not catch a blocked-hydration regression (the SSR shell still renders at the right pixels).
 
 ## Step 6a: Mobile-viewport probe (Playwright iPhone 13 emulation)
 
@@ -374,7 +368,7 @@ Write `/tmp/prod-verification-$(date -u +%Y-%m-%d).md` AND echo it inline. Use t
 | 2. CloudFront JSON | ... | <stale endpoints, parse failures> |
 | 3. Security/caching headers | ... | <CSP/CDN-CC/404/_astro state> |
 | 4. PageSpeed mobile/desktop | ... | <perf scores, key vitals> |
-| 5. Visual drift | ... | <diffs or SKIP reason> |
+| 5. Smoke check | ... | <PASS or FAIL + failing assertion> |
 | 6a. Mobile probe (Playwright iPhone 13) | ... | <pageScrolls, reading-feed item opacity> |
 | 6b. Live UX (BrowserOS) | ... | <widget count, console errors, navigation timing> |
 
@@ -405,7 +399,7 @@ For each finding above, give: file:line of the likely fix, the specific change, 
 - `agent-readiness-check.sh` output: <inline or attach>
 - PSI mobile summary: <key scores>
 - PSI desktop summary: <key scores>
-- Drift diffs: <paths or "none">
+- Smoke check: <PASS or FAIL + failing assertion>
 - Live screenshot: <path>
 - Console log dump: <inline if non-empty>
 ```
@@ -422,6 +416,5 @@ For each finding above, give: file:line of the likely fix, the specific change, 
 - **Parallel where possible.** Batch independent curl probes in a single Bash invocation. Surfaces 1, 2, 3 are independent; surface 4 (PSI) is independent and slow; surface 5 (Playwright) and surface 6 (BrowserOS) must run sequentially after the curl surfaces.
 - **Middleware is the header source of truth.** Root middleware disables `public/_headers`. When a header looks wrong, the root cause is almost always `functions/_middleware.ts`.
 - **Data freshness != deploy freshness.** A stale CloudFront JSON points at the upstream Lifegames Portal backend, not at this deploy. Classify those findings as **upstream**.
-- **Drift baselines missing -> SKIP**, not FAIL. The drift suite legitimately runs without baselines on a clean checkout.
 - **No emojis** anywhere in the report.
 - **Default autonomy** is `[AFK]`. Only pause for user input if a critical surface (the homepage `/`) is unreachable.

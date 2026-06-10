@@ -44,7 +44,7 @@ npm run test:visual:update:docker # regenerate baselines in Docker (only sanctio
 
 - **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, and image integrity against `dist/`.
 - **Visual regression** ([Playwright](https://playwright.dev)) screenshots the dashboard at 4 viewports. Baselines are byte-stable only when generated inside the CI-matching Linux/AMD64 Docker container -- a runtime guard refuses host-side `--update-snapshots`. Add the `update-snapshots` PR label to regenerate baselines in CI.
-- **Drift detection** screenshots the live `jonathanlloyd.me` after each deploy and files an issue on regression (`.github/workflows/drift-detection.yml`).
+- **Production smoke check** runs `npm run test:smoke` on a native `ubuntu-latest` runner against the live `jonathanlloyd.me` after each deploy (`.github/workflows/smoke-check.yml`). It asserts the site actually hydrated -- widget containers present, `.is-loading` skeletons cleared, bio terminal typed, service worker registered, no CSP or console errors -- and files a `smoke-failure` issue on regression. No baselines, nothing to regenerate. It replaced the retired pixel-drift suite, which could not stay green against a live data stream and could not catch a blocked-hydration failure.
 
 ## Data Pipeline
 

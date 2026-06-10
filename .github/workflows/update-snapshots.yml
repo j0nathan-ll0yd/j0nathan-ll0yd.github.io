@@ -74,18 +74,13 @@ jobs:
         env:
           USE_FIXTURES: 'true'
         run: npx playwright test --update-snapshots
-      - name: Update drift baselines
-        env:
-          USE_FIXTURES: 'true'
-        run: npx playwright test --config=playwright.drift.config.ts --update-snapshots
-        continue-on-error: true  # drift target site may be unreachable; non-blocking
       - name: Mark workspace as safe (Docker container uid mismatch)
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Commit updated baselines
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "chore: regenerate visual + drift baselines via update-snapshots label"
-          file_pattern: 'tests/visual/__screenshots__/** tests/drift/__screenshots__/**'
+          commit_message: "chore: regenerate visual baselines via update-snapshots label"
+          file_pattern: 'tests/visual/__screenshots__/**'
       - name: Remove update-snapshots label
         if: github.event_name == 'pull_request' || inputs.pr_number != ''
         uses: actions/github-script@v9
