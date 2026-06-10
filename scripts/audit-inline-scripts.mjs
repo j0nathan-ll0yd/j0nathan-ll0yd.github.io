@@ -18,12 +18,24 @@
  *   - Data scripts: `type="application/ld+json"` / `type="application/json"`
  *     are inert data, not executable script; CSP script-src does not apply.
  *
+ * Additionally, the `public/js` tree (externalized ES5 runtimes loaded from
+ * 'self') is scanned for inline event-handler ATTRIBUTE strings they may emit
+ * via innerHTML (e.g. `onerror="..."`). Only the HTML-attribute form (a quote
+ * immediately after `=`) is flagged; JS property assignment (`el.onclick = fn`)
+ * is not a CSP issue and is ignored.
+ *
  * Tier 1 (this script) runs in `prebuild`; CI gates on it. */
 import { globSync } from 'glob';
 import fs from 'node:fs';
 
 var EVENT_HANDLER_RE =
   /\son(click|load|error|change|submit|focus|blur|input|keyup|keydown|mouseenter|mouseleave|mouseover|mouseout|dblclick|contextmenu)\s*=/i;
+
+/* Inline HTML event-handler attribute inside a string literal emitted by JS
+ * (e.g. innerHTML += '... onerror="..." ...'). A quote MUST immediately follow
+ * `=` so we match the HTML-attribute form `onerror="..."` while ignoring
+ * JS property assignment like `el.onclick = fn` / `this.onerror = null`. */
+var JS_INLINE_HANDLER_RE = /\bon[a-z]+=["']/i;
 
 // Matches a full <script ...> ... </script> element (open tag captured in g1).
 var SCRIPT_BLOCK_RE = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
@@ -77,6 +89,26 @@ for (var f = 0; f < files.length; f++) {
   }
 }
 
+/* public/js/*.js -- externalized ES5 runtimes that build markup via innerHTML.
+ * These are loaded from 'self' (fine), but the HTML STRINGS they emit can still
+ * carry inline event-handler attributes (e.g. onerror="..."), which CSP blocks
+ * at runtime. Flag the HTML-attribute form only (quote right after `=`); plain
+ * JS property assignment like `el.onclick = fn` is not an issue and is ignored. */
+var jsFiles = globSync('public/js/**/*.js', { ignore: ['node_modules/**', '**/node_modules/**'] });
+
+for (var jf = 0; jf < jsFiles.length; jf++) {
+  var jsFile = jsFiles[jf];
+  var jsContent = fs.readFileSync(jsFile, 'utf-8');
+  var jsLines = jsContent.split('\n');
+  for (var jl = 0; jl < jsLines.length; jl++) {
+    if (JS_INLINE_HANDLER_RE.test(jsLines[jl])) {
+      violations++;
+      console.error('✗ ' + jsFile + ':' + (jl + 1) +
+        ' -- inline event-handler string (CSP rejects onX="..." without \'unsafe-hashes\').');
+    }
+  }
+}
+
 if (violations > 0) {
   console.error('\n' + violations + ' inline-JS violation(s).');
   console.error('Per CLAUDE.md: extract to public/js/*.js and reference via <script is:inline src="..." defer>.');
@@ -84,4 +116,4 @@ if (violations > 0) {
   process.exit(1);
 }
 
-console.log('No inline-JS violations ✓ (' + files.length + ' files scanned)');
+console.log('No inline-JS violations ✓ (' + (files.length + jsFiles.length) + ' files scanned)');

@@ -64,9 +64,8 @@
     var cover = b.cover || ('https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX160_.jpg');
 
     var html = '<div class="book-modal-header">';
-    var fallbackAttr = (b.cover && cover !== b.cover) ? ' data-fallback="' + esc(b.cover) + '" onerror="this.src=this.dataset.fallback;this.onerror=null"' : '';
     var avifSrc = b.coverAvif ? '<source srcset="' + esc(b.coverAvif) + '" type="image/avif">' : '';
-    var imgTag = '<img class="book-modal-cover" src="' + esc(cover) + '" width="140" height="210" alt="' + esc(b.title) + ' cover" decoding="async"' + fallbackAttr + '>';
+    var imgTag = '<img class="book-modal-cover" src="' + esc(cover) + '" width="140" height="210" alt="' + esc(b.title) + ' cover" decoding="async">';
     html += avifSrc ? ('<picture>' + avifSrc + imgTag + '</picture>') : imgTag;
     html += '<div class="book-modal-info">';
     html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
