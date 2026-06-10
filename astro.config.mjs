@@ -48,7 +48,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
         globIgnores: ['images/books/**', 'images/theatre/**'],
-        navigateFallbackDenylist: [/\.xml$/],
+        navigateFallback: null,
         // Immediate activation so fix deploys reach returning visitors on next
         // page load instead of waiting for all tabs to close.
         skipWaiting: true,
