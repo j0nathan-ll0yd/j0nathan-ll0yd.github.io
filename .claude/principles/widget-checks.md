@@ -83,9 +83,11 @@ For full context, read the spec. For the new-widget workflow, use `/new-widget`.
 
 **Rule:** All JavaScript in `<script is:inline>` blocks MUST use ES5 syntax: `var`, `function` declarations, IIFEs. No `let`, `const`, arrow functions, or template literals.
 
-**Check:** Grep `<script is:inline>` blocks for `let `, `const `, `=>`, or backtick template literals.
+**Production constraint:** CSP `script-src 'self'` rejects inline JS in production. `<script is:inline>` blocks WITH content (not `src=`) and inline `on*=` event handlers ARE forbidden in markup — they silently fail at runtime. Use `<script is:inline src="/js/..." defer>` to reference an external file under `public/js/`, and attach event listeners in those files (never as `on*=` attributes). The `npm run audit:inline-scripts` prebuild gate enforces this; bundled `<script>` (no `is:inline`) and `type="application/ld+json"` data scripts are exempt.
 
-**Fix:** Replace with `var`, `function` expressions, string concatenation.
+**Check:** Grep `<script is:inline>` blocks for `let `, `const `, `=>`, or backtick template literals. Run `npm run audit:inline-scripts` to confirm no inline `<script is:inline>` bodies or inline event handlers exist in `src/**/*.{astro,html}`.
+
+**Fix:** Replace with `var`, `function` expressions, string concatenation. Extract any inline `<script is:inline>` body or `on*=` handler to a `public/js/*.js` file referenced via `<script is:inline src="..." defer>`.
 
 ---
 
