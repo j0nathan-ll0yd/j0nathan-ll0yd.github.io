@@ -1,183 +1,72 @@
 # Human Datastream
 
-A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboard with glass-morphism aesthetics and a particle background. Built with [Astro](https://astro.build) and hosted on Cloudflare Pages.
+A personal portfolio dashboard for Jonathan Lloyd, styled as a sci-fi "Human Datastream" -- a read-only display surface that renders real personal data (health, activity, GitHub, reading, location) as a live, glass-morphism dashboard. Built with [Astro 6](https://astro.build) and deployed to Cloudflare Pages at [jonathanlloyd.me](https://jonathanlloyd.me).
 
-<!-- TODO: Add screenshot -->
+[![Deploy to Cloudflare Pages](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/workflows/deploy.yml)
 
-## Overview
+![Human Datastream dashboard](docs/claude-design/screenshots/dashboard-desktop-1400.png)
 
-The dashboard displays 13 interactive widgets organized in a split-panel layout with a fixed left panel (identity) and a scrollable right panel (body + mind columns). Astro generates static HTML at build time, shipping 0 KB of JavaScript by default. Interactive elements (particles, map, animations) use selective `is:inline` scripts.
+## Quick Start
 
-## Site Identity & SEO
+```bash
+npm install            # add --legacy-peer-deps if the peer-dep gate fails
+npm run dev            # dev server at http://localhost:4321
+npm run build          # production build into dist/
+npm run preview        # preview the production build
+```
 
-The site positions Jonathan Lloyd as a backend engineer whose portfolio **is** the technical showcase -- a living data dashboard tracking body and mind in an AI-centric world.
-
-### Core Statement
-
-> Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics and constant updates of his whole body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.
-
-### Metadata by Surface
-
-| Surface | Copy |
-|---------|------|
-| **Page Title** | Jonathan Lloyd — Human Datastream |
-| **Meta Description** | A living data dashboard by engineer, Jonathan Lloyd — tracking body (health, activity, hydration) and mind (coding, reading). Jack into his human datastream. |
-| **OG / Twitter Description** | Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics tracking body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream. |
-| **JSON-LD WebSite** | *(Core statement, verbatim)* |
-| **JSON-LD Person** | Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric. |
-| **PWA Manifest** | Living data dashboard — tracking body and mind. Jack into his human datastream. |
-| **OG Image Title** | ENGINEERING DIRECTOR |
-| **OG Image Quote** | Jack into his human datastream |
-| **Keywords** | backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site |
-
-### JSON-LD knowsAbout
-
-Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrastructure, Data Visualization, Serverless Architecture, TypeScript, Go, AWS
+All UI widgets are imported from the yalc-linked Design System package (`@lifegames/web/production`); this repo contains no widget source. If `npm install` cannot resolve the `@lifegames/*` packages, link them from `design-system-Lifegames` first (`pnpm yalc:publish` in that repo).
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Top Bar (clock)                   │
-├──────────────┬──────────────────────────────────────┤
-│              │         Body         │     Mind       │
-│  Left Panel  │  Heart Rate          │  GitHub        │
-│  (Identity)  │  Activity            │  Commits       │
-│  Bio Term    │  Workouts            │  Reading       │
-│  System      │  Sleep  Hydration    │  Bookshelf     │
-│              │  Location            │                │
-└──────────────┴──────────────────────────────────────┘
-```
-
-- **Left panel** (35%): Identity card, bio terminal with typing animation, system status
-- **Top bar**: "Human Datastream" title and live clock
-- **Right panel** (65%): Two-column triptych grid -- Body (health/fitness) and Mind (coding/reading)
-
-## Directory Structure
+Astro renders static HTML at build time from local JSON fixtures, then hydrates client-side from CloudFront. The Design System owns all widgets, tokens, and runtime scripts; this repo owns only page composition, layout, and the data-loading shell.
 
 ```
-.
-├── astro.config.mjs          # Astro + PWA configuration
-├── package.json              # Dependencies and scripts
-├── tsconfig.json             # TypeScript configuration
-├── src/
-│   ├── components/           # 14 .astro components (one per widget)
-│   ├── layouts/              # Dashboard.astro (head, SEO, scripts)
-│   └── pages/                # index.astro (data loading, page composition)
-├── public/
-│   ├── css/                  # Design tokens, base, layout, components, effects
-│   ├── assets/               # SVGs, PWA icons
-│   ├── js/                   # particles.js, clock.js
-│   └── manifest.webmanifest  # PWA manifest
-├── data/                     # 6 JSON files (read at build time)
-├── tests/
-│   ├── visual/               # Playwright visual regression tests + baselines
-│   └── fixtures/             # Stable JSON fixtures for API mocking
-├── docs/wiki/                # Documentation (synced to GitHub Wiki)
-├── legacy/                   # Old root site preserved for reference
-└── .github/workflows/        # Deploy + wiki sync + visual test actions
+data/*.json ──► index.astro (build time) ──► static HTML ──► Cloudflare Pages
+                                                  │
+                                  client hydration │ runtime polling
+                                                  ▼
+                          CloudFront JSON ──► @lifegames/web/runtime/live-data
 ```
 
-## Running Locally
+- **Astro 6 static output** -- 0 KB JS by default; interactivity via selective islands.
+- **Design System** (`@lifegames/web`, `@lifegames/tokens`, `@lifegames/schemas`) -- yalc-linked from `design-system-Lifegames`; source of all widgets, CSS tokens, and fixture schemas.
+- **CloudFront data layer** -- live data fetched after page load; polled (30s fast / 120s slow) with WebSocket fallback.
+
+## Testing
 
 ```bash
-npm install
-npm run dev       # http://localhost:4321
-npm run build     # Outputs to dist/
-npm run preview   # Preview build locally
+npm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
+npm run test:visual              # Playwright visual regression (4 viewports)
+npm run test:visual:docker       # run visual regression in Docker (matches CI)
+npm run test:visual:update:docker # regenerate baselines in Docker (only sanctioned path)
 ```
 
-## Visual Regression Testing
+- **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, and image integrity against `dist/`.
+- **Visual regression** ([Playwright](https://playwright.dev)) screenshots the dashboard at 4 viewports. Baselines are byte-stable only when generated inside the CI-matching Linux/AMD64 Docker container -- a runtime guard refuses host-side `--update-snapshots`. Add the `update-snapshots` PR label to regenerate baselines in CI.
+- **Drift detection** screenshots the live `jonathanlloyd.me` after each deploy and files an issue on regression (`.github/workflows/drift-detection.yml`).
 
-Screenshot tests capture the dashboard at 4 viewport sizes to catch layout regressions before they ship. Built with [Playwright](https://playwright.dev)'s built-in `toHaveScreenshot()` comparison.
+## Data Pipeline
 
-### Viewports Tested
+Two data paths feed the dashboard:
 
-| Project | Width | Breakpoint |
-|---------|-------|------------|
-| `desktop-1400` | 1400px | Default desktop layout |
-| `tablet-1100` | 1100px | Left panel narrows to 30% |
-| `tablet-768` | 768px | Mobile/tablet transition |
-| `mobile-600` | 600px | Single-column, compact layout |
+- **Build-time** -- 7 JSON fixtures in `data/` (`profile`, `health`, `github`, `books`, `reading`, `system`, `theatre-reviews-sample`) are loaded by `src/lib/load-dashboard-data.ts`. A prebuild hook runs Ajv validation against `@lifegames/schemas` (`additionalProperties: false` -- any unmapped field fails the build).
+- **Runtime** -- the client polls CloudFront JSON endpoints via `@lifegames/web/runtime/live-data` for live values once the page loads.
 
-### Running Tests
+`USE_FIXTURES=true` swaps `data/*.json` for `test/fixtures/build-data/*.json` so visual tests render reproducible snapshots.
 
-```bash
-npm run test:visual          # Compare against baselines
-npm run test:visual:ui       # Interactive UI mode for debugging
-```
+## Deploy
 
-### How It Works
-
-- Tests build the site (`npm run build`) and serve it via `astro preview`
-- CloudFront API responses are intercepted with stable fixture data (`tests/fixtures/`)
-- Dynamic content (clock, timestamps, live indicators, particle canvas) is hidden via a stabilization stylesheet (`tests/visual/screenshot.css`)
-- Baseline screenshots are committed to git in `tests/visual/__screenshots__/`
-- Service worker is blocked to prevent Workbox caching interference
-
-### Updating Baselines
-
-Baselines are byte-stable only when produced inside the CI-matching Linux/AMD64
-Playwright Docker container — locally-regenerated PNGs on macOS/Rosetta fail
-CI on the next run (Playwright #13873). A runtime guard in `playwright.config.ts`
-refuses to run `--update-snapshots` outside the sanctioned paths.
-
-**Pick one** (in preference order):
-
-1. **PR label** (preferred): add the `update-snapshots` label to your PR. The
-   `update-snapshots` workflow regenerates both visual and drift baselines in
-   Docker and auto-commits them to your PR branch.
-
-2. **Local Docker regen** (slow on Apple Silicon but byte-stable):
-
-   ```bash
-   npm run test:visual:update:docker   # regression baselines
-   npm run test:drift:update:docker    # drift baselines
-   git add tests/visual/__screenshots__/ tests/drift/__screenshots__/
-   git commit -m "Update visual baselines for [describe change]"
-   ```
-
-3. **Manual CI trigger**:
-
-   ```bash
-   gh workflow run visual-tests.yml -f update_snapshots=true --ref <branch>
-   ```
-
-See `docs/visual-regression-testing.md` for the full guard rationale.
-
-## Design System
-
-The visual language is built on a dark sci-fi aesthetic with glass-morphism cards:
-
-- **Background**: `#06060f` (near-black)
-- **Glass cards**: `rgba(255,255,255,0.07)` background with `rgba(255,255,255,0.1)` borders and `16px` backdrop blur
-- **Neon palette**: Pink (`#ff006e`), Blue (`#3a86ff`), Green (`#06d6a0`), Amber (`#f59e0b`), Purple (`#a855f7`)
-- **Typography**: [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) with fluid `clamp()` tokens scaling from 0.36rem to 2.4rem across 600px–1400px viewports
-- **Responsive scaling**: Fluid `clamp()` design tokens for typography and spacing, CSS Container Queries on `.tri-card` for widget-level adaptation, structural breakpoints at 1100px/900px/600px
-- **Animations**: Particle field, count-up numbers, staggered card reveals, terminal typing, wave effects
-
-## Technology Stack
-
-- [Astro](https://astro.build) -- Static site generation (0 KB JS by default, islands architecture)
-- [Three.js](https://threejs.org) -- Particle background animation
-- [Leaflet](https://leafletjs.com) -- Interactive map widget
-- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) -- Typography
-- [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa) -- Progressive Web App support
-- [Simple Analytics](https://simpleanalytics.com) -- Privacy-focused analytics
-- [Playwright](https://playwright.dev) -- Visual regression testing
-
-## LLM-optimized content
-
-This site publishes an LLM discovery index at [`/llms.txt`](https://jonathanlloyd.me/llms.txt).
-Rich variants (current-state snapshot and complete data dump) are composed by
-the backend on data-change events and served from CloudFront. See
-[LLM Content Spec](docs/wiki/LLM-Content-Spec.md) for the full format.
+Push to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`): `npm run build` then `cloudflare/wrangler-action@v4` deploys `dist/` to the `human-datastream` Cloudflare Pages project. No manual deploy step.
 
 ## Documentation
 
-Detailed documentation is available in [`docs/wiki/`](docs/wiki/Home.md) and on the [GitHub Wiki](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki):
+- [`AGENTS.md`](AGENTS.md) -- canonical agent contract: commands, conventions, and do/don't rules (read this before editing).
+- [`CLAUDE.md`](CLAUDE.md) -- Claude Code-specific extras (imports `AGENTS.md`).
+- [`docs/wiki/`](docs/wiki/Home.md) -- deeper reference: [Astro Implementation](docs/wiki/Astro-Implementation.md), [Brand Guide](docs/wiki/Brand-Guide.md), [Why Astro](docs/wiki/Why-Astro.md), [LLM Content Spec](docs/wiki/LLM-Content-Spec.md).
+- [`docs/visual-regression-testing.md`](docs/visual-regression-testing.md) -- visual-baseline guard rationale.
+- `docs/onboarding-review/` -- active architectural plans and roadmap (local working set; see the team thoughts repo).
 
-- [Astro Implementation](docs/wiki/Astro-Implementation.md) -- Architecture, components, data flow
-- [Brand Guide](docs/wiki/Brand-Guide.md) -- Colors, typography, glass-morphism, widget structure
-- [Why Astro](docs/wiki/Why-Astro.md) -- Framework evaluation and decision rationale
-- [LLM Content Spec](docs/wiki/LLM-Content-Spec.md) -- LLM content surface, file inventory, freshness
+## Tech Stack
+
+Astro 6, Vitest, Playwright, Ajv, wrangler (Cloudflare Pages), `@vite-pwa/astro`, `@astrojs/sitemap`, and pngjs/pixelmatch for screenshot diffing. Visual styling, fonts, and interactive widgets are provided by the Design System (`@lifegames/*`).
