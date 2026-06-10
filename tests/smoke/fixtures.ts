@@ -35,10 +35,10 @@
  *      — i.e. an EXTERNAL first-party or third-party script the CSP rejected.
  *      This is the genuine per-deploy regression signal and is GREEN today.
  *   2. REGRESSION-GUARD the count of blocked inline <script> elements against a
- *      documented baseline. A NEW inline script (e.g. a hydration module wrongly
- *      inlined again — the #50 class) pushes the count over the baseline and
- *      fails. Reduce the baseline to 0 once the design system externalises the
- *      three legacy scripts.
+ *      documented baseline. The baseline is now 0 — #07 externalised the three
+ *      legacy inline scripts (verified gone on live prod) — so ANY blocked inline
+ *      <script> (e.g. a hydration module wrongly inlined again — the #50 class)
+ *      pushes the count over the baseline and fails.
  *   3. Inline event-handler attributes (`script-src-attr`, e.g. <img onerror>)
  *      fire data-dependently and are an accepted pattern — recorded, never failed.
  *
@@ -62,14 +62,13 @@ declare global {
 
 /**
  * Count of blocked inline <script> elements that are a KNOWN standing condition
- * on production (legacy `is:inline` scripts in design-system components):
- *   1. IdentityCard — social-link click tracking
- *   2. BookModal    — book-cover click handler
- *   3. SSR fixture  — inline placeholder data block
- * Tracked for design-system externalisation. Drop to 0 when that lands; any
- * value above this baseline is a regression (a newly-inlined script).
+ * on production. The three legacy `is:inline` scripts (IdentityCard social-link
+ * tracking, BookModal cover handler, SSR hydration placeholder) were externalised
+ * by #07 (merged + deployed) and VERIFIED gone on live prod — 0 inline violations.
+ * The baseline is now 0: inline JS is fully externalised, so ANY blocked inline
+ * <script> is a regression (a newly-inlined script).
  */
-const KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 3;
+const KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 0;
 
 /**
  * Console/pageerror messages that are benign on this live, third-party-laden
@@ -198,7 +197,7 @@ export const test = base.extend({
     }
     expect.soft(
       inlineScriptBlocked.length,
-      `More blocked inline <script> elements (${inlineScriptBlocked.length}) than the documented baseline (${KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS}). A new inline script was introduced — externalise it so CSP 'self' allows it (the #50 fix). Update the baseline only after confirming the new inline script is intentional.`,
+      `More blocked inline <script> elements (${inlineScriptBlocked.length}) than the documented baseline (${KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS}). Inline JS is fully externalised (per #07), so a new inline script was introduced — externalise it so CSP 'self' allows it (the #50 fix) rather than raising this baseline.`,
     ).toBeLessThanOrEqual(KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS);
 
     // 3. Chunk/dynamic-import load failures — a missing or renamed _astro/*.js chunk.
