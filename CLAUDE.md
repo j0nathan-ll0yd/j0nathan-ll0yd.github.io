@@ -140,6 +140,21 @@ git add tests/visual/__screenshots__/
 - **No host escape hatch:** the local `test:visual:update` / `test:visual:update:fast` scripts were deleted. The only documented baseline-regen path is `npm run test:visual:update:docker` (which calls `scripts/run-in-docker.sh`). CI's baseline mismatch will fail any PR that ships host-rendered PNGs.
 - **PR label:** Add the `update-snapshots` label to a PR to trigger CI-side baseline regen + auto-commit; label is auto-removed after commit.
 
+### Canvas Widgets: Deterministic Test Seam (Canonical Pattern)
+
+Canvas widgets animate via `requestAnimationFrame` + RNG, which defeats Playwright's `animations: 'disabled'`. Do NOT hide canvas content via `visibility: hidden` in `screenshot.css` to work around this -- that "papers over flake" and makes any canvas regression invisible. Fix the determinism at the source with a test seam.
+
+Each canvas widget MUST expose a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@lifegames/web/runtime/heart-rate-init`) with:
+- `ready: boolean` -- true after the first `step()` paints a frame (sync gate for `page.waitForFunction`)
+- `seed(n)` -- pin the RNG stream (seeded mulberry32 for cross-engine determinism)
+- `freezeAt(ms|null)` -- freeze the clock; `null` restores real time
+- `step(frames=1)` -- advance N frames manually (rAF auto-loop is suppressed in test mode)
+- `state()` -- inspectable snapshot for assertions
+
+The seam MUST be guarded by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor (defense in depth). The dual gate guarantees `window.__<widget>` is `undefined` in production builds (dead-code-eliminated). Reference implementation: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`, DS unit tests in `packages/web/tests/runtime/heart-rate-init.test.ts`).
+
+Note: because the seam requires `MODE === 'test'` and the visual webServer currently builds in production mode, seam-driven Playwright screenshots require a `--mode test` visual build before they can run.
+
 ### Drift Detection (Playwright)
 - **Config:** `playwright.drift.config.ts`
 - **Test file:** `tests/drift/drift.spec.ts`

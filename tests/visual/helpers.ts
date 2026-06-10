@@ -18,6 +18,8 @@ export const WIDGET_SELECTORS = {
   bioTerminal: '#cardBio',
   systemStatus: '#cardSystem',
   heartRate: '#cardHR',
+  // Canvas-only selector for seam-driven deterministic ECG snapshots.
+  heartRateCanvas: '#hrEcgCanvas',
   workouts: '#cardWorkouts',
   hydration: '#cardHydration',
   nightSummary: '#cardSleep',
