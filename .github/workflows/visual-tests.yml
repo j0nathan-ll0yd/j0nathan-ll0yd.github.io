@@ -56,6 +56,18 @@ jobs:
       - name: Verify schema contract
         run: node scripts/verify-contract.mjs
 
+      # Tier 2 (Plan #11): catch hand-edits to .contract-lock.json that slipped
+      # past the local pre-commit hook (e.g. `--no-verify`, or a clone without
+      # Husky installed). Deterministic: compares only the checksum fields, so it
+      # ignores the generator's volatile generatedAt/sha and never false-positives.
+      - name: Verify .contract-lock.json is not hand-edited
+        run: |
+          node scripts/check-contract-lock.mjs || {
+            echo "::error::.contract-lock.json was hand-edited or is stale."
+            echo "::error::Run: node scripts/generate-contract-lock.mjs && git add .contract-lock.json"
+            exit 1
+          }
+
   setup:
     needs: resolve-version
     runs-on: ubuntu-latest
