@@ -1,0 +1,142 @@
+# Production Smoke Check Workflow
+#
+# Triggers after the "Deploy to Cloudflare Pages" workflow completes successfully
+# on main. Uses GitHub's native workflow_run event -- no PAT, no Cloudflare-side
+# configuration. The smoke check loads the deployed site and asserts it actually
+# HYDRATED: widget containers present, the live-data runtime cleared its skeleton
+# states, the bio terminal typed its content (the #50 regression class), the
+# service worker registered, and no CSP / chunk-load / console errors fired.
+#
+# Replaces the retired pixel-drift workflow. Drift pixel-diffed a frozen baseline
+# against a live data stream and could never stay green -- and could not catch a
+# hydration failure (a blocked island still renders its SSR shell at the right
+# pixels). This check asserts hydration RAN instead.
+#
+# Runs on a NATIVE ubuntu-latest runner -- no Playwright Docker container, no
+# SwiftShader/GPU determinism flags. It takes no screenshots and needs no
+# cross-OS pixel determinism, so it is immune to the QEMU/SwiftShader failure
+# that constrains the visual-regression Docker path.
+#
+# Also supports manual trigger via workflow_dispatch for testing.
+#
+# THRESHOLD TIER: INFORMATIONAL (initial bake-in)
+#   Non-blocking: a failure files a GitHub issue rather than failing CI. Unlike
+#   pixel-drift, smoke failures are high-signal / near-zero false positive (an
+#   HTTP error, a CSP-blocked external script, or a dead hydration is never a
+#   false positive), so this will not reproduce the ignore-the-noise problem.
+#   Promote to blocking after a bake-in period of confidence.
+
+name: Production Smoke Check
+
+on:
+  workflow_run:
+    workflows: ["Deploy to Cloudflare Pages"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  smoke-check:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+        run: bash scripts/ci-setup.sh
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run production smoke check
+        id: smoke
+        run: npm run test:smoke
+        continue-on-error: true
+
+      - name: Upload playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: File issue on smoke failure
+        if: steps.smoke.outcome == 'failure'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = 'Production smoke check failed after deploy';
+
+            // Ensure the label exists — issues.create returns 422 if a referenced
+            // label is missing. Idempotent: ignore the 422 if it already exists.
+            await github.rest.issues.createLabel({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              name: 'smoke-failure',
+              color: 'd93f0b',
+              description: 'Production smoke check failure',
+            }).catch(() => {});
+
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'smoke-failure',
+              per_page: 100,
+            });
+            const dup = existing.data.find((i) => i.title === title);
+            if (dup) {
+              core.info(`Open smoke-failure issue already exists (#${dup.number}); appending run link instead of creating a duplicate.`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: dup.number,
+                body: `Another smoke run failed: [View workflow run](${runUrl})`,
+              });
+              return;
+            }
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              labels: ['smoke-failure', 'automated'],
+              assignees: ['j0nathan-ll0yd'],
+              body: [
+                '## Production Smoke Check Failed',
+                '',
+                'The post-deploy smoke check found a problem with the live site at https://jonathanlloyd.me.',
+                '',
+                'Unlike the retired pixel-drift check, a smoke failure is high-signal — it means one of:',
+                '- the page did not return HTTP 200, or a widget container is missing (broken deploy / SSR);',
+                '- a widget did not hydrate (e.g. a CSP-blocked or 404ing `_astro/*.js` chunk — the #50 class);',
+                '- the bio terminal did not type its content;',
+                '- the service worker failed to register;',
+                '- a CSP violation on an external script, or a JS chunk-load / console error fired.',
+                '',
+                `**Triggered by:** \`${context.eventName}\``,
+                `**Run:** [View workflow run](${runUrl})`,
+                '',
+                '### Next Steps',
+                '1. Open the `smoke-playwright-report` artifact in the run above to see which assertion failed.',
+                '2. Reproduce locally (native, no Docker): `npm run test:smoke`.',
+                '3. Fix the deploy/hydration regression, or — if a new inline script was added intentionally — externalise it so CSP `self` allows it and update the baseline in `tests/smoke/fixtures.ts`.',
+              ].join('\n'),
+            });

@@ -28,8 +28,9 @@ export default defineConfig({
     trace: 'on-first-retry',
     serviceWorkers: 'block',
     launchOptions: {
-      // Flags from tests/shared/chromium-launch-args.ts -- single source of truth
-      // shared with playwright.drift.config.ts.
+      // Determinism flags from tests/shared/chromium-launch-args.ts. Used only by
+      // this visual-regression suite; the production smoke check
+      // (playwright.smoke.config.ts) deliberately omits them.
       args: [...CHROMIUM_DETERMINISM_ARGS],
     },
   },
