@@ -4,6 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "prepare": "husky",
+    "check:contract-lock": "node scripts/check-contract-lock.mjs",
     "dev": "astro dev",
     "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && tsx scripts/validate-build-fixtures.ts && npm run audit:inline-scripts",
     "validate:build-fixtures": "tsx scripts/validate-build-fixtures.ts",
@@ -22,7 +24,7 @@
     "test:visual:fast": "SKIP_BUILD=true npx playwright test",
     "test:visual:docker": "./scripts/run-in-docker.sh playwright.config.ts",
     "test:visual:update:docker": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
-    "test:drift:update:docker": "./scripts/run-in-docker.sh playwright.drift.config.ts --update-snapshots"
+    "test:smoke": "npx playwright test --config=playwright.smoke.config.ts"
   },
   "dependencies": {
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",
@@ -36,6 +38,7 @@
     "@vite-pwa/astro": "^1.2.0",
     "ajv": "^8.20.0",
     "cheerio": "^1.2.0",
+    "husky": "^9.1.7",
     "json-schema-to-typescript": "^15.0.4",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",

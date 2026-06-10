@@ -1,9 +1,10 @@
 /**
  * Shared Chromium launch flags for deterministic visual regression.
  *
- * Single source of truth for both playwright.config.ts (regression) and
- * playwright.drift.config.ts (drift detection). If flags diverge between
- * the two suites, baselines and live screenshots will not match.
+ * Used by the visual-regression suite (playwright.config.ts). The production
+ * smoke check (playwright.smoke.config.ts) deliberately does NOT use these
+ * flags: it takes no screenshots and needs no pixel determinism, and the
+ * SwiftShader flag here segfaults under QEMU on Apple Silicon Docker.
  *
  * Research evidence and bug citations:
  *   - Chromium 40827297: MSAA atlas-path renderer non-determinism; Skia

@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+# Tier 1 (Plan #11): block hand-edits / stale checksums in .contract-lock.json.
+# Conditional on the lock being staged, so unrelated commits are unaffected.
+# Bypassable with `git commit --no-verify` for genuine emergencies; Tier 2 (CI)
+# is the safety net that catches such bypasses at PR time.
+if git diff --cached --name-only | grep -q '^\.contract-lock\.json$'; then
+  npm run check:contract-lock || {
+    echo ""
+    echo "ERROR: .contract-lock.json drift detected (pre-commit, Tier 1)."
+    echo "Hand-edits to this file are forbidden."
+    echo ""
+    echo "To fix: node scripts/generate-contract-lock.mjs && git add .contract-lock.json"
+    echo ""
+    exit 1
+  }
+fi

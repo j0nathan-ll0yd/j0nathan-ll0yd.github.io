@@ -19,11 +19,11 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="description" content={description}>
   <meta name="robots" content={robots}>
   <meta name="keywords" content="backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site">
-  <!-- Security: CSP + Referrer-Policy served via HTTP headers (functions/_middleware.ts) -->
+  {/* Security: CSP + Referrer-Policy served via HTTP headers (functions/_middleware.ts) */}
   <meta name="author" content="Jonathan Lloyd">
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
-  <!-- LLM-friendly alternate versions (backend-composed live on CloudFront) -->
+  {/* LLM-friendly alternate versions (backend-composed live on CloudFront) */}
   <link rel="alternate" type="text/markdown" href="https://d1pfm520aduift.cloudfront.net/llms-full.txt" title="LLM-friendly complete content">
   <link rel="alternate" type="text/plain" href="https://jonathanlloyd.me/llms.txt" title="LLM discovery index">
   <title>{title}</title>
@@ -32,7 +32,6 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="sitemap" href="/sitemap-index.xml">
 
-  <!-- OpenGraph -->
   <meta property="og:title" content={title}>
   <meta property="og:description" content={ogDescription}>
   <meta property="og:type" content="profile">
@@ -45,14 +44,12 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta property="profile:first_name" content="Jonathan">
   <meta property="profile:last_name" content="Lloyd">
 
-  <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content={title}>
   <meta name="twitter:description" content={ogDescription}>
   <meta name="twitter:image" content={ogImage}>
   <meta name="twitter:image:alt" content="Jonathan Lloyd — Human Datastream dashboard">
 
-  <!-- JSON-LD Structured Data -->
   <script type="application/ld+json" set:html={JSON.stringify({
     "@context": "https://schema.org",
     "@graph": [
@@ -208,15 +205,14 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     ]
   })} />
 
-  <!-- Font preload (critical for swap timing)
+  {/* Font preload (critical for swap timing)
      Dev note: Chrome warns "preloaded but not used within a few seconds" on localhost.
      This is a Vite dev-server timing artifact — the middleware stack delays CSS delivery
      enough for Chrome's ~3s timer to fire before @font-face claims the font. Harmless;
-     does not occur in production where static files are served directly. -->
+     does not occur in production where static files are served directly. */}
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
 
-  <!-- DNS prefetch fallbacks + preconnect hints -->
   <link rel="preconnect" href="https://d1pfm520aduift.cloudfront.net" crossorigin>
   {import.meta.env.PROD && (
     <link rel="prefetch" href="https://d1pfm520aduift.cloudfront.net/health.json" as="fetch" crossorigin>
@@ -228,10 +224,10 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
   <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">
-  <!-- Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
+  {/* Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
        Astro processes this <style> (non-inline), resolves the @imports via @lifegames/tokens,
        and inlines the result at build time because astro.config.mjs sets build.inlineStylesheets: 'always'.
-       LCP behavior is preserved vs the previous in-file :root token block. -->
+       LCP behavior is preserved vs the previous in-file :root token block. */}
   <style is:global>
     @import '@lifegames/tokens/preamble';
     @import '@lifegames/tokens/css.layered';
@@ -419,16 +415,15 @@ html, body {
   <noscript><style>.tri-card,.identity-card,.left-panel-status,.left-panel-bio{opacity:1!important;transform:none!important;}</style></noscript>
   <a href="#main-content" class="lg-skip-link">Skip to main content</a>
   <slot />
-  <!-- BookModal: externalized activation (CSP script-src 'self'). Delegated
-       handler on document.body parses .shelf-book[data-book] JSON and opens the modal. -->
+  {/* BookModal: externalized activation (CSP script-src 'self'). Delegated
+       handler on document.body parses .shelf-book[data-book] JSON and opens the modal. */}
   <script is:inline src="/js/book-modal.js" defer></script>
-  <!-- IdentityCard social-click analytics: externalized delegated handler (CSP). -->
+  {/* IdentityCard social-click analytics: externalized delegated handler (CSP). */}
   <script is:inline src="/js/social-click-track.js" defer></script>
-  <!-- Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view -->
+  {/* Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view */}
   <script is:inline src="/js/leaflet-lazy.js"></script>
-  <!-- Service Worker -->
   <script is:inline src="/js/sw-register.js"></script>
-  <!-- WebMCP: expose site tools to AI agents via browser (W3C Community Draft) -->
+  {/* WebMCP: expose site tools to AI agents via browser (W3C Community Draft) */}
   <script is:inline src="/js/webmcp.js"></script>
   {import.meta.env.PROD && (
     <Fragment>

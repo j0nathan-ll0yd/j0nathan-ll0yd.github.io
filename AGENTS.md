@@ -1,65 +1,92 @@
-# AGENTS.md
+# AGENTS.md -- Human Datastream Portfolio
 
-## Project
+Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" dashboard. Astro 6 static site deployed to Cloudflare Pages. Read-only display surface for personal data (health, activity, GitHub, reading, location). All widgets are imported from `@lifegames/web/production` (the yalc-linked Design System package) -- this repo contains no widget source code.
 
-Human Datastream -- personal portfolio site for Jonathan Lloyd. A single-page sci-fi dashboard built with Astro 6.x (static output), hosted on Cloudflare Pages at https://jonathanlloyd.me.
-
-## Build
+## Commands
 
 ```bash
-npm install
-npm run dev       # localhost:4321
-npm run build     # outputs to dist/
-npm run preview   # preview production build
+npm install                       # use --legacy-peer-deps if the peer-dep gate fails
+npm run dev                       # localhost:4321
+npm run build                     # production build (reads data/*.json)
+npm run preview                   # preview the production output
+npm run test:build                # Vitest build-output tests (SEO, JSON-LD, images)
+npm run test:visual               # Playwright visual regression (4 viewports)
+npm run test:visual:docker        # run visual regression in Docker (matches CI)
+npm run test:visual:update:docker # regenerate baselines in Docker (the only sanctioned path)
+npm run validate:build-fixtures   # Ajv validation of data/*.json against DS schemas
+npm run generate:fixtures         # regenerate test/fixtures/build-data/*.json
+npm run fetch:images              # download images from CloudFront to public/images/
 ```
 
-Deploy: push to `main` triggers GitHub Actions (withastro/action@v3 -> deploy-pages@v4).
+Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `cloudflare/wrangler-action@v4` -> Cloudflare Pages.
 
-## Visual Regression Tests
+## Repository Structure
 
-```bash
-npm run test:visual                # compare against baselines (16 tests across 4 viewports)
-npm run test:visual:update:docker  # regenerate baselines (Docker is the ONLY local path — host regen is blocked)
-npm run test:visual:ui             # interactive Playwright UI
+```
+.
+├── astro.config.mjs              # Astro 6, PWA, sitemap
+├── src/
+│   ├── pages/                    # index.astro (loads data, composes DS widgets), 404.astro
+│   ├── layouts/                  # Dashboard.astro (head, SEO meta, JSON-LD, DS CSS)
+│   └── lib/                      # load-dashboard-data.ts (7 build-time fixtures)
+├── data/                         # 7 build-time JSON fixtures
+├── test/fixtures/                # build-fixture generation + generated build-data/
+├── tests/                        # build (Vitest), visual + smoke (Playwright)
+├── scripts/                      # fixture validation, image fetch, type gen, CI setup
+├── public/                       # assets, images, .well-known, manifest
+├── functions/                    # _middleware.ts (security headers) + llms.txt.ts (CloudFront proxy)
+└── .github/workflows/            # deploy, visual-tests, smoke-check
 ```
 
-Tests use Playwright `toHaveScreenshot()`. Baselines live in `tests/visual/__screenshots__/`. Dynamic content (clock, timestamps, particles) hidden via `tests/visual/screenshot.css`. CloudFront API calls stubbed with `tests/fixtures/*.json`.
+`src/` holds only page/layout/route logic. Widgets, tokens, and runtime scripts all live in the Design System and are consumed via the `@lifegames/*` packages.
 
-## Key Files
+## Data Flow
 
-| Path | Purpose |
-|------|---------|
-| `src/pages/index.astro` | Single page -- loads JSON data, composes all widgets |
-| `src/layouts/Dashboard.astro` | HTML head, SEO meta, JSON-LD, analytics |
-| `src/components/` | Astro components (one per widget) |
-| `public/css/tokens.css` | Design tokens (colors, typography, spacing) |
-| `public/css/base.css` | Reset, body, scrollbar styles |
-| `src/styles/layout.css` | Panel layout, responsive breakpoints |
-| `public/css/components.css` | Widget card styles |
-| `data/*.json` | Build-time data (profile, health, github, books, reading, system) |
-| `astro.config.mjs` | Astro config, PWA, sitemap, dev-only showcase routes |
-| `playwright.config.ts` | Visual regression test config (4 viewport projects) |
-| `tests/visual/dashboard.spec.ts` | Screenshot tests (full-page + widget-level) |
-| `tests/visual/screenshot.css` | Stabilization stylesheet (hides dynamic content) |
-| `tests/fixtures/*.json` | Stable JSON fixtures for CloudFront API mocking |
-| `docs/wiki/` | Architecture docs (synced to GitHub Wiki) |
-| `public/.well-known/api-catalog` | RFC 9727 API catalog (linkset JSON) |
-| `public/.well-known/mcp/server-card.json` | MCP Server Card (read-only data resources) |
-| `public/.well-known/agent-skills/` | Agent Skills Discovery v0.2.0 index + SKILL.md |
+| Context | Source | Mechanism |
+|---------|--------|-----------|
+| Build-time | `data/*.json` | `loadDashboardData()` in `index.astro` frontmatter |
+| Test fixtures | `test/fixtures/build-data/*.json` | Generated + validated against DS schemas |
+| Client-side | CloudFront | `@lifegames/web/runtime/live-data.ts` after page load |
+| Polling | CloudFront JSON | PollEngine (30s fast, 120s slow), `?_poll=1` bypass |
+| WebSocket | API Gateway | Adaptive fallback when WS unavailable |
+
+7 build-time fixtures: profile, health, github, books, reading, system, theatre-reviews-sample. `USE_FIXTURES=true` switches Playwright to `test/fixtures/build-data/*.json` for reproducible snapshots.
+
+## Design System Integration
+
+Production widgets, CSS, and runtime scripts come from `@lifegames/web/production` (yalc-linked from `design-system-Lifegames`).
+
+- Import runtime modules from `@lifegames/web/runtime/*` -- never relative paths like `../lib/` or `../scripts/`.
+- CSS flows from `@lifegames/tokens` via `@import`; there are no `public/css/*.css` files. Mark `<style>` blocks that import DS CSS with `is:global`.
+- `data/*.json` is Ajv-validated against `@lifegames/schemas` in the prebuild hook (`additionalProperties: false` -- any unmapped field fails the build).
 
 ## Conventions
 
-- **CSS**: Use custom properties from `tokens.css` for all colors, spacing, typography. Glass-morphism pattern: `background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(var(--blur-md));`
-- **Inline JS**: ES5 only (`var`, IIFEs, `function` declarations) -- no `let`/`const`/arrow functions in `<script is:inline>` blocks
-- **Widget HTML**: `.tri-card` > `.widget-header` + `.widget-body`
-- **Formatting**: 2-space indent, UTF-8, LF line endings
-- **No frameworks**: All rendering is build-time Astro components. No React/Vue/Svelte.
+- **No hardcoded values**: all colors, spacing, and typography come from `@lifegames/tokens` `var()` custom properties.
+- **No new widgets here**: never create `src/components/*.astro`; widgets belong in the Design System.
+- **Inline JS is ES5 only**: in `<script is:inline>` blocks and any `public/js/*.js`, use `var`, `function` declarations, and IIFEs -- no `let`/`const`/arrow functions/template literals. Bundled module scripts may use modern syntax.
+- **Externalize inline scripts**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`.
+- **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
+- **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
+- **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `npm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`.
+- **Formatting**: 2-space indent, UTF-8, LF line endings.
+
+## Testing
+
+- **Visual baselines:** regenerate only in Docker (`npm run test:visual:update:docker`); host-rendered PNGs fail CI.
+- **Canvas widgets use a deterministic test seam, not hidden pixels:** rAF + RNG defeats Playwright's `animations: 'disabled'`, but never hide a canvas via `visibility: hidden` in `screenshot.css` -- that masks regressions. Each canvas widget exposes a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@lifegames/web/runtime/heart-rate-init`) with `ready`, `seed(n)`, `freezeAt(ms|null)`, `step(frames)`, and `state()`. The seam is gated by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor, so it is `undefined` (dead-code-eliminated) in production. Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`). Seam-driven screenshots need a `--mode test` visual build.
+- **Production smoke check (replaces the retired pixel-drift suite):** `tests/smoke/home.smoke.ts` (config `playwright.smoke.config.ts`, helpers `tests/smoke/fixtures.ts`) asserts the live site at `https://jonathanlloyd.me` actually hydrated -- HTTP 200, all widget containers present, `.is-loading` skeletons cleared, the bio terminal typed its content (the #50 CSP-blocked-hydration regression guard), the service worker registered, and no external-script CSP violation / chunk-load failure / unexpected console error. Runs natively on `ubuntu-latest` (no Docker, no pixel baselines) via `.github/workflows/smoke-check.yml` on `workflow_run` after `deploy.yml`; it is post-deploy and non-blocking (files a `smoke-failure` issue rather than blocking the deploy). Run locally with `npm run test:smoke`. The retired drift suite could not stay green against a live data stream and could not catch a blocked-hydration failure (the SSR shell renders at the correct pixels even when hydration is dead).
 
 ## Do Not
 
-- Use ES6+ syntax in inline scripts
-- Modify CSS files without testing breakpoints at 1400px, 1100px, 900px, 600px
+- Use ES6+ syntax in inline scripts.
+- Create new `src/components/*.astro` files or hand-edit CSS (everything comes from the DS).
+- Import from relative `../lib/` or `../scripts/` paths instead of the `@lifegames/*` namespace.
+- Hardcode hex colors or pixel values.
+- Bypass prebuild schema validation.
+- Hand-edit `.contract-lock.json` (Husky + CI enforce it; regenerate via `scripts/generate-contract-lock.mjs`).
+- Regenerate visual baselines outside Docker (host PNGs fail CI).
 
-## Detailed Context
+## Detailed Reference
 
-See `CLAUDE.md` for comprehensive conventions, design system reference, SEO metadata tables, component showcase documentation, and responsive scaling details.
+See `docs/wiki/` for architecture, brand, and LLM-content documentation.

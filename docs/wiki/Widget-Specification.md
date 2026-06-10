@@ -396,6 +396,24 @@ Visual tests use fixture compositions defined in `tests/visual/fixtures.ts`. Eac
 
 The `setupPage(page, scenario)` function in `tests/visual/helpers.ts` intercepts CloudFront routes and serves the corresponding fixture JSON files.
 
+#### 6.1.4 Canvas Widget Test Seam (REQUIRED for Canvas widgets)
+
+Every Canvas-based widget (one whose visual state is drawn to a `<canvas>` via `requestAnimationFrame`) MUST expose a deterministic test seam rather than being hidden in `screenshot.css`. Hiding canvas content via `visibility: hidden` is prohibited -- it makes any canvas regression invisible to the visual suite.
+
+The seam is `window.__<widget>` (defined in the widget's design-system runtime init) and exposes:
+
+| Member | Purpose |
+|---|---|
+| `ready: boolean` | `true` after the first `step()` paints a frame (sync gate for `page.waitForFunction`) |
+| `seed(n)` | Pin the RNG stream (seeded mulberry32 for cross-engine determinism) |
+| `freezeAt(ms\|null)` | Freeze the clock; `null` restores real time |
+| `step(frames=1)` | Advance N frames manually; the rAF auto-loop is suppressed in test mode |
+| `state()` | Inspectable snapshot for assertions |
+
+**Activation gate (defense in depth):** the seam installs ONLY when BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor are present. This guarantees `window.__<widget>` is `undefined` in production builds. Canonical usage: `seed(42) -> freezeAt(0) -> step(N) -> screenshot`.
+
+Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`; DS unit tests at `design-system-Lifegames/packages/web/tests/runtime/heart-rate-init.test.ts`).
+
 ### 6.2 Unit Tests
 
 #### 6.2.1 Scope
