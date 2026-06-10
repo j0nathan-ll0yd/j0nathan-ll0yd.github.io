@@ -1,0 +1,190 @@
+/* book-modal.js -- externalized BookModal runtime (CSP script-src 'self').
+ * Extracted from design-system-Lifegames BookModal.astro inline IIFE.
+ * ES5 only (W9): no let/const/arrow/template-literals/classes. Loaded via
+ * <script is:inline src="/js/book-modal.js" defer> from Dashboard.astro.
+ * Delegated handlers bind on document.body; defer runs after HTML parse but
+ * before DOMContentLoaded, which is sufficient for delegated clicks. */
+(function() {
+  var overlay = document.getElementById('bookOverlay');
+  var modal = document.getElementById('bookModal');
+  if (!overlay || !modal) return;
+
+  var triggerElement = null;
+
+  document.body.addEventListener('click', function(e) {
+    var book = e.target.closest && e.target.closest('.shelf-book[data-book]');
+    if (!book) return;
+    if (!book.closest('.tri-card, [data-widget-preview]')) return;
+    triggerElement = book;
+    try {
+      var data = JSON.parse(book.getAttribute('data-book'));
+      openModal(data);
+    } catch (err) {
+      if (window.console && console.error) console.error('[BookModal] bad data-book JSON', err);
+    }
+  });
+  document.body.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var book = e.target.closest && e.target.closest('.shelf-book[data-book]');
+    if (!book) return;
+    if (!book.closest('.tri-card, [data-widget-preview]')) return;
+    e.preventDefault();
+    triggerElement = book;
+    try {
+      var data = JSON.parse(book.getAttribute('data-book'));
+      openModal(data);
+    } catch (err) {
+      if (window.console && console.error) console.error('[BookModal] bad data-book JSON', err);
+    }
+  });
+
+  function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function normalizeGenres(g) {
+    if (!g) return [];
+    var items = [];
+    if (Array.isArray(g)) { items = g; }
+    else if (typeof g === 'string') { items = [g]; }
+    else { return []; }
+    var result = [];
+    items.forEach(function(s) {
+      String(s).split(',').forEach(function(part) {
+        var t = part.trim();
+        if (t.length > 0) result.push(t);
+      });
+    });
+    return result;
+  }
+
+  function openModal(b) {
+    var asin = b.asin;
+    var cover = b.cover || ('https://m.media-amazon.com/images/P/' + asin + '.01._SCLZZZZZZZ_SX160_.jpg');
+
+    var html = '<div class="book-modal-header">';
+    var avifSrc = b.coverAvif ? '<source srcset="' + esc(b.coverAvif) + '" type="image/avif">' : '';
+    var imgTag = '<img class="book-modal-cover" src="' + esc(cover) + '" width="140" height="210" alt="' + esc(b.title) + ' cover" decoding="async">';
+    html += avifSrc ? ('<picture>' + avifSrc + imgTag + '</picture>') : imgTag;
+    html += '<div class="book-modal-info">';
+    html += '<div class="book-modal-title">' + esc(b.title) + '</div>';
+    if (b.series) {
+      var seriesHtml = esc(b.series);
+      if (b.seriesNumber) {
+        seriesHtml += ' <span style="color:var(--neon-green)">· Book ' + b.seriesNumber;
+        if (b.seriesTotal) seriesHtml += ' of ' + b.seriesTotal;
+        seriesHtml += '</span>';
+      }
+      html += '<div class="book-modal-series">' + seriesHtml + '</div>';
+    }
+    html += '<div class="book-modal-author">' + esc(b.author) + '</div>';
+    if (b.rating) {
+      html += '<div class="book-modal-stars">';
+      for (var s = 1; s <= 5; s++) {
+        html += '<span class="' + (s <= b.rating ? 'star-on' : 'star-off') + '">' + (s <= b.rating ? '★' : '☆') + '</span>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<button class="book-modal-close" id="bookModalClose" aria-label="Close">&times;</button>';
+    html += '</div>';
+
+    html += '<div class="book-modal-body">';
+    html += '<div class="book-modal-stats">';
+    html += '<div class="book-modal-stat"><div class="book-modal-stat-val">' + (b.pages || '—') + '</div><div class="book-modal-stat-label">Pages</div></div>';
+    html += '<div class="book-modal-stat"><div class="book-modal-stat-val">' + (b.year || '—') + '</div><div class="book-modal-stat-label">Published</div></div>';
+    html += '<div class="book-modal-stat"><div class="book-modal-stat-val shelf-book-status shelf-status-' + b.status + '" style="font-size:0.7rem;margin:0">' + b.statusLabel + '</div><div class="book-modal-stat-label">Status</div></div>';
+    html += '</div>';
+
+    if (b.status === 'in_progress' && b.progress !== undefined) {
+      html += '<div><div class="book-modal-progress"><div class="book-modal-progress-fill" style="width:' + b.progress + '%"></div></div>';
+      html += '<div class="book-modal-progress-label">' + b.progress + '% complete</div></div>';
+    }
+
+    if (b.desc) html += '<div class="book-modal-desc">' + esc(b.desc) + '</div>';
+
+    var genreList = normalizeGenres(b.genres);
+    if (genreList.length) {
+      html += '<div class="book-modal-tags">';
+      genreList.forEach(function(g, i) { if (i > 0) html += '<span class="book-modal-tag-sep">,</span>'; html += '<span class="book-modal-tag">' + esc(g) + '</span>'; });
+      html += '</div>';
+    }
+
+    if (b.status === 'completed' && b.notes) {
+      html += '<div class="book-modal-notes">';
+      html += '<div class="book-modal-notes-label">Notes</div>';
+      html += '<div class="book-modal-notes-text">' + esc(b.notes) + '</div>';
+      html += '</div>';
+    }
+
+    if (b.link) {
+      html += '<div><a href="' + esc(b.link) + '" target="_blank" rel="noopener" class="book-modal-amazon">View on Amazon →</a></div>';
+    }
+
+    html += '</div>';
+
+    modal.innerHTML = html;
+    overlay.classList.add('visible');
+    overlay.setAttribute('aria-hidden', 'false');
+
+    var mainContent = document.getElementById('main-content');
+    if (mainContent) mainContent.setAttribute('aria-hidden', 'true');
+
+    if (typeof window.sa_event === 'function') {
+      window.sa_event('book_open', { title: b.title });
+    }
+
+    var closeBtn = document.getElementById('bookModalClose');
+    closeBtn.addEventListener('click', function() {
+      closeModal();
+    });
+    closeBtn.focus();
+
+    trapFocus(overlay);
+  }
+
+  function closeModal() {
+    overlay.classList.remove('visible');
+    overlay.setAttribute('aria-hidden', 'true');
+    var mainContent = document.getElementById('main-content');
+    if (mainContent) mainContent.removeAttribute('aria-hidden');
+    if (triggerElement) {
+      triggerElement.focus();
+      triggerElement = null;
+    }
+  }
+
+  function trapFocus(container) {
+    if (container._trapBound) return;
+    container._trapBound = true;
+    container.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+        return;
+      }
+      if (e.key !== 'Tab') return;
+
+      var focusable = container.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!focusable.length) return;
+      var first = focusable[0];
+      var last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    });
+  }
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closeModal();
+  });
+})();

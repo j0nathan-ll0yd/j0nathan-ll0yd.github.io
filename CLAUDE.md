@@ -174,12 +174,14 @@ All production widgets imported from `@lifegames/web/production` (yalc-linked fr
 - **When schema changes:** Extend Design System schema → `pnpm -F @lifegames/schemas codegen` → `pnpm yalc:publish` → consumer rebuild
 
 ### Inline Scripts
-- All inline scripts externalized to `public/js/` files (8 total) for CSP compliance
+- All inline scripts externalized to `public/js/` files (10 total) for CSP compliance: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`
 - `<script is:inline src="/js/...">` loads external files without bundler processing
 - ES5 only in external JS files under `public/js/`: `var`, `function` declarations, IIFEs
 - No `let`, `const`, arrow functions, template literals, classes in `public/js/*.js`
 - Bundled module scripts (`<script>` without `is:inline`) MAY use modern syntax
+- No inline `on*=` event handlers in markup (CSP rejects them without `'unsafe-hashes'`); attach listeners in `public/js/*.js` instead
 - CSP: `script-src 'self'` — no `'unsafe-inline'` (style-src retains `'unsafe-inline'`)
+- Enforced by `npm run audit:inline-scripts` (prebuild gate). Adding a new inline script requires either externalization to `public/js/*.js` or a documented exception in this file.
 
 ## Image Pipeline
 

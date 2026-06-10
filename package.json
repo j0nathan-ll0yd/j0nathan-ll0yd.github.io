@@ -5,8 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "astro dev",
-    "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && tsx scripts/validate-build-fixtures.ts",
+    "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && tsx scripts/validate-build-fixtures.ts && npm run audit:inline-scripts",
     "validate:build-fixtures": "tsx scripts/validate-build-fixtures.ts",
+    "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "build": "astro build",
     "postbuild": "node scripts/check-live-data-bundle.mjs",
     "preview": "astro preview",

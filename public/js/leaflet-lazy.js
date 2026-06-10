@@ -1,6 +1,16 @@
 (function() {
   var loaded = false;
+  // Activate the Leaflet stylesheet (loaded with media="print" to avoid
+  // render-blocking) by switching it to media="all". Replaces the removed
+  // inline onload event handler (this.media='all'), which CSP script-src 'self'
+  // rejects (inline event handlers need 'unsafe-hashes'). Runs as part of the
+  // lazy map-activation flow so styling is live by the time tiles render.
+  function activateLeafletCss() {
+    var leafletCss = document.getElementById('leafletCss');
+    if (leafletCss && leafletCss.media !== 'all') { leafletCss.media = 'all'; }
+  }
   function loadLeaflet(callback) {
+    activateLeafletCss();
     if (loaded) { if (callback) callback(); return; }
     var s = document.createElement('script');
     s.src = '/vendor/leaflet/leaflet.js';

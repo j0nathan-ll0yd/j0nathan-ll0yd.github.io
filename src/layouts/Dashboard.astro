@@ -234,7 +234,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   )}
   <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
   <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">
-  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">
   <!-- Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
        Astro processes this <style> (non-inline), resolves the @imports via @lifegames/tokens,
        and inlines the result at build time because astro.config.mjs sets build.inlineStylesheets: 'always'.
@@ -426,6 +426,11 @@ html, body {
   <noscript><style>.tri-card,.identity-card,.left-panel-status,.left-panel-bio{opacity:1!important;transform:none!important;}</style></noscript>
   <a href="#main-content" class="lg-skip-link">Skip to main content</a>
   <slot />
+  <!-- BookModal: externalized activation (CSP script-src 'self'). Delegated
+       handler on document.body parses .shelf-book[data-book] JSON and opens the modal. -->
+  <script is:inline src="/js/book-modal.js" defer></script>
+  <!-- IdentityCard social-click analytics: externalized delegated handler (CSP). -->
+  <script is:inline src="/js/social-click-track.js" defer></script>
   <!-- Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view -->
   <script is:inline src="/js/leaflet-lazy.js"></script>
   <!-- Service Worker -->
