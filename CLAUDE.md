@@ -34,6 +34,10 @@ em-dashes. No AI attribution (`Co-Authored-By: Claude`, etc.). Add git trailers
 (`Constraint:`, `Rejected:`, `Directive:`, `Confidence:`, `Scope-risk:`) per the
 global commit protocol when a change carries non-trivial decision context.
 
+### Rules and Guardrails
+
+- **Comment discipline in templates** — Defined in `~/Repositories/agent-enforcement/rules/web/comment-discipline.md` (Check W16). Default: zero markup comments. In `.astro`, a genuine WHY note uses `{/* */}` (compiled away), never `<!-- -->` (ships to the browser DOM). See the rule for allowed WHY categories, forbidden patterns, and the verification grep.
+
 ## Deeper Reference
 
 - `docs/wiki/` -- architecture, brand guide, LLM-content spec.

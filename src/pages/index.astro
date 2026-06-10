@@ -19,7 +19,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
 
   <div class="command-layout">
 
-    <!-- LEFT PANEL: Identity -->
     <aside class="left-panel" aria-label="Profile">
       <IdentityCard profile={profile} />
       <BioTerminal profile={profile} />
@@ -27,7 +26,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
     </aside>
 
 
-    <!-- TOP BAR -->
     <nav aria-label="Dashboard">
       <header class="top-bar">
         <div class="top-bar-title">Human Datastream</div>
@@ -39,11 +37,9 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
       </header>
     </nav>
 
-    <!-- RIGHT PANEL: Triptych Grid -->
     <main id="main-content" class="right-panel">
       <div class="triptych-grid" id="triptychGrid">
 
-        <!-- COLUMN 1: BODY -->
         <section class="triptych-column triptych-column-body" aria-label="Body">
           <h2 class="column-header column-header-pink">Body</h2>
           <HeartRate health={health} />
@@ -55,7 +51,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
           {import.meta.env.DEV && <ExplorationOdometerV3 />}
         </section>
 
-        <!-- COLUMN 2: MIND -->
         <section class="triptych-column triptych-column-mind" aria-label="Mind">
           <h2 class="column-header column-header-green">Mind</h2>
           <DevActivityLog events={github.devActivity} />
@@ -72,7 +67,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
 
   <BookModal />
 
-  <!-- Particles -->
   <script>
     window.addEventListener('load', () => {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -80,16 +74,12 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
     });
   </script>
 
-  <!-- Live Clock -->
   <script is:inline src="/js/clock.js"></script>
 
-  <!-- Staggered Card Reveal -->
   <script is:inline src="/js/card-reveal.js"></script>
 
-  <!-- Scroll Depth Tracking -->
   <script is:inline src="/js/scroll-depth.js"></script>
 
-  <!-- Live Data Integration -->
   <script>
     import '@lifegames/web/runtime/live-data';
   </script>
