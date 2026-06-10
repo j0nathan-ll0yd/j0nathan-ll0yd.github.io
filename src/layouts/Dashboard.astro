@@ -25,8 +25,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <link rel="canonical" href={canonicalURL}>
   <!-- LLM-friendly alternate versions (backend-composed live on CloudFront) -->
   <link rel="alternate" type="text/markdown" href="https://d1pfm520aduift.cloudfront.net/llms-full.txt" title="LLM-friendly complete content">
-  <link rel="alternate" type="text/markdown" href="https://d1pfm520aduift.cloudfront.net/llms-small.txt" title="LLM-friendly current-state snapshot">
-  <link rel="alternate" type="text/markdown" href="https://jonathanlloyd.me/llms.txt" title="LLM discovery index">
+  <link rel="alternate" type="text/plain" href="https://jonathanlloyd.me/llms.txt" title="LLM discovery index">
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="apple-touch-icon" href="/assets/icon-192.png">
@@ -127,14 +126,8 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
           {
             "@type": "DataDownload",
             "name": "LLM discovery index",
-            "encodingFormat": "text/markdown",
+            "encodingFormat": "text/plain",
             "contentUrl": "https://jonathanlloyd.me/llms.txt"
-          },
-          {
-            "@type": "DataDownload",
-            "name": "LLM current-state snapshot",
-            "encodingFormat": "text/markdown",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/llms-small.txt"
           },
           {
             "@type": "DataDownload",

@@ -58,12 +58,12 @@ Score this surface PASS only if all `agent-readiness-check.sh` checks pass AND e
 
 ## Step 2: CloudFront JSON data sources
 
-The dashboard polls 13 CloudFront resources at runtime: **10 JSON endpoints** plus **3 text/markdown documents** (`llms-small.txt`, `llms-full.txt`, `index.md`). Only the 10 JSON files need shape validation.
+The dashboard polls 13 CloudFront resources at runtime: **10 JSON endpoints** plus **3 text/markdown documents** (`llms.txt`, `llms-full.txt`, `index.md`). Only the 10 JSON files need shape validation.
 
 ```bash
 BASE=https://d1pfm520aduift.cloudfront.net
 JSON_FILES="health sleep focus github-events github-starred-repos books articles theatre-reviews workouts location"
-TEXT_FILES="llms-small.txt llms-full.txt index.md"
+TEXT_FILES="llms.txt llms-full.txt index.md"
 
 for f in $JSON_FILES; do
   url="$BASE/$f.json"

@@ -87,12 +87,12 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 │   │   ├── api-catalog           # RFC 9727 API catalog
 │   │   ├── mcp/server-card.json  # MCP Server Card
 │   │   └── agent-skills/         # Agent Skills Discovery v0.2.0
-│   ├── llms.txt                  # LLM discovery index
 │   ├── robots.txt                # Blocks AI scrapers
 │   └── manifest.webmanifest      # PWA manifest
 │
 ├── functions/
-│   └── _middleware.ts            # Pages Function: security headers, API catalog
+│   ├── _middleware.ts            # Pages Function: security headers, API catalog
+│   └── llms.txt.ts               # Pages Function: proxies /llms.txt from CloudFront (edge-cached)
 │
 ├── .github/workflows/
 │   ├── deploy.yml                # Build + deploy + Cloudflare purge
@@ -213,7 +213,7 @@ Key decisions:
 - JSON-LD `Person.description` is personality-forward copy
 - `robots.txt` blocks AI scraping bots; each blocked bot redirected to `llms.txt`
 - Content-Signal header: `search=yes, ai-train=no, ai-input=yes` (IETF draft)
-- LLM content (`public/llms.txt`) is a discovery index pointing to CloudFront-hosted rich variants
+- LLM content: `/llms.txt` is a backend-composed discovery index (mantle-LifegamesPortal `composeLlmsTxt`) served via the `functions/llms.txt.ts` Pages Function, which proxies the CloudFront-hosted artifact with edge caching (`s-maxage=3600, stale-while-revalidate=86400`). It points to the rich variants (`llms-full.txt`, `index.md`) on CloudFront.
 
 ## Rules and Guardrails
 
