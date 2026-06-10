@@ -16,8 +16,7 @@ npm run preview                  # preview production output
 npm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
 npm run test:visual              # Playwright visual regression (4 viewports, 144 tests)
 npm run test:visual:docker       # run visual regression locally in Docker (matches CI)
-npm run test:visual:update       # regenerate baselines (host — macOS only, fails CI)
-npm run test:visual:update:docker # regenerate baselines in Docker (canonical, matches CI)
+npm run test:visual:update:docker # regenerate baselines in Docker (the ONLY local path — host regen is blocked)
 npm run test:visual:ui           # interactive Playwright UI
 
 npm run test:drift:update:docker # regenerate drift baselines in Docker
@@ -138,7 +137,7 @@ git add tests/visual/__screenshots__/
 
 - **Apple Silicon:** `--platform linux/amd64` runs via Rosetta (2-4x slower). Acceptable tradeoff for determinism.
 - **Prerequisite:** Docker Desktop must be running.
-- **Escape hatch:** `npm run test:visual:update` (host-based) still works for local sanity checks but produces macOS-specific baselines. Never commit these — they will fail CI.
+- **No host escape hatch:** the local `test:visual:update` / `test:visual:update:fast` scripts were deleted. The only documented baseline-regen path is `npm run test:visual:update:docker` (which calls `scripts/run-in-docker.sh`). CI's baseline mismatch will fail any PR that ships host-rendered PNGs.
 - **PR label:** Add the `update-snapshots` label to a PR to trigger CI-side baseline regen + auto-commit; label is auto-removed after commit.
 
 ### Drift Detection (Playwright)

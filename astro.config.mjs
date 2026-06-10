@@ -8,6 +8,13 @@ export default defineConfig({
   trailingSlash: 'never',
   build: { inlineStylesheets: 'always' },
   vite: {
+    build: {
+      // Force every bundled JS chunk to emit as an external _astro/*.js file
+      // instead of being inlined into the HTML. Required because production CSP
+      // (functions/_middleware.ts) does not allow inline scripts — `'self'` only
+      // covers the hashed external chunks. See .omc/plans/fix-bio-csp-blocked-inline-script.md.
+      assetsInlineLimit: 0,
+    },
     server: {
       proxy: {
         '/api/live': {

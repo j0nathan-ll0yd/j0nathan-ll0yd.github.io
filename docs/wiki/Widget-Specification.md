@@ -383,7 +383,7 @@ test('variation name', async ({ page }) => {
 });
 ```
 
-5. Generate baselines: `npm run test:visual:update`
+5. Generate baselines: `npm run test:visual:update:docker`
 
 #### 6.1.3 Fixture Scenarios
 
@@ -599,7 +599,7 @@ Use this checklist when adding a new production widget:
   - [ ] Add baseline test in `tests/visual/widgets.spec.ts`
   - [ ] Add variation tests for each visual variation
   - [ ] Add any dynamic selectors to `tests/visual/screenshot.css`
-  - [ ] Run `npm run test:visual:update` to generate baselines
+  - [ ] Run `npm run test:visual:update:docker` to generate baselines
 
 - [ ] **Unit tests**: Add test coverage
   - [ ] Test adapter function (if created)

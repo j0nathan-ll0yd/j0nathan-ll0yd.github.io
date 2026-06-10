@@ -320,7 +320,7 @@ The `./pw-fixtures` import is load-bearing — it's what triggers the worker-sco
 | 4 | `indexOf` truncation has theoretical 1/2^64-per-offset collision risk if IDAT data contains the literal 8-byte IEND signature | NEGLIGIBLE | Deflate-compressed IDAT bytes are effectively random. Acceptable. |
 | 5 | Playwright 1.61 may fix the pngjs bug upstream | INFORMATIONAL | When 1.61 stable ships, retest with `SKIP_PNG_TRUNCATION=1` to see if pngjs gained a tolerance flag. If yes, delete `pw-fixtures.ts` patch + truncation utility, regenerate all baselines. |
 | 6 | Drift suite uses `fullPage: true` not `captureFullPage` | MEDIUM | Drift baselines are short pages (live site at top of fold), so stitched-capture has not yet failed. If it ever does, migrate to `captureFullPage`. |
-| 7 | Snapshots are owned by CI; local Docker regen produces different bytes than CI AMD64 hosts (Playwright #13873) | DOCUMENTED | Pre-commit hook idea: block baseline-file commits by non-CI committers. Not yet implemented. |
+| 7 | Snapshots are owned by CI; local Docker regen produces different bytes than CI AMD64 hosts (Playwright #13873) | PARTIAL | Host `test:visual:update` / `test:visual:update:fast` scripts were deleted from `package.json` to remove the obvious footgun. The only documented regen entry points are `pnpm test:visual:update:docker` (locally) and the two CI workflows. Bare `npx playwright test --update-snapshots` on the host still runs — caught by CI's baseline mismatch on the next run, not blocked at source. |
 | 8 | `chore/upgrade-dependencies` worktree at `/Users/jlloyd/wt/web-Lifegames-Portal-upgrade` holds historical PR #44 work | LOW | Can be removed once the team is confident the new architecture is stable. |
 
 ---

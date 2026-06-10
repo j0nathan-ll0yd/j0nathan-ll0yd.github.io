@@ -418,7 +418,7 @@ For each finding above, give: file:line of the likely fix, the specific change, 
 
 ## Key Constraints
 
-- **Read-only.** Never edit source files. Never run `npm run test:visual:update` or `npx playwright test --update-snapshots`. Never commit. Recommend fixes -- do not apply them.
+- **Read-only.** Never edit source files. Never run `npm run test:visual:update:docker` or `npx playwright test --update-snapshots` — baseline regen is a deliberate action that belongs to the author of the visual change, not to verification. Never commit. Recommend fixes -- do not apply them.
 - **Parallel where possible.** Batch independent curl probes in a single Bash invocation. Surfaces 1, 2, 3 are independent; surface 4 (PSI) is independent and slow; surface 5 (Playwright) and surface 6 (BrowserOS) must run sequentially after the curl surfaces.
 - **Middleware is the header source of truth.** Root middleware disables `public/_headers`. When a header looks wrong, the root cause is almost always `functions/_middleware.ts`.
 - **Data freshness != deploy freshness.** A stale CloudFront JSON points at the upstream Lifegames Portal backend, not at this deploy. Classify those findings as **upstream**.
