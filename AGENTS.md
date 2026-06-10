@@ -65,6 +65,9 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 - **No hardcoded values**: all colors, spacing, and typography come from `@lifegames/tokens` `var()` custom properties.
 - **No new widgets here**: never create `src/components/*.astro`; widgets belong in the Design System.
 - **Inline JS is ES5 only**: in `<script is:inline>` blocks and any `public/js/*.js`, use `var`, `function` declarations, and IIFEs -- no `let`/`const`/arrow functions/template literals. Bundled module scripts may use modern syntax.
+- **Externalize inline scripts**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`.
+- **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
+- **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
 - **Formatting**: 2-space indent, UTF-8, LF line endings.
 
 ## Do Not
