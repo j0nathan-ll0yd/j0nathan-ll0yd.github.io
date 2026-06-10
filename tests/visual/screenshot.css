@@ -31,10 +31,10 @@
   transition-delay: 0s !important;
 }
 
-/* Freeze ECG canvas (non-deterministic animation even with animation-duration: 0s) */
-#hrEcgCanvas {
-  visibility: hidden !important;
-}
+/* NOTE: The ECG canvas (#hrEcgCanvas) is intentionally NOT hidden here. Its
+   animation is made deterministic via the window.__hrEcg test seam (seed +
+   freezeAt + step), so the canvas is part of snapshot truth. Hiding it would
+   defeat the seam. See heart-rate.spec.ts. */
 
 /* Hide focus overlay clock (dynamic time) */
 #focusClock {
