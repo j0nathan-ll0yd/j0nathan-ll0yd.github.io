@@ -68,7 +68,13 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 - **Externalize inline scripts**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
 - **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
+- **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `npm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`.
 - **Formatting**: 2-space indent, UTF-8, LF line endings.
+
+## Testing
+
+- **Visual baselines:** regenerate only in Docker (`npm run test:visual:update:docker`); host-rendered PNGs fail CI.
+- **Canvas widgets use a deterministic test seam, not hidden pixels:** rAF + RNG defeats Playwright's `animations: 'disabled'`, but never hide a canvas via `visibility: hidden` in `screenshot.css` -- that masks regressions. Each canvas widget exposes a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@lifegames/web/runtime/heart-rate-init`) with `ready`, `seed(n)`, `freezeAt(ms|null)`, `step(frames)`, and `state()`. The seam is gated by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor, so it is `undefined` (dead-code-eliminated) in production. Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`). Seam-driven screenshots need a `--mode test` visual build.
 
 ## Do Not
 
@@ -77,6 +83,7 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 - Import from relative `../lib/` or `../scripts/` paths instead of the `@lifegames/*` namespace.
 - Hardcode hex colors or pixel values.
 - Bypass prebuild schema validation.
+- Hand-edit `.contract-lock.json` (Husky + CI enforce it; regenerate via `scripts/generate-contract-lock.mjs`).
 - Regenerate visual baselines outside Docker (host PNGs fail CI).
 
 ## Detailed Reference
