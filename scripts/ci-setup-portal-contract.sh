@@ -12,9 +12,14 @@
 # consumers (the DS clone's sub-packages and this web repo) at the right time.
 #
 # Override via env:
-#   LP_REPO  — git URL  (default: HTTPS to j0nathan-ll0yd/mantle-LifegamesPortal)
-#   LP_DIR   — clone dir (default: /tmp/mantle-LifegamesPortal)
-#   LP_REF   — branch/tag/sha (default: main)
+#   LP_REPO        — git URL  (default: HTTPS to j0nathan-ll0yd/mantle-LifegamesPortal)
+#   LP_DIR         — clone dir (default: /tmp/mantle-LifegamesPortal)
+#   LP_REF         — branch/tag/sha (default: main)
+#   LP_REPO_TOKEN  — fine-grained PAT (Contents:Read on the PRIVATE backend repo).
+#                    When set, it is injected into the HTTPS clone URL so CI on
+#                    self-hosted runners (no cross-repo git creds) can clone the
+#                    private backend. Left unset for local/no-token dev so the
+#                    plain HTTPS/SSH/local-path URL still works.
 
 set -euo pipefail
 
@@ -22,7 +27,15 @@ LP_REPO="${LP_REPO:-https://github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git
 LP_DIR="${LP_DIR:-/tmp/mantle-LifegamesPortal}"
 LP_REF="${LP_REF:-main}"
 
-echo "[ci-setup-pc] LP_REPO=$LP_REPO"
+# Inject the PAT into the HTTPS clone URL when provided (private-repo CI clone).
+# Keep the plain URL otherwise so local/no-token runs are unaffected.
+if [ -n "${LP_REPO_TOKEN:-}" ]; then
+  case "$LP_REPO" in
+    https://github.com/*) LP_REPO="https://x-access-token:${LP_REPO_TOKEN}@github.com/${LP_REPO#https://github.com/}" ;;
+  esac
+fi
+
+# Do NOT echo $LP_REPO — it may embed $LP_REPO_TOKEN after injection above.
 echo "[ci-setup-pc] LP_DIR=$LP_DIR"
 echo "[ci-setup-pc] LP_REF=$LP_REF"
 

@@ -27,6 +27,8 @@ jobs:
           cache: npm
 
       - name: Setup design-system + install dependencies
+        env:
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Build
