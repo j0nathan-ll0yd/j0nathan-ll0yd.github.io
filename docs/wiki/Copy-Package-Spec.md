@@ -91,8 +91,10 @@ freshness-gated (`git diff` over `packages/copy/dist` + `Sources/LifegamesCopy`)
 
 ## Distribution
 
-Phase 1 yalc (today): `pnpm yalc:publish` from the DS builds + pushes
-`@lifegames/copy` to consumers' `.yalc/`. iOS resolves the DS via SPM path/tag.
-Backend is a first-time yalc *consumer* (`.yalc/` gitignored; `file:.yalc/...` in
-`package.json` is the durable ref — CI parity needs a yalc-setup step, tracked for
-follow-up). Phase 2 flips JS consumers to GitHub Packages npm.
+JS consumers (web, backend) link `@lifegames/copy` via **yalc**: `pnpm yalc:publish`
+from the DS builds + pushes it to each consumer's `.yalc/`. iOS resolves the DS via
+SPM (path/tag). `.yalc/` is gitignored, so CI repopulates it by cloning the **public**
+design-system repo and building the (self-contained, zero-dep) copy package — web via
+`scripts/ci-setup.sh`, backend via `scripts/ci-setup-copy.sh` (both prefer a same-named
+DS branch for coordinated PRs, else `main`). yalc-only — there is no npm/registry
+publishing.
