@@ -1,4 +1,4 @@
-import type { WorkoutsExport } from '../../../src/types/exports';
+import type { WorkoutsExport } from '@lifegames/portal-contract/schemas';
 import { isoDate, isoTimestamp } from './helpers';
 
 type Workout = WorkoutsExport['workouts'][number];

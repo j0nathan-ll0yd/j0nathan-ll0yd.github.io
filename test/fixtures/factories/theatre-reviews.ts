@@ -1,4 +1,4 @@
-import type { TheatreReviewsExport } from '../../../src/types/exports';
+import type { TheatreReviewsExport } from '@lifegames/portal-contract/schemas';
 import { isoDate, isoTimestamp } from './helpers';
 
 type TheatreReviewEntry = TheatreReviewsExport['reviews'][number];

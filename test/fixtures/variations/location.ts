@@ -1,4 +1,4 @@
-import type { LocationExport } from '../../../src/types/exports';
+import type { LocationExport } from '@lifegames/portal-contract/schemas';
 import { createLocationFixture } from '../factories/location';
 import { last90DaysEntries } from '../factories/helpers';
 

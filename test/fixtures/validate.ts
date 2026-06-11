@@ -17,7 +17,7 @@ interface ValidationRule {
   optional?: boolean;
 }
 
-// Validation rules matching the actual TypeScript interfaces in src/types/exports.ts
+// Validation rules matching the actual TypeScript interfaces in @lifegames/portal-contract/schemas
 const VALIDATION_RULES: Record<string, ValidationRule[]> = {
   health: [
     { field: 'date', type: 'string' },

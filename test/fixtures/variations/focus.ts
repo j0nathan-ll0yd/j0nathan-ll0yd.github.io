@@ -1,4 +1,4 @@
-import type { FocusExport } from '../../../src/types/exports';
+import type { FocusExport } from '@lifegames/portal-contract/schemas';
 import { createFocusFixture } from '../factories/focus';
 
 export const focusVariations: Record<string, FocusExport> = {

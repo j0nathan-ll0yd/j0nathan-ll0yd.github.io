@@ -1,4 +1,4 @@
-import type { GithubStarredReposExport } from '../../../src/types/exports';
+import type { GithubStarredReposExport } from '@lifegames/portal-contract/schemas';
 import { isoTimestamp } from './helpers';
 
 export function createStarredReposFixture(

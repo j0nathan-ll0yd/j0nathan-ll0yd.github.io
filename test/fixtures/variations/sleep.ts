@@ -1,5 +1,5 @@
 import { createSleepFixture } from '../factories/sleep';
-import type { SleepExport } from '../../../src/types/exports';
+import type { SleepExport } from '@lifegames/portal-contract/schemas';
 
 export const baseline: SleepExport = createSleepFixture();
 
