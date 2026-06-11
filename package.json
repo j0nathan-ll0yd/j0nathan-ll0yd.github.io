@@ -27,6 +27,7 @@
     "test:smoke": "npx playwright test --config=playwright.smoke.config.ts"
   },
   "dependencies": {
+    "@lifegames/copy": "file:.yalc/@lifegames/copy",
     "@lifegames/portal-contract": "file:.yalc/@lifegames/portal-contract",
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",
     "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
