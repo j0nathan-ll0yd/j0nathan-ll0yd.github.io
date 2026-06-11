@@ -1,6 +1,12 @@
 import { defineConfig } from 'astro/config';
 import AstroPWA from '@vite-pwa/astro';
 import sitemap from '@astrojs/sitemap';
+import { CLOUDFRONT_BASE } from '@lifegames/portal-contract/constants';
+
+// Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
+// urlPattern RegExps so the CloudFront host is never hardcoded here.
+const CF_HOST = new URL(CLOUDFRONT_BASE).host;
+const CF_HOST_RE = CF_HOST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default defineConfig({
   site: 'https://jonathanlloyd.me',
@@ -18,7 +24,7 @@ export default defineConfig({
     server: {
       proxy: {
         '/api/live': {
-          target: 'https://d1pfm520aduift.cloudfront.net',
+          target: CLOUDFRONT_BASE,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/live/, ''),
         }
@@ -65,7 +71,7 @@ export default defineConfig({
           },
           {
             // CloudFront images fallback — safety net for onerror fallback fetches
-            urlPattern: /^https:\/\/d1pfm520aduift\.cloudfront\.net\/images\//,
+            urlPattern: new RegExp(`^https://${CF_HOST_RE}/images/`),
             handler: 'CacheFirst',
             options: {
               cacheName: 'optimized-images-fallback',
@@ -75,7 +81,7 @@ export default defineConfig({
           {
             // CloudFront JSON data — NetworkFirst for guaranteed freshness
             // Poll requests (?_poll=1) bypass the SW entirely via negative lookahead
-            urlPattern: /^https:\/\/d1pfm520aduift\.cloudfront\.net\/(?!.*[?&]_poll=).*\.json$/,
+            urlPattern: new RegExp(`^https://${CF_HOST_RE}/(?!.*[?&]_poll=).*\\.json$`),
             handler: 'NetworkFirst',
             options: {
               cacheName: 'live-data',

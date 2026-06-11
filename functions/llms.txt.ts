@@ -4,7 +4,12 @@
 // hand-maintained static file. The response is wrapped by functions/_middleware.ts,
 // which injects the security headers (CSP, X-Content-Type-Options, Referrer-Policy).
 
-const CLOUDFRONT_LLMS_TXT = 'https://d1pfm520aduift.cloudfront.net/llms.txt';
+import { CLOUDFRONT_BASE } from '@lifegames/portal-contract/constants';
+
+// The /llms.txt discovery index has no dedicated contract path constant
+// (LLM_CONTENT_PATHS covers llms-full / llms-small / index.md); the host is
+// sourced from the contract so no CloudFront literal is hardcoded here.
+const CLOUDFRONT_LLMS_TXT = `${CLOUDFRONT_BASE}/llms.txt`;
 
 // Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {
