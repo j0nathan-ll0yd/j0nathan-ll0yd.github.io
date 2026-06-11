@@ -21,3 +21,7 @@ yalc.lock
 
 # Agent enforcement symlinks
 .claude/rules/
+
+# Local onboarding scratch docs
+docs/ONBOARDING.md
+docs/onboarding-review/
