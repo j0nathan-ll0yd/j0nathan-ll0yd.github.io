@@ -58,6 +58,7 @@ jobs:
       - name: Setup design-system + install dependencies
         env:
           DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Install Playwright Chromium

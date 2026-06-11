@@ -2,7 +2,7 @@
 // generate-contract-lock.mjs — Generate .contract-lock.json for the web repo.
 // Tracks the @lifegames/schemas package consumed via yalc from design-system-Lifegames.
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +11,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..');
 const LOCK_FILE = join(REPO_ROOT, '.contract-lock.json');
 const SCHEMAS_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'schemas');
+// Raw export schemas moved to the backend-owned @lifegames/portal-contract package.
+const PORTAL_CONTRACT_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'portal-contract');
 
 function sha256(content) {
   return createHash('sha256').update(content, 'utf-8').digest('hex');
@@ -44,21 +46,19 @@ const upstreamSha = dsRepoSha ?? dsSha ?? 'unknown';
 // Collect all schema-relevant files from the yalc package
 // Include vendored schemas, authored schemas, generated schemas, and dist types
 const filePatterns = [
-  { dir: join(SCHEMAS_PKG, 'vendored'), filter: f => f.endsWith('.schema.json') },
-  { dir: join(SCHEMAS_PKG, 'authored'), filter: f => f.endsWith('.schema.json') },
-  { dir: join(SCHEMAS_PKG, 'generated'), filter: f => f.endsWith('.schema.json') },
+  { dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), key: 'raw-schemas', filter: f => f.endsWith('.schema.json') },
+  { dir: join(SCHEMAS_PKG, 'authored'), key: 'authored', filter: f => f.endsWith('.schema.json') },
+  { dir: join(SCHEMAS_PKG, 'generated'), key: 'generated', filter: f => f.endsWith('.schema.json') },
 ];
 
 const checksums = {};
 const allContents = [];
 
-for (const { dir, filter } of filePatterns) {
+for (const { dir, key, filter } of filePatterns) {
   if (!existsSync(dir)) continue;
   const files = readdirSync(dir).filter(filter).sort();
   for (const file of files) {
-    const relPath = dir.includes('vendored') ? `vendored/${file}`
-      : dir.includes('authored') ? `authored/${file}`
-      : `generated/${file}`;
+    const relPath = `${key}/${file}`;
     const content = readFileSync(join(dir, file), 'utf-8');
     checksums[relPath] = `sha256:${sha256(content)}`;
     allContents.push(content);

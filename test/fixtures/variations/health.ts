@@ -1,5 +1,5 @@
 import { createHealthFixture } from '../factories/health';
-import type { HealthExport } from '../../../src/types/exports';
+import type { HealthExport } from '@lifegames/portal-contract/schemas';
 
 export const baseline: HealthExport = createHealthFixture();
 

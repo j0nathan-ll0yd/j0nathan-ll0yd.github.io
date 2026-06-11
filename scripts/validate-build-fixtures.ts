@@ -13,11 +13,14 @@ addFormats(ajv);
 
 const AUTHORED_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/authored');
 const GENERATED_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/generated');
-const VENDORED_DIR = path.join(repoRoot, 'node_modules/@lifegames/schemas/vendored');
+// Raw export schemas are now produced by the backend and published via
+// @lifegames/portal-contract (the design system no longer vendors them).
+const VENDORED_DIR = path.join(repoRoot, 'node_modules/@lifegames/portal-contract/raw-schemas');
 const FIXTURE_DIR = path.join(repoRoot, 'test/fixtures/build-data');
 
-// Pre-load vendored schemas so $ref resolution works for dashboard-health.
-// Vendored schemas have no $id, so we assign the URI that authored schemas reference:
+// Pre-load the raw export schemas so $ref resolution works for dashboard-health.
+// They have no $id, so we assign the URI that authored schemas reference
+// (the canonical "vendored" namespace is preserved for backward compatibility):
 // https://lifegames.dev/vendored/<filename>
 for (const fname of fs.readdirSync(VENDORED_DIR)) {
   if (fname.endsWith('.schema.json')) {

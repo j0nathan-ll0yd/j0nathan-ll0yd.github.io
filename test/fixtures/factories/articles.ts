@@ -1,4 +1,4 @@
-import type { ArticlesExport } from '../../../src/types/exports';
+import type { ArticlesExport } from '@lifegames/portal-contract/schemas';
 import { isoDate, isoTimestamp, placeholderText } from './helpers';
 
 export function createArticle(

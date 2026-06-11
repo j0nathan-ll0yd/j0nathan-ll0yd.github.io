@@ -1,4 +1,4 @@
-import type { SleepExport } from '../../../src/types/exports';
+import type { SleepExport } from '@lifegames/portal-contract/schemas';
 import { isoDate, isoTimestamp } from './helpers';
 
 // SleepExport has an index signature: [k: string]: string | { seconds: number }

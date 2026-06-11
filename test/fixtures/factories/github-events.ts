@@ -1,4 +1,4 @@
-import type { GithubEventsExport } from '../../../src/types/exports';
+import type { GithubEventsExport } from '@lifegames/portal-contract/schemas';
 import { isoDate, isoTimestamp } from './helpers';
 
 export function createEvent(

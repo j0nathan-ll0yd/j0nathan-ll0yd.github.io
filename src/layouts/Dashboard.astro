@@ -1,4 +1,5 @@
 ---
+import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS } from '@lifegames/portal-contract/constants';
 const {
   title = 'Jonathan Lloyd — Human Datastream | Live Engineering Dashboard',
   description = 'A living data dashboard by engineer, Jonathan Lloyd — tracking body (health, activity, hydration) and mind (coding, reading). Jack into his human datastream.',
@@ -24,7 +25,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
   {/* LLM-friendly alternate versions (backend-composed live on CloudFront) */}
-  <link rel="alternate" type="text/markdown" href="https://d1pfm520aduift.cloudfront.net/llms-full.txt" title="LLM-friendly complete content">
+  <link rel="alternate" type="text/markdown" href={`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`} title="LLM-friendly complete content">
   <link rel="alternate" type="text/plain" href="https://jonathanlloyd.me/llms.txt" title="LLM discovery index">
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
@@ -130,73 +131,73 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
             "@type": "DataDownload",
             "name": "LLM complete content",
             "encodingFormat": "text/markdown",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/llms-full.txt"
+            "contentUrl": `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
           },
           {
             "@type": "DataDownload",
             "name": "LLM complete content (Markdown alias)",
             "encodingFormat": "text/markdown",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/index.md"
+            "contentUrl": `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.indexMarkdown}`
           },
           {
             "@type": "DataDownload",
             "name": "Health JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/health.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.health}`
           },
           {
             "@type": "DataDownload",
             "name": "Sleep JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/sleep.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.sleep}`
           },
           {
             "@type": "DataDownload",
             "name": "Focus JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/focus.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
           },
           {
             "@type": "DataDownload",
             "name": "GitHub events JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/github-events.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.githubEvents}`
           },
           {
             "@type": "DataDownload",
             "name": "GitHub starred repos JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.starredRepos}`
           },
           {
             "@type": "DataDownload",
             "name": "Books JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/books.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
           },
           {
             "@type": "DataDownload",
             "name": "Articles JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/articles.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.articles}`
           },
           {
             "@type": "DataDownload",
             "name": "Theatre reviews JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.theatreReviews}`
           },
           {
             "@type": "DataDownload",
             "name": "Workouts JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/workouts.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.workouts}`
           },
           {
             "@type": "DataDownload",
             "name": "Location JSON",
             "encodingFormat": "application/json",
-            "contentUrl": "https://d1pfm520aduift.cloudfront.net/location.json"
+            "contentUrl": `${CLOUDFRONT_BASE}${ENDPOINTS.location}`
           }
         ],
         "temporalCoverage": "2026-03-04/..",
@@ -213,13 +214,13 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
 
-  <link rel="preconnect" href="https://d1pfm520aduift.cloudfront.net" crossorigin>
+  <link rel="preconnect" href={CLOUDFRONT_BASE} crossorigin>
   {import.meta.env.PROD && (
-    <link rel="prefetch" href="https://d1pfm520aduift.cloudfront.net/health.json" as="fetch" crossorigin>
-    <link rel="prefetch" href="https://d1pfm520aduift.cloudfront.net/sleep.json" as="fetch" crossorigin>
-    <link rel="prefetch" href="https://d1pfm520aduift.cloudfront.net/focus.json" as="fetch" crossorigin>
-    <link rel="prefetch" href="https://d1pfm520aduift.cloudfront.net/books.json" as="fetch" crossorigin>
-    <link rel="prefetch" href="https://d1pfm520aduift.cloudfront.net/theatre-reviews.json" as="fetch" crossorigin>
+    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.health}`} as="fetch" crossorigin>
+    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.sleep}`} as="fetch" crossorigin>
+    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.focus}`} as="fetch" crossorigin>
+    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.books}`} as="fetch" crossorigin>
+    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.theatreReviews}`} as="fetch" crossorigin>
   )}
   <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
   <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">

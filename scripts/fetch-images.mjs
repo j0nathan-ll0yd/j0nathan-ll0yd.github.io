@@ -13,10 +13,10 @@
 import { mkdir, access, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { CLOUDFRONT_BASE } from '@lifegames/portal-contract/constants';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = join(__dirname, '..', 'public');
-const CLOUDFRONT_BASE = 'https://d1pfm520aduift.cloudfront.net';
 const CONCURRENCY = 5;
 const CHECK_ONLY = process.argv.includes('--check-only');
 

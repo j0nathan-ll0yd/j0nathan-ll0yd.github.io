@@ -51,6 +51,8 @@ jobs:
           node-version: 22
 
       - name: Setup design-system for yalc schemas
+        env:
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Verify schema contract
@@ -129,6 +131,7 @@ jobs:
         if: steps.ds-cache.outputs.cache-hit != 'true'
         env:
           DS_REF: ${{ steps.ds-info.outputs.ref }}
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Build Astro site

@@ -2,13 +2,24 @@
 // Replaces both cloudflare/api-catalog-content-type.js (Worker) and public/_headers
 // because root middleware disables _headers file processing.
 
+import {
+  CLOUDFRONT_BASE,
+  LLM_CONTENT_PATHS,
+  WEBSOCKET_URL,
+} from '@lifegames/portal-contract/constants';
+
+// WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
+// already an origin. Sourcing both from the contract keeps the CSP in sync with
+// the live addressing without hardcoded literals.
+const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin;
+
 const CSP = [
   "default-src 'self'",
   "script-src 'self' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://d1pfm520aduift.cloudfront.net https://queue.simpleanalyticscdn.com",
-  "connect-src 'self' https://d1pfm520aduift.cloudfront.net wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com https://queue.simpleanalyticscdn.com https://cloudflareinsights.com",
+  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com ${CLOUDFRONT_BASE} https://queue.simpleanalyticscdn.com`,
+  `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN} https://queue.simpleanalyticscdn.com https://cloudflareinsights.com`,
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -37,7 +48,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // agents send Accept: text/markdown (passes isitagentready.com check)
   if (accept.includes('text/markdown')) {
     const mdResponse = await fetch(
-      'https://d1pfm520aduift.cloudfront.net/llms-full.txt'
+      `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
     );
     return new Response(mdResponse.body, {
       status: mdResponse.status,

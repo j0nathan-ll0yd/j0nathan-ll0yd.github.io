@@ -7,7 +7,8 @@
     "prepare": "husky",
     "check:contract-lock": "node scripts/check-contract-lock.mjs",
     "dev": "astro dev",
-    "prebuild": "LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && tsx scripts/validate-build-fixtures.ts && npm run audit:inline-scripts",
+    "generate:webmcp": "node scripts/generate-webmcp.mjs",
+    "prebuild": "npm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && tsx scripts/validate-build-fixtures.ts && npm run audit:inline-scripts",
     "validate:build-fixtures": "tsx scripts/validate-build-fixtures.ts",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "build": "astro build",
@@ -15,7 +16,6 @@
     "preview": "astro preview",
     "generate:fixtures": "npx tsx test/fixtures/generate.ts",
     "validate:fixtures": "npx tsx test/fixtures/validate.ts",
-    "generate:types": "node scripts/generate-types.mjs && npm run validate:fixtures --if-present",
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "npm run test:build",
     "test:build": "vitest run --config vitest.build.config.ts",
@@ -27,6 +27,7 @@
     "test:smoke": "npx playwright test --config=playwright.smoke.config.ts"
   },
   "dependencies": {
+    "@lifegames/portal-contract": "file:.yalc/@lifegames/portal-contract",
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",
     "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
     "@lifegames/web": "file:.yalc/@lifegames/web",
@@ -39,7 +40,6 @@
     "ajv": "^8.20.0",
     "cheerio": "^1.2.0",
     "husky": "^9.1.7",
-    "json-schema-to-typescript": "^15.0.4",
     "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0",
     "tsx": "^4.22.4",

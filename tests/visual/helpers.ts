@@ -5,10 +5,8 @@
  */
 import path from 'path';
 import { expect, type Page } from '@playwright/test';
+import { CLOUDFRONT_BASE, WEBSOCKET_URL } from '@lifegames/portal-contract/constants';
 import { getScenarioFixtures, scenarioHasWorkouts, type ScenarioName } from './fixtures';
-
-const CLOUDFRONT_BASE = 'https://d1pfm520aduift.cloudfront.net';
-const WEBSOCKET_URL = 'wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com';
 
 export const stylePath = path.join(import.meta.dirname, 'screenshot.css');
 
