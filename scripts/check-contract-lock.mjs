@@ -26,6 +26,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, '..');
 const LOCK_FILE = join(REPO_ROOT, '.contract-lock.json');
 const SCHEMAS_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'schemas');
+// Raw export schemas moved to the backend-owned @lifegames/portal-contract package.
+const PORTAL_CONTRACT_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'portal-contract');
 
 // Fields the generator writes non-deterministically -- excluded from the diff.
 const VOLATILE = new Set(['generatedAt', 'generatedFrom.sha']);
@@ -57,7 +59,7 @@ if (!existsSync(SCHEMAS_PKG)) {
 
 // --- Recompute the expected lock exactly as generate-contract-lock.mjs does ---
 const filePatterns = [
-  { dir: join(SCHEMAS_PKG, 'vendored'), prefix: 'vendored', filter: (f) => f.endsWith('.schema.json') },
+  { dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), prefix: 'raw-schemas', filter: (f) => f.endsWith('.schema.json') },
   { dir: join(SCHEMAS_PKG, 'authored'), prefix: 'authored', filter: (f) => f.endsWith('.schema.json') },
   { dir: join(SCHEMAS_PKG, 'generated'), prefix: 'generated', filter: (f) => f.endsWith('.schema.json') },
 ];
