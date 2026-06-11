@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Phase 2 CI install step. Replaces the default `npm ci --legacy-peer-deps`.
 # Clones design-system-Lifegames, builds its packages, yalc-publishes the
-# three @lifegames/* packages, pulls them into this repo's .yalc/, and then
-# runs npm ci so the file:.yalc/* deps in package.json resolve.
+# @lifegames/* packages (tokens, web, schemas, copy), pulls them into this
+# repo's .yalc/ alongside portal-contract, and then runs npm ci so the
+# file:.yalc/* deps in package.json resolve.
 #
 # Override via env:
 #   DS_REPO  — git URL  (default: HTTPS to j0nathan-ll0yd/design-system-Lifegames)
@@ -59,7 +60,7 @@ echo "[ci-setup] yalc:publish from DS..."
 (cd "$DS_DIR" && pnpm yalc:publish)
 
 echo "[ci-setup] yalc add into consumer..."
-npx yalc add @lifegames/portal-contract @lifegames/tokens @lifegames/web @lifegames/schemas
+npx yalc add @lifegames/portal-contract @lifegames/tokens @lifegames/web @lifegames/schemas @lifegames/copy
 
 echo "[ci-setup] npm ci --legacy-peer-deps..."
 npm ci --legacy-peer-deps

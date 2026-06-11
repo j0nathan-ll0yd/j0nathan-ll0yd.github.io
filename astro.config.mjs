@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import AstroPWA from '@vite-pwa/astro';
 import sitemap from '@astrojs/sitemap';
 import { CLOUDFRONT_BASE } from '@lifegames/portal-contract/constants';
+import identity from '@lifegames/copy/identity.flat.json';
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -38,9 +39,9 @@ export default defineConfig({
     AstroPWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Jonathan Lloyd — Human Datastream',
-        short_name: 'Human Datastream',
-        description: 'Living data dashboard — tracking body and mind. Jack into his human datastream.',
+        name: identity.site.fullName,
+        short_name: identity.site.name,
+        description: identity.site.pwaDescription,
         start_url: '/',
         scope: '/',
         theme_color: '#06060f',

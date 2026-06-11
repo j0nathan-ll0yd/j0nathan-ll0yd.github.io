@@ -1,9 +1,11 @@
 ---
+import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS } from '@lifegames/portal-contract/constants';
+const identity = (await getEntry('copy', 'identity')).data;
 const {
-  title = 'Jonathan Lloyd — Human Datastream | Live Engineering Dashboard',
-  description = 'A living data dashboard by engineer, Jonathan Lloyd — tracking body (health, activity, hydration) and mind (coding, reading). Jack into his human datastream.',
-  ogDescription = 'A living data dashboard by engineering director Jonathan Lloyd. Real biometrics — heart rate, sleep, hydration, coding, reading. Jack into his human datastream.',
+  title = identity.seo.title,
+  description = identity.person.shortBio,
+  ogDescription = identity.person.socialBio,
   robots = 'index, follow',
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
@@ -19,9 +21,9 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="color-scheme" content="dark">
   <meta name="description" content={description}>
   <meta name="robots" content={robots}>
-  <meta name="keywords" content="backend engineer portfolio, software engineer portfolio, data visualization dashboard, living data dashboard, human datastream, engineering director, personal dashboard, biometrics dashboard, GitHub activity visualization, Astro static site">
+  <meta name="keywords" content={identity.seo.keywords.join(', ')}>
   {/* Security: CSP + Referrer-Policy served via HTTP headers (functions/_middleware.ts) */}
-  <meta name="author" content="Jonathan Lloyd">
+  <meta name="author" content={identity.person.name}>
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
   {/* LLM-friendly alternate versions (backend-composed live on CloudFront) */}
@@ -40,16 +42,16 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta property="og:image" content={ogImage}>
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Jonathan Lloyd — Human Datastream dashboard">
-  <meta property="og:site_name" content="Human Datastream">
-  <meta property="profile:first_name" content="Jonathan">
-  <meta property="profile:last_name" content="Lloyd">
+  <meta property="og:image:alt" content={identity.a11y.ogImageAlt}>
+  <meta property="og:site_name" content={identity.site.name}>
+  <meta property="profile:first_name" content={identity.person.firstName}>
+  <meta property="profile:last_name" content={identity.person.lastName}>
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content={title}>
   <meta name="twitter:description" content={ogDescription}>
   <meta name="twitter:image" content={ogImage}>
-  <meta name="twitter:image:alt" content="Jonathan Lloyd — Human Datastream dashboard">
+  <meta name="twitter:image:alt" content={identity.a11y.ogImageAlt}>
 
   <script type="application/ld+json" set:html={JSON.stringify({
     "@context": "https://schema.org",
@@ -57,8 +59,8 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
       {
         "@type": "WebSite",
         "@id": siteUrl + "#website",
-        "name": "Jonathan Lloyd — Human Datastream",
-        "description": "Personal portfolio of Jonathan Lloyd, an engineering director and backend engineer, built as a living data dashboard. Real biometrics and constant updates of his whole body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.",
+        "name": identity.site.fullName,
+        "description": identity.site.description,
         "url": siteUrl,
         "inLanguage": "en-US",
         "publisher": { "@id": siteUrl + "#person" }
@@ -75,9 +77,9 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
       {
         "@type": "Person",
         "@id": siteUrl + "#person",
-        "name": "Jonathan Lloyd",
+        "name": identity.person.name,
         "alternateName": "j0nathan-ll0yd",
-        "jobTitle": "Engineering Director",
+        "jobTitle": identity.person.jobTitle,
         "url": siteUrl,
         "image": {
           "@type": "ImageObject",
@@ -87,19 +89,9 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
           "https://www.linkedin.com/in/lifegames/",
           "https://github.com/j0nathan-ll0yd"
         ],
-        "knowsAbout": [
-          "Backend Engineering",
-          "Software Engineering",
-          "Engineering Leadership",
-          "Cloud Infrastructure",
-          "Data Visualization",
-          "Serverless Architecture",
-          "TypeScript",
-          "Go",
-          "AWS"
-        ],
+        "knowsAbout": identity.seo.expertise,
         "knowsLanguage": ["en"],
-        "description": "Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric."
+        "description": identity.person.longBio
       },
       {
         "@type": "Dataset",
@@ -414,7 +406,7 @@ html, body {
 <body>
   <div class="hud-frame" aria-hidden="true"></div>
   <noscript><style>.tri-card,.identity-card,.left-panel-status,.left-panel-bio{opacity:1!important;transform:none!important;}</style></noscript>
-  <a href="#main-content" class="lg-skip-link">Skip to main content</a>
+  <a href="#main-content" class="lg-skip-link">{identity.a11y.skipToMain}</a>
   <slot />
   {/* BookModal: externalized activation (CSP script-src 'self'). Delegated
        handler on document.body parses .shelf-book[data-book] JSON and opens the modal. */}
