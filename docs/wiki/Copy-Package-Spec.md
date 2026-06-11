@@ -51,7 +51,7 @@ as a **rich** tree. Every leaf is `{ value, _meta }`:
 
 `packages/copy/scripts/build.ts` (run via `pnpm -F @lifegames/copy build`):
 
-1. **Validate the rich file** against `packages/schemas/authored/copy.identity.schema.json`
+1. **Validate the rich file** against `packages/copy/schema/identity.schema.json`
    (draft-07, `$defs` `CopyString`/`CopyStringList`) with Ajv + `ajv-formats`.
 2. **Derive a FLAT schema** by tree-walking the rich schema and replacing only the
    leaf `$ref`s (`CopyString`→`{type:string}`, `CopyStringList`→`{type:array}`),
