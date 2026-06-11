@@ -59,6 +59,7 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 - Import runtime modules from `@lifegames/web/runtime/*` -- never relative paths like `../lib/` or `../scripts/`.
 - CSS flows from `@lifegames/tokens` via `@import`; there are no `public/css/*.css` files. Mark `<style>` blocks that import DS CSS with `is:global`.
 - `data/*.json` is Ajv-validated against `@lifegames/schemas` in the prebuild hook (`additionalProperties: false` -- any unmapped field fails the build).
+- **Customer-facing identity strings** come from `@lifegames/copy` (single source of truth; zero duplication). The Astro Content Collection `copy` (`src/content.config.ts`) loads `@lifegames/copy/identity.flat.json`, validated by the generated flat Zod (`@lifegames/copy/identity.zod`); `Dashboard.astro` reads `getEntry('copy','identity').data`; `astro.config.mjs` imports the flat JSON for the PWA manifest. Never hardcode bios, names, titles, expertise, or skip/OG-image text -- add or edit them in `design-system-Lifegames/packages/copy/src/identity.en-US.json` (ICU MF1), then `pnpm yalc:publish` from the DS. Spec: `docs/wiki/Copy-Package-Spec.md`.
 
 ## Conventions
 
