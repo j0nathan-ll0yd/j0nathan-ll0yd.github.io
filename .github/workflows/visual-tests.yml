@@ -233,7 +233,7 @@ jobs:
       - name: Mark workspace as safe (container uid mismatch)
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Commit regenerated baselines
-        uses: stefanzweifel/git-auto-commit-action@v6
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore: regenerate visual baselines via self-hosted arm64 CI"
           file_pattern: 'tests/visual/__screenshots__/**'
