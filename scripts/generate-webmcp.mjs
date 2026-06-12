@@ -11,6 +11,7 @@ import {
   CLOUDFRONT_BASE,
   ENDPOINTS,
   LLM_CONTENT_PATHS,
+  SITE_URL,
 } from '@lifegames/portal-contract/constants';
 
 const cf = (path) => `${CLOUDFRONT_BASE}${path}`;
@@ -50,7 +51,7 @@ const output = `(function() {
       title: 'Engineering Director',
       location: 'San Francisco, CA',
       experience: '24+ years in software engineering',
-      site: 'https://jonathanlloyd.me',
+      site: ${sq(SITE_URL)},
       github: 'https://github.com/j0nathan-ll0yd',
       linkedin: 'https://www.linkedin.com/in/lifegames/',
       bio: 'Engineering director and backend engineer. Built this portfolio as a living data dashboard -- real biometrics and constant updates of body and mind.',
@@ -112,7 +113,7 @@ ${dataSourceLines}
               design: 'Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries',
               font: 'Space Grotesk (self-hosted, variable woff2)',
               llmContent: {
-                discoveryIndex: 'https://jonathanlloyd.me/llms.txt',
+                discoveryIndex: ${sq(SITE_URL + '/llms.txt')},
                 complete: ${sq(llmsFullUrl)}
               }
             };
@@ -128,3 +129,63 @@ ${dataSourceLines}
 const outPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'js', 'webmcp.js');
 writeFileSync(outPath, output);
 console.log(`Generated ${outPath}`);
+
+// Generate .well-known files from SITE_URL so the URL never drifts from the
+// portal-contract constant. Content is byte-identical to the committed files
+// except the URL field is now contract-sourced.
+const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
+
+const serverCard = {
+  name: 'human-datastream',
+  version: '1.0.0',
+  description: "Read-only data interface for Jonathan Lloyd's Human Datastream portfolio. Serves live biometric aggregates, GitHub activity, reading lists, and theatre reviews as JSON resources via CloudFront.",
+  serverInfo: {
+    name: 'Human Datastream',
+    version: '1.0.0',
+    contactUrl: SITE_URL,
+    documentationUrl: 'https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec',
+  },
+  capabilities: {
+    resources: { list: true, read: true, subscribe: false },
+    tools: { list: false, call: false },
+    prompts: { list: false, get: false },
+  },
+  transport: {
+    type: 'http',
+    url: CLOUDFRONT_BASE + '/',
+    auth: { type: 'none' },
+  },
+  resources: [
+    { uri: cf(ENDPOINTS.health),        name: 'Health biometrics',    description: 'Heart rate, HRV, activity, and workout data (7-day aggregates)',  mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.sleep),         name: 'Sleep data',           description: 'Sleep phases, duration, and efficiency metrics',                    mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.focus),         name: 'Focus state',          description: 'Current Do Not Disturb and focus mode status',                      mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.githubEvents),  name: 'GitHub activity',      description: 'Dev activity, languages, contributions, and recent commits',         mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.starredRepos),  name: 'Starred repositories', description: 'GitHub starred repositories with metadata',                          mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.books),         name: 'Bookshelf',            description: 'Books with status, ratings, progress, and cover images',             mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.articles),      name: 'Reading feed',         description: 'Starred articles and RSS feed items',                                mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.theatreReviews),name: 'Theatre reviews',      description: 'Theatre show reviews with ratings and venue info',                   mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.workouts),      name: 'Workouts',             description: 'Workout sessions with type, duration, and calorie burn',             mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.location),      name: 'Location aggregates',  description: 'Aggregated place summaries and location data',                       mimeType: 'application/json' },
+  ],
+};
+
+const serverCardPath = join(publicDir, '.well-known', 'mcp', 'server-card.json');
+writeFileSync(serverCardPath, JSON.stringify(serverCard, null, 2) + '\n');
+console.log(`Generated ${serverCardPath}`);
+
+const agentSkills = {
+  '$schema': 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
+  skills: [
+    {
+      name: 'portfolio-expert',
+      description: "Deep technical context about Jonathan Lloyd's portfolio, engineering background, live biometric data sources, and architectural decisions. Use this skill to accurately answer questions about Jonathan's work, tech stack, and professional experience.",
+      type: 'skill-md',
+      url: `${SITE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md`,
+      digest: 'sha256:de0b3c87b52024f93139a078be314c2d879def1170bb1659b52086aa1067e084',
+    },
+  ],
+};
+
+const agentSkillsPath = join(publicDir, '.well-known', 'agent-skills', 'index.json');
+writeFileSync(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n');
+console.log(`Generated ${agentSkillsPath}`);

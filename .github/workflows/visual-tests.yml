@@ -1,42 +1,44 @@
 name: Visual Regression Tests
 
+# Self-hosted arm64 architecture (replaces the previous amd64 GitHub-hosted runner).
+#
+# Jobs run DIRECTLY on the self-hosted fleet with the `playwright` label. The
+# runner orchestrator (ci-runners-private) polls this repo's queued jobs and
+# JIT-registers an ephemeral Apple Container micro-VM per job, built FROM
+# mcr.microsoft.com/playwright:v<version>-noble. NOTE: the "companion repo
+# workflow_call" pattern documented in early RUNNERS.md drafts is impossible
+# here -- GitHub does not allow a public repo to call a reusable workflow that
+# lives in a private repo ("workflow was not found"). Fork-PR exposure is
+# mitigated the same way as the other public repos on this fleet (DS,
+# mantle-OMD): ephemeral single-job micro-VMs with their own kernel, no
+# secrets for fork PRs, and GitHub's first-time-contributor approval gate.
+#
+# Parity guarantee: scripts/run-in-docker.sh pulls the exact same Playwright
+# image this runner is built FROM. PNG bytes from a passing pre-push run will
+# match CI.
+#
+# Schema Contract Check stays GitHub-hosted because it doesn't need the
+# playwright image or self-hosted parity -- it's a cheap network-only check.
+
 on:
   pull_request:
     branches: [main]
   workflow_dispatch:
     inputs:
       update_snapshots:
-        description: 'Regenerate baselines with --update-snapshots and auto-commit back to the branch'
+        description: 'Regenerate baselines on the self-hosted runner and auto-commit back to the branch. Forces workers=1 to avoid intra-shard write races (microsoft/playwright#9760).'
         required: false
         default: false
         type: boolean
 
+concurrency:
+  group: visual-${{ github.event.pull_request.number || github.ref }}-${{ inputs.update_snapshots || false }}
+  cancel-in-progress: ${{ !(inputs.update_snapshots || false) }}
+
 permissions:
-  contents: write  # required for the baseline auto-commit job (no-op when update_snapshots is false)
+  contents: read
 
 jobs:
-  resolve-version:
-    runs-on: ubuntu-latest
-    outputs:
-      pw-version: ${{ steps.extract.outputs.version }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Extract Playwright version
-        id: extract
-        run: |
-          VERSION=$(./scripts/playwright-version.sh)
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Guard — verify Docker image is published
-        run: |
-          VERSION="${{ steps.extract.outputs.version }}"
-          if ! docker manifest inspect "mcr.microsoft.com/playwright:v${VERSION}-noble" > /dev/null 2>&1; then
-            echo "::error::Playwright Docker image v${VERSION}-noble not published yet -- wait or pin version"
-            exit 1
-          fi
-
   contract-check:
     name: Schema Contract Check
     if: "!contains(github.event.pull_request.labels.*.name, 'skip-contract-check')"
@@ -72,70 +74,63 @@ jobs:
           }
 
   setup:
-    needs: resolve-version
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
-      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
-      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
-      options: --ipc=host --shm-size=2g
-    outputs:
-      ds-sha: ${{ steps.ds-info.outputs.sha }}
+    runs-on: [self-hosted, linux, arm64, playwright]
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: npm
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Resolve DS ref + SHA for cache key
-        id: ds-info
+      - name: Resolve producer refs for parity with current branch
+        id: producers
         env:
           HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: |
-          # For cross-repo coordinated PRs, prefer a same-named branch on design-system
-          # if it exists; otherwise fall back to main. This lets a dashboard PR that
-          # imports a not-yet-merged DS widget verify against the matching DS branch.
+          # Prefer same-named branches on the producer repos (cross-repo
+          # coordinated PRs); otherwise fall back to main.
+          # design-system-Lifegames is public (plain ls-remote); the backend
+          # mantle-LifegamesPortal is private (token-authed ls-remote).
           DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
-          if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
-            CANDIDATE_SHA=$(git ls-remote "$DS_REPO_URL" "refs/heads/$HEAD_REF" | cut -f1)
-          else
-            CANDIDATE_SHA=""
-          fi
-          if [ -n "$CANDIDATE_SHA" ]; then
-            DS_REF="$HEAD_REF"
-            DS_SHA="$CANDIDATE_SHA"
-            echo "Using matching DS branch: $DS_REF ($DS_SHA)"
-          else
-            DS_REF="main"
-            DS_SHA=$(git ls-remote "$DS_REPO_URL" refs/heads/main | cut -f1)
-            echo "No matching DS branch for '$HEAD_REF'; falling back to main ($DS_SHA)"
-          fi
-          echo "ref=$DS_REF" >> "$GITHUB_OUTPUT"
-          echo "sha=$DS_SHA" >> "$GITHUB_OUTPUT"
-
-      - name: Restore DS+dist cache
-        uses: actions/cache@v5
-        id: ds-cache
-        with:
-          path: |
-            .yalc
-            yalc.lock
-            dist
-          key: ds-dist-${{ runner.os }}-${{ hashFiles('package-lock.json', 'scripts/ci-setup.sh', 'test/fixtures/build-data/*.json') }}-ds-${{ steps.ds-info.outputs.sha }}
+          LP_REPO_URL="https://x-access-token:${LP_REPO_TOKEN}@github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git"
+          # actions/checkout persists a GITHUB_TOKEN extraheader in the
+          # workspace .git/config; ls-remote run from the workspace inherits it
+          # and it clobbers the URL credentials (GITHUB_TOKEN cannot read the
+          # private backend). Neutralize it for these lookups.
+          lsr() { git -c "http.https://github.com/.extraheader=" ls-remote "$@" | cut -f1; }
+          resolve_ref() {
+            local repo_url="$1" out_prefix="$2" candidate_sha=""
+            if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
+              candidate_sha=$(lsr "$repo_url" "refs/heads/$HEAD_REF")
+            fi
+            if [ -n "$candidate_sha" ]; then
+              echo "[$out_prefix] using matching branch: $HEAD_REF ($candidate_sha)"
+              echo "${out_prefix}_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+              echo "${out_prefix}_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+            else
+              local main_sha
+              main_sha=$(lsr "$repo_url" refs/heads/main)
+              if [ -z "$main_sha" ]; then
+                echo "::error::[$out_prefix] could not resolve ANY ref (branch '$HEAD_REF' or main) — auth or connectivity problem, refusing to build against an unknown producer state"
+                exit 1
+              fi
+              echo "[$out_prefix] no matching branch for '$HEAD_REF'; falling back to main ($main_sha)"
+              echo "${out_prefix}_ref=main" >> "$GITHUB_OUTPUT"
+              echo "${out_prefix}_sha=$main_sha" >> "$GITHUB_OUTPUT"
+            fi
+          }
+          resolve_ref "$DS_REPO_URL" ds
+          resolve_ref "$LP_REPO_URL" lp
 
       - name: Setup design-system + install dependencies
-        if: steps.ds-cache.outputs.cache-hit != 'true'
         env:
-          DS_REF: ${{ steps.ds-info.outputs.ref }}
+          DS_REF: ${{ steps.producers.outputs.ds_ref }}
+          LP_REF: ${{ steps.producers.outputs.lp_ref }}
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Build Astro site
-        if: steps.ds-cache.outputs.cache-hit != 'true'
         env:
           USE_FIXTURES: 'true'
         run: npm run build
@@ -151,28 +146,25 @@ jobs:
           retention-days: 1
           include-hidden-files: true
 
+    outputs:
+      ds-sha: ${{ steps.producers.outputs.ds_sha }}
+      lp-sha: ${{ steps.producers.outputs.lp_sha }}
+
   visual-tests:
-    needs: [resolve-version, setup]
-    runs-on: ubuntu-latest
-    container:
-      image: mcr.microsoft.com/playwright:v${{ needs.resolve-version.outputs.pw-version }}-noble
-      # --ipc=host avoids 64MB /dev/shm crashes on tall fullPage screenshots;
-      # --shm-size=2g is belt-and-suspenders if ipc isolation overrides apply.
-      options: --ipc=host --shm-size=2g
+    needs: setup
+    runs-on: [self-hosted, linux, arm64, playwright]
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        # 4-shard matrix matches the fleet's MAX_RUNNERS=10 with CONTAINER_CPUS=4
+        # comfortably (4 shards * 4 cores = 16 cores out of 28 hardware cores).
         shard: [1, 2, 3, 4]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: npm
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download DS+dist artifact
         uses: actions/download-artifact@v8
@@ -184,14 +176,16 @@ jobs:
 
       - name: Run visual regression tests
         env:
+          # SKIP_BUILD reuses the dist/ from setup -- saves rebuilding per shard.
           SKIP_BUILD: 'true'
         # In update_snapshots mode, force workers=1 to eliminate the within-shard
-        # write-race that produces truncated PNGs (microsoft/playwright#9760).
-        # Validation mode keeps the default 50% workers for speed.
-        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ inputs.update_snapshots && '--update-snapshots --workers=1' || '' }}
+        # write race that produces truncated PNGs (microsoft/playwright#9760).
+        # Validation mode keeps the playwright.config.ts default (workers='50%' in CI).
+        # Browsers are PREINSTALLED in the runner image -- do NOT add `npx playwright install`.
+        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ (inputs.update_snapshots || false) && '--update-snapshots --workers=1' || '' }}
 
       - name: Upload regenerated baselines
-        if: ${{ inputs.update_snapshots && !cancelled() }}
+        if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: regenerated-baselines-shard-${{ matrix.shard }}
@@ -218,35 +212,45 @@ jobs:
           retention-days: 30
 
   commit-baselines:
-    if: ${{ inputs.update_snapshots && !cancelled() }}
-    runs-on: ubuntu-latest
+    # The explicit !cancelled() overrides the implicit success() gate, so spell
+    # out that we must not run when visual-tests was skipped (e.g. setup failed).
+    if: ${{ (inputs.update_snapshots || false) && !cancelled() && needs.visual-tests.result != 'skipped' }}
+    runs-on: [self-hosted, linux, arm64, playwright]
     needs: visual-tests
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout branch
+        uses: actions/checkout@v6
+        # No `ref:` -- workflow_dispatch runs on the selected branch, and the
+        # auto-commit action needs a branch (not a detached SHA) to push back.
       - name: Download all regenerated baselines
         uses: actions/download-artifact@v8
         with:
           path: tests/visual/__screenshots__/
           pattern: regenerated-baselines-shard-*
           merge-multiple: true
+      - name: Mark workspace as safe (container uid mismatch)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Commit regenerated baselines
         uses: stefanzweifel/git-auto-commit-action@v6
         with:
-          commit_message: "chore: regenerate visual baselines via workflow_dispatch"
+          commit_message: "chore: regenerate visual baselines via self-hosted arm64 CI"
           file_pattern: 'tests/visual/__screenshots__/**'
 
   merge-reports:
-    if: ${{ !cancelled() }}
-    runs-on: ubuntu-latest
+    # Run on shard success OR failure (the HTML report is most valuable on
+    # failure), but not when shards were skipped/cancelled — there are no blob
+    # reports to merge then, and the explicit condition overrides the implicit
+    # success() gate from `needs`.
+    if: ${{ !cancelled() && contains(fromJSON('["success", "failure"]'), needs.visual-tests.result) }}
+    runs-on: [self-hosted, linux, arm64, playwright]
     needs: visual-tests
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - name: Checkout
+        uses: actions/checkout@v6
         with:
-          node-version: 22
-          cache: npm
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install dependencies (Playwright CLI only)
         run: npm ci --legacy-peer-deps
       - name: Download blob reports

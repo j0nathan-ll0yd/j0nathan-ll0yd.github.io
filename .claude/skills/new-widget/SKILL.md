@@ -74,7 +74,7 @@ For production widgets, complete ALL of the following. Check off each item as yo
 - [ ] Add baseline test in `tests/visual/widgets.spec.ts`
 - [ ] Add variation tests for each visual variation
 - [ ] Add any dynamic content selectors to `tests/visual/screenshot.css`
-- [ ] Run `npm run test:visual:update:docker` to generate baselines
+- [ ] Run `npm run test:visual:update` to generate baselines
 - [ ] Verify at 4 viewports: desktop-1400, tablet-1100, tablet-768, mobile-600
 
 ### Unit Tests
@@ -88,7 +88,7 @@ For production widgets, complete ALL of the following. Check off each item as yo
 
 - [ ] Run `npm run compliance` — verify no new gaps
 - [ ] Run `npm run build` — verify clean build
-- [ ] Run `npm run test:visual` — verify screenshots pass
+- [ ] Run `npm run test:visual` — verify screenshots pass (runs in Docker, arm64-native)
 - [ ] Test all 4 responsive breakpoints manually (1400px, 1100px, 900px, 600px)
 
 ## Step 3: Sandbox Widget Checklist

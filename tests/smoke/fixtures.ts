@@ -47,6 +47,7 @@
  * module that fails to load is caught there regardless of CSP nuance.
  */
 import { test as base, expect, type Page } from '@playwright/test';
+import { SITE_URL } from '@lifegames/portal-contract/constants';
 
 interface CspViolation {
   directive: string;
@@ -93,7 +94,7 @@ const CHUNK_ERROR_PATTERNS: RegExp[] = [
 ];
 
 /** Our own origin — a resource under this host failing to load is a real signal. */
-const FIRST_PARTY_HOST = 'jonathanlloyd.me';
+const FIRST_PARTY_HOST = new URL(SITE_URL).hostname;
 
 function isBenign(message: string): boolean {
   return BENIGN_MESSAGE_PATTERNS.some((re) => re.test(message));

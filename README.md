@@ -37,9 +37,8 @@ data/*.json ──► index.astro (build time) ──► static HTML ──► C
 
 ```bash
 npm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
-npm run test:visual              # Playwright visual regression (4 viewports)
-npm run test:visual:docker       # run visual regression in Docker (matches CI)
-npm run test:visual:update:docker # regenerate baselines in Docker (only sanctioned path)
+npm run test:visual              # Playwright visual regression in Docker (arm64-native, CI-parity)
+npm run test:visual:update       # regenerate baselines in Docker (only sanctioned path)
 ```
 
 - **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, and image integrity against `dist/`.
@@ -63,7 +62,7 @@ Push to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`): `npm ru
 
 - [`AGENTS.md`](AGENTS.md) -- canonical agent contract: commands, conventions, and do/don't rules (read this before editing).
 - [`CLAUDE.md`](CLAUDE.md) -- Claude Code-specific extras (imports `AGENTS.md`).
-- [`docs/wiki/`](docs/wiki/Home.md) -- deeper reference: [Astro Implementation](docs/wiki/Astro-Implementation.md), [Brand Guide](docs/wiki/Brand-Guide.md), [Why Astro](docs/wiki/Why-Astro.md), [LLM Content Spec](docs/wiki/LLM-Content-Spec.md).
+- [`docs/wiki/`](docs/wiki/Home.md) -- deeper reference: [Astro Implementation](docs/wiki/Astro-Implementation.md), [Brand Guide](docs/wiki/Brand-Guide.md), [Why Astro](docs/wiki/Why-Astro.md), [LLM Content Spec](docs/wiki/LLM-Content-Spec.md), [Scripts Reference](docs/wiki/Scripts-Reference.md).
 - [`docs/visual-regression-testing.md`](docs/visual-regression-testing.md) -- visual-baseline guard rationale.
 - `docs/onboarding-review/` -- active architectural plans and roadmap (local working set; see the team thoughts repo).
 

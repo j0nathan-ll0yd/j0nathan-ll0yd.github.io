@@ -52,6 +52,14 @@ jobs:
         with:
           node-version: 22
 
+      # fetch-images.mjs imports @lifegames/portal-contract (yalc dep), so this
+      # job needs the same producer setup as build-and-deploy. Without it the
+      # script dies with ERR_MODULE_NOT_FOUND before it can check anything.
+      - name: Setup design-system + install dependencies
+        env:
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
       - name: Check for new images
         id: check
         continue-on-error: true

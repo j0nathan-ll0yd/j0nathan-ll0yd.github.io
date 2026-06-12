@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import { load } from 'cheerio';
 import path from 'path';
+import { SITE_URL } from '@lifegames/portal-contract/constants';
 
 const distDir = path.resolve(process.cwd(), 'dist');
 
@@ -67,10 +68,10 @@ describe('SEO Meta Tags', () => {
     expect(twitterCard).toBeTruthy();
   });
 
-  it('canonical link is present and uses https://jonathanlloyd.me', () => {
+  it('canonical link is present and uses the canonical site URL', () => {
     const canonical = $('link[rel="canonical"]').attr('href');
     expect(canonical).toBeTruthy();
-    expect(canonical).toContain('jonathanlloyd.me');
+    expect(canonical).toContain(new URL(SITE_URL).hostname);
   });
 
   it('sitemap link is present', () => {

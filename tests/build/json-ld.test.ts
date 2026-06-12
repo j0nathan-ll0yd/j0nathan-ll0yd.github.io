@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import { load } from 'cheerio';
 import path from 'path';
+import { SITE_URL } from '@lifegames/portal-contract/constants';
 
 const distDir = path.resolve(process.cwd(), 'dist');
 
@@ -29,7 +30,7 @@ describe('JSON-LD Structured Data', () => {
 
   it('WebSite has correct url', () => {
     const website = graph.find((n: any) => n['@type'] === 'WebSite');
-    expect(website.url).toBe('https://jonathanlloyd.me');
+    expect(website.url).toBe(SITE_URL);
   });
 
   it('WebSite has name', () => {
@@ -71,10 +72,10 @@ describe('JSON-LD Structured Data', () => {
     expect(person.sameAs.length).toBeGreaterThan(0);
   });
 
-  it('all urls use https://jonathanlloyd.me', () => {
+  it('all urls use the canonical site URL', () => {
     const website = graph.find((n: any) => n['@type'] === 'WebSite');
     const person = graph.find((n: any) => n['@type'] === 'Person');
-    expect(website.url).toMatch(/^https:\/\/jonathanlloyd\.me/);
-    expect(person.url).toMatch(/^https:\/\/jonathanlloyd\.me/);
+    expect(website.url).toMatch(SITE_URL);
+    expect(person.url).toMatch(SITE_URL);
   });
 });

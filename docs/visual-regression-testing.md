@@ -65,9 +65,11 @@ scripts/
 └── run-in-docker.sh                    # Local Docker baseline regen wrapper
 
 .github/workflows/
-├── visual-tests.yml                    # PR regression gate (4-shard matrix in Docker)
-├── smoke-check.yml                     # Post-deploy production smoke sensor (native runner)
-└── update-snapshots.yml                # Label-triggered visual baseline regeneration
+├── visual-tests.yml                    # PR regression gate -- dispatches to self-hosted arm64 reusable workflow
+└── smoke-check.yml                     # Post-deploy production smoke sensor (native runner)
+
+# Reusable workflow (lives in ci-runners-private/.github/workflows/):
+# web-visual-tests.yml                  # 4-shard matrix on self-hosted arm64 runner-playwright image
 ```
 
 ### 3.2 Determinism stack (regression suite — defense in depth)
@@ -84,7 +86,7 @@ The captured pixels must be byte-stable across runs and across the macOS-develop
 | **Stabilization waits** | `helpers.ts:navigateAndWait` — fonts.ready, skeleton removal, images complete, scrollHeight stable for 3 consecutive reads at 150ms intervals | Wait for layout to settle before capture |
 | **Capture strategy** | `helpers.ts:captureFullPage` grows viewport to `document.documentElement.scrollHeight` and captures via `clip{x:0, y:0, width, height}` instead of `fullPage:true` | Bypass Chromium's stitched-capture pipeline that produces truncated PNGs on tall pages (Playwright #35674) |
 | **PNG decoder bypass** | `pw-fixtures.ts` monkey-patches `playwright-core/lib/utilsBundle` `PNG.sync.read` to truncate buffers at the first IEND chunk before pngjs sees them | Bypass `pngjs sync-reader.js:43` strict rejection of bytes after IEND |
-| **Snapshots CI-owned** | Local regen produces ARM64/Rosetta bytes that differ from CI AMD64 (Playwright #13873). Documented; regen via the `update-snapshots` PR label | Single source of byte truth |
+| **Same image local + CI** | `scripts/run-in-docker.sh` pulls `mcr.microsoft.com/playwright:v${VERSION}-noble`; the self-hosted CI runner `runner-playwright` is `FROM` the same upstream tag. Both run arm64-native (Apple Virtualization Framework locally, Apple Container micro-VMs in CI). PNG bytes are identical. | Single source of byte truth; local pre-push run is proof of CI bytes |
 
 ### 3.3 Worker-scoped pngjs patch (the load-bearing fix)
 
@@ -243,7 +245,7 @@ With the pixel-determinism problems fully solved, the structural limitations of 
 
 **The hydration-blindness problem.** Drift's pixel approach structurally could not catch the failure it existed for: an Astro island whose hydration script is blocked by CSP (issue #50) still renders its SSR shell at the correct pixel coordinates. The pixel diff passes. The widget is silently dead. Pixel comparison has no signal on this failure class.
 
-**The Docker/QEMU constraint.** The regression suite's determinism requires SwiftShader + Docker to prevent cross-OS raster variance — but that means the local baseline-regen path requires Docker with `--platform linux/amd64` (QEMU on Apple Silicon), and the QEMU+SwiftShader combination intermittently segfaults. The smoke check has no baselines, so it needs none of this infrastructure and runs natively.
+**The Docker/QEMU constraint (resolved 2026-06-12).** Originally, the regression suite required SwiftShader + a `linux/amd64` Docker image, which forced QEMU on Apple Silicon — and the QEMU + SwiftShader combination intermittently SIGSEGVed at browser launch. The migration to self-hosted arm64 (RUNNERS.md) eliminated this entirely: CI now runs the Playwright noble image arm64-native on `runner-playwright`, local Docker pulls the same image tag and runs it arm64-native under Apple Virtualization Framework, and the SwiftShader determinism flags execute natively in both environments. The smoke check still has no baselines and runs on bare `ubuntu-latest`, by choice.
 
 **The replacement.** The production smoke check asserts that hydration RAN (DOM signals: skeletons resolved, terminal animation completed, service worker registered) rather than that pixels matched a stale snapshot. It is green on healthy production and high-signal on real failures. It runs natively on `ubuntu-latest` with no Docker/QEMU, immune to the constraints that plagued drift.
 
@@ -251,29 +253,27 @@ With the pixel-determinism problems fully solved, the structural limitations of 
 
 ## 5. Workflows in detail
 
-### 5.1 `visual-tests.yml` — PR gate
+### 5.1 `visual-tests.yml` — PR gate (dispatcher)
 
-Triggers: `pull_request` to `main`, `workflow_dispatch` with `update_snapshots` boolean input.
+Lives in this repo. Triggers: `pull_request` to `main`, `workflow_dispatch` with `update_snapshots` boolean input.
+
+Two jobs:
+- `contract-check` (bare `ubuntu-latest`) — schema contract verification, skippable via `skip-contract-check` label.
+- `visual` — `uses: j0nathan-ll0yd/ci-runners-private/.github/workflows/web-visual-tests.yml@main` and forwards `update_snapshots` plus `LP_REPO_TOKEN`.
+
+This repo is PUBLIC; self-hosted runners cannot register against a public repo without exposing them to fork-PR code execution. The dispatch into the PRIVATE companion repo is the security boundary -- see `ci-runners-private/RUNNERS.md` "Companion Repo Pattern". The previous standalone `update-snapshots.yml` was retired in the same migration; its role is now fulfilled by dispatching `visual-tests.yml` with `update_snapshots=true`.
+
+### 5.2 `web-visual-tests.yml` (companion) — the actual runner
+
+Lives in `ci-runners-private/.github/workflows/`. Triggered only by `workflow_call` from `visual-tests.yml`. Runs on `[self-hosted, linux, arm64, playwright]` — the `runner-playwright` micro-VM image, which is `FROM mcr.microsoft.com/playwright:v${VERSION}-noble` (browsers preinstalled in `/ms-playwright`).
 
 Jobs:
-- `resolve-version` (bare `ubuntu-latest`) — extracts Playwright version from `package-lock.json`, runs `docker manifest inspect` guard to fail fast if the Playwright Docker image tag isn't published yet.
-- `contract-check` (bare `ubuntu-latest`) — schema contract verification, skippable via `skip-contract-check` label.
-- `setup` (in Docker container) — installs design-system via yalc, builds Astro site, uploads `dist` + `.yalc` as artifact.
-- `visual-tests` (in Docker container, 4-shard matrix, `fail-fast: false`) — runs Playwright in `--shard=N/4`. In `update_snapshots` mode forces `workers=1` to eliminate intra-shard write races (microsoft/playwright#9760).
-- `commit-baselines` (bare `ubuntu-latest`) — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action`.
+- `setup` — checks out this repo at `ref`, picks a matching DS branch if one exists, runs `bash scripts/ci-setup.sh` (yalc-publish + npm ci), builds the Astro site with `USE_FIXTURES=true`, uploads `.yalc` + `dist` artifact.
+- `visual-tests` — 4-shard matrix (`fail-fast: false`). Each shard downloads the setup artifact, runs `npx playwright test --shard=N/4` with `SKIP_BUILD=true`. In `update_snapshots` mode forces `workers=1` to eliminate the intra-shard write race (microsoft/playwright#9760).
+- `commit-baselines` — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`.
 - `merge-reports` — merges blob reports from each shard into a single HTML report.
 
-### 5.2 `update-snapshots.yml` — label-triggered baseline regen
-
-Triggers: `pull_request: types: [labeled]` filtered to the `update-snapshots` label; `workflow_dispatch` with `pr_number` input as break-glass manual trigger.
-
-Why both triggers? `GITHUB_TOKEN` cannot trigger workflows from other workflows, so chained workflows (e.g. the regression workflow firing after the auto-commit) often fail silently. `workflow_dispatch` remains valuable as a manual recovery path.
-
-Jobs:
-- `resolve-version` (bare `ubuntu-latest`) — same pattern as visual-tests.
-- `update` (in Docker container with `--ipc=host --shm-size=2g`) — runs `scripts/ci-setup.sh`, then `npx playwright test --update-snapshots` to regenerate visual baselines, then `git config --global --add safe.directory $GITHUB_WORKSPACE` (Docker container uid mismatch fix), then `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`. Finally removes the `update-snapshots` label.
-
-Note: this workflow regenerates ONLY visual regression baselines. The smoke check has no baselines to regenerate.
+There is no `resolve-version` job because the runner image's `FROM` tag is the version source of truth; pulling a separately-tagged Playwright image would defeat byte-for-byte parity.
 
 ### 5.3 `smoke-check.yml` — production smoke sensor
 
@@ -288,12 +288,10 @@ The smoke check is non-blocking (informational tier) during initial bake-in. Unl
 
 ## 6. How to use it
 
-### 6.1 Run regression locally (fast iteration, bytes won't match CI)
+### 6.1 Run regression locally (Docker, arm64-native, CI-parity bytes)
 
 ```bash
-npm run test:visual          # 4 viewports × ~44 tests = ~176 tests
-npm run test:visual:ui       # Playwright UI mode
-npm run test:visual:fast     # Skip build (reuse existing dist/)
+npm run test:visual          # 4 viewports × ~44 tests = ~176 tests (Docker, CI-parity)
 ```
 
 ### 6.2 Run smoke check locally
@@ -304,24 +302,25 @@ npm run test:smoke           # Hits live https://jonathanlloyd.me natively; no D
 
 The smoke check requires network access to live production and has no baselines to update.
 
-### 6.3 Regenerate regression baselines in Docker locally
+### 6.3 Regenerate regression baselines in Docker locally (canonical)
 
 ```bash
-npm run test:visual:update:docker   # regression baselines only
+npm run test:visual:update   # arm64-native, CI-parity bytes
+git add tests/visual/__screenshots__/
+git commit -m "chore: regenerate visual baselines"
 ```
 
-Apple Silicon runs via Rosetta (`--platform linux/amd64` explicit). Expect 2-4× slower than native. Note: bytes still differ from CI AMD64 host (Playwright #13873). **Do not commit locally-regenerated baselines.**
+The self-hosted CI runner is `FROM` the same Playwright noble base image as this Docker command, both run linux/arm64 natively (no QEMU, no Rosetta), so PNG bytes match CI exactly. Commit the locally-regenerated baselines with confidence -- the pre-push hook re-runs `test:visual` as a double check.
 
-### 6.4 Regenerate regression baselines in CI (canonical)
+### 6.4 Regenerate regression baselines in CI (manual dispatch)
 
-1. Open or push to a PR.
-2. Add the `update-snapshots` label.
-3. Wait ~5 minutes — the workflow regenerates visual baselines and auto-commits them to your PR branch.
-4. The label is auto-removed on success.
-5. `GITHUB_TOKEN` doesn't trigger downstream workflow chains, so manually re-run visual-tests after the auto-commit:
-   ```bash
-   gh workflow run visual-tests.yml --ref <branch>
-   ```
+For pull requests where you'd rather not run Docker locally:
+
+```bash
+gh workflow run visual-tests.yml --ref <branch> -f update_snapshots=true
+```
+
+The dispatcher forwards `update_snapshots=true` to the companion `web-visual-tests.yml`, which runs the suite on the self-hosted arm64 fleet and auto-commits the regenerated baselines back to `<branch>` via `stefanzweifel/git-auto-commit-action`. Same image, same bytes as the local Docker path.
 
 ### 6.5 Debug failing baselines
 
@@ -331,7 +330,7 @@ Apple Silicon runs via Rosetta (`--platform linux/amd64` explicit). Expect 2-4×
 | `Failed to re-generate expected. unrecognised content at end of stream` | Confirm spec imports from `./pw-fixtures` (not `@playwright/test`). Grep CI log for `[pw-fixtures] module-load patch` (warn-only). |
 | Smoke check filed an issue | Open the artifact's `smoke-playwright-report`. Likely a hydration failure, CSP-blocked script, or new console error not in the allowlist. Check test 3 (skeleton count) and test 4 (terminal typing) first — these are the hydration-health canaries. |
 | Smoke check: inline CSP violation count exceeds baseline | A new `is:inline` script was introduced in DS. Update `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS` in `tests/smoke/fixtures.ts` and track the script for externalisation. |
-| Local pixel diff but CI green | Don't regen locally. Use the `update-snapshots` PR label. |
+| Local pixel diff but CI green | Should not happen post arm64 migration -- both paths run the same image arm64-native. Confirm `scripts/playwright-version.sh` matches the `FROM` tag in `ci-runners-private/images/runner-playwright/Dockerfile`. If they drift, the image must be rebuilt and re-pushed before bytes will agree. |
 
 ### 6.6 Add a new visual test
 
@@ -366,7 +365,7 @@ The `./pw-fixtures` import is load-bearing — it's what triggers the worker-sco
 | 3 | All baselines may contain trailing garbage bytes after IEND | LOW | The patch makes them decode cleanly. If the patch is ever removed, ALL baselines must be regenerated. Documented in `pw-fixtures.ts` JSDoc. |
 | 4 | `indexOf` truncation has theoretical 1/2^64-per-offset collision risk if IDAT data contains the literal 8-byte IEND signature | NEGLIGIBLE | Deflate-compressed IDAT bytes are effectively random. Acceptable. |
 | 5 | Playwright 1.61 may fix the pngjs bug upstream | INFORMATIONAL | When 1.61 stable ships, retest with `SKIP_PNG_TRUNCATION=1` to see if pngjs gained a tolerance flag. If yes, delete `pw-fixtures.ts` patch + truncation utility, regenerate all baselines. |
-| 6 | Snapshots are owned by CI; local Docker regen produces different bytes than CI AMD64 hosts (Playwright #13873) | PARTIAL | Host `test:visual:update` / `test:visual:update:fast` scripts were deleted from `package.json` to remove the obvious footgun. The only documented regen entry points are `npm run test:visual:update:docker` (locally) and the CI `update-snapshots` label workflow. Bare `npx playwright test --update-snapshots` on the host still runs — caught by CI's baseline mismatch on the next run, not blocked at source. |
+| 6 | Local + CI byte parity depends on `scripts/playwright-version.sh` matching the `FROM` tag in `ci-runners-private/images/runner-playwright/Dockerfile` | LOW | Bumping `@playwright/test` in this repo without rebuilding+publishing the `runner-playwright` image will produce CI-vs-local pixel drift the next time CI runs. The image-rebuild step is in RUNNERS.md; a future enhancement could fail-fast on tag mismatch. |
 | 7 | `chore/upgrade-dependencies` worktree at `/Users/jlloyd/wt/web-Lifegames-Portal-upgrade` holds historical PR #44 work | LOW | Can be removed once the team is confident the new architecture is stable. |
 | 8 | Three legacy `is:inline` DS scripts are blocked by CSP and tracked in `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 3` | MED | IdentityCard social-click handler, BookModal click handler, SSR fixture block. Reduce to 0 when DS externalises these scripts. Smoke check will enforce the lower threshold automatically. |
 

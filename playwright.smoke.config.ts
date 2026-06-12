@@ -1,4 +1,5 @@
 import { defineConfig } from '@playwright/test';
+import { SITE_URL } from '@lifegames/portal-contract/constants';
 
 // Production smoke check — runs against the LIVE deployed site after each deploy.
 //
@@ -39,7 +40,7 @@ export default defineConfig({
     : [['list'], ['html', { open: 'on-failure' }]],
 
   use: {
-    baseURL: 'https://jonathanlloyd.me',
+    baseURL: SITE_URL,
     // No screenshots, no pixel determinism — this is a logic/DOM check.
     screenshot: 'off',
     video: 'off',
