@@ -69,6 +69,9 @@ jobs:
       contents: write  # required when update_snapshots=true so the companion workflow can commit baselines
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      # Branch name (not SHA) so the companion workflow can resolve same-named
+      # branches on the producer repos for cross-repo coordinated PRs.
+      head_branch: ${{ github.event.pull_request.head.ref || github.ref_name }}
       update_snapshots: ${{ inputs.update_snapshots || false }}
     secrets:
       LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
