@@ -1,9 +1,10 @@
 ---
 import Dashboard from '../layouts/Dashboard.astro';
+import { a11y } from '@lifegames/copy';
 ---
 <Dashboard title="Page Not Found — Jonathan Lloyd" description="The requested page could not be found." robots="noindex">
   <main id="main-content" class="glitch-page">
-    <div class="glitch-container" aria-label="404 error page">
+    <div class="glitch-container" aria-label={a11y.page404.region}>
       <div class="glitch-404" aria-hidden="true">404</div>
       <div class="glitch-subtitle">Glitch Protocol Engaged</div>
       <div class="glitch-sub2">datastream integrity compromised</div>
