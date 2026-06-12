@@ -63,7 +63,7 @@ Push to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`): `npm ru
 
 - [`AGENTS.md`](AGENTS.md) -- canonical agent contract: commands, conventions, and do/don't rules (read this before editing).
 - [`CLAUDE.md`](CLAUDE.md) -- Claude Code-specific extras (imports `AGENTS.md`).
-- [`docs/wiki/`](docs/wiki/Home.md) -- deeper reference: [Astro Implementation](docs/wiki/Astro-Implementation.md), [Brand Guide](docs/wiki/Brand-Guide.md), [Why Astro](docs/wiki/Why-Astro.md), [LLM Content Spec](docs/wiki/LLM-Content-Spec.md).
+- [`docs/wiki/`](docs/wiki/Home.md) -- deeper reference: [Astro Implementation](docs/wiki/Astro-Implementation.md), [Brand Guide](docs/wiki/Brand-Guide.md), [Why Astro](docs/wiki/Why-Astro.md), [LLM Content Spec](docs/wiki/LLM-Content-Spec.md), [Scripts Reference](docs/wiki/Scripts-Reference.md).
 - [`docs/visual-regression-testing.md`](docs/visual-regression-testing.md) -- visual-baseline guard rationale.
 - `docs/onboarding-review/` -- active architectural plans and roadmap (local working set; see the team thoughts repo).
 

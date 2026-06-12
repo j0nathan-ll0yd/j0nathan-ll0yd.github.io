@@ -43,26 +43,28 @@ export async function loadDashboardData(): Promise<DashboardData> {
   const system: System = readJson('system.json');
 
   let starredRepos: AdaptedStarredRepo[] = [];
-  if (useFixtures) {
-    const fixturePath = path.join(
-      process.cwd(),
-      'test', 'fixtures', 'generated', 'github-starred-repos', 'baseline.json'
-    );
-    try {
-      const json = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
-      const fixtureNow = json.generatedAt ? new Date(json.generatedAt).getTime() : undefined;
-      starredRepos = adaptStarredRepos(json, fixtureNow);
-    } catch (err) {
-      console.warn('[loadDashboardData] Failed to read starred repos fixture:', (err as Error).message);
-    }
-  } else {
-    try {
+  try {
+    let rawJson: unknown;
+    let adaptNow: number | undefined;
+    if (useFixtures) {
+      const fixturePath = path.join(
+        process.cwd(),
+        'test', 'fixtures', 'generated', 'github-starred-repos', 'baseline.json'
+      );
+      rawJson = JSON.parse(fs.readFileSync(fixturePath, 'utf-8'));
+      // Pin relative-time strings to the fixture's generation timestamp so
+      // test output is deterministic regardless of when the build runs.
+      const generatedAt = (rawJson as { generatedAt?: string }).generatedAt;
+      adaptNow = generatedAt ? new Date(generatedAt).getTime() : undefined;
+    } else {
       const res = await fetch(`${CLOUDFRONT_BASE}${ENDPOINTS.starredRepos}`);
-      const json = await res.json();
-      starredRepos = adaptStarredRepos(json);
-    } catch (err) {
-      console.warn('[loadDashboardData] Failed to fetch starred repos:', (err as Error).message);
+      rawJson = await res.json();
+      // Live path: let adaptStarredRepos use real Date.now() so relative times
+      // reflect when the user visits, not when the export was generated.
     }
+    starredRepos = adaptStarredRepos(rawJson as Parameters<typeof adaptStarredRepos>[0], adaptNow);
+  } catch (err) {
+    console.warn('[loadDashboardData] Failed to load starred repos:', (err as Error).message);
   }
 
   return { profile, health, github, reading, books, system, starredRepos };

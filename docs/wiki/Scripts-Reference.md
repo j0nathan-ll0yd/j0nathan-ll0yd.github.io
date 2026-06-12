@@ -1,0 +1,36 @@
+# Scripts Reference
+
+Every `package.json` script, what it invokes, and which caller owns it.
+
+## Reference Table
+
+| Script | What it does | Used by |
+|---|---|---|
+| `prepare` | Runs `husky` to install `.husky/pre-commit`. | npm lifecycle — automatic on `npm install` / `npm ci`. |
+| `check:contract-lock` | Runs `scripts/check-contract-lock.mjs` — recomputes the expected `.contract-lock.json` from the current yalc-linked schemas and fails on any hand-edit or upstream schema drift. | `.husky/pre-commit` (Tier 1 — blocks every local commit); `visual-tests.yml` `contract-check` job (Tier 2 — blocks PR merge). |
+| `dev` | `astro dev` — Astro dev server on `localhost:4321` with HMR and a CloudFront proxy at `/api/live`. | Developer (local coding). |
+| `generate:webmcp` | Runs `scripts/generate-webmcp.mjs` — writes `public/js/webmcp.js`, `public/.well-known/mcp/server-card.json`, and `public/.well-known/agent-skills/index.json` from `@lifegames/portal-contract` constants. Output is byte-stable; edit the generator, not the outputs. | `prebuild` (automatic before every `build`); developer manually after a portal-contract version bump. |
+| `prebuild` | npm lifecycle hook — runs automatically before `build`. Four steps: `generate:webmcp` → DS schemas self-validation (`@lifegames/schemas/scripts/validate.ts`) → `validate:build-fixtures` → `audit:inline-scripts`. Any failure halts the build. | npm lifecycle — automatic before `npm run build`. Never run directly. |
+| `validate:build-fixtures` | Runs `scripts/validate-build-fixtures.ts` — Ajv-validates each file in `data/*.json` against `@lifegames/schemas/fixture-map.json` in strict mode (`additionalProperties: false`). Any unknown field fails the build. | `prebuild` (automatic); developer manually after editing `data/*.json`. |
+| `audit:inline-scripts` | Runs `scripts/audit-inline-scripts.mjs` — CSP regression gate: rejects `<script is:inline>` bodies and `on*=` event-handler attributes in `src/**` markup, and scans `public/js/` for handler-attribute strings emitted via innerHTML. | `prebuild` (automatic); developer manually after adding any script wiring. |
+| `build` | `astro build` — compiles `src/` and `data/*.json` into `dist/`. Preceded by `prebuild`, followed by `postbuild`. | `deploy.yml` (`npm run build` step); `playwright.config.ts` `webServer.command`; `vitest.build.config.ts` global setup. |
+| `postbuild` | npm lifecycle hook — runs `scripts/check-live-data-bundle.mjs` to verify Rollup did not tree-shake the side-effect-only `import '@lifegames/web/runtime/live-data'`. Fails the build if the bundle is absent. | npm lifecycle — automatic after `npm run build`. Never run directly. |
+| `preview` | `astro preview` — serves the built `dist/` locally. | Developer (sanity-check before commit); `playwright.config.ts` `webServer.command` (after `build`). |
+| `generate:fixtures` | Runs `test/fixtures/generate.ts` — reads variation objects, writes `test/fixtures/generated/{dataType}/{name}.json`. Output is committed to git. | Developer manually after editing a factory or variation; commit the resulting output. |
+| `validate:fixtures` | Runs `test/fixtures/validate.ts` — re-reads `test/fixtures/generated/` and checks each file against `VALIDATION_RULES`. | Developer manually after `generate:fixtures`. |
+| `fetch:images` | Runs `scripts/fetch-images.mjs` — downloads CloudFront-optimized book covers and theatre posters to `public/images/`. | Developer manually when CI files a missing-images issue; `deploy.yml` `check-images` job (with `--check-only`). |
+| `test` | Alias for `test:build`. | Developer (quick sanity check before push). |
+| `test:build` | Runs Vitest with `vitest.build.config.ts` — global setup executes `npm run build` once, then specs in `tests/build/**` assert SEO meta, JSON-LD, image integrity, and service-worker output against `dist/`. | Developer after changing `src/lib/`, `src/layouts/`, or any SEO/JSON-LD code. |
+| `test:visual` | Runs Playwright with `playwright.config.ts` — builds with `USE_FIXTURES=true`, starts Astro preview, screenshots at 4 viewports, pixel-compares against committed baselines. Host-generated baselines will not match CI (macOS vs Linux font rendering). | Developer for local debugging only; CI uses `test:visual:docker` for parity. |
+| `test:visual:ui` | Same as `test:visual` but opens Playwright's interactive UI mode. | Developer when debugging individual visual test failures. |
+| `test:visual:fast` | Same as `test:visual` but sets `SKIP_BUILD=true` — skips the build step and reuses existing `dist/`. | Developer when iterating without waiting for a full rebuild. |
+| `test:visual:docker` | Runs `scripts/run-in-docker.sh playwright.config.ts` inside `mcr.microsoft.com/playwright:v{VERSION}-noble` (linux/amd64). **Canonical local run** — matches CI font rendering exactly. | Developer before pushing CSS or layout changes; `visual-tests.yml` CI job. |
+| `test:visual:update:docker` | Same as `test:visual:docker` but passes `--update-snapshots`. The **only sanctioned path** to regenerate PNG baselines — host snapshots will fail CI. Commit the resulting changes. | Developer after intentional visual changes; `update-snapshots.yml` CI job (triggered by the `update-snapshots` PR label). |
+| `test:smoke` | Runs `npx playwright test --config=playwright.smoke.config.ts` against the live `https://jonathanlloyd.me`. Asserts hydration completed: skeletons cleared, bio terminal typed, service worker registered, no CSP or console errors. No baselines, no Docker. | `smoke-check.yml` CI workflow (triggered by `workflow_run` after a successful `deploy.yml`); developer after a deploy or when investigating a `smoke-failure` issue. |
+
+## Notes
+
+- **`prebuild` / `postbuild`** are npm lifecycle hooks — they run automatically around `npm run build` and should never be invoked directly.
+- **Baseline regeneration** must go through `test:visual:update:docker`. Baselines generated on macOS differ from Linux CI output at the sub-pixel level and will produce false failures.
+- **`check:contract-lock`** has three-tier enforcement: Husky pre-commit (local), `visual-tests.yml` CI job (PR gate), and the `verify-contract.mjs` script (drift warning mode unless `CONTRACT_CHECK_MODE=blocking`).
+- **`fetch:images`** syncs CloudFront-optimized images; CI runs it with `--check-only` and files a GitHub issue rather than failing the deploy if images are missing.
