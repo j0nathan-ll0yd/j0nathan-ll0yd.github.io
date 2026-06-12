@@ -19,11 +19,8 @@
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "npm run test:build",
     "test:build": "vitest run --config vitest.build.config.ts",
-    "test:visual": "npx playwright test",
-    "test:visual:ui": "npx playwright test --ui",
-    "test:visual:fast": "SKIP_BUILD=true npx playwright test",
-    "test:visual:docker": "./scripts/run-in-docker.sh playwright.config.ts",
-    "test:visual:update:docker": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
+    "test:visual": "./scripts/run-in-docker.sh playwright.config.ts",
+    "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
     "test:smoke": "npx playwright test --config=playwright.smoke.config.ts"
   },
   "dependencies": {

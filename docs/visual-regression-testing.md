@@ -288,12 +288,10 @@ The smoke check is non-blocking (informational tier) during initial bake-in. Unl
 
 ## 6. How to use it
 
-### 6.1 Run regression locally (fast iteration, bytes won't match CI)
+### 6.1 Run regression locally (Docker, arm64-native, CI-parity bytes)
 
 ```bash
-npm run test:visual          # 4 viewports × ~44 tests = ~176 tests
-npm run test:visual:ui       # Playwright UI mode
-npm run test:visual:fast     # Skip build (reuse existing dist/)
+npm run test:visual          # 4 viewports × ~44 tests = ~176 tests (Docker, CI-parity)
 ```
 
 ### 6.2 Run smoke check locally
@@ -307,12 +305,12 @@ The smoke check requires network access to live production and has no baselines 
 ### 6.3 Regenerate regression baselines in Docker locally (canonical)
 
 ```bash
-npm run test:visual:update:docker   # arm64-native, CI-parity bytes
+npm run test:visual:update   # arm64-native, CI-parity bytes
 git add tests/visual/__screenshots__/
 git commit -m "chore: regenerate visual baselines"
 ```
 
-The self-hosted CI runner is `FROM` the same Playwright noble base image as this Docker command, both run linux/arm64 natively (no QEMU, no Rosetta), so PNG bytes match CI exactly. Commit the locally-regenerated baselines with confidence -- the pre-push hook re-runs `test:visual:docker` as a double check.
+The self-hosted CI runner is `FROM` the same Playwright noble base image as this Docker command, both run linux/arm64 natively (no QEMU, no Rosetta), so PNG bytes match CI exactly. Commit the locally-regenerated baselines with confidence -- the pre-push hook re-runs `test:visual` as a double check.
 
 ### 6.4 Regenerate regression baselines in CI (manual dispatch)
 

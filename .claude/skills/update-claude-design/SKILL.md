@@ -11,7 +11,7 @@ Regenerate `docs/claude-design/` -- the design system package for Claude Design 
 
 - Design tokens changed in `public/css/tokens.css`
 - Component CSS changed in `public/css/components.css`
-- Visual test baselines were re-recorded (`npm run test:visual:update:docker`)
+- Visual test baselines were re-recorded (`npm run test:visual:update`)
 - New widgets were added or existing widgets significantly restyled
 - Layout breakpoints changed in `src/styles/layout.css`
 - Animation/interaction patterns changed in `public/css/effects.css` or `public/css/base.css`

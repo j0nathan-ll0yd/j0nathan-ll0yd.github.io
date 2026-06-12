@@ -17,14 +17,14 @@ fi
 echo "[pre-push] Running visual regression suite in Docker (arm64-native, CI-parity image)."
 echo "[pre-push] To skip on a non-visual change: SKIP_VISUAL=1 git push"
 
-if ! npm run test:visual:docker; then
+if ! npm run test:visual; then
   echo ""
   echo "ERROR: visual regression suite failed locally."
   echo ""
   echo "  Open the HTML report:   open playwright-report/index.html"
   echo ""
   echo "  If the diff is intentional (you changed pixels on purpose):"
-  echo "      npm run test:visual:update:docker"
+  echo "      npm run test:visual:update"
   echo "      git add tests/visual/__screenshots__/"
   echo "      git commit -m 'chore: regenerate visual baselines'"
   echo ""

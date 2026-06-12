@@ -37,9 +37,8 @@ data/*.json ──► index.astro (build time) ──► static HTML ──► C
 
 ```bash
 npm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
-npm run test:visual              # Playwright visual regression (4 viewports)
-npm run test:visual:docker       # run visual regression in Docker (matches CI)
-npm run test:visual:update:docker # regenerate baselines in Docker (only sanctioned path)
+npm run test:visual              # Playwright visual regression in Docker (arm64-native, CI-parity)
+npm run test:visual:update       # regenerate baselines in Docker (only sanctioned path)
 ```
 
 - **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, and image integrity against `dist/`.

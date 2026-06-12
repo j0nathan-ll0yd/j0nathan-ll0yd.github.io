@@ -49,7 +49,7 @@ For full context, read the spec. For the new-widget workflow, use `/new-widget`.
 
 **Check:** If the widget changes appearance based on data values (e.g., color zones, different layouts), verify each variation has: a fixture in `test/fixtures/variations/`, a scenario in `tests/visual/fixtures.ts`, and a test in `tests/visual/widgets.spec.ts`.
 
-**Fix:** Add fixture variation, scenario, and screenshot test. Run `npm run fixtures:generate` then `npm run test:visual:update:docker`.
+**Fix:** Add fixture variation, scenario, and screenshot test. Run `npm run fixtures:generate` then `npm run test:visual:update`.
 
 ### W6: Image Fallback Pattern
 
@@ -119,7 +119,7 @@ For full context, read the spec. For the new-widget workflow, use `/new-widget`.
 
 **Check:** Verify the widget ID is in `WIDGET_SELECTORS`. Verify a test case exists in `tests/visual/widgets.spec.ts` using `page.locator(WIDGET_SELECTORS.key)`.
 
-**Fix:** Add selector to `WIDGET_SELECTORS`, add test case, run `npm run test:visual:update:docker` to generate baselines.
+**Fix:** Add selector to `WIDGET_SELECTORS`, add test case, run `npm run test:visual:update` to generate baselines.
 
 ### W13: Unit Tests for Adapters and Updaters
 
