@@ -94,10 +94,15 @@ jobs:
           # mantle-LifegamesPortal is private (token-authed ls-remote).
           DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
           LP_REPO_URL="https://x-access-token:${LP_REPO_TOKEN}@github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git"
+          # actions/checkout persists a GITHUB_TOKEN extraheader in the
+          # workspace .git/config; ls-remote run from the workspace inherits it
+          # and it clobbers the URL credentials (GITHUB_TOKEN cannot read the
+          # private backend). Neutralize it for these lookups.
+          lsr() { git -c "http.https://github.com/.extraheader=" ls-remote "$@" | cut -f1; }
           resolve_ref() {
             local repo_url="$1" out_prefix="$2" candidate_sha=""
             if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
-              candidate_sha=$(git ls-remote "$repo_url" "refs/heads/$HEAD_REF" | cut -f1)
+              candidate_sha=$(lsr "$repo_url" "refs/heads/$HEAD_REF")
             fi
             if [ -n "$candidate_sha" ]; then
               echo "[$out_prefix] using matching branch: $HEAD_REF ($candidate_sha)"
@@ -105,7 +110,11 @@ jobs:
               echo "${out_prefix}_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
             else
               local main_sha
-              main_sha=$(git ls-remote "$repo_url" refs/heads/main | cut -f1)
+              main_sha=$(lsr "$repo_url" refs/heads/main)
+              if [ -z "$main_sha" ]; then
+                echo "::error::[$out_prefix] could not resolve ANY ref (branch '$HEAD_REF' or main) — auth or connectivity problem, refusing to build against an unknown producer state"
+                exit 1
+              fi
               echo "[$out_prefix] no matching branch for '$HEAD_REF'; falling back to main ($main_sha)"
               echo "${out_prefix}_ref=main" >> "$GITHUB_OUTPUT"
               echo "${out_prefix}_sha=$main_sha" >> "$GITHUB_OUTPUT"
@@ -203,7 +212,9 @@ jobs:
           retention-days: 30
 
   commit-baselines:
-    if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
+    # The explicit !cancelled() overrides the implicit success() gate, so spell
+    # out that we must not run when visual-tests was skipped (e.g. setup failed).
+    if: ${{ (inputs.update_snapshots || false) && !cancelled() && needs.visual-tests.result != 'skipped' }}
     runs-on: [self-hosted, linux, arm64, playwright]
     needs: visual-tests
     permissions:
@@ -228,7 +239,11 @@ jobs:
           file_pattern: 'tests/visual/__screenshots__/**'
 
   merge-reports:
-    if: ${{ !cancelled() }}
+    # Run on shard success OR failure (the HTML report is most valuable on
+    # failure), but not when shards were skipped/cancelled — there are no blob
+    # reports to merge then, and the explicit condition overrides the implicit
+    # success() gate from `needs`.
+    if: ${{ !cancelled() && contains(fromJSON('["success", "failure"]'), needs.visual-tests.result) }}
     runs-on: [self-hosted, linux, arm64, playwright]
     needs: visual-tests
     steps:
