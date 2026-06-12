@@ -1,0 +1,37 @@
+#!/usr/bin/env sh
+# Pre-push visual-regression gate.
+#
+# Runs the full Playwright visual suite in the same Docker image (arm64-native
+# under Apple Virtualization Framework) that the self-hosted CI runner is
+# built FROM. A passing run here means the PNG bytes will match CI.
+#
+# Bypass: `SKIP_VISUAL=1 git push` (use for branches that genuinely don't touch
+# rendered output -- e.g. docs-only edits -- and accept that CI will catch any
+# pixel regression on the PR).
+
+if [ "${SKIP_VISUAL:-0}" = "1" ]; then
+  echo "[pre-push] SKIP_VISUAL=1 -- bypassing local visual gate. CI will re-verify."
+  exit 0
+fi
+
+echo "[pre-push] Running visual regression suite in Docker (arm64-native, CI-parity image)."
+echo "[pre-push] To skip on a non-visual change: SKIP_VISUAL=1 git push"
+
+if ! npm run test:visual:docker; then
+  echo ""
+  echo "ERROR: visual regression suite failed locally."
+  echo ""
+  echo "  Open the HTML report:   open playwright-report/index.html"
+  echo ""
+  echo "  If the diff is intentional (you changed pixels on purpose):"
+  echo "      npm run test:visual:update:docker"
+  echo "      git add tests/visual/__screenshots__/"
+  echo "      git commit -m 'chore: regenerate visual baselines'"
+  echo ""
+  echo "  CI will re-verify the suite on the same image; a clean run here means"
+  echo "  the PNG bytes will match CI exactly."
+  echo ""
+  echo "  Genuine emergency / docs-only push:  SKIP_VISUAL=1 git push"
+  echo ""
+  exit 1
+fi
