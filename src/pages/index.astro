@@ -9,6 +9,7 @@ import {
   TheatreReviews,
 } from '@lifegames/web/production';
 import { loadDashboardData } from '../lib/load-dashboard-data';
+import { a11y } from '@lifegames/copy';
 
 const { profile, health, github, reading, books, system, starredRepos } = await loadDashboardData();
 ---
@@ -19,28 +20,28 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
 
   <div class="command-layout">
 
-    <aside class="left-panel" aria-label="Profile">
+    <aside class="left-panel" aria-label={a11y.nav.profile}>
       <IdentityCard profile={profile} />
       <BioTerminal profile={profile} />
       <SystemStatus system={system} />
     </aside>
 
 
-    <nav aria-label="Dashboard">
+    <nav aria-label={a11y.nav.dashboard}>
       <header class="top-bar">
         <div class="top-bar-title">Human Datastream</div>
         <span id="pollStatus" class="poll-status">
           <span class="poll-dot poll-dot--off"></span>
           <span class="poll-label"></span>
         </span>
-        <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label="Current time"></div>
+        <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label={a11y.clock.currentTime}></div>
       </header>
     </nav>
 
     <main id="main-content" class="right-panel">
       <div class="triptych-grid" id="triptychGrid">
 
-        <section class="triptych-column triptych-column-body" aria-label="Body">
+        <section class="triptych-column triptych-column-body" aria-label={a11y.region.body}>
           <h2 class="column-header column-header-pink">Body</h2>
           <HeartRate health={health} />
           <MovementRings health={health} />
@@ -51,7 +52,7 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
           {import.meta.env.DEV && <ExplorationOdometerV3 />}
         </section>
 
-        <section class="triptych-column triptych-column-mind" aria-label="Mind">
+        <section class="triptych-column triptych-column-mind" aria-label={a11y.region.mind}>
           <h2 class="column-header column-header-green">Mind</h2>
           <DevActivityLog events={github.devActivity} />
           <ReadingFeed reading={reading} />
