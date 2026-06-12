@@ -2,13 +2,20 @@ name: Visual Regression Tests
 
 # Self-hosted arm64 architecture (replaces the previous amd64 GitHub-hosted runner).
 #
-# Why dispatch:
-# This repo is PUBLIC. Self-hosted runners cannot be registered against a
-# public repo without exposing them to fork-PR code execution. Instead, the
-# self-hosted runners are registered against the PRIVATE companion repo
-# `j0nathan-ll0yd/ci-runners-private`, and the reusable workflow there
-# (`web-visual-tests.yml`) is the only thing public-repo workflows call.
-# See `ci-runners-private/RUNNERS.md` -> "Companion Repo Pattern".
+# Jobs run DIRECTLY on the self-hosted fleet with the `playwright` label. The
+# runner orchestrator (ci-runners-private) polls this repo's queued jobs and
+# JIT-registers an ephemeral Apple Container micro-VM per job, built FROM
+# mcr.microsoft.com/playwright:v<version>-noble. NOTE: the "companion repo
+# workflow_call" pattern documented in early RUNNERS.md drafts is impossible
+# here -- GitHub does not allow a public repo to call a reusable workflow that
+# lives in a private repo ("workflow was not found"). Fork-PR exposure is
+# mitigated the same way as the other public repos on this fleet (DS,
+# mantle-OMD): ephemeral single-job micro-VMs with their own kernel, no
+# secrets for fork PRs, and GitHub's first-time-contributor approval gate.
+#
+# Parity guarantee: scripts/run-in-docker.sh pulls the exact same Playwright
+# image this runner is built FROM. PNG bytes from a passing pre-push run will
+# match CI.
 #
 # Schema Contract Check stays GitHub-hosted because it doesn't need the
 # playwright image or self-hosted parity -- it's a cheap network-only check.
@@ -19,10 +26,14 @@ on:
   workflow_dispatch:
     inputs:
       update_snapshots:
-        description: 'Regenerate baselines on the self-hosted runner and auto-commit back to the branch'
+        description: 'Regenerate baselines on the self-hosted runner and auto-commit back to the branch. Forces workers=1 to avoid intra-shard write races (microsoft/playwright#9760).'
         required: false
         default: false
         type: boolean
+
+concurrency:
+  group: visual-${{ github.event.pull_request.number || github.ref }}-${{ inputs.update_snapshots || false }}
+  cancel-in-progress: ${{ !(inputs.update_snapshots || false) }}
 
 permissions:
   contents: read
@@ -62,16 +73,182 @@ jobs:
             exit 1
           }
 
-  visual:
-    name: Visual Regression (self-hosted arm64)
-    uses: j0nathan-ll0yd/ci-runners-private/.github/workflows/web-visual-tests.yml@main
+  setup:
+    runs-on: [self-hosted, linux, arm64, playwright]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Resolve producer refs for parity with current branch
+        id: producers
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+        run: |
+          # Prefer same-named branches on the producer repos (cross-repo
+          # coordinated PRs); otherwise fall back to main.
+          # design-system-Lifegames is public (plain ls-remote); the backend
+          # mantle-LifegamesPortal is private (token-authed ls-remote).
+          DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
+          LP_REPO_URL="https://x-access-token:${LP_REPO_TOKEN}@github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git"
+          resolve_ref() {
+            local repo_url="$1" out_prefix="$2" candidate_sha=""
+            if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
+              candidate_sha=$(git ls-remote "$repo_url" "refs/heads/$HEAD_REF" | cut -f1)
+            fi
+            if [ -n "$candidate_sha" ]; then
+              echo "[$out_prefix] using matching branch: $HEAD_REF ($candidate_sha)"
+              echo "${out_prefix}_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+              echo "${out_prefix}_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
+            else
+              local main_sha
+              main_sha=$(git ls-remote "$repo_url" refs/heads/main | cut -f1)
+              echo "[$out_prefix] no matching branch for '$HEAD_REF'; falling back to main ($main_sha)"
+              echo "${out_prefix}_ref=main" >> "$GITHUB_OUTPUT"
+              echo "${out_prefix}_sha=$main_sha" >> "$GITHUB_OUTPUT"
+            fi
+          }
+          resolve_ref "$DS_REPO_URL" ds
+          resolve_ref "$LP_REPO_URL" lp
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: ${{ steps.producers.outputs.ds_ref }}
+          LP_REF: ${{ steps.producers.outputs.lp_ref }}
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      - name: Build Astro site
+        env:
+          USE_FIXTURES: 'true'
+        run: npm run build
+
+      - name: Upload DS+dist artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-tests-ds-dist
+          path: |
+            .yalc
+            yalc.lock
+            dist
+          retention-days: 1
+          include-hidden-files: true
+
+    outputs:
+      ds-sha: ${{ steps.producers.outputs.ds_sha }}
+      lp-sha: ${{ steps.producers.outputs.lp_sha }}
+
+  visual-tests:
+    needs: setup
+    runs-on: [self-hosted, linux, arm64, playwright]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # 4-shard matrix matches the fleet's MAX_RUNNERS=10 with CONTAINER_CPUS=4
+        # comfortably (4 shards * 4 cores = 16 cores out of 28 hardware cores).
+        shard: [1, 2, 3, 4]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Download DS+dist artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: visual-tests-ds-dist
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run visual regression tests
+        env:
+          # SKIP_BUILD reuses the dist/ from setup -- saves rebuilding per shard.
+          SKIP_BUILD: 'true'
+        # In update_snapshots mode, force workers=1 to eliminate the within-shard
+        # write race that produces truncated PNGs (microsoft/playwright#9760).
+        # Validation mode keeps the playwright.config.ts default (workers='50%' in CI).
+        # Browsers are PREINSTALLED in the runner image -- do NOT add `npx playwright install`.
+        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ (inputs.update_snapshots || false) && '--update-snapshots --workers=1' || '' }}
+
+      - name: Upload regenerated baselines
+        if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: regenerated-baselines-shard-${{ matrix.shard }}
+          path: tests/visual/__screenshots__/
+          retention-days: 1
+          include-hidden-files: true
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report
+          retention-days: 1
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-test-results-${{ matrix.shard }}
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
+  commit-baselines:
+    if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
+    runs-on: [self-hosted, linux, arm64, playwright]
+    needs: visual-tests
     permissions:
-      contents: write  # required when update_snapshots=true so the companion workflow can commit baselines
-    with:
-      ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      # Branch name (not SHA) so the companion workflow can resolve same-named
-      # branches on the producer repos for cross-repo coordinated PRs.
-      head_branch: ${{ github.event.pull_request.head.ref || github.ref_name }}
-      update_snapshots: ${{ inputs.update_snapshots || false }}
-    secrets:
-      LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+      contents: write
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v6
+        # No `ref:` -- workflow_dispatch runs on the selected branch, and the
+        # auto-commit action needs a branch (not a detached SHA) to push back.
+      - name: Download all regenerated baselines
+        uses: actions/download-artifact@v8
+        with:
+          path: tests/visual/__screenshots__/
+          pattern: regenerated-baselines-shard-*
+          merge-multiple: true
+      - name: Mark workspace as safe (container uid mismatch)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Commit regenerated baselines
+        uses: stefanzweifel/git-auto-commit-action@v6
+        with:
+          commit_message: "chore: regenerate visual baselines via self-hosted arm64 CI"
+          file_pattern: 'tests/visual/__screenshots__/**'
+
+  merge-reports:
+    if: ${{ !cancelled() }}
+    runs-on: [self-hosted, linux, arm64, playwright]
+    needs: visual-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Install dependencies (Playwright CLI only)
+        run: npm ci --legacy-peer-deps
+      - name: Download blob reports
+        uses: actions/download-artifact@v8
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+      - name: Merge into HTML report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+      - name: Upload merged HTML report
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14
