@@ -1,7 +1,7 @@
 import { defineConfig } from 'astro/config';
 import AstroPWA from '@vite-pwa/astro';
 import sitemap from '@astrojs/sitemap';
-import { CLOUDFRONT_BASE } from '@lifegames/portal-contract/constants';
+import { CLOUDFRONT_BASE, SITE_URL } from '@lifegames/portal-contract/constants';
 import identity from '@lifegames/copy/identity.flat.json';
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
@@ -10,7 +10,7 @@ const CF_HOST = new URL(CLOUDFRONT_BASE).host;
 const CF_HOST_RE = CF_HOST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default defineConfig({
-  site: 'https://jonathanlloyd.me',
+  site: SITE_URL,
   output: 'static',
   trailingSlash: 'never',
   build: { inlineStylesheets: 'always' },
