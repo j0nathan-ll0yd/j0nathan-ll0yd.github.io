@@ -42,6 +42,10 @@ export async function loadDashboardData(): Promise<DashboardData> {
   const books: DashboardBooks = readJson('books.json');
   const system: System = readJson('system.json');
 
+  // starredRepos runs adaptStarredRepos at build time here (unlike the other six raw datasets).
+  // This asymmetry is intentional interim state pending Plan #04
+  // (docs/onboarding-review/04-fixtures-as-ssr-shell.md): the adaptNow/generatedAt pin below
+  // keeps relative-time strings deterministic for visual fixtures.
   let starredRepos: AdaptedStarredRepo[] = [];
   try {
     let rawJson: unknown;
