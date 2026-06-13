@@ -1,6 +1,5 @@
 ---
 import Dashboard from '../layouts/Dashboard.astro';
-// Production-shaped islands from the design system (typed-props + bundled runtime):
 import {
   BioTerminal, BookModal, Hydration, IdentityCard,
   SystemStatus, HeartRate, MovementRings, Workouts, NightSummary,
@@ -25,7 +24,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
       <BioTerminal profile={profile} />
       <SystemStatus system={system} />
     </aside>
-
 
     <nav aria-label={a11y.nav.dashboard}>
       <header class="top-bar">
@@ -79,7 +77,7 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
 
   <script is:inline src="/js/card-reveal.js"></script>
 
-  <script is:inline src="/js/scroll-depth.js"></script>
+  {import.meta.env.PROD && <script is:inline src="/js/scroll-depth.js"></script>}
 
   <script>
     import '@lifegames/web/runtime/live-data';

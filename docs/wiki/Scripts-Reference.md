@@ -29,5 +29,5 @@ Every `package.json` script, what it invokes, and which caller owns it.
 
 - **`prebuild` / `postbuild`** are npm lifecycle hooks — they run automatically around `npm run build` and should never be invoked directly.
 - **Baseline regeneration** must go through `test:visual:update` (local, arm64-native Docker) or `visual-tests.yml` with `update_snapshots=true` (CI, self-hosted arm64). Both paths use the same Playwright noble base image, so their bytes are byte-identical. Native macOS runs are not sanctioned — macOS-rendered pixels cannot match Linux baselines.
-- **`check:contract-lock`** has three-tier enforcement: Husky pre-commit (local), `visual-tests.yml` CI job (PR gate), and the `verify-contract.mjs` script (drift warning mode unless `CONTRACT_CHECK_MODE=blocking`).
+- **`check:contract-lock`** is the single contract gate, enforced in two tiers: Husky pre-commit (local) and the `visual-tests.yml` `contract-check` CI job (PR gate). It recomputes the expected lock from the current yalc-linked schemas and compares every checksum, so it catches both upstream schema drift and hand-edits to `.contract-lock.json`.
 - **`fetch:images`** syncs CloudFront-optimized images; CI runs it with `--check-only` and files a GitHub issue rather than failing the deploy if images are missing.
