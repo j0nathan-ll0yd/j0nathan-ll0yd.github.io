@@ -81,17 +81,14 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
         "@type": "Person",
         "@id": siteUrl + "#person",
         "name": identity.person.name,
-        "alternateName": "j0nathan-ll0yd",
+        "alternateName": identity.person.alternateName,
         "jobTitle": identity.person.jobTitle,
         "url": siteUrl,
         "image": {
           "@type": "ImageObject",
           "url": ogImage.toString()
         },
-        "sameAs": [
-          "https://www.linkedin.com/in/lifegames/",
-          "https://github.com/j0nathan-ll0yd"
-        ],
+        "sameAs": identity.person.sameAs,
         "knowsAbout": identity.seo.expertise,
         "knowsLanguage": ["en"],
         "description": identity.person.longBio
