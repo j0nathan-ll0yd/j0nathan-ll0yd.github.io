@@ -57,14 +57,12 @@ jobs:
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
-      - name: Verify schema contract
-        run: node scripts/verify-contract.mjs
-
-      # Tier 2 (Plan #11): catch hand-edits to .contract-lock.json that slipped
-      # past the local pre-commit hook (e.g. `--no-verify`, or a clone without
-      # Husky installed). Deterministic: compares the regenerated lock against the
-      # committed one, excluding only the volatile generatedAt/sha, so it never
-      # false-positives.
+      # Tier 2 (Plan #11): the single contract gate. Recomputes the expected lock
+      # from the current yalc-linked schemas and compares every checksum, so it
+      # catches BOTH upstream schema drift (lock vs live .yalc/) AND hand-edits to
+      # .contract-lock.json that slipped past the local pre-commit hook (e.g.
+      # `--no-verify`, or a clone without Husky). Deterministic: excludes only the
+      # volatile generatedAt/sha, so it never false-positives.
       - name: Verify .contract-lock.json is not hand-edited
         run: |
           node scripts/check-contract-lock.mjs || {
