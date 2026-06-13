@@ -1,7 +1,7 @@
 ---
 import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS } from '@lifegames/portal-contract/constants';
-import { llm, app } from '@lifegames/copy';
+import { llm } from '@lifegames/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @lifegames/copy identity entry missing — check yalc link and content.config.ts');
 const identity = _identityEntry.data;
@@ -56,7 +56,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <meta name="twitter:image" content={ogImage}>
   <meta name="twitter:image:alt" content={identity.a11y.ogImageAlt}>
 
-  <script type="application/ld+json" set:html={JSON.stringify({
+  <script type="application/ld+json" is:inline set:html={JSON.stringify({
     "@context": "https://schema.org",
     "@graph": [
       {
@@ -99,7 +99,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
       {
         "@type": "Dataset",
         "@id": siteUrl + "#datastream",
-        "name": "Human Datastream",
+        "name": identity.site.name,
         "description": llm.dashboard.datasetDescription,
         "creator": { "@id": siteUrl + "#person" },
         "license": siteUrl,
@@ -217,9 +217,13 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.books}`} as="fetch" crossorigin>
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.theatreReviews}`} as="fetch" crossorigin>
   )}
-  <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
-  <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">
-  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">
+  {import.meta.env.PROD && (
+    <Fragment>
+      <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
+      <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">
+    </Fragment>
+  )}
+  {import.meta.env.DEV && <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">}
   {/* Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
        Astro processes this <style> (non-inline), resolves the @imports via @lifegames/tokens,
        and inlines the result at build time because astro.config.mjs sets build.inlineStylesheets: 'always'.
@@ -248,6 +252,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
    styles at any specificity, and that would clobber `.right-panel`'s
    margin-left in tokens/layout.css, collapsing the dashboard layout. */
 
+/* px/% fallback for the ~5% pre-dvh browser tail; dvh refines for the rest */
 html, body {
   height: 100%;
   height: 100dvh;
@@ -364,9 +369,9 @@ html, body {
        handler on document.body parses .shelf-book[data-book] JSON and opens the modal. */}
   <script is:inline src="/js/book-modal.js" defer></script>
   {/* IdentityCard social-click analytics: externalized delegated handler (CSP). */}
-  <script is:inline src="/js/social-click-track.js" defer></script>
+  {import.meta.env.PROD && <script is:inline src="/js/social-click-track.js" defer></script>}
   {/* Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view */}
-  <script is:inline src="/js/leaflet-lazy.js"></script>
+  {import.meta.env.DEV && <script is:inline src="/js/leaflet-lazy.js"></script>}
   <script is:inline src="/js/sw-register.js"></script>
   {/* WebMCP: expose site tools to AI agents via browser (W3C Community Draft) */}
   <script is:inline src="/js/webmcp.js"></script>
