@@ -67,9 +67,24 @@ User-agent: Amazonbot
 Allow: ${LLMS_TXT_PATH}
 Disallow: /
 
-User-agent: PerplexityBot
-Allow: ${LLMS_TXT_PATH}
-Disallow: /
+# AI search/answer agents -- explicitly allowed to read the full site,
+# coherent with Content-Signal search=yes, ai-input=yes. PerplexityBot is a
+# search/retrieval crawler with no separate training token, so it is NOT in the
+# trainer block above -- it inherits Allow: / from User-agent: *.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
 
 # LLM context: ${SITE_URL}${LLMS_TXT_PATH}
 Sitemap: ${sitemap}

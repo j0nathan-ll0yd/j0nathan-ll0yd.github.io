@@ -33,9 +33,7 @@ export default defineConfig({
     }
   },
   integrations: [
-    sitemap({
-      lastmod: new Date()
-    }),
+    sitemap(),
     AstroPWA({
       registerType: 'autoUpdate',
       manifest: {
