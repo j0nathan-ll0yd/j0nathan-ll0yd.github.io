@@ -1,18 +1,31 @@
 /**
  * Fixture scenario compositions for visual regression tests.
  *
- * Maps scenario names to generated fixture file paths (test/fixtures/generated/).
- * Each scenario defines which JSON file serves each of the 10 CloudFront endpoints.
+ * Maps scenario names to raw fixture file paths owned by `@lifegames/fixtures`
+ * (Plan #04). Each scenario defines which JSON file serves each of the 10
+ * CloudFront endpoints; the Playwright route-interception layer (helpers.ts)
+ * fulfills `${CLOUDFRONT_BASE}/<endpoint>` from these files.
  */
-import path from 'path';
+import { createRequire } from 'node:module';
 
-const GENERATED = path.join(import.meta.dirname, '..', '..', 'test', 'fixtures', 'generated');
+const require = createRequire(import.meta.url);
 
 /** Map of CloudFront endpoint path -> absolute fixture file path */
 export type FixtureSet = Record<string, string>;
 
+/**
+ * Resolve a raw fixture to its on-disk path inside `@lifegames/fixtures`.
+ *
+ * The package's `generated/<dir>` directories are kebab-case (identical to the
+ * web's historical layout), but the variation FILE names are the factories'
+ * camelCase keys (e.g. `over-ten` -> `overTen.json`). We keep the kebab token
+ * here (it reads naturally in the scenario maps) and normalize to the package's
+ * camelCase filename at resolution time. `require.resolve` uses the package
+ * `exports` map (`./generated/*`), so this works under yalc linking.
+ */
 function fixture(dir: string, file: string): string {
-  return path.join(GENERATED, dir, `${file}.json`);
+  const camelFile = file.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
+  return require.resolve(`@lifegames/fixtures/generated/${dir}/${camelFile}.json`);
 }
 
 /** Baseline fixtures for all 10 endpoints */

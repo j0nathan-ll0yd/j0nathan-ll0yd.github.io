@@ -129,8 +129,6 @@ jobs:
         run: bash scripts/ci-setup.sh
 
       - name: Build Astro site
-        env:
-          USE_FIXTURES: 'true'
         run: npm run build
 
       - name: Upload DS+dist artifact

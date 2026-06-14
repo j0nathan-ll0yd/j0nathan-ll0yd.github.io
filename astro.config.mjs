@@ -15,6 +15,13 @@ export default defineConfig({
   trailingSlash: 'never',
   build: { inlineStylesheets: 'always' },
   vite: {
+    define: {
+      // Expose the build-time fixture-variation selector to source. Astro/Vite
+      // only forwards VITE_-prefixed env to import.meta.env by default; the
+      // visual suite sets FIXTURE_VARIATION on the build process to pick a named
+      // @lifegames/fixtures post-adapter variation (default 'baseline').
+      'import.meta.env.FIXTURE_VARIATION': JSON.stringify(process.env.FIXTURE_VARIATION ?? 'baseline'),
+    },
     build: {
       // Force every bundled JS chunk to emit as an external _astro/*.js file
       // instead of being inlined into the HTML. Required because production CSP
