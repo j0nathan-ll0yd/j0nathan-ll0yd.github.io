@@ -47,7 +47,7 @@ fi
 # these to its own .yalc/@lifegames/portal-contract; yalc add is idempotent on
 # package.json (the file: dep is already declared), so --frozen-lockfile holds.
 echo "[ci-setup] yalc add portal-contract into DS sub-packages..."
-for ds_consumer in packages/web packages/schemas apps/portfolio; do
+for ds_consumer in packages/web packages/schemas packages/fixtures apps/portfolio; do
   (cd "$DS_DIR/$ds_consumer" && npx -y yalc add @lifegames/portal-contract)
 done
 
@@ -60,7 +60,7 @@ echo "[ci-setup] yalc:publish from DS..."
 (cd "$DS_DIR" && pnpm yalc:publish)
 
 echo "[ci-setup] yalc add into consumer..."
-npx yalc add @lifegames/portal-contract @lifegames/tokens @lifegames/web @lifegames/schemas @lifegames/copy
+npx yalc add @lifegames/portal-contract @lifegames/tokens @lifegames/web @lifegames/schemas @lifegames/copy @lifegames/fixtures
 
 echo "[ci-setup] npm ci --legacy-peer-deps..."
 npm ci --legacy-peer-deps
