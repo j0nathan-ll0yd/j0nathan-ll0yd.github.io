@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync } from 'fs';
 import { load } from 'cheerio';
 import path from 'path';
-import { SITE_URL } from '@lifegames/portal-contract/constants';
+import { SITE_URL, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@lifegames/portal-contract/constants';
 
 const distDir = path.resolve(process.cwd(), 'dist');
 
@@ -77,5 +77,28 @@ describe('JSON-LD Structured Data', () => {
     const person = graph.find((n: any) => n['@type'] === 'Person');
     expect(website.url).toMatch(SITE_URL);
     expect(person.url).toMatch(SITE_URL);
+  });
+});
+
+describe('JSON-LD Dataset (sourced from @lifegames/portal-contract)', () => {
+  it('contains a Dataset node', () => {
+    const dataset = graph.find((n: any) => n['@type'] === 'Dataset');
+    expect(dataset).toBeDefined();
+  });
+
+  it('variableMeasured equals DATASET_VARIABLES exactly (ordered)', () => {
+    const dataset = graph.find((n: any) => n['@type'] === 'Dataset');
+    expect(dataset.variableMeasured).toEqual([...DATASET_VARIABLES]);
+  });
+
+  it('distribution equals DATASET_DISTRIBUTIONS exactly (ordered, DataDownload shape)', () => {
+    const dataset = graph.find((n: any) => n['@type'] === 'Dataset');
+    const expected = DATASET_DISTRIBUTIONS.map((d) => ({
+      '@type': 'DataDownload',
+      name: d.name,
+      encodingFormat: d.encodingFormat,
+      contentUrl: d.contentUrl,
+    }));
+    expect(dataset.distribution).toEqual(expected);
   });
 });

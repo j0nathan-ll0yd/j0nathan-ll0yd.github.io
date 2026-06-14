@@ -12,6 +12,10 @@
 - [ ] Added markup comments encode a non-obvious WHY (per agent-enforcement W16)
 - [ ] In `.astro`, WHY notes use `{/* */}` (not `<!-- -->`, which ships to the DOM)
 
+## Fixtures (Invariant I2)
+
+- [ ] No consumer-side fixtures added (`data/`, `test/fixtures/`, `src/**/fixtures/`); fixtures are DS-owned in `@lifegames/fixtures` (`npm run audit:fixtures` passes).
+
 ## Test plan
 
 <!-- How was this verified? -->

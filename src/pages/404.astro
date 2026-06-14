@@ -1,8 +1,8 @@
 ---
 import Dashboard from '../layouts/Dashboard.astro';
 import { NotFound } from '@lifegames/web/production';
-import { a11y } from '@lifegames/copy';
+import { a11y, app } from '@lifegames/copy';
 ---
-<Dashboard title="Page Not Found — Jonathan Lloyd" description="The requested page could not be found." robots="noindex">
+<Dashboard title={app.page404.title} description={app.page404.description} robots="noindex">
   <NotFound regionLabel={a11y.page404.region} />
 </Dashboard>

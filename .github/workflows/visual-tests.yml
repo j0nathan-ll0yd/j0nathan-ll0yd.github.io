@@ -52,8 +52,45 @@ jobs:
         with:
           node-version: 22
 
+      - name: Resolve producer refs for parity with current branch
+        id: producers
+        env:
+          HEAD_REF: ${{ github.head_ref || github.ref_name }}
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+        run: |
+          # Prefer same-named branches on the producer repos (cross-repo
+          # coordinated PRs); otherwise fall back to main. Mirrors the setup job
+          # so the contract gate resolves the SAME producer state (e.g. a new
+          # @lifegames/fixtures package that only exists on the coordinated branch).
+          DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
+          LP_REPO_URL="https://x-access-token:${LP_REPO_TOKEN}@github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git"
+          lsr() { git -c "http.https://github.com/.extraheader=" ls-remote "$@" | cut -f1; }
+          resolve_ref() {
+            local repo_url="$1" out_prefix="$2" candidate_sha=""
+            if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
+              candidate_sha=$(lsr "$repo_url" "refs/heads/$HEAD_REF")
+            fi
+            if [ -n "$candidate_sha" ]; then
+              echo "[$out_prefix] using matching branch: $HEAD_REF ($candidate_sha)"
+              echo "${out_prefix}_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
+            else
+              local main_sha
+              main_sha=$(lsr "$repo_url" refs/heads/main)
+              if [ -z "$main_sha" ]; then
+                echo "::error::[$out_prefix] could not resolve ANY ref (branch '$HEAD_REF' or main) — auth or connectivity problem, refusing to build against an unknown producer state"
+                exit 1
+              fi
+              echo "[$out_prefix] no matching branch for '$HEAD_REF'; falling back to main ($main_sha)"
+              echo "${out_prefix}_ref=main" >> "$GITHUB_OUTPUT"
+            fi
+          }
+          resolve_ref "$DS_REPO_URL" ds
+          resolve_ref "$LP_REPO_URL" lp
+
       - name: Setup design-system for yalc schemas
         env:
+          DS_REF: ${{ steps.producers.outputs.ds_ref }}
+          LP_REF: ${{ steps.producers.outputs.lp_ref }}
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
@@ -129,8 +166,6 @@ jobs:
         run: bash scripts/ci-setup.sh
 
       - name: Build Astro site
-        env:
-          USE_FIXTURES: 'true'
         run: npm run build
 
       - name: Upload DS+dist artifact

@@ -43,13 +43,13 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 
 | Context | Source | Mechanism |
 |---------|--------|-----------|
-| Build-time | `data/*.json` | `loadDashboardData()` in `index.astro` frontmatter |
-| Test fixtures | `test/fixtures/build-data/*.json` | Generated + validated against DS schemas |
+| Build-time | `@lifegames/fixtures` (`getDashboardFixture()`) | `loadDashboardData()` in `index.astro` frontmatter |
+| Visual fixtures | `@lifegames/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
 | Client-side | CloudFront | `@lifegames/web/runtime/live-data.ts` after page load |
 | Polling | CloudFront JSON | PollEngine (30s fast, 120s slow), `?_poll=1` bypass |
 | WebSocket | API Gateway | Adaptive fallback when WS unavailable |
 
-7 build-time fixtures: profile, health, github, books, reading, system, theatre-reviews-sample. `USE_FIXTURES=true` switches Playwright to `test/fixtures/build-data/*.json` for reproducible snapshots.
+Fixtures are DS-owned (Plan #04): the SSR shell comes from `@lifegames/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`npm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@lifegames/fixtures/generated/` via CloudFront route interception.
 
 ## Design System Integration
 

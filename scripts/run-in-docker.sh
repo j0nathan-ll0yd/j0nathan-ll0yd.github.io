@@ -30,6 +30,5 @@ VERSION=$(./scripts/playwright-version.sh)
 # this whole migration is here to eliminate.
 docker run --rm --ipc=host --platform linux/arm64 \
   -v "$(pwd):/work" -w /work \
-  -e USE_FIXTURES=true \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "npm ci --legacy-peer-deps && npx playwright test --config=${CONFIG} $*"

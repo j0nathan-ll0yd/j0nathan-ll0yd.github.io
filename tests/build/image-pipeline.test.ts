@@ -4,43 +4,13 @@ import path from 'path';
 
 const rootDir = process.cwd();
 const distDir = path.resolve(rootDir, 'dist');
-const dataDir = path.resolve(rootDir, 'data');
-const publicImagesDir = path.resolve(rootDir, 'public/images');
 
+// Book-image coverage (every book ASIN has a pre-fetched local webp) is no
+// longer asserted here: fixtures are DS-owned (Plan #04) and the SSR-shell
+// books are synthetic, so they intentionally ship no local images. Real
+// production book images are fetched from CloudFront at build (fetch:images)
+// and cached by the service worker; that pipeline is unchanged.
 describe('Image Pipeline', () => {
-  describe('Book images', () => {
-    it('all books in books.json have a corresponding local webp image', () => {
-      const booksData = JSON.parse(readFileSync(path.join(dataDir, 'books.json'), 'utf-8'));
-      const books: Array<{ asin: string; title: string }> = booksData.books;
-
-      const missing: string[] = [];
-      for (const book of books) {
-        const imagePath = path.join(publicImagesDir, 'books', `${book.asin}.webp`);
-        if (!existsSync(imagePath)) {
-          missing.push(`${book.title} (${book.asin})`);
-        }
-      }
-      expect(missing, `Missing book images: ${missing.join(', ')}`).toHaveLength(0);
-    });
-
-    it('no book images are zero bytes', () => {
-      const booksData = JSON.parse(readFileSync(path.join(dataDir, 'books.json'), 'utf-8'));
-      const books: Array<{ asin: string; title: string }> = booksData.books;
-
-      const zeroBytes: string[] = [];
-      for (const book of books) {
-        const imagePath = path.join(publicImagesDir, 'books', `${book.asin}.webp`);
-        if (existsSync(imagePath)) {
-          const stat = statSync(imagePath);
-          if (stat.size === 0) {
-            zeroBytes.push(`${book.title} (${book.asin})`);
-          }
-        }
-      }
-      expect(zeroBytes, `Zero-byte images: ${zeroBytes.join(', ')}`).toHaveLength(0);
-    });
-  });
-
   describe('dist/ artifacts', () => {
     it('dist/sw.js exists', () => {
       const swPath = path.join(distDir, 'sw.js');
