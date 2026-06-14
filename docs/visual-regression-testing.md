@@ -268,7 +268,7 @@ This repo is PUBLIC; self-hosted runners cannot register against a public repo w
 Lives in `ci-runners-private/.github/workflows/`. Triggered only by `workflow_call` from `visual-tests.yml`. Runs on `[self-hosted, linux, arm64, playwright]` — the `runner-playwright` micro-VM image, which is `FROM mcr.microsoft.com/playwright:v${VERSION}-noble` (browsers preinstalled in `/ms-playwright`).
 
 Jobs:
-- `setup` — checks out this repo at `ref`, picks a matching DS branch if one exists, runs `bash scripts/ci-setup.sh` (yalc-publish + npm ci), builds the Astro site with `USE_FIXTURES=true`, uploads `.yalc` + `dist` artifact.
+- `setup` — checks out this repo at `ref`, picks a matching DS branch if one exists, runs `bash scripts/ci-setup.sh` (yalc-publish + npm ci), builds the Astro site (the SSR shell comes from `@lifegames/fixtures`), uploads `.yalc` + `dist` artifact.
 - `visual-tests` — 4-shard matrix (`fail-fast: false`). Each shard downloads the setup artifact, runs `npx playwright test --shard=N/4` with `SKIP_BUILD=true`. In `update_snapshots` mode forces `workers=1` to eliminate the intra-shard write race (microsoft/playwright#9760).
 - `commit-baselines` — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`.
 - `merge-reports` — merges blob reports from each shard into a single HTML report.

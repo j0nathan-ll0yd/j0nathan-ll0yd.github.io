@@ -49,10 +49,10 @@ npm run test:visual:update       # regenerate baselines in Docker (only sanction
 
 Two data paths feed the dashboard:
 
-- **Build-time** -- 7 JSON fixtures in `data/` (`profile`, `health`, `github`, `books`, `reading`, `system`, `theatre-reviews-sample`) are loaded by `src/lib/load-dashboard-data.ts`. A prebuild hook runs Ajv validation against `@lifegames/schemas` (`additionalProperties: false` -- any unmapped field fails the build).
+- **Build-time** -- `src/lib/load-dashboard-data.ts` returns the DS-owned SSR shell from `@lifegames/fixtures` (`getDashboardFixture()`). Fixtures are no longer hand-baked in this repo; the single source of truth is `design-system-Lifegames/packages/fixtures`. `import.meta.env.FIXTURE_VARIATION` (wired in `astro.config.mjs`) selects a named variation; default is `baseline`.
 - **Runtime** -- the client polls CloudFront JSON endpoints via `@lifegames/web/runtime/live-data` for live values once the page loads.
 
-`USE_FIXTURES=true` swaps `data/*.json` for `test/fixtures/build-data/*.json` so visual tests render reproducible snapshots.
+Consumer-side fixtures are forbidden (Invariant I2, enforced by `npm run audit:fixtures` in the prebuild gate). Visual tests render reproducible snapshots by intercepting the CloudFront endpoints and serving raw fixtures from `@lifegames/fixtures/generated/<domain>/<variation>.json`.
 
 ## Deploy
 
