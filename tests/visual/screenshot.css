@@ -31,10 +31,19 @@
   transition-delay: 0s !important;
 }
 
-/* NOTE: The ECG canvas (#hrEcgCanvas) is intentionally NOT hidden here. Its
-   animation is made deterministic via the window.__hrEcg test seam (seed +
-   freezeAt + step), so the canvas is part of snapshot truth. Hiding it would
-   defeat the seam. See heart-rate.spec.ts. */
+/* Hide the ECG canvas (#hrEcgCanvas) in shared composites. It runs a
+   requestAnimationFrame loop with RNG jitter that Playwright's
+   animations:'disabled' does NOT freeze (that only affects CSS animations).
+   The deterministic window.__hrEcg seam (seed + freezeAt + step) requires a
+   test-mode build, but the visual webServer runs a production build, so the
+   seam is inactive and the canvas captures a different frame every run --
+   the dominant source of full-page screenshot flake. Element-level ECG
+   coverage lives in heart-rate.spec.ts (which self-skips when the seam is
+   unavailable). Use visibility:hidden, not display:none, to preserve layout.
+   See dashboard.spec.ts. */
+#hrEcgCanvas {
+  visibility: hidden !important;
+}
 
 /* Hide focus overlay clock (dynamic time) */
 #focusClock {
