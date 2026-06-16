@@ -167,7 +167,7 @@ The smoke check (`playwright.smoke.config.ts`) runs on bare `ubuntu-latest` (no 
 `tests/smoke/fixtures.ts` extends the `page` fixture to capture across each test: CSP violations (`securitypolicyviolation`), unhandled promise rejections / dynamic-import chunk failures, `pageerror`, and allowlisted `console.error`. Teardown asserts:
 
 - No EXTERNAL (URL) script is blocked by CSP.
-- Blocked inline `<script>` count stays ≤ `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 3` (three legacy `is:inline` scripts in design-system components: IdentityCard social-click handler, BookModal click handler, and an SSR fixture block — a standing condition tracked separately for the DS to externalise; reduce to 0 when those scripts are externalised in DS).
+- Blocked inline `<script>` count stays ≤ `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 0`. The three legacy `is:inline` DS scripts (IdentityCard social-click handler, BookModal click handler, SSR fixture block) were externalised in the design system (#07), so the baseline is now `0` and any new inline script trips immediately (closed #61).
 - No JS chunk-load failures.
 - No uncaught page errors.
 - No unexpected console errors (third-party subresource load failures and CSP console noise are allowlisted).
@@ -367,7 +367,7 @@ The `./pw-fixtures` import is load-bearing — it's what triggers the worker-sco
 | 5 | Playwright 1.61 may fix the pngjs bug upstream | INFORMATIONAL | When 1.61 stable ships, retest with `SKIP_PNG_TRUNCATION=1` to see if pngjs gained a tolerance flag. If yes, delete `pw-fixtures.ts` patch + truncation utility, regenerate all baselines. |
 | 6 | Local + CI byte parity depends on `scripts/playwright-version.sh` matching the `FROM` tag in `ci-runners-private/images/runner-playwright/Dockerfile` | LOW | Bumping `@playwright/test` in this repo without rebuilding+publishing the `runner-playwright` image will produce CI-vs-local pixel drift the next time CI runs. The image-rebuild step is in RUNNERS.md; a future enhancement could fail-fast on tag mismatch. |
 | 7 | `chore/upgrade-dependencies` worktree at `/Users/jlloyd/wt/web-Lifegames-Portal-upgrade` holds historical PR #44 work | LOW | Can be removed once the team is confident the new architecture is stable. |
-| 8 | Three legacy `is:inline` DS scripts are blocked by CSP and tracked in `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 3` | MED | IdentityCard social-click handler, BookModal click handler, SSR fixture block. Reduce to 0 when DS externalises these scripts. Smoke check will enforce the lower threshold automatically. |
+| 8 | Three legacy `is:inline` DS scripts were externalised in the design system (#07); `KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 0` and prod runs zero blocked inline scripts | RESOLVED | Was: IdentityCard social-click handler, BookModal click handler, SSR fixture block. Baseline dropped to 0 in #60; smoke check enforces it against live prod (closed #61). |
 
 ---
 
