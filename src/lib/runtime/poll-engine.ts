@@ -1,5 +1,6 @@
 import { CLOUDFRONT_BASE, ENDPOINTS } from '@lifegames/portal-contract/constants';
-import type { ResourceKey, PollStatus } from '@lifegames/web/runtime/poll-types';
+import type { PollStatus } from '@lifegames/web/runtime/poll-types';
+import type { ResourceKey } from '@lifegames/portal-contract/constants';
 
 type ResourceCallback = (key: ResourceKey, data: unknown) => void;
 type ErrorCallback = (key: ResourceKey, error: Error) => void;

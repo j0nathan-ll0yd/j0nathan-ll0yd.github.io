@@ -40,7 +40,7 @@ import {
 import { updatePlaceLeaderboardV3 } from '@lifegames/web/runtime/updaters-leaderboard-variations';
 import { updateExplorationOdometerV3 } from '@lifegames/web/runtime/updaters-odometer-variations';
 import { PollEngine } from './poll-engine';
-import type { ResourceKey } from '@lifegames/web/runtime/poll-types';
+import type { ResourceKey } from '@lifegames/portal-contract/constants';
 
 const LIVE_CARDS = [
   'cardHR',
