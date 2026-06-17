@@ -1,7 +1,7 @@
 import { fetchAllEndpoints, fetchWithTimeout } from './api';
 import { updateFocusOverlay } from '@lifegames/web/runtime/updaters-focus';
 import { updateTheatreReviews } from '@lifegames/web/runtime/updaters-theatre';
-import { updatePollStatus } from '@lifegames/web/runtime/updaters-status';
+import { updatePollStatus } from './updaters-status';
 import { updateMovementRings, updateHeartRateFooter } from '@lifegames/web/runtime/updaters-movement';
 import type {
   HealthExport,

@@ -1,6 +1,12 @@
-import { CLOUDFRONT_BASE, ENDPOINTS } from '@lifegames/portal-contract/constants';
-import type { PollStatus } from '@lifegames/web/runtime/poll-types';
-import type { ResourceKey } from '@lifegames/portal-contract/constants';
+import { CLOUDFRONT_BASE, ENDPOINTS, type ResourceKey } from '@lifegames/portal-contract/constants';
+
+/** Connection/poll status the engine emits via `onStatusChange`; rendered by `updaters-status`. */
+export interface PollStatus {
+  connected: boolean;
+  lastPollAt: string | null;
+  errorCounts: Partial<Record<ResourceKey, number>>;
+  wsConnected?: boolean;
+}
 
 type ResourceCallback = (key: ResourceKey, data: unknown) => void;
 type ErrorCallback = (key: ResourceKey, error: Error) => void;
