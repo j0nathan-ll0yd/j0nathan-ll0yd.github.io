@@ -43,6 +43,10 @@ export default defineConfig({
     sitemap(),
     AstroPWA({
       registerType: 'autoUpdate',
+      // The graceful update controller is hand-rolled in public/js/sw-register.js
+      // (single registration + deferred state-preserving reload). Suppress the
+      // plugin's auto-injected registerSW.js so there is exactly one registration.
+      injectRegister: false,
       manifest: {
         name: identity.site.fullName,
         short_name: identity.site.name,
@@ -62,7 +66,12 @@ export default defineConfig({
         globIgnores: ['images/books/**', 'images/theatre/**'],
         navigateFallback: null,
         // Immediate activation so fix deploys reach returning visitors on next
-        // page load instead of waiting for all tabs to close.
+        // page load instead of waiting for all tabs to close. REQUIRED here, not
+        // redundant with registerType:'autoUpdate': injectRegister:false suppresses
+        // the plugin's register script, so nothing posts SKIP_WAITING — without these
+        // the generated sw.js emits no clientsClaim() and no unconditional
+        // skipWaiting(), so a new SW never claims the open tab → no controllerchange
+        // → public/js/sw-register.js's graceful reload never fires. (Verified via build.)
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [

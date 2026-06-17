@@ -41,6 +41,28 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=human-datastream
 
+      - name: Notify backend of new deploy
+        # Lets already-open dashboard tabs pick up the new build in real time via
+        # the WebSocket push (backend POST /deploy/notify -> broadcast app-update).
+        # Best-effort: the service worker's hourly update check is the guaranteed
+        # backstop, so a failure here must never fail the deploy. The sleep gives
+        # Cloudflare edge PoPs time to serve the new sw.js before clients re-check.
+        # No-op until the DEPLOY_NOTIFY_* secrets are configured.
+        continue-on-error: true
+        env:
+          DEPLOY_NOTIFY_URL: ${{ secrets.DEPLOY_NOTIFY_URL }}
+          DEPLOY_NOTIFY_TOKEN: ${{ secrets.DEPLOY_NOTIFY_TOKEN }}
+        run: |
+          if [ -z "$DEPLOY_NOTIFY_URL" ]; then
+            echo "DEPLOY_NOTIFY_URL not set; skipping deploy notification."
+            exit 0
+          fi
+          sleep 30
+          curl -fsS -X POST "$DEPLOY_NOTIFY_URL" \
+            -H "Authorization: Bearer $DEPLOY_NOTIFY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"build\":\"${GITHUB_SHA}\"}"
+
   check-images:
     runs-on: [self-hosted, linux, arm64, node]
     steps:

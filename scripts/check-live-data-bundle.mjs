@@ -1,9 +1,10 @@
 // Verifies the live-data bundle is present in dist/_astro/.
 //
-// Catches the class of bug where Rollup tree-shakes a side-effect-only
-// `import '@lifegames/web/runtime/live-data'` because the upstream package
-// marks .ts files as side-effect-free, producing an empty <script></script>
-// tag in production. The build itself succeeds silently.
+// Catches the class of bug where Rollup tree-shakes the side-effect-only
+// `import '../lib/runtime/live-data'` (in src/pages/index.astro), producing an
+// empty <script></script> tag in production. The build itself succeeds silently.
+// The data runtime is app-local under src/lib/runtime/ — relocated out of the
+// @lifegames/web design-system package (see ADR 0005 in design-system-Lifegames).
 //
 // We assert that at least one bundled `index.astro_astro_type_script_index_*_lang.*.js`
 // chunk contains string literals that only live-data emits (DOM element IDs
@@ -43,9 +44,9 @@ if (missing.length > 0) {
   console.error('[check-live-data-bundle] Live-data bundle missing required identifiers:');
   for (const t of missing) console.error('  -', t);
   console.error('');
-  console.error('Likely cause: @lifegames/web/runtime/live-data was tree-shaken because its');
-  console.error('side-effect-only import was treated as side-effect-free. Verify the');
-  console.error('`sideEffects` array in @lifegames/web/package.json includes the runtime entry.');
+  console.error('Likely cause: src/lib/runtime/live-data was tree-shaken or is no longer imported.');
+  console.error("Verify src/pages/index.astro still has `import '../lib/runtime/live-data'` and");
+  console.error('that the module retains its top-level side effects (skeleton removal, polling, WS).');
   console.error('Inspected bundles:', bundles.join(', '));
   process.exit(1);
 }

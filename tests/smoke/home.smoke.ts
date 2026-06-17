@@ -150,4 +150,23 @@ test.describe('production home dashboard', () => {
     expect(swScriptUrl, 'no service worker registered for /sw.js within 35s').not.toBeNull();
     expect(swScriptUrl).toMatch(/\/sw\.js$/);
   });
+
+  test('version.json reports the deployed build', async ({ page }) => {
+    const res = await page.request.get('/version.json');
+    expect(res.status(), '/version.json did not return HTTP 200').toBe(200);
+
+    const body = await res.json();
+    expect(typeof body.build, 'version.json missing a build string').toBe('string');
+    expect(body.build.length, 'version.json build is empty').toBeGreaterThan(0);
+
+    // When the smoke workflow passes the just-deployed commit (EXPECTED_BUILD =
+    // workflow_run.head_sha), assert the LIVE site actually serves it. Catches a
+    // silently-stale / failed deploy — a class the hydration checks above cannot
+    // detect (the old build hydrates fine). Skipped on manual/local runs where
+    // EXPECTED_BUILD is unset.
+    const expected = process.env.EXPECTED_BUILD;
+    if (expected) {
+      expect(body.build, 'live build does not match the just-deployed commit').toBe(expected);
+    }
+  });
 });

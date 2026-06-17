@@ -66,6 +66,10 @@ jobs:
 
       - name: Run production smoke check
         id: smoke
+        # The just-deployed commit; the smoke check asserts the live version.json
+        # serves it. Empty on workflow_dispatch -> that assertion self-skips.
+        env:
+          EXPECTED_BUILD: ${{ github.event.workflow_run.head_sha }}
         run: npm run test:smoke
         continue-on-error: true
 
