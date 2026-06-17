@@ -12,7 +12,7 @@
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "build": "astro build",
-    "postbuild": "node scripts/check-live-data-bundle.mjs",
+    "postbuild": "node scripts/check-live-data-bundle.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "npm run test:build",
