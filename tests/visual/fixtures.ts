@@ -38,7 +38,7 @@ const BASELINE: FixtureSet = {
   '/github-events.json': fixture('github-events', 'baseline'),
   '/articles.json': fixture('articles', 'baseline'),
   '/location.json': fixture('location', 'baseline'),
-  '/focus.json': fixture('focus', 'no-focus'),
+  '/focus.json': fixture('focus', 'empty'),
   '/theatre-reviews.json': fixture('theatre-reviews', 'baseline'),
 };
 
