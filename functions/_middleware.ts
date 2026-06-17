@@ -68,6 +68,15 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+  // Service worker must always revalidate so a new deploy's sw.js is fetched
+  // promptly (the update-check path in public/js/sw-register.js depends on this).
+  // Set here, not in public/_headers, because this middleware disables _headers
+  // processing. Modern Chromium already bypasses the HTTP cache for sw.js via the
+  // default updateViaCache:'imports'; this covers older engines defensively.
+  if (url.pathname === '/sw.js') {
+    headers.set('Cache-Control', 'max-age=0, no-store');
+  }
+
   // Homepage: disable CDN caching so content negotiation always works
   // (Cloudflare edge cache bypasses Functions on cache HITs,
   //  and Pages overrides Function-set Cache-Control for HTML assets)

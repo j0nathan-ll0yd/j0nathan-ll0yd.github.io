@@ -43,6 +43,10 @@ export default defineConfig({
     sitemap(),
     AstroPWA({
       registerType: 'autoUpdate',
+      // The graceful update controller is hand-rolled in public/js/sw-register.js
+      // (single registration + deferred state-preserving reload). Suppress the
+      // plugin's auto-injected registerSW.js so there is exactly one registration.
+      injectRegister: false,
       manifest: {
         name: identity.site.fullName,
         short_name: identity.site.name,
