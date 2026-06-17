@@ -151,6 +151,13 @@ test.describe('production home dashboard', () => {
     expect(swScriptUrl).toMatch(/\/sw\.js$/);
   });
 
+  test('humans.txt is reachable and plain text', async ({ page }) => {
+    const res = await page.request.get('/humans.txt');
+    expect(res.status(), '/humans.txt did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, '/humans.txt wrong content-type').toContain('text/plain');
+  });
+
   test('version.json reports the deployed build', async ({ page }) => {
     const res = await page.request.get('/version.json');
     expect(res.status(), '/version.json did not return HTTP 200').toBe(200);
