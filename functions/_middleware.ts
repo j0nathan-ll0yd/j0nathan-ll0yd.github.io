@@ -30,6 +30,7 @@ const LINK_HEADER = [
   '</llms.txt>; rel="describedby"; type="text/plain"',
   '</.well-known/api-catalog>; rel="api-catalog"',
   '</sitemap-index.xml>; rel="sitemap"',
+  '</humans.txt>; rel="author"',
 ].join(', ');
 
 // Minimal Cloudflare Pages Function context — only the fields this middleware reads.
