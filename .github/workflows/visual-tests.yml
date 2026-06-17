@@ -165,6 +165,9 @@ jobs:
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
+      - name: Run unit tests (app-owned client runtime)
+        run: npm run test:unit
+
       - name: Build Astro site
         run: npm run build
 
