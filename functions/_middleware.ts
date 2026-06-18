@@ -18,7 +18,7 @@ const CSP = [
   "script-src 'self' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com ${CLOUDFRONT_BASE} https://queue.simpleanalyticscdn.com`,
+  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://books.google.com ${CLOUDFRONT_BASE} https://queue.simpleanalyticscdn.com`,
   `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN} https://queue.simpleanalyticscdn.com https://cloudflareinsights.com`,
   "worker-src 'self'",
   "object-src 'none'",
