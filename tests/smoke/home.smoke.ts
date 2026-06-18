@@ -158,6 +158,20 @@ test.describe('production home dashboard', () => {
     expect(contentType, '/humans.txt wrong content-type').toContain('text/plain');
   });
 
+  test('feed.xml is reachable and RSS content-type', async ({ page }) => {
+    const res = await page.request.get('/feed.xml');
+    expect(res.status(), '/feed.xml did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, '/feed.xml wrong content-type').toContain('application/rss+xml');
+  });
+
+  test('feed.json is reachable and JSON Feed content-type', async ({ page }) => {
+    const res = await page.request.get('/feed.json');
+    expect(res.status(), '/feed.json did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, '/feed.json wrong content-type').toContain('application/feed+json');
+  });
+
   test('version.json reports the deployed build', async ({ page }) => {
     const res = await page.request.get('/version.json');
     expect(res.status(), '/version.json did not return HTTP 200').toBe(200);

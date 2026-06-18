@@ -21,6 +21,8 @@ by the mechanism best suited to that audience's freshness requirements.
 | `/sitemap-index.xml`        | Machines (search engines) | `@astrojs/sitemap` integration                                       | sitemaps.org     |
 | `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `functions/llms.txt.ts`) | llmstxt.org      |
 | `/humans.txt`               | Humans                    | Build-time endpoint (`src/pages/humans.txt.ts`)                      | humanstxt.org    |
+| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `functions/feed.xml.ts`) | RSS 2.0          |
+| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `functions/feed.json.ts`)| JSON Feed 1.1    |
 | `/.well-known/api-catalog`  | Machines (API clients)    | Static file (`public/.well-known/api-catalog`)                       | RFC 9727         |
 | `/.well-known/security.txt` | Machines + humans         | (Future) Static file at `/.well-known/security.txt`                  | RFC 9116         |
 
@@ -78,10 +80,12 @@ when a root Pages Function middleware is present. Any header change must go in
 
 Discovery `<link>` relations in use:
 
-| Relation        | File                 | Standard             |
-| --------------- | -------------------- | -------------------- |
-| `rel="sitemap"` | `/sitemap-index.xml` | HTML Living Standard |
-| `rel="author"`  | `/humans.txt`        | HTML Living Standard |
+| Relation                                          | File                 | Standard             |
+| ------------------------------------------------- | -------------------- | -------------------- |
+| `rel="sitemap"`                                   | `/sitemap-index.xml` | HTML Living Standard |
+| `rel="author"`                                    | `/humans.txt`        | HTML Living Standard |
+| `rel="alternate" type="application/rss+xml"`      | `/feed.xml`          | RSS 2.0 / HTML5      |
+| `rel="alternate" type="application/feed+json"`    | `/feed.json`         | JSON Feed 1.1        |
 
 ### Honest metadata
 
@@ -151,6 +155,24 @@ the CloudFront-hosted canonical with edge caching (`s-maxage=3600,
 stale-while-revalidate=86400`). See [LLM-Content-Spec.md](LLM-Content-Spec.md)
 for the full inventory, content-granularity rules, and freshness expectations.
 
+### `/feed.xml` and `/feed.json` — backend-composed live
+
+The syndication feed in two formats: RSS 2.0 (`/feed.xml`) and JSON Feed
+1.1 (`/feed.json`). Both express the same thesis — what Jonathan produces
+and completes — and carry identical items with the same guids and pubDates.
+Backend-composed by the `ComposeFeed` Lambda on EventBridge triggers (plus
+a 30-minute safety-net schedule); the Cloudflare Pages Functions
+`functions/feed.xml.ts` and `functions/feed.json.ts` proxy the
+CloudFront-hosted canonicals with edge caching (`s-maxage=3600,
+stale-while-revalidate=86400`).
+
+Five included domains: theatre reviews (first-party, cap 10), meaningful
+GitHub activity (merged PRs + issues, cap 12), starred repositories (cap
+10), finished books (cap 10, pubDate = `updatedAt` disclosed as approximate),
+and saved articles (cap 12). Health, sleep, workouts, focus, and location
+are structurally excluded. See [Feed-Spec.md](Feed-Spec.md) for the full
+content philosophy, domain rationales, privacy stance, and composition model.
+
 ### `/humans.txt` — build-time endpoint
 
 Managed in `src/pages/humans.txt.ts`. Follows the humanstxt.org three-section
@@ -184,5 +206,8 @@ backing file (dangling 404).
   host-scoping principle, and astro#16838 resolution.
 - [LLM-Content-Spec.md](LLM-Content-Spec.md) — `/llms.txt` content rules,
   freshness model, agent-readiness inventory, and middleware header spec.
+- [Feed-Spec.md](Feed-Spec.md) — `/feed.xml` and `/feed.json` content
+  philosophy, domain inclusion/exclusion rationales, privacy stance, honest
+  timestamps, and composition model.
 - [Copy-Package-Spec.md](Copy-Package-Spec.md) — `@lifegames/copy` authoring
   model, build pipeline, and zero-duplication invariant.

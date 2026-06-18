@@ -31,6 +31,8 @@ const LINK_HEADER = [
   '</.well-known/api-catalog>; rel="api-catalog"',
   '</sitemap-index.xml>; rel="sitemap"',
   '</humans.txt>; rel="author"',
+  '</feed.xml>; rel="alternate"; type="application/rss+xml"',
+  '</feed.json>; rel="alternate"; type="application/feed+json"',
 ].join(', ');
 
 // Minimal Cloudflare Pages Function context — only the fields this middleware reads.
