@@ -93,4 +93,18 @@ describe('SEO Meta Tags', () => {
     const author = $('meta[name="author"]').attr('content');
     expect(author).toBeTruthy();
   });
+
+  it('RSS feed discovery link is present with correct type and href', () => {
+    const rssLink = $('link[rel="alternate"][type="application/rss+xml"]');
+    expect(rssLink.length, 'RSS <link rel="alternate"> is missing').toBeGreaterThan(0);
+    expect(rssLink.attr('href'), 'RSS feed href should be /feed.xml').toBe('/feed.xml');
+    expect(rssLink.attr('title'), 'RSS feed title should be non-empty').toBeTruthy();
+  });
+
+  it('JSON Feed discovery link is present with correct type and href', () => {
+    const jsonLink = $('link[rel="alternate"][type="application/feed+json"]');
+    expect(jsonLink.length, 'JSON Feed <link rel="alternate"> is missing').toBeGreaterThan(0);
+    expect(jsonLink.attr('href'), 'JSON Feed href should be /feed.json').toBe('/feed.json');
+    expect(jsonLink.attr('title'), 'JSON Feed title should be non-empty').toBeTruthy();
+  });
 });

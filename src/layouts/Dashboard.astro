@@ -38,6 +38,9 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="sitemap" href="/sitemap-index.xml">
   <link rel="author" href="/humans.txt">
+  {/* Feed discovery — RSS 2.0 + JSON Feed 1.1 (backend-composed live on CloudFront) */}
+  <link rel="alternate" type="application/rss+xml" title={identity.feed.title} href="/feed.xml">
+  <link rel="alternate" type="application/feed+json" title={identity.feed.title} href="/feed.json">
 
   <meta property="og:title" content={title}>
   <meta property="og:description" content={ogDescription}>
