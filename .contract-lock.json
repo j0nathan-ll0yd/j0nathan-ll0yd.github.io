@@ -1,14 +1,14 @@
 {
   "generatedFrom": {
     "repo": "j0nathan-ll0yd/design-system-Lifegames",
-    "sha": "a7f1d4ac21f8d166416f7eae3d969905ed506f7d",
-    "checksum": "sha256:64f946cdc103f26df06975f135a42e0a9f8e955db7cbeb33ac23b21d861022ff"
+    "sha": "96015b20049d132fef6db34e1174208e6ea0863e",
+    "checksum": "sha256:a9d51a9dcb1b19929f7c6c17c2aa3cb5036b05d285718b53a9fe9f499066e8a8"
   },
-  "generatedAt": "2026-06-14T01:37:55.917Z",
+  "generatedAt": "2026-06-18T18:38:25.879Z",
   "generatorVersion": "1.0.0",
   "files": {
     "raw-schemas/articles-export.schema.json": "sha256:4a3d6514ab959b251ad88bef79020747bbddb865d0a7c913e71fe36f608ffd36",
-    "raw-schemas/books-export.schema.json": "sha256:ced3dbf941143830a0ff94957059cab1ea216b2d9af5db329573d808a5fcc46d",
+    "raw-schemas/books-export.schema.json": "sha256:5955ef504d2d4ec82e0823a3fc99121a8c16ec2844726973275056240f356421",
     "raw-schemas/focus-export.schema.json": "sha256:b9b8deaa9f427ece873937c251495dbf3a69e5d054f635d1ecb49b36679b6144",
     "raw-schemas/github-events-export.schema.json": "sha256:ff00a3474a0be17e9640407a7bc3d69dd437157ec10936ec5157932f07fec415",
     "raw-schemas/github-starred-repos-export.schema.json": "sha256:dab7effd7bb7fa6a5444d4e32b43fdfff4d8ae1721e6be69ccd0a88be159c33f",

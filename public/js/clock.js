@@ -1,13 +1,12 @@
-(function() {
-  function updateClock() {
-    var el = document.getElementById('liveClock');
-    if (!el) return;
+(function () {
+  var fmt = null;
+  try { fmt = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }); } catch (e) {}
+  function tick() {
+    var el = document.getElementById('liveClock'); if (!el) return;
     var now = new Date();
-    var h = String(now.getHours()).padStart(2, '0');
-    var m = String(now.getMinutes()).padStart(2, '0');
-    var s = String(now.getSeconds()).padStart(2, '0');
-    el.textContent = h + ':' + m + ':' + s;
+    if (fmt) { el.textContent = fmt.format(now); return; }
+    el.textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
   }
-  updateClock();
-  setInterval(updateClock, 1000);
+  tick();
+  setInterval(tick, 1000);
 })();
