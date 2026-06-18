@@ -117,7 +117,7 @@ rather than papered over (R1/D4 honest-timestamps principle).
 
 ### Saved Articles (cap: 12)
 
-**Source:** Reading feed (Raindrop.io export), filtered by `savedAt`.
+**Source:** Feedly via IFTTT, filtered by `savedAt`.
 
 Articles Jonathan has saved, with source attribution and (where available)
 a highlight or note. This reflects his reading breadth — what he found
