@@ -24,6 +24,8 @@ const CSP = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
 ].join('; ') + ';';
 
 const LINK_HEADER = [
@@ -70,6 +72,13 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('Content-Security-Policy', CSP);
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // HSTS: 2-year max-age + subdomains. Preload intentionally omitted — owner-gated process.
+  headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  headers.set('X-Frame-Options', 'DENY');
+  // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
+  // COEP/CORP omitted — would break cross-origin Amazon, Carto, and SimpleAnalytics resources.
+  headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  headers.set('Permissions-Policy', 'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()');
 
   // sw.js and version.json must always revalidate so a new deploy is picked up
   // promptly: sw.js drives the update-check path in public/js/sw-register.js, and
@@ -87,6 +96,8 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   if (url.pathname === '/') {
     headers.set('Link', LINK_HEADER);
     headers.set('CDN-Cache-Control', 'no-store');
+    // Prevent UTM/ad-click params from fragmenting the cache or Back/Forward Cache.
+    headers.set('No-Vary-Search', 'params=("utm_source" "utm_medium" "utm_campaign" "utm_term" "utm_content" "gclid" "fbclid")');
   }
 
   // API catalog Content-Type override for RFC 9727 compliance
