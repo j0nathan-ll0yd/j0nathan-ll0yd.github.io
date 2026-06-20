@@ -206,7 +206,7 @@ html { overflow-y: scroll; }
   .identity-card,
   .left-panel-status,
   .tri-card,
-  .book-overlay,
+  dialog.book-dialog::backdrop,
   .book-modal {
     background: rgba(6, 6, 15, 0.95);
   }
@@ -287,9 +287,6 @@ html { overflow-y: scroll; }
   <noscript><style>.tri-card,.identity-card,.left-panel-status,.left-panel-bio{opacity:1!important;transform:none!important;}</style></noscript>
   <a href="#main-content" class="lg-skip-link">{identity.a11y.skipToMain}</a>
   <slot />
-  {/* BookModal: externalized activation (CSP script-src 'self'). Delegated
-       handler on document.body parses .shelf-book[data-book] JSON and opens the modal. */}
-  <script is:inline src="/js/book-modal.js" defer></script>
   {/* IdentityCard social-click analytics: externalized delegated handler (CSP). */}
   {import.meta.env.PROD && <script is:inline src="/js/social-click-track.js" defer></script>}
   {/* Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view */}

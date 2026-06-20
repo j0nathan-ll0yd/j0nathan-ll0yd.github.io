@@ -20,7 +20,8 @@
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "./scripts/run-in-docker.sh playwright.config.ts",
     "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
-    "test:smoke": "npx playwright test --config=playwright.smoke.config.ts"
+    "test:smoke": "npx playwright test --config=playwright.smoke.config.ts",
+    "test:behavioral": "npx playwright test --config=playwright.behavioral.config.ts"
   },
   "dependencies": {
     "@lifegames/copy": "file:.yalc/@lifegames/copy",
