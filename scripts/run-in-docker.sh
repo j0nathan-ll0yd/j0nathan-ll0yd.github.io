@@ -28,7 +28,14 @@ VERSION=$(./scripts/playwright-version.sh)
 # DOCKER_DEFAULT_PLATFORM, buildx settings, or a previously-pulled tag cached
 # under amd64), which would re-introduce the QEMU SwiftShader SIGSEGV that
 # this whole migration is here to eliminate.
+# CI=true makes the in-container run mirror CI exactly (playwright.config.ts gates
+# retries/workers/forbidOnly/reporter/reuseExistingServer on `process.env.CI`).
+# Without it the local gate ran with retries:0 while CI uses retries:1, so a
+# transient Chromium worker-launch crash under fullyParallel load (seen on the
+# tall full-page dashboard captures) fails the pre-push hook where CI would retry
+# and pass. Real pixel diffs still fail every retry, so this never masks them.
 docker run --rm --ipc=host --platform linux/arm64 \
+  -e CI=true \
   -v "$(pwd):/work" -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "npm ci --legacy-peer-deps && npx playwright test --config=${CONFIG} $*"
