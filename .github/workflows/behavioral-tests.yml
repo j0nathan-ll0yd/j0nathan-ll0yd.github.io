@@ -1,0 +1,56 @@
+# BookModal behavioral (interaction) tests
+#
+# Runs the Playwright behavioral suite (tests/behavioral/) on every PR. Unlike
+# the visual-regression suite, this asserts DOM/interaction behavior (open,
+# Escape, backdrop dismiss, focus restore/containment, analytics single-fire,
+# CSP onerror-fix) — NOT pixels. It therefore needs no arm64 noble parity image
+# and runs on a native ubuntu-latest runner with Chromium, like the smoke check.
+#
+# Blocking: a real failure fails the PR. The suite is deterministic — it route-
+# intercepts CloudFront and serves the "full" books fixture, so it never flakes
+# on the live data stream.
+
+name: Behavioral Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  behavioral:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Astro site
+        run: npm run build
+
+      - name: Run behavioral tests
+        run: SKIP_BUILD=1 npm run test:behavioral
+
+      - name: Upload playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: behavioral-playwright-report
+          path: playwright-report/
+          retention-days: 30
