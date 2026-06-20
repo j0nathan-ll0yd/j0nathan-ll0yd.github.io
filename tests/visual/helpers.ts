@@ -262,12 +262,47 @@ export async function captureFullPage(
     throw new Error('captureFullPage: no viewport configured on page');
   }
 
-  const measuredHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  // Measure the true content height. On desktop (>=1100px) the document body
+  // does NOT scroll — the layout uses independent fixed-height scroll columns
+  // (.left-panel and .right-panel are each `height: 100dvh; overflow-y: auto`,
+  // layout.css:17-30,96-101) with a `position: fixed` top-bar. So
+  // documentElement.scrollHeight is capped at one viewport (100dvh) and a clip
+  // of it truncates everything below the fold. The real content height is the
+  // tallest column. Growing the viewport to it expands each column's `100dvh`
+  // so the full document renders in one frame.
+  //
+  // We also reset each column's scrollTop to 0 first: navigateAndWait() calls
+  // #cardBio.scrollIntoViewIfNeeded() to trigger the bio typewriter observer,
+  // which scrolls the left column down and would otherwise clip the identity
+  // card / avatar at the top of the capture.
+  //
+  // documentElement.scrollHeight is kept in the max() so responsive breakpoints
+  // (<768px), where the columns become in-flow and the body scrolls, still
+  // measure the full page correctly.
+  const measuredHeight = await page.evaluate(() => {
+    const panels = Array.from(
+      document.querySelectorAll<HTMLElement>('.left-panel, .right-panel'),
+    );
+    panels.forEach((panel) => {
+      panel.scrollTop = 0;
+    });
+    const tallestPanel = panels.reduce((max, panel) => Math.max(max, panel.scrollHeight), 0);
+    return Math.max(document.documentElement.scrollHeight, tallestPanel);
+  });
   if (measuredHeight <= 0) {
     throw new Error(`captureFullPage: scrollHeight is ${measuredHeight} — page may not have loaded`);
   }
 
   await page.setViewportSize({ width: viewport.width, height: measuredHeight });
+
+  // Let the grown viewport reflow (100dvh recalculates against the new height)
+  // before capturing.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
 
   await expect(page).toHaveScreenshot(screenshotName, {
     clip: { x: 0, y: 0, width: viewport.width, height: measuredHeight },
