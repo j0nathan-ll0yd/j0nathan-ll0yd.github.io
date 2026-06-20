@@ -1,14 +1,14 @@
 {
   "generatedFrom": {
     "repo": "j0nathan-ll0yd/design-system-Lifegames",
-    "sha": "96015b20049d132fef6db34e1174208e6ea0863e",
-    "checksum": "sha256:a9d51a9dcb1b19929f7c6c17c2aa3cb5036b05d285718b53a9fe9f499066e8a8"
+    "sha": "57999207092d7902a93bd2735b66dd211637f4fc",
+    "checksum": "sha256:f9067de01ccbc56cb111107e504abdfa0acfc4dc361aa7de145c68b750e0ff9a"
   },
-  "generatedAt": "2026-06-18T18:38:25.879Z",
+  "generatedAt": "2026-06-20T03:40:24.375Z",
   "generatorVersion": "1.0.0",
   "files": {
     "raw-schemas/articles-export.schema.json": "sha256:4a3d6514ab959b251ad88bef79020747bbddb865d0a7c913e71fe36f608ffd36",
-    "raw-schemas/books-export.schema.json": "sha256:5955ef504d2d4ec82e0823a3fc99121a8c16ec2844726973275056240f356421",
+    "raw-schemas/books-export.schema.json": "sha256:cae4120b21505d53810427be65ae98df6a64c71eed60894ea7c380a1e3c38772",
     "raw-schemas/focus-export.schema.json": "sha256:b9b8deaa9f427ece873937c251495dbf3a69e5d054f635d1ecb49b36679b6144",
     "raw-schemas/github-events-export.schema.json": "sha256:ff00a3474a0be17e9640407a7bc3d69dd437157ec10936ec5157932f07fec415",
     "raw-schemas/github-starred-repos-export.schema.json": "sha256:dab7effd7bb7fa6a5444d4e32b43fdfff4d8ae1721e6be69ccd0a88be159c33f",
@@ -17,7 +17,7 @@
     "raw-schemas/sleep-export.schema.json": "sha256:ab11c1abeb9cbb3dc327243eb50507dab31f843d9f2a8cea367522431f16b85d",
     "raw-schemas/theatre-reviews-export.schema.json": "sha256:22d3a138fad1007d00e19786c7368086b79e4465864b034ecc907ed5e2d1998d",
     "raw-schemas/workouts-export.schema.json": "sha256:1814cc3935a95c345eece02fb0f560c95ce8bca92a4b90705489c21c7182c67e",
-    "authored/dashboard-books.schema.json": "sha256:cf63a59f5fee6e3f04c023a1948ca4358cd10e7b71f4f86e54943d01c7cb209a",
+    "authored/dashboard-books.schema.json": "sha256:17716d6f5e7002d5de7e4488feffa60fc7ac93ad71c69b50c9f88850ca447d22",
     "authored/dashboard-github.schema.json": "sha256:d7fdeb50d02647aa214ae3e3cd25d6d3f78f63ec46c29e1e1470e0a9e6db0f04",
     "authored/dashboard-reading.schema.json": "sha256:1b14d2123d3e6b006e5c0c04d14c952f75830cf18c2cd0bddd0694ad143cd7de",
     "authored/profile.schema.json": "sha256:35bb5ba6f7457b6355c497fe49a5630ef075cbe07411b10db8762da166d1263b",
