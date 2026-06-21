@@ -247,6 +247,44 @@ jobs:
             playwright-report/
           retention-days: 30
 
+  behavioral:
+    # BookModal interaction suite (tests/behavioral/). Runs on the SAME self-hosted
+    # parity runner as the visual shards so all Playwright execution goes through the
+    # canonical noble image (locally: scripts/run-in-docker.sh; CI: the runner is
+    # built FROM that image). It asserts DOM/interaction, not pixels, so it reuses
+    # the dist/ built by `setup` (SKIP_BUILD) rather than its own build.
+    needs: setup
+    runs-on: [self-hosted, linux, arm64, playwright]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Download DS+dist artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: visual-tests-ds-dist
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run behavioral (interaction) tests
+        # Reuses dist/ from setup. Browsers are PREINSTALLED in the runner image
+        # -- do NOT add `npx playwright install`.
+        env:
+          SKIP_BUILD: 'true'
+        run: npx playwright test --config=playwright.behavioral.config.ts
+
+      - name: Upload behavioral report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: behavioral-playwright-report
+          path: playwright-report
+          retention-days: 14
+
   commit-baselines:
     # The explicit !cancelled() overrides the implicit success() gate, so spell
     # out that we must not run when visual-tests was skipped (e.g. setup failed).
