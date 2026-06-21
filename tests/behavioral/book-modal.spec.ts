@@ -304,6 +304,37 @@ test.describe('BookModal — native <dialog> behavior', () => {
   });
 
   // -----------------------------------------------------------------------
+  // 6b. Escape dismiss restores focus WITHOUT leaving a lingering focus ring
+  //     on the book tile (regression: the neon :focus-visible outline used to
+  //     persist on the trigger after a keyboard dismiss).
+  // -----------------------------------------------------------------------
+  test('6b. Escape dismiss leaves focus on the trigger but no visible focus ring', async () => {
+    const trigger = page.locator('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]').first();
+    // Open via KEYBOARD so :focus-visible would naturally apply on focus restore.
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('dialog#bookDialog')).toHaveAttribute('open');
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('dialog#bookDialog')).not.toHaveAttribute('open');
+
+    const state = await page.evaluate(() => {
+      const t = document.querySelector(
+        '#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]',
+      ) as HTMLElement | null;
+      if (!t) return null;
+      return {
+        focused: document.activeElement === t,
+        outlineStyle: getComputedStyle(t).outlineStyle,
+      };
+    });
+    // Focus is still restored to the trigger (accessibility / WCAG 2.4.7 intent)...
+    expect(state?.focused).toBe(true);
+    // ...but the visible focus ring is suppressed after the dismiss.
+    expect(state?.outlineStyle).toBe('none');
+  });
+
+  // -----------------------------------------------------------------------
   // 7. Focus containment: dialog is :modal → background is inert
   // -----------------------------------------------------------------------
   test('7. while dialog is open, background #main-content is not focusable (dialog :modal)', async () => {
