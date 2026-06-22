@@ -65,34 +65,17 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
     '/theatre-reviews.json': fixture('theatre-reviews', 'empty'),
   },
 
-  complex: {
-    ...BASELINE,
-    '/health.json': fixture('health', 'max-hydration'),
-    '/sleep.json': fixture('sleep', 'long-sleep'),
-    '/workouts.json': fixture('workouts', 'multi-workout'),
-    '/books.json': fixture('books', 'six-books'),
-    '/github-events.json': fixture('github-events', 'over-ten'),
-    '/articles.json': fixture('articles', 'over-thirty'),
-    '/location.json': fixture('location', 'full90-days'),
-    '/theatre-reviews.json': fixture('theatre-reviews', 'max-reviews'),
-  },
-
-  // The DS standard-triad `full` variation for every domain: maximally-populated
-  // display shape (all nullable-but-required fields non-null, all optional keys,
-  // max-ish arrays). See DS GOVERNANCE.md P3.2.
+  // The DS standard-triad `full` variation for every domain: the single
+  // maximally-populated dashboard scenario (all nullable-but-required fields
+  // non-null, all optional keys, max-ish arrays). See DS GOVERNANCE.md P3.2.
   //
-  // EXPECTED: `dashboard-full.png` looks broadly SIMILAR to `dashboard-complex.png`
-  // — both push most widgets to a populated state — but they are NOT identical and
-  // the differences are intentional, not a broken/truncated baseline:
-  //   - reading feed: full has FEWER articles (6) than complex's `over-thirty` (40)
-  //   - dev activity: full has FEWER events (12) than complex's `over-ten` (15)
-  //   - workouts:     full has MORE sub-workouts (6) than complex's `multi-workout` (3)
-  //   - health:       full adds optional groups (goals/solar/lastSync) complex omits
-  //   - starred repos: full has 6 vs complex's baseline 5 (the one widget complex leaves un-maxed)
-  // `complex` uses curated high-count edge fixtures; `full` is the triad's canonical
-  // max-shape. `/focus.json` stays at `empty` (overlay hidden, inherited from BASELINE)
-  // so the full-page capture shows the maxed widgets, not the focus overlay covering them
-  // (overlay-active states are covered by the `focus-work`/`focus-dnd` widget variations).
+  // This is the canonical "most populated" scenario — it replaces the former
+  // bespoke `complex` scenario (every widget is now driven by the triad `full`
+  // fixture rather than a curated grab-bag of high-count variations).
+  // `/focus.json` stays at `empty` (overlay hidden, inherited from BASELINE) so
+  // the full-page capture shows the maxed widgets, not the focus overlay covering
+  // them (overlay-active states are covered by the `focus-work`/`focus-dnd`
+  // widget variations).
   full: {
     ...BASELINE,
     '/health.json': fixture('health', 'full'),

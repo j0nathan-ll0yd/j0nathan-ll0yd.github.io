@@ -413,10 +413,10 @@ Every production widget MUST have a baseline screenshot test in `tests/visual/wi
 | Overlay full-page   | Full page with overlay visible     | `widgets.spec.ts`   | `focus-overlay.png`       |
 
 **Dashboard full-page scenarios** (each captured at all 4 viewports): `populated`,
-`empty`, `complex`, and `full`. `full` exercises the DS triad's maximally-populated
-`full` variation for every domain; it is expected to look broadly similar to `complex`
-(both populate most widgets) but is not identical — see the `full` scenario note in
-`tests/visual/fixtures.ts` for the per-widget deltas.
+`empty`, and `full`. `full` is the single maximally-populated scenario — it exercises
+the DS triad's `full` variation for every domain and replaces the former bespoke
+`complex` scenario (one canonical "most populated" capture rather than two
+near-duplicate ones).
 
 #### 6.1.2 Variation Screenshots
 
