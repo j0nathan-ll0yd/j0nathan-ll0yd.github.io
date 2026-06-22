@@ -110,9 +110,23 @@ Widgets use a hybrid responsive approach:
 
 Every widget MUST support three mandatory states and MAY support additional states.
 
+> **States vs. fixtures — how the three states map to the DS standard triad.** The
+> design system's `@lifegames/fixtures` defines a standard **variation triad** —
+> `empty` / `baseline` / `full` — for every domain (DS `GOVERNANCE.md` **P3.2**, the
+> canonical authority). Two of the three widget states below are driven by triad
+> **data fixtures**: the **Empty** state by the `empty` variation, and the **Active**
+> state by `baseline` (the representative SSR default) and `full` (maximally populated).
+> The **Skeleton** state is **NOT a fixture** — it is a _render state_ produced by
+> withholding/delaying the data response (the `.is-loading` placeholder), not by a data
+> payload. So "three mandatory states" and "the triad" describe different axes:
+> skeleton is a render state, while empty/baseline/full are the data variations the
+> empty and active states are exercised with.
+
 ### 3.1 Skeleton State (Required)
 
-The loading state shown before data arrives. Uses the `.is-loading` class on the `.tri-card` element.
+The loading state shown before data arrives — a **render state**, not a fixture
+(produced by withholding/delaying the response). Uses the `.is-loading` class on the
+`.tri-card` element.
 
 **Requirements:**
 
@@ -145,12 +159,17 @@ Rendered when the data source returns valid data but with zero items or missing 
 
 ### 3.3 Active State (Required)
 
-The normal data-populated state.
+The normal data-populated state. Exercised by two triad data variations: `baseline`
+(the representative SSR default) and `full` (maximally populated — all nullable-but-
+required fields non-null, all optional keys, max arrays). `full` is a **standard
+variation available for every domain** (DS `GOVERNANCE.md` P3.2), alongside any
+per-domain extras (e.g. `over-ten`, `full-90-days`).
 
 **Requirements:**
 
 - MUST render correctly with the baseline fixture data
 - MUST handle all expected data shapes from the adapter/updater chain
+- MUST render correctly at the `full` variation (maximally-populated data) without overflow/truncation defects
 
 ### 3.4 Variation States (Conditional)
 
@@ -158,15 +177,15 @@ Widgets with data-driven visual differences MUST document and test all meaningfu
 
 **Current production widget variations:**
 
-| Widget         | Variations                               | What changes visually                                               |
-| -------------- | ---------------------------------------- | ------------------------------------------------------------------- |
-| HeartRate      | bradycardia, resting, peak               | BPM value, zone badge color/text, accent class, ECG animation speed |
-| Hydration      | zero, max                                | Water/coffee vessel fill levels, numeric values                     |
-| NightSummary   | deep-dominant, rem-dominant, short-sleep | Phase pill proportions, sleep score, duration, insight text         |
-| Bookshelf      | all-reading, all-completed, no-covers    | Status badges, star ratings, cover images vs placeholders           |
-| DevActivityLog | commits-only, prs-only                   | Event type icons, colors, metadata shown                            |
-| Workouts       | multi-workout, barrys-bootcamp           | Number of workout sub-cards, activity types, metrics shown          |
-| TheatreReviews | all-grades, no-images                    | Grade badge colors (A+ through F), poster images vs placeholders    |
+| Widget         | Variations                               | What changes visually                                                                                          |
+| -------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| HeartRate      | bradycardia, resting, peak               | BPM value, zone badge color/text, accent class, ECG animation speed                                            |
+| Hydration      | zero, max, missing-optional              | Water/coffee vessel fill levels, numeric values; missing-optional = water/caffeine quantities absent (vs zero) |
+| NightSummary   | deep-dominant, rem-dominant, short-sleep | Phase pill proportions, sleep score, duration, insight text                                                    |
+| Bookshelf      | all-reading, all-completed, no-covers    | Status badges, star ratings, cover images vs placeholders                                                      |
+| DevActivityLog | commits-only, prs-only                   | Event type icons, colors, metadata shown                                                                       |
+| Workouts       | multi-workout, barrys-bootcamp           | Number of workout sub-cards, activity types, metrics shown                                                     |
+| TheatreReviews | all-grades, no-images                    | Grade badge colors (A+ through F), poster images vs placeholders                                               |
 
 ### 3.5 Error / Fallback State
 
@@ -202,7 +221,7 @@ RUNTIME:
   CloudFront endpoints → fetch (api.ts) → adapter functions (adapters.ts) → updater functions (updaters.ts) → DOM
 ```
 
-Build-time fixtures are DS-owned (Plan #04, see [Section 6.4](#64-generated-fixture-data)); this repo reads no `data/*.json` and hand-bakes no fixtures.
+Build-time fixtures are DS-owned (Plan #04, see [Section 6.4](#64-generated-fixture-data)); this repo reads no `data/*.json` and hand-bakes no fixtures. The post-adapter set every consumer reads is the uniform standard triad (`empty` / `baseline` / `full`); the raw pre-adapter set additionally keeps domain-specific extras (e.g. `over-ten`, `full-90-days`). See DS `GOVERNANCE.md` P3.2.
 
 ### 4.2 CloudFront Endpoints
 
@@ -393,6 +412,12 @@ Every production widget MUST have a baseline screenshot test in `tests/visual/wi
 | Dashboard full-page | Entire page                        | `dashboard.spec.ts` | `dashboard-populated.png` |
 | Overlay full-page   | Full page with overlay visible     | `widgets.spec.ts`   | `focus-overlay.png`       |
 
+**Dashboard full-page scenarios** (each captured at all 4 viewports): `populated`,
+`empty`, `complex`, and `full`. `full` exercises the DS triad's maximally-populated
+`full` variation for every domain; it is expected to look broadly similar to `complex`
+(both populate most widgets) but is not identical — see the `full` scenario note in
+`tests/visual/fixtures.ts` for the per-widget deltas.
+
 #### 6.1.2 Variation Screenshots
 
 Widgets with meaningful visual variations (see [Section 3.4](#34-variation-states-conditional)) MUST have screenshot tests for each variation.
@@ -431,13 +456,13 @@ Every Canvas-based widget (one whose visual state is drawn to a `<canvas>` via `
 
 The seam is `window.__<widget>` (defined in the widget's design-system runtime init) and exposes:
 
-| Member               | Purpose                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------- |
-| `ready: boolean`     | `true` after the first `step()` paints a frame (sync gate for `page.waitForFunction`) |
-| `seed(n)`            | Pin the RNG stream (seeded mulberry32 for cross-engine determinism)                   |
-| `freezeAt(ms\|null)` | Freeze the clock; `null` restores real time                                           |
-| `step(frames=1)`     | Advance N frames manually; the rAF auto-loop is suppressed in test mode               |
-| `state()`            | Inspectable snapshot for assertions                                                   |
+| Member           | Purpose                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `ready: boolean` | `true` after the first `step()` paints a frame (sync gate for `page.waitForFunction`) |
+| `seed(n)`        | Pin the RNG stream (seeded mulberry32 for cross-engine determinism)                   |
+| `freezeAt(ms\    | null)`                                                                                |
+| `step(frames=1)` | Advance N frames manually; the rAF auto-loop is suppressed in test mode               |
+| `state()`        | Inspectable snapshot for assertions                                                   |
 
 **Activation gate (defense in depth):** the seam installs ONLY when BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor are present. This guarantees `window.__<widget>` is `undefined` in production builds. Canonical usage: `seed(42) -> freezeAt(0) -> step(N) -> screenshot`.
 
@@ -548,24 +573,30 @@ Every data type MUST have at minimum:
 
 - A `baseline` fixture (representative real-world data)
 - An `empty` fixture (zero items or missing data)
+- A `full` fixture (maximally-populated shape — the third member of the DS standard triad, P3.2)
 - One fixture per visual variation (if the widget has variation screenshot tests)
 
 #### 6.4.4 Current Fixture Coverage
 
-| Data Type            | Factory              | Fixtures | Variations                                                                                                                             |
-| -------------------- | -------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| health               | `health.ts`          | 12       | baseline, bradycardia, resting, normal, fat-burn, peak, hrv-green, hrv-amber, hrv-red, missing-optional, zero-hydration, max-hydration |
-| sleep                | `sleep.ts`           | 6        | baseline, empty, deep-dominant, rem-dominant, short-sleep, long-sleep                                                                  |
-| workouts             | `workouts.ts`        | 5        | baseline, empty, barrys-bootcamp, multi-workout, no-distance                                                                           |
-| books                | `books.ts`           | 10       | baseline, empty, no-covers, all-reading, all-completed, mixed-status, with-progress, series-books, six-books, all-fields               |
-| github-events        | `github-events.ts`   | 5        | baseline, empty, commits-only, prs-only, over-ten                                                                                      |
-| github-starred-repos | `starred-repos.ts`   | 2        | baseline, old-timestamp                                                                                                                |
-| articles             | `articles.ts`        | 5        | baseline, empty, with-notes, over-thirty, pagination                                                                                   |
-| focus                | `focus.ts`           | 4        | baseline, dnd, no-focus, personal                                                                                                      |
-| location             | `location.ts`        | 9        | baseline, empty-top-places, single-city, many-cities, high-streak, zero-streak, sparse-90-days, full-90-days, all-categories           |
-| theatre-reviews      | `theatre-reviews.ts` | 5        | baseline, empty, all-grades, no-images, max-reviews                                                                                    |
+Every domain provides the standard triad (`empty` / `baseline` / `full`) plus any
+domain-specific extras. The triad's `full` is the maximally-populated display shape;
+the per-domain extras (e.g. `over-ten`, `full-90-days`) are curated high-count or
+edge-case fixtures.
 
-**Total: 63 generated fixture files across 10 data types.**
+| Data Type            | Factory              | Fixtures | Variations                                                                                                                                          |
+| -------------------- | -------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| health               | `health.ts`          | 14       | baseline, bradycardia, empty, fat-burn, full, hrv-amber, hrv-green, hrv-red, max-hydration, missing-optional, normal, peak, resting, zero-hydration |
+| sleep                | `sleep.ts`           | 7        | baseline, deep-dominant, empty, full, long-sleep, rem-dominant, short-sleep                                                                         |
+| workouts             | `workouts.ts`        | 6        | baseline, barrys-bootcamp, empty, full, multi-workout, no-distance                                                                                  |
+| books                | `books.ts`           | 11       | baseline, all-completed, all-fields, all-reading, empty, full, mixed-status, no-covers, series-books, six-books, with-progress                      |
+| github-events        | `github-events.ts`   | 6        | baseline, commits-only, empty, full, over-ten, prs-only                                                                                             |
+| github-starred-repos | `starred-repos.ts`   | 4        | baseline, empty, full, old-timestamp                                                                                                                |
+| articles             | `articles.ts`        | 6        | baseline, empty, full, over-thirty, pagination, with-notes                                                                                          |
+| focus                | `focus.ts`           | 5        | baseline, dnd, empty, full, personal                                                                                                                |
+| location             | `location.ts`        | 11       | baseline, all-categories, empty, empty-top-places, full, full-90-days, high-streak, many-cities, single-city, sparse-90-days, zero-streak           |
+| theatre-reviews      | `theatre-reviews.ts` | 6        | baseline, all-grades, empty, full, max-reviews, no-images                                                                                           |
+
+**Total: 76 generated fixture files across 10 data types.**
 
 (The `Factory` column lists filenames as they exist in
 `packages/fixtures/src/factories/` within the DS package.)
