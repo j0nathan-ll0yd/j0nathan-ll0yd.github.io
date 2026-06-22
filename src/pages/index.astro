@@ -41,13 +41,23 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
 
         <section class="triptych-column triptych-column-body" aria-label={a11y.region.body}>
           <h2 class="column-header column-header-pink">{app.sections.body}</h2>
-          <HeartRate health={health} />
-          <MovementRings health={health} />
-          <Workouts health={health} />
-          <Hydration health={health} />
-          <NightSummary health={health} />
-          {import.meta.env.DEV && <PlaceLeaderboardV3 />}
-          {import.meta.env.DEV && <ExplorationOdometerV3 />}
+          {/* Two bento columns: transparent (display:contents) except at the
+              768–1100 tablet breakpoint, where they become independent masonry
+              columns so a tall Workouts card no longer stretches Hydration.
+              `order` (in tokens/layout.css) keeps the single-column sequence. */}
+          <div class="body-bento">
+            <div class="body-bento-col">
+              <HeartRate health={health} />
+              <Workouts health={health} />
+            </div>
+            <div class="body-bento-col">
+              <MovementRings health={health} />
+              <Hydration health={health} />
+              <NightSummary health={health} />
+              {import.meta.env.DEV && <PlaceLeaderboardV3 />}
+              {import.meta.env.DEV && <ExplorationOdometerV3 />}
+            </div>
+          </div>
         </section>
 
         <section class="triptych-column triptych-column-mind" aria-label={a11y.region.mind}>
