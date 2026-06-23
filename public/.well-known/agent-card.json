@@ -1,0 +1,26 @@
+{
+  "name": "Human Datastream",
+  "description": "Read-only data interface for Jonathan Lloyd's personal dashboard. Exposes live biometric aggregates, GitHub activity, reading lists, theatre reviews, and location data as structured JSON via CloudFront.",
+  "version": "1.0.0",
+  "url": "https://jonathanlloyd.me/.well-known/mcp/server-card.json",
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false
+  },
+  "defaultInputModes": ["text/plain", "application/json"],
+  "defaultOutputModes": ["application/json", "text/markdown"],
+  "skills": [
+    {
+      "id": "personal-profile",
+      "name": "Personal Profile",
+      "description": "Retrieve Jonathan Lloyd's professional background, live health and activity data, reading list, GitHub contributions, and location aggregates. Useful for agents answering questions about Jonathan's work, expertise, or current status.",
+      "tags": ["personal", "health", "github", "reading", "biometrics"],
+      "examples": [
+        "What is Jonathan working on right now?",
+        "What books is Jonathan currently reading?",
+        "What is Jonathan's recent GitHub activity?",
+        "What are Jonathan's current health metrics?"
+      ]
+    }
+  ]
+}

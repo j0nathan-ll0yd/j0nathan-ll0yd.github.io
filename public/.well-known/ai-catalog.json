@@ -1,0 +1,41 @@
+{
+  "host": {
+    "displayName": "Jonathan Lloyd — Human Datastream",
+    "identifier": "jonathanlloyd.me",
+    "documentationUrl": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec"
+  },
+  "entries": [
+    {
+      "type": "mcp-server",
+      "url": "https://jonathanlloyd.me/.well-known/mcp/server-card.json",
+      "name": "Human Datastream MCP Server",
+      "description": "MCP server card describing read-only access to Jonathan Lloyd's live personal data: biometrics, GitHub activity, reading lists, theatre reviews, and location aggregates.",
+      "representativeQueries": [
+        "What is Jonathan Lloyd's current heart rate?",
+        "What has Jonathan been reading lately?",
+        "Show me Jonathan's GitHub contributions this week."
+      ]
+    },
+    {
+      "type": "agent-skills",
+      "url": "https://jonathanlloyd.me/.well-known/agent-skills/index.json",
+      "name": "Agent Skills Index",
+      "description": "Agent skills discovery index. Includes a portfolio-expert skill with deep technical context about Jonathan Lloyd's engineering background, live data sources, and architectural decisions.",
+      "representativeQueries": [
+        "Tell me about Jonathan Lloyd's technical background.",
+        "What technology stack does Jonathan use?",
+        "Summarise Jonathan Lloyd's professional experience."
+      ]
+    },
+    {
+      "type": "a2a-agent",
+      "url": "https://jonathanlloyd.me/.well-known/agent-card.json",
+      "name": "Human Datastream Agent Card",
+      "description": "A2A agent card for the Human Datastream interface. Declares agent capabilities and the personal-profile skill for agent-to-agent discovery.",
+      "representativeQueries": [
+        "What can the Human Datastream agent do?",
+        "Is there an agent interface for jonathanlloyd.me?"
+      ]
+    }
+  ]
+}
