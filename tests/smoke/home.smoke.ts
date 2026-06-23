@@ -172,6 +172,35 @@ test.describe('production home dashboard', () => {
     expect(contentType, '/feed.json wrong content-type').toContain('application/feed+json');
   });
 
+  test('webfinger resolves the Fediverse alias with JRD content-type', async ({ page }) => {
+    // Accept: application/jrd+json avoids the text/markdown early-return in
+    // functions/_middleware.ts that would otherwise short-circuit to llms-full.
+    const res = await page.request.get(
+      '/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me',
+      { headers: { Accept: 'application/jrd+json' } }
+    );
+    expect(res.status(), '/.well-known/webfinger did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, 'webfinger wrong content-type').toContain('application/jrd+json');
+    const body = await res.json();
+    expect(body.subject, 'webfinger subject mismatch').toBe('acct:jonathan@jonathanlloyd.me');
+    // The self link is what makes aliasing work; assert it on the LIVE path too,
+    // not just the build artifact, to catch a stale/edge-cached deploy.
+    const self = body.links?.find((l: { rel: string; href?: string }) => l.rel === 'self');
+    expect(self?.href, 'webfinger self link must target the canonical Mastodon actor').toBe(
+      'https://mastodon.social/ap/users/116794886250734590'
+    );
+  });
+
+  test('api-catalog is reachable and linkset content-type', async ({ page }) => {
+    // Regression guard for the adjacent middleware override edited alongside the
+    // webfinger block (currently otherwise untested).
+    const res = await page.request.get('/.well-known/api-catalog');
+    expect(res.status(), '/.well-known/api-catalog did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, 'api-catalog wrong content-type').toContain('application/linkset+json');
+  });
+
   test('version.json reports the deployed build', async ({ page }) => {
     const res = await page.request.get('/version.json');
     expect(res.status(), '/version.json did not return HTTP 200').toBe(200);

@@ -108,6 +108,13 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     );
   }
 
+  // WebFinger (RFC 7033) Content-Type + permissive CORS for the static JRD at
+  // public/.well-known/webfinger. Mirrors the api-catalog override above.
+  if (url.pathname === '/.well-known/webfinger') {
+    headers.set('Content-Type', 'application/jrd+json');
+    headers.set('Access-Control-Allow-Origin', '*');
+  }
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
