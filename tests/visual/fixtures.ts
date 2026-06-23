@@ -48,28 +48,45 @@ const BASELINE: FixtureSet = {
 const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
   populated: { ...BASELINE },
 
+  // True-empty state for every domain. Uses the DS triad `empty` variations
+  // (real empties that did not exist before the triad — health/location formerly
+  // borrowed `missing-optional`/`empty-top-places` as the closest stand-ins).
+  // The `missing-optional` health render path it no longer exercises here is
+  // preserved by the `health-missing-optional` widget variation below.
   empty: {
     ...BASELINE,
-    '/health.json': fixture('health', 'missing-optional'),
+    '/health.json': fixture('health', 'empty'),
     '/sleep.json': fixture('sleep', 'empty'),
     '/workouts.json': fixture('workouts', 'empty'),
     '/books.json': fixture('books', 'empty'),
     '/github-events.json': fixture('github-events', 'empty'),
     '/articles.json': fixture('articles', 'empty'),
-    '/location.json': fixture('location', 'empty-top-places'),
+    '/location.json': fixture('location', 'empty'),
     '/theatre-reviews.json': fixture('theatre-reviews', 'empty'),
   },
 
-  complex: {
+  // The DS standard-triad `full` variation for every domain: the single
+  // maximally-populated dashboard scenario (all nullable-but-required fields
+  // non-null, all optional keys, max-ish arrays). See DS GOVERNANCE.md P3.2.
+  //
+  // This is the canonical "most populated" scenario — it replaces the former
+  // bespoke `complex` scenario (every widget is now driven by the triad `full`
+  // fixture rather than a curated grab-bag of high-count variations).
+  // `/focus.json` stays at `empty` (overlay hidden, inherited from BASELINE) so
+  // the full-page capture shows the maxed widgets, not the focus overlay covering
+  // them (overlay-active states are covered by the `focus-work`/`focus-dnd`
+  // widget variations).
+  full: {
     ...BASELINE,
-    '/health.json': fixture('health', 'max-hydration'),
-    '/sleep.json': fixture('sleep', 'long-sleep'),
-    '/workouts.json': fixture('workouts', 'multi-workout'),
-    '/books.json': fixture('books', 'six-books'),
-    '/github-events.json': fixture('github-events', 'over-ten'),
-    '/articles.json': fixture('articles', 'over-thirty'),
-    '/location.json': fixture('location', 'full90-days'),
-    '/theatre-reviews.json': fixture('theatre-reviews', 'max-reviews'),
+    '/health.json': fixture('health', 'full'),
+    '/sleep.json': fixture('sleep', 'full'),
+    '/workouts.json': fixture('workouts', 'full'),
+    '/books.json': fixture('books', 'full'),
+    '/github-starred-repos.json': fixture('github-starred-repos', 'full'),
+    '/github-events.json': fixture('github-events', 'full'),
+    '/articles.json': fixture('articles', 'full'),
+    '/location.json': fixture('location', 'full'),
+    '/theatre-reviews.json': fixture('theatre-reviews', 'full'),
   },
 };
 
@@ -90,6 +107,12 @@ const WIDGET_VARIATION_SCENARIOS: Record<string, FixtureSet> = {
   // Hydration variations (also affects HeartRate, NightSummary)
   'hydration-zero': { ...BASELINE, '/health.json': fixture('health', 'zero-hydration') },
   'hydration-max': { ...BASELINE, '/health.json': fixture('health', 'max-hydration') },
+
+  // Missing-optional health: `dietaryWater` + `dietaryCaffeine` quantities are
+  // entirely ABSENT (distinct from `hydration-zero`, where they are present and 0).
+  // Preserves coverage of the absent-optional-field render path that the `empty`
+  // dashboard scenario formerly exercised before it switched to the real `empty`.
+  'health-missing-optional': { ...BASELINE, '/health.json': fixture('health', 'missing-optional') },
 
   // Night Summary variations
   'sleep-deep-dominant': { ...BASELINE, '/sleep.json': fixture('sleep', 'deep-dominant') },

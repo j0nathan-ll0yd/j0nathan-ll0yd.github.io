@@ -139,6 +139,15 @@ test.describe('Widget variations - Hydration', () => {
     const widget = page.locator('#cardHydration');
     await expect(widget).toHaveScreenshot('hydration-max.png', { stylePath });
   });
+
+  // Optional dietaryWater/dietaryCaffeine quantities entirely absent (not zero).
+  // Preserves the missing-optional health render path that the `empty` dashboard
+  // scenario previously covered before it moved to the real `empty` fixtures.
+  test('missing optional', async ({ page }) => {
+    await setupPage(page, 'health-missing-optional');
+    const widget = page.locator('#cardHydration');
+    await expect(widget).toHaveScreenshot('hydration-missing-optional.png', { stylePath });
+  });
 });
 
 test.describe('Widget variations - Night Summary', () => {
