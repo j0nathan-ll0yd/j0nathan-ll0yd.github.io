@@ -60,6 +60,9 @@ let lastHealth: HealthExport | undefined;
 let lastSleep: SleepExport | undefined;
 const timestamps: Record<string, string | null> = {};
 let engine: PollEngine | null = null;
+// ws is hoisted to module scope so pagehide/pageshow lifecycle handlers can
+// reach it. It is null until startFetch() completes (null-guard before use).
+let ws: WSClient | null = null;
 
 // ── Resource type map for discriminated validation ───────────────────
 type ResourceTypeMap = {
@@ -296,7 +299,7 @@ const startFetch = async () => {
   };
 
   // ── WebSocket push notifications (additive — polling continues if WS fails) ──
-  const ws = new WSClient({
+  ws = new WSClient({
     url: WEBSOCKET_URL,
     onUpdate: (resource) => {
       const key = resource as ResourceKey;
@@ -322,9 +325,29 @@ if ('requestIdleCallback' in window) {
   setTimeout(startFetch, 200);
 }
 
-// ── bfcache restoration — refresh data without full page reload ──────
+// ── BFCache lifecycle handlers ────────────────────────────────────────
+// pagehide(persisted=true): browser is freezing the page into BFCache.
+// Close the WebSocket and stop polling so the page is BFCache-eligible
+// (an open WebSocket is a hard Chromium BFCache blocker).
+window.addEventListener('pagehide', (event) => {
+  if ((event as PageTransitionEvent).persisted) {
+    if (engine) engine.stop();
+    if (ws) ws.disconnect();
+  }
+});
+
+// pageshow(persisted=true): browser is restoring the page from BFCache.
+// Restart poll timers + reconnect the WebSocket, then trigger an immediate
+// refresh. engine.start() is idempotent (no-op if already running); after a
+// pagehide teardown it restarts the interval timers and visibilitychange
+// listener. engine.pollNow() fetches fresh data without waiting for the next
+// tick. The WS was silently lost on restore before this fix.
 window.addEventListener('pageshow', (event) => {
-  if ((event as PageTransitionEvent).persisted && engine) {
-    engine.pollNow();
+  if ((event as PageTransitionEvent).persisted) {
+    if (engine) {
+      engine.start();
+      engine.pollNow();
+    }
+    if (ws) ws.connect();
   }
 });
