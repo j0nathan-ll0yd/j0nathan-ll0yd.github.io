@@ -21,7 +21,7 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 
 ## Repository Structure
 
-```
+```text
 .
 ├── astro.config.mjs              # Astro 6, PWA, sitemap
 ├── src/
@@ -41,13 +41,13 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 
 ## Data Flow
 
-| Context | Source | Mechanism |
-|---------|--------|-----------|
-| Build-time | `@lifegames/fixtures` (`getDashboardFixture()`) | `loadDashboardData()` in `index.astro` frontmatter |
+| Context         | Source                                                    | Mechanism                                                             |
+| --------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
+| Build-time      | `@lifegames/fixtures` (`getDashboardFixture()`)           | `loadDashboardData()` in `index.astro` frontmatter                    |
 | Visual fixtures | `@lifegames/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
-| Client-side | CloudFront | `@lifegames/web/runtime/live-data.ts` after page load |
-| Polling | CloudFront JSON | PollEngine (30s fast, 120s slow), `?_poll=1` bypass |
-| WebSocket | API Gateway | Adaptive fallback when WS unavailable |
+| Client-side     | CloudFront                                                | `@lifegames/web/runtime/live-data.ts` after page load                 |
+| Polling         | CloudFront JSON                                           | PollEngine (30s fast, 120s slow), `?_poll=1` bypass                   |
+| WebSocket       | API Gateway                                               | Adaptive fallback when WS unavailable                                 |
 
 Fixtures are DS-owned (Plan #04): the SSR shell comes from `@lifegames/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`npm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@lifegames/fixtures/generated/` via CloudFront route interception.
 
@@ -68,6 +68,14 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 - **Externalize inline scripts**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
 - **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
+- **Simple Analytics is served first-party (Issue #83, 2026-06-24):** SA is no longer loaded from `scripts.simpleanalyticscdn.com`. Two Cloudflare Pages Functions handle it entirely within our origin:
+  - `/sa.js` → `functions/sa.ts`: fetches `https://simpleanalyticsexternal.com/proxy.js?hostname=jonathanlloyd.me&path=/simple` (a v11 SA script baked with our hostname + collection path), caches aggressively at the edge. On upstream failure returns a harmless JS no-op.
+  - `/simple/*` → `functions/simple/[[path]].ts`: catch-all reverse proxy forwarding to `https://queue.simpleanalyticscdn.com/<rest>` with the `/simple` prefix stripped. Preserves method/body/content-type; sets `X-Forwarded-For`+`X-Real-IP` from `CF-Connecting-IP` for geo accuracy. On upstream failure returns a silent 204 (or 1×1 transparent GIF for `.gif` paths) — never a 5xx.
+  - CSP no longer lists any `simpleanalyticscdn.com` host; all SA traffic is covered by `'self'`.
+  - `auto-events.js` was dropped (no dependents — only manual `sa_event` callers exist in `scroll-depth.js` and `social-click-track.js`; `window.sa_event` is still defined by the proxied main script).
+  - **Invariant (enforced by `audit:sa-path` in prebuild):** the `path=` query value in `functions/sa.ts`'s proxy URL MUST equal the route directory name (`/simple`). Mismatch = silent total data loss. The blocking assertion runs in `prebuild` and exits non-zero on mismatch.
+  - **Privacy note:** collection now appears first-party (`/simple/*`), but SA remains cookieless and data still terminates at Simple Analytics — no new tracking is introduced.
+  - **Rollback:** revert the commit. CSP, loader, and markup return to the CDN hosts; analytics resumes on next deploy.
 - **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `npm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`.
 - **Formatting**: 2-space indent, UTF-8, LF line endings.
 

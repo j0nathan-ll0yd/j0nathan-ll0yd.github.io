@@ -135,12 +135,6 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.books}`} as="fetch" crossorigin>
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.theatreReviews}`} as="fetch" crossorigin>
   )}
-  {import.meta.env.PROD && (
-    <Fragment>
-      <link rel="dns-prefetch" href="https://scripts.simpleanalyticscdn.com">
-      <link rel="dns-prefetch" href="https://queue.simpleanalyticscdn.com">
-    </Fragment>
-  )}
   {import.meta.env.DEV && <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">}
   {/* Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
        Astro processes this <style> (non-inline), resolves the @imports via @lifegames/tokens,
@@ -299,7 +293,7 @@ html { overflow-y: scroll; }
   {import.meta.env.PROD && (
     <Fragment>
       <script is:inline src="/js/sa-loader.js"></script>
-      <noscript><img src="https://queue.simpleanalyticscdn.com/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
+      <noscript><img src="/simple/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
     </Fragment>
   )}
 </body>
