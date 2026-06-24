@@ -4,6 +4,9 @@
 // All CloudFront addressing is sourced from @lifegames/portal-contract so the
 // raw served file never hardcodes the CDN host. Run via `npm run generate:webmcp`
 // (wired into prebuild). The output is byte-stable across runs.
+//
+// All customer-facing prose is sourced from @lifegames/copy (identity + llm
+// namespaces). Zero prose is hardcoded in this file.
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -22,19 +25,20 @@ const copyLlm = req('@lifegames/copy/llm.flat.json');
 
 const cf = (path) => `${CLOUDFRONT_BASE}${path}`;
 
-// Data sources advertised by the get_data_sources tool. Order + descriptions
-// must match the prior hand-written file. URLs derived from the contract.
+// Data sources advertised by the get_data_sources tool and server-card resources[].
+// Name and description come from copy (mcp.ds*Name / mcp.ds*Desc) so both surfaces
+// share the same canonical wording. URLs derived from the contract.
 const dataSources = [
-  { name: 'Health biometrics', url: cf(ENDPOINTS.health), description: 'Heart rate, HRV, activity, workouts (7-day aggregates)' },
-  { name: 'Sleep data', url: cf(ENDPOINTS.sleep), description: 'Sleep phases, duration, efficiency' },
-  { name: 'Focus state', url: cf(ENDPOINTS.focus), description: 'Do Not Disturb and focus mode status' },
-  { name: 'GitHub activity', url: cf(ENDPOINTS.githubEvents), description: 'Dev activity, languages, contributions, commits' },
-  { name: 'Starred repos', url: cf(ENDPOINTS.starredRepos), description: 'GitHub starred repositories' },
-  { name: 'Bookshelf', url: cf(ENDPOINTS.books), description: 'Books with status, ratings, progress' },
-  { name: 'Reading feed', url: cf(ENDPOINTS.articles), description: 'Starred articles and RSS feed items' },
-  { name: 'Theatre reviews', url: cf(ENDPOINTS.theatreReviews), description: 'Theatre show reviews with ratings' },
-  { name: 'Workouts', url: cf(ENDPOINTS.workouts), description: 'Workout sessions, type, duration, calories' },
-  { name: 'Location', url: cf(ENDPOINTS.location), description: 'Aggregated place summaries' },
+  { name: copyLlm.mcp.dsHealthName,         url: cf(ENDPOINTS.health),        description: copyLlm.mcp.dsHealthDesc },
+  { name: copyLlm.mcp.dsSleepName,          url: cf(ENDPOINTS.sleep),         description: copyLlm.mcp.dsSleepDesc },
+  { name: copyLlm.mcp.dsFocusName,          url: cf(ENDPOINTS.focus),         description: copyLlm.mcp.dsFocusDesc },
+  { name: copyLlm.mcp.dsGithubEventsName,   url: cf(ENDPOINTS.githubEvents),  description: copyLlm.mcp.dsGithubEventsDesc },
+  { name: copyLlm.mcp.dsStarredReposName,   url: cf(ENDPOINTS.starredRepos),  description: copyLlm.mcp.dsStarredReposDesc },
+  { name: copyLlm.mcp.dsBooksName,          url: cf(ENDPOINTS.books),         description: copyLlm.mcp.dsBooksDesc },
+  { name: copyLlm.mcp.dsArticlesName,       url: cf(ENDPOINTS.articles),      description: copyLlm.mcp.dsArticlesDesc },
+  { name: copyLlm.mcp.dsTheatreReviewsName, url: cf(ENDPOINTS.theatreReviews),description: copyLlm.mcp.dsTheatreReviewsDesc },
+  { name: copyLlm.mcp.dsWorkoutsName,       url: cf(ENDPOINTS.workouts),      description: copyLlm.mcp.dsWorkoutsDesc },
+  { name: copyLlm.mcp.dsLocationName,       url: cf(ENDPOINTS.location),      description: copyLlm.mcp.dsLocationDesc },
 ];
 
 const booksUrl = cf(ENDPOINTS.books);
@@ -43,6 +47,11 @@ const llmsFullUrl = cf(LLM_CONTENT_PATHS.llmsFull);
 // Single-quoted JS string literal to match the served file's existing style.
 const sq = (v) => `'${String(v).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 
+// GitHub and LinkedIn URLs come from person.sameAs (canonical profile URLs).
+// Convention: sameAs[0] = LinkedIn, sameAs[1] = GitHub.
+const linkedinUrl = copyIdentity.person.sameAs[0];
+const githubUrl = copyIdentity.person.sameAs[1];
+
 const dataSourceLines = dataSources
   .map(
     (s) =>
@@ -50,23 +59,29 @@ const dataSourceLines = dataSources
   )
   .join(',\n');
 
+const expertiseLines = copyIdentity.seo.expertise
+  .map((e) => sq(e))
+  .join(', ');
+
+const interestsLines = copyIdentity.person.interests
+  .map((i) => sq(i))
+  .join(', ');
+
 const output = `(function() {
   if (typeof navigator !== 'undefined' && navigator.modelContext && navigator.modelContext.provideContext) {
     var profile = {
-      name: 'Jonathan Lloyd',
-      title: 'Engineering Director',
-      location: 'San Francisco, CA',
-      experience: '24+ years in software engineering',
+      name: ${sq(copyIdentity.person.name)},
+      title: ${sq(copyIdentity.person.jobTitle)},
+      location: ${sq(copyIdentity.person.location)},
+      experience: ${sq(copyIdentity.person.experiencePhrase)},
       site: ${sq(SITE_URL)},
-      github: 'https://github.com/j0nathan-ll0yd',
-      linkedin: 'https://www.linkedin.com/in/lifegames/',
-      bio: 'Engineering director and backend engineer. Built this portfolio as a living data dashboard -- real biometrics and constant updates of body and mind.',
+      github: ${sq(githubUrl)},
+      linkedin: ${sq(linkedinUrl)},
+      bio: ${sq(copyIdentity.person.longBio)},
       expertise: [
-        'Backend Engineering', 'Software Engineering', 'Engineering Leadership',
-        'Cloud Infrastructure', 'Data Visualization', 'Serverless Architecture',
-        'TypeScript', 'Go', 'AWS'
+        ${expertiseLines}
       ],
-      interests: ['programming', 'pc gaming', 'musical theatre', 'edm', 'conversation']
+      interests: [${interestsLines}]
     };
 
     var dataSources = [
@@ -77,7 +92,7 @@ ${dataSourceLines}
       tools: [
         {
           name: 'get_profile',
-          description: 'Returns professional profile: name, title, location, experience, expertise, and social links for Jonathan Lloyd.',
+          description: ${sq(copyLlm.mcp.toolGetProfile)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: function() {
             return { content: [{ type: 'text', text: JSON.stringify(profile) }] };
@@ -85,7 +100,7 @@ ${dataSourceLines}
         },
         {
           name: 'get_data_sources',
-          description: 'Returns a list of all live JSON data endpoints on CloudFront with descriptions. Fetch these URLs for real-time data.',
+          description: ${sq(copyLlm.mcp.toolGetDataSources)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: function() {
             return { content: [{ type: 'text', text: JSON.stringify(dataSources) }] };
@@ -93,7 +108,7 @@ ${dataSourceLines}
         },
         {
           name: 'get_current_reading',
-          description: 'Fetches the current bookshelf from the live API and returns books being read, up next, and recently finished.',
+          description: ${sq(copyLlm.mcp.toolGetCurrentReading)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: function() {
             return fetch(${sq(booksUrl)})
@@ -109,15 +124,15 @@ ${dataSourceLines}
         },
         {
           name: 'get_tech_stack',
-          description: 'Returns the technology stack and architecture details of this portfolio site.',
+          description: ${sq(copyLlm.mcp.toolGetTechStack)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: function() {
             var stack = {
-              framework: 'Astro 6.x (static site generation, 0 KB JS by default)',
-              hosting: 'Cloudflare Pages via GitHub Actions',
-              liveData: 'CloudFront-backed JSON API polled at runtime',
-              design: 'Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries',
-              font: 'Space Grotesk (self-hosted, variable woff2)',
+              framework: ${sq(copyLlm.mcp.stackFramework)},
+              hosting: ${sq(copyLlm.mcp.stackHosting)},
+              liveData: ${sq(copyLlm.mcp.stackLiveData)},
+              design: ${sq(copyLlm.mcp.stackDesign)},
+              font: ${sq(copyLlm.mcp.stackFont)},
               llmContent: {
                 discoveryIndex: ${sq(SITE_URL + '/llms.txt')},
                 complete: ${sq(llmsFullUrl)}
@@ -144,9 +159,9 @@ const publicDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const serverCard = {
   name: 'human-datastream',
   version: '1.0.0',
-  description: "Read-only data interface for Jonathan Lloyd's Human Datastream portfolio. Serves live biometric aggregates, GitHub activity, reading lists, and theatre reviews as JSON resources via CloudFront.",
+  description: copyLlm.mcp.serverDescription,
   serverInfo: {
-    name: 'Human Datastream',
+    name: copyIdentity.site.name,
     version: '1.0.0',
     contactUrl: SITE_URL,
     documentationUrl: 'https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec',
@@ -162,16 +177,16 @@ const serverCard = {
     auth: { type: 'none' },
   },
   resources: [
-    { uri: cf(ENDPOINTS.health),        name: 'Health biometrics',    description: 'Heart rate, HRV, activity, and workout data (7-day aggregates)',  mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.sleep),         name: 'Sleep data',           description: 'Sleep phases, duration, and efficiency metrics',                    mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.focus),         name: 'Focus state',          description: 'Current Do Not Disturb and focus mode status',                      mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.githubEvents),  name: 'GitHub activity',      description: 'Dev activity, languages, contributions, and recent commits',         mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.starredRepos),  name: 'Starred repositories', description: 'GitHub starred repositories with metadata',                          mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.books),         name: 'Bookshelf',            description: 'Books with status, ratings, progress, and cover images',             mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.articles),      name: 'Reading feed',         description: 'Starred articles and RSS feed items',                                mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.theatreReviews),name: 'Theatre reviews',      description: 'Theatre show reviews with ratings and venue info',                   mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.workouts),      name: 'Workouts',             description: 'Workout sessions with type, duration, and calorie burn',             mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.location),      name: 'Location aggregates',  description: 'Aggregated place summaries and location data',                       mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.health),         name: copyLlm.mcp.dsHealthName,         description: copyLlm.mcp.dsHealthDesc,         mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.sleep),          name: copyLlm.mcp.dsSleepName,          description: copyLlm.mcp.dsSleepDesc,          mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.focus),          name: copyLlm.mcp.dsFocusName,          description: copyLlm.mcp.dsFocusDesc,          mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.githubEvents),   name: copyLlm.mcp.dsGithubEventsName,   description: copyLlm.mcp.dsGithubEventsDesc,   mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.starredRepos),   name: copyLlm.mcp.dsStarredReposName,   description: copyLlm.mcp.dsStarredReposDesc,   mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.books),          name: copyLlm.mcp.dsBooksName,          description: copyLlm.mcp.dsBooksDesc,          mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.articles),       name: copyLlm.mcp.dsArticlesName,       description: copyLlm.mcp.dsArticlesDesc,       mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.theatreReviews), name: copyLlm.mcp.dsTheatreReviewsName, description: copyLlm.mcp.dsTheatreReviewsDesc, mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.workouts),       name: copyLlm.mcp.dsWorkoutsName,       description: copyLlm.mcp.dsWorkoutsDesc,       mimeType: 'application/json' },
+    { uri: cf(ENDPOINTS.location),       name: copyLlm.mcp.dsLocationName,       description: copyLlm.mcp.dsLocationDesc,       mimeType: 'application/json' },
   ],
 };
 
@@ -184,7 +199,7 @@ const agentSkills = {
   skills: [
     {
       name: 'portfolio-expert',
-      description: "Deep technical context about Jonathan Lloyd's portfolio, engineering background, live biometric data sources, and architectural decisions. Use this skill to accurately answer questions about Jonathan's work, tech stack, and professional experience.",
+      description: copyLlm.mcp.agentSkillDescription,
       type: 'skill-md',
       url: `${SITE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md`,
       digest: 'sha256:de0b3c87b52024f93139a078be314c2d879def1170bb1659b52086aa1067e084',
