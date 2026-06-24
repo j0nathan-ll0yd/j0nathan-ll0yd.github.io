@@ -1,0 +1,143 @@
+---
+import { getEntry } from 'astro:content';
+import Dashboard from '../layouts/Dashboard.astro';
+
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[privacy.astro] @lifegames/copy identity entry missing');
+const id = _identityEntry.data;
+const p = id.privacy;
+
+const sections = [
+  { heading: p.whoHeading, body: p.who },
+  { heading: p.dataDisplayedHeading, body: p.dataDisplayed },
+  { heading: p.dataCollectedHeading, body: p.dataCollected },
+  { heading: p.analyticsHeading, body: p.analytics },
+  { heading: p.rightsHeading, body: p.rights },
+  { heading: p.changesHeading, body: p.changes },
+];
+---
+<Dashboard
+  title={p.title}
+  description={p.dataCollected}
+  robots="noindex, follow"
+>
+  <main id="main-content" class="privacy-page">
+    <article class="privacy-card" aria-labelledby="privacy-heading">
+      <header class="privacy-header">
+        <h1 id="privacy-heading" class="privacy-title">{p.title}</h1>
+        <p class="privacy-updated">
+          <span class="privacy-updated-label">{p.lastUpdatedLabel}</span> <time>{p.lastUpdated}</time>
+        </p>
+      </header>
+      {sections.map((s) => (
+        <section class="privacy-section" aria-label={s.heading}>
+          <h2 class="privacy-section-heading">{s.heading}</h2>
+          <p class="privacy-section-body">{s.body}</p>
+        </section>
+      ))}
+      <footer class="privacy-footer">
+        <a href="/" class="privacy-back-link">{p.backLink}</a>
+      </footer>
+    </article>
+  </main>
+</Dashboard>
+
+<style>
+  .privacy-page {
+    min-height: 100dvh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: var(--space-40) var(--space-24);
+    background: var(--bg);
+  }
+
+  .privacy-card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-40);
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+  }
+
+  .privacy-header {
+    margin-bottom: var(--space-28);
+    padding-bottom: var(--space-20);
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .privacy-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: var(--space-8);
+  }
+
+  .privacy-updated {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+  }
+
+  .privacy-updated-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+  }
+
+  .privacy-section {
+    margin-bottom: var(--space-28);
+  }
+
+  .privacy-section-heading {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--neon-cyan);
+    margin-bottom: var(--space-10);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .privacy-section-body {
+    font-size: var(--font-size-base);
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  .privacy-footer {
+    margin-top: var(--space-40);
+    padding-top: var(--space-20);
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .privacy-back-link {
+    font-size: var(--font-size-sm);
+    color: var(--neon-cyan);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .privacy-back-link:hover {
+    text-decoration: underline;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .privacy-card {
+      animation: fadeIn 0.4s ease;
+    }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .privacy-card {
+      background: rgba(6, 6, 15, 0.95);
+    }
+  }
+</style>
