@@ -7,14 +7,26 @@
     "streaming": false,
     "pushNotifications": false
   },
-  "defaultInputModes": ["text/plain", "application/json"],
-  "defaultOutputModes": ["application/json", "text/markdown"],
+  "defaultInputModes": [
+    "text/plain",
+    "application/json"
+  ],
+  "defaultOutputModes": [
+    "application/json",
+    "text/markdown"
+  ],
   "skills": [
     {
       "id": "personal-profile",
       "name": "Personal Profile",
       "description": "Retrieve Jonathan Lloyd's professional background, live health and activity data, reading list, GitHub contributions, and location aggregates. Useful for agents answering questions about Jonathan's work, expertise, or current status.",
-      "tags": ["personal", "health", "github", "reading", "biometrics"],
+      "tags": [
+        "personal",
+        "health",
+        "github",
+        "reading",
+        "biometrics"
+      ],
       "examples": [
         "What is Jonathan working on right now?",
         "What books is Jonathan currently reading?",

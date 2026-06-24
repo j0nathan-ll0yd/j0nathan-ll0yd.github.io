@@ -7,12 +7,18 @@
 import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 import {
   CLOUDFRONT_BASE,
   ENDPOINTS,
   LLM_CONTENT_PATHS,
   SITE_URL,
 } from '@lifegames/portal-contract/constants';
+
+// Copy flat JSON — prose sourced from @lifegames/copy so wording is never duplicated.
+const require = createRequire(import.meta.url);
+const copyIdentity = require('@lifegames/copy/identity.flat.json');
+const copyLlm = require('@lifegames/copy/llm.flat.json');
 
 const cf = (path) => `${CLOUDFRONT_BASE}${path}`;
 
@@ -189,3 +195,68 @@ const agentSkills = {
 const agentSkillsPath = join(publicDir, '.well-known', 'agent-skills', 'index.json');
 writeFileSync(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n');
 console.log(`Generated ${agentSkillsPath}`);
+
+// Generate agent-card.json — prose from @lifegames/copy; structure/URLs from portal-contract.
+// Replaces the prior hand-authored static file; shape is preserved exactly.
+const agentCard = {
+  name: copyIdentity.site.name,
+  description: copyLlm.agentDiscovery.agentCardDescription,
+  version: '1.0.0',
+  url: `${SITE_URL}/.well-known/mcp/server-card.json`,
+  capabilities: {
+    streaming: false,
+    pushNotifications: false,
+  },
+  defaultInputModes: ['text/plain', 'application/json'],
+  defaultOutputModes: ['application/json', 'text/markdown'],
+  skills: [
+    {
+      id: 'personal-profile',
+      name: copyLlm.agentDiscovery.agentCardSkillName,
+      description: copyLlm.agentDiscovery.agentCardSkillDescription,
+      tags: ['personal', 'health', 'github', 'reading', 'biometrics'],
+      examples: copyLlm.agentDiscovery.agentCardSkillExamples,
+    },
+  ],
+};
+
+const agentCardPath = join(publicDir, '.well-known', 'agent-card.json');
+writeFileSync(agentCardPath, JSON.stringify(agentCard, null, 2) + '\n');
+console.log(`Generated ${agentCardPath}`);
+
+// Generate ai-catalog.json — prose from @lifegames/copy; URLs/identifiers from portal-contract.
+// Replaces the prior hand-authored static file; shape is preserved exactly.
+const aiCatalog = {
+  host: {
+    displayName: copyIdentity.site.fullName,
+    identifier: 'jonathanlloyd.me',
+    documentationUrl: 'https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec',
+  },
+  entries: [
+    {
+      type: 'mcp-server',
+      url: `${SITE_URL}/.well-known/mcp/server-card.json`,
+      name: copyLlm.agentDiscovery.aiCatalogMcpName,
+      description: copyLlm.agentDiscovery.aiCatalogMcpDescription,
+      representativeQueries: copyLlm.agentDiscovery.aiCatalogMcpQueries,
+    },
+    {
+      type: 'agent-skills',
+      url: `${SITE_URL}/.well-known/agent-skills/index.json`,
+      name: copyLlm.agentDiscovery.aiCatalogSkillsName,
+      description: copyLlm.agentDiscovery.aiCatalogSkillsDescription,
+      representativeQueries: copyLlm.agentDiscovery.aiCatalogSkillsQueries,
+    },
+    {
+      type: 'a2a-agent',
+      url: `${SITE_URL}/.well-known/agent-card.json`,
+      name: copyLlm.agentDiscovery.aiCatalogA2aName,
+      description: copyLlm.agentDiscovery.aiCatalogA2aDescription,
+      representativeQueries: copyLlm.agentDiscovery.aiCatalogA2aQueries,
+    },
+  ],
+};
+
+const aiCatalogPath = join(publicDir, '.well-known', 'ai-catalog.json');
+writeFileSync(aiCatalogPath, JSON.stringify(aiCatalog, null, 2) + '\n');
+console.log(`Generated ${aiCatalogPath}`);
