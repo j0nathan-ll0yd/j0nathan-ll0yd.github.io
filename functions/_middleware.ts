@@ -26,18 +26,28 @@ const CSP = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "upgrade-insecure-requests",
+  // Violation reporting: report-to (Reporting API, modern) + report-uri (legacy fallback).
+  // The named endpoint matches the Reporting-Endpoints header set below.
+  "report-uri /api/csp-report; report-to csp-endpoint",
 ].join('; ') + ';';
+
+// CSP violation reports are collected at /api/csp-report (functions/api/csp-report.ts).
+// The Reporting-Endpoints header names the endpoint; the CSP report-to directive references
+// that name. report-uri is retained as a fallback for older browsers (Firefox <130, Safari <17).
+const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/csp-report"';
 
 const LINK_HEADER = [
   '</llms.txt>; rel="describedby"; type="text/plain"',
   '</.well-known/api-catalog>; rel="api-catalog"',
+  '</.well-known/agent-card.json>; rel="https://www.agentcard.org/rel"',
+  '</.well-known/ai-catalog.json>; rel="ai-catalog"',
   '</sitemap-index.xml>; rel="sitemap"',
   '</humans.txt>; rel="author"',
   '</feed.xml>; rel="alternate"; type="application/rss+xml"',
   '</feed.json>; rel="alternate"; type="application/feed+json"',
 ].join(', ');
 
-// Minimal Cloudflare Pages Function context — only the fields this middleware reads.
+// Minimal Cloudflare Pages Function context -- only the fields this middleware reads.
 // Avoids pulling in @cloudflare/workers-types just for one signature.
 interface PagesContext {
   request: Request;
@@ -70,13 +80,14 @@ export async function onRequest(context: PagesContext): Promise<Response> {
 
   // Security headers
   headers.set('Content-Security-Policy', CSP);
+  headers.set('Reporting-Endpoints', REPORTING_ENDPOINTS);
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  // HSTS: 2-year max-age + subdomains. Preload intentionally omitted — owner-gated process.
+  // HSTS: 2-year max-age + subdomains. Preload intentionally omitted -- owner-gated process.
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
   headers.set('X-Frame-Options', 'DENY');
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted — would break cross-origin Amazon, Carto, and SimpleAnalytics resources.
+  // COEP/CORP omitted -- would break cross-origin Amazon, Carto, and SimpleAnalytics resources.
   headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   headers.set('Permissions-Policy', 'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()');
 

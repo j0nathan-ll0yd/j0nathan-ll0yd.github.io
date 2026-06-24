@@ -4,30 +4,28 @@
       name: 'Jonathan Lloyd',
       title: 'Engineering Director',
       location: 'San Francisco, CA',
-      experience: '24+ years in software engineering',
+      experience: '24+ years professionally & counting',
       site: 'https://jonathanlloyd.me',
       github: 'https://github.com/j0nathan-ll0yd',
       linkedin: 'https://www.linkedin.com/in/lifegames/',
-      bio: 'Engineering director and backend engineer. Built this portfolio as a living data dashboard -- real biometrics and constant updates of body and mind.',
+      bio: 'Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.',
       expertise: [
-        'Backend Engineering', 'Software Engineering', 'Engineering Leadership',
-        'Cloud Infrastructure', 'Data Visualization', 'Serverless Architecture',
-        'TypeScript', 'Go', 'AWS'
+        'Backend Engineering', 'Software Engineering', 'Engineering Leadership', 'Cloud Infrastructure', 'Data Visualization', 'Serverless Architecture', 'TypeScript', 'Go', 'AWS'
       ],
       interests: ['programming', 'pc gaming', 'musical theatre', 'edm', 'conversation']
     };
 
     var dataSources = [
-      { name: 'Health biometrics', url: 'https://d1pfm520aduift.cloudfront.net/health.json', description: 'Heart rate, HRV, activity, workouts (7-day aggregates)' },
-      { name: 'Sleep data', url: 'https://d1pfm520aduift.cloudfront.net/sleep.json', description: 'Sleep phases, duration, efficiency' },
-      { name: 'Focus state', url: 'https://d1pfm520aduift.cloudfront.net/focus.json', description: 'Do Not Disturb and focus mode status' },
-      { name: 'GitHub activity', url: 'https://d1pfm520aduift.cloudfront.net/github-events.json', description: 'Dev activity, languages, contributions, commits' },
-      { name: 'Starred repos', url: 'https://d1pfm520aduift.cloudfront.net/github-starred-repos.json', description: 'GitHub starred repositories' },
-      { name: 'Bookshelf', url: 'https://d1pfm520aduift.cloudfront.net/books.json', description: 'Books with status, ratings, progress' },
+      { name: 'Health biometrics', url: 'https://d1pfm520aduift.cloudfront.net/health.json', description: 'Heart rate, HRV, activity, and workout data (7-day aggregates)' },
+      { name: 'Sleep data', url: 'https://d1pfm520aduift.cloudfront.net/sleep.json', description: 'Sleep phases, duration, and efficiency metrics' },
+      { name: 'Focus state', url: 'https://d1pfm520aduift.cloudfront.net/focus.json', description: 'Current Do Not Disturb and focus mode status' },
+      { name: 'GitHub activity', url: 'https://d1pfm520aduift.cloudfront.net/github-events.json', description: 'Dev activity, languages, contributions, and recent commits' },
+      { name: 'Starred repositories', url: 'https://d1pfm520aduift.cloudfront.net/github-starred-repos.json', description: 'GitHub starred repositories with metadata' },
+      { name: 'Bookshelf', url: 'https://d1pfm520aduift.cloudfront.net/books.json', description: 'Books with status, ratings, progress, and cover images' },
       { name: 'Reading feed', url: 'https://d1pfm520aduift.cloudfront.net/articles.json', description: 'Starred articles and RSS feed items' },
-      { name: 'Theatre reviews', url: 'https://d1pfm520aduift.cloudfront.net/theatre-reviews.json', description: 'Theatre show reviews with ratings' },
-      { name: 'Workouts', url: 'https://d1pfm520aduift.cloudfront.net/workouts.json', description: 'Workout sessions, type, duration, calories' },
-      { name: 'Location', url: 'https://d1pfm520aduift.cloudfront.net/location.json', description: 'Aggregated place summaries' }
+      { name: 'Theatre reviews', url: 'https://d1pfm520aduift.cloudfront.net/theatre-reviews.json', description: 'Theatre show reviews with ratings and venue info' },
+      { name: 'Workouts', url: 'https://d1pfm520aduift.cloudfront.net/workouts.json', description: 'Workout sessions with type, duration, and calorie burn' },
+      { name: 'Location aggregates', url: 'https://d1pfm520aduift.cloudfront.net/location.json', description: 'Aggregated place summaries and location data' }
     ];
 
     navigator.modelContext.provideContext({
