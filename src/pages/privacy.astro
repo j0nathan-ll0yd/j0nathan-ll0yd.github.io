@@ -8,12 +8,12 @@ const id = _identityEntry.data;
 const p = id.privacy;
 
 const sections = [
-  { heading: 'Who runs this site', body: p.who },
-  { heading: 'Data displayed', body: p.dataDisplayed },
-  { heading: 'Data collected from visitors', body: p.dataCollected },
-  { heading: 'Analytics', body: p.analytics },
-  { heading: 'Your rights', body: p.rights },
-  { heading: 'Changes to this policy', body: p.changes },
+  { heading: p.whoHeading, body: p.who },
+  { heading: p.dataDisplayedHeading, body: p.dataDisplayed },
+  { heading: p.dataCollectedHeading, body: p.dataCollected },
+  { heading: p.analyticsHeading, body: p.analytics },
+  { heading: p.rightsHeading, body: p.rights },
+  { heading: p.changesHeading, body: p.changes },
 ];
 ---
 <Dashboard
@@ -26,7 +26,7 @@ const sections = [
       <header class="privacy-header">
         <h1 id="privacy-heading" class="privacy-title">{p.title}</h1>
         <p class="privacy-updated">
-          <time>{p.lastUpdated}</time>
+          <span class="privacy-updated-label">{p.lastUpdatedLabel}</span> <time>{p.lastUpdated}</time>
         </p>
       </header>
       {sections.map((s) => (
@@ -36,7 +36,7 @@ const sections = [
         </section>
       ))}
       <footer class="privacy-footer">
-        <a href="/" class="privacy-back-link">{id.a11y.skipToMain ? 'Back to dashboard' : 'Back'}</a>
+        <a href="/" class="privacy-back-link">{p.backLink}</a>
       </footer>
     </article>
   </main>
@@ -82,8 +82,9 @@ const sections = [
     color: var(--text-muted);
   }
 
-  .privacy-updated time::before {
-    content: 'Last updated: ';
+  .privacy-updated-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
   }
 
   .privacy-section {
