@@ -16,9 +16,9 @@ import {
 } from '@lifegames/portal-contract/constants';
 
 // Copy flat JSON — prose sourced from @lifegames/copy so wording is never duplicated.
-const require = createRequire(import.meta.url);
-const copyIdentity = require('@lifegames/copy/identity.flat.json');
-const copyLlm = require('@lifegames/copy/llm.flat.json');
+const req = createRequire(import.meta.url);
+const copyIdentity = req('@lifegames/copy/identity.flat.json');
+const copyLlm = req('@lifegames/copy/llm.flat.json');
 
 const cf = (path) => `${CLOUDFRONT_BASE}${path}`;
 
