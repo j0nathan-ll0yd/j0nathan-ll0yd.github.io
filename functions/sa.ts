@@ -1,4 +1,5 @@
-// Pages Function: serve the Simple Analytics proxy script first-party at /sa.js
+// Pages Function: serve the Simple Analytics proxy script first-party at /sa
+// (Cloudflare Pages strips the .ts extension, so functions/sa.ts → route /sa).
 // Fetches https://simpleanalyticsexternal.com/proxy.js?hostname=jonathanlloyd.me&path=/simple
 // which returns a v11 script baked with our hostname + collection path, then caches
 // aggressively at the edge so a transient upstream blip is masked.

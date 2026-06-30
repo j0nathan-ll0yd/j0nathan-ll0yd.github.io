@@ -1,7 +1,7 @@
 (function() {
   function loadSA() {
     var s = document.createElement('script');
-    s.src = '/sa.js';
+    s.src = '/sa';
     s.async = true;
     s.onerror = function() {};
     document.body.appendChild(s);
