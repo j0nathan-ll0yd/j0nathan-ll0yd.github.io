@@ -15,10 +15,8 @@ permissions:
 
 jobs:
   preview:
-    # Run on the same runner class as deploy.yml.
-    # TEMP (2026-06-24): self-hosted fleet down; using GitHub-hosted.
-    # REVERT to [self-hosted, linux, arm64, node] once recovered.
-    runs-on: ubuntu-latest
+    # Same runner class as deploy.yml.
+    runs-on: [self-hosted, linux, arm64, node]
 
     steps:
       - name: Checkout
