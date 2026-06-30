@@ -15,11 +15,7 @@ concurrency:
 
 jobs:
   build-and-deploy:
-    # TEMP (2026-06-24): self-hosted Linux fleet down (vmnet wedge, reboot-gated) --
-    # routed to GitHub-hosted to unblock the queued production deploy without a host
-    # reboot. REVERT to [self-hosted, linux, arm64, node] once recovered.
-    # See j0nathan-ll0yd/ci-runners-private#26.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -68,11 +64,7 @@ jobs:
             -d "{\"build\":\"${GITHUB_SHA}\"}"
 
   check-images:
-    # TEMP (2026-06-24): self-hosted Linux fleet down (vmnet wedge, reboot-gated) --
-    # routed to GitHub-hosted to unblock the queued production deploy without a host
-    # reboot. REVERT to [self-hosted, linux, arm64, node] once recovered.
-    # See j0nathan-ll0yd/ci-runners-private#26.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
