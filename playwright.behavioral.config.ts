@@ -52,5 +52,12 @@ export default defineConfig({
       name: 'behavioral-chromium',
       use: { browserName: 'chromium', viewport: { width: 1400, height: 900 } },
     },
+    {
+      // Scoped to the mobile-layout spec only — book-modal.spec.ts assumes a
+      // desktop layout and would emit false failures at 390px.
+      name: 'behavioral-mobile-chromium',
+      testMatch: '**/mobile-layout.spec.ts',
+      use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, hasTouch: true },
+    },
   ],
 });

@@ -237,6 +237,17 @@ test.describe('Widget variations - Theatre Reviews', () => {
   });
 });
 
+test.describe('Widget variations - Reading Feed', () => {
+  // Bug-6 regression: articles with empty articleTitle ("") + long sourceTitle
+  // must render without crashing or producing a blank/broken widget row.
+  test('empty title', async ({ page }) => {
+    await setupPage(page, 'reading-empty-title');
+    await stabilizeForLocatorScreenshot(page);
+    const widget = page.locator(WIDGET_SELECTORS.readingFeed);
+    await expect(widget).toHaveScreenshot('reading-empty-title.png', { stylePath });
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 4c: Overlay Tests
 // ---------------------------------------------------------------------------
