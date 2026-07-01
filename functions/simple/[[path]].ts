@@ -65,12 +65,18 @@ export async function onRequest(context: PagesContext): Promise<Response> {
 
   const isGif = suffix.endsWith('.gif');
 
+  // Collection endpoints must never be cached. `Cache-Control: no-store` covers
+  // the browser, but Cloudflare's edge overrides it and caches GET responses by
+  // default (observed: max-age=600 on the pixel), which would dedupe the static
+  // `noscript.gif` pageview across a 600s window. `CDN-Cache-Control: no-store`
+  // is the Cloudflare-honored directive that keeps the EDGE from caching too.
   const silentGif = () =>
     new Response(TRANSPARENT_GIF, {
       status: 200,
       headers: {
         'Content-Type': 'image/gif',
         'Cache-Control': 'no-store',
+        'CDN-Cache-Control': 'no-store',
       },
     });
 
@@ -79,7 +85,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
       ? silentGif()
       : new Response(null, {
           status: 204,
-          headers: { 'Cache-Control': 'no-store' },
+          headers: { 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store' },
         });
 
   let upstream: Response;
@@ -109,6 +115,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // For GIF paths, forward the upstream response; for others forward as-is or 204
   const responseHeaders = new Headers();
   responseHeaders.set('Cache-Control', 'no-store');
+  responseHeaders.set('CDN-Cache-Control', 'no-store');
 
   const upstreamContentType = upstream.headers.get('Content-Type');
   if (upstreamContentType) {

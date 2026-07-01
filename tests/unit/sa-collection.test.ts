@@ -87,10 +87,19 @@ describe('SA collection Function — upstream failure → silent 2xx', () => {
     expect(res.status).toBe(200);
   });
 
-  it('sets Cache-Control: no-store on all responses', async () => {
+  it('sets Cache-Control AND CDN-Cache-Control: no-store on the noop path', async () => {
     fetchMock.mockRejectedValueOnce(new Error('fail'));
     const res = await onRequest(makeContext('/simple/append'));
     expect(res.headers.get('Cache-Control')).toBe('no-store');
+    // CDN-Cache-Control is what Cloudflare's edge honors (it overrides the browser
+    // Cache-Control); without it GET /simple/* is edge-cached for ~600s.
+    expect(res.headers.get('CDN-Cache-Control')).toBe('no-store');
+  });
+
+  it('sets CDN-Cache-Control: no-store on the success path too', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 202 }));
+    const res = await onRequest(makeContext('/simple/simple.gif'));
+    expect(res.headers.get('CDN-Cache-Control')).toBe('no-store');
   });
 
   it('joins a multi-segment catch-all param array into the upstream path', async () => {
