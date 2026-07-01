@@ -136,6 +136,12 @@ const WIDGET_VARIATION_SCENARIOS: Record<string, FixtureSet> = {
   'theatre-all-grades': { ...BASELINE, '/theatre-reviews.json': fixture('theatre-reviews', 'all-grades') },
   'theatre-no-images': { ...BASELINE, '/theatre-reviews.json': fixture('theatre-reviews', 'no-images') },
 
+  // Reading Feed variations
+  // Exercises bug-6 fix: articles with empty articleTitle ("") + long sourceTitle
+  // must not crash or mis-render the reading widget. Named after Hoodline, a local
+  // news aggregator that frequently produces empty-title entries.
+  'reading-empty-title': { ...BASELINE, '/articles.json': fixture('articles', 'hoodline-empty-title') },
+
   // Overlay variations
   'focus-work': { ...BASELINE, '/focus.json': fixture('focus', 'baseline') },
   'focus-dnd': { ...BASELINE, '/focus.json': fixture('focus', 'dnd') },
