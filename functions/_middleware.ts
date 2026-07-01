@@ -15,11 +15,11 @@ const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin;
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://scripts.simpleanalyticscdn.com https://static.cloudflareinsights.com",
+  "script-src 'self' https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://books.google.com ${CLOUDFRONT_BASE} https://queue.simpleanalyticscdn.com`,
-  `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN} https://queue.simpleanalyticscdn.com https://cloudflareinsights.com`,
+  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://books.google.com ${CLOUDFRONT_BASE}`,
+  `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN} https://cloudflareinsights.com`,
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -87,7 +87,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
   headers.set('X-Frame-Options', 'DENY');
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break cross-origin Amazon, Carto, and SimpleAnalytics resources.
+  // COEP/CORP omitted -- would break cross-origin Amazon and Carto tile resources.
   headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   headers.set('Permissions-Policy', 'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()');
 
