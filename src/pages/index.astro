@@ -77,6 +77,11 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
   <BookModal />
 
   <script>
+    import { initInputModality } from '@lifegames/web/runtime/input-modality';
+    initInputModality();
+  </script>
+
+  <script>
     window.addEventListener('load', () => {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       import('@lifegames/web/runtime/particles').then(m => m.startParticles());
