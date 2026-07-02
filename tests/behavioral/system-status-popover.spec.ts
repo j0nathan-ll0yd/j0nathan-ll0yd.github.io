@@ -159,6 +159,85 @@ test.describe('SystemStatus provenance disclosure — popover behavior', () => {
   });
 
   // -----------------------------------------------------------------------
+  // 2b. Positioning regression guard (the bug the shipped feature slipped past)
+  //
+  // Root cause: the implicit popovertarget anchor did not resolve on the
+  // @starting-style re-layout, so Chromium's "position-area with no valid
+  // anchor" path placed the popover at viewport 0,0. The fix wires explicit
+  // per-source anchor-name/position-anchor pairs. This test asserts geometry
+  // that is CORRECT for `position-area: bottom span-inline-start` (the box
+  // grows DOWN and toward inline-start; the trigger aligns with the box's
+  // RIGHT edge — so do NOT assert `left ≈ trigger.left`).
+  //
+  // Must be settle-aware: the failure manifests only after the entry
+  // opacity+scale transition, so we poll until the rect is stable before
+  // asserting.
+  // -----------------------------------------------------------------------
+  test('2b. opened popover anchors adjacent to its trigger (no top-left jump, no centered fallback)', async () => {
+    await page.locator(HEALTH_BUTTON).click();
+    await expect(page.locator(HEALTH_POPOVER)).toBeVisible();
+
+    const popover = page.locator(HEALTH_POPOVER);
+
+    // Settle: poll until the popover's top is stable across two consecutive
+    // reads (absorbs the scale entry animation), then read the final rect.
+    let prevTop: number | null = null;
+    await expect
+      .poll(
+        async () => {
+          const box = await popover.boundingBox();
+          if (!box) return false;
+          const stable = prevTop !== null && Math.abs(box.y - prevTop) < 0.5;
+          prevTop = box.y;
+          return stable;
+        },
+        { timeout: 3000, intervals: [100, 100, 100, 100] },
+      )
+      .toBe(true);
+
+    const pop = await popover.boundingBox();
+    const trig = await page.locator(HEALTH_BUTTON).boundingBox();
+    if (!pop || !trig) throw new Error('missing bounding box');
+
+    const popTop = pop.y;
+    const popBottom = pop.y + pop.height;
+    const popLeft = pop.x;
+    const popRight = pop.x + pop.width;
+    const trigTop = trig.y;
+    const trigBottom = trig.y + trig.height;
+    const trigCenterX = trig.x + trig.width / 2;
+
+    // (a) Block adjacency (primary discriminator): the popover's near block edge
+    // hugs the trigger. Separates the ANCHORED state from BOTH failure modes —
+    // the top-left bug (top ≈ 0) and the centered fallback (bottom: 1rem, pinned
+    // near the viewport bottom, far from the trigger).
+    const blockGap = Math.min(Math.abs(popTop - trigBottom), Math.abs(popBottom - trigTop));
+    expect(blockGap).toBeLessThan(16);
+
+    // (b) Inline proximity: the nearest horizontal edge of the popover is close
+    // to the trigger's center-x (accounts for `flip-inline`). NOT `left ≈ trigger.left`.
+    const inlineGap = Math.min(Math.abs(popRight - trigCenterX), Math.abs(popLeft - trigCenterX));
+    expect(inlineGap).toBeLessThan(48);
+
+    // Explicitly kill the exact shipped bug: the popover must not sit at the
+    // viewport top. (Implied by (a), asserted for clarity.)
+    expect(popTop).toBeGreaterThan(16);
+
+    // Caret presence: with anchoring active the clip-path + at least one caret
+    // pseudo-element must be live. clip-path on the popover is non-none, and the
+    // up-caret ::before has generated content.
+    const caret = await popover.evaluate((el) => ({
+      clipPath: getComputedStyle(el).clipPath,
+      beforeContent: getComputedStyle(el, '::before').content,
+      afterContent: getComputedStyle(el, '::after').content,
+    }));
+    expect(caret.clipPath).not.toBe('none');
+    // One of the two carets is revealed depending on block flip; both have
+    // generated content (the clip-path hides the wrong one visually).
+    expect(caret.beforeContent === 'none' && caret.afterContent === 'none').toBe(false);
+  });
+
+  // -----------------------------------------------------------------------
   // 3. Escape closes the popover + focus returns to the invoking button
   // -----------------------------------------------------------------------
   test('3. Escape closes the popover and returns focus to the button', async () => {
