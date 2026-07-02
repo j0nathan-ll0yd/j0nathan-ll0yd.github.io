@@ -304,13 +304,14 @@ test.describe('BookModal — native <dialog> behavior', () => {
   });
 
   // -----------------------------------------------------------------------
-  // 6b. Escape dismiss restores focus WITHOUT leaving a lingering focus ring
-  //     on the book tile (regression: the neon :focus-visible outline used to
-  //     persist on the trigger after a keyboard dismiss).
+  // 6b. KEYBOARD dismiss (Escape) restores focus to the trigger AND shows the
+  //     :focus-visible ring — keyboard users get a visible focus indicator
+  //     (WCAG 2.4.7). The global input-modality tracker (runtime/input-modality)
+  //     keeps the ring for keyboard input; pointer dismiss suppresses it (6c).
   // -----------------------------------------------------------------------
-  test('6b. Escape dismiss leaves focus on the trigger but no visible focus ring', async () => {
+  test('6b. Escape (keyboard) dismiss returns focus to the trigger WITH a GREEN ring (DS intent)', async () => {
     const trigger = page.locator('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]').first();
-    // Open via KEYBOARD so :focus-visible would naturally apply on focus restore.
+    // Open via KEYBOARD so the input-modality tracker records `keyboard`.
     await trigger.focus();
     await page.keyboard.press('Enter');
     await expect(page.locator('dialog#bookDialog')).toHaveAttribute('open');
@@ -323,14 +324,56 @@ test.describe('BookModal — native <dialog> behavior', () => {
         '#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]',
       ) as HTMLElement | null;
       if (!t) return null;
+      // Resolve the token to rgb via a probe so the comparison is format-agnostic.
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--lg-color-accent-green)';
+      document.body.appendChild(probe);
+      const greenRgb = getComputedStyle(probe).color;
+      probe.remove();
       return {
         focused: document.activeElement === t,
+        modality: document.documentElement.dataset.inputModality,
+        outlineStyle: getComputedStyle(t).outlineStyle,
+        outlineColor: getComputedStyle(t).outlineColor,
+        greenRgb,
+      };
+    });
+    expect(state?.focused).toBe(true);
+    // Keyboard modality → the focus ring IS visible on the returned-focus trigger.
+    expect(state?.modality).toBe('keyboard');
+    expect(state?.outlineStyle).not.toBe('none');
+    // DS intent restored: the book-tile focus ring is green
+    // (base.css .shelf-book:focus-visible), not the old global pink.
+    expect(state?.outlineColor).toBe(state?.greenRgb);
+  });
+
+  // -----------------------------------------------------------------------
+  // 6c. POINTER dismiss (tap ×) restores focus to the trigger but SUPPRESSES the
+  //     :focus-visible ring — touch/mouse users get no lingering pink border on
+  //     the book tile. Guards bugs 2 + 4 (the input-modality tracker sets
+  //     `pointer`, and a11y.css hides the ring under pointer modality).
+  // -----------------------------------------------------------------------
+  test('6c. pointer dismiss returns focus to the trigger with NO visible ring', async () => {
+    const trigger = page.locator('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]').first();
+    await trigger.click(); // pointer input → modality = pointer
+    await expect(page.locator('dialog#bookDialog')).toHaveAttribute('open');
+
+    await page.locator('.book-modal-close').click(); // pointer dismiss
+    await expect(page.locator('dialog#bookDialog')).not.toHaveAttribute('open');
+
+    const state = await page.evaluate(() => {
+      const t = document.querySelector(
+        '#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]',
+      ) as HTMLElement | null;
+      if (!t) return null;
+      return {
+        focused: document.activeElement === t,
+        modality: document.documentElement.dataset.inputModality,
         outlineStyle: getComputedStyle(t).outlineStyle,
       };
     });
-    // Focus is still restored to the trigger (accessibility / WCAG 2.4.7 intent)...
     expect(state?.focused).toBe(true);
-    // ...but the visible focus ring is suppressed after the dismiss.
+    expect(state?.modality).toBe('pointer');
     expect(state?.outlineStyle).toBe('none');
   });
 
