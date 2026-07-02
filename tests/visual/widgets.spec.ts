@@ -265,3 +265,62 @@ test.describe('Overlays', () => {
     await captureFullPage(page, 'dnd-overlay.png', { stylePath });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 4d: System-status provenance popover — OPEN state (with caret)
+//
+// The closed-state baseline (widget-system-status.png) can't catch a
+// broken/absent/wrong-pointing caret, and the popover is a top-layer element
+// that isn't in the widget's element screenshot. This single open-state
+// snapshot is the only automated guard for caret correctness under auto-merge.
+//
+// Restricted to ONE Chromium viewport (desktop-1400): keeping it single-engine
+// / single-viewport means it never exercises the cross-engine @supports
+// fallback and produces exactly one deterministic baseline. The clip is
+// expanded around the popover box to include the caret (in the margin, revealed
+// by clip-path) and the drop-shadow.
+// ---------------------------------------------------------------------------
+test.describe('System status — open popover with caret', () => {
+  test('health popover open', async ({ page }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== 'desktop-1400',
+      'Chromium single-viewport guard — one deterministic baseline, no cross-engine fallback',
+    );
+
+    await setupPage(page, 'populated');
+
+    const button = page.locator('#systemStatus .sys-line[data-source="health"] .sys-info');
+    await button.click();
+
+    const popover = page.locator('#tip-health');
+    await expect(popover).toBeVisible();
+
+    // Pin the popover to its production width. The Health popover's content
+    // exceeds the 280px cap, so in production `width: max-content` clamps to
+    // exactly 280px — this pin renders identically but removes the sub-pixel
+    // max-content flake that otherwise varies the box (and thus a float-derived
+    // clip) a few px run-to-run. Determinism stabilization only (cf. screenshot.css).
+    await popover.evaluate((el) => {
+      (el as HTMLElement).style.width = '280px';
+    });
+    await stabilizeForLocatorScreenshot(page);
+
+    const box = await popover.boundingBox();
+    if (!box) throw new Error('health popover has no bounding box');
+
+    // Fixed integer clip dimensions anchored to the (now-stable) box origin.
+    // Fixed width/height avoid any dependence on the fractional box size; the
+    // pad covers the caret (~8px above the top edge, in the margin) and the
+    // layered drop-shadow (~20px).
+    const padX = 16;
+    const padTop = 16;
+    const clip = {
+      x: Math.round(box.x) - padX,
+      y: Math.round(box.y) - padTop,
+      width: 280 + padX * 2,
+      height: 120,
+    };
+
+    await expect(page).toHaveScreenshot('system-status-popover-open.png', { clip, stylePath });
+  });
+});
