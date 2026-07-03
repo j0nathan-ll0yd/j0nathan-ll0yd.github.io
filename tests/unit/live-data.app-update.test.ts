@@ -153,9 +153,8 @@ describe('live-data → focus overlay + suppression wiring', () => {
     vi.useFakeTimers();
     clearSpies();
     // Overlays so the (real) updateFocusOverlay can toggle them.
-    document.body.innerHTML =
-      '<div id="focusOverlay" style="display:none"></div>' +
-      '<div id="dndOverlay" style="display:none"></div>';
+    document.body.innerHTML = '<div id="focusOverlay" style="display:none"></div>'
+      + '<div id="dndOverlay" style="display:none"></div>';
   });
 
   afterEach(() => {
