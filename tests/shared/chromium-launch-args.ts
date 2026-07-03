@@ -26,10 +26,16 @@ export const CHROMIUM_DETERMINISM_ARGS: ReadonlyArray<string> = [
   // DPR *variance* is — and every baseline renders in the identical arm64 noble
   // container, so a fixed deviceScaleFactor is exactly as deterministic as the
   // old `--force-device-scale-factor=1`, just sharper.
-  // Font rendering: kill hinting, subpixel AA, subpixel positioning variance
+  // Font rendering: kill hinting and subpixel (LCD) AA so glyphs are grayscale
+  // and stable.
+  //
+  // We intentionally do NOT pass --disable-font-subpixel-positioning: due to
+  // Chromium bug 824153 that switch is INVERTED (it *enables* subpixel glyph
+  // positioning, the opposite of its name). Omitting it therefore leaves
+  // subpixel positioning OFF -> whole-pixel glyph snapping, which is more
+  // deterministic under parallel CPU load, and stays sharp at 2x DPR.
   '--font-render-hinting=none',
   '--disable-lcd-text',
-  '--disable-font-subpixel-positioning',
   // Skia: disable runtime-optimization fallbacks that can flip raster paths
   '--disable-skia-runtime-opts',
   // /dev/shm is 64MB in Docker — too small for 3000px+ fullPage. Redirects
