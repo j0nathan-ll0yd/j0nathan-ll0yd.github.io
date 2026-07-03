@@ -33,6 +33,14 @@ updates:
       - dependency-name: vite-plugin-pwa
         update-types:
           - version-update:semver-major
+      # @napi-rs/image ships the native oxipng used to losslessly optimize the
+      # committed visual baselines (tests/visual/global-teardown.ts). Pinned
+      # exactly: a major bump can change the underlying oxipng core and thus the
+      # optimized PNG bytes, which would force a full baseline regeneration and
+      # re-validation of the local<->CI byte-parity gate. Bump deliberately.
+      - dependency-name: "@napi-rs/image"
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /

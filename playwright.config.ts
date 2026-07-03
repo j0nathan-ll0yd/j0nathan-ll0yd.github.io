@@ -5,6 +5,11 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: './tests/visual',
+  // global-setup guards against a stale dev server squatting the port (it was
+  // previously orphaned — defined but never registered). global-teardown
+  // losslessly optimizes regenerated baselines (no-op on compare runs).
+  globalSetup: './tests/visual/global-setup.ts',
+  globalTeardown: './tests/visual/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
