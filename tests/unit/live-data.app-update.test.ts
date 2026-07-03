@@ -32,8 +32,14 @@ const engineSpies = vi.hoisted(() => ({
   pollResource: vi.fn<() => Promise<void>>(() => Promise.resolve()),
 }));
 
+// Captures the engine's onUpdate (handleResourceUpdate) so a test can simulate a poll result.
+const engineCapture = vi.hoisted(() => ({ onUpdate: null as null | ((key: string, data: unknown) => void) }));
+
 vi.mock('../../src/lib/runtime/poll-engine', () => ({
   PollEngine: class {
+    constructor(opts: { onUpdate: (key: string, data: unknown) => void; }) {
+      engineCapture.onUpdate = opts.onUpdate;
+    }
     seed(): void {}
     start(): void {}
     setMode(): void {}
@@ -216,5 +222,32 @@ describe('live-data → focus overlay + suppression wiring', () => {
     expect(document.getElementById('dndOverlay')?.style.display).toBe('flex');
     // Skeletons stay while suppressed — the 403'd endpoints have no real data to reveal.
     expect(document.getElementById('cardHR')?.classList.contains('is-loading')).toBe(true);
+  });
+
+  it('ignores a stale focus poll that contradicts the latest push while the WS is connected', async () => {
+    await bootLiveData();
+    wsOpts?.onStateChange?.(true); // WS live → the focus poll is fallback-only
+
+    wsOpts?.onFocusChange?.('Do Not Disturb');
+    wsOpts?.onFocusChange?.('None'); // restore via push clears the overlay
+    expect(document.getElementById('dndOverlay')?.style.display).toBe('none');
+    engineSpies.setSuppressed.mockClear();
+
+    // The ~30s edge-cached focus.json still reports the OLD hiding value on the next poll.
+    engineCapture.onUpdate?.('focus', { generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'Do Not Disturb' });
+
+    // Must NOT re-show the overlay or re-suppress — this was the restore-linger bug.
+    expect(document.getElementById('dndOverlay')?.style.display).toBe('none');
+    expect(engineSpies.setSuppressed).not.toHaveBeenCalled();
+  });
+
+  it('still applies a focus poll when the WS is down (poll is the fallback)', async () => {
+    await bootLiveData();
+    wsOpts?.onStateChange?.(false); // WS down → the poll drives focus
+
+    engineCapture.onUpdate?.('focus', { generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'Do Not Disturb' });
+
+    expect(document.getElementById('dndOverlay')?.style.display).toBe('flex');
+    expect(engineSpies.setSuppressed).toHaveBeenCalledWith(true);
   });
 });

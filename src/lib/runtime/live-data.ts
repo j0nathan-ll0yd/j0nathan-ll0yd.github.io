@@ -75,6 +75,14 @@ let ws: WSClient | null = null;
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES);
 let suppressed = false;
 
+// The WS push is the authoritative focus source. A focus poll (the fallback for when the WS is
+// down) refetches the ~30s edge-cached focus.json, which lags a just-changed state — track the
+// WS connection + last pushed value so a stale poll can't re-apply an out-of-date focus over a
+// fresher push (which previously left the overlay lingering for ~30s on restore).
+let wsConnected = false;
+let lastPushedFocus = '';
+let hasPushedFocus = false;
+
 function isHiding(currentFocus: string | null): boolean {
   return currentFocus !== null && HIDING_FOCUS_MODE_SET.has(currentFocus);
 }
@@ -192,11 +200,17 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
         updateExplorationOdometerV3(data);
         break;
       }
-      case 'focus':
+      case 'focus': {
         // Route through applyFocus so a focus change detected by polling (e.g. the WS was
-        // down) also transitions client-side suppression, not just the overlay.
-        applyFocus((validated as ResourceTypeMap['focus']).currentFocus);
+        // down) also transitions client-side suppression, not just the overlay. But the WS
+        // push is authoritative while connected: ignore a polled focus that contradicts the
+        // latest push — it's the ~30s edge-cached focus.json lagging, and applying it would
+        // re-show a stale overlay over a fresh push (the restore-linger bug).
+        const polledFocus = (validated as ResourceTypeMap['focus']).currentFocus;
+        if (wsConnected && hasPushedFocus && polledFocus !== lastPushedFocus) break;
+        applyFocus(polledFocus);
         break;
+      }
       case 'theatreReviews':
         updateTheatreReviews(validated as ResourceTypeMap['theatreReviews']);
         break;
@@ -354,10 +368,15 @@ const startFetch = async () => {
     },
     // Focus push carries the new value → drive the overlay + suppression immediately,
     // without waiting on a refetch of the ~30s-edge-cached focus signal.
-    onFocusChange: (currentFocus) => applyFocus(currentFocus),
+    onFocusChange: (currentFocus) => {
+      hasPushedFocus = true;
+      lastPushedFocus = currentFocus;
+      applyFocus(currentFocus);
+    },
     // A new web build is live (deploy push): nudge the SW to fetch the new sw.js.
     onAppUpdate: () => nudgeServiceWorkerUpdate(),
     onStateChange: (connected) => {
+      wsConnected = connected;
       engine!.setMode(connected ? 'passive' : 'active');
       // On (re)connect — e.g. tab refocus after the WS dropped while hidden —
       // also re-check, in case an app-update push was missed while disconnected.
