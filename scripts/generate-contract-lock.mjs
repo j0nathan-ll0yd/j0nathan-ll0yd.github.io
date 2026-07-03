@@ -46,9 +46,9 @@ const upstreamSha = dsRepoSha ?? dsSha ?? 'unknown';
 // Collect all schema-relevant files from the yalc package
 // Include vendored schemas, authored schemas, generated schemas, and dist types
 const filePatterns = [
-  { dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), key: 'raw-schemas', filter: f => f.endsWith('.schema.json') },
-  { dir: join(SCHEMAS_PKG, 'authored'), key: 'authored', filter: f => f.endsWith('.schema.json') },
-  { dir: join(SCHEMAS_PKG, 'generated'), key: 'generated', filter: f => f.endsWith('.schema.json') },
+  { dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), key: 'raw-schemas', filter: (f) => f.endsWith('.schema.json') },
+  { dir: join(SCHEMAS_PKG, 'authored'), key: 'authored', filter: (f) => f.endsWith('.schema.json') },
+  { dir: join(SCHEMAS_PKG, 'generated'), key: 'generated', filter: (f) => f.endsWith('.schema.json') },
 ];
 
 const checksums = {};

@@ -55,7 +55,7 @@ describe('SA collection Function — upstream failure → silent 2xx', () => {
 
   it('returns 204 when upstream responds with 5xx for a non-gif path', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response('upstream error', { status: 502 })
+      new Response('upstream error', { status: 502 }),
     );
     const res = await onRequest(makeContext('/simple/append', 'POST'));
     expect(res.status).toBe(204);
@@ -63,7 +63,7 @@ describe('SA collection Function — upstream failure → silent 2xx', () => {
 
   it('returns transparent GIF (200) when upstream responds with 5xx for a .gif path', async () => {
     fetchMock.mockResolvedValueOnce(
-      new Response('upstream error', { status: 503 })
+      new Response('upstream error', { status: 503 }),
     );
     const res = await onRequest(makeContext('/simple/simple.gif'));
     expect(res.status).toBe(200);
@@ -81,7 +81,7 @@ describe('SA collection Function — upstream failure → silent 2xx', () => {
       new Response(null, {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
-      })
+      }),
     );
     const res = await onRequest(makeContext('/simple/append', 'POST'));
     expect(res.status).toBe(200);
@@ -111,7 +111,7 @@ describe('SA collection Function — upstream failure → silent 2xx', () => {
     };
     await onRequest(ctx);
     expect(fetchMock.mock.calls[0][0]).toBe(
-      'https://queue.simpleanalyticscdn.com/a/b/c?q=1'
+      'https://queue.simpleanalyticscdn.com/a/b/c?q=1',
     );
   });
 

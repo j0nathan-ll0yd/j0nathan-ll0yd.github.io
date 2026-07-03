@@ -9,7 +9,7 @@
  */
 
 /** Returns true if all images in the array report complete=true. Empty array returns true. */
-export function allImagesComplete(imgs: ReadonlyArray<{ complete: boolean }>): boolean {
+export function allImagesComplete(imgs: ReadonlyArray<{ complete: boolean; }>): boolean {
   return imgs.every((img) => img.complete);
 }
 

@@ -7,8 +7,7 @@
 // On upstream failure: returns a harmless empty 200 JS no-op so the loader's
 // onerror path / page is unaffected — never a 5xx.
 
-const SA_PROXY_SCRIPT_URL =
-  'https://simpleanalyticsexternal.com/proxy.js?hostname=jonathanlloyd.me&path=/simple';
+const SA_PROXY_SCRIPT_URL = 'https://simpleanalyticsexternal.com/proxy.js?hostname=jonathanlloyd.me&path=/simple';
 
 // The collection path baked into the script above must equal the catch-all
 // Function route directory (/simple). This string is read by scripts/check-sa-proxy-path.mjs
@@ -17,7 +16,7 @@ export const SA_COLLECTION_PATH = '/simple';
 
 // Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {
-  cf?: { cacheTtl?: number; cacheEverything?: boolean };
+  cf?: { cacheTtl?: number; cacheEverything?: boolean; };
 }
 
 export async function onRequest(): Promise<Response> {

@@ -25,8 +25,14 @@
  */
 
 const IEND_SIGNATURE = Buffer.from([
-  0x49, 0x45, 0x4e, 0x44, // "IEND" chunk type
-  0xae, 0x42, 0x60, 0x82, // pre-computed CRC for empty IEND
+  0x49,
+  0x45,
+  0x4e,
+  0x44, // "IEND" chunk type
+  0xae,
+  0x42,
+  0x60,
+  0x82, // pre-computed CRC for empty IEND
 ]);
 
 export function truncateAtIEND(buf: Buffer): Buffer {

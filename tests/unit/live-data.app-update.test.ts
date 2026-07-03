@@ -72,7 +72,7 @@ vi.mock('@lifegames/portal-contract/constants', () => ({
   },
 }));
 
-type SwWindow = Window & { __checkForSwUpdate?: () => void };
+type SwWindow = Window & { __checkForSwUpdate?: () => void; };
 
 async function bootLiveData(): Promise<void> {
   await import('../../src/lib/runtime/live-data');

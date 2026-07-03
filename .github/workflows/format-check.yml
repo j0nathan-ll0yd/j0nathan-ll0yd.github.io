@@ -1,0 +1,16 @@
+name: Format
+
+# Blocking format gate (dprint). Prevents the quote/reflow churn that used to slip in
+# because the repo had no formatter — see dprint.json. Local: `npm run format`.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  format-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: dprint check
+        uses: dprint/check@v2.2

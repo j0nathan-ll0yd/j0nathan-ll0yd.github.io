@@ -37,15 +37,14 @@ export default defineConfig({
   expect: {
     toHaveScreenshot: {
       maxDiffPixelRatio: 0.025, // allow up to 2.5% pixel drift -- accommodates sub-pixel font hinting variance under fullyParallel CPU load
-      threshold: 0.2,          // per-pixel YIQ color tolerance
-      animations: 'disabled',  // freeze CSS animations for determinism
-      caret: 'hide',           // hide blinking text caret
-      scale: 'css',            // use CSS px (not device px) for screenshots
+      threshold: 0.2, // per-pixel YIQ color tolerance
+      animations: 'disabled', // freeze CSS animations for determinism
+      caret: 'hide', // hide blinking text caret
+      scale: 'css', // use CSS px (not device px) for screenshots
     },
   },
 
-  snapshotPathTemplate:
-    '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
+  snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
 
   projects: [
     {

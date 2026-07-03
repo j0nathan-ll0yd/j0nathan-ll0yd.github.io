@@ -294,7 +294,7 @@ const startFetch = async () => {
   // (window.__checkForSwUpdate); this runtime never reloads the page itself.
   // No-op if the global is absent (e.g. SW unsupported or registration failed).
   const nudgeServiceWorkerUpdate = (): void => {
-    const w = window as Window & { __checkForSwUpdate?: () => void };
+    const w = window as Window & { __checkForSwUpdate?: () => void; };
     if (typeof w.__checkForSwUpdate === 'function') w.__checkForSwUpdate();
   };
 

@@ -35,9 +35,9 @@ export default defineConfig({
           target: CLOUDFRONT_BASE,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/api\/live/, ''),
-        }
-      }
-    }
+        },
+      },
+    },
   },
   integrations: [
     sitemap(),
@@ -58,8 +58,8 @@ export default defineConfig({
         display: 'standalone',
         icons: [
           { src: '/assets/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-        ]
+          { src: '/assets/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
@@ -81,8 +81,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'local-images',
-              expiration: { maxEntries: 200, maxAgeSeconds: 2592000 }
-            }
+              expiration: { maxEntries: 200, maxAgeSeconds: 2592000 },
+            },
           },
           {
             // CloudFront images fallback — safety net for onerror fallback fetches
@@ -90,8 +90,8 @@ export default defineConfig({
             handler: 'CacheFirst',
             options: {
               cacheName: 'optimized-images-fallback',
-              expiration: { maxEntries: 50, maxAgeSeconds: 604800 }
-            }
+              expiration: { maxEntries: 50, maxAgeSeconds: 604800 },
+            },
           },
           {
             // CloudFront JSON data — NetworkFirst for guaranteed freshness
@@ -102,11 +102,11 @@ export default defineConfig({
               cacheName: 'live-data',
               networkTimeoutSeconds: 3,
               fetchOptions: { cache: 'no-store' },
-              expiration: { maxAgeSeconds: 300 }
-            }
-          }
-        ]
-      }
-    })
-  ]
+              expiration: { maxAgeSeconds: 300 },
+            },
+          },
+        ],
+      },
+    }),
+  ],
 });

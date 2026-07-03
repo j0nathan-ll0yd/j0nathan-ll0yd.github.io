@@ -43,7 +43,7 @@ interface HeartRateSeam {
   seed: (n: number) => void;
   freezeAt: (ms: number | null) => void;
   step: (frames?: number) => void;
-  state: () => { bpm: number; hrv: number; currentX: number; lastBeatAt: number };
+  state: () => { bpm: number; hrv: number; currentX: number; lastBeatAt: number; };
 }
 
 type SeamWindow = typeof window & {
@@ -114,6 +114,8 @@ test.describe('ECG canvas - deterministic seam', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await armSeam(page);
     // Reduced motion draws a single static waveform at bootstrap; no stepping.
-    await expect(page.locator(WIDGET_SELECTORS.heartRateCanvas)).toHaveScreenshot('ecg-reduced-motion.png', { stylePath });
+    await expect(page.locator(WIDGET_SELECTORS.heartRateCanvas)).toHaveScreenshot('ecg-reduced-motion.png', {
+      stylePath,
+    });
   });
 });

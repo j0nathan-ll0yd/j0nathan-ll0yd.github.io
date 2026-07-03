@@ -41,7 +41,7 @@ describe('webfinger build output', () => {
 
   it('exposes an html profile-page link to the real account', () => {
     const profile = jrd.links.find(
-      (l) => l.rel === 'http://webfinger.net/rel/profile-page'
+      (l) => l.rel === 'http://webfinger.net/rel/profile-page',
     );
     expect(profile?.type).toBe('text/html');
     expect(profile?.href).toBe('https://mastodon.social/@j0nathan');

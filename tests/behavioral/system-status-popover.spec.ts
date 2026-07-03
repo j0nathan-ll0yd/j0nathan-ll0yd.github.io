@@ -28,8 +28,8 @@ function baselineFixture(dir: string, file: string): string {
 }
 
 const TRANSPARENT_PIXEL = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' +
-    'Nl7BcQAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB'
+    + 'Nl7BcQAAAABJRU5ErkJggg==',
   'base64',
 );
 
@@ -61,11 +61,11 @@ async function interceptRoutes(page: Page): Promise<void> {
   await page.route('**/*', async (route) => {
     const url = route.request().url();
     if (
-      url.startsWith('http://localhost') ||
-      url.startsWith('data:') ||
-      url.startsWith(CLOUDFRONT_BASE) ||
-      url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://')) ||
-      url.startsWith('wss://')
+      url.startsWith('http://localhost')
+      || url.startsWith('data:')
+      || url.startsWith(CLOUDFRONT_BASE)
+      || url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://'))
+      || url.startsWith('wss://')
     ) {
       await route.fallback();
       return;
