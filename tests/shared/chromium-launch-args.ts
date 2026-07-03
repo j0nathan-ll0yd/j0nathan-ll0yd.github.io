@@ -20,8 +20,12 @@
  *     | grep -iE "(unknown|invalid|unrecognized)" && echo "FAIL" || echo "OK"
  */
 export const CHROMIUM_DETERMINISM_ARGS: ReadonlyArray<string> = [
-  // Determinism — single device-pixel ratio so glyph positions are stable
-  '--force-device-scale-factor=1',
+  // NOTE: device-pixel ratio is deliberately NOT forced here. It is emulated
+  // per-context via `deviceScaleFactor: 2` in playwright.config.ts so baselines
+  // render at 2x (retina-sharp). DPR *value* is not a determinism risk — only
+  // DPR *variance* is — and every baseline renders in the identical arm64 noble
+  // container, so a fixed deviceScaleFactor is exactly as deterministic as the
+  // old `--force-device-scale-factor=1`, just sharper.
   // Font rendering: kill hinting, subpixel AA, subpixel positioning variance
   '--font-render-hinting=none',
   '--disable-lcd-text',

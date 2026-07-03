@@ -28,6 +28,10 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:4321/',
+    // Render at 2x device-pixel ratio so committed baselines are retina-sharp.
+    // Deterministic here because every baseline renders in the identical arm64
+    // noble container (DPR variance, not DPR value, is the determinism risk).
+    deviceScaleFactor: 2,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
     serviceWorkers: 'block',
@@ -41,11 +45,11 @@ export default defineConfig({
 
   expect: {
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.025, // allow up to 2.5% pixel drift -- accommodates sub-pixel font hinting variance under fullyParallel CPU load
+      maxDiffPixelRatio: 0.006, // empirically-calibrated ceiling at 2x DPR: holds the same ABSOLUTE drift sensitivity as the old 0.025 at 1x (4x the pixels -> ~1/4 the ratio); tightened so 2x does not hand back 4x the hiding room for a real memory-pressure divergence
       threshold: 0.2, // per-pixel YIQ color tolerance
       animations: 'disabled', // freeze CSS animations for determinism
       caret: 'hide', // hide blinking text caret
-      scale: 'css', // use CSS px (not device px) for screenshots
+      scale: 'device', // capture at the emulated 2x device px so baselines are retina-resolution (was 'css' at 1x)
     },
   },
 
