@@ -340,4 +340,44 @@ describe('WSClient', () => {
       expect(onAppUpdate).toHaveBeenCalledWith(undefined);
     });
   });
+
+  describe('focus push handling', () => {
+    let onUpdate: ReturnType<typeof vi.fn>;
+    let onFocusChange: ReturnType<typeof vi.fn>;
+    let focusClient: WSClient;
+
+    beforeEach(() => {
+      onUpdate = vi.fn();
+      onFocusChange = vi.fn();
+      focusClient = new WSClient({
+        url: 'wss://test.example.com/live',
+        onUpdate,
+        onFocusChange,
+      });
+      focusClient.connect();
+      latestSocket().triggerOpen();
+    });
+
+    afterEach(() => {
+      focusClient.disconnect();
+    });
+
+    it('calls onFocusChange (not onUpdate) on a focus push carrying currentFocus', () => {
+      latestSocket().triggerMessage({ type: 'update', resource: 'focus', currentFocus: 'Do Not Disturb' });
+      expect(onFocusChange).toHaveBeenCalledWith('Do Not Disturb');
+      expect(onUpdate).not.toHaveBeenCalled();
+    });
+
+    it('falls back to onUpdate for a focus push without currentFocus (older backend)', () => {
+      latestSocket().triggerMessage({ type: 'update', resource: 'focus' });
+      expect(onUpdate).toHaveBeenCalledWith('focus');
+      expect(onFocusChange).not.toHaveBeenCalled();
+    });
+
+    it('routes non-focus resources through onUpdate, never onFocusChange', () => {
+      latestSocket().triggerMessage({ type: 'update', resource: 'health', currentFocus: 'Work' });
+      expect(onUpdate).toHaveBeenCalledWith('health');
+      expect(onFocusChange).not.toHaveBeenCalled();
+    });
+  });
 });

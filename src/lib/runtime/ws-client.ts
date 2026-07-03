@@ -3,6 +3,12 @@ export type WSMessageHandler = (resource: string) => void;
 export interface WSClientOptions {
   url: string;
   onUpdate: WSMessageHandler;
+  /**
+   * Fired on a focus {type:'update', resource:'focus'} push that carries the new focus
+   * value, so the client can drive the overlay immediately without refetching the
+   * (edge-cached) focus signal. A focus push lacking currentFocus falls through to onUpdate.
+   */
+  onFocusChange?: (currentFocus: string) => void;
   /** Fired on a {type:'app-update'} push (a new web build is live). Optional build id. */
   onAppUpdate?: (build?: string) => void;
   onStateChange?: (connected: boolean) => void;
@@ -31,6 +37,7 @@ export class WSClient {
 
   constructor(opts: WSClientOptions) {
     this.opts = {
+      onFocusChange: () => {},
       onAppUpdate: () => {},
       onStateChange: () => {},
       heartbeatIntervalMs: DEFAULT_HEARTBEAT_MS,
@@ -88,9 +95,17 @@ export class WSClient {
           type?: string;
           resource?: string;
           build?: string;
+          currentFocus?: string;
         };
         if (msg.type === 'update' && msg.resource) {
-          this.opts.onUpdate(msg.resource);
+          // A focus push carries the new focus value → drive the overlay immediately, no
+          // refetch (the focus signal is edge-cached ~30s). Older backends that omit
+          // currentFocus fall through to the generic resource refetch.
+          if (msg.resource === 'focus' && typeof msg.currentFocus === 'string') {
+            this.opts.onFocusChange(msg.currentFocus);
+          } else {
+            this.opts.onUpdate(msg.resource);
+          }
         } else if (msg.type === 'app-update') {
           this.opts.onAppUpdate(msg.build);
         }

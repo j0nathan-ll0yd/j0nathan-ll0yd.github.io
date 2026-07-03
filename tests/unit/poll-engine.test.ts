@@ -257,6 +257,64 @@ describe('PollEngine', () => {
     });
   });
 
+  describe('setSuppressed()', () => {
+    it('skips a gated resource while suppressed (no fetch, no update)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(makeFetchResponse({ generatedAt: '2024-01-02T00:00:00Z' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      engine.setSuppressed(true);
+      await engine.pollResource('health');
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(onUpdate).not.toHaveBeenCalled();
+    });
+
+    it('keeps polling focus while suppressed (overlay fallback is never gated)', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(makeFetchResponse({ generatedAt: '2024-01-02T00:00:00Z', currentFocus: 'Do Not Disturb' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      engine.setSuppressed(true);
+      await engine.pollResource('focus');
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(onUpdate).toHaveBeenCalledWith('focus', expect.objectContaining({ currentFocus: 'Do Not Disturb' }));
+    });
+
+    it('resumes gated polling once suppression is cleared', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(makeFetchResponse({ generatedAt: '2024-01-02T00:00:00Z', value: 1 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      engine.setSuppressed(true);
+      await engine.pollResource('health');
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      engine.setSuppressed(false);
+      await engine.pollResource('health');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(onUpdate).toHaveBeenCalledWith('health', { generatedAt: '2024-01-02T00:00:00Z', value: 1 });
+    });
+
+    it('pollNow() fetches every resource once suppression is cleared', async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(makeFetchResponse({ generatedAt: '2024-01-02T00:00:00Z' }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      engine.setSuppressed(false);
+      await engine.pollNow();
+
+      // FAST (health, sleep, workouts, focus) + SLOW (books, articles, githubEvents,
+      // starredRepos, theatreReviews) = 9 in production (location is DEV-only).
+      expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(9);
+    });
+  });
+
   describe('getStatus()', () => {
     it('returns correct shape', () => {
       const status = engine.getStatus();

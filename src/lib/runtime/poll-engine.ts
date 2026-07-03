@@ -49,6 +49,7 @@ export class PollEngine {
   private visibilityHandler: (() => void) | null = null;
   private wsConnected = false;
   private mode: 'active' | 'passive' = 'active';
+  private suppressed = false;
 
   constructor(opts: PollEngineOptions) {
     this.opts = opts;
@@ -59,6 +60,17 @@ export class PollEngine {
     for (const [key, val] of Object.entries(timestamps)) {
       if (val) this.fingerprints.set(key as ResourceKey, val);
     }
+  }
+
+  /**
+   * When suppressed (focus is a hiding mode, so the CloudFront edge gate is denying the
+   * public data artifacts), skip polling the edge-gated resources — otherwise every poll
+   * tick hammers the gate for a 403. `focus` is never gated: it keeps polling as a
+   * fallback for the overlay if a WebSocket push is missed. Restore clears this, then
+   * `pollNow()` refetches everything fresh.
+   */
+  setSuppressed(suppressed: boolean): void {
+    this.suppressed = suppressed;
   }
 
   /** Switch between active (no WS) and passive (WS connected) polling intervals */
@@ -158,6 +170,10 @@ export class PollEngine {
   }
 
   private async fetchResource(key: ResourceKey): Promise<void> {
+    // While suppressed, every gated resource returns 403 — don't hammer the edge gate.
+    // `focus` is exempt from the gate and stays polled (overlay fallback).
+    if (this.suppressed && key !== 'focus') return;
+
     // Append ?_poll=1 to bypass Workbox service worker
     const url = BASE + ENDPOINTS[key] + '?_poll=1';
     const controller = new AbortController();
