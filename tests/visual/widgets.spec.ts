@@ -308,15 +308,31 @@ test.describe('System status — open popover with caret', () => {
     const box = await popover.boundingBox();
     if (!box) throw new Error('health popover has no bounding box');
 
-    // Fixed integer clip dimensions anchored to the (now-stable) box origin.
-    // Fixed width/height avoid any dependence on the fractional box size; the
-    // pad covers the caret (~8px above the top edge, in the margin) and the
-    // layered drop-shadow (~20px).
+    // Snap the popover onto the whole-CSS-pixel grid before capturing. Under
+    // parallel CPU load (workers:'50%') its sub-pixel x/y can settle a few
+    // tenths of a pixel away from where workers=1 baseline generation put it;
+    // Math.round() of a value near an N.5 boundary then flips the clip origin by
+    // a whole pixel, shifting the captured content ~1px (a ~10% diff -- confirmed
+    // by shift-correlation on a reproduced failure). Nudging the box down to its
+    // integer floor via the `translate` property (which does not clobber any
+    // existing `transform`) makes the capture byte-identical regardless of that
+    // sub-pixel jitter. The sub-1px nudge does not weaken the caret guard.
+    const ix = Math.floor(box.x);
+    const iy = Math.floor(box.y);
+    await popover.evaluate((el, off) => {
+      (el as HTMLElement).style.translate = `${off.x}px ${off.y}px`;
+    }, { x: ix - box.x, y: iy - box.y });
+    await stabilizeForLocatorScreenshot(page);
+
+    // Fixed integer clip anchored to the now-grid-aligned box origin. Fixed
+    // width/height avoid any dependence on the fractional box size; the pad
+    // covers the caret (~8px above the top edge, in the margin) and the layered
+    // drop-shadow (~20px).
     const padX = 16;
     const padTop = 16;
     const clip = {
-      x: Math.round(box.x) - padX,
-      y: Math.round(box.y) - padTop,
+      x: ix - padX,
+      y: iy - padTop,
       width: 280 + padX * 2,
       height: 120,
     };
