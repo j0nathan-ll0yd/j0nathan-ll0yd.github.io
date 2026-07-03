@@ -37,7 +37,7 @@ try {
 }
 
 const fileSet = new Set(files);
-const entryBundles = files.filter(f => BUNDLE_RE.test(f));
+const entryBundles = files.filter((f) => BUNDLE_RE.test(f));
 if (entryBundles.length === 0) {
   console.error('[check-live-data-bundle] No index.astro module bundles found in', astroDir);
   process.exit(1);
@@ -56,7 +56,7 @@ while (queue.length > 0) {
   }
 }
 
-const found = Object.fromEntries(REQUIRED.map(t => [t, null]));
+const found = Object.fromEntries(REQUIRED.map((t) => [t, null]));
 for (const file of reachable) {
   const content = readFileSync(resolve(astroDir, file), 'utf-8');
   for (const token of REQUIRED) {
@@ -64,7 +64,7 @@ for (const file of reachable) {
   }
 }
 
-const missing = REQUIRED.filter(t => found[t] === null);
+const missing = REQUIRED.filter((t) => found[t] === null);
 if (missing.length > 0) {
   console.error('[check-live-data-bundle] Live-data bundle missing required identifiers:');
   for (const t of missing) console.error('  -', t);

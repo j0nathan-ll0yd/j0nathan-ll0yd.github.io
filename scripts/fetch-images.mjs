@@ -130,7 +130,7 @@ async function main() {
 
   const [booksData, theatreData] = await Promise.allSettled([
     fetchJson('books.json'),
-    fetchJson('theatre-reviews.json')
+    fetchJson('theatre-reviews.json'),
   ]);
 
   const books = booksData.status === 'fulfilled' ? booksData.value : null;
@@ -148,16 +148,16 @@ async function main() {
 
   const results = await runWithConcurrency(urls, downloadImage, CONCURRENCY);
 
-  const missing = results.filter(r => r === 'missing');
-  const downloaded = results.filter(r => r === 'downloaded').length;
-  const skipped = results.filter(r => r === 'skipped').length;
-  const failed = results.filter(r => r === 'failed').length;
+  const missing = results.filter((r) => r === 'missing');
+  const downloaded = results.filter((r) => r === 'downloaded').length;
+  const skipped = results.filter((r) => r === 'skipped').length;
+  const failed = results.filter((r) => r === 'failed').length;
 
   if (CHECK_ONLY) {
     if (missing.length > 0) {
       const missingUrls = urls.filter((_, i) => results[i] === 'missing');
       console.log(`\n${missing.length} new image(s) detected:`);
-      missingUrls.forEach(u => console.log(`  ${u}`));
+      missingUrls.forEach((u) => console.log(`  ${u}`));
       // Write missing URLs to file for CI to read
       const outputFile = join(__dirname, '..', 'missing-images.txt');
       await writeFile(outputFile, missingUrls.join('\n'));
@@ -170,7 +170,7 @@ async function main() {
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Image check failed:', err.message);
   // Exit 0 in download mode (graceful degradation)
   // Exit 1 in check mode (surface the error)

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://dprint.dev/schemas/v0.json",
+
+  "lineWidth": 120,
+  "indentWidth": 2,
+  "useTabs": false,
+  "newLineKind": "lf",
+
+  "typescript": {
+    "quoteStyle": "preferSingle",
+    "jsx.quoteStyle": "preferSingle",
+    "semiColons": "always",
+    "trailingCommas": "onlyMultiLine",
+    "arrowFunction.useParentheses": "force",
+    "importDeclaration.sortNamedImports": "maintain",
+    "module.sortImportDeclarations": "maintain"
+  },
+
+  "includes": [
+    "src/**/*.{ts,tsx}",
+    "tests/**/*.{ts,tsx}",
+    "scripts/**/*.{mjs,cjs,js}",
+    "*.mjs",
+    "*.cjs",
+    "*.ts"
+  ],
+
+  "excludes": [
+    "**/node_modules",
+    "**/dist",
+    "**/.astro",
+    "**/.yalc",
+    "**/coverage",
+    "**/*.d.ts",
+    "**/*.astro",
+    "src/env.d.ts"
+  ],
+
+  "plugins": [
+    "https://plugins.dprint.dev/typescript-0.93.4.wasm"
+  ]
+}

@@ -126,8 +126,8 @@ function isUrlBlock(blockedURI: string): boolean {
 
 function isInlineScriptBlock(v: CspViolation): boolean {
   return (
-    !isUrlBlock(v.blockedURI) &&
-    /script-src(-elem)?$/.test(v.directive) // script-src or script-src-elem, NOT script-src-attr
+    !isUrlBlock(v.blockedURI)
+    && /script-src(-elem)?$/.test(v.directive) // script-src or script-src-elem, NOT script-src-attr
   );
 }
 
@@ -160,10 +160,9 @@ export const test = base.extend({
       });
       window.addEventListener('unhandledrejection', (e) => {
         const reason = e.reason as unknown;
-        const msg =
-          reason && typeof reason === 'object' && 'message' in reason
-            ? String((reason as { message: unknown }).message)
-            : String(reason);
+        const msg = reason && typeof reason === 'object' && 'message' in reason
+          ? String((reason as { message: unknown; }).message)
+          : String(reason);
         window.__unhandledRejections!.push(msg);
       });
     });
@@ -184,9 +183,11 @@ export const test = base.extend({
     // 1. An external script blocked by CSP is a genuine per-deploy regression.
     expect.soft(
       urlBlocked,
-      `CSP blocked external script(s) — a real deploy/config regression:\n${urlBlocked
-        .map((v) => `${v.directive} -> ${v.blockedURI}`)
-        .join('\n')}`,
+      `CSP blocked external script(s) — a real deploy/config regression:\n${
+        urlBlocked
+          .map((v) => `${v.directive} -> ${v.blockedURI}`)
+          .join('\n')
+      }`,
     ).toEqual([]);
 
     // 2. Regression-guard the count of blocked inline <script> elements.

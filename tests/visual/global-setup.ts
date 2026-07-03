@@ -28,10 +28,10 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
     const wrongTitle = titleMatch ? titleMatch[1] : '(no <title>)';
     throw new Error(
-      `[playwright] ${url} is serving the wrong site. ` +
-        `Expected portfolio markers: ${markers.join(', ')}. Missing: ${missing.join(', ')}. ` +
-        `Got <title>: "${wrongTitle}". ` +
-        `Another process is likely squatting the port — stop it and re-run.`,
+      `[playwright] ${url} is serving the wrong site. `
+        + `Expected portfolio markers: ${markers.join(', ')}. Missing: ${missing.join(', ')}. `
+        + `Got <title>: "${wrongTitle}". `
+        + `Another process is likely squatting the port — stop it and re-run.`,
     );
   }
 }

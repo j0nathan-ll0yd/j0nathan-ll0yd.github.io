@@ -90,7 +90,7 @@ vi.mock('@lifegames/portal-contract/constants', async (importActual) => {
   };
 });
 
-type SwWindow = Window & { __checkForSwUpdate?: () => void };
+type SwWindow = Window & { __checkForSwUpdate?: () => void; };
 
 function clearSpies(): void {
   engineSpies.setSuppressed.mockClear();

@@ -36,21 +36,23 @@ var functionsDir = path.join(repoRoot, 'functions');
 var catchAllDirs = fs
   .readdirSync(functionsDir, { withFileTypes: true })
   .filter(
-    (d) => d.isDirectory() && fs.existsSync(path.join(functionsDir, d.name, '[[path]].ts'))
+    (d) => d.isDirectory() && fs.existsSync(path.join(functionsDir, d.name, '[[path]].ts')),
   )
   .map((d) => d.name);
 
 if (catchAllDirs.length !== 1) {
   console.error(
-    '✗ check-sa-proxy-path: expected exactly ONE catch-all collection Function ' +
-      'at functions/<dir>/[[path]].ts, found ' +
-      catchAllDirs.length +
-      ' [' +
-      catchAllDirs.join(', ') +
-      '].'
+    '✗ check-sa-proxy-path: expected exactly ONE catch-all collection Function '
+      + 'at functions/<dir>/[[path]].ts, found '
+      + catchAllDirs.length
+      + ' ['
+      + catchAllDirs.join(', ')
+      + '].',
   );
-  console.error('  This assertion derives the SA collection route from that directory; ' +
-    'disambiguate before building.');
+  console.error(
+    '  This assertion derives the SA collection route from that directory; '
+      + 'disambiguate before building.',
+  );
   process.exit(1);
 }
 var routePrefix = '/' + catchAllDirs[0];
@@ -68,7 +70,7 @@ var saSource = fs.readFileSync(saFunctionPath, 'utf-8');
 var match = saSource.match(/export\s+const\s+SA_COLLECTION_PATH\s*=\s*['"]([^'"]+)['"]/);
 if (!match) {
   console.error('✗ check-sa-proxy-path: SA_COLLECTION_PATH not found in functions/sa.ts.');
-  console.error('  Add: export const SA_COLLECTION_PATH = \'/simple\';');
+  console.error("  Add: export const SA_COLLECTION_PATH = '/simple';");
   process.exit(1);
 }
 var collectionPath = match[1];
@@ -87,24 +89,34 @@ var queryPath = '/' + urlMatch[1].replace(/^\//, '');
 var ok = true;
 
 if (collectionPath !== routePrefix) {
-  console.error('✗ check-sa-proxy-path: MISMATCH — SA_COLLECTION_PATH (' + collectionPath +
-    ') !== route prefix (' + routePrefix + ').');
+  console.error(
+    '✗ check-sa-proxy-path: MISMATCH — SA_COLLECTION_PATH (' + collectionPath
+      + ') !== route prefix (' + routePrefix + ').',
+  );
   console.error('  SA beacons will be sent to ' + collectionPath + ' but the Function handles ' + routePrefix + '.');
-  console.error('  Fix: rename functions/' + collectionPath.replace(/^\//, '') +
-    ' OR update SA_COLLECTION_PATH + the proxy.js path= param in functions/sa.ts.');
+  console.error(
+    '  Fix: rename functions/' + collectionPath.replace(/^\//, '')
+      + ' OR update SA_COLLECTION_PATH + the proxy.js path= param in functions/sa.ts.',
+  );
   ok = false;
 }
 
 if (queryPath !== routePrefix) {
-  console.error('✗ check-sa-proxy-path: MISMATCH — proxy.js path= param (' + queryPath +
-    ') !== route prefix (' + routePrefix + ').');
-  console.error('  The SA script will bake ' + queryPath + ' as the collection path but the Function handles ' + routePrefix + '.');
+  console.error(
+    '✗ check-sa-proxy-path: MISMATCH — proxy.js path= param (' + queryPath
+      + ') !== route prefix (' + routePrefix + ').',
+  );
+  console.error(
+    '  The SA script will bake ' + queryPath + ' as the collection path but the Function handles ' + routePrefix + '.',
+  );
   ok = false;
 }
 
 if (collectionPath !== queryPath) {
-  console.error('✗ check-sa-proxy-path: MISMATCH — SA_COLLECTION_PATH (' + collectionPath +
-    ') !== proxy.js path= param (' + queryPath + ').');
+  console.error(
+    '✗ check-sa-proxy-path: MISMATCH — SA_COLLECTION_PATH (' + collectionPath
+      + ') !== proxy.js path= param (' + queryPath + ').',
+  );
   console.error('  Keep SA_COLLECTION_PATH and the proxy.js URL path= param in sync.');
   ok = false;
 }

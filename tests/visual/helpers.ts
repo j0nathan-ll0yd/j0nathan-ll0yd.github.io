@@ -31,8 +31,8 @@ export const WIDGET_SELECTORS = {
 
 /** 1×1 transparent PNG (68 bytes) used as a placeholder for external images */
 const TRANSPARENT_PIXEL = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' +
-  'Nl7BcQAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB'
+    + 'Nl7BcQAAAABJRU5ErkJggg==',
   'base64',
 );
 
@@ -70,11 +70,11 @@ export async function interceptRoutes(page: Page, scenario: ScenarioName): Promi
     const url = route.request().url();
     // Let local requests and already-handled domains fall through
     if (
-      url.startsWith('http://localhost') ||
-      url.startsWith('data:') ||
-      url.startsWith(CLOUDFRONT_BASE) ||
-      url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://')) ||
-      url.startsWith('wss://')
+      url.startsWith('http://localhost')
+      || url.startsWith('data:')
+      || url.startsWith(CLOUDFRONT_BASE)
+      || url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://'))
+      || url.startsWith('wss://')
     ) {
       await route.fallback();
       return;
@@ -249,7 +249,7 @@ export async function setupPage(page: Page, scenario: ScenarioName, options?: Na
 export async function captureFullPage(
   page: Page,
   screenshotName: string,
-  opts?: { stylePath?: string },
+  opts?: { stylePath?: string; },
 ): Promise<void> {
   // Stability: fonts + 2x rAF to absorb late layout shifts
   await page.evaluate(async () => {
@@ -298,10 +298,7 @@ export async function captureFullPage(
   // Let the grown viewport reflow (100dvh recalculates against the new height)
   // before capturing.
   await page.evaluate(
-    () =>
-      new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      ),
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
   );
 
   await expect(page).toHaveScreenshot(screenshotName, {

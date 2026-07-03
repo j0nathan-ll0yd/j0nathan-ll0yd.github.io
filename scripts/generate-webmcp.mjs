@@ -11,12 +11,7 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
-import {
-  CLOUDFRONT_BASE,
-  ENDPOINTS,
-  LLM_CONTENT_PATHS,
-  SITE_URL,
-} from '@lifegames/portal-contract/constants';
+import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL } from '@lifegames/portal-contract/constants';
 
 // Copy flat JSON — prose sourced from @lifegames/copy so wording is never duplicated.
 const req = createRequire(import.meta.url);
@@ -29,16 +24,28 @@ const cf = (path) => `${CLOUDFRONT_BASE}${path}`;
 // Name and description come from copy (mcp.ds*Name / mcp.ds*Desc) so both surfaces
 // share the same canonical wording. URLs derived from the contract.
 const dataSources = [
-  { name: copyLlm.mcp.dsHealthName,         url: cf(ENDPOINTS.health),        description: copyLlm.mcp.dsHealthDesc },
-  { name: copyLlm.mcp.dsSleepName,          url: cf(ENDPOINTS.sleep),         description: copyLlm.mcp.dsSleepDesc },
-  { name: copyLlm.mcp.dsFocusName,          url: cf(ENDPOINTS.focus),         description: copyLlm.mcp.dsFocusDesc },
-  { name: copyLlm.mcp.dsGithubEventsName,   url: cf(ENDPOINTS.githubEvents),  description: copyLlm.mcp.dsGithubEventsDesc },
-  { name: copyLlm.mcp.dsStarredReposName,   url: cf(ENDPOINTS.starredRepos),  description: copyLlm.mcp.dsStarredReposDesc },
-  { name: copyLlm.mcp.dsBooksName,          url: cf(ENDPOINTS.books),         description: copyLlm.mcp.dsBooksDesc },
-  { name: copyLlm.mcp.dsArticlesName,       url: cf(ENDPOINTS.articles),      description: copyLlm.mcp.dsArticlesDesc },
-  { name: copyLlm.mcp.dsTheatreReviewsName, url: cf(ENDPOINTS.theatreReviews),description: copyLlm.mcp.dsTheatreReviewsDesc },
-  { name: copyLlm.mcp.dsWorkoutsName,       url: cf(ENDPOINTS.workouts),      description: copyLlm.mcp.dsWorkoutsDesc },
-  { name: copyLlm.mcp.dsLocationName,       url: cf(ENDPOINTS.location),      description: copyLlm.mcp.dsLocationDesc },
+  { name: copyLlm.mcp.dsHealthName, url: cf(ENDPOINTS.health), description: copyLlm.mcp.dsHealthDesc },
+  { name: copyLlm.mcp.dsSleepName, url: cf(ENDPOINTS.sleep), description: copyLlm.mcp.dsSleepDesc },
+  { name: copyLlm.mcp.dsFocusName, url: cf(ENDPOINTS.focus), description: copyLlm.mcp.dsFocusDesc },
+  {
+    name: copyLlm.mcp.dsGithubEventsName,
+    url: cf(ENDPOINTS.githubEvents),
+    description: copyLlm.mcp.dsGithubEventsDesc,
+  },
+  {
+    name: copyLlm.mcp.dsStarredReposName,
+    url: cf(ENDPOINTS.starredRepos),
+    description: copyLlm.mcp.dsStarredReposDesc,
+  },
+  { name: copyLlm.mcp.dsBooksName, url: cf(ENDPOINTS.books), description: copyLlm.mcp.dsBooksDesc },
+  { name: copyLlm.mcp.dsArticlesName, url: cf(ENDPOINTS.articles), description: copyLlm.mcp.dsArticlesDesc },
+  {
+    name: copyLlm.mcp.dsTheatreReviewsName,
+    url: cf(ENDPOINTS.theatreReviews),
+    description: copyLlm.mcp.dsTheatreReviewsDesc,
+  },
+  { name: copyLlm.mcp.dsWorkoutsName, url: cf(ENDPOINTS.workouts), description: copyLlm.mcp.dsWorkoutsDesc },
+  { name: copyLlm.mcp.dsLocationName, url: cf(ENDPOINTS.location), description: copyLlm.mcp.dsLocationDesc },
 ];
 
 const booksUrl = cf(ENDPOINTS.books);
@@ -54,8 +61,7 @@ const githubUrl = copyIdentity.person.sameAs[1];
 
 const dataSourceLines = dataSources
   .map(
-    (s) =>
-      `      { name: ${sq(s.name)}, url: ${sq(s.url)}, description: ${sq(s.description)} }`,
+    (s) => `      { name: ${sq(s.name)}, url: ${sq(s.url)}, description: ${sq(s.description)} }`,
   )
   .join(',\n');
 
@@ -177,16 +183,66 @@ const serverCard = {
     auth: { type: 'none' },
   },
   resources: [
-    { uri: cf(ENDPOINTS.health),         name: copyLlm.mcp.dsHealthName,         description: copyLlm.mcp.dsHealthDesc,         mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.sleep),          name: copyLlm.mcp.dsSleepName,          description: copyLlm.mcp.dsSleepDesc,          mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.focus),          name: copyLlm.mcp.dsFocusName,          description: copyLlm.mcp.dsFocusDesc,          mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.githubEvents),   name: copyLlm.mcp.dsGithubEventsName,   description: copyLlm.mcp.dsGithubEventsDesc,   mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.starredRepos),   name: copyLlm.mcp.dsStarredReposName,   description: copyLlm.mcp.dsStarredReposDesc,   mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.books),          name: copyLlm.mcp.dsBooksName,          description: copyLlm.mcp.dsBooksDesc,          mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.articles),       name: copyLlm.mcp.dsArticlesName,       description: copyLlm.mcp.dsArticlesDesc,       mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.theatreReviews), name: copyLlm.mcp.dsTheatreReviewsName, description: copyLlm.mcp.dsTheatreReviewsDesc, mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.workouts),       name: copyLlm.mcp.dsWorkoutsName,       description: copyLlm.mcp.dsWorkoutsDesc,       mimeType: 'application/json' },
-    { uri: cf(ENDPOINTS.location),       name: copyLlm.mcp.dsLocationName,       description: copyLlm.mcp.dsLocationDesc,       mimeType: 'application/json' },
+    {
+      uri: cf(ENDPOINTS.health),
+      name: copyLlm.mcp.dsHealthName,
+      description: copyLlm.mcp.dsHealthDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.sleep),
+      name: copyLlm.mcp.dsSleepName,
+      description: copyLlm.mcp.dsSleepDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.focus),
+      name: copyLlm.mcp.dsFocusName,
+      description: copyLlm.mcp.dsFocusDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.githubEvents),
+      name: copyLlm.mcp.dsGithubEventsName,
+      description: copyLlm.mcp.dsGithubEventsDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.starredRepos),
+      name: copyLlm.mcp.dsStarredReposName,
+      description: copyLlm.mcp.dsStarredReposDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.books),
+      name: copyLlm.mcp.dsBooksName,
+      description: copyLlm.mcp.dsBooksDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.articles),
+      name: copyLlm.mcp.dsArticlesName,
+      description: copyLlm.mcp.dsArticlesDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.theatreReviews),
+      name: copyLlm.mcp.dsTheatreReviewsName,
+      description: copyLlm.mcp.dsTheatreReviewsDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.workouts),
+      name: copyLlm.mcp.dsWorkoutsName,
+      description: copyLlm.mcp.dsWorkoutsDesc,
+      mimeType: 'application/json',
+    },
+    {
+      uri: cf(ENDPOINTS.location),
+      name: copyLlm.mcp.dsLocationName,
+      description: copyLlm.mcp.dsLocationDesc,
+      mimeType: 'application/json',
+    },
   ],
 };
 

@@ -14,3 +14,11 @@ if git diff --cached --name-only | grep -q '^\.contract-lock\.json$'; then
     exit 1
   }
 fi
+
+# Auto-format staged TS/JS with dprint so quote/reflow churn never lands (the repo
+# had no formatter before dprint.json). CI (format-check.yml) is the blocking net.
+STAGED_FMT=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx|mjs|cjs)$' || true)
+if [ -n "$STAGED_FMT" ]; then
+  echo "$STAGED_FMT" | xargs npx dprint fmt --
+  echo "$STAGED_FMT" | xargs git add
+fi

@@ -13,7 +13,7 @@ const CLOUDFRONT_LLMS_TXT = `${CLOUDFRONT_BASE}/llms.txt`;
 
 // Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {
-  cf?: { cacheTtl?: number; cacheEverything?: boolean };
+  cf?: { cacheTtl?: number; cacheEverything?: boolean; };
 }
 
 export async function onRequest(): Promise<Response> {

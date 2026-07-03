@@ -2,11 +2,7 @@
 // Replaces both cloudflare/api-catalog-content-type.js (Worker) and public/_headers
 // because root middleware disables _headers file processing.
 
-import {
-  CLOUDFRONT_BASE,
-  LLM_CONTENT_PATHS,
-  WEBSOCKET_URL,
-} from '@lifegames/portal-contract/constants';
+import { CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL } from '@lifegames/portal-contract/constants';
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
 // already an origin. Sourcing both from the contract keeps the CSP in sync with
@@ -25,10 +21,10 @@ const CSP = [
   "base-uri 'self'",
   "form-action 'self'",
   "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
+  'upgrade-insecure-requests',
   // Violation reporting: report-to (Reporting API, modern) + report-uri (legacy fallback).
   // The named endpoint matches the Reporting-Endpoints header set below.
-  "report-uri /api/csp-report; report-to csp-endpoint",
+  'report-uri /api/csp-report; report-to csp-endpoint',
 ].join('; ') + ';';
 
 // CSP violation reports are collected at /api/csp-report (functions/api/csp-report.ts).
@@ -63,7 +59,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // agents send Accept: text/markdown (passes isitagentready.com check)
   if (accept.includes('text/markdown')) {
     const mdResponse = await fetch(
-      `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
+      `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`,
     );
     return new Response(mdResponse.body, {
       status: mdResponse.status,
@@ -89,7 +85,10 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
   // COEP/CORP omitted -- would break cross-origin Amazon and Carto tile resources.
   headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  headers.set('Permissions-Policy', 'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()');
+  headers.set(
+    'Permissions-Policy',
+    'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()',
+  );
 
   // sw.js and version.json must always revalidate so a new deploy is picked up
   // promptly: sw.js drives the update-check path in public/js/sw-register.js, and
@@ -108,14 +107,17 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     headers.set('Link', LINK_HEADER);
     headers.set('CDN-Cache-Control', 'no-store');
     // Prevent UTM/ad-click params from fragmenting the cache or Back/Forward Cache.
-    headers.set('No-Vary-Search', 'params=("utm_source" "utm_medium" "utm_campaign" "utm_term" "utm_content" "gclid" "fbclid")');
+    headers.set(
+      'No-Vary-Search',
+      'params=("utm_source" "utm_medium" "utm_campaign" "utm_term" "utm_content" "gclid" "fbclid")',
+    );
   }
 
   // API catalog Content-Type override for RFC 9727 compliance
   if (url.pathname === '/.well-known/api-catalog') {
     headers.set(
       'Content-Type',
-      'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"'
+      'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"',
     );
   }
 

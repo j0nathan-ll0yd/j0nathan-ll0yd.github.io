@@ -69,13 +69,15 @@ for (var f = 0; f < files.length; f++) {
   while ((m = SCRIPT_BLOCK_RE.exec(content)) !== null) {
     var openTag = m[1];
     var body = m[2];
-    if (!isInline(openTag)) continue;        // bundled scripts are exempt
-    if (hasSrc(openTag)) continue;           // external reference is fine
-    if (isDataScript(openTag)) continue;     // inert data, not script
-    if (!/\S/.test(body)) continue;          // empty body
+    if (!isInline(openTag)) continue; // bundled scripts are exempt
+    if (hasSrc(openTag)) continue; // external reference is fine
+    if (isDataScript(openTag)) continue; // inert data, not script
+    if (!/\S/.test(body)) continue; // empty body
     violations++;
-    console.error('✗ ' + file + ':' + lineAt(content, m.index) +
-      ' -- <script is:inline> with body (CSP script-src \'self\' blocks this).');
+    console.error(
+      '✗ ' + file + ':' + lineAt(content, m.index)
+        + " -- <script is:inline> with body (CSP script-src 'self' blocks this).",
+    );
   }
 
   // 2. Inline event handlers in markup (e.g. onclick=, onload=).
@@ -83,8 +85,10 @@ for (var f = 0; f < files.length; f++) {
   for (var i = 0; i < lines.length; i++) {
     if (EVENT_HANDLER_RE.test(lines[i])) {
       violations++;
-      console.error('✗ ' + file + ':' + (i + 1) +
-        ' -- inline event handler (CSP rejects without \'unsafe-hashes\').');
+      console.error(
+        '✗ ' + file + ':' + (i + 1)
+          + " -- inline event handler (CSP rejects without 'unsafe-hashes').",
+      );
     }
   }
 }
@@ -103,8 +107,10 @@ for (var jf = 0; jf < jsFiles.length; jf++) {
   for (var jl = 0; jl < jsLines.length; jl++) {
     if (JS_INLINE_HANDLER_RE.test(jsLines[jl])) {
       violations++;
-      console.error('✗ ' + jsFile + ':' + (jl + 1) +
-        ' -- inline event-handler string (CSP rejects onX="..." without \'unsafe-hashes\').');
+      console.error(
+        '✗ ' + jsFile + ':' + (jl + 1)
+          + ' -- inline event-handler string (CSP rejects onX="..." without \'unsafe-hashes\').',
+      );
     }
   }
 }
@@ -112,7 +118,7 @@ for (var jf = 0; jf < jsFiles.length; jf++) {
 if (violations > 0) {
   console.error('\n' + violations + ' inline-JS violation(s).');
   console.error('Per CLAUDE.md: extract to public/js/*.js and reference via <script is:inline src="..." defer>.');
-  console.error('CSP: script-src \'self\' -- inline JS is rejected in production.');
+  console.error("CSP: script-src 'self' -- inline JS is rejected in production.");
   process.exit(1);
 }
 

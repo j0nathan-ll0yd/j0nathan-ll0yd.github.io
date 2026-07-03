@@ -40,8 +40,8 @@ const READING_EMPTY_TITLE_FIXTURE = require.resolve(
 
 /** 1×1 transparent PNG used as a placeholder for external images. */
 const TRANSPARENT_PIXEL = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' +
-    'Nl7BcQAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB'
+    + 'Nl7BcQAAAABJRU5ErkJggg==',
   'base64',
 );
 
@@ -78,11 +78,11 @@ async function interceptRoutes(page: Page, overrides: Record<string, string> = {
   await page.route('**/*', async (route) => {
     const url = route.request().url();
     if (
-      url.startsWith('http://localhost') ||
-      url.startsWith('data:') ||
-      url.startsWith(CLOUDFRONT_BASE) ||
-      url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://')) ||
-      url.startsWith('wss://')
+      url.startsWith('http://localhost')
+      || url.startsWith('data:')
+      || url.startsWith(CLOUDFRONT_BASE)
+      || url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://'))
+      || url.startsWith('wss://')
     ) {
       await route.fallback();
       return;
@@ -140,7 +140,7 @@ test.describe('Mobile layout — system-status alignment + reading-feed truncati
     const lefts = await page.evaluate(() =>
       Array.from(document.querySelectorAll('#systemStatus .sys-line > [class*="sys-val"]')).map(
         (el) => el.getBoundingClientRect().left,
-      ),
+      )
     );
     expect(lefts.length).toBeGreaterThan(1);
     expect(Math.max(...lefts) - Math.min(...lefts)).toBeLessThanOrEqual(1);
@@ -159,9 +159,7 @@ test.describe('Mobile layout — system-status alignment + reading-feed truncati
   // -----------------------------------------------------------------------
   // Bug 6: reading feed empty-title / long-source truncation
   // -----------------------------------------------------------------------
-  test('6. reading feed truncates a long source so the row fits and the date stays visible', async ({
-    browser,
-  }) => {
+  test('6. reading feed truncates a long source so the row fits and the date stays visible', async ({ browser }) => {
     const readingPage = await browser.newPage();
     await interceptRoutes(readingPage, { '/articles.json': READING_EMPTY_TITLE_FIXTURE });
     await navigateAndWaitForHydration(readingPage);

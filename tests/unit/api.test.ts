@@ -51,7 +51,7 @@ describe('fetchWithTimeout', () => {
   it('returns parsed JSON on success', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse({ foo: 'bar' })));
 
-    const promise = fetchWithTimeout<{ foo: string }>('https://example.com/data.json');
+    const promise = fetchWithTimeout<{ foo: string; }>('https://example.com/data.json');
     await vi.runAllTimersAsync();
     const result = await promise;
 
@@ -91,7 +91,7 @@ describe('fetchWithTimeout', () => {
   it('returns null on timeout (AbortError)', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation((_url: string, opts: { signal?: AbortSignal }) => {
+      vi.fn().mockImplementation((_url: string, opts: { signal?: AbortSignal; }) => {
         return new Promise((_resolve, reject) => {
           if (opts?.signal) {
             opts.signal.addEventListener('abort', () => {

@@ -41,7 +41,7 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
         event: 'csp-report',
         userAgent,
         report,
-      })
+      }),
     );
   } catch {
     // Body read failure -- still return 204 to suppress retries.

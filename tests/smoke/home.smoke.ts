@@ -132,10 +132,10 @@ test.describe('production home dashboard', () => {
       const read = async (): Promise<string | null> => {
         const reg = await navigator.serviceWorker.getRegistration();
         return (
-          reg?.active?.scriptURL ??
-          reg?.installing?.scriptURL ??
-          reg?.waiting?.scriptURL ??
-          null
+          reg?.active?.scriptURL
+            ?? reg?.installing?.scriptURL
+            ?? reg?.waiting?.scriptURL
+            ?? null
         );
       };
       const deadline = Date.now() + 35_000;
@@ -177,7 +177,7 @@ test.describe('production home dashboard', () => {
     // functions/_middleware.ts that would otherwise short-circuit to llms-full.
     const res = await page.request.get(
       '/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me',
-      { headers: { Accept: 'application/jrd+json' } }
+      { headers: { Accept: 'application/jrd+json' } },
     );
     expect(res.status(), '/.well-known/webfinger did not return 200').toBe(200);
     const contentType = res.headers()['content-type'] || '';
@@ -186,9 +186,9 @@ test.describe('production home dashboard', () => {
     expect(body.subject, 'webfinger subject mismatch').toBe('acct:jonathan@jonathanlloyd.me');
     // The self link is what makes aliasing work; assert it on the LIVE path too,
     // not just the build artifact, to catch a stale/edge-cached deploy.
-    const self = body.links?.find((l: { rel: string; href?: string }) => l.rel === 'self');
+    const self = body.links?.find((l: { rel: string; href?: string; }) => l.rel === 'self');
     expect(self?.href, 'webfinger self link must target the canonical Mastodon actor').toBe(
-      'https://mastodon.social/ap/users/116794886250734590'
+      'https://mastodon.social/ap/users/116794886250734590',
     );
   });
 

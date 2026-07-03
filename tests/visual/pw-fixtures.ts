@@ -72,7 +72,7 @@ if (!moduleLoadPatchOk && !process.env.SKIP_PNG_TRUNCATION) {
   console.warn('[pw-fixtures] module-load patch did NOT take effect — check Playwright internals');
 }
 
-type WorkerFixtures = { pngTruncation: void };
+type WorkerFixtures = { pngTruncation: void; };
 
 export const test = base.extend<{}, WorkerFixtures>({
   pngTruncation: [

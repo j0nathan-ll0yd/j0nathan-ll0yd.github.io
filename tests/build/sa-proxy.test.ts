@@ -17,7 +17,7 @@ beforeAll(() => {
   // Read the middleware source to inspect the CSP string
   middlewareSrc = readFileSync(
     path.resolve(process.cwd(), 'functions/_middleware.ts'),
-    'utf-8'
+    'utf-8',
   );
 });
 
@@ -47,7 +47,7 @@ describe('Simple Analytics reverse-proxy CSP assertions', () => {
   it('sa-loader.js loads the first-party /sa route and not simpleanalyticscdn.com', () => {
     const loaderSrc = readFileSync(
       path.resolve(process.cwd(), 'public/js/sa-loader.js'),
-      'utf-8'
+      'utf-8',
     );
     // Cloudflare Pages serves functions/sa.ts at the route /sa (the .ts extension
     // is stripped), so the loader must request /sa, NOT /sa.js (which 404s).

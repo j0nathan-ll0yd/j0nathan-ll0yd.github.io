@@ -191,7 +191,7 @@ export class PollEngine {
       const data = await res.json();
 
       // Compare generatedAt fingerprint — skip update if unchanged
-      const generatedAt = (data as { generatedAt?: string }).generatedAt;
+      const generatedAt = (data as { generatedAt?: string; }).generatedAt;
       const prev = this.fingerprints.get(key);
 
       if (generatedAt && generatedAt === prev) {
