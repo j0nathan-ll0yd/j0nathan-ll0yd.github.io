@@ -15,7 +15,7 @@ import type {
   FocusExport,
   TheatreReviewsExport,
 } from '@lifegames/web/types/exports';
-import { CLOUDFRONT_BASE, ENDPOINTS, WEBSOCKET_URL } from '@lifegames/portal-contract/constants';
+import { CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, WEBSOCKET_URL } from '@lifegames/portal-contract/constants';
 import {
   adaptHealth,
   adaptSleep,
@@ -63,6 +63,45 @@ let engine: PollEngine | null = null;
 // ws is hoisted to module scope so pagehide/pageshow lifecycle handlers can
 // reach it. It is null until startFetch() completes (null-guard before use).
 let ws: WSClient | null = null;
+
+// ── Focus-mode suppression (companion to the backend CloudFront edge gate) ──
+// While focus is a hiding mode the gate denies every suppressible artifact (403). The
+// client mirrors that: overlay immediately, pause suppressible polling, and hold the live
+// cards in their skeleton state so no stale real data lingers in the DOM under the overlay.
+// HIDING_FOCUS_MODES is the cross-platform single source of truth (@lifegames/portal-contract),
+// shared with the backend gate + the DS overlay so the three layers can never drift — the web
+// layer is cosmetic + efficiency only; the edge gate is the real privacy boundary, so a
+// mismatch degrades to redundant 403 polls, never a data leak.
+const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES);
+let suppressed = false;
+
+function isHiding(currentFocus: string | null): boolean {
+  return currentFocus !== null && HIDING_FOCUS_MODE_SET.has(currentFocus);
+}
+
+/**
+ * Single entry point for a focus-state change (WebSocket push, focus poll, or startup).
+ * Drives the overlay from the value directly — no refetch of the edge-cached focus signal —
+ * and transitions client-side suppression on the visible↔hiding boundary.
+ */
+function applyFocus(currentFocus: string | null): void {
+  // The overlay reflects the exact value every time (Work and Do Not Disturb are distinct
+  // overlays), so this runs even when the hiding class is unchanged.
+  updateFocusOverlay(currentFocus ? { generatedAt: new Date().toISOString(), currentFocus } : null);
+
+  const hiding = isHiding(currentFocus);
+  if (hiding === suppressed) return;
+  suppressed = hiding;
+
+  // The overlay is opaque and full-screen, so it is the sole visual treatment — deliberately
+  // DON'T re-skeleton the cards. `is-loading` only adds an opaque overlay (Card.astro) without
+  // removing the retained data, so it buys no DOM hygiene; worse, a card whose data is
+  // unchanged during hiding would be skipped by pollNow()'s fingerprint check on restore and
+  // stay stuck showing a skeleton. On restore the overlay simply lifts to reveal the retained
+  // (still-current) data; pollNow refreshes whatever actually changed.
+  engine?.setSuppressed(hiding);
+  if (!hiding) engine?.pollNow();
+}
 
 // ── Resource type map for discriminated validation ───────────────────
 type ResourceTypeMap = {
@@ -154,7 +193,9 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
         break;
       }
       case 'focus':
-        updateFocusOverlay(validated as ResourceTypeMap['focus']);
+        // Route through applyFocus so a focus change detected by polling (e.g. the WS was
+        // down) also transitions client-side suppression, not just the overlay.
+        applyFocus((validated as ResourceTypeMap['focus']).currentFocus);
         break;
       case 'theatreReviews':
         updateTheatreReviews(validated as ResourceTypeMap['theatreReviews']);
@@ -180,14 +221,12 @@ let fallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
 
 // ── Initial fetch + start continuous polling ─────────────────────────
 const startFetch = async () => {
-  // Focus overlay (page-level concern)
+  // Focus overlay (page-level concern). applyFocus drives the overlay immediately and, if
+  // focus is already a hiding mode at load, sets suppression intent (engine is still null;
+  // it is propagated via engine.setSuppressed(suppressed) below once created).
   const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
-  try {
-    const focusData = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus);
-    updateFocusOverlay(focusData);
-  } catch {
-    /* graceful fallback — no overlay on failure */
-  }
+  const focusData = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus);
+  applyFocus(focusData?.currentFocus ?? null);
 
   const data = await fetchAllEndpoints();
 
@@ -276,8 +315,12 @@ const startFetch = async () => {
 
   updateSystemStatus(data.timestamps);
 
-  // Clean up any remaining skeletons (handles partial endpoint failures)
-  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'));
+  // Clean up any remaining skeletons (handles partial endpoint failures) — but while
+  // suppressed (loaded during a hiding mode), keep the cards skeletonised: the endpoints
+  // 403 so there is no real data to show, and skeletons are the suppressed presentation.
+  if (!suppressed) {
+    LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'));
+  }
   if (fallbackTimer) clearTimeout(fallbackTimer);
 
   // ── Start continuous polling ───────────────────────────────────────
@@ -287,6 +330,8 @@ const startFetch = async () => {
     onStatusChange: updatePollStatus,
   });
   engine.seed(data.timestamps);
+  // Propagate the load-time suppression intent set by applyFocus() (engine was null then).
+  engine.setSuppressed(suppressed);
   engine.start();
 
   // Nudge the service worker to check for a new build now. The graceful,
@@ -307,6 +352,9 @@ const startFetch = async () => {
         engine!.pollResource(key).catch(() => {});
       }
     },
+    // Focus push carries the new value → drive the overlay + suppression immediately,
+    // without waiting on a refetch of the ~30s-edge-cached focus signal.
+    onFocusChange: (currentFocus) => applyFocus(currentFocus),
     // A new web build is live (deploy push): nudge the SW to fetch the new sw.js.
     onAppUpdate: () => nudgeServiceWorkerUpdate(),
     onStateChange: (connected) => {
