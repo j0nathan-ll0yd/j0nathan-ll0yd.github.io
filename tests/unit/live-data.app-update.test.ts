@@ -250,4 +250,24 @@ describe('live-data → focus overlay + suppression wiring', () => {
     expect(document.getElementById('dndOverlay')?.style.display).toBe('flex');
     expect(engineSpies.setSuppressed).toHaveBeenCalledWith(true);
   });
+
+  it('trusts the focus poll again after the propagation window (dropped-push self-heal)', async () => {
+    await bootLiveData();
+    wsOpts?.onStateChange?.(true);
+    wsOpts?.onFocusChange?.('Do Not Disturb'); // enter hiding via push; the ignore-window opens
+    expect(document.getElementById('dndOverlay')?.style.display).toBe('flex');
+    engineSpies.setSuppressed.mockClear();
+
+    // The user exits to None but the WS push is DROPPED — only the poll sees it. Within the
+    // window the poll is ignored; once the window elapses it must be trusted so the overlay
+    // does not stay stuck forever on the stale hiding value.
+    engineCapture.onUpdate?.('focus', { generatedAt: '2026-01-01T00:00:01Z', currentFocus: 'None' });
+    expect(document.getElementById('dndOverlay')?.style.display).toBe('flex'); // still ignored (in window)
+
+    vi.advanceTimersByTime(46_000); // past STALE_FOCUS_POLL_WINDOW_MS
+    engineCapture.onUpdate?.('focus', { generatedAt: '2026-01-01T00:00:02Z', currentFocus: 'None' });
+
+    expect(document.getElementById('dndOverlay')?.style.display).toBe('none'); // self-healed
+    expect(engineSpies.setSuppressed).toHaveBeenCalledWith(false);
+  });
 });

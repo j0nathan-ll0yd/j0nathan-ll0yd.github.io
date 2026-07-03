@@ -76,12 +76,13 @@ const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES);
 let suppressed = false;
 
 // The WS push is the authoritative focus source. A focus poll (the fallback for when the WS is
-// down) refetches the ~30s edge-cached focus.json, which lags a just-changed state — track the
-// WS connection + last pushed value so a stale poll can't re-apply an out-of-date focus over a
-// fresher push (which previously left the overlay lingering for ~30s on restore).
+// down) refetches the ~30s edge-cached focus.json, which lags a just-changed state. For a short
+// window after each push we ignore focus polls (they're reading the lagging cached value); after
+// the window the poll is trusted again, so a genuinely-dropped push self-heals (bounded lag)
+// rather than leaving the overlay permanently stuck on a stale value.
+const STALE_FOCUS_POLL_WINDOW_MS = 45_000;
 let wsConnected = false;
-let lastPushedFocus = '';
-let hasPushedFocus = false;
+let lastFocusPushAtMs = 0;
 
 function isHiding(currentFocus: string | null): boolean {
   return currentFocus !== null && HIDING_FOCUS_MODE_SET.has(currentFocus);
@@ -201,14 +202,14 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
         break;
       }
       case 'focus': {
-        // Route through applyFocus so a focus change detected by polling (e.g. the WS was
-        // down) also transitions client-side suppression, not just the overlay. But the WS
-        // push is authoritative while connected: ignore a polled focus that contradicts the
-        // latest push — it's the ~30s edge-cached focus.json lagging, and applying it would
-        // re-show a stale overlay over a fresh push (the restore-linger bug).
-        const polledFocus = (validated as ResourceTypeMap['focus']).currentFocus;
-        if (wsConnected && hasPushedFocus && polledFocus !== lastPushedFocus) break;
-        applyFocus(polledFocus);
+        // Route through applyFocus so a focus change detected by polling (e.g. the WS is down)
+        // also transitions client-side suppression, not just the overlay. But within the
+        // edge-cache propagation window after a WS push, the poll is reading a lagging cached
+        // focus.json — ignore it so a stale value can't re-apply over the fresh push (the
+        // restore-linger bug). After the window the poll is trusted again, so a dropped push
+        // self-heals (bounded lag) instead of leaving the overlay permanently stuck.
+        if (wsConnected && lastFocusPushAtMs > 0 && Date.now() - lastFocusPushAtMs < STALE_FOCUS_POLL_WINDOW_MS) break;
+        applyFocus((validated as ResourceTypeMap['focus']).currentFocus);
         break;
       }
       case 'theatreReviews':
@@ -369,8 +370,7 @@ const startFetch = async () => {
     // Focus push carries the new value → drive the overlay + suppression immediately,
     // without waiting on a refetch of the ~30s-edge-cached focus signal.
     onFocusChange: (currentFocus) => {
-      hasPushedFocus = true;
-      lastPushedFocus = currentFocus;
+      lastFocusPushAtMs = Date.now();
       applyFocus(currentFocus);
     },
     // A new web build is live (deploy push): nudge the SW to fetch the new sw.js.
