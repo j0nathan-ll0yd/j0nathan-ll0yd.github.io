@@ -303,26 +303,28 @@ test.describe('System status — open popover with caret', () => {
     await popover.evaluate((el) => {
       (el as HTMLElement).style.width = '280px';
     });
+    // Apply the stabilization stylesheet (screenshot.css) BEFORE measuring the
+    // box -- this is the crux of the popover's determinism. toHaveScreenshot
+    // injects that same stylesheet at capture time; it reflows the panel and
+    // freezes the sys-line reveal animation, settling the popover at its final
+    // anchored position. Measuring box.x on the un-styled page (as before) read a
+    // mid-reveal position ~28px off that also jittered a pixel or two run-to-run,
+    // so the fixed clip -- derived from that stale box -- disagreed with the
+    // capture and flaked (~10% diff, intermittent). Measuring AFTER the
+    // stylesheet is applied makes box.x deterministic and makes the clip agree
+    // with the capture; verified byte-identical across 10 consecutive workers=1
+    // renders (an element screenshot is also stable but would clip off the caret,
+    // and an earlier `translate` grid-snap broke local<->CI byte parity).
+    await page.addStyleTag({ path: stylePath });
     await stabilizeForLocatorScreenshot(page);
 
     const box = await popover.boundingBox();
     if (!box) throw new Error('health popover has no bounding box');
 
-    // Fixed integer clip anchored to the box origin. Determinism comes from the
-    // workers=1 compare (playwright.config.ts): at a single worker box.x is
-    // stable, so Math.round() does not flip run-to-run and the fixed-size clip
-    // captures the same region every time -- at both local and CI.
-    //
-    // (History: under the old workers:'50%' compare, ~12 local workers jittered
-    // box.x by up to ~1 CSS px, flipping Math.round() and shifting the capture
-    // ~1px. A `translate`-based grid-snap fixed that flake but rendered the
-    // popover through a sub-pixel-composited raster path that broke byte-for-byte
-    // local<->CI PNG parity. The workers=1 compare is the clean fix -- no
-    // transform, byte-parity preserved.)
-    //
-    // Fixed width/height avoid any dependence on the fractional box size; the
-    // pad covers the caret (~8px above the top edge, in the margin) and the
-    // layered drop-shadow (~20px).
+    // Fixed integer clip anchored to the (now-stable) box origin. Fixed
+    // width/height avoid any dependence on the fractional box size; the pad
+    // covers the caret (~8px above the top edge, in the margin) and the layered
+    // drop-shadow (~20px). No transform, so parity with the other captures holds.
     const padX = 16;
     const padTop = 16;
     const clip = {
