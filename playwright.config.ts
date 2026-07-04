@@ -5,10 +5,21 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: './tests/visual',
+  // global-setup guards against a stale dev server squatting the port (it was
+  // previously orphaned — defined but never registered). global-teardown
+  // losslessly optimizes regenerated baselines (no-op on compare runs).
+  globalSetup: './tests/visual/global-setup.ts',
+  globalTeardown: './tests/visual/global-teardown.ts',
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
-  workers: isCI ? '50%' : undefined,
+  // Serial (workers=1) everywhere -- local and CI, update and compare. At 2x
+  // DPR the tall captures (up to 1200x5818) create real per-worker memory
+  // pressure under parallel load, which jitters sub-pixel layout (e.g. the
+  // system-status popover box.x) enough to flip clip-origin rounding and break
+  // byte-for-byte local<->CI parity. Only a single worker is deterministic here.
+  // The suite is sharded 4x in CI, so serial is still fast; determinism wins.
+  workers: 1,
 
   reporter: isCI
     ? [['github'], ['blob'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
@@ -23,6 +34,10 @@ export default defineConfig({
 
   use: {
     baseURL: 'http://localhost:4321/',
+    // Render at 2x device-pixel ratio so committed baselines are retina-sharp.
+    // Deterministic here because every baseline renders in the identical arm64
+    // noble container (DPR variance, not DPR value, is the determinism risk).
+    deviceScaleFactor: 2,
     screenshot: 'only-on-failure',
     trace: 'on-first-retry',
     serviceWorkers: 'block',
@@ -36,11 +51,11 @@ export default defineConfig({
 
   expect: {
     toHaveScreenshot: {
-      maxDiffPixelRatio: 0.025, // allow up to 2.5% pixel drift -- accommodates sub-pixel font hinting variance under fullyParallel CPU load
+      maxDiffPixelRatio: 0.006, // empirically-calibrated ceiling at 2x DPR: holds the same ABSOLUTE drift sensitivity as the old 0.025 at 1x (4x the pixels -> ~1/4 the ratio); tightened so 2x does not hand back 4x the hiding room for a real memory-pressure divergence
       threshold: 0.2, // per-pixel YIQ color tolerance
       animations: 'disabled', // freeze CSS animations for determinism
       caret: 'hide', // hide blinking text caret
-      scale: 'css', // use CSS px (not device px) for screenshots
+      scale: 'device', // capture at the emulated 2x device px so baselines are retina-resolution (was 'css' at 1x)
     },
   },
 

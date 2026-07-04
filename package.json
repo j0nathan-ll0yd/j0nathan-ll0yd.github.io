@@ -20,7 +20,7 @@
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "./scripts/run-in-docker.sh playwright.config.ts",
-    "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots",
+    "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots --workers=1",
     "test:smoke": "npx playwright test --config=playwright.smoke.config.ts",
     "test:behavioral": "./scripts/run-in-docker.sh playwright.behavioral.config.ts",
     "format": "dprint fmt",
@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@astrojs/sitemap": "^3.7.3",
+    "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
     "@vite-pwa/astro": "^1.2.0",
     "ajv": "^8.20.0",

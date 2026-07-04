@@ -286,26 +286,85 @@ jobs:
           retention-days: 14
 
   commit-baselines:
-    # The explicit !cancelled() overrides the implicit success() gate, so spell
-    # out that we must not run when visual-tests was skipped (e.g. setup failed).
-    if: ${{ (inputs.update_snapshots || false) && !cancelled() && needs.visual-tests.result != 'skipped' }}
+    # Run whenever an update was requested and the workflow was not cancelled --
+    # INCLUDING when a shard failed, so the guard step below can abort loudly. A
+    # crashed shard must never silently commit a stale/mixed baseline set.
+    if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
     runs-on: [self-hosted, linux, arm64, playwright]
     needs: visual-tests
     permissions:
       contents: write
     steps:
+      - name: Abort unless every visual-tests shard succeeded
+        # A crashed/failed shard leaves its ~1/4 of the files equal to the
+        # checked-out base -- indistinguishable from "correctly unchanged" -- so a
+        # partial regeneration could commit a stale 1x/2x MIX. Fail closed.
+        run: |
+          result='${{ needs.visual-tests.result }}'
+          if [ "$result" != "success" ]; then
+            echo "::error::visual-tests result is '$result', not 'success'. Refusing to reconstruct/commit baselines from a partial regeneration."
+            exit 1
+          fi
+          echo "all visual-tests shards succeeded"
       - name: Checkout branch
         uses: actions/checkout@v6
         # No `ref:` -- workflow_dispatch runs on the selected branch, and the
         # auto-commit action needs a branch (not a detached SHA) to push back.
-      - name: Download all regenerated baselines
+      - name: Preserve the committed baselines as the reconstruction base
+        run: cp -r tests/visual/__screenshots__ /tmp/base
+      - name: Download each shard artifact to a SEPARATE directory
+        # NOT merge-multiple. Each of the 4 shards uploaded the WHOLE __screenshots__
+        # tree but freshly rendered only its own ~1/4; the old merge-multiple was
+        # last-write-wins across those full trees, so a mass 1x->2x regen could
+        # commit whichever copy landed last -- a nondeterministic 1x/2x mix. Keeping
+        # shards isolated lets us pick, per file, the single shard that changed it.
         uses: actions/download-artifact@v8
         with:
-          path: tests/visual/__screenshots__/
+          path: /tmp/shards
           pattern: regenerated-baselines-shard-*
-          merge-multiple: true
       - name: Mark workspace as safe (container uid mismatch)
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: Reconstruct baselines (per file, take the shard that changed it)
+        # Pure bash + coreutils (the noble image has them; no npm ci needed). For
+        # every committed baseline, take the ONE shard copy whose bytes differ from
+        # base; if none differ, keep base. Deterministic -- independent of artifact
+        # download order -- which is what the old merge-multiple was not.
+        run: |
+          set -euo pipefail
+          screens="$GITHUB_WORKSPACE/tests/visual/__screenshots__"
+          shopt -s nullglob
+          shards=(/tmp/shards/regenerated-baselines-shard-*)
+          echo "reconstructing from ${#shards[@]} shard artifact(s)"
+          if [ "${#shards[@]}" -eq 0 ]; then
+            echo "::error::no shard artifacts were downloaded"; exit 1
+          fi
+          changed=0
+          # 1) Existing baselines: pick the shard copy that differs from base.
+          while IFS= read -r -d '' basefile; do
+            rel="${basefile#/tmp/base/}"
+            for s in "${shards[@]}"; do
+              cand="$s/$rel"
+              [ -f "$cand" ] || continue
+              if ! cmp -s "$basefile" "$cand"; then
+                mkdir -p "$(dirname "$screens/$rel")"
+                cp "$cand" "$screens/$rel"
+                changed=$((changed + 1))
+                break
+              fi
+            done
+          done < <(find /tmp/base -type f -name '*.png' -print0)
+          # 2) Brand-new baselines: present in a shard but absent from base.
+          for s in "${shards[@]}"; do
+            while IFS= read -r -d '' shardfile; do
+              rel="${shardfile#"$s"/}"
+              if [ ! -e "/tmp/base/$rel" ]; then
+                mkdir -p "$(dirname "$screens/$rel")"
+                cp "$shardfile" "$screens/$rel"
+                changed=$((changed + 1))
+              fi
+            done < <(find "$s" -type f -name '*.png' -print0)
+          done
+          echo "reconstructed $changed changed/new baseline(s)"
       - name: Commit regenerated baselines
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
