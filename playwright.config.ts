@@ -13,7 +13,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
-  workers: isCI ? '50%' : undefined,
+  // Serial (workers=1) everywhere -- local and CI, update and compare. At 2x
+  // DPR the tall captures (up to 1200x5818) create real per-worker memory
+  // pressure under parallel load, which jitters sub-pixel layout (e.g. the
+  // system-status popover box.x) enough to flip clip-origin rounding and break
+  // byte-for-byte local<->CI parity. Only a single worker is deterministic here.
+  // The suite is sharded 4x in CI, so serial is still fast; determinism wins.
+  workers: 1,
 
   reporter: isCI
     ? [['github'], ['blob'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]

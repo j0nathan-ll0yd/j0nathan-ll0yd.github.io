@@ -308,31 +308,26 @@ test.describe('System status — open popover with caret', () => {
     const box = await popover.boundingBox();
     if (!box) throw new Error('health popover has no bounding box');
 
-    // Snap the popover onto the whole-CSS-pixel grid before capturing. Under
-    // parallel CPU load (workers:'50%') its sub-pixel x/y can settle a few
-    // tenths of a pixel away from where workers=1 baseline generation put it;
-    // Math.round() of a value near an N.5 boundary then flips the clip origin by
-    // a whole pixel, shifting the captured content ~1px (a ~10% diff -- confirmed
-    // by shift-correlation on a reproduced failure). Nudging the box down to its
-    // integer floor via the `translate` property (which does not clobber any
-    // existing `transform`) makes the capture byte-identical regardless of that
-    // sub-pixel jitter. The sub-1px nudge does not weaken the caret guard.
-    const ix = Math.floor(box.x);
-    const iy = Math.floor(box.y);
-    await popover.evaluate((el, off) => {
-      (el as HTMLElement).style.translate = `${off.x}px ${off.y}px`;
-    }, { x: ix - box.x, y: iy - box.y });
-    await stabilizeForLocatorScreenshot(page);
-
-    // Fixed integer clip anchored to the now-grid-aligned box origin. Fixed
-    // width/height avoid any dependence on the fractional box size; the pad
-    // covers the caret (~8px above the top edge, in the margin) and the layered
-    // drop-shadow (~20px).
+    // Fixed integer clip anchored to the box origin. Determinism comes from the
+    // workers=1 compare (playwright.config.ts): at a single worker box.x is
+    // stable, so Math.round() does not flip run-to-run and the fixed-size clip
+    // captures the same region every time -- at both local and CI.
+    //
+    // (History: under the old workers:'50%' compare, ~12 local workers jittered
+    // box.x by up to ~1 CSS px, flipping Math.round() and shifting the capture
+    // ~1px. A `translate`-based grid-snap fixed that flake but rendered the
+    // popover through a sub-pixel-composited raster path that broke byte-for-byte
+    // local<->CI PNG parity. The workers=1 compare is the clean fix -- no
+    // transform, byte-parity preserved.)
+    //
+    // Fixed width/height avoid any dependence on the fractional box size; the
+    // pad covers the caret (~8px above the top edge, in the margin) and the
+    // layered drop-shadow (~20px).
     const padX = 16;
     const padTop = 16;
     const clip = {
-      x: ix - padX,
-      y: iy - padTop,
+      x: Math.round(box.x) - padX,
+      y: Math.round(box.y) - padTop,
       width: 280 + padX * 2,
       height: 120,
     };
