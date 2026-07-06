@@ -12,9 +12,11 @@
  *   code that went ragged once a key exceeded the magic width).
  *
  * Bug 6 (reading feed): an article with an empty title + a very long source must
- *   truncate the source (ellipsis) so the row does not overrun and the "— Nd ago"
- *   date stays visible inside the card. Old code (`flex-shrink: 0` on the source)
- *   let the source overrun and push the date past the card edge.
+ *   promote the source into the title slot (never blank-left) and truncate it
+ *   (ellipsis) so the row does not overrun and the "— Nd ago" date stays visible
+ *   inside the card. The promoted source is NOT duplicated in a parenthetical
+ *   `.article-list-source` span. Old code (`flex-shrink: 0` on the source) let the
+ *   source overrun and push the date past the card edge.
  *
  * Shares the route-interception pattern from book-modal.spec.ts: all CloudFront
  * endpoints use fixtures, WebSocket and external resources are blocked.
@@ -159,32 +161,50 @@ test.describe('Mobile layout — system-status alignment + reading-feed truncati
   // -----------------------------------------------------------------------
   // Bug 6: reading feed empty-title / long-source truncation
   // -----------------------------------------------------------------------
-  test('6. reading feed truncates a long source so the row fits and the date stays visible', async ({ browser }) => {
+  test('6. reading feed promotes an empty-title source into the title slot and truncates it so the date stays visible', async ({ browser }) => {
     const readingPage = await browser.newPage();
     await interceptRoutes(readingPage, { '/articles.json': READING_EMPTY_TITLE_FIXTURE });
     await navigateAndWaitForHydration(readingPage);
 
     const r = await readingPage.evaluate(() => {
       const card = document.getElementById('cardReading');
-      const row = document.querySelector('#cardReading .article-list-item');
-      const source = row?.querySelector('.article-list-source') as HTMLElement | null;
+      const rows = document.querySelectorAll('#cardReading .article-list-item');
+      const row = rows[0] ?? null;
+      // The mixed fixture ends with a normal titled row; it must KEEP its source span,
+      // proving the parenthetical is suppressed only for empty-title rows (not blanket).
+      const titledRow = rows[rows.length - 1] ?? null;
+      const title = row?.querySelector('.article-list-title') as HTMLElement | null;
       const date = row?.querySelector('.article-list-date') as HTMLElement | null;
-      if (!card || !source || !date) return null;
+      if (!card || !row || !title || !date || !titledRow || titledRow === row) return null;
       const cardRect = card.getBoundingClientRect();
       const dateRect = date.getBoundingClientRect();
       return {
         cardOverflow: card.scrollWidth - card.clientWidth,
+        // Empty title is filled from the source, so the row never renders blank-left.
+        titleText: (title.textContent ?? '').trim(),
+        // The parenthetical source span must be suppressed (source not duplicated).
+        hasSourceSpan: row.querySelector('.article-list-source') !== null,
         // Truncation engaged: rendered (client) width is narrower than full text.
-        sourceTruncated: source.scrollWidth > source.clientWidth + 1,
+        titleTruncated: title.scrollWidth > title.clientWidth + 1,
         dateWithinCard: dateRect.width > 0 && dateRect.right <= cardRect.right + 1,
+        // Conditional-suppression control: a titled row retains its parenthetical.
+        titledRowHasSource: titledRow.querySelector('.article-list-source') !== null,
       };
     });
 
     expect(r).not.toBeNull();
-    // Old code (source flex-shrink:0, no ellipsis) overruns the row and pushes the
-    // date past the card edge. The fix truncates the source and keeps the date.
+    // Empty-title rows promote the source into the title slot (never blank-left); the
+    // title (flex:1 1 auto; min-width:0; ellipsis) truncates so the row fits and the
+    // "— Nd ago" date stays inside the card, and the source is not duplicated in a
+    // parenthetical `.article-list-source` span. A normal titled row still keeps its
+    // parenthetical, so the suppression is conditional (not a blanket removal). Old
+    // code (source flex-shrink:0, no ellipsis) overran the row and pushed the date
+    // past the card edge.
+    expect(r!.titleText).toContain('Hoodline');
+    expect(r!.hasSourceSpan).toBe(false);
+    expect(r!.titledRowHasSource).toBe(true);
     expect(r!.cardOverflow).toBeLessThanOrEqual(1);
-    expect(r!.sourceTruncated).toBe(true);
+    expect(r!.titleTruncated).toBe(true);
     expect(r!.dateWithinCard).toBe(true);
 
     await readingPage.close();
