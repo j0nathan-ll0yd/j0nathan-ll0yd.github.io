@@ -6,7 +6,14 @@
  * 4c: Overlay tests (focus-work, focus-dnd).
  */
 import { test, expect, type Page } from './pw-fixtures';
-import { setupPage, stylePath, WIDGET_SELECTORS, captureFullPage, stabilizeForLocatorScreenshot } from './helpers';
+import {
+  setupPage,
+  stylePath,
+  WIDGET_SELECTORS,
+  captureFullPage,
+  stabilizeForLocatorScreenshot,
+  waitForStableBox,
+} from './helpers';
 
 // ---------------------------------------------------------------------------
 // 4a: Baseline Widget Screenshots (populated scenario)
@@ -317,6 +324,13 @@ test.describe('System status — open popover with caret', () => {
     // and an earlier `translate` grid-snap broke local<->CI byte parity).
     await page.addStyleTag({ path: stylePath });
     await stabilizeForLocatorScreenshot(page);
+    // The native popover's anchor-positioned placement can settle a frame or two
+    // after open; on loaded CI runners the fixed clip below was measured (and the
+    // page captured) mid-settle, so the clip disagreed with the settled popover
+    // and flaked ~5-7% (the diff shrank on retry as it settled). Wait for the box
+    // to stop moving before deriving the clip. No baseline change: the settled
+    // render is what the committed baseline already holds.
+    await waitForStableBox(popover);
 
     const box = await popover.boundingBox();
     if (!box) throw new Error('health popover has no bounding box');

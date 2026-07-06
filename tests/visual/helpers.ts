@@ -4,7 +4,7 @@
  * Provides route interception, navigation/wait logic, and widget selectors.
  */
 import path from 'path';
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { CLOUDFRONT_BASE, WEBSOCKET_URL } from '@lifegames/portal-contract/constants';
 import { getScenarioFixtures, scenarioHasWorkouts, type ScenarioName } from './fixtures';
 
@@ -321,4 +321,48 @@ export async function stabilizeForLocatorScreenshot(page: Page): Promise<void> {
     await document.fonts.ready;
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   });
+}
+
+/**
+ * Wait until a locator's bounding box stops moving -- unchanged within
+ * `epsilonPx` across `framesRequired` consecutive animation frames, or until
+ * `timeoutMs` elapses.
+ *
+ * A native popover (`popover="auto"`) positioned via CSS anchor positioning
+ * settles a frame or two after it opens. On loaded CI runners a screenshot taken
+ * mid-settle produced an intermittent ~5-7% diff: the box shifted a pixel
+ * between the in-test clip measurement and the capture, so the fixed clip
+ * disagreed with where the popover finally landed (the diff shrank on retry as
+ * it settled further). Polling to a stable box before measuring the clip removes
+ * that race WITHOUT relaxing the pixel match -- the settled render is identical
+ * to the committed baseline, so no baseline changes.
+ */
+export async function waitForStableBox(
+  locator: Locator,
+  {
+    epsilonPx = 0.5,
+    framesRequired = 5,
+    timeoutMs = 2000,
+  }: { epsilonPx?: number; framesRequired?: number; timeoutMs?: number; } = {},
+): Promise<void> {
+  const nextFrame = () =>
+    locator
+      .page()
+      .evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+
+  let prev = await locator.boundingBox();
+  let stableFrames = 0;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline && stableFrames < framesRequired) {
+    await nextFrame();
+    const box = await locator.boundingBox();
+    const settled = box !== null
+      && prev !== null
+      && Math.abs(box.x - prev.x) <= epsilonPx
+      && Math.abs(box.y - prev.y) <= epsilonPx
+      && Math.abs(box.width - prev.width) <= epsilonPx
+      && Math.abs(box.height - prev.height) <= epsilonPx;
+    stableFrames = settled ? stableFrames + 1 : 0;
+    prev = box;
+  }
 }
