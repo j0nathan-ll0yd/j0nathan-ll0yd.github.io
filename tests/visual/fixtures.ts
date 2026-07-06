@@ -63,6 +63,7 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
     '/articles.json': fixture('articles', 'empty'),
     '/location.json': fixture('location', 'empty'),
     '/theatre-reviews.json': fixture('theatre-reviews', 'empty'),
+    '/github-starred-repos.json': fixture('github-starred-repos', 'empty'),
   },
 
   // The DS standard-triad `full` variation for every domain: the single
