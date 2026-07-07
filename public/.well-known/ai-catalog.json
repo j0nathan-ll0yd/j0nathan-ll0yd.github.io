@@ -1,14 +1,16 @@
 {
+  "specVersion": "1.0",
   "host": {
     "displayName": "Jonathan Lloyd — Human Datastream",
-    "identifier": "jonathanlloyd.me",
+    "identifier": "did:web:jonathanlloyd.me",
     "documentationUrl": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec"
   },
   "entries": [
     {
-      "type": "mcp-server",
+      "identifier": "urn:air:jonathanlloyd.me:server:human-datastream",
+      "displayName": "Human Datastream MCP Server",
+      "type": "application/mcp-server-card+json",
       "url": "https://jonathanlloyd.me/.well-known/mcp/server-card.json",
-      "name": "Human Datastream MCP Server",
       "description": "MCP server card describing read-only access to Jonathan Lloyd's live personal data: biometrics, GitHub activity, reading lists, theatre reviews, and location aggregates.",
       "representativeQueries": [
         "What is Jonathan Lloyd's current heart rate?",
@@ -17,9 +19,10 @@
       ]
     },
     {
-      "type": "agent-skills",
+      "identifier": "urn:air:jonathanlloyd.me:skills:portfolio-expert",
+      "displayName": "Agent Skills Index",
+      "type": "application/json",
       "url": "https://jonathanlloyd.me/.well-known/agent-skills/index.json",
-      "name": "Agent Skills Index",
       "description": "Agent skills discovery index. Includes a portfolio-expert skill with deep technical context about Jonathan Lloyd's engineering background, live data sources, and architectural decisions.",
       "representativeQueries": [
         "Tell me about Jonathan Lloyd's technical background.",
@@ -28,9 +31,10 @@
       ]
     },
     {
-      "type": "a2a-agent",
+      "identifier": "urn:air:jonathanlloyd.me:agent:human-datastream",
+      "displayName": "Human Datastream Agent Card",
+      "type": "application/a2a-agent-card+json",
       "url": "https://jonathanlloyd.me/.well-known/agent-card.json",
-      "name": "Human Datastream Agent Card",
       "description": "A2A agent card for the Human Datastream interface. Declares agent capabilities and the personal-profile skill for agent-to-agent discovery.",
       "representativeQueries": [
         "What can the Human Datastream agent do?",
