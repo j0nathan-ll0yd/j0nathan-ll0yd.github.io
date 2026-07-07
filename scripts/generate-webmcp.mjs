@@ -267,13 +267,24 @@ const agentSkillsPath = join(publicDir, '.well-known', 'agent-skills', 'index.js
 writeFileSync(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n');
 console.log(`Generated ${agentSkillsPath}`);
 
-// Generate agent-card.json — prose from @lifegames/copy; structure/URLs from portal-contract.
-// Replaces the prior hand-authored static file; shape is preserved exactly.
+// Generate agent-card.json — A2A v1.0 AgentCard (normative source: a2aproject/A2A
+// specification/a2a.proto). Prose from @lifegames/copy; structure/URLs from portal-contract.
+// REQUIRED per the proto: name, description, supportedInterfaces, version, capabilities,
+// defaultInputModes, defaultOutputModes, skills. NB: this is a discovery-only card for a
+// READ-ONLY data source — there is no live A2A JSON-RPC endpoint, so the single interface
+// points at the machine-readable MCP server-card. Pinned to A2A v1.0, verified 2026-07-07.
+// See docs/discovery-surface.md.
 const agentCard = {
   name: copyIdentity.site.name,
   description: copyLlm.agentDiscovery.agentCardDescription,
   version: '1.0.0',
-  url: `${SITE_URL}/.well-known/mcp/server-card.json`,
+  supportedInterfaces: [
+    {
+      url: `${SITE_URL}/.well-known/mcp/server-card.json`,
+      protocolBinding: 'HTTP+JSON',
+      protocolVersion: '1.0',
+    },
+  ],
   capabilities: {
     streaming: false,
     pushNotifications: false,
@@ -295,33 +306,43 @@ const agentCardPath = join(publicDir, '.well-known', 'agent-card.json');
 writeFileSync(agentCardPath, JSON.stringify(agentCard, null, 2) + '\n');
 console.log(`Generated ${agentCardPath}`);
 
-// Generate ai-catalog.json — prose from @lifegames/copy; URLs/identifiers from portal-contract.
-// Replaces the prior hand-authored static file; shape is preserved exactly.
+// Generate ai-catalog.json — ARD AI Catalog v1.0 (normative source: agenticresourcediscovery/
+// ard-spec spec/schemas/ai-catalog.schema.json). Prose from @lifegames/copy; URLs/identifiers
+// from portal-contract. REQUIRED: top-level specVersion + entries; each entry needs identifier
+// (RFC 8141 urn:air:<publisher>:<namespace>:<name>), displayName, type (IANA media type), and
+// exactly one of url/data. host + entries are additionalProperties:false — no stray fields.
+// Pinned to ARD specVersion 1.0, verified 2026-07-07. See docs/discovery-surface.md.
+const air = (namespace, name) => `urn:air:jonathanlloyd.me:${namespace}:${name}`;
 const aiCatalog = {
+  specVersion: '1.0',
   host: {
     displayName: copyIdentity.site.fullName,
-    identifier: 'jonathanlloyd.me',
+    identifier: 'did:web:jonathanlloyd.me',
     documentationUrl: 'https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec',
   },
   entries: [
     {
-      type: 'mcp-server',
+      identifier: air('server', 'human-datastream'),
+      displayName: copyLlm.agentDiscovery.aiCatalogMcpName,
+      type: 'application/mcp-server-card+json',
       url: `${SITE_URL}/.well-known/mcp/server-card.json`,
-      name: copyLlm.agentDiscovery.aiCatalogMcpName,
       description: copyLlm.agentDiscovery.aiCatalogMcpDescription,
       representativeQueries: copyLlm.agentDiscovery.aiCatalogMcpQueries,
     },
     {
-      type: 'agent-skills',
+      // ARD defines no dedicated media type for an agent-skills index; typed as generic JSON.
+      identifier: air('skills', 'portfolio-expert'),
+      displayName: copyLlm.agentDiscovery.aiCatalogSkillsName,
+      type: 'application/json',
       url: `${SITE_URL}/.well-known/agent-skills/index.json`,
-      name: copyLlm.agentDiscovery.aiCatalogSkillsName,
       description: copyLlm.agentDiscovery.aiCatalogSkillsDescription,
       representativeQueries: copyLlm.agentDiscovery.aiCatalogSkillsQueries,
     },
     {
-      type: 'a2a-agent',
+      identifier: air('agent', 'human-datastream'),
+      displayName: copyLlm.agentDiscovery.aiCatalogA2aName,
+      type: 'application/a2a-agent-card+json',
       url: `${SITE_URL}/.well-known/agent-card.json`,
-      name: copyLlm.agentDiscovery.aiCatalogA2aName,
       description: copyLlm.agentDiscovery.aiCatalogA2aDescription,
       representativeQueries: copyLlm.agentDiscovery.aiCatalogA2aQueries,
     },
