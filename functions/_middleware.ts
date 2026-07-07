@@ -32,6 +32,14 @@ const CSP = [
 // that name. report-uri is retained as a fallback for older browsers (Firefox <130, Safari <17).
 const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/csp-report"';
 
+// Trusted Types telemetry, REPORT-ONLY (non-enforcing). Every script is first-party
+// (script-src 'self') with no user-input XSS surface, so this does NOT enforce
+// require-trusted-types-for -- it drains DOM injection-sink violations to the same
+// /api/csp-report collector to scope a possible future enforcement. Review the reports,
+// then remove this or promote the directive into the enforced CSP. Expect roughly one
+// report per innerHTML sink while it runs.
+const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint";
+
 const LINK_HEADER = [
   '</llms.txt>; rel="describedby"; type="text/plain"',
   '</.well-known/api-catalog>; rel="api-catalog"',
@@ -77,6 +85,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // Security headers
   headers.set('Content-Security-Policy', CSP);
   headers.set('Reporting-Endpoints', REPORTING_ENDPOINTS);
+  headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY);
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   // HSTS: 2-year max-age + subdomains. Preload intentionally omitted -- owner-gated process.
