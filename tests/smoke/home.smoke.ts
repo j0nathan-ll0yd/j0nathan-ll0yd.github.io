@@ -24,9 +24,37 @@
  *     (tests/smoke/fixtures.ts) and run automatically for every test.
  */
 import { test, expect } from './fixtures';
+import type { APIRequestContext, APIResponse } from '@playwright/test';
 
 // All navigations use page.goto('/'), resolved against `baseURL` in
 // playwright.smoke.config.ts — keep the target URL defined in one place.
+
+/**
+ * GET a live endpoint, retrying transient upstream gateway failures (HTTP >= 500)
+ * with capped exponential backoff over a ~25s budget.
+ *
+ * The feed and well-known routes are served through the Pages middleware, which
+ * proxies to a CloudFront origin (responses carry `x-source: cloudfront-proxy`).
+ * That upstream can emit a one-off 5xx in the seconds after a deploy: smoke run
+ * 28675680076 (issue #106) saw feed.json return 502 while every run before and
+ * after returned 200. A steady-state 5xx is a real outage and still fails once
+ * the budget is spent — this only absorbs a single transient blip, which the
+ * whole-test CI retry could not because the upstream error outlived the quick
+ * back-to-back retry window.
+ */
+async function getStable(
+  request: APIRequestContext,
+  url: string,
+  options?: Parameters<APIRequestContext['get']>[1],
+): Promise<APIResponse> {
+  const deadline = Date.now() + 25_000;
+  let res = await request.get(url, options);
+  for (let attempt = 0; res.status() >= 500 && Date.now() < deadline; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(2_000 * 2 ** attempt, 8_000)));
+    res = await request.get(url, options);
+  }
+  return res;
+}
 
 // Statically server-rendered containers that must always be present. These are
 // structural — present in SSR HTML regardless of live data. `#cardWorkouts` is
@@ -152,21 +180,21 @@ test.describe('production home dashboard', () => {
   });
 
   test('humans.txt is reachable and plain text', async ({ page }) => {
-    const res = await page.request.get('/humans.txt');
+    const res = await getStable(page.request, '/humans.txt');
     expect(res.status(), '/humans.txt did not return 200').toBe(200);
     const contentType = res.headers()['content-type'] || '';
     expect(contentType, '/humans.txt wrong content-type').toContain('text/plain');
   });
 
   test('feed.xml is reachable and RSS content-type', async ({ page }) => {
-    const res = await page.request.get('/feed.xml');
+    const res = await getStable(page.request, '/feed.xml');
     expect(res.status(), '/feed.xml did not return 200').toBe(200);
     const contentType = res.headers()['content-type'] || '';
     expect(contentType, '/feed.xml wrong content-type').toContain('application/rss+xml');
   });
 
   test('feed.json is reachable and JSON Feed content-type', async ({ page }) => {
-    const res = await page.request.get('/feed.json');
+    const res = await getStable(page.request, '/feed.json');
     expect(res.status(), '/feed.json did not return 200').toBe(200);
     const contentType = res.headers()['content-type'] || '';
     expect(contentType, '/feed.json wrong content-type').toContain('application/feed+json');
@@ -175,7 +203,8 @@ test.describe('production home dashboard', () => {
   test('webfinger resolves the Fediverse alias with JRD content-type', async ({ page }) => {
     // Accept: application/jrd+json avoids the text/markdown early-return in
     // functions/_middleware.ts that would otherwise short-circuit to llms-full.
-    const res = await page.request.get(
+    const res = await getStable(
+      page.request,
       '/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me',
       { headers: { Accept: 'application/jrd+json' } },
     );
@@ -195,7 +224,7 @@ test.describe('production home dashboard', () => {
   test('api-catalog is reachable and linkset content-type', async ({ page }) => {
     // Regression guard for the adjacent middleware override edited alongside the
     // webfinger block (currently otherwise untested).
-    const res = await page.request.get('/.well-known/api-catalog');
+    const res = await getStable(page.request, '/.well-known/api-catalog');
     expect(res.status(), '/.well-known/api-catalog did not return 200').toBe(200);
     const contentType = res.headers()['content-type'] || '';
     expect(contentType, 'api-catalog wrong content-type').toContain('application/linkset+json');
@@ -205,7 +234,7 @@ test.describe('production home dashboard', () => {
     // The report-only policy is non-enforcing; it only drains DOM injection-sink
     // violations to /api/csp-report. Assert it reaches the browser on the live path
     // (set unconditionally in functions/_middleware.ts alongside the enforced CSP).
-    const res = await page.request.get('/');
+    const res = await getStable(page.request, '/');
     expect(res.status(), 'home page did not return 200').toBe(200);
     const reportOnly = res.headers()['content-security-policy-report-only'] || '';
     expect(reportOnly, 'Trusted Types report-only header missing').toContain(
@@ -214,7 +243,7 @@ test.describe('production home dashboard', () => {
   });
 
   test('version.json reports the deployed build', async ({ page }) => {
-    const res = await page.request.get('/version.json');
+    const res = await getStable(page.request, '/version.json');
     expect(res.status(), '/version.json did not return HTTP 200').toBe(200);
 
     const body = await res.json();
@@ -222,13 +251,41 @@ test.describe('production home dashboard', () => {
     expect(body.build.length, 'version.json build is empty').toBeGreaterThan(0);
 
     // When the smoke workflow passes the just-deployed commit (EXPECTED_BUILD =
-    // workflow_run.head_sha), assert the LIVE site actually serves it. Catches a
+    // workflow_run.head_sha), assert the LIVE origin actually serves it. Catches a
     // silently-stale / failed deploy — a class the hydration checks above cannot
     // detect (the old build hydrates fine). Skipped on manual/local runs where
     // EXPECTED_BUILD is unset.
     const expected = process.env.EXPECTED_BUILD;
-    if (expected) {
-      expect(body.build, 'live build does not match the just-deployed commit').toBe(expected);
-    }
+    if (!expected) return;
+
+    // version.json is edge-cached (`Cache-Control: max-age=600`) and the deploy
+    // does NOT purge the Cloudflare cache, so the EDGE can keep serving the
+    // PREVIOUS build for up to ~10 min post-deploy. Issue #106 (smoke run
+    // 28675680076): expected 46e1db3 but the edge served the prior e692457 for the
+    // whole run, failing every whole-test retry — a plain re-fetch just hits the
+    // same cached asset. That stale edge is expected and self-heals; it is NOT a
+    // failed deploy. Poll a cache-busted URL instead: a unique `?cb=` per attempt
+    // plus a `no-cache` request header force an origin revalidation (verified: the
+    // plain URL is a cf-cache HIT while `?cb=<ts>` returns the fresh origin build),
+    // so this asserts the ORIGIN published the new build — the real failure mode —
+    // while tolerating the bounded edge-propagation lag. A deploy that never lands
+    // at origin still fails once the budget is spent.
+    test.setTimeout(90_000);
+    await expect
+      .poll(
+        async () => {
+          const fresh = await page.request.get(`/version.json?cb=${Date.now()}`, {
+            headers: { 'Cache-Control': 'no-cache' },
+          });
+          if (fresh.status() !== 200) return null;
+          return (await fresh.json()).build as string;
+        },
+        {
+          message: 'live origin never served the just-deployed build within the propagation window',
+          timeout: 60_000,
+          intervals: [2_000, 3_000, 5_000],
+        },
+      )
+      .toBe(expected);
   });
 });
