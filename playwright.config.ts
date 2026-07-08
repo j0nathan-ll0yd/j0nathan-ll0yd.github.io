@@ -78,5 +78,9 @@ export default defineConfig({
       name: 'mobile-600',
       use: { browserName: 'chromium', viewport: { width: 600, height: 900 } },
     },
+    {
+      name: 'mobile-390',
+      use: { browserName: 'chromium', viewport: { width: 390, height: 844 } },
+    },
   ],
 });
