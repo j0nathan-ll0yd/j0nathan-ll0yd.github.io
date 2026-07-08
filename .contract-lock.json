@@ -1,10 +1,10 @@
 {
   "generatedFrom": {
     "repo": "j0nathan-ll0yd/design-system-Lifegames",
-    "sha": "57999207092d7902a93bd2735b66dd211637f4fc",
-    "checksum": "sha256:f9067de01ccbc56cb111107e504abdfa0acfc4dc361aa7de145c68b750e0ff9a"
+    "sha": "ad09429111577f9164559e600f274972c0a10c3d",
+    "checksum": "sha256:bea16e876deb4cae071be220d4a58e163ad6fd5fd44379b34b9b6c313f5210de"
   },
-  "generatedAt": "2026-06-20T03:40:24.375Z",
+  "generatedAt": "2026-07-08T18:55:27.859Z",
   "generatorVersion": "1.0.0",
   "files": {
     "raw-schemas/articles-export.schema.json": "sha256:4a3d6514ab959b251ad88bef79020747bbddb865d0a7c913e71fe36f608ffd36",
@@ -20,8 +20,14 @@
     "authored/dashboard-books.schema.json": "sha256:17716d6f5e7002d5de7e4488feffa60fc7ac93ad71c69b50c9f88850ca447d22",
     "authored/dashboard-github.schema.json": "sha256:d7fdeb50d02647aa214ae3e3cd25d6d3f78f63ec46c29e1e1470e0a9e6db0f04",
     "authored/dashboard-reading.schema.json": "sha256:1b14d2123d3e6b006e5c0c04d14c952f75830cf18c2cd0bddd0694ad143cd7de",
+    "authored/media-file.schema.json": "sha256:1b7f9d8486e60d73b6ebd8f1a47757aa187d2e1ca41e02ccb1795e2a01596edd",
+    "authored/media-library.schema.json": "sha256:b83a6ff59ee76f9b6c215c98656ca338d631af41ef49ce6407788b0d8dd052dd",
+    "authored/media-profile.schema.json": "sha256:f823c18f41143bae127a08de40351efaeff53290c5acf00c30ce72ada04225a8",
+    "authored/place-search-results.schema.json": "sha256:cae1c0637f72111d4990590f84ff07935444fbfdf627f7b3ef9d85d3718a5120",
     "authored/profile.schema.json": "sha256:35bb5ba6f7457b6355c497fe49a5630ef075cbe07411b10db8762da166d1263b",
+    "authored/saved-places.schema.json": "sha256:bbdfe4c3726f3a4ddc6c2974572f57cd7319d468694e2590e6bf064e9a6bc7a1",
     "authored/system.schema.json": "sha256:27b60ad1e003fdfe74f21bfa514bfc4507131f4fc9351e06fc348604976546df",
+    "authored/visit-timeline.schema.json": "sha256:ce0af8bcbd93cf7fe7d7d2078fe9c71e8b46a17e7c0d4cf4b2c4800de92fc42f",
     "authored/widget-pinned-repos.schema.json": "sha256:8a3bb0fda1dde74a496acb07afa589b759bd5b44b465cae824a83fb8823db9f3",
     "generated/dashboard-health.schema.json": "sha256:e294bf58fab873d33b39fa4639d9283fb4fccc5f40269021aa76dde7fd489be4"
   }

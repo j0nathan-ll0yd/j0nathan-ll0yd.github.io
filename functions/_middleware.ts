@@ -11,11 +11,11 @@ const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin;
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' https://static.cloudflareinsights.com",
+  "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
   `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://books.google.com ${CLOUDFRONT_BASE}`,
-  `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN} https://cloudflareinsights.com`,
+  `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
   "worker-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
