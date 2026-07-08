@@ -14,6 +14,9 @@ const {
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
 const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
 const ogImage = new URL('/assets/og-image.png', Astro.site);
+// Cloudflare Web Analytics site token (public — appears in the page markup). The
+// beacon is served first-party via /cf-insights.js; see the tag before </body>.
+const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -302,15 +305,12 @@ html { overflow-y: scroll; }
       domain and the "reduce protections" banner is not triggered. Renders only when
       PUBLIC_CF_BEACON_TOKEN is set (disable Cloudflare's auto-injection so the
       third-party beacon is not also added). */}
-  {import.meta.env.PROD && import.meta.env.PUBLIC_CF_BEACON_TOKEN && (
+  {import.meta.env.PROD && (
     <script
       is:inline
       defer
       src="/cf-insights.js"
-      data-cf-beacon={JSON.stringify({
-        token: import.meta.env.PUBLIC_CF_BEACON_TOKEN,
-        send: { to: '/cdn-cgi/rum' },
-      })}
+      data-cf-beacon={JSON.stringify({ token: CF_BEACON_TOKEN, send: { to: '/cdn-cgi/rum' } })}
     />
   )}
 </body>
