@@ -299,18 +299,19 @@ html { overflow-y: scroll; }
       <noscript><img src="/simple/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
     </Fragment>
   )}
-  {/* Cloudflare Web Analytics: beacon served first-party (/cf-insights.js proxies
-      static.cloudflareinsights.com) with RUM data POSTed to the first-party
-      /cdn-cgi/rum endpoint — so Safari's tracker blocklist sees no cloudflareinsights
-      domain and the "reduce protections" banner is not triggered. Renders only when
-      PUBLIC_CF_BEACON_TOKEN is set (disable Cloudflare's auto-injection so the
-      third-party beacon is not also added). */}
+  {/* Cloudflare Web Analytics, fully first-party: the beacon is served via
+      /cf-insights.js (proxies static.cloudflareinsights.com) and POSTs RUM data to
+      /cf-rum (which forwards to Cloudflare server-side). The browser therefore makes
+      zero cloudflareinsights.com requests, so Safari's tracker blocklist has nothing
+      to match and the "reduce protections" banner is not triggered. Auto-injection
+      must be disabled at the Pages project (manual/JS-snippet mode) so the
+      third-party beacon is not also added. Token is public (rendered in markup). */}
   {import.meta.env.PROD && (
     <script
       is:inline
       defer
       src="/cf-insights.js"
-      data-cf-beacon={JSON.stringify({ token: CF_BEACON_TOKEN, send: { to: '/cdn-cgi/rum' } })}
+      data-cf-beacon={JSON.stringify({ token: CF_BEACON_TOKEN, send: { to: '/cf-rum' } })}
     />
   )}
 </body>
