@@ -19,9 +19,9 @@
 type Mode = 'lite' | 'svg';
 
 const COLORS = ['#ff006e', '#3a86ff', '#06d6a0', '#e5e5f0'];
-const LINE_DIST = 90;
+const LINE_DIST = 72;
 const FRAME_MS = 1000 / 30; // throttle to 30fps
-const MAX_LINES = 60;
+const MAX_LINES = 110;
 
 interface P {
   x: number;
@@ -33,7 +33,7 @@ interface P {
 }
 
 function countFor(w: number, h: number): number {
-  return Math.max(10, Math.min(26, Math.floor((w * h) / 16000)));
+  return Math.max(26, Math.min(48, Math.floor((w * h) / 9000)));
 }
 
 function makeParticles(w: number, h: number, count: number): P[] {
@@ -46,7 +46,7 @@ function makeParticles(w: number, h: number, count: number): P[] {
       y: Math.random() * h,
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
-      r: 0.8 + Math.random() * 1.4,
+      r: 1.3 + Math.random() * 1.7,
       c: COLORS[(Math.random() * COLORS.length) | 0],
     });
   }
@@ -155,29 +155,45 @@ function initSvg(canvas: HTMLCanvasElement): void {
   const lines: SVGLineElement[] = [];
   for (let i = 0; i < MAX_LINES; i++) {
     const l = document.createElementNS(NS, 'line');
-    l.setAttribute('stroke-width', '0.6');
+    l.setAttribute('stroke-width', '0.8');
     l.style.visibility = 'hidden';
     svg.appendChild(l);
     lines.push(l);
   }
-  const dots: SVGCircleElement[] = [];
+  // Each dot = a translucent glow halo + a bright core (GPU-cheap neon look,
+  // no SVG filter). Halos drawn under cores; both above the lines.
+  const glows: SVGCircleElement[] = [];
+  const cores: SVGCircleElement[] = [];
   for (const p of ps) {
-    const c = document.createElementNS(NS, 'circle');
-    c.setAttribute('r', String(p.r + 0.4));
-    c.setAttribute('fill', p.c);
-    svg.appendChild(c);
-    dots.push(c);
+    const glow = document.createElementNS(NS, 'circle');
+    glow.setAttribute('r', ((p.r + 0.5) * 2.6).toFixed(1));
+    glow.setAttribute('fill', p.c);
+    glow.setAttribute('fill-opacity', '0.22');
+    svg.appendChild(glow);
+    glows.push(glow);
+  }
+  for (const p of ps) {
+    const core = document.createElementNS(NS, 'circle');
+    core.setAttribute('r', (p.r + 0.5).toFixed(1));
+    core.setAttribute('fill', p.c);
+    svg.appendChild(core);
+    cores.push(core);
   }
 
   let last = 0;
+  let rafId = 0;
   function frame(ts: number): void {
-    requestAnimationFrame(frame);
+    rafId = requestAnimationFrame(frame);
     if (ts - last < FRAME_MS) return;
     last = ts;
     step(ps, w, h);
     for (let i = 0; i < ps.length; i++) {
-      dots[i].setAttribute('cx', ps[i].x.toFixed(1));
-      dots[i].setAttribute('cy', ps[i].y.toFixed(1));
+      const x = ps[i].x.toFixed(1);
+      const y = ps[i].y.toFixed(1);
+      glows[i].setAttribute('cx', x);
+      glows[i].setAttribute('cy', y);
+      cores[i].setAttribute('cx', x);
+      cores[i].setAttribute('cy', y);
     }
     let li = 0;
     const d2 = LINE_DIST * LINE_DIST;
@@ -196,7 +212,7 @@ function initSvg(canvas: HTMLCanvasElement): void {
         l.setAttribute('x2', b.x.toFixed(1));
         l.setAttribute('y2', b.y.toFixed(1));
         l.setAttribute('stroke', a.c);
-        l.setAttribute('stroke-opacity', ((1 - Math.sqrt(dd) / LINE_DIST) * 0.2).toFixed(2));
+        l.setAttribute('stroke-opacity', ((1 - Math.sqrt(dd) / LINE_DIST) * 0.3).toFixed(2));
         l.style.visibility = 'visible';
       }
     }
@@ -207,5 +223,17 @@ function initSvg(canvas: HTMLCanvasElement): void {
     w = window.innerWidth;
     h = window.innerHeight;
   });
-  requestAnimationFrame(frame);
+  // Pause the loop when the tab is hidden (battery).
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+    } else if (!rafId) {
+      last = 0;
+      rafId = requestAnimationFrame(frame);
+    }
+  });
+  rafId = requestAnimationFrame(frame);
 }
