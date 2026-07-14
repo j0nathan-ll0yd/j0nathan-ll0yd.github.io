@@ -1,29 +1,26 @@
-// Mobile background — a real starfield.
+// Mobile background — a real starfield with the constellation CANCER (the Crab).
 //
 // Why not a canvas: iOS 26 Safari's Advanced Fingerprinting Protection surfaces the
 // "reduce protections" banner when 2+ canvases animate at once (the particle canvas
 // + the live heart-rate canvas). Rendering the background as SVG keeps the animating-
-// canvas count at 1, so the banner never appears — while keeping the moving-network
-// look. Desktop keeps the full particle canvas (see index.astro).
+// canvas count at 1, so the banner never appears. Desktop keeps the full canvas.
 //
-// The starfield is grounded in real astrophysics:
-//   - Colors: blackbody sRGB per spectral class — Mitchell Charity, "What color are
-//     the stars?" (vendian.org) + Harre & Heller 2021 (arXiv:2101.06254). The Sun (G)
-//     is a warm white #fff4ea, not yellow; M stars are orange, not red.
-//   - Sizes/brightness: the Pogson magnitude scale (radius ∝ 10^(−0.2·m), glow flux
-//     ∝ 10^(−0.4·m)) → a few brilliant stars, many faint ones.
-//   - Drift: stellar proper motion — most stars barely move, a rare few streak
-//     (à la Barnard's Star). Nearer/faster stars parallax past the slow field.
+// Astrophysics, all real:
+//   - Colors: blackbody sRGB per spectral class — Mitchell Charity (vendian.org) +
+//     Harre & Heller 2021 (arXiv:2101.06254). The Sun (G) is warm-white, not yellow;
+//     M stars are orange, not red.
+//   - Sizes/brightness: the Pogson magnitude scale (few brilliant stars, many faint).
+//   - Drift: stellar proper motion (most stars barely move, a rare few streak).
 //   - Twinkle: subtle atmospheric scintillation on the glow.
-// Connection lines draw dynamic "constellation" figures across the field.
+//   - CANCER is drawn at true relative star positions (J2000), real spectral colors,
+//     and magnitude-scaled brightness, with the Beehive Cluster (M44) at its heart —
+//     anchored (fixed) within the drifting field. Data: Wikipedia / Stellarium.
 
 type Mode = 'lite' | 'svg';
 
-// Real stellar colors (sRGB blackbody chromaticity) + population weights. Weights
-// blend the true galactic mix (K/M-dominant) with the hotter, bluer stars that catch
-// the eye — physically grounded but vivid. Weights sum to 100.
+// Real stellar colors (sRGB blackbody chromaticity) + population weights (sum 100).
 const STAR_COLORS: ReadonlyArray<readonly [string, number]> = [
-  ['#9bb0ff', 3], // O  — blue (rare jewel)
+  ['#9bb0ff', 3], // O  — blue
   ['#aabfff', 10], // B  — blue-white
   ['#cad7ff', 16], // A  — white
   ['#f8f7ff', 14], // F  — yellow-white
@@ -33,9 +30,24 @@ const STAR_COLORS: ReadonlyArray<readonly [string, number]> = [
   ['#ff9966', 8], // M giant — orange-red (Betelgeuse, Antares)
 ];
 
+// Cancer, the Crab — real stars normalized to a 0..1 box (north up). J2000 positions
+// from Wikipedia/Stellarium; colors from spectral type; mag = apparent V.
+const CANCER_STARS: ReadonlyArray<{ x: number; y: number; mag: number; c: string; }> = [
+  { x: 0.00, y: 1.00, mag: 3.53, c: '#ffd2a1' }, // 0 Tarf (β, K4III, orange)
+  { x: 0.67, y: 0.54, mag: 3.94, c: '#ffd2a1' }, // 1 Asellus Australis (δ, K0III, orange)
+  { x: 0.72, y: 0.00, mag: 4.03, c: '#fff4ea' }, // 2 Iota Cancri (ι, G8III, yellow)
+  { x: 1.00, y: 0.86, mag: 4.25, c: '#cad7ff' }, // 3 Acubens (α, A7, white)
+  { x: 0.64, y: 0.37, mag: 4.67, c: '#cad7ff' }, // 4 Asellus Borealis (γ, A1IV, white)
+  { x: 0.085, y: 0.08, mag: 5.14, c: '#f8f7ff' }, // 5 Chi Cancri (χ, F6V, yellow-white)
+];
+// Stellarium stick figure: ι–γ, γ–χ, γ–δ, δ–β, δ–α.
+const CANCER_LINES: ReadonlyArray<readonly [number, number]> = [[2, 4], [4, 5], [4, 1], [1, 0], [1, 3]];
+const BEEHIVE = { x: 0.57, y: 0.45 }; // M44 / Praesepe, at the crab's heart
+
 const FRAME_MS = 1000 / 30; // 30fps
 const LINE_DIST = 78;
-const MAX_LINES = 110;
+const MAX_LINES = 90;
+const NS = 'http://www.w3.org/2000/svg';
 
 function pickStarColor(): string {
   let r = Math.random() * 100;
@@ -50,6 +62,11 @@ function countFor(w: number, h: number): number {
   return Math.max(40, Math.min(64, Math.floor((w * h) / 6200)));
 }
 
+// Pogson: brighter (lower) magnitude → larger flux. Returns 0..1.
+function magBrightness(mag: number, ref: number): number {
+  return Math.min(Math.pow(10, -0.4 * (mag - ref)), 1);
+}
+
 export function initMobileBg(mode: Mode): void {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const canvas = document.getElementById('particle-canvas') as HTMLCanvasElement | null;
@@ -58,10 +75,16 @@ export function initMobileBg(mode: Mode): void {
   else initSvg(canvas);
 }
 
-// --- svg starfield: no canvas — real star colors, magnitude sizing, proper-motion
-//     drift, twinkle, and dynamic constellation lines ---
+function circle(fill: string, r: number, op?: number): SVGCircleElement {
+  const c = document.createElementNS(NS, 'circle');
+  c.setAttribute('r', r.toFixed(1));
+  c.setAttribute('fill', fill);
+  if (op !== undefined) c.setAttribute('fill-opacity', op.toFixed(2));
+  return c;
+}
+
+// --- svg: drifting real starfield + the fixed Cancer constellation (no canvas) ---
 function initSvg(canvas: HTMLCanvasElement): void {
-  const NS = 'http://www.w3.org/2000/svg';
   let w = window.innerWidth;
   let h = window.innerHeight;
 
@@ -73,7 +96,7 @@ function initSvg(canvas: HTMLCanvasElement): void {
   canvas.style.display = 'none';
   canvas.parentNode!.insertBefore(svg, canvas.nextSibling);
 
-  interface Star {
+  interface Field {
     x: number;
     y: number;
     vx: number;
@@ -87,41 +110,30 @@ function initSvg(canvas: HTMLCanvasElement): void {
     twSpeed: number;
   }
 
-  const count = countFor(w, h);
-
-  // Constellation-line pool, drawn beneath the stars.
-  const lines: SVGLineElement[] = [];
+  // ---- ambient drifting field (a bit sparser so Cancer reads as the figure) ----
+  const fieldCount = Math.round(countFor(w, h) * 0.7);
+  const fieldLines: SVGLineElement[] = [];
   for (let i = 0; i < MAX_LINES; i++) {
     const l = document.createElementNS(NS, 'line');
-    l.setAttribute('stroke-width', '0.7');
+    l.setAttribute('stroke-width', '0.6');
     l.style.visibility = 'hidden';
     svg.appendChild(l);
-    lines.push(l);
+    fieldLines.push(l);
   }
-
-  const stars: Star[] = [];
-  for (let i = 0; i < count; i++) {
+  const field: Field[] = [];
+  for (let i = 0; i < fieldCount; i++) {
     const c = pickStarColor();
-    const b = Math.pow(Math.random(), 2.6); // brightness 0..1 — cubed → few brilliant
-    const rCore = 0.9 + b * 3.4;
-    const rGlow = rCore * (2.3 + b * 1.6);
-    const baseOp = 0.16 + b * 0.5; // brighter glow than v1
-    const pm = Math.pow(Math.random(), 3); // proper motion 0..1 — most slow, few fast
-    const speed = 0.28 + pm * 1.05; // faster + varied drift
+    const b = Math.pow(Math.random(), 2.6);
+    const rCore = 0.8 + b * 2.9;
+    const baseOp = 0.12 + b * 0.4;
+    const pm = Math.pow(Math.random(), 3);
+    const speed = 0.26 + pm * 1.0;
     const ang = Math.random() * Math.PI * 2;
-
-    const glow = document.createElementNS(NS, 'circle');
-    glow.setAttribute('r', rGlow.toFixed(1));
-    glow.setAttribute('fill', c);
-    glow.setAttribute('fill-opacity', baseOp.toFixed(2));
+    const glow = circle(c, rCore * (2.2 + b * 1.5), baseOp);
+    const core = circle(c, rCore);
     svg.appendChild(glow);
-
-    const core = document.createElementNS(NS, 'circle');
-    core.setAttribute('r', rCore.toFixed(1));
-    core.setAttribute('fill', c);
     svg.appendChild(core);
-
-    stars.push({
+    field.push({
       x: Math.random() * w,
       y: Math.random() * h,
       vx: Math.cos(ang) * speed,
@@ -136,6 +148,65 @@ function initSvg(canvas: HTMLCanvasElement): void {
     });
   }
 
+  // ---- Cancer: fixed figure at true relative positions ----
+  const figH = h * 0.58;
+  const figW = figH * 0.52; // sky aspect (RA span ~9.9° : Dec span ~19.6°)
+  const figX = (w - figW) / 2;
+  const figY = h * 0.15;
+  const place = (nx: number, ny: number): [number, number] => [figX + nx * figW, figY + ny * figH];
+
+  // constellation lines (brighter + steadier than the field web)
+  for (const [a, b] of CANCER_LINES) {
+    const [x1, y1] = place(CANCER_STARS[a].x, CANCER_STARS[a].y);
+    const [x2, y2] = place(CANCER_STARS[b].x, CANCER_STARS[b].y);
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('x1', x1.toFixed(1));
+    l.setAttribute('y1', y1.toFixed(1));
+    l.setAttribute('x2', x2.toFixed(1));
+    l.setAttribute('y2', y2.toFixed(1));
+    l.setAttribute('stroke', '#bcd4ff');
+    l.setAttribute('stroke-opacity', '0.42');
+    l.setAttribute('stroke-width', '1');
+    svg.appendChild(l);
+  }
+
+  // Beehive Cluster (M44) — a faint swarm of blue-white dots at the crab's heart
+  const [bhx, bhy] = place(BEEHIVE.x, BEEHIVE.y);
+  svg.appendChild(circle('#cad7ff', figH * 0.05, 0.08)); // soft collective haze
+  (svg.lastChild as SVGCircleElement).setAttribute('cx', bhx.toFixed(1));
+  (svg.lastChild as SVGCircleElement).setAttribute('cy', bhy.toFixed(1));
+  for (let i = 0; i < 9; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const rad = Math.pow(Math.random(), 0.6) * figH * 0.045;
+    const d = circle(i % 3 === 0 ? '#aabfff' : '#cad7ff', 0.9 + Math.random() * 0.6, 0.55 + Math.random() * 0.3);
+    d.setAttribute('cx', (bhx + Math.cos(a) * rad).toFixed(1));
+    d.setAttribute('cy', (bhy + Math.sin(a) * rad * 1.3).toFixed(1));
+    svg.appendChild(d);
+  }
+
+  // constellation stars (bright glow + core, magnitude-scaled, gentle twinkle)
+  interface Named {
+    glow: SVGCircleElement;
+    baseOp: number;
+    twPhase: number;
+    twSpeed: number;
+  }
+  const named: Named[] = [];
+  for (const s of CANCER_STARS) {
+    const [x, y] = place(s.x, s.y);
+    const b = magBrightness(s.mag, 3.5);
+    const rCore = 2.4 + b * 4.8;
+    const baseOp = 0.34 + b * 0.42;
+    const glow = circle(s.c, rCore * 2.5, baseOp);
+    const core = circle(s.c, rCore);
+    for (const el of [glow, core]) {
+      el.setAttribute('cx', x.toFixed(1));
+      el.setAttribute('cy', y.toFixed(1));
+      svg.appendChild(el);
+    }
+    named.push({ glow, baseOp, twPhase: Math.random() * Math.PI * 2, twSpeed: 1.4 + Math.random() * 2.6 });
+  }
+
   let last = 0;
   let rafId = 0;
   let elapsed = 0;
@@ -145,7 +216,7 @@ function initSvg(canvas: HTMLCanvasElement): void {
     elapsed += last ? (ts - last) / 1000 : 0.033;
     last = ts;
 
-    for (const s of stars) {
+    for (const s of field) {
       s.x += s.vx;
       s.y += s.vy;
       if (s.x < -6) s.x = w + 6;
@@ -158,39 +229,49 @@ function initSvg(canvas: HTMLCanvasElement): void {
       s.glow.setAttribute('cy', y);
       s.core.setAttribute('cx', x);
       s.core.setAttribute('cy', y);
-      const op = s.baseOp * (1 + s.twAmp * Math.sin(elapsed * s.twSpeed + s.twPhase));
-      s.glow.setAttribute('fill-opacity', op.toFixed(2));
+      s.glow.setAttribute(
+        'fill-opacity',
+        (s.baseOp * (1 + s.twAmp * Math.sin(elapsed * s.twSpeed + s.twPhase))).toFixed(2),
+      );
     }
 
+    // twinkle the named stars (fixed positions)
+    for (const n of named) {
+      n.glow.setAttribute(
+        'fill-opacity',
+        (n.baseOp * (1 + 0.18 * Math.sin(elapsed * n.twSpeed + n.twPhase))).toFixed(2),
+      );
+    }
+
+    // subtle ambient web among field stars
     let li = 0;
     const d2 = LINE_DIST * LINE_DIST;
-    for (let i = 0; i < stars.length - 1 && li < MAX_LINES; i++) {
-      const a = stars[i];
-      for (let j = i + 1; j < stars.length && li < MAX_LINES; j++) {
-        const s2 = stars[j];
+    for (let i = 0; i < field.length - 1 && li < MAX_LINES; i++) {
+      const a = field[i];
+      for (let j = i + 1; j < field.length && li < MAX_LINES; j++) {
+        const s2 = field[j];
         const dx = a.x - s2.x;
         const dy = a.y - s2.y;
         if (Math.abs(dx) > LINE_DIST || Math.abs(dy) > LINE_DIST) continue;
         const dd = dx * dx + dy * dy;
         if (dd > d2) continue;
-        const l = lines[li++];
+        const l = fieldLines[li++];
         l.setAttribute('x1', a.x.toFixed(1));
         l.setAttribute('y1', a.y.toFixed(1));
         l.setAttribute('x2', s2.x.toFixed(1));
         l.setAttribute('y2', s2.y.toFixed(1));
         l.setAttribute('stroke', a.c);
-        l.setAttribute('stroke-opacity', ((1 - Math.sqrt(dd) / LINE_DIST) * 0.28).toFixed(2));
+        l.setAttribute('stroke-opacity', ((1 - Math.sqrt(dd) / LINE_DIST) * 0.18).toFixed(2));
         l.style.visibility = 'visible';
       }
     }
-    for (; li < MAX_LINES; li++) lines[li].style.visibility = 'hidden';
+    for (; li < MAX_LINES; li++) fieldLines[li].style.visibility = 'hidden';
   }
 
   window.addEventListener('resize', () => {
     w = window.innerWidth;
     h = window.innerHeight;
   });
-  // Pause when the tab is hidden (battery).
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       if (rafId) {
@@ -205,8 +286,7 @@ function initSvg(canvas: HTMLCanvasElement): void {
   rafId = requestAnimationFrame(frame);
 }
 
-// --- lite: a lighter CANVAS variant of the same starfield (debug via ?bg=lite;
-//     NOT the default — a 2nd animating canvas can re-trip the iOS 26 banner) ---
+// --- lite: lighter CANVAS field (debug via ?bg=lite; NOT default) ---
 interface P {
   x: number;
   y: number;
@@ -227,7 +307,7 @@ function initLiteCanvas(canvas: HTMLCanvasElement): void {
   function resize(): void {
     w = window.innerWidth;
     h = window.innerHeight;
-    canvas.width = w; // DPR 1 — fewer backing-store pixels
+    canvas.width = w;
     canvas.height = h;
     canvas.style.width = w + 'px';
     canvas.style.height = h + 'px';
