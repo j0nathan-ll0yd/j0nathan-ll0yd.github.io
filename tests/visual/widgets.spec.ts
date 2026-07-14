@@ -138,12 +138,19 @@ test.describe('Widget variations - Heart Rate Paused', () => {
   test('paused hr gap', async ({ page }) => {
     await setupPage(page, 'hr-paused-hr-gap');
     const widget = page.locator('#cardHR');
+    // Behavioral guard: paused block must be visible; data values must not be.
+    // If the class-toggle is a no-op (e.g. paused node missing from DOM), the
+    // screenshot would show full-brightness BPM data — this assertion catches that.
+    await expect(widget.locator('#hrPaused')).toBeVisible();
+    await expect(widget.locator('.hr-data')).toBeHidden();
     await expect(widget).toHaveScreenshot('hr-paused-hr-gap.png', { stylePath });
   });
 
   test('paused charging', async ({ page }) => {
     await setupPage(page, 'hr-paused-charging');
     const widget = page.locator('#cardHR');
+    await expect(widget.locator('#hrPaused')).toBeVisible();
+    await expect(widget.locator('.hr-data')).toBeHidden();
     await expect(widget).toHaveScreenshot('hr-paused-charging.png', { stylePath });
   });
 });
@@ -152,12 +159,17 @@ test.describe('Widget variations - Movement Rings Paused', () => {
   test('paused hr gap', async ({ page }) => {
     await setupPage(page, 'hr-paused-hr-gap');
     const widget = page.locator(WIDGET_SELECTORS.movementRings);
+    // Behavioral guard: paused block visible; data container (rings + chips) hidden.
+    await expect(widget.locator('#mvPaused')).toBeVisible();
+    await expect(widget.locator('.mv-data')).toBeHidden();
     await expect(widget).toHaveScreenshot('mv-paused-hr-gap.png', { stylePath });
   });
 
   test('paused charging', async ({ page }) => {
     await setupPage(page, 'hr-paused-charging');
     const widget = page.locator(WIDGET_SELECTORS.movementRings);
+    await expect(widget.locator('#mvPaused')).toBeVisible();
+    await expect(widget.locator('.mv-data')).toBeHidden();
     await expect(widget).toHaveScreenshot('mv-paused-charging.png', { stylePath });
   });
 });
