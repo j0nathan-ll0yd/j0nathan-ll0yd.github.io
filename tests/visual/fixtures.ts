@@ -143,6 +143,10 @@ const WIDGET_VARIATION_SCENARIOS: Record<string, FixtureSet> = {
   // news aggregator that frequently produces empty-title entries.
   'reading-empty-title': { ...BASELINE, '/articles.json': fixture('articles', 'hoodline-empty-title') },
 
+  // Watch-paused variations (HeartRate + MovementRings paused overlay)
+  'hr-paused-hr-gap': { ...BASELINE, '/health.json': fixture('health', 'paused-hr-gap') },
+  'hr-paused-charging': { ...BASELINE, '/health.json': fixture('health', 'paused-charging') },
+
   // Overlay variations
   'focus-work': { ...BASELINE, '/focus.json': fixture('focus', 'baseline') },
   'focus-dnd': { ...BASELINE, '/focus.json': fixture('focus', 'dnd') },

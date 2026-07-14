@@ -134,6 +134,34 @@ test.describe('Widget variations - Heart Rate', () => {
   });
 });
 
+test.describe('Widget variations - Heart Rate Paused', () => {
+  test('paused hr gap', async ({ page }) => {
+    await setupPage(page, 'hr-paused-hr-gap');
+    const widget = page.locator('#cardHR');
+    await expect(widget).toHaveScreenshot('hr-paused-hr-gap.png', { stylePath });
+  });
+
+  test('paused charging', async ({ page }) => {
+    await setupPage(page, 'hr-paused-charging');
+    const widget = page.locator('#cardHR');
+    await expect(widget).toHaveScreenshot('hr-paused-charging.png', { stylePath });
+  });
+});
+
+test.describe('Widget variations - Movement Rings Paused', () => {
+  test('paused hr gap', async ({ page }) => {
+    await setupPage(page, 'hr-paused-hr-gap');
+    const widget = page.locator(WIDGET_SELECTORS.movementRings);
+    await expect(widget).toHaveScreenshot('mv-paused-hr-gap.png', { stylePath });
+  });
+
+  test('paused charging', async ({ page }) => {
+    await setupPage(page, 'hr-paused-charging');
+    const widget = page.locator(WIDGET_SELECTORS.movementRings);
+    await expect(widget).toHaveScreenshot('mv-paused-charging.png', { stylePath });
+  });
+});
+
 test.describe('Widget variations - Hydration', () => {
   test('zero', async ({ page }) => {
     await setupPage(page, 'hydration-zero');
