@@ -84,17 +84,20 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
   <script>
     window.addEventListener('load', () => {
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      // iOS 26 Safari's Advanced Fingerprinting Protection reacts to the continuous
-      // full-viewport canvas redraw and surfaces the "reduce protections" banner on
-      // touch devices. Default to OFF on coarse-pointer devices; ?bg=canvas|lite|svg
-      // opts into experimental backgrounds for on-device banner testing (see
-      // src/lib/mobile-bg.ts). Desktop always gets the full particle canvas.
+      // iOS 26 Safari's Advanced Fingerprinting Protection surfaces the "reduce
+      // protections" banner when 2+ canvases animate at once (the particle canvas
+      // plus the live heart-rate canvas). On touch devices we render the particle
+      // network as SVG instead (no canvas → no banner), keeping the moving-network
+      // look. Escapes: ?bg=off disables it, ?bg=canvas forces the old full canvas,
+      // ?bg=lite forces a lighter canvas variant (see src/lib/mobile-bg.ts).
+      // Desktop (fine pointer) keeps the full particle canvas.
       if (window.matchMedia('(pointer: coarse)').matches) {
         const bg = new URLSearchParams(location.search).get('bg');
+        if (bg === 'off') return;
         if (bg === 'canvas') {
           import('@lifegames/web/runtime/particles').then(m => m.startParticles());
-        } else if (bg === 'lite' || bg === 'svg') {
-          import('../lib/mobile-bg').then(m => m.initMobileBg(bg));
+        } else {
+          import('../lib/mobile-bg').then(m => m.initMobileBg(bg === 'lite' ? 'lite' : 'svg'));
         }
         return;
       }
