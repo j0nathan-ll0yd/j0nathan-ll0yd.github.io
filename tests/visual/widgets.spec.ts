@@ -48,6 +48,18 @@ test.describe('Widgets - populated', () => {
 
   test('bio terminal', async () => {
     const widget = page.locator(WIDGET_SELECTORS.bioTerminal);
+
+    // Behavioral guard (non-screenshot, planning-protocol visual-state rule): the
+    // interests command is the accurate `ls -m interests/` (not the old, broken
+    // `wc -l interests/`), and the listing is alphabetical. Asserted on the SSR
+    // data-* attributes so it holds independent of the typewriter + pixel baseline.
+    const body = page.locator('#terminalBody');
+    await expect(body.locator('[data-cmd="ls -m interests/"]')).toHaveCount(1);
+    await expect(body.locator('[data-cmd="wc -l interests/"]')).toHaveCount(0);
+    await expect(
+      body.locator('[data-output="conversation, edm, musical theatre, pc gaming, programming"]'),
+    ).toHaveCount(1);
+
     await expect(widget).toHaveScreenshot('widget-bio-terminal.png', { stylePath });
   });
 
