@@ -60,6 +60,14 @@ test.describe('Widgets - populated', () => {
       body.locator('[data-output="conversation, edm, musical theatre, pc gaming, programming"]'),
     ).toHaveCount(1);
 
+    // Skills line is now `printenv STACK` (reframed as an env var), not a second
+    // `ls skills/` — differentiated from `ls -m interests/`; output is single-spaced.
+    await expect(body.locator('[data-cmd="printenv STACK"]')).toHaveCount(1);
+    await expect(body.locator('[data-cmd="ls skills/"]')).toHaveCount(0);
+    await expect(
+      body.locator('[data-output="aws typescript serverless swift go perl"]'),
+    ).toHaveCount(1);
+
     await expect(widget).toHaveScreenshot('widget-bio-terminal.png', { stylePath });
   });
 
