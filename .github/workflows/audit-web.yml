@@ -131,6 +131,13 @@ jobs:
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
         run: bash scripts/ci-setup.sh
 
+      # validate-sitemap.mjs shells out to xmllint (scripts/audit/vendor/*.xsd
+      # schema validation) -- present by default on macOS but NOT preinstalled
+      # on the ubuntu-latest image (verified: a bare `xmllint` step 404s with
+      # ENOENT). libxml2-utils is a small, fast apt package.
+      - name: Install xmllint (libxml2-utils, for B2 sitemap XSD validation)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+
       # pa11y-ci (Puppeteer) and @lhci/cli (chrome-launcher) each otherwise
       # download their own Chrome-for-Testing copy. Installing Playwright's
       # chromium once and pointing both at it via the standard env vars they
