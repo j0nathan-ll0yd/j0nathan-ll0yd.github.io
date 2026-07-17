@@ -1,0 +1,22 @@
+{
+  "_comment": "Drift guard for scripts/audit/validate-robots.mjs. Lists the AI-crawler User-agent sections that src/pages/robots.txt.ts is expected to keep blocking from the visual dashboard while allowing /llms.txt (the 'AI scraping/training bots' block) -- captured from the live robots.txt on 2026-07-16. A MISSING entry is a fail (regression: a bot lost its Disallow rule). An EXTRA entry in the live file that isn't listed here is a warn (update this snapshot to intentionally acknowledge the addition).",
+  "aiTrainingBotsBlockedExceptLlmsTxt": [
+    "GPTBot",
+    "ClaudeBot",
+    "CCBot",
+    "Google-Extended",
+    "Google-CloudVertexBot",
+    "Bytespider",
+    "Meta-ExternalAgent",
+    "Meta-ExternalFetcher",
+    "Applebot-Extended",
+    "Amazonbot"
+  ],
+  "aiSearchAgentsAllowedFullSite": [
+    "OAI-SearchBot",
+    "ChatGPT-User",
+    "Claude-SearchBot",
+    "Claude-User",
+    "Perplexity-User"
+  ]
+}

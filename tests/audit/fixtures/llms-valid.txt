@@ -1,0 +1,16 @@
+# Example Site
+
+> A short summary of the example site, containing key information.
+
+Some free-form detail paragraph before any H2 heading. This is allowed by the
+llmstxt.org spec (zero or more non-heading sections between the blockquote and
+the first H2).
+
+## Docs
+
+- [Getting Started](https://example.com/docs/start): the onboarding guide
+- [API Reference](https://example.com/docs/api)
+
+## Optional
+
+- [Changelog](https://example.com/changelog): full version history

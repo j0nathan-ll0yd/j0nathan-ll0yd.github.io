@@ -1,0 +1,10 @@
+# Link-checker exclusions for lychee (.github/workflows/audit-web.yml, weekly B5
+# job). These are trusted image CDN hosts already allow-listed in the CSP
+# img-src directive (functions/_middleware.ts) -- excluded here because they
+# routinely rate-limit or bot-block automated HEAD/GET probes from CI IP
+# ranges (403/503/999-style anti-scraping responses), which is CDN noise, not
+# a real dead link. Seeded 2026-07-16; expand only with evidence of the same
+# false-positive class (D4 fix-or-retire review), not preemptively.
+m\.media-amazon\.com
+images-na\.ssl-images-amazon\.com
+basemaps\.cartocdn\.com
