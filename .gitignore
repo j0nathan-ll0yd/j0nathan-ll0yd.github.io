@@ -15,6 +15,15 @@ test-results/
 playwright-report/
 blob-report/
 
+# Lighthouse CI (audit-web.yml B3) -- .lighthouseci/ is LHCI's own working
+# directory; lhci-reports/ is this repo's configured `upload.target: filesystem`
+# outputDir. Both are per-run artifacts, uploaded by CI, never committed.
+.lighthouseci/
+lhci-reports/
+
+# lychee (audit-web.yml B5) link-check cache, restored via actions/cache in CI.
+.lycheecache
+
 # yalc (Phase 1 local cross-repo linking; see lifegames-design-system CLAUDE.md)
 .yalc/
 yalc.lock

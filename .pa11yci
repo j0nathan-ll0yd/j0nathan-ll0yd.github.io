@@ -1,0 +1,13 @@
+{
+  "defaults": {
+    "timeout": 30000,
+    "wait": 500,
+    "chromeLaunchConfig": {
+      "args": ["--no-sandbox"]
+    }
+  },
+  "urls": [
+    "https://jonathanlloyd.me/",
+    "https://jonathanlloyd.me/privacy"
+  ]
+}
