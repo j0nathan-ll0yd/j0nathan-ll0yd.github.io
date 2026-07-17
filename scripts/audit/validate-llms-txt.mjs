@@ -21,12 +21,17 @@
 // universal real-world practice and this repo's own llms.txt, even though the
 // spec technically marks the H1 alone as required -- see inline note.
 
-import { CLOUDFRONT_BASE, SITE_URL } from '@lifegames/portal-contract/constants';
+import { LLM_CONTENT_PATHS, SITE_URL } from '@lifegames/portal-contract/constants';
 import { fetchStable, isMain, report } from './lib/http.mjs';
 
 const LLMS_TXT_URL = `${SITE_URL}/llms.txt`;
-const LLMS_FULL_URL = `${CLOUDFRONT_BASE}/llms-full.txt`;
-const INDEX_MD_URL = `${CLOUDFRONT_BASE}/index.md`;
+// PROD-DOMAIN paths, deliberately: B2's concern is that jonathanlloyd.me serves
+// these (they 404'd there until 2026-07-17 because only /llms.txt had a proxy
+// route — functions/llms-full.txt.ts + functions/index.md.ts now cover them).
+// Source-side CloudFront freshness for the same artifacts is C1's job
+// (mantle-LifegamesPortal/scripts/audit/freshness.mjs).
+const LLMS_FULL_URL = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`;
+const INDEX_MD_URL = `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`;
 
 const LINK_ITEM_RE = /^[-*]\s+\[([^\]]+)\]\(([^)]+)\)(:\s*.*)?$/;
 const LIST_ITEM_RE = /^[-*]\s+/;
@@ -210,9 +215,12 @@ async function main() {
 
   // llms-full.txt / index.md: the composer runs on a 30m EventBridge rate +
   // event trigger (§11.2 of the audit plan); a 3h warn window covers a couple
-  // of missed ticks without being noisy.
-  const fullFindings = await checkPresence('llms-full-txt', LLMS_FULL_URL, 3);
-  const indexMdFindings = await checkPresence('index-md', INDEX_MD_URL, 3);
+  // of missed ticks without being noisy. +1h on top because the prod-domain
+  // routes edge-cache the CloudFront upstream for up to an hour
+  // (functions/_lib/proxy.ts: cacheTtl 3600 / s-maxage=3600), so a legitimately
+  // fresh document can read up to 1h older through the proxy.
+  const fullFindings = await checkPresence('llms-full-txt', LLMS_FULL_URL, 4);
+  const indexMdFindings = await checkPresence('index-md', INDEX_MD_URL, 4);
   exit = report('validate-llms-txt (llms-full.txt + index.md presence)', [...fullFindings, ...indexMdFindings])
     || exit;
 

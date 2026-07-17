@@ -200,6 +200,29 @@ test.describe('production home dashboard', () => {
     expect(contentType, '/feed.json wrong content-type').toContain('application/feed+json');
   });
 
+  test('llms.txt is reachable and plain text', async ({ page }) => {
+    const res = await getStable(page.request, '/llms.txt');
+    expect(res.status(), '/llms.txt did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, '/llms.txt wrong content-type').toContain('text/plain');
+  });
+
+  test('llms-full.txt is reachable on the prod domain and markdown', async ({ page }) => {
+    // Regression guard: until 2026-07-17 only /llms.txt had a proxy route, so
+    // the full dump the discovery index advertises 404'd on jonathanlloyd.me.
+    const res = await getStable(page.request, '/llms-full.txt');
+    expect(res.status(), '/llms-full.txt did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, '/llms-full.txt wrong content-type').toContain('text/markdown');
+  });
+
+  test('index.md is reachable on the prod domain and markdown', async ({ page }) => {
+    const res = await getStable(page.request, '/index.md');
+    expect(res.status(), '/index.md did not return 200').toBe(200);
+    const contentType = res.headers()['content-type'] || '';
+    expect(contentType, '/index.md wrong content-type').toContain('text/markdown');
+  });
+
   test('webfinger resolves the Fediverse alias with JRD content-type', async ({ page }) => {
     // Accept: application/jrd+json avoids the text/markdown early-return in
     // functions/_middleware.ts that would otherwise short-circuit to llms-full.
