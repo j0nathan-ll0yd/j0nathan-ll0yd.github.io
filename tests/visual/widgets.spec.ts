@@ -68,6 +68,29 @@ test.describe('Widgets - populated', () => {
       body.locator('[data-output="aws typescript serverless swift go perl"]'),
     ).toHaveCount(1);
 
+    // Identity block is the accurate `gpg -k` pub/uid pair — `cat about.txt` is
+    // retired. uid carries name + canonical jobTitle; the pub/uid gutters are
+    // real multi-space gpg columns (rendered via .terminal-line's pre-wrap).
+    await expect(body.locator('[data-cmd="gpg -k"]')).toHaveCount(1);
+    await expect(body.locator('[data-cmd="cat about.txt"]')).toHaveCount(0);
+    await expect(body.locator('[data-output="pub   rsa4096 2002-01-01 [SC]"]')).toHaveCount(1);
+    await expect(
+      body.locator('[data-output="uid   Jonathan Lloyd (Engineering Director)"]'),
+    ).toHaveCount(1);
+
+    // philosophy.txt is the sole remaining `cat`, holding BOTH quoted lines
+    // (about.txt's tagline moved here); uptime output begins with a real `up`.
+    await expect(body.locator('[data-cmd="cat philosophy.txt"]')).toHaveCount(1);
+    await expect(
+      body.locator(`[data-output="\\"Creating things I'm proud of\\""]`),
+    ).toHaveCount(1);
+    await expect(
+      body.locator(`[data-output="\\"Enjoying the passage of time\\""]`),
+    ).toHaveCount(1);
+    await expect(
+      body.locator('[data-output="up 24+ years professionally and counting"]'),
+    ).toHaveCount(1);
+
     await expect(widget).toHaveScreenshot('widget-bio-terminal.png', { stylePath });
   });
 
