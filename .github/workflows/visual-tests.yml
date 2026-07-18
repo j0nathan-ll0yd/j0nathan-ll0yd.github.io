@@ -45,10 +45,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: '.nvmrc'
 
@@ -113,7 +113,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
@@ -172,7 +172,7 @@ jobs:
         run: npm run build
 
       - name: Upload DS+dist artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: visual-tests-ds-dist
           path: |
@@ -198,12 +198,12 @@ jobs:
         shard: [1, 2, 3, 4]
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download DS+dist artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: visual-tests-ds-dist
 
@@ -222,7 +222,7 @@ jobs:
 
       - name: Upload regenerated baselines
         if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: regenerated-baselines-shard-${{ matrix.shard }}
           path: tests/visual/__screenshots__/
@@ -231,7 +231,7 @@ jobs:
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: blob-report-${{ matrix.shard }}
           path: blob-report
@@ -239,7 +239,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: visual-test-results-${{ matrix.shard }}
           path: |
@@ -258,12 +258,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download DS+dist artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: visual-tests-ds-dist
 
@@ -279,7 +279,7 @@ jobs:
 
       - name: Upload behavioral report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: behavioral-playwright-report
           path: playwright-report
@@ -307,7 +307,7 @@ jobs:
           fi
           echo "all visual-tests shards succeeded"
       - name: Checkout branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         # No `ref:` -- workflow_dispatch runs on the selected branch, and the
         # auto-commit action needs a branch (not a detached SHA) to push back.
       - name: Preserve the committed baselines as the reconstruction base
@@ -318,7 +318,7 @@ jobs:
         # last-write-wins across those full trees, so a mass 1x->2x regen could
         # commit whichever copy landed last -- a nondeterministic 1x/2x mix. Keeping
         # shards isolated lets us pick, per file, the single shard that changed it.
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: /tmp/shards
           pattern: regenerated-baselines-shard-*
@@ -366,7 +366,7 @@ jobs:
           done
           echo "reconstructed $changed changed/new baseline(s)"
       - name: Commit regenerated baselines
-        uses: stefanzweifel/git-auto-commit-action@v7
+        uses: stefanzweifel/git-auto-commit-action@4a55954c782fc1ea30b9056cd3e7a2b40ca8887d # v7
         with:
           commit_message: "chore: regenerate visual baselines via self-hosted arm64 CI"
           file_pattern: 'tests/visual/__screenshots__/**'
@@ -381,13 +381,13 @@ jobs:
     needs: visual-tests
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install dependencies (Playwright CLI only)
         run: npm ci --legacy-peer-deps
       - name: Download blob reports
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: all-blob-reports
           pattern: blob-report-*
@@ -395,7 +395,7 @@ jobs:
       - name: Merge into HTML report
         run: npx playwright merge-reports --reporter html ./all-blob-reports
       - name: Upload merged HTML report
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: playwright-report
           path: playwright-report
