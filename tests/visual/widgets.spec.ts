@@ -69,13 +69,15 @@ test.describe('Widgets - populated', () => {
     ).toHaveCount(1);
 
     // Identity block is the accurate `gpg -k` pub/uid pair — `cat about.txt` is
-    // retired. uid carries name + canonical jobTitle; the pub/uid gutters are
-    // real multi-space gpg columns (rendered via .terminal-line's pre-wrap).
+    // retired. The uid comment is deliberately "Software Engineer" (the gpg
+    // self-identity, DS #121 owner decision) — NOT person.jobTitle ("Engineering
+    // Director", which the identity card shows); do not align it back to jobTitle.
+    // The pub/uid gutters are real multi-space gpg columns (via .terminal-line pre-wrap).
     await expect(body.locator('[data-cmd="gpg -k"]')).toHaveCount(1);
     await expect(body.locator('[data-cmd="cat about.txt"]')).toHaveCount(0);
     await expect(body.locator('[data-output="pub   rsa4096 2002-01-01 [SC]"]')).toHaveCount(1);
     await expect(
-      body.locator('[data-output="uid   Jonathan Lloyd (Engineering Director)"]'),
+      body.locator('[data-output="uid   Jonathan Lloyd (Software Engineer)"]'),
     ).toHaveCount(1);
 
     // philosophy.txt is the sole remaining `cat`, holding BOTH quoted lines
@@ -195,6 +197,25 @@ test.describe('Widget variations - Heart Rate Paused', () => {
     await expect(widget.locator('#hrPaused')).toBeVisible();
     await expect(widget.locator('.hr-data')).toBeHidden();
     await expect(widget).toHaveScreenshot('hr-paused-charging.png', { stylePath });
+  });
+});
+
+test.describe('Widget variations - Movement Rings Active', () => {
+  test('active state renders server goals, standHours, daylight, and solar', async ({ page }) => {
+    await setupPage(page, 'movement-active');
+    const widget = page.locator(WIDGET_SELECTORS.movementRings);
+    // Behavioral guards (non-screenshot): the 2026-07-17 regression trio.
+    // 1. Goal denominators come from health.json's goals, not client defaults.
+    await expect(widget.locator('#legendMove')).toHaveText('103/650');
+    await expect(widget.locator('#legendExercise')).toHaveText('0/40');
+    // 2. Stand uses the synced standHours ring count (NOT floor(4 min / 60) = 0).
+    await expect(widget.locator('#legendStand')).toHaveText('4/12');
+    // 3. Daylight + solar hydrate from live data (formerly frozen SSR fixture text).
+    await expect(widget.locator('#mvDaylightMin')).toHaveText('48');
+    await expect(widget.locator('#mvDaylightHit')).toBeVisible();
+    await expect(widget.locator('#mvSunrise')).toHaveText('05:39');
+    await expect(widget.locator('#mvSunset')).toHaveText('20:24');
+    await expect(widget).toHaveScreenshot('mv-active.png', { stylePath });
   });
 });
 
