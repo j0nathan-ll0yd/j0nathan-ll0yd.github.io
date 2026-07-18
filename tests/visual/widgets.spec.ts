@@ -198,6 +198,25 @@ test.describe('Widget variations - Heart Rate Paused', () => {
   });
 });
 
+test.describe('Widget variations - Movement Rings Active', () => {
+  test('active state renders server goals, standHours, daylight, and solar', async ({ page }) => {
+    await setupPage(page, 'movement-active');
+    const widget = page.locator(WIDGET_SELECTORS.movementRings);
+    // Behavioral guards (non-screenshot): the 2026-07-17 regression trio.
+    // 1. Goal denominators come from health.json's goals, not client defaults.
+    await expect(widget.locator('#legendMove')).toHaveText('103/650');
+    await expect(widget.locator('#legendExercise')).toHaveText('0/40');
+    // 2. Stand uses the synced standHours ring count (NOT floor(4 min / 60) = 0).
+    await expect(widget.locator('#legendStand')).toHaveText('4/12');
+    // 3. Daylight + solar hydrate from live data (formerly frozen SSR fixture text).
+    await expect(widget.locator('#mvDaylightMin')).toHaveText('48');
+    await expect(widget.locator('#mvDaylightHit')).toBeVisible();
+    await expect(widget.locator('#mvSunrise')).toHaveText('05:39');
+    await expect(widget.locator('#mvSunset')).toHaveText('20:24');
+    await expect(widget).toHaveScreenshot('mv-active.png', { stylePath });
+  });
+});
+
 test.describe('Widget variations - Movement Rings Paused', () => {
   test('paused hr gap', async ({ page }) => {
     await setupPage(page, 'hr-paused-hr-gap');
