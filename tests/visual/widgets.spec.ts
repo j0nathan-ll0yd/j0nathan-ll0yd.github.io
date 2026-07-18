@@ -69,13 +69,15 @@ test.describe('Widgets - populated', () => {
     ).toHaveCount(1);
 
     // Identity block is the accurate `gpg -k` pub/uid pair — `cat about.txt` is
-    // retired. uid carries name + canonical jobTitle; the pub/uid gutters are
-    // real multi-space gpg columns (rendered via .terminal-line's pre-wrap).
+    // retired. The uid comment is deliberately "Software Engineer" (the gpg
+    // self-identity, DS #121 owner decision) — NOT person.jobTitle ("Engineering
+    // Director", which the identity card shows); do not align it back to jobTitle.
+    // The pub/uid gutters are real multi-space gpg columns (via .terminal-line pre-wrap).
     await expect(body.locator('[data-cmd="gpg -k"]')).toHaveCount(1);
     await expect(body.locator('[data-cmd="cat about.txt"]')).toHaveCount(0);
     await expect(body.locator('[data-output="pub   rsa4096 2002-01-01 [SC]"]')).toHaveCount(1);
     await expect(
-      body.locator('[data-output="uid   Jonathan Lloyd (Engineering Director)"]'),
+      body.locator('[data-output="uid   Jonathan Lloyd (Software Engineer)"]'),
     ).toHaveCount(1);
 
     // philosophy.txt is the sole remaining `cat`, holding BOTH quoted lines
