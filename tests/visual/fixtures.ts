@@ -109,6 +109,11 @@ const WIDGET_VARIATION_SCENARIOS: Record<string, FixtureSet> = {
   'hydration-zero': { ...BASELINE, '/health.json': fixture('health', 'zero-hydration') },
   'hydration-max': { ...BASELINE, '/health.json': fixture('health', 'max-hydration') },
 
+  // Movement Rings active state — the 2026-07-17 regression data: server goals
+  // 650/40/12 (formerly hardcoded 500/30/12 client-side), standHours 4 vs
+  // floor(4 standTime-min / 60) = 0, live solar vs frozen SSR placeholders.
+  'movement-active': { ...BASELINE, '/health.json': fixture('health', 'movement-active') },
+
   // Missing-optional health: `dietaryWater` + `dietaryCaffeine` quantities are
   // entirely ABSENT (distinct from `hydration-zero`, where they are present and 0).
   // Preserves coverage of the absent-optional-field render path that the `empty`
