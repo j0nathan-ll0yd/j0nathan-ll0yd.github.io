@@ -1,0 +1,14 @@
+{
+  "_notes": [
+    "Paseo worktree lifecycle. Six @lifegames/* deps resolve via file:.yalc/* which is gitignored — a fresh worktree cannot npm install until .yalc/ and yalc.lock are restored from the main checkout (produced originally by design-system-Lifegames `pnpm yalc:publish`).",
+    ".env.local (SA_API_KEY, optional) and .envrc are gitignored — copied from main checkout; direnv users still need `direnv allow`.",
+    "Astro dev/preview binds fixed port 4321 — do not run two worktrees' dev servers concurrently without overriding the port."
+  ],
+  "worktree": {
+    "setup": [
+      "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && cp -R \"$MAIN/.yalc\" .yalc && cp \"$MAIN/yalc.lock\" yalc.lock",
+      "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && { cp \"$MAIN/.env.local\" .env.local 2>/dev/null || true; } && { cp \"$MAIN/.envrc\" .envrc 2>/dev/null || true; }",
+      "npm install"
+    ]
+  }
+}
