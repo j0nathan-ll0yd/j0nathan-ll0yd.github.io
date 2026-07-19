@@ -28,6 +28,10 @@ lhci-reports/
 .yalc/
 yalc.lock
 
+# direnv local-only env overrides (secrets; .envrc itself is committed)
+.env.local
+.direnv/
+
 # Agent enforcement symlinks
 .claude/rules/
 
