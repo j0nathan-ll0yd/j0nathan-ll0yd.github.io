@@ -122,11 +122,8 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
     ]
   })} />
 
-  {/* Font preload (critical for swap timing)
-     Dev note: Chrome warns "preloaded but not used within a few seconds" on localhost.
-     This is a Vite dev-server timing artifact — the middleware stack delays CSS delivery
-     enough for Chrome's ~3s timer to fire before @font-face claims the font. Harmless;
-     does not occur in production where static files are served directly. */}
+  {/* Font preload (critical for swap timing) — paired with the @font-face rules
+     imported via @lifegames/tokens/fonts in the <style is:global> block below. */}
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
 
@@ -145,6 +142,7 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
        LCP behavior is preserved vs the previous in-file :root token block. */}
   <style is:global>
     @import '@lifegames/tokens/preamble';
+    @import '@lifegames/tokens/fonts';
     @import '@lifegames/tokens/css.layered';
     @import '@lifegames/tokens/compat';
     @import '@lifegames/tokens/components';
@@ -153,8 +151,9 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
     @import '@lifegames/web/styles/a11y.css';
     @import '@lifegames/web/styles/view-transitions.css';
   </style>
-  {/* @font-face rules (Space Grotesk + Fallback) are provided by @lifegames/tokens/preamble
-      (imported in the <style is:global> block above) — no duplication needed here. */}
+  {/* @font-face rules (Space Grotesk + Fallback) come from @lifegames/tokens/fonts,
+      imported in the <style is:global> block above. preamble only declares the
+      cascade-layer order; it carries no @font-face rules. */}
   <style is:inline>/* ===== DESIGN TOKENS =====
    Sourced from @lifegames/tokens (imported via the <style> block above this
    <style is:inline> tag). All bare names (--neon-*, --glass-*, --text*,
