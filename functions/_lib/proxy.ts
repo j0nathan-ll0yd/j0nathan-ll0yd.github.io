@@ -8,34 +8,31 @@
 // Not itself a route: Pages Functions only creates routes for modules that
 // export an onRequest* handler; this module exports a factory.
 
-import { CLOUDFRONT_BASE } from '@lifegames/portal-contract/constants';
+import {CLOUDFRONT_BASE} from '@lifegames/portal-contract/constants'
 
 // Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {
-  cf?: { cacheTtl?: number; cacheEverything?: boolean; };
+  cf?: {cacheTtl?: number; cacheEverything?: boolean}
 }
 
 export interface CloudfrontProxyConfig {
   /** Artifact path on the CloudFront data plane, e.g. '/llms-full.txt'. */
-  path: string;
+  path: string
   /** Content-Type served to the client (CloudFront serves its own; the route owns the public one). */
-  contentType: string;
+  contentType: string
 }
 
 /** Builds an onRequest handler that proxies one CloudFront artifact with edge caching. */
-export function makeCloudfrontProxy({ path, contentType }: CloudfrontProxyConfig): () => Promise<Response> {
-  const upstreamUrl = `${CLOUDFRONT_BASE}${path}`;
-  const artifactName = path.slice(1);
+export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig): () => Promise<Response> {
+  const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
+  const artifactName = path.slice(1)
 
   return async function onRequest(): Promise<Response> {
-    const init: CfRequestInit = { cf: { cacheTtl: 3600, cacheEverything: true } };
-    const upstream = await fetch(upstreamUrl, init);
+    const init: CfRequestInit = {cf: {cacheTtl: 3600, cacheEverything: true}}
+    const upstream = await fetch(upstreamUrl, init)
 
     if (!upstream.ok) {
-      return new Response(`${artifactName} unavailable`, {
-        status: 502,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      });
+      return new Response(`${artifactName} unavailable`, {status: 502, headers: {'Content-Type': 'text/plain; charset=utf-8'}})
     }
 
     return new Response(upstream.body, {
@@ -43,8 +40,8 @@ export function makeCloudfrontProxy({ path, contentType }: CloudfrontProxyConfig
       headers: {
         'Content-Type': contentType,
         'Cache-Control': 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400',
-        'X-Source': 'cloudfront-proxy',
-      },
-    });
-  };
+        'X-Source': 'cloudfront-proxy'
+      }
+    })
+  }
 }

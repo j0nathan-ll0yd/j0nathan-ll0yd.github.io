@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import {defineConfig} from '@playwright/test'
 
 // Behavioral (interaction) test suite for BookModal.
 //
@@ -12,7 +12,7 @@ import { defineConfig } from '@playwright/test';
 // deterministically populated. SKIP_BUILD=1 skips the astro build step
 // when the dist/ is already current.
 
-const isCI = !!process.env.CI;
+const isCI = !!process.env.CI
 
 export default defineConfig({
   testDir: './tests/behavioral',
@@ -25,8 +25,8 @@ export default defineConfig({
   timeout: 30_000,
 
   reporter: isCI
-    ? [['github'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
-    : [['list'], ['html', { open: 'on-failure' }]],
+    ? [['github'], ['html', {open: 'never', outputFolder: 'playwright-report'}]]
+    : [['list'], ['html', {open: 'on-failure'}]],
 
   webServer: {
     command: process.env.SKIP_BUILD
@@ -34,7 +34,7 @@ export default defineConfig({
       : 'npm run build && npm run preview',
     url: 'http://localhost:4321/',
     timeout: 120_000,
-    reuseExistingServer: !isCI,
+    reuseExistingServer: !isCI
   },
 
   use: {
@@ -44,20 +44,17 @@ export default defineConfig({
     video: 'off',
     trace: 'on-first-retry',
     // Block service workers so they don't intercept fetch calls.
-    serviceWorkers: 'block',
+    serviceWorkers: 'block'
   },
 
   projects: [
-    {
-      name: 'behavioral-chromium',
-      use: { browserName: 'chromium', viewport: { width: 1400, height: 900 } },
-    },
+    {name: 'behavioral-chromium', use: {browserName: 'chromium', viewport: {width: 1400, height: 900}}},
     {
       // Scoped to the mobile-layout spec only — book-modal.spec.ts assumes a
       // desktop layout and would emit false failures at 390px.
       name: 'behavioral-mobile-chromium',
       testMatch: '**/mobile-layout.spec.ts',
-      use: { browserName: 'chromium', viewport: { width: 390, height: 844 }, hasTouch: true },
-    },
-  ],
-});
+      use: {browserName: 'chromium', viewport: {width: 390, height: 844}, hasTouch: true}
+    }
+  ]
+})

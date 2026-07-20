@@ -1,4 +1,4 @@
-import { getDashboardFixture, fixtures, type DashboardFixture, type FixtureVariation } from '@lifegames/fixtures';
+import {type DashboardFixture, fixtures, type FixtureVariation, getDashboardFixture} from '@lifegames/fixtures'
 
 /**
  * The dashboard payload that backs the SSR build output. This is the exact
@@ -7,15 +7,15 @@ import { getDashboardFixture, fixtures, type DashboardFixture, type FixtureVaria
  * the single source of truth for representative content; this repo no longer
  * hand-bakes `data/*.json`.
  */
-export type DashboardData = DashboardFixture;
+export type DashboardData = DashboardFixture
 
 /** Known post-adapter variation keys (e.g. 'baseline', 'empty'). */
-const VARIATIONS = Object.keys(fixtures.profile) as FixtureVariation[];
+const VARIATIONS = Object.keys(fixtures.profile) as FixtureVariation[]
 
 function resolveVariation(value: string | undefined): FixtureVariation {
   return value && (VARIATIONS as string[]).includes(value)
     ? (value as FixtureVariation)
-    : 'baseline';
+    : 'baseline'
 }
 
 /**
@@ -28,5 +28,5 @@ function resolveVariation(value: string | undefined): FixtureVariation {
  * value also falls back to `baseline`.
  */
 export async function loadDashboardData(): Promise<DashboardData> {
-  return getDashboardFixture(resolveVariation(import.meta.env.FIXTURE_VARIATION));
+  return getDashboardFixture(resolveVariation(import.meta.env.FIXTURE_VARIATION))
 }

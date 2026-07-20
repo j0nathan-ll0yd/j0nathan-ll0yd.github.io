@@ -1,5 +1,5 @@
-import { defineConfig } from '@playwright/test';
-import { SITE_URL } from '@lifegames/portal-contract/constants';
+import {defineConfig} from '@playwright/test'
+import {SITE_URL} from '@lifegames/portal-contract/constants'
 
 // Production smoke check — runs against the LIVE deployed site after each deploy.
 //
@@ -17,7 +17,7 @@ import { SITE_URL } from '@lifegames/portal-contract/constants';
 // script is CSP-blocked still renders its SSR shell at correct pixels). This
 // suite asserts the DOM actually hydrated instead.
 
-const isCI = !!process.env.CI;
+const isCI = !!process.env.CI
 
 export default defineConfig({
   testDir: './tests/smoke',
@@ -36,8 +36,8 @@ export default defineConfig({
   timeout: 45_000,
 
   reporter: isCI
-    ? [['github'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
-    : [['list'], ['html', { open: 'on-failure' }]],
+    ? [['github'], ['html', {open: 'never', outputFolder: 'playwright-report'}]]
+    : [['list'], ['html', {open: 'on-failure'}]],
 
   use: {
     baseURL: SITE_URL,
@@ -48,13 +48,10 @@ export default defineConfig({
     trace: 'on-first-retry',
     // Do NOT block service workers: the smoke check verifies the SW registers.
     // Do NOT set bypassCSP: real CSP enforcement is what catches the #50 class.
-    serviceWorkers: 'allow',
+    serviceWorkers: 'allow'
   },
 
   projects: [
-    {
-      name: 'smoke-chromium',
-      use: { browserName: 'chromium', viewport: { width: 1400, height: 900 } },
-    },
-  ],
-});
+    {name: 'smoke-chromium', use: {browserName: 'chromium', viewport: {width: 1400, height: 900}}}
+  ]
+})

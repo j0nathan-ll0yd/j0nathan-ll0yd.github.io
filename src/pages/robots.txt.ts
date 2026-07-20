@@ -1,14 +1,14 @@
-import { SITE_URL } from '@lifegames/portal-contract/constants';
+import {SITE_URL} from '@lifegames/portal-contract/constants'
 
 // /llms.txt has no dedicated LLM_CONTENT_PATHS constant — it is a Cloudflare Pages
 // Function proxy (functions/llms.txt.ts) that does not map to a CloudFront path.
 // The path is kept as a literal here intentionally; if it ever moves, update both files.
-const LLMS_TXT_PATH = '/llms.txt';
+const LLMS_TXT_PATH = '/llms.txt'
 
-export const prerender = true;
+export const prerender = true
 
 export function GET(): Response {
-  const sitemap = `${SITE_URL}/sitemap-index.xml`;
+  const sitemap = `${SITE_URL}/sitemap-index.xml`
 
   const body = `# Crawlers
 User-agent: *
@@ -88,9 +88,7 @@ Allow: /
 
 # LLM context: ${SITE_URL}${LLMS_TXT_PATH}
 Sitemap: ${sitemap}
-`.trimStart();
+`.trimStart()
 
-  return new Response(body, {
-    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-  });
+  return new Response(body, {headers: {'Content-Type': 'text/plain; charset=utf-8'}})
 }

@@ -9,12 +9,14 @@
  */
 
 /** Returns true if all images in the array report complete=true. Empty array returns true. */
-export function allImagesComplete(imgs: ReadonlyArray<{ complete: boolean; }>): boolean {
-  return imgs.every((img) => img.complete);
+export function allImagesComplete(imgs: ReadonlyArray<{complete: boolean}>): boolean {
+  return imgs.every((img) => img.complete)
 }
 
 /** Returns true if all scrollHeight reads are equal (i.e., layout has stabilized). */
 export function scrollHeightStable(reads: ReadonlyArray<number>): boolean {
-  if (reads.length === 0) return true;
-  return reads.every((v) => v === reads[0]);
+  if (reads.length === 0) {
+    return true
+  }
+  return reads.every((v) => v === reads[0])
 }

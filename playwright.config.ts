@@ -1,7 +1,7 @@
-import { defineConfig } from '@playwright/test';
-import { CHROMIUM_DETERMINISM_ARGS } from './tests/shared/chromium-launch-args';
+import {defineConfig} from '@playwright/test'
+import {CHROMIUM_DETERMINISM_ARGS} from './tests/shared/chromium-launch-args'
 
-const isCI = !!process.env.CI;
+const isCI = !!process.env.CI
 
 export default defineConfig({
   testDir: './tests/visual',
@@ -22,14 +22,14 @@ export default defineConfig({
   workers: 1,
 
   reporter: isCI
-    ? [['github'], ['blob'], ['html', { open: 'never', outputFolder: 'playwright-report' }]]
-    : [['html', { open: 'on-failure' }]],
+    ? [['github'], ['blob'], ['html', {open: 'never', outputFolder: 'playwright-report'}]]
+    : [['html', {open: 'on-failure'}]],
 
   webServer: {
     command: process.env.SKIP_BUILD ? 'npm run preview' : 'npm run build && npm run preview',
     url: 'http://localhost:4321/',
     timeout: 120_000,
-    reuseExistingServer: !isCI,
+    reuseExistingServer: !isCI
   },
 
   use: {
@@ -45,8 +45,8 @@ export default defineConfig({
       // Determinism flags from tests/shared/chromium-launch-args.ts. Used only by
       // this visual-regression suite; the production smoke check
       // (playwright.smoke.config.ts) deliberately omits them.
-      args: [...CHROMIUM_DETERMINISM_ARGS],
-    },
+      args: [...CHROMIUM_DETERMINISM_ARGS]
+    }
   },
 
   expect: {
@@ -55,32 +55,17 @@ export default defineConfig({
       threshold: 0.2, // per-pixel YIQ color tolerance
       animations: 'disabled', // freeze CSS animations for determinism
       caret: 'hide', // hide blinking text caret
-      scale: 'device', // capture at the emulated 2x device px so baselines are retina-resolution (was 'css' at 1x)
-    },
+      scale: 'device' // capture at the emulated 2x device px so baselines are retina-resolution (was 'css' at 1x)
+    }
   },
 
   snapshotPathTemplate: '{testDir}/__screenshots__/{projectName}/{testFilePath}/{arg}{ext}',
 
   projects: [
-    {
-      name: 'desktop-1400',
-      use: { browserName: 'chromium', viewport: { width: 1400, height: 900 } },
-    },
-    {
-      name: 'tablet-1100',
-      use: { browserName: 'chromium', viewport: { width: 1100, height: 800 } },
-    },
-    {
-      name: 'tablet-768',
-      use: { browserName: 'chromium', viewport: { width: 768, height: 1024 } },
-    },
-    {
-      name: 'mobile-600',
-      use: { browserName: 'chromium', viewport: { width: 600, height: 900 } },
-    },
-    {
-      name: 'mobile-390',
-      use: { browserName: 'chromium', viewport: { width: 390, height: 844 } },
-    },
-  ],
-});
+    {name: 'desktop-1400', use: {browserName: 'chromium', viewport: {width: 1400, height: 900}}},
+    {name: 'tablet-1100', use: {browserName: 'chromium', viewport: {width: 1100, height: 800}}},
+    {name: 'tablet-768', use: {browserName: 'chromium', viewport: {width: 768, height: 1024}}},
+    {name: 'mobile-600', use: {browserName: 'chromium', viewport: {width: 600, height: 900}}},
+    {name: 'mobile-390', use: {browserName: 'chromium', viewport: {width: 390, height: 844}}}
+  ]
+})

@@ -46,18 +46,18 @@
  * (bio terminal types its content; `.is-loading` skeletons clear). A hydration
  * module that fails to load is caught there regardless of CSP nuance.
  */
-import { test as base, expect, type Page } from '@playwright/test';
-import { SITE_URL } from '@lifegames/portal-contract/constants';
+import {expect, type Page, test as base} from '@playwright/test'
+import {SITE_URL} from '@lifegames/portal-contract/constants'
 
 interface CspViolation {
-  directive: string;
-  blockedURI: string;
+  directive: string
+  blockedURI: string
 }
 
 declare global {
   interface Window {
-    __cspViolations?: CspViolation[];
-    __unhandledRejections?: string[];
+    __cspViolations?: CspViolation[]
+    __unhandledRejections?: string[]
   }
 }
 
@@ -69,7 +69,7 @@ declare global {
  * The baseline is now 0: inline JS is fully externalised, so ANY blocked inline
  * <script> is a regression (a newly-inlined script).
  */
-const KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 0;
+const KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS = 0
 
 /**
  * Console/pageerror messages that are benign on this live, third-party-laden
@@ -81,8 +81,8 @@ const BENIGN_MESSAGE_PATTERNS: RegExp[] = [
   /net::ERR_BLOCKED_BY_CLIENT/i, // ad/track blockers in the runner
   /ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|net::ERR_FAILED/i, // transient blips (retried on CI)
   /WebSocket.*(closed|failed|1006|1011)/i, // live push socket may not connect from CI
-  /Content Security Policy|Refused to (execute|apply)/i, // CSP console noise — asserted structurally below, not here
-];
+  /Content Security Policy|Refused to (execute|apply)/i // CSP console noise — asserted structurally below, not here
+]
 
 /** Patterns indicating a JS chunk / dynamic import() failed to load. */
 const CHUNK_ERROR_PATTERNS: RegExp[] = [
@@ -90,14 +90,14 @@ const CHUNK_ERROR_PATTERNS: RegExp[] = [
   /error loading dynamically imported module/i,
   /ChunkLoadError/i,
   /Loading chunk \d+ failed/i,
-  /Importing a module script failed/i,
-];
+  /Importing a module script failed/i
+]
 
 /** Our own origin — a resource under this host failing to load is a real signal. */
-const FIRST_PARTY_HOST = new URL(SITE_URL).hostname;
+const FIRST_PARTY_HOST = new URL(SITE_URL).hostname
 
 function isBenign(message: string): boolean {
-  return BENIGN_MESSAGE_PATTERNS.some((re) => re.test(message));
+  return BENIGN_MESSAGE_PATTERNS.some((re) => re.test(message))
 }
 
 /**
@@ -108,129 +108,121 @@ function isBenign(message: string): boolean {
  * `_astro/*.js` chunk 404ing) is a real signal and is NOT allowlisted.
  */
 function isBenignConsole(message: string, resourceUrl: string): boolean {
-  if (isBenign(message)) return true;
-  if (/Failed to load resource/i.test(message)) {
-    const thirdParty = resourceUrl !== '' && !resourceUrl.includes(FIRST_PARTY_HOST);
-    if (thirdParty) return true;
+  if (isBenign(message)) {
+    return true
   }
-  return false;
+  if (/Failed to load resource/i.test(message)) {
+    const thirdParty = resourceUrl !== '' && !resourceUrl.includes(FIRST_PARTY_HOST)
+    if (thirdParty) {
+      return true
+    }
+  }
+  return false
 }
 
 export function isChunkError(message: string): boolean {
-  return CHUNK_ERROR_PATTERNS.some((re) => re.test(message));
+  return CHUNK_ERROR_PATTERNS.some((re) => re.test(message))
 }
 
 function isUrlBlock(blockedURI: string): boolean {
-  return /^https?:/i.test(blockedURI);
+  return /^https?:/i.test(blockedURI)
 }
 
 function isInlineScriptBlock(v: CspViolation): boolean {
   return (
-    !isUrlBlock(v.blockedURI)
-    && /script-src(-elem)?$/.test(v.directive) // script-src or script-src-elem, NOT script-src-attr
-  );
+    !isUrlBlock(v.blockedURI) && /script-src(-elem)?$/.test(v.directive) // script-src or script-src-elem, NOT script-src-attr
+  )
 }
 
 export const test = base.extend({
-  page: async ({ page }, use) => {
-    const consoleErrors: string[] = [];
-    const pageErrors: string[] = [];
+  page: async ({page}, use) => {
+    const consoleErrors: string[] = []
+    const pageErrors: string[] = []
 
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
-        const text = msg.text();
-        const url = msg.location()?.url ?? '';
-        if (!isBenignConsole(text, url)) consoleErrors.push(url ? `${text} (${url})` : text);
+        const text = msg.text()
+        const url = msg.location()?.url ?? ''
+        if (!isBenignConsole(text, url)) {
+          consoleErrors.push(url ? `${text} (${url})` : text)
+        }
       }
-    });
+    })
 
     page.on('pageerror', (err) => {
-      const msg = err.message;
-      if (!isBenign(msg)) pageErrors.push(msg);
-    });
+      const msg = err.message
+      if (!isBenign(msg)) {
+        pageErrors.push(msg)
+      }
+    })
 
     await page.addInitScript(() => {
-      window.__cspViolations = [];
-      window.__unhandledRejections = [];
+      window.__cspViolations = []
+      window.__unhandledRejections = []
       document.addEventListener('securitypolicyviolation', (e) => {
-        window.__cspViolations!.push({
-          directive: e.effectiveDirective || e.violatedDirective,
-          blockedURI: e.blockedURI || '',
-        });
-      });
+        window.__cspViolations!.push({directive: e.effectiveDirective || e.violatedDirective, blockedURI: e.blockedURI || ''})
+      })
       window.addEventListener('unhandledrejection', (e) => {
-        const reason = e.reason as unknown;
+        const reason = e.reason as unknown
         const msg = reason && typeof reason === 'object' && 'message' in reason
-          ? String((reason as { message: unknown; }).message)
-          : String(reason);
-        window.__unhandledRejections!.push(msg);
-      });
-    });
+          ? String((reason as {message: unknown}).message)
+          : String(reason)
+        window.__unhandledRejections!.push(msg)
+      })
+    })
 
-    await use(page);
+    await use(page)
 
     // --- Teardown assertions ---
-    const cspViolations = await readCspViolations(page);
-    const rejections = await readWindowStringArray(page, '__unhandledRejections');
+    const cspViolations = await readCspViolations(page)
+    const rejections = await readWindowStringArray(page, '__unhandledRejections')
 
-    const urlBlocked = cspViolations.filter((v) => isUrlBlock(v.blockedURI));
-    const inlineScriptBlocked = cspViolations.filter(isInlineScriptBlock);
+    const urlBlocked = cspViolations.filter((v) => isUrlBlock(v.blockedURI))
+    const inlineScriptBlocked = cspViolations.filter(isInlineScriptBlock)
 
     // Use soft assertions so a deploy with multiple problems (e.g. a CSP
     // regression AND a chunk-load failure) reports them all in one run instead
     // of masking the later ones behind the first failure.
 
     // 1. An external script blocked by CSP is a genuine per-deploy regression.
-    expect.soft(
-      urlBlocked,
-      `CSP blocked external script(s) — a real deploy/config regression:\n${
-        urlBlocked
-          .map((v) => `${v.directive} -> ${v.blockedURI}`)
-          .join('\n')
-      }`,
-    ).toEqual([]);
+    expect.soft(urlBlocked,
+      `CSP blocked external script(s) — a real deploy/config regression:\n${urlBlocked.map((v) => `${v.directive} -> ${v.blockedURI}`).join('\n')}`).toEqual(
+        []
+      )
 
     // 2. Regression-guard the count of blocked inline <script> elements.
     if (inlineScriptBlocked.length > KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS) {
       // eslint-disable-next-line no-console
-      console.warn(
-        `[smoke] inline-script CSP violations: ${inlineScriptBlocked.length} (baseline ${KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS})`,
-      );
+      console.warn(`[smoke] inline-script CSP violations: ${inlineScriptBlocked.length} (baseline ${KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS})`)
     }
-    expect.soft(
-      inlineScriptBlocked.length,
-      `More blocked inline <script> elements (${inlineScriptBlocked.length}) than the documented baseline (${KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS}). Inline JS is fully externalised (per #07), so a new inline script was introduced — externalise it so CSP 'self' allows it (the #50 fix) rather than raising this baseline.`,
-    ).toBeLessThanOrEqual(KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS);
+    expect.soft(inlineScriptBlocked.length,
+      `More blocked inline <script> elements (${inlineScriptBlocked.length}) than the documented baseline (${KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS}). Inline JS is fully externalised (per #07), so a new inline script was introduced — externalise it so CSP 'self' allows it (the #50 fix) rather than raising this baseline.`)
+      .toBeLessThanOrEqual(KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS)
 
     // 3. Chunk/dynamic-import load failures — a missing or renamed _astro/*.js chunk.
-    const chunkRejections = rejections.filter(isChunkError);
-    const chunkPageErrors = pageErrors.filter(isChunkError);
-    expect.soft(
-      [...chunkPageErrors, ...chunkRejections],
-      `JS chunk / dynamic import() load failures:\n${[...chunkPageErrors, ...chunkRejections].join('\n')}`,
-    ).toEqual([]);
+    const chunkRejections = rejections.filter(isChunkError)
+    const chunkPageErrors = pageErrors.filter(isChunkError)
+    expect.soft([...chunkPageErrors, ...chunkRejections],
+      `JS chunk / dynamic import() load failures:\n${[...chunkPageErrors, ...chunkRejections].join('\n')}`).toEqual([])
 
     // 4. Any other uncaught page error / console error (allowlist-filtered).
-    expect.soft(pageErrors, `Uncaught page errors:\n${pageErrors.join('\n')}`).toEqual([]);
-    expect.soft(consoleErrors, `Unexpected console.error output:\n${consoleErrors.join('\n')}`).toEqual([]);
-  },
-});
+    expect.soft(pageErrors, `Uncaught page errors:\n${pageErrors.join('\n')}`).toEqual([])
+    expect.soft(consoleErrors, `Unexpected console.error output:\n${consoleErrors.join('\n')}`).toEqual([])
+  }
+})
 
 async function readCspViolations(page: Page): Promise<CspViolation[]> {
   return page.evaluate(() => {
-    const v = window.__cspViolations;
-    return Array.isArray(v) ? v : [];
-  });
+    const v = window.__cspViolations
+    return Array.isArray(v) ? v : []
+  })
 }
 
-async function readWindowStringArray(
-  page: Page,
-  key: '__unhandledRejections',
-): Promise<string[]> {
+async function readWindowStringArray(page: Page, key: '__unhandledRejections'): Promise<string[]> {
   return page.evaluate((k) => {
-    const v = (window as unknown as Record<string, unknown>)[k];
-    return Array.isArray(v) ? (v as string[]) : [];
-  }, key);
+    const v = (window as unknown as Record<string, unknown>)[k]
+    return Array.isArray(v) ? (v as string[]) : []
+  }, key)
 }
 
-export { expect };
+export { expect }

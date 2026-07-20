@@ -1,9 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync, statSync } from 'fs';
-import path from 'path';
+import {describe, expect, it} from 'vitest'
+import {existsSync, readFileSync, statSync} from 'fs'
+import path from 'path'
 
-const rootDir = process.cwd();
-const distDir = path.resolve(rootDir, 'dist');
+const rootDir = process.cwd()
+const distDir = path.resolve(rootDir, 'dist')
 
 // Book-image coverage (every book ASIN has a pre-fetched local webp) is no
 // longer asserted here: fixtures are DS-owned (Plan #04) and the SSR-shell
@@ -13,37 +13,37 @@ const distDir = path.resolve(rootDir, 'dist');
 describe('Image Pipeline', () => {
   describe('dist/ artifacts', () => {
     it('dist/sw.js exists', () => {
-      const swPath = path.join(distDir, 'sw.js');
-      expect(existsSync(swPath)).toBe(true);
-    });
+      const swPath = path.join(distDir, 'sw.js')
+      expect(existsSync(swPath)).toBe(true)
+    })
 
     it('dist/manifest.webmanifest exists', () => {
-      const manifestPath = path.join(distDir, 'manifest.webmanifest');
-      expect(existsSync(manifestPath)).toBe(true);
-    });
+      const manifestPath = path.join(distDir, 'manifest.webmanifest')
+      expect(existsSync(manifestPath)).toBe(true)
+    })
 
     it('dist/manifest.webmanifest is valid JSON', () => {
-      const manifestPath = path.join(distDir, 'manifest.webmanifest');
-      const content = readFileSync(manifestPath, 'utf-8');
-      expect(() => JSON.parse(content)).not.toThrow();
-    });
+      const manifestPath = path.join(distDir, 'manifest.webmanifest')
+      const content = readFileSync(manifestPath, 'utf-8')
+      expect(() => JSON.parse(content)).not.toThrow()
+    })
 
     it('dist/manifest.webmanifest has required PWA fields', () => {
-      const manifestPath = path.join(distDir, 'manifest.webmanifest');
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
-      expect(manifest.name).toBeTruthy();
-      expect(manifest.icons).toBeDefined();
-    });
+      const manifestPath = path.join(distDir, 'manifest.webmanifest')
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'))
+      expect(manifest.name).toBeTruthy()
+      expect(manifest.icons).toBeDefined()
+    })
 
     it('dist/index.html exists', () => {
-      const indexPath = path.join(distDir, 'index.html');
-      expect(existsSync(indexPath)).toBe(true);
-    });
+      const indexPath = path.join(distDir, 'index.html')
+      expect(existsSync(indexPath)).toBe(true)
+    })
 
     it('dist/index.html is non-empty', () => {
-      const indexPath = path.join(distDir, 'index.html');
-      const stat = statSync(indexPath);
-      expect(stat.size).toBeGreaterThan(0);
-    });
-  });
-});
+      const indexPath = path.join(distDir, 'index.html')
+      const stat = statSync(indexPath)
+      expect(stat.size).toBeGreaterThan(0)
+    })
+  })
+})

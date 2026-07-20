@@ -17,111 +17,117 @@
 //
 // The generator (generate-contract-lock.mjs) is intentionally left unchanged
 // (Plan #11 Constraint #3 / Out-of-Scope).
-import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import {createHash} from 'node:crypto'
+import {existsSync, readdirSync, readFileSync} from 'node:fs'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = join(__dirname, '..');
-const LOCK_FILE = join(REPO_ROOT, '.contract-lock.json');
-const SCHEMAS_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'schemas');
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const REPO_ROOT = join(__dirname, '..')
+const LOCK_FILE = join(REPO_ROOT, '.contract-lock.json')
+const SCHEMAS_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'schemas')
 // Raw export schemas moved to the backend-owned @lifegames/portal-contract package.
-const PORTAL_CONTRACT_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'portal-contract');
+const PORTAL_CONTRACT_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'portal-contract')
 
 // Fields the generator writes non-deterministically -- excluded from the diff.
-const VOLATILE = new Set(['generatedAt', 'generatedFrom.sha']);
+const VOLATILE = new Set(['generatedAt', 'generatedFrom.sha'])
 
 function sha256(content) {
-  return createHash('sha256').update(content, 'utf-8').digest('hex');
+  return createHash('sha256').update(content, 'utf-8').digest('hex')
 }
 
 function fail(lines) {
-  console.error('');
-  console.error('ERROR: .contract-lock.json drift detected.');
-  for (const l of lines) console.error('  ' + l);
-  console.error('');
-  console.error('  Hand-edits to this file are forbidden.');
-  console.error('  To fix: node scripts/generate-contract-lock.mjs && git add .contract-lock.json');
-  console.error('');
-  process.exit(1);
+  console.error('')
+  console.error('ERROR: .contract-lock.json drift detected.')
+  for (const l of lines) {
+    console.error('  ' + l)
+  }
+  console.error('')
+  console.error('  Hand-edits to this file are forbidden.')
+  console.error('  To fix: node scripts/generate-contract-lock.mjs && git add .contract-lock.json')
+  console.error('')
+  process.exit(1)
 }
 
 if (!existsSync(LOCK_FILE)) {
-  fail(['.contract-lock.json is missing.']);
+  fail(['.contract-lock.json is missing.'])
 }
 if (!existsSync(SCHEMAS_PKG)) {
   // Cannot recompute -- environment problem, not a hand-edit. Surface clearly.
-  console.error('[check-contract-lock] ERROR: .yalc/@lifegames/schemas not found.');
-  console.error('  Run `pnpm yalc:publish` from design-system-Lifegames first (or `bash scripts/ci-setup.sh` in CI).');
-  process.exit(1);
+  console.error('[check-contract-lock] ERROR: .yalc/@lifegames/schemas not found.')
+  console.error('  Run `pnpm yalc:publish` from design-system-Lifegames first (or `bash scripts/ci-setup.sh` in CI).')
+  process.exit(1)
 }
 
 // --- Recompute the expected lock exactly as generate-contract-lock.mjs does ---
 const filePatterns = [
-  { dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), prefix: 'raw-schemas', filter: (f) => f.endsWith('.schema.json') },
-  { dir: join(SCHEMAS_PKG, 'authored'), prefix: 'authored', filter: (f) => f.endsWith('.schema.json') },
-  { dir: join(SCHEMAS_PKG, 'generated'), prefix: 'generated', filter: (f) => f.endsWith('.schema.json') },
-];
+  {dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), prefix: 'raw-schemas', filter: (f) => f.endsWith('.schema.json')},
+  {dir: join(SCHEMAS_PKG, 'authored'), prefix: 'authored', filter: (f) => f.endsWith('.schema.json')},
+  {dir: join(SCHEMAS_PKG, 'generated'), prefix: 'generated', filter: (f) => f.endsWith('.schema.json')}
+]
 
-const expectedFiles = {};
-const allContents = [];
-for (const { dir, prefix, filter } of filePatterns) {
-  if (!existsSync(dir)) continue;
-  const files = readdirSync(dir).filter(filter).sort();
+const expectedFiles = {}
+const allContents = []
+for (const {dir, prefix, filter} of filePatterns) {
+  if (!existsSync(dir)) {
+    continue
+  }
+  const files = readdirSync(dir).filter(filter).sort()
   for (const file of files) {
-    const relPath = `${prefix}/${file}`;
-    const content = readFileSync(join(dir, file), 'utf-8');
-    expectedFiles[relPath] = `sha256:${sha256(content)}`;
-    allContents.push(content);
+    const relPath = `${prefix}/${file}`
+    const content = readFileSync(join(dir, file), 'utf-8')
+    expectedFiles[relPath] = `sha256:${sha256(content)}`
+    allContents.push(content)
   }
 }
-const expectedAggregate = `sha256:${sha256(allContents.join(''))}`;
+const expectedAggregate = `sha256:${sha256(allContents.join(''))}`
 
 // The deterministic, hand-edit-relevant shape of the lock.
 const expected = {
   'generatedFrom.repo': 'j0nathan-ll0yd/design-system-Lifegames',
   'generatedFrom.checksum': expectedAggregate,
   generatorVersion: '1.0.0',
-  files: expectedFiles,
-};
+  files: expectedFiles
+}
 
 // --- Read the committed lock and project it into the same shape ---
-const lock = JSON.parse(readFileSync(LOCK_FILE, 'utf-8'));
+const lock = JSON.parse(readFileSync(LOCK_FILE, 'utf-8'))
 const actual = {
   'generatedFrom.repo': lock.generatedFrom?.repo,
   'generatedFrom.checksum': lock.generatedFrom?.checksum,
   generatorVersion: lock.generatorVersion,
-  files: lock.files ?? {},
-};
+  files: lock.files ?? {}
+}
 
-const drift = [];
+const drift = []
 
 // Scalar fields (skip volatile ones).
 for (const key of ['generatedFrom.repo', 'generatedFrom.checksum', 'generatorVersion']) {
-  if (VOLATILE.has(key)) continue;
+  if (VOLATILE.has(key)) {
+    continue
+  }
   if (actual[key] !== expected[key]) {
-    drift.push(`${key}: lock "${actual[key]}" != expected "${expected[key]}"`);
+    drift.push(`${key}: lock "${actual[key]}" != expected "${expected[key]}"`)
   }
 }
 
 // Per-file checksums.
 for (const [file, exp] of Object.entries(expected.files)) {
-  const act = actual.files[file];
+  const act = actual.files[file]
   if (act === undefined) {
-    drift.push(`REMOVED: ${file} present on disk but absent from lock`);
+    drift.push(`REMOVED: ${file} present on disk but absent from lock`)
   } else if (act !== exp) {
-    drift.push(`CHANGED: ${file} (lock ${act} != expected ${exp})`);
+    drift.push(`CHANGED: ${file} (lock ${act} != expected ${exp})`)
   }
 }
 for (const file of Object.keys(actual.files)) {
   if (expected.files[file] === undefined) {
-    drift.push(`EXTRA: ${file} present in lock but absent on disk`);
+    drift.push(`EXTRA: ${file} present in lock but absent on disk`)
   }
 }
 
 if (drift.length > 0) {
-  fail(['Lock does not match the regenerated contract:', ...drift]);
+  fail(['Lock does not match the regenerated contract:', ...drift])
 }
 
-console.log('[check-contract-lock] OK: .contract-lock.json matches the current schemas.');
+console.log('[check-contract-lock] OK: .contract-lock.json matches the current schemas.')

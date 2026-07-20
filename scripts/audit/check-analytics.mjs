@@ -20,141 +20,136 @@
 // asserted here to keep this check fast and deterministic; the pageview pixel
 // already proves the SA collection path is wired end-to-end.
 
-import { chromium } from '@playwright/test';
-import { SITE_URL } from '@lifegames/portal-contract/constants';
-import { fetchStable, isMain, report } from './lib/http.mjs';
+import {chromium} from '@playwright/test'
+import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {fetchStable, isMain, report} from './lib/http.mjs'
 
-const NAV_TIMEOUT_MS = 30_000;
-const BEACON_WAIT_MS = 15_000;
+const NAV_TIMEOUT_MS = 30_000
+const BEACON_WAIT_MS = 15_000
 
 const EXPECTATIONS = [
-  { id: 'cf-insights-js', urlPattern: /\/cf-insights\.js/, method: 'GET', acceptStatus: (s) => s === 200 },
-  { id: 'cf-rum', urlPattern: /\/cf-rum(\?|$)/, method: 'POST', acceptStatus: (s) => s >= 200 && s < 300 },
-  { id: 'sa-script', urlPattern: /\/sa(\?|$)/, method: 'GET', acceptStatus: (s) => s === 200 },
+  {id: 'cf-insights-js', urlPattern: /\/cf-insights\.js/, method: 'GET', acceptStatus: (s) => s === 200},
+  {id: 'cf-rum', urlPattern: /\/cf-rum(\?|$)/, method: 'POST', acceptStatus: (s) => s >= 200 && s < 300},
+  {id: 'sa-script', urlPattern: /\/sa(\?|$)/, method: 'GET', acceptStatus: (s) => s === 200},
   {
     id: 'sa-pageview-pixel',
     urlPattern: /\/simple\/simple\.gif/,
     method: 'GET',
     acceptStatus: (s) => s === 202,
     onWrongStatus: (s) =>
-      `expected HTTP 202 from the SA collector (verified live behavior for a well-formed pageview ping); `
-      + `got ${s}. If Simple Analytics' upstream contract changed, update EXPECTATIONS here deliberately.`,
-  },
-];
+      `expected HTTP 202 from the SA collector (verified live behavior for a well-formed pageview ping); ` +
+      `got ${s}. If Simple Analytics' upstream contract changed, update EXPECTATIONS here deliberately.`
+  }
+]
 
 /** Collects matching request/response pairs from a live page load. Network I/O -- not unit tested directly. */
 async function collectBeaconEvents(url) {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch()
   try {
-    const page = await browser.newPage();
-    const seen = new Map(); // id -> { status, method }
+    const page = await browser.newPage()
+    const seen = new Map() // id -> { status, method }
 
     page.on('response', (res) => {
-      const req = res.request();
+      const req = res.request()
       for (const exp of EXPECTATIONS) {
         if (exp.urlPattern.test(res.url()) && req.method() === exp.method && !seen.has(exp.id)) {
-          seen.set(exp.id, { status: res.status(), url: res.url() });
+          seen.set(exp.id, {status: res.status(), url: res.url()})
         }
       }
-    });
+    })
 
-    await page.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT_MS });
+    await page.goto(url, {waitUntil: 'load', timeout: NAV_TIMEOUT_MS})
 
-    const deadline = Date.now() + BEACON_WAIT_MS;
+    const deadline = Date.now() + BEACON_WAIT_MS
     while (seen.size < EXPECTATIONS.length && Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => setTimeout(r, 250))
     }
 
-    return seen;
+    return seen
   } finally {
-    await browser.close();
+    await browser.close()
   }
 }
 
 /** Pure: (Map of id -> {status,url}) -> findings[]. Testable without a browser. */
 export function evaluateBeacons(seen) {
-  const findings = [];
+  const findings = []
   for (const exp of EXPECTATIONS) {
-    const hit = seen.get(exp.id);
+    const hit = seen.get(exp.id)
     if (!hit) {
       findings.push({
         severity: 'fail',
         id: `analytics-${exp.id}-missing`,
-        message: `no ${exp.method} request matching ${exp.urlPattern} fired within ${BEACON_WAIT_MS}ms of page load`,
-      });
-      continue;
+        message: `no ${exp.method} request matching ${exp.urlPattern} fired within ${BEACON_WAIT_MS}ms of page load`
+      })
+      continue
     }
     if (!exp.acceptStatus(hit.status)) {
       findings.push({
         severity: 'fail',
         id: `analytics-${exp.id}-status`,
-        message: exp.onWrongStatus ? exp.onWrongStatus(hit.status) : `${hit.url} returned HTTP ${hit.status}`,
-      });
+        message: exp.onWrongStatus ? exp.onWrongStatus(hit.status) : `${hit.url} returned HTTP ${hit.status}`
+      })
     }
   }
-  return findings;
+  return findings
 }
 
 /** Optional server-side confirmation via the SA Stats API (https://simpleanalytics.com/{hostname}.json). */
 async function checkSaStatsApi(apiKey) {
-  const hostname = new URL(SITE_URL).hostname;
-  const url = `https://simpleanalytics.com/${hostname}.json?version=5&fields=pageviews&start=today&end=today`;
-  let res;
+  const hostname = new URL(SITE_URL).hostname
+  const url = `https://simpleanalytics.com/${hostname}.json?version=5&fields=pageviews&start=today&end=today`
+  let res
   try {
-    res = await fetchStable(url, { headers: { 'Api-Key': apiKey } });
+    res = await fetchStable(url, {headers: {'Api-Key': apiKey}})
   } catch (err) {
-    return [{ severity: 'fail', id: 'analytics-sa-stats-api-fetch', message: `fetch failed: ${err.message}` }];
+    return [{severity: 'fail', id: 'analytics-sa-stats-api-fetch', message: `fetch failed: ${err.message}`}]
   }
-  let json;
+  let json
   try {
-    json = await res.json();
+    json = await res.json()
   } catch (err) {
-    return [{
-      severity: 'fail',
-      id: 'analytics-sa-stats-api-parse',
-      message: `${url} did not return valid JSON: ${err.message}`,
-    }];
+    return [{severity: 'fail', id: 'analytics-sa-stats-api-parse', message: `${url} did not return valid JSON: ${err.message}`}]
   }
   if (!res.ok || json.ok !== true) {
     return [{
       severity: 'fail',
       id: 'analytics-sa-stats-api-error',
-      message: `SA Stats API returned an error (HTTP ${res.status}): ${json.error ?? '(no error field)'}`,
-    }];
+      message: `SA Stats API returned an error (HTTP ${res.status}): ${json.error ?? '(no error field)'}`
+    }]
   }
   if (!(typeof json.pageviews === 'number' && json.pageviews > 0)) {
     return [{
       severity: 'fail',
       id: 'analytics-sa-stats-api-zero-pageviews',
-      message: `SA Stats API reports ${json.pageviews ?? 0} pageviews today for ${hostname} -- expected > 0`,
-    }];
+      message: `SA Stats API reports ${json.pageviews ?? 0} pageviews today for ${hostname} -- expected > 0`
+    }]
   }
-  return [];
+  return []
 }
 
 async function main() {
-  const findings = [];
+  const findings = []
 
-  const seen = await collectBeaconEvents(SITE_URL);
-  findings.push(...evaluateBeacons(seen));
+  const seen = await collectBeaconEvents(SITE_URL)
+  findings.push(...evaluateBeacons(seen))
 
-  const saApiKey = process.env.SA_API_KEY;
+  const saApiKey = process.env.SA_API_KEY
   if (saApiKey) {
-    findings.push(...(await checkSaStatsApi(saApiKey)));
+    findings.push(...(await checkSaStatsApi(saApiKey)))
   } else {
     // Explicit, visible SKIPPED marker -- never silently green when a whole
     // sub-check didn't run (§8 Q2: SA_API_KEY is a Phase 0 user-provisioned secret).
     findings.push({
       severity: 'info',
       id: 'analytics-sa-stats-api-skipped',
-      message:
-        'SKIPPED(server-side): SA_API_KEY not set -- server-side pageview confirmation via the SA Stats API was not run',
-    });
+      message: 'SKIPPED(server-side): SA_API_KEY not set -- server-side pageview confirmation via the SA Stats API was not run'
+    })
   }
 
-  process.exit(report('check-analytics', findings));
+  process.exit(report('check-analytics', findings))
 }
 
 if (isMain(import.meta.url)) {
-  main();
+  main()
 }

@@ -14,32 +14,32 @@
  *
  * Runs in `prebuild`; CI gates on it. Regenerate/extend fixtures in
  * design-system-Lifegames/packages/fixtures, then `pnpm yalc:publish`. */
-import { globSync } from 'glob';
+import {globSync} from 'glob'
 
 var PATTERNS = [
   'data/**/*.json',
   'test/fixtures/**/*.json',
-  'src/**/fixtures/**/*.json',
-];
+  'src/**/fixtures/**/*.json'
+]
 
-var offenders = [];
+var offenders = []
 for (var i = 0; i < PATTERNS.length; i++) {
-  var matches = globSync(PATTERNS[i], { ignore: ['node_modules/**', '**/node_modules/**', '.yalc/**'] });
+  var matches = globSync(PATTERNS[i], {ignore: ['node_modules/**', '**/node_modules/**', '.yalc/**']})
   for (var m = 0; m < matches.length; m++) {
-    offenders.push(matches[m]);
+    offenders.push(matches[m])
   }
 }
 
 if (offenders.length > 0) {
-  console.error('Consumer-side fixtures are forbidden (Invariant I2):');
+  console.error('Consumer-side fixtures are forbidden (Invariant I2):')
   for (var o = 0; o < offenders.length; o++) {
-    console.error('  x ' + offenders[o]);
+    console.error('  x ' + offenders[o])
   }
-  console.error('\nFixtures are DS-owned. Add/edit them in');
-  console.error('design-system-Lifegames/packages/fixtures, then `pnpm yalc:publish`.');
-  console.error('Consume via `@lifegames/fixtures` (SSR shell) and');
-  console.error('`@lifegames/fixtures/generated/<domain>/<variation>.json` (Playwright).');
-  process.exit(1);
+  console.error('\nFixtures are DS-owned. Add/edit them in')
+  console.error('design-system-Lifegames/packages/fixtures, then `pnpm yalc:publish`.')
+  console.error('Consume via `@lifegames/fixtures` (SSR shell) and')
+  console.error('`@lifegames/fixtures/generated/<domain>/<variation>.json` (Playwright).')
+  process.exit(1)
 }
 
-console.log('No consumer-side fixtures ✓ (Invariant I2: data/, test/fixtures/, src/**/fixtures/ clean)');
+console.log('No consumer-side fixtures ✓ (Invariant I2: data/, test/fixtures/, src/**/fixtures/ clean)')

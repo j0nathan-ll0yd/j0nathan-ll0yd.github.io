@@ -3,12 +3,12 @@
  *
  * Provides route interception, navigation/wait logic, and widget selectors.
  */
-import path from 'path';
-import { expect, type Locator, type Page } from '@playwright/test';
-import { CLOUDFRONT_BASE, WEBSOCKET_URL } from '@lifegames/portal-contract/constants';
-import { getScenarioFixtures, scenarioHasWorkouts, type ScenarioName } from './fixtures';
+import path from 'path'
+import {expect, type Locator, type Page} from '@playwright/test'
+import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
+import {getScenarioFixtures, scenarioHasWorkouts, type ScenarioName} from './fixtures'
 
-export const stylePath = path.join(import.meta.dirname, 'screenshot.css');
+export const stylePath = path.join(import.meta.dirname, 'screenshot.css')
 
 /** Widget selectors for element-level screenshots. */
 export const WIDGET_SELECTORS = {
@@ -27,15 +27,11 @@ export const WIDGET_SELECTORS = {
   starredRepos: '#cardStarredRepos',
   bookshelf: '#cardBooks',
   theatreReviews: '#cardTheatreReviews',
-  topBar: '.top-bar',
-} as const;
+  topBar: '.top-bar'
+} as const
 
 /** 1×1 transparent PNG (68 bytes) used as a placeholder for external images */
-const TRANSPARENT_PIXEL = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB'
-    + 'Nl7BcQAAAABJRU5ErkJggg==',
-  'base64',
-);
+const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' + 'Nl7BcQAAAABJRU5ErkJggg==', 'base64')
 
 /**
  * Set up route interception for all CloudFront endpoints + WebSocket block.
@@ -44,23 +40,20 @@ const TRANSPARENT_PIXEL = Buffer.from(
  * to prevent broken images in screenshots.
  */
 export async function interceptRoutes(page: Page, scenario: ScenarioName): Promise<void> {
-  const fixtures = getScenarioFixtures(scenario);
+  const fixtures = getScenarioFixtures(scenario)
 
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
-    const url = new URL(route.request().url());
-    const fixturePath = fixtures[url.pathname];
+    const url = new URL(route.request().url())
+    const fixturePath = fixtures[url.pathname]
     if (fixturePath) {
-      await route.fulfill({
-        path: fixturePath,
-        contentType: 'application/json',
-      });
+      await route.fulfill({path: fixturePath, contentType: 'application/json'})
     } else {
-      await route.abort();
+      await route.abort()
     }
-  });
+  })
 
   // Block WebSocket connections
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort());
+  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
 
   // Catch-all: intercept any remaining external requests (Amazon images,
   // coasttocoastreviews.com posters, etc.). Image requests get a transparent
@@ -68,37 +61,33 @@ export async function interceptRoutes(page: Page, scenario: ScenarioName): Promi
   // Registered last but checked first (Playwright uses LIFO), so we use
   // route.fallback() for URLs already handled by earlier route handlers.
   await page.route('**/*', async (route) => {
-    const url = route.request().url();
+    const url = route.request().url()
     // Let local requests and already-handled domains fall through
     if (
-      url.startsWith('http://localhost')
-      || url.startsWith('data:')
-      || url.startsWith(CLOUDFRONT_BASE)
-      || url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://'))
-      || url.startsWith('wss://')
+      url.startsWith('http://localhost') ||
+      url.startsWith('data:') ||
+      url.startsWith(CLOUDFRONT_BASE) ||
+      url.startsWith(WEBSOCKET_URL.replace('wss://', 'https://')) ||
+      url.startsWith('wss://')
     ) {
-      await route.fallback();
-      return;
+      await route.fallback()
+      return
     }
     // Serve transparent pixel for image requests
-    const resourceType = route.request().resourceType();
+    const resourceType = route.request().resourceType()
     if (resourceType === 'image') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'image/png',
-        body: TRANSPARENT_PIXEL,
-      });
+      await route.fulfill({status: 200, contentType: 'image/png', body: TRANSPARENT_PIXEL})
     } else {
-      await route.abort();
+      await route.abort()
     }
-  });
+  })
 }
 
 export interface NavigateOptions {
   /** Wait for #cardWorkouts to become visible. Set true when the scenario includes non-empty workouts data. */
-  waitForWorkouts?: boolean;
+  waitForWorkouts?: boolean
   /** Wait for documentElement.scrollHeight to stabilize. Only needed for fullPage screenshots. */
-  waitForScrollHeight?: boolean;
+  waitForScrollHeight?: boolean
 }
 
 /**
@@ -110,38 +99,32 @@ export interface NavigateOptions {
  * reveal animation. Data population is confirmed by skeleton removal below.
  */
 export async function navigateAndWait(page: Page, options: NavigateOptions = {}): Promise<void> {
-  await page.goto('/');
-  await page.evaluate(() => document.fonts.ready);
+  await page.goto('/')
+  await page.evaluate(() => document.fonts.ready)
 
   // Wait for all skeleton loading states to be removed -- this is the real
   // readiness signal (data has populated the DOM). Replaces `networkidle`,
   // which is unreliable on this page due to PollEngine and SW background fetches.
-  await page.waitForFunction(
-    () => document.querySelectorAll('.is-loading').length === 0,
-    { timeout: 10000 },
-  );
+  await page.waitForFunction(() => document.querySelectorAll('.is-loading').length === 0, {timeout: 10000})
 
   // Wait for every <img> in the document to finish loading (complete === true
   // OR naturalWidth === 0 for blocked images). Without this, an image that
   // resolves after fonts.ready can shift layout by a few pixels right before
   // capture, producing flaky page-height drift even within the same env.
-  await page.waitForFunction(
-    () => {
-      const imgs = Array.from(document.querySelectorAll('img'));
-      // Inlined copy of allImagesComplete() from ./predicates.ts (cannot import inside waitForFunction).
-      // If you change one, update the other.
-      return imgs.every((img) => img.complete);
-    },
-    { timeout: 10000 },
-  ).catch(() => {
+  await page.waitForFunction(() => {
+    const imgs = Array.from(document.querySelectorAll('img'))
+    // Inlined copy of allImagesComplete() from ./predicates.ts (cannot import inside waitForFunction).
+    // If you change one, update the other.
+    return imgs.every((img) => img.complete)
+  }, {timeout: 10000}).catch(() => {
     // Non-fatal: some intercepted/aborted images may never report complete.
     // We continue rather than fail the test.
-  });
+  })
 
   // If the scenario has workouts data, wait for the card to become visible
   // (#cardWorkouts starts display: none and is shown by updateWorkouts())
   if (options.waitForWorkouts) {
-    await page.locator('#cardWorkouts').waitFor({ state: 'visible', timeout: 10000 });
+    await page.locator('#cardWorkouts').waitFor({state: 'visible', timeout: 10000})
   }
 
   // Bio terminal + scroll-height stabilization are only needed for fullPage
@@ -154,32 +137,35 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
     // (<768px) lines are set visible immediately; on desktop the
     // IntersectionObserver triggers a sequential typing animation. Scroll the
     // card into view first to ensure the observer fires at all viewports.
-    const bioCard = page.locator('#cardBio');
+    const bioCard = page.locator('#cardBio')
     if (await bioCard.count() > 0) {
-      await bioCard.scrollIntoViewIfNeeded();
+      await bioCard.scrollIntoViewIfNeeded()
     }
-    await page.waitForFunction(
-      () => {
-        const lines = document.querySelectorAll('#terminalBody .terminal-line');
-        if (lines.length === 0) return true;
-        return lines[lines.length - 1].classList.contains('visible');
-      },
-      { timeout: 15000 },
-    ).catch(async () => {
+    await page.waitForFunction(() => {
+      const lines = document.querySelectorAll('#terminalBody .terminal-line')
+      if (lines.length === 0) {
+        return true
+      }
+      return lines[lines.length - 1].classList.contains('visible')
+    }, {timeout: 15000}).catch(async () => {
       // Fallback: force lines visible if the IntersectionObserver never fires.
       await page.evaluate(() => {
         document.querySelectorAll('#terminalBody .terminal-line').forEach((line) => {
-          line.classList.add('visible');
-          const el = line as HTMLElement;
-          const cmd = el.dataset.cmd;
-          const output = el.dataset.output;
-          const cmdSpan = el.querySelector('.terminal-command') as HTMLElement | null;
-          const outSpan = el.querySelector('.terminal-output') as HTMLElement | null;
-          if (cmd && cmdSpan && !cmdSpan.textContent) cmdSpan.textContent = cmd;
-          if (output && outSpan && !outSpan.textContent) outSpan.textContent = output;
-        });
-      });
-    });
+          line.classList.add('visible')
+          const el = line as HTMLElement
+          const cmd = el.dataset.cmd
+          const output = el.dataset.output
+          const cmdSpan = el.querySelector('.terminal-command') as HTMLElement | null
+          const outSpan = el.querySelector('.terminal-output') as HTMLElement | null
+          if (cmd && cmdSpan && !cmdSpan.textContent) {
+            cmdSpan.textContent = cmd
+          }
+          if (output && outSpan && !outSpan.textContent) {
+            outSpan.textContent = output
+          }
+        })
+      })
+    })
 
     // Wait for scroll height to stabilize so fullPage screenshots capture the
     // entire document. At responsive breakpoints the layout switches from
@@ -188,27 +174,24 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
     // Require THREE consecutive equal reads at 150ms intervals (~450ms min
     // settle window) to absorb async layout shifts (image decode, font swap,
     // late-arriving widget content) that a single 200ms check missed.
-    await page.waitForFunction(
-      () => {
-        return new Promise<boolean>((resolve) => {
-          const reads: number[] = [document.documentElement.scrollHeight];
-          let i = 0;
-          const tick = () => {
-            i++;
-            reads.push(document.documentElement.scrollHeight);
-            if (i < 3) {
-              setTimeout(tick, 150);
-              return;
-            }
-            // Inlined copy of scrollHeightStable() from ./predicates.ts (cannot import inside waitForFunction).
-            // If you change one, update the other.
-            resolve(reads.every((v) => v === reads[0]));
-          };
-          setTimeout(tick, 150);
-        });
-      },
-      { timeout: 10000 },
-    );
+    await page.waitForFunction(() => {
+      return new Promise<boolean>((resolve) => {
+        const reads: number[] = [document.documentElement.scrollHeight]
+        let i = 0
+        const tick = () => {
+          i++
+          reads.push(document.documentElement.scrollHeight)
+          if (i < 3) {
+            setTimeout(tick, 150)
+            return
+          }
+          // Inlined copy of scrollHeightStable() from ./predicates.ts (cannot import inside waitForFunction).
+          // If you change one, update the other.
+          resolve(reads.every((v) => v === reads[0]))
+        }
+        setTimeout(tick, 150)
+      })
+    }, {timeout: 10000})
   }
 }
 
@@ -217,12 +200,9 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
  * Automatically determines whether to wait for workouts based on the scenario.
  */
 export async function setupPage(page: Page, scenario: ScenarioName, options?: NavigateOptions): Promise<void> {
-  await interceptRoutes(page, scenario);
-  const hasWorkouts = options?.waitForWorkouts ?? scenarioHasWorkouts(scenario);
-  await navigateAndWait(page, {
-    waitForWorkouts: hasWorkouts,
-    waitForScrollHeight: options?.waitForScrollHeight ?? false,
-  });
+  await interceptRoutes(page, scenario)
+  const hasWorkouts = options?.waitForWorkouts ?? scenarioHasWorkouts(scenario)
+  await navigateAndWait(page, {waitForWorkouts: hasWorkouts, waitForScrollHeight: options?.waitForScrollHeight ?? false})
 }
 
 /**
@@ -247,20 +227,16 @@ export async function setupPage(page: Page, scenario: ScenarioName, options?: Na
  * `height: auto !important; overflow: visible !important` -- without that
  * rule, scrollHeight is capped by `height: 100dvh` and clip captures truncate.
  */
-export async function captureFullPage(
-  page: Page,
-  screenshotName: string,
-  opts?: { stylePath?: string; },
-): Promise<void> {
+export async function captureFullPage(page: Page, screenshotName: string, opts?: {stylePath?: string}): Promise<void> {
   // Stability: fonts + 2x rAF to absorb late layout shifts
   await page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-  });
+    await document.fonts.ready
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  })
 
-  const viewport = page.viewportSize();
+  const viewport = page.viewportSize()
   if (!viewport) {
-    throw new Error('captureFullPage: no viewport configured on page');
+    throw new Error('captureFullPage: no viewport configured on page')
   }
 
   // Measure the true content height. On desktop (>=1100px) the document body
@@ -281,31 +257,24 @@ export async function captureFullPage(
   // (<768px), where the columns become in-flow and the body scrolls, still
   // measure the full page correctly.
   const measuredHeight = await page.evaluate(() => {
-    const panels = Array.from(
-      document.querySelectorAll<HTMLElement>('.left-panel, .right-panel'),
-    );
+    const panels = Array.from(document.querySelectorAll<HTMLElement>('.left-panel, .right-panel'))
     panels.forEach((panel) => {
-      panel.scrollTop = 0;
-    });
-    const tallestPanel = panels.reduce((max, panel) => Math.max(max, panel.scrollHeight), 0);
-    return Math.max(document.documentElement.scrollHeight, tallestPanel);
-  });
+      panel.scrollTop = 0
+    })
+    const tallestPanel = panels.reduce((max, panel) => Math.max(max, panel.scrollHeight), 0)
+    return Math.max(document.documentElement.scrollHeight, tallestPanel)
+  })
   if (measuredHeight <= 0) {
-    throw new Error(`captureFullPage: scrollHeight is ${measuredHeight} — page may not have loaded`);
+    throw new Error(`captureFullPage: scrollHeight is ${measuredHeight} — page may not have loaded`)
   }
 
-  await page.setViewportSize({ width: viewport.width, height: measuredHeight });
+  await page.setViewportSize({width: viewport.width, height: measuredHeight})
 
   // Let the grown viewport reflow (100dvh recalculates against the new height)
   // before capturing.
-  await page.evaluate(
-    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-  );
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
 
-  await expect(page).toHaveScreenshot(screenshotName, {
-    clip: { x: 0, y: 0, width: viewport.width, height: measuredHeight },
-    stylePath: opts?.stylePath,
-  });
+  await expect(page).toHaveScreenshot(screenshotName, {clip: {x: 0, y: 0, width: viewport.width, height: measuredHeight}, stylePath: opts?.stylePath})
 }
 
 /**
@@ -319,9 +288,9 @@ export async function captureFullPage(
  */
 export async function stabilizeForLocatorScreenshot(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    await document.fonts.ready;
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-  });
+    await document.fonts.ready
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  })
 }
 
 /**
@@ -338,32 +307,26 @@ export async function stabilizeForLocatorScreenshot(page: Page): Promise<void> {
  * that race WITHOUT relaxing the pixel match -- the settled render is identical
  * to the committed baseline, so no baseline changes.
  */
-export async function waitForStableBox(
-  locator: Locator,
-  {
-    epsilonPx = 0.5,
-    framesRequired = 5,
-    timeoutMs = 2000,
-  }: { epsilonPx?: number; framesRequired?: number; timeoutMs?: number; } = {},
-): Promise<void> {
-  const nextFrame = () =>
-    locator
-      .page()
-      .evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+export async function waitForStableBox(locator: Locator, {
+  epsilonPx = 0.5,
+  framesRequired = 5,
+  timeoutMs = 2000
+}: {epsilonPx?: number; framesRequired?: number; timeoutMs?: number} = {}): Promise<void> {
+  const nextFrame = () => locator.page().evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())))
 
-  let prev = await locator.boundingBox();
-  let stableFrames = 0;
-  const deadline = Date.now() + timeoutMs;
+  let prev = await locator.boundingBox()
+  let stableFrames = 0
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline && stableFrames < framesRequired) {
-    await nextFrame();
-    const box = await locator.boundingBox();
-    const settled = box !== null
-      && prev !== null
-      && Math.abs(box.x - prev.x) <= epsilonPx
-      && Math.abs(box.y - prev.y) <= epsilonPx
-      && Math.abs(box.width - prev.width) <= epsilonPx
-      && Math.abs(box.height - prev.height) <= epsilonPx;
-    stableFrames = settled ? stableFrames + 1 : 0;
-    prev = box;
+    await nextFrame()
+    const box = await locator.boundingBox()
+    const settled = box !== null &&
+      prev !== null &&
+      Math.abs(box.x - prev.x) <= epsilonPx &&
+      Math.abs(box.y - prev.y) <= epsilonPx &&
+      Math.abs(box.width - prev.width) <= epsilonPx &&
+      Math.abs(box.height - prev.height) <= epsilonPx
+    stableFrames = settled ? stableFrames + 1 : 0
+    prev = box
   }
 }

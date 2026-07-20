@@ -1,9 +1,9 @@
-import { defineCollection } from 'astro:content';
-import { file } from 'astro/loaders';
-import { fileURLToPath } from 'node:url';
-import { identitySchema } from '@lifegames/copy/identity.zod';
+import {defineCollection} from 'astro:content'
+import {file} from 'astro/loaders'
+import {fileURLToPath} from 'node:url'
+import {identitySchema} from '@lifegames/copy/identity.zod'
 
-const identityPath = fileURLToPath(import.meta.resolve('@lifegames/copy/identity.flat.json'));
+const identityPath = fileURLToPath(import.meta.resolve('@lifegames/copy/identity.flat.json'))
 
 const copy = defineCollection({
   // file() does not natively handle a single flat object, so wrap it under one
@@ -12,8 +12,8 @@ const copy = defineCollection({
   // the key as the entry id and validates the untouched value, which the
   // generated `.strict()` identitySchema requires (an injected `id` key would
   // be rejected as an unrecognized property).
-  loader: file(identityPath, { parser: (text) => ({ identity: JSON.parse(text) }) }),
-  schema: identitySchema,
-});
+  loader: file(identityPath, {parser: (text) => ({identity: JSON.parse(text)})}),
+  schema: identitySchema
+})
 
-export const collections = { copy };
+export const collections = {copy}

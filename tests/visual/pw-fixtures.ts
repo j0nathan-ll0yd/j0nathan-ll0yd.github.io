@@ -34,11 +34,11 @@
  * Playwright upgrade).
  */
 
-import { test as base, expect, type Page } from '@playwright/test';
-import { createRequire } from 'node:module';
-import { truncateAtIEND } from './png-iend-truncate';
+import {expect, type Page, test as base} from '@playwright/test'
+import {createRequire} from 'node:module'
+import {truncateAtIEND} from './png-iend-truncate'
 
-const require = createRequire(import.meta.url);
+const require = createRequire(import.meta.url)
 
 /**
  * Apply the PNG.sync.read patch. Idempotent: re-patching is a no-op due to the
@@ -46,47 +46,47 @@ const require = createRequire(import.meta.url);
  */
 function applyPngTruncationPatch(): boolean {
   if (process.env.SKIP_PNG_TRUNCATION) {
-    return false;
+    return false
   }
   try {
-    const ub = require('playwright-core/lib/utilsBundle');
-    const origRead = ub.PNG.sync.read;
+    const ub = require('playwright-core/lib/utilsBundle')
+    const origRead = ub.PNG.sync.read
     if (origRead.name !== 'truncatedRead') {
       ub.PNG.sync.read = function truncatedRead(buf: Buffer, opts?: unknown) {
-        return origRead(truncateAtIEND(buf), opts);
-      };
+        return origRead(truncateAtIEND(buf), opts)
+      }
     }
-    return ub.PNG.sync.read.name === 'truncatedRead';
+    return ub.PNG.sync.read.name === 'truncatedRead'
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.warn('[pw-fixtures] PNG.sync.read patch FAILED:', err instanceof Error ? err.message : err);
-    return false;
+    console.warn('[pw-fixtures] PNG.sync.read patch FAILED:', err instanceof Error ? err.message : err)
+    return false
   }
 }
 
 // MODULE-LOAD: apply patch immediately when this file is imported. Each worker
 // runs this on its first import of a spec file, before any test code runs.
-const moduleLoadPatchOk = applyPngTruncationPatch();
+const moduleLoadPatchOk = applyPngTruncationPatch()
 if (!moduleLoadPatchOk && !process.env.SKIP_PNG_TRUNCATION) {
   // eslint-disable-next-line no-console
-  console.warn('[pw-fixtures] module-load patch did NOT take effect — check Playwright internals');
+  console.warn('[pw-fixtures] module-load patch did NOT take effect — check Playwright internals')
 }
 
-type WorkerFixtures = { pngTruncation: void; };
+type WorkerFixtures = {pngTruncation: void}
 
 export const test = base.extend<{}, WorkerFixtures>({
   pngTruncation: [
     async ({}, use) => {
       // Belt-and-suspenders: re-apply at fixture activation (idempotent).
-      const ok = applyPngTruncationPatch();
+      const ok = applyPngTruncationPatch()
       if (!ok && !process.env.SKIP_PNG_TRUNCATION) {
         // eslint-disable-next-line no-console
-        console.warn('[pw-fixtures] fixture-scoped patch did NOT take effect');
+        console.warn('[pw-fixtures] fixture-scoped patch did NOT take effect')
       }
-      await use();
+      await use()
     },
-    { scope: 'worker', auto: true },
-  ],
-});
+    {scope: 'worker', auto: true}
+  ]
+})
 
-export { expect, type Page };
+export { expect, type Page }
