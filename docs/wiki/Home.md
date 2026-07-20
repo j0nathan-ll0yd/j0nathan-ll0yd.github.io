@@ -23,21 +23,22 @@ Deployment is automatic via GitHub Actions on push to `main`.
 - **[Widget Specification](Widget-Specification.md)** -- Requirements, testing, and compliance for all widgets
 - **[Why Astro](Why-Astro.md)** -- Framework evaluation and decision rationale
 - **[LLM Content Spec](LLM-Content-Spec.md)** -- LLM-optimized content surface, file inventory, freshness expectations, Level 2 health granularity constraint
+- **[Sources and Acknowledgments](Sources-and-Acknowledgments.md)** -- Running log of external authors and references that shaped how this site is built
 
 ## Technology Stack
 
-| Technology | Purpose |
-|---|---|
-| [Astro](https://astro.build) | Static site generation (0 KB JS by default) |
-| [Three.js](https://threejs.org) | Particle background animation |
-| [Leaflet](https://leafletjs.com) | Interactive map widget |
-| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | Typography |
-| [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa) | Progressive Web App support |
-| [Simple Analytics](https://simpleanalytics.com) | Privacy-focused analytics |
+| Technology                                                       | Purpose                                     |
+| ---------------------------------------------------------------- | ------------------------------------------- |
+| [Astro](https://astro.build)                                     | Static site generation (0 KB JS by default) |
+| [Three.js](https://threejs.org)                                  | Particle background animation               |
+| [Leaflet](https://leafletjs.com)                                 | Interactive map widget                      |
+| [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | Typography                                  |
+| [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa)      | Progressive Web App support                 |
+| [Simple Analytics](https://simpleanalytics.com)                  | Privacy-focused analytics                   |
 
 ## Repository Structure
 
-```
+```text
 .
 ├── astro.config.mjs          # Astro + PWA configuration
 ├── package.json              # Dependencies and scripts
@@ -63,7 +64,7 @@ Deployment is automatic via GitHub Actions on push to `main`.
 
 ## Layout
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │                    Top Bar (clock)                   │
 ├──────────────┬──────────────────────────────────────┤
