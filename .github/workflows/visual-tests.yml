@@ -37,6 +37,7 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read # read @j0nathan-ll0yd/config from GitHub Packages during ci-setup.sh / npm ci
 
 jobs:
   contract-check:
@@ -92,6 +93,7 @@ jobs:
           DS_REF: ${{ steps.producers.outputs.ds_ref }}
           LP_REF: ${{ steps.producers.outputs.lp_ref }}
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       # Tier 2 (Plan #11): the single contract gate. Recomputes the expected lock
@@ -163,6 +165,7 @@ jobs:
           DS_REF: ${{ steps.producers.outputs.ds_ref }}
           LP_REF: ${{ steps.producers.outputs.lp_ref }}
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Run unit tests (app-owned client runtime)
@@ -208,6 +211,8 @@ jobs:
           name: visual-tests-ds-dist
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci --legacy-peer-deps
 
       - name: Run visual regression tests
@@ -268,6 +273,8 @@ jobs:
           name: visual-tests-ds-dist
 
       - name: Install dependencies
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci --legacy-peer-deps
 
       - name: Run behavioral (interaction) tests
@@ -385,6 +392,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Install dependencies (Playwright CLI only)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm ci --legacy-peer-deps
       - name: Download blob reports
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
