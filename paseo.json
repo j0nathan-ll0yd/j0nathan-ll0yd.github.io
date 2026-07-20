@@ -10,5 +10,17 @@
       "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && { cp \"$MAIN/.env.local\" .env.local 2>/dev/null || true; } && { cp \"$MAIN/.envrc\" .envrc 2>/dev/null || true; }",
       "npm ci"
     ]
+  },
+  "scripts": {
+    "test": { "command": "npm test" },
+    "build": { "command": "npm run build" },
+    "dev": {
+      "type": "service",
+      "command": "npm run dev -- --port $PASEO_PORT"
+    },
+    "preview": {
+      "type": "service",
+      "command": "npm run preview -- --port $PASEO_PORT"
+    }
   }
 }
