@@ -34,8 +34,24 @@ VERSION=$(./scripts/playwright-version.sh)
 # transient Chromium worker-launch crash under fullyParallel load (seen on the
 # tall full-page dashboard captures) fails the pre-push hook where CI would retry
 # and pass. Real pixel diffs still fail every retry, so this never masks them.
+#
+# `-v /work/node_modules` shadows the repo's node_modules with a container-private
+# ANONYMOUS volume. Without it, the container's `npm ci` writes Linux-platform
+# native packages (@rollup/rollup-linux-*, dprint, esbuild, sharp) straight into
+# the bind-mounted HOST node_modules, clobbering the macOS arm64 darwin binaries.
+# The host then fails `npm run build` / dprint / git commit until a manual
+# `npm ci`. The anonymous volume gives the container its own node_modules layer,
+# so the install never touches the host. `.yalc/@lifegames/*` still resolves:
+# it lives under the `/work` bind mount, so `npm ci` re-creates the file:
+# symlinks inside the container-private node_modules pointing at the real
+# .yalc sources. `--rm` disposes the anonymous volume on exit, so each run
+# does a fresh clean install exactly as before -- only the host is now spared.
+# NOTE: the shadow volume mount MUST come AFTER the `/work` bind mount so it
+# layers on top of it.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
-  -v "$(pwd):/work" -w /work \
+  -v "$(pwd):/work" \
+  -v /work/node_modules \
+  -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "npm ci --legacy-peer-deps && npx playwright test --config=${CONFIG} $*"
