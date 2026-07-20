@@ -27,6 +27,71 @@ ultimately disagreed with it; the input still mattered.
 
 ## Log
 
+### 2026-07-20 -- JSON-LD Explained for Personal Websites
+
+- **Source:** [JSON-LD Explained for Personal Websites](https://hawksley.dev/blog/json-ld-explained-for-personal-websites/)
+- **Author:** Ethan Hawksley ([hawksley.dev](https://hawksley.dev))
+- **Status of source:** Published blog post, a practical walkthrough of the
+  structured-data setup on the author's own personal site.
+
+**What it recommends.** Serve one consolidated `@graph` block rather than several
+disconnected `<script type="application/ld+json">` islands, and link the nodes
+inside it by fragment `@id` (e.g. `#website`, `#person`) so a `WebSite`,
+`ProfilePage`, and `Person` describe one connected entity graph. At minimum a
+personal site should carry those three node types; the `ProfilePage` should point
+at the person via `mainEntity -> #person`, and the `Person` (as the site's
+`publisher`) should appear on every page so search engines can consistently
+resolve the author across the site. Do **not** repeat the full `WebSite`
+description on every page -- a slim reference by `@id` is enough once the full node
+has been declared. Feed the Knowledge Graph with `sameAs` links, ideally
+including a Wikidata entry (the highest-value signal). And do not fake dates:
+`dateModified` should reflect the content's real last-modified date, not the build
+clock.
+
+**How we validated it.** The `ProfilePage` shape the article recommends matches
+Google's own [Profile Page structured-data
+documentation](https://developers.google.com/search/docs/appearance/structured-data/profile-page),
+which is a supported rich-result type and expects exactly the
+`ProfilePage -> mainEntity -> Person` linkage. The `sameAs` -> Knowledge Graph
+mechanism is corroborated by Google's
+[general structured-data guidance](https://developers.google.com/search/docs/appearance/structured-data/sd-policies);
+a Wikidata `sameAs` is genuinely the highest-value entry there, which is why we
+have deferred it rather than dropped it (see below). Properties like `knowsAbout`
+and `knowsLanguage` are valid schema.org and useful for LLM/agent consumers, but
+they are not required by any Google rich result -- worth including, not worth
+contorting the data for. The one real gap in the article is that it ships no
+validation tooling: it shows the markup but never asserts the graph is internally
+consistent. We closed that gap on our side (see below).
+
+**What we did.** The audit's headline finding was a live bug: `Dashboard.astro` is
+the shared layout for `/`, `/privacy`, and `/404`, and it emitted the `ProfilePage`
+and `Dataset` nodes unconditionally -- so the privacy policy and the 404 page were
+both advertising themselves to crawlers as Jonathan Lloyd's person profile page and
+as the live biometric datastream. We gated `ProfilePage` and `Dataset` to the home
+page only (`Astro.url.pathname === '/'`) and, on every other page, emit a plain
+`WebPage` node instead (`@id` = canonical URL + `#webpage`, `isPartOf` the
+`#website`, name = the page title). Following Hawksley's "don't repeat the full
+`WebSite` per page" advice, non-home pages now carry a slimmed `WebSite` reference
+while the full node (with `description`, `image`, and `alternateName`) stays on the
+home page; the full `Person` remains on every page as the site publisher, as he
+recommends. We also stopped faking a date: `ProfilePage.dateModified` was
+`new Date().toISOString()` (the build clock -- non-deterministic and dishonest) and
+is now a static, hand-maintained content-modification constant. We pointed
+`Dataset.license` at the real `/privacy` page (it had pointed meaninglessly at the
+site root), enriched the `Person` node with `givenName`/`familyName`,
+`disambiguatingDescription`, a real 200x200 avatar `ImageObject` (the OG card stays
+reserved for `og:image`), and corrected `knowsLanguage` from `["en"]` to the BCP-47
+`["en-US"]`. Every identity string is still sourced from `@lifegames/copy`; no value
+was hardcoded. Closing the article's validation gap, we added a build-output test
+(`tests/build/json-ld.test.ts`) that parses the emitted `@graph` from `/`,
+`/privacy`, and `/404` and asserts every `{"@id"}` reference resolves to a node
+that defines that `@id` on the same page (no dangling links), that `ProfilePage`
+and `Dataset` appear only on the home page, and that a `WebPage` node appears on
+`/privacy`. Two of his recommendations are deferred, not rejected: a Wikidata
+`sameAs` (the highest-value Knowledge Graph signal) and `worksFor` / `alumniOf`
+both await real data plus new `@lifegames/copy` fields, and we will not invent
+identity values to satisfy the schema.
+
 ### 2026-07-20 -- `font-family` recommendations
 
 - **Source:** [font-family recommendations](https://chrismorgan.info/font-family)
