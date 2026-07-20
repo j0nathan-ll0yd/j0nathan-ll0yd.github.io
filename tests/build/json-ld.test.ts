@@ -110,6 +110,26 @@ describe('JSON-LD Structured Data', () => {
     expect(person.sameAs.length).toBeGreaterThan(0);
   });
 
+  // Guards against a silently-dropped @lifegames/copy field: worksFor/alumniOf are
+  // assembled from identity.person.employer* / alumniOf*, and JSON.stringify omits
+  // undefined, so a missing copy field would vanish with no other test noticing.
+  // Structural (not value-pinned) so it survives an employer/school change.
+  it('Person has worksFor (Organization) with a name and url', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person');
+    expect(person.worksFor, 'Person.worksFor missing (copy field dropped?)').toBeDefined();
+    expect(person.worksFor['@type']).toBe('Organization');
+    expect(person.worksFor.name).toBeTruthy();
+    expect(person.worksFor.url).toMatch(/^https?:\/\//);
+  });
+
+  it('Person has alumniOf (EducationalOrganization) with a name and url', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person');
+    expect(person.alumniOf, 'Person.alumniOf missing (copy field dropped?)').toBeDefined();
+    expect(person.alumniOf['@type']).toBe('EducationalOrganization');
+    expect(person.alumniOf.name).toBeTruthy();
+    expect(person.alumniOf.url).toMatch(/^https?:\/\//);
+  });
+
   it('all urls use the canonical site URL', () => {
     const website = graph.find((n: any) => n['@type'] === 'WebSite');
     const person = graph.find((n: any) => n['@type'] === 'Person');
