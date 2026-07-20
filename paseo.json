@@ -8,7 +8,7 @@
     "setup": [
       "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && cp -R \"$MAIN/.yalc\" .yalc && cp \"$MAIN/yalc.lock\" yalc.lock",
       "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && { cp \"$MAIN/.env.local\" .env.local 2>/dev/null || true; } && { cp \"$MAIN/.envrc\" .envrc 2>/dev/null || true; }",
-      "npm install"
+      "npm ci"
     ]
   }
 }
