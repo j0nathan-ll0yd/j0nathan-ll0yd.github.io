@@ -27,6 +27,18 @@ ultimately disagreed with it; the input still mattered.
 
 ## Log
 
+### 2026-07-20 -- CSS: Unavoidable Bad Parts
+
+- **Source:** [CSS: Unavoidable Bad Parts](https://matklad.github.io/2026/06/04/css-unavoidable-bad-parts.html)
+- **Author:** Alex Kladov / matklad ([matklad.github.io](https://matklad.github.io))
+- **Status of source:** Published 2026-06-04; an "ersatz CSS tutorial" framing CSS as a small, learnable subset ringed by gotchas, each tagged with a D&D-style severity.
+
+**What it recommends.** Put `box-sizing: border-box` as the very first reset rule; keep the reset _un-layered_ so it cannot be accidentally out-cascaded; adopt explicit `@layer` ordering so later layers win by architecture rather than by `!important` or source-order accidents; prefer metric-overridden fallback fonts (`size-adjust`/`ascent-override`/`descent-override`) over layout-shifting swaps; and, most pointedly, treat `!important` as a smell that usually indicates a missing layer, plus a belt-and-suspenders `font-size-adjust: ex-height <n>` to normalize apparent text size.
+
+**How we validated it.** The cascade-layer precedence claim (layers are sorted **before** specificity; un-layered normal declarations beat layered ones) is confirmed against [MDN Cascade layers](https://developer.mozilla.org/en-US/docs/Web/CSS/@layer) and the [CSS Cascade 5 spec](https://www.w3.org/TR/css-cascade-5/). The `font-size-adjust` support/behavior claims were checked against [MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/font-size-adjust), [caniuse](https://caniuse.com/font-size-adjust), and [web.dev's Baseline note](https://web.dev/blog/font-size-adjust); the crucial nuance that it rescales the _primary_ font (not just fallbacks) is corroborated by the [CSS Fonts L5 algorithm](https://www.w3.org/TR/css-fonts-5/#font-size-adjust-prop) and [mdn/content#39367](https://github.com/mdn/content/issues/39367).
+
+**What we did.** In the `design-system-Lifegames` source of truth (PR #137) we audited `layout.css`'s 25 `!important` flags against the real (post-`@layer`) cascade and found 24 were vestiges of the pre-layer "source-order" mental model -- `@layer layout` already outranks `@layer components` by layer order, so the flags changed nothing. We removed those 24 and kept the single genuinely load-bearing one (`.id-name`, an `<h1>`, needs `!important` to beat the _un-layered_ reset's `h1 { margin: 0 }` -- a layer can't). We proved zero rendering change by publishing the tokens via yalc into this repo and running the Docker visual-regression **compare** suite across all five viewports -- green, no baseline regeneration (re-confirmed independently against the merged tokens before landing). Alongside, we tokenized the scattered raw z-index and line-height literals into `--lg-z-*` / `--lg-line-height-*` primitives (pure renames, same numbers). We **declined** the `font-size-adjust` suggestion: it is only Baseline-newly-available (until ~2027-01) and, more importantly, it rescales the primary font unless its number matches the font's measured ex-height -- which would break our zero-drift guarantee and is redundant with the metric-override fallback we already ship in `fonts.css`. Recorded as a deferred item to revisit once it is widely available and Space Grotesk's real metric is measured.
+
 ### 2026-07-20 -- JSON-LD Explained for Personal Websites
 
 - **Source:** [JSON-LD Explained for Personal Websites](https://hawksley.dev/blog/json-ld-explained-for-personal-websites/)
