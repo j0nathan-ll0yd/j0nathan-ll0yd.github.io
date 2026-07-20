@@ -17,6 +17,115 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
 // Cloudflare Web Analytics site token (public — appears in the page markup). The
 // beacon is served first-party via /cf-insights.js; see the tag before </body>.
 const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
+
+// --- JSON-LD @graph ---------------------------------------------------------
+// Dashboard.astro is the layout for /, /privacy and /404 alike. Only the home
+// page is a person's profile page and the live datastream, so ProfilePage and
+// Dataset are gated to it; other pages emit a plain WebPage instead. WebSite and
+// the full Person are site-wide entities and appear on every page (WebSite is
+// slimmed on non-home pages so the full node is not repeated per page).
+const isHome = Astro.url.pathname === '/';
+
+// Profile's last content-modification date. This is a STATIC literal, not the
+// build time: the ProfilePage content (bio, job title, links) changes rarely and
+// a build-time date would be non-deterministic and dishonest. Bump this by hand
+// whenever the profile content in @lifegames/copy identity.person changes. The
+// legitimately-live surface is the Dataset (temporalCoverage), not this page.
+const PROFILE_MODIFIED = '2026-07-20T00:00:00Z';
+
+const websiteId = siteUrl + '#website';
+const personId = siteUrl + '#person';
+
+// Real avatar (200x200), preloaded in the head. Distinct from the 1200x630 OG
+// card, which stays reserved for og:image social embeds.
+const avatarImage = {
+  '@type': 'ImageObject',
+  url: new URL('/assets/avatar.webp', Astro.site).toString(),
+  width: 200,
+  height: 200,
+  caption: identity.a11y.ogImageAlt,
+};
+
+const personNode = {
+  '@type': 'Person',
+  '@id': personId,
+  name: identity.person.name,
+  alternateName: identity.person.handle,
+  givenName: identity.person.firstName,
+  familyName: identity.person.lastName,
+  jobTitle: identity.person.jobTitle,
+  url: siteUrl,
+  image: avatarImage,
+  sameAs: identity.person.sameAs,
+  knowsAbout: identity.seo.expertise,
+  knowsLanguage: ['en-US'],
+  disambiguatingDescription: identity.person.shortBio,
+  description: identity.person.longBio,
+};
+
+const websiteFull = {
+  '@type': 'WebSite',
+  '@id': websiteId,
+  name: identity.site.fullName,
+  alternateName: identity.site.name,
+  description: identity.site.description,
+  url: siteUrl,
+  inLanguage: 'en-US',
+  image: { '@type': 'ImageObject', url: ogImage.toString() },
+  publisher: { '@id': personId },
+};
+
+// Slim WebSite for non-home pages: identity only, so the full WebSite node is not
+// duplicated on every page. WebPage.isPartOf still resolves against this @id.
+const websiteSlim = {
+  '@type': 'WebSite',
+  '@id': websiteId,
+  name: identity.site.fullName,
+  url: siteUrl,
+};
+
+const profilePageNode = {
+  '@type': 'ProfilePage',
+  '@id': siteUrl + '#profilepage',
+  name: `About ${identity.person.name}`,
+  isPartOf: { '@id': websiteId },
+  mainEntity: { '@id': personId },
+  url: canonicalURL.toString(),
+  dateCreated: '2026-03-04T00:00:00Z',
+  dateModified: PROFILE_MODIFIED,
+  inLanguage: 'en-US',
+};
+
+const datasetNode = {
+  '@type': 'Dataset',
+  '@id': siteUrl + '#datastream',
+  name: identity.site.name,
+  description: llm.dashboard.datasetDescription,
+  creator: { '@id': personId },
+  license: new URL('/privacy', Astro.site).href,
+  isAccessibleForFree: true,
+  variableMeasured: [...DATASET_VARIABLES],
+  distribution: DATASET_DISTRIBUTIONS.map((d) => ({
+    '@type': 'DataDownload',
+    name: d.name,
+    encodingFormat: d.encodingFormat,
+    contentUrl: d.contentUrl,
+  })),
+  temporalCoverage: '2026-03-04/..',
+  inLanguage: 'en-US',
+};
+
+const webPageNode = {
+  '@type': 'WebPage',
+  '@id': canonicalURL.toString() + '#webpage',
+  isPartOf: { '@id': websiteId },
+  name: title,
+  inLanguage: 'en-US',
+};
+
+const jsonLdGraph = isHome
+  ? [websiteFull, profilePageNode, personNode, datasetNode]
+  : [websiteSlim, webPageNode, personNode];
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -66,60 +175,7 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
 
   <script type="application/ld+json" is:inline set:html={JSON.stringify({
     "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "WebSite",
-        "@id": siteUrl + "#website",
-        "name": identity.site.fullName,
-        "description": identity.site.description,
-        "url": siteUrl,
-        "inLanguage": "en-US",
-        "publisher": { "@id": siteUrl + "#person" }
-      },
-      {
-        "@type": "ProfilePage",
-        "@id": siteUrl + "#profilepage",
-        "mainEntity": { "@id": siteUrl + "#person" },
-        "url": canonicalURL.toString(),
-        "dateCreated": "2026-03-04T00:00:00Z",
-        "dateModified": new Date().toISOString(),
-        "inLanguage": "en-US"
-      },
-      {
-        "@type": "Person",
-        "@id": siteUrl + "#person",
-        "name": identity.person.name,
-        "alternateName": identity.person.handle,
-        "jobTitle": identity.person.jobTitle,
-        "url": siteUrl,
-        "image": {
-          "@type": "ImageObject",
-          "url": ogImage.toString()
-        },
-        "sameAs": identity.person.sameAs,
-        "knowsAbout": identity.seo.expertise,
-        "knowsLanguage": ["en"],
-        "description": identity.person.longBio
-      },
-      {
-        "@type": "Dataset",
-        "@id": siteUrl + "#datastream",
-        "name": identity.site.name,
-        "description": llm.dashboard.datasetDescription,
-        "creator": { "@id": siteUrl + "#person" },
-        "license": siteUrl,
-        "isAccessibleForFree": true,
-        "variableMeasured": [...DATASET_VARIABLES],
-        "distribution": DATASET_DISTRIBUTIONS.map((d) => ({
-          "@type": "DataDownload",
-          "name": d.name,
-          "encodingFormat": d.encodingFormat,
-          "contentUrl": d.contentUrl
-        })),
-        "temporalCoverage": "2026-03-04/..",
-        "inLanguage": "en-US"
-      }
-    ]
+    "@graph": jsonLdGraph
   })} />
 
   {/* Font preload (critical for swap timing) — paired with the @font-face rules
