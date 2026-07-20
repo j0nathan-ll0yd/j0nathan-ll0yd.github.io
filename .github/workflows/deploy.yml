@@ -58,7 +58,14 @@ jobs:
             exit 0
           fi
           sleep 30
-          curl -fsS -X POST "$DEPLOY_NOTIFY_URL" \
+          # --connect-timeout/--max-time are load-bearing: continue-on-error only
+          # swallows a non-zero EXIT, not a HANG. Without a bound, an unresponsive
+          # notify backend leaves this curl running until the job timeout (~14 min),
+          # which cancels the job and reports the whole deploy as FAILED even though
+          # Build + Deploy to Cloudflare Pages already succeeded -- and a red deploy
+          # skips the post-deploy smoke check (workflow_run.conclusion != success).
+          # Observed on runs 29775663681 (#139) and 29779665862 (#140).
+          curl -fsS --connect-timeout 5 --max-time 20 -X POST "$DEPLOY_NOTIFY_URL" \
             -H "Authorization: Bearer $DEPLOY_NOTIFY_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"build\":\"${GITHUB_SHA}\"}"
