@@ -58,6 +58,16 @@ const personNode = {
   image: avatarImage,
   sameAs: identity.person.sameAs,
   knowsAbout: identity.seo.expertise,
+  worksFor: {
+    '@type': 'Organization',
+    name: identity.person.employer,
+    url: identity.person.employerUrl,
+  },
+  alumniOf: {
+    '@type': 'EducationalOrganization',
+    name: identity.person.alumniOf,
+    url: identity.person.alumniOfUrl,
+  },
   knowsLanguage: ['en-US'],
   disambiguatingDescription: identity.person.shortBio,
   description: identity.person.longBio,
