@@ -9,148 +9,124 @@
 // (sitemap-index.xml) pointing at one or more urlset files (sitemap-0.xml, ...)
 // -- verified against this repo's own `dist/` build output, 2026-07-16.
 
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { SITE_URL } from '@lifegames/portal-contract/constants';
-import { fetchStable, headStable, isMain, report } from './lib/http.mjs';
+import {execFileSync} from 'node:child_process'
+import {mkdtempSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {fetchStable, headStable, isMain, report} from './lib/http.mjs'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VENDOR_DIR = path.join(__dirname, 'vendor');
-const SITEINDEX_XSD = path.join(VENDOR_DIR, 'siteindex-0.9.xsd');
-const URLSET_XSD = path.join(VENDOR_DIR, 'sitemap-0.9.xsd');
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const VENDOR_DIR = path.join(__dirname, 'vendor')
+const SITEINDEX_XSD = path.join(VENDOR_DIR, 'siteindex-0.9.xsd')
+const URLSET_XSD = path.join(VENDOR_DIR, 'sitemap-0.9.xsd')
 
-const SITEMAP_INDEX_URL = `${SITE_URL}/sitemap-index.xml`;
-const SITE_ORIGIN = new URL(SITE_URL).origin;
+const SITEMAP_INDEX_URL = `${SITE_URL}/sitemap-index.xml`
+const SITE_ORIGIN = new URL(SITE_URL).origin
 
 /** Extract <loc>...</loc> text content via regex -- deliberately not a full XML
  * parser dependency for a single flat, non-nested tag (matches the "prefer
  * vendoring tiny validators" guidance for this catalog). Exported: pure, testable. */
 export function extractLocs(xml) {
-  const locs = [];
-  const re = /<loc>([^<]+)<\/loc>/g;
-  let m;
+  const locs = []
+  const re = /<loc>([^<]+)<\/loc>/g
+  let m
   while ((m = re.exec(xml)) !== null) {
-    locs.push(m[1].trim());
+    locs.push(m[1].trim())
   }
-  return locs;
+  return locs
 }
 
 /** Run `xmllint --noout --schema <xsd> <file>`; returns a finding array (empty = valid). Exported: testable with local fixtures, no network. */
 export function validateAgainstXsd(id, xmlPath, xsdPath, sourceUrl) {
   try {
-    execFileSync('xmllint', ['--noout', '--schema', xsdPath, xmlPath], { stdio: 'pipe' });
-    return [];
+    execFileSync('xmllint', ['--noout', '--schema', xsdPath, xmlPath], {stdio: 'pipe'})
+    return []
   } catch (err) {
-    const stderr = err.stderr ? err.stderr.toString() : err.message;
-    return [{
-      severity: 'fail',
-      id,
-      message: `${sourceUrl} failed XSD validation against ${path.basename(xsdPath)}:\n${stderr.trim()}`,
-    }];
+    const stderr = err.stderr ? err.stderr.toString() : err.message
+    return [{severity: 'fail', id, message: `${sourceUrl} failed XSD validation against ${path.basename(xsdPath)}:\n${stderr.trim()}`}]
   }
 }
 
 async function main() {
-  const findings = [];
-  const tmpDir = mkdtempSync(path.join(tmpdir(), 'audit-sitemap-'));
+  const findings = []
+  const tmpDir = mkdtempSync(path.join(tmpdir(), 'audit-sitemap-'))
 
-  let indexRes;
+  let indexRes
   try {
-    indexRes = await fetchStable(SITEMAP_INDEX_URL);
+    indexRes = await fetchStable(SITEMAP_INDEX_URL)
   } catch (err) {
     process.exit(report('validate-sitemap', [
-      { severity: 'fail', id: 'sitemap-index-fetch', message: `fetch failed: ${err.message}` },
-    ]));
-    return;
+      {severity: 'fail', id: 'sitemap-index-fetch', message: `fetch failed: ${err.message}`}
+    ]))
+    return
   }
   if (!indexRes.ok) {
     process.exit(report('validate-sitemap', [
-      { severity: 'fail', id: 'sitemap-index-fetch', message: `HTTP ${indexRes.status} fetching ${SITEMAP_INDEX_URL}` },
-    ]));
-    return;
+      {severity: 'fail', id: 'sitemap-index-fetch', message: `HTTP ${indexRes.status} fetching ${SITEMAP_INDEX_URL}`}
+    ]))
+    return
   }
-  const indexXml = await indexRes.text();
-  const indexPath = path.join(tmpDir, 'sitemap-index.xml');
-  writeFileSync(indexPath, indexXml);
-  findings.push(...validateAgainstXsd('sitemap-index-xsd', indexPath, SITEINDEX_XSD, SITEMAP_INDEX_URL));
+  const indexXml = await indexRes.text()
+  const indexPath = path.join(tmpDir, 'sitemap-index.xml')
+  writeFileSync(indexPath, indexXml)
+  findings.push(...validateAgainstXsd('sitemap-index-xsd', indexPath, SITEINDEX_XSD, SITEMAP_INDEX_URL))
 
-  const childSitemapUrls = extractLocs(indexXml);
+  const childSitemapUrls = extractLocs(indexXml)
   if (childSitemapUrls.length === 0) {
-    findings.push({
-      severity: 'fail',
-      id: 'sitemap-index-empty',
-      message: `${SITEMAP_INDEX_URL} contains no <sitemap><loc> entries`,
-    });
+    findings.push({severity: 'fail', id: 'sitemap-index-empty', message: `${SITEMAP_INDEX_URL} contains no <sitemap><loc> entries`})
   }
 
   // Validate every child urlset file against the sitemap.xsd, and collect
   // every page <loc> across all of them for the same-origin + 200 sweep.
-  const allPageLocs = [];
+  const allPageLocs = []
   for (const [idx, childUrl] of childSitemapUrls.entries()) {
-    let childRes;
+    let childRes
     try {
-      childRes = await fetchStable(childUrl);
+      childRes = await fetchStable(childUrl)
     } catch (err) {
-      findings.push({
-        severity: 'fail',
-        id: 'sitemap-child-fetch',
-        message: `${childUrl}: fetch failed: ${err.message}`,
-      });
-      continue;
+      findings.push({severity: 'fail', id: 'sitemap-child-fetch', message: `${childUrl}: fetch failed: ${err.message}`})
+      continue
     }
     if (!childRes.ok) {
-      findings.push({ severity: 'fail', id: 'sitemap-child-fetch', message: `${childUrl}: HTTP ${childRes.status}` });
-      continue;
+      findings.push({severity: 'fail', id: 'sitemap-child-fetch', message: `${childUrl}: HTTP ${childRes.status}`})
+      continue
     }
-    const childXml = await childRes.text();
-    const childPath = path.join(tmpDir, `sitemap-child-${idx}.xml`);
-    writeFileSync(childPath, childXml);
-    findings.push(...validateAgainstXsd('sitemap-child-xsd', childPath, URLSET_XSD, childUrl));
-    allPageLocs.push(...extractLocs(childXml));
+    const childXml = await childRes.text()
+    const childPath = path.join(tmpDir, `sitemap-child-${idx}.xml`)
+    writeFileSync(childPath, childXml)
+    findings.push(...validateAgainstXsd('sitemap-child-xsd', childPath, URLSET_XSD, childUrl))
+    allPageLocs.push(...extractLocs(childXml))
   }
 
   if (allPageLocs.length === 0 && childSitemapUrls.length > 0) {
-    findings.push({
-      severity: 'fail',
-      id: 'sitemap-no-urls',
-      message: 'no <url><loc> entries found across any child sitemap',
-    });
+    findings.push({severity: 'fail', id: 'sitemap-no-urls', message: 'no <url><loc> entries found across any child sitemap'})
   }
 
   // Same-origin + reachability sweep. Sequential (not Promise.all) to avoid
   // hammering the live origin with a burst of concurrent HEAD requests.
   for (const loc of allPageLocs) {
-    let originOk = false;
+    let originOk
     try {
-      originOk = new URL(loc).origin === SITE_ORIGIN;
+      originOk = new URL(loc).origin === SITE_ORIGIN
     } catch {
-      findings.push({ severity: 'fail', id: 'sitemap-loc-invalid-url', message: `not a valid absolute URL: ${loc}` });
-      continue;
+      findings.push({severity: 'fail', id: 'sitemap-loc-invalid-url', message: `not a valid absolute URL: ${loc}`})
+      continue
     }
     if (!originOk) {
-      findings.push({
-        severity: 'fail',
-        id: 'sitemap-loc-cross-origin',
-        message: `<loc> is not same-origin as ${SITE_ORIGIN}: ${loc}`,
-      });
-      continue;
+      findings.push({severity: 'fail', id: 'sitemap-loc-cross-origin', message: `<loc> is not same-origin as ${SITE_ORIGIN}: ${loc}`})
+      continue
     }
-    const head = await headStable(loc);
+    const head = await headStable(loc)
     if (!head.ok) {
-      findings.push({
-        severity: 'fail',
-        id: 'sitemap-loc-unreachable',
-        message: `${loc} returned HTTP ${head.status} on HEAD`,
-      });
+      findings.push({severity: 'fail', id: 'sitemap-loc-unreachable', message: `${loc} returned HTTP ${head.status} on HEAD`})
     }
   }
 
-  process.exit(report('validate-sitemap', findings));
+  process.exit(report('validate-sitemap', findings))
 }
 
 if (isMain(import.meta.url)) {
-  main();
+  main()
 }

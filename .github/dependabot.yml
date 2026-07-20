@@ -41,6 +41,14 @@ updates:
       - dependency-name: "@napi-rs/image"
         update-types:
           - version-update:semver-major
+      # typescript is pinned to ^5 (<6.0.0). The latest published TypeScript is
+      # the native TS 7 line, but @astrojs/check (peer ^5 || ^6) and
+      # typescript-eslint v8 (peer >=4.8.4 <6.1.0) do not support it. Adopt a
+      # newer major only when both the astro check toolchain and typescript-eslint
+      # declare support; until then Dependabot must not open TS major-bump PRs.
+      - dependency-name: typescript
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /

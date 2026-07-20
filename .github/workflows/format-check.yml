@@ -1,16 +1,40 @@
 name: Format
 
-# Blocking format gate (dprint). Prevents the quote/reflow churn that used to slip in
-# because the repo had no formatter — see dprint.json. Local: `npm run format`.
+# Blocking format gate (dprint). dprint.json now `extends` the shared
+# @j0nathan-ll0yd/config base from node_modules, so the check must run against an
+# installed dependency tree -- the standalone dprint/check action cannot resolve a
+# package `extends`. We install via the repo's design-system setup (ci-setup.sh)
+# and run `npm run format:check`. The @j0nathan-ll0yd scope lives on GitHub
+# Packages; the built-in Actions token authenticates it via `packages: read`
+# (the committed .npmrc expands ${GITHUB_TOKEN}). Local: `npm run format`.
 on:
   pull_request:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   format-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
       - name: dprint check
-        uses: dprint/check@2f1cf31537886c3bfb05591c031f7744e48ba8a1 # v2.2
+        run: npm run format:check

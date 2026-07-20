@@ -24,7 +24,9 @@
     "test:smoke": "npx playwright test --config=playwright.smoke.config.ts",
     "test:behavioral": "./scripts/run-in-docker.sh playwright.behavioral.config.ts",
     "format": "dprint fmt",
-    "format:check": "dprint check"
+    "format:check": "dprint check",
+    "lint": "eslint .",
+    "typecheck": "astro check"
   },
   "dependencies": {
     "@lifegames/copy": "file:.yalc/@lifegames/copy",
@@ -36,7 +38,9 @@
     "astro": "^6.4.4"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
     "@astrojs/sitemap": "^3.7.3",
+    "@j0nathan-ll0yd/config": "^1.1.0",
     "@lhci/cli": "^0.15.1",
     "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
@@ -44,7 +48,9 @@
     "ajv": "^8.20.0",
     "cheerio": "^1.2.0",
     "dprint": "^0.55.1",
+    "eslint": "^10.7.0",
     "fast-xml-parser": "^5.10.1",
+    "globals": "^17.7.0",
     "husky": "^9.1.7",
     "jsdom": "^29.1.1",
     "pa11y-ci": "^4.1.1",
@@ -52,6 +58,8 @@
     "pngjs": "^7.0.0",
     "robots-parser": "^3.0.1",
     "tsx": "^4.22.4",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.64.0",
     "vitest": "^4.1.8",
     "wrangler": "^4.98.0"
   }

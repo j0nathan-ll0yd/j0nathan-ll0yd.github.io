@@ -1,13 +1,39 @@
 #!/usr/bin/env sh
-# Pre-push visual-regression gate.
+# Pre-push gates.
 #
-# Runs the full Playwright visual suite in the same Docker image (arm64-native
-# under Apple Virtualization Framework) that the self-hosted CI runner is
-# built FROM. A passing run here means the PNG bytes will match CI.
-#
-# Bypass: `SKIP_VISUAL=1 git push` (use for branches that genuinely don't touch
-# rendered output -- e.g. docs-only edits -- and accept that CI will catch any
-# pixel regression on the PR).
+# 1) Static quality gates (fast): dprint format check, astro check (types), and
+#    ESLint. These mirror the CI jobs (format-check.yml + static-checks.yml) so a
+#    red check never reaches the PR. Always run -- SKIP_VISUAL does not skip them.
+#    Order: typecheck before lint, because `astro check` syncs .astro content
+#    types that type-aware ESLint needs to resolve `astro:content`.
+# 2) Visual-regression suite (slow, Docker): runs the full Playwright suite in the
+#    same arm64-native image the self-hosted CI runner is built FROM, so a passing
+#    run means the PNG bytes will match CI. Bypass with `SKIP_VISUAL=1 git push`
+#    (use only for branches that genuinely don't touch rendered output -- e.g.
+#    docs-only edits -- and accept that CI will catch any pixel regression).
+
+echo "[pre-push] Static gates: format:check -> typecheck -> lint"
+
+if ! npm run format:check; then
+  echo ""
+  echo "ERROR: dprint format check failed. Fix with:  npm run format"
+  echo ""
+  exit 1
+fi
+
+if ! npm run typecheck; then
+  echo ""
+  echo "ERROR: astro check (typecheck) failed. Fix the type errors above."
+  echo ""
+  exit 1
+fi
+
+if ! npm run lint; then
+  echo ""
+  echo "ERROR: eslint failed. Fix the lint errors above (some are auto-fixable:  npx eslint . --fix)."
+  echo ""
+  exit 1
+fi
 
 if [ "${SKIP_VISUAL:-0}" = "1" ]; then
   echo "[pre-push] SKIP_VISUAL=1 -- bypassing local visual gate. CI will re-verify."
