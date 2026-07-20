@@ -16,44 +16,36 @@
 // never affected — never a 5xx (which would trip the smoke console-error check).
 // Mirrors functions/sa.ts (the Simple Analytics first-party proxy).
 
-const BEACON_URL = 'https://static.cloudflareinsights.com/beacon.min.js';
+const BEACON_URL = 'https://static.cloudflareinsights.com/beacon.min.js'
 
 // Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {
-  cf?: { cacheTtl?: number; cacheEverything?: boolean; };
+  cf?: {cacheTtl?: number; cacheEverything?: boolean}
 }
 
 function unavailable(): Response {
   return new Response('/* cf-insights unavailable */', {
     status: 200,
-    headers: {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'no-store',
-    },
-  });
+    headers: {'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store'}
+  })
 }
 
 export async function onRequest(): Promise<Response> {
-  const init: CfRequestInit = {
-    cf: { cacheTtl: 86400, cacheEverything: true },
-  };
+  const init: CfRequestInit = {cf: {cacheTtl: 86400, cacheEverything: true}}
 
-  let upstream: Response;
+  let upstream: Response
   try {
-    upstream = await fetch(BEACON_URL, init);
+    upstream = await fetch(BEACON_URL, init)
   } catch {
-    return unavailable();
+    return unavailable()
   }
 
   if (!upstream.ok) {
-    return unavailable();
+    return unavailable()
   }
 
   return new Response(upstream.body, {
     status: 200,
-    headers: {
-      'Content-Type': 'application/javascript; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400',
-    },
-  });
+    headers: {'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'}
+  })
 }

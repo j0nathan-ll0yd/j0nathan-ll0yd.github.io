@@ -6,9 +6,6 @@
 // sourced from the contract inside the factory so no CloudFront literal is
 // hardcoded here.
 
-import { makeCloudfrontProxy } from './_lib/proxy';
+import {makeCloudfrontProxy} from './_lib/proxy'
 
-export const onRequest = makeCloudfrontProxy({
-  path: '/llms.txt',
-  contentType: 'text/plain; charset=utf-8',
-});
+export const onRequest = makeCloudfrontProxy({path: '/llms.txt', contentType: 'text/plain; charset=utf-8'})

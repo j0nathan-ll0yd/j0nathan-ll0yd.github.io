@@ -8,11 +8,11 @@
  * cannot. Served no-store via functions/_middleware.ts.
  *
  * Plan: .omc/plans/graceful-deploy-auto-update-plan.md (Phase 2). */
-import { writeFileSync } from 'node:fs';
-import path from 'node:path';
+import {writeFileSync} from 'node:fs'
+import path from 'node:path'
 
-const build = process.env.GITHUB_SHA || process.env.CF_PAGES_COMMIT_SHA || 'dev';
-const outPath = path.resolve(process.cwd(), 'dist', 'version.json');
+const build = process.env.GITHUB_SHA || process.env.CF_PAGES_COMMIT_SHA || 'dev'
+const outPath = path.resolve(process.cwd(), 'dist', 'version.json')
 
-writeFileSync(outPath, JSON.stringify({ build, builtAt: new Date().toISOString() }) + '\n');
-console.log(`[write-version] wrote dist/version.json (build=${build})`);
+writeFileSync(outPath, JSON.stringify({build, builtAt: new Date().toISOString()}) + '\n')
+console.log(`[write-version] wrote dist/version.json (build=${build})`)

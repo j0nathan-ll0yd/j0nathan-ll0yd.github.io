@@ -19,6 +19,4 @@
 /**
  * @type {import("puppeteer").Configuration}
  */
-module.exports = {
-  skipDownload: true,
-};
+module.exports = {skipDownload: true}

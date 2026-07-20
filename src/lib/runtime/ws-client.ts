@@ -1,39 +1,39 @@
-export type WSMessageHandler = (resource: string) => void;
+export type WSMessageHandler = (resource: string) => void
 
 export interface WSClientOptions {
-  url: string;
-  onUpdate: WSMessageHandler;
+  url: string
+  onUpdate: WSMessageHandler
   /**
    * Fired on a focus {type:'update', resource:'focus'} push that carries the new focus
    * value, so the client can drive the overlay immediately without refetching the
    * (edge-cached) focus signal. A focus push lacking currentFocus falls through to onUpdate.
    */
-  onFocusChange?: (currentFocus: string) => void;
+  onFocusChange?: (currentFocus: string) => void
   /** Fired on a {type:'app-update'} push (a new web build is live). Optional build id. */
-  onAppUpdate?: (build?: string) => void;
-  onStateChange?: (connected: boolean) => void;
-  heartbeatIntervalMs?: number;
-  reconnectBaseMs?: number;
-  reconnectMaxMs?: number;
+  onAppUpdate?: (build?: string) => void
+  onStateChange?: (connected: boolean) => void
+  heartbeatIntervalMs?: number
+  reconnectBaseMs?: number
+  reconnectMaxMs?: number
 }
 
-export type WSState = 'connecting' | 'connected' | 'disconnected';
+export type WSState = 'connecting' | 'connected' | 'disconnected'
 
-const DEFAULT_HEARTBEAT_MS = 5 * 60 * 1000;
-const DEFAULT_RECONNECT_BASE_MS = 1000;
-const DEFAULT_RECONNECT_MAX_MS = 30_000;
-const MAX_CONNECTION_MS = 115 * 60 * 1000;
+const DEFAULT_HEARTBEAT_MS = 5 * 60 * 1000
+const DEFAULT_RECONNECT_BASE_MS = 1000
+const DEFAULT_RECONNECT_MAX_MS = 30_000
+const MAX_CONNECTION_MS = 115 * 60 * 1000
 
 export class WSClient {
-  private ws: WebSocket | null = null;
-  private state: WSState = 'disconnected';
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private maxConnectionTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectAttempt = 0;
-  private intentionalClose = false;
-  private visibilityHandler: (() => void) | null = null;
-  private opts: Required<WSClientOptions>;
+  private ws: WebSocket | null = null
+  private state: WSState = 'disconnected'
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private maxConnectionTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempt = 0
+  private intentionalClose = false
+  private visibilityHandler: (() => void) | null = null
+  private opts: Required<WSClientOptions>
 
   constructor(opts: WSClientOptions) {
     this.opts = {
@@ -43,180 +43,174 @@ export class WSClient {
       heartbeatIntervalMs: DEFAULT_HEARTBEAT_MS,
       reconnectBaseMs: DEFAULT_RECONNECT_BASE_MS,
       reconnectMaxMs: DEFAULT_RECONNECT_MAX_MS,
-      ...opts,
-    };
+      ...opts
+    }
   }
 
   connect(): void {
-    this.intentionalClose = false;
-    this.openSocket();
+    this.intentionalClose = false
+    this.openSocket()
 
     this.visibilityHandler = () => {
       if (document.hidden) {
-        this.intentionalClose = true;
-        this.closeSocket();
+        this.intentionalClose = true
+        this.closeSocket()
       } else {
-        this.intentionalClose = false;
-        this.scheduleReconnect(0);
+        this.intentionalClose = false
+        this.scheduleReconnect(0)
       }
-    };
-    document.addEventListener('visibilitychange', this.visibilityHandler);
+    }
+    document.addEventListener('visibilitychange', this.visibilityHandler)
   }
 
   disconnect(): void {
-    this.intentionalClose = true;
-    this.clearAllTimers();
+    this.intentionalClose = true
+    this.clearAllTimers()
     if (this.visibilityHandler) {
-      document.removeEventListener('visibilitychange', this.visibilityHandler);
-      this.visibilityHandler = null;
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+      this.visibilityHandler = null
     }
-    this.closeSocket();
+    this.closeSocket()
   }
 
   getState(): WSState {
-    return this.state;
+    return this.state
   }
 
   private openSocket(): void {
-    this.setState('connecting');
-    const ws = new WebSocket(this.opts.url);
-    this.ws = ws;
+    this.setState('connecting')
+    const ws = new WebSocket(this.opts.url)
+    this.ws = ws
 
     ws.onopen = () => {
-      this.reconnectAttempt = 0;
-      this.setState('connected');
-      this.startHeartbeat();
-      this.startMaxConnectionTimer();
-    };
+      this.reconnectAttempt = 0
+      this.setState('connected')
+      this.startHeartbeat()
+      this.startMaxConnectionTimer()
+    }
 
     ws.onmessage = (event: MessageEvent) => {
       try {
-        const msg = JSON.parse(event.data as string) as {
-          type?: string;
-          resource?: string;
-          build?: string;
-          currentFocus?: string;
-        };
+        const msg = JSON.parse(event.data as string) as {type?: string; resource?: string; build?: string; currentFocus?: string}
         if (msg.type === 'update' && msg.resource) {
           // A focus push carries the new focus value → drive the overlay immediately, no
           // refetch (the focus signal is edge-cached ~30s). Older backends that omit
           // currentFocus fall through to the generic resource refetch.
           if (msg.resource === 'focus' && typeof msg.currentFocus === 'string') {
-            this.opts.onFocusChange(msg.currentFocus);
+            this.opts.onFocusChange(msg.currentFocus)
           } else {
-            this.opts.onUpdate(msg.resource);
+            this.opts.onUpdate(msg.resource)
           }
         } else if (msg.type === 'app-update') {
-          this.opts.onAppUpdate(msg.build);
+          this.opts.onAppUpdate(msg.build)
         }
         // Ignore 'pong' and unknown types
       } catch {
         // Ignore malformed messages
       }
-    };
+    }
 
     ws.onclose = () => {
-      this.clearHeartbeat();
-      this.clearMaxConnectionTimer();
-      this.setState('disconnected');
+      this.clearHeartbeat()
+      this.clearMaxConnectionTimer()
+      this.setState('disconnected')
       if (!this.intentionalClose) {
-        this.scheduleReconnect(this.currentDelay());
-        this.advanceBackoff();
+        this.scheduleReconnect(this.currentDelay())
+        this.advanceBackoff()
       }
-    };
+    }
 
     ws.onerror = () => {
       // onclose fires after onerror; reconnection handled there
-    };
+    }
   }
 
   private closeSocket(): void {
     if (this.ws) {
-      this.ws.onopen = null;
-      this.ws.onmessage = null;
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.close();
-      this.ws = null;
+      this.ws.onopen = null
+      this.ws.onmessage = null
+      this.ws.onclose = null
+      this.ws.onerror = null
+      this.ws.close()
+      this.ws = null
     }
-    this.clearHeartbeat();
-    this.clearMaxConnectionTimer();
-    this.setState('disconnected');
+    this.clearHeartbeat()
+    this.clearMaxConnectionTimer()
+    this.setState('disconnected')
   }
 
   private startHeartbeat(): void {
-    this.clearHeartbeat();
+    this.clearHeartbeat()
     this.heartbeatTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ action: 'ping' }));
+        this.ws.send(JSON.stringify({action: 'ping'}))
       }
-    }, this.opts.heartbeatIntervalMs);
+    }, this.opts.heartbeatIntervalMs)
   }
 
   private clearHeartbeat(): void {
     if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
     }
   }
 
   private startMaxConnectionTimer(): void {
-    this.clearMaxConnectionTimer();
+    this.clearMaxConnectionTimer()
     this.maxConnectionTimer = setTimeout(() => {
       // Force close and reconnect after 1h55m
-      this.intentionalClose = false;
-      this.closeSocket();
-      this.scheduleReconnect(0);
-    }, MAX_CONNECTION_MS);
+      this.intentionalClose = false
+      this.closeSocket()
+      this.scheduleReconnect(0)
+    }, MAX_CONNECTION_MS)
   }
 
   private clearMaxConnectionTimer(): void {
     if (this.maxConnectionTimer) {
-      clearTimeout(this.maxConnectionTimer);
-      this.maxConnectionTimer = null;
+      clearTimeout(this.maxConnectionTimer)
+      this.maxConnectionTimer = null
     }
   }
 
   private scheduleReconnect(delayMs: number): void {
     if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
     }
     this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
+      this.reconnectTimer = null
       if (!this.intentionalClose) {
-        this.openSocket();
+        this.openSocket()
       }
-    }, delayMs);
+    }, delayMs)
   }
 
   private currentDelay(): number {
-    const base = Math.min(
-      this.opts.reconnectBaseMs * Math.pow(2, this.reconnectAttempt),
-      this.opts.reconnectMaxMs,
-    );
-    return base * (0.5 + Math.random() * 0.5);
+    const base = Math.min(this.opts.reconnectBaseMs * Math.pow(2, this.reconnectAttempt), this.opts.reconnectMaxMs)
+    return base * (0.5 + Math.random() * 0.5)
   }
 
   private advanceBackoff(): void {
-    const maxAttempts = Math.ceil(Math.log2(this.opts.reconnectMaxMs / this.opts.reconnectBaseMs));
+    const maxAttempts = Math.ceil(Math.log2(this.opts.reconnectMaxMs / this.opts.reconnectBaseMs))
     if (this.reconnectAttempt < maxAttempts) {
-      this.reconnectAttempt++;
+      this.reconnectAttempt++
     }
   }
 
   private clearAllTimers(): void {
-    this.clearHeartbeat();
-    this.clearMaxConnectionTimer();
+    this.clearHeartbeat()
+    this.clearMaxConnectionTimer()
     if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
     }
   }
 
   private setState(next: WSState): void {
-    if (this.state === next) return;
-    this.state = next;
-    this.opts.onStateChange?.(next === 'connected');
+    if (this.state === next) {
+      return
+    }
+    this.state = next
+    this.opts.onStateChange?.(next === 'connected')
   }
 }

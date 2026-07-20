@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config';
+import {defineConfig} from 'vitest/config'
 
 // Unit tests for the app-owned client runtime (src/lib/runtime/*): fetch/poll/
 // WebSocket logic relocated from @lifegames/web. These mock the network and run
@@ -10,10 +10,4 @@ import { defineConfig } from 'vitest/config';
 // fixtures -- no network, no jsdom-specific APIs needed, but jsdom is a
 // superset environment so plain Node/string-logic tests run fine under it
 // without a third vitest config.
-export default defineConfig({
-  test: {
-    environment: 'jsdom',
-    include: ['tests/unit/**/*.test.ts', 'tests/audit/**/*.test.ts'],
-    clearMocks: true,
-  },
-});
+export default defineConfig({test: {environment: 'jsdom', include: ['tests/unit/**/*.test.ts', 'tests/audit/**/*.test.ts'], clearMocks: true}})

@@ -38,6 +38,7 @@ concurrency:
 permissions:
   contents: read
   issues: write
+  packages: read # read @j0nathan-ll0yd/config from GitHub Packages during ci-setup.sh's npm ci
 
 jobs:
   daily:
@@ -60,6 +61,7 @@ jobs:
         env:
           DS_REF: main
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: Install Playwright Chromium
@@ -129,6 +131,7 @@ jobs:
         env:
           DS_REF: main
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       # validate-sitemap.mjs shells out to xmllint (scripts/audit/vendor/*.xsd
@@ -281,6 +284,7 @@ jobs:
         env:
           DS_REF: main
           LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bash scripts/ci-setup.sh
 
       - name: B2 -- security.txt RFC 9116 expiry

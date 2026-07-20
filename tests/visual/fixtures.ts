@@ -6,12 +6,12 @@
  * CloudFront endpoints; the Playwright route-interception layer (helpers.ts)
  * fulfills `${CLOUDFRONT_BASE}/<endpoint>` from these files.
  */
-import { createRequire } from 'node:module';
+import {createRequire} from 'node:module'
 
-const require = createRequire(import.meta.url);
+const require = createRequire(import.meta.url)
 
 /** Map of CloudFront endpoint path -> absolute fixture file path */
-export type FixtureSet = Record<string, string>;
+export type FixtureSet = Record<string, string>
 
 /**
  * Resolve a raw fixture to its on-disk path inside `@lifegames/fixtures`.
@@ -24,8 +24,8 @@ export type FixtureSet = Record<string, string>;
  * `exports` map (`./generated/*`), so this works under yalc linking.
  */
 function fixture(dir: string, file: string): string {
-  const camelFile = file.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
-  return require.resolve(`@lifegames/fixtures/generated/${dir}/${camelFile}.json`);
+  const camelFile = file.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())
+  return require.resolve(`@lifegames/fixtures/generated/${dir}/${camelFile}.json`)
 }
 
 /** Baseline fixtures for all 10 endpoints */
@@ -39,14 +39,14 @@ const BASELINE: FixtureSet = {
   '/articles.json': fixture('articles', 'baseline'),
   '/location.json': fixture('location', 'baseline'),
   '/focus.json': fixture('focus', 'empty'),
-  '/theatre-reviews.json': fixture('theatre-reviews', 'baseline'),
-};
+  '/theatre-reviews.json': fixture('theatre-reviews', 'baseline')
+}
 
 /**
  * Dashboard-level scenarios — each defines all 10 endpoints.
  */
 const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
-  populated: { ...BASELINE },
+  populated: {...BASELINE},
 
   // True-empty state for every domain. Uses the DS triad `empty` variations
   // (real empties that did not exist before the triad — health/location formerly
@@ -63,7 +63,7 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
     '/articles.json': fixture('articles', 'empty'),
     '/location.json': fixture('location', 'empty'),
     '/theatre-reviews.json': fixture('theatre-reviews', 'empty'),
-    '/github-starred-repos.json': fixture('github-starred-repos', 'empty'),
+    '/github-starred-repos.json': fixture('github-starred-repos', 'empty')
   },
 
   // The DS standard-triad `full` variation for every domain: the single
@@ -87,9 +87,9 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
     '/github-events.json': fixture('github-events', 'full'),
     '/articles.json': fixture('articles', 'full'),
     '/location.json': fixture('location', 'full'),
-    '/theatre-reviews.json': fixture('theatre-reviews', 'full'),
-  },
-};
+    '/theatre-reviews.json': fixture('theatre-reviews', 'full')
+  }
+}
 
 /**
  * Per-widget variation scenarios — each overrides a single endpoint from baseline.
@@ -101,80 +101,80 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
  */
 const WIDGET_VARIATION_SCENARIOS: Record<string, FixtureSet> = {
   // Heart Rate variations (also affects Hydration, NightSummary)
-  'hr-bradycardia': { ...BASELINE, '/health.json': fixture('health', 'bradycardia') },
-  'hr-peak': { ...BASELINE, '/health.json': fixture('health', 'peak') },
-  'hr-resting': { ...BASELINE, '/health.json': fixture('health', 'resting') },
+  'hr-bradycardia': {...BASELINE, '/health.json': fixture('health', 'bradycardia')},
+  'hr-peak': {...BASELINE, '/health.json': fixture('health', 'peak')},
+  'hr-resting': {...BASELINE, '/health.json': fixture('health', 'resting')},
 
   // Hydration variations (also affects HeartRate, NightSummary)
-  'hydration-zero': { ...BASELINE, '/health.json': fixture('health', 'zero-hydration') },
-  'hydration-max': { ...BASELINE, '/health.json': fixture('health', 'max-hydration') },
+  'hydration-zero': {...BASELINE, '/health.json': fixture('health', 'zero-hydration')},
+  'hydration-max': {...BASELINE, '/health.json': fixture('health', 'max-hydration')},
 
   // Movement Rings active state — the 2026-07-17 regression data: server goals
   // 650/40/12 (formerly hardcoded 500/30/12 client-side), standHours 4 vs
   // floor(4 standTime-min / 60) = 0, live solar vs frozen SSR placeholders.
-  'movement-active': { ...BASELINE, '/health.json': fixture('health', 'movement-active') },
+  'movement-active': {...BASELINE, '/health.json': fixture('health', 'movement-active')},
 
   // Missing-optional health: `dietaryWater` + `dietaryCaffeine` quantities are
   // entirely ABSENT (distinct from `hydration-zero`, where they are present and 0).
   // Preserves coverage of the absent-optional-field render path that the `empty`
   // dashboard scenario formerly exercised before it switched to the real `empty`.
-  'health-missing-optional': { ...BASELINE, '/health.json': fixture('health', 'missing-optional') },
+  'health-missing-optional': {...BASELINE, '/health.json': fixture('health', 'missing-optional')},
 
   // Night Summary variations
-  'sleep-deep-dominant': { ...BASELINE, '/sleep.json': fixture('sleep', 'deep-dominant') },
-  'sleep-rem-dominant': { ...BASELINE, '/sleep.json': fixture('sleep', 'rem-dominant') },
-  'sleep-short': { ...BASELINE, '/sleep.json': fixture('sleep', 'short-sleep') },
+  'sleep-deep-dominant': {...BASELINE, '/sleep.json': fixture('sleep', 'deep-dominant')},
+  'sleep-rem-dominant': {...BASELINE, '/sleep.json': fixture('sleep', 'rem-dominant')},
+  'sleep-short': {...BASELINE, '/sleep.json': fixture('sleep', 'short-sleep')},
 
   // Bookshelf variations
-  'books-all-reading': { ...BASELINE, '/books.json': fixture('books', 'all-reading') },
-  'books-all-completed': { ...BASELINE, '/books.json': fixture('books', 'all-completed') },
-  'books-no-covers': { ...BASELINE, '/books.json': fixture('books', 'no-covers') },
+  'books-all-reading': {...BASELINE, '/books.json': fixture('books', 'all-reading')},
+  'books-all-completed': {...BASELINE, '/books.json': fixture('books', 'all-completed')},
+  'books-no-covers': {...BASELINE, '/books.json': fixture('books', 'no-covers')},
 
   // Dev Activity Log variations
-  'github-commits-only': { ...BASELINE, '/github-events.json': fixture('github-events', 'commits-only') },
-  'github-prs-only': { ...BASELINE, '/github-events.json': fixture('github-events', 'prs-only') },
+  'github-commits-only': {...BASELINE, '/github-events.json': fixture('github-events', 'commits-only')},
+  'github-prs-only': {...BASELINE, '/github-events.json': fixture('github-events', 'prs-only')},
 
   // Workouts variations
-  'workouts-multi': { ...BASELINE, '/workouts.json': fixture('workouts', 'multi-workout') },
-  'workouts-barrys': { ...BASELINE, '/workouts.json': fixture('workouts', 'barrys-bootcamp') },
+  'workouts-multi': {...BASELINE, '/workouts.json': fixture('workouts', 'multi-workout')},
+  'workouts-barrys': {...BASELINE, '/workouts.json': fixture('workouts', 'barrys-bootcamp')},
 
   // Theatre Reviews variations
-  'theatre-all-grades': { ...BASELINE, '/theatre-reviews.json': fixture('theatre-reviews', 'all-grades') },
-  'theatre-no-images': { ...BASELINE, '/theatre-reviews.json': fixture('theatre-reviews', 'no-images') },
+  'theatre-all-grades': {...BASELINE, '/theatre-reviews.json': fixture('theatre-reviews', 'all-grades')},
+  'theatre-no-images': {...BASELINE, '/theatre-reviews.json': fixture('theatre-reviews', 'no-images')},
 
   // Reading Feed variations
   // Exercises bug-6 fix: articles with empty articleTitle ("") + long sourceTitle
   // must not crash or mis-render the reading widget. Named after Hoodline, a local
   // news aggregator that frequently produces empty-title entries.
-  'reading-empty-title': { ...BASELINE, '/articles.json': fixture('articles', 'hoodline-empty-title') },
+  'reading-empty-title': {...BASELINE, '/articles.json': fixture('articles', 'hoodline-empty-title')},
 
   // Watch-paused variations (HeartRate + MovementRings paused overlay)
-  'hr-paused-hr-gap': { ...BASELINE, '/health.json': fixture('health', 'paused-hr-gap') },
-  'hr-paused-charging': { ...BASELINE, '/health.json': fixture('health', 'paused-charging') },
+  'hr-paused-hr-gap': {...BASELINE, '/health.json': fixture('health', 'paused-hr-gap')},
+  'hr-paused-charging': {...BASELINE, '/health.json': fixture('health', 'paused-charging')},
 
   // Overlay variations
-  'focus-work': { ...BASELINE, '/focus.json': fixture('focus', 'baseline') },
-  'focus-dnd': { ...BASELINE, '/focus.json': fixture('focus', 'dnd') },
-};
+  'focus-work': {...BASELINE, '/focus.json': fixture('focus', 'baseline')},
+  'focus-dnd': {...BASELINE, '/focus.json': fixture('focus', 'dnd')}
+}
 
 /** All available scenario names */
-export type ScenarioName = keyof typeof DASHBOARD_SCENARIOS | keyof typeof WIDGET_VARIATION_SCENARIOS;
+export type ScenarioName = keyof typeof DASHBOARD_SCENARIOS | keyof typeof WIDGET_VARIATION_SCENARIOS
 
 /** Get the fixture set for a given scenario */
 export function getScenarioFixtures(scenario: ScenarioName): FixtureSet {
   if (scenario in DASHBOARD_SCENARIOS) {
-    return DASHBOARD_SCENARIOS[scenario];
+    return DASHBOARD_SCENARIOS[scenario]
   }
   if (scenario in WIDGET_VARIATION_SCENARIOS) {
-    return WIDGET_VARIATION_SCENARIOS[scenario];
+    return WIDGET_VARIATION_SCENARIOS[scenario]
   }
-  throw new Error(`Unknown scenario: ${scenario}`);
+  throw new Error(`Unknown scenario: ${scenario}`)
 }
 
 /** Whether a scenario includes non-empty workouts data */
 export function scenarioHasWorkouts(scenario: ScenarioName): boolean {
-  const fixtures = getScenarioFixtures(scenario);
-  const workoutsPath = fixtures['/workouts.json'];
+  const fixtures = getScenarioFixtures(scenario)
+  const workoutsPath = fixtures['/workouts.json']
   // Empty workouts fixture has no data to trigger the card
-  return !workoutsPath.includes('/empty.json');
+  return !workoutsPath.includes('/empty.json')
 }

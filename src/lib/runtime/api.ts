@@ -1,49 +1,48 @@
-import { CLOUDFRONT_BASE, ENDPOINTS } from '@lifegames/portal-contract/constants';
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@lifegames/portal-contract/constants'
 import type {
-  HealthExport,
-  SleepExport,
-  WorkoutsExport,
+  ArticlesExport,
   BooksExport,
+  FocusExport,
   GithubEventsExport,
   GithubStarredReposExport,
-  ArticlesExport,
+  HealthExport,
   LocationExport,
-  FocusExport,
+  SleepExport,
   TheatreReviewsExport,
-} from '@lifegames/web/types/exports';
+  WorkoutsExport
+} from '@lifegames/web/types/exports'
 
 // In dev mode, Vite proxies /api/live/* to CloudFront to avoid CORS issues.
 // In production, fetch directly from CloudFront (CORS allows jonathanlloyd.me).
-const BASE = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE;
+const BASE = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE
 
 export interface FetchResult {
-  health: HealthExport | null;
-  sleep: SleepExport | null;
-  workouts: WorkoutsExport | null;
-  books: BooksExport | null;
-  githubEvents: GithubEventsExport | null;
-  starredRepos: GithubStarredReposExport | null;
-  articles: ArticlesExport | null;
-  location: LocationExport | null;
-  focus: FocusExport | null;
-  theatreReviews: TheatreReviewsExport | null;
-  timestamps: Record<string, string | null>;
+  health: HealthExport | null
+  sleep: SleepExport | null
+  workouts: WorkoutsExport | null
+  books: BooksExport | null
+  githubEvents: GithubEventsExport | null
+  starredRepos: GithubStarredReposExport | null
+  articles: ArticlesExport | null
+  location: LocationExport | null
+  focus: FocusExport | null
+  theatreReviews: TheatreReviewsExport | null
+  timestamps: Record<string, string | null>
 }
 
-export async function fetchWithTimeout<T>(
-  url: string,
-  timeoutMs: number = 5000,
-): Promise<T | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+export async function fetchWithTimeout<T>(url: string, timeoutMs: number = 5000): Promise<T | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    const res = await fetch(url, {signal: controller.signal, cache: 'no-store'})
+    if (!res.ok) {
+      return null
+    }
+    return (await res.json()) as T
   } catch {
-    return null;
+    return null
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timer)
   }
 }
 
@@ -58,7 +57,7 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     articles,
     location,
     focus,
-    theatreReviews,
+    theatreReviews
   ] = await Promise.all([
     fetchWithTimeout<HealthExport>(BASE + ENDPOINTS.health),
     fetchWithTimeout<SleepExport>(BASE + ENDPOINTS.sleep),
@@ -71,8 +70,8 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
       ? fetchWithTimeout<LocationExport>(BASE + ENDPOINTS.location)
       : Promise.resolve(null),
     fetchWithTimeout<FocusExport>(BASE + ENDPOINTS.focus),
-    fetchWithTimeout<TheatreReviewsExport>(BASE + ENDPOINTS.theatreReviews),
-  ]);
+    fetchWithTimeout<TheatreReviewsExport>(BASE + ENDPOINTS.theatreReviews)
+  ])
 
   return {
     health,
@@ -94,7 +93,7 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
       articles: articles?.generatedAt ?? null,
       location: location?.generatedAt ?? null,
       focus: focus?.generatedAt ?? null,
-      theatreReviews: theatreReviews?.generatedAt ?? null,
-    },
-  };
+      theatreReviews: theatreReviews?.generatedAt ?? null
+    }
+  }
 }

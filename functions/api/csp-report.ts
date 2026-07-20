@@ -6,46 +6,40 @@
 
 // Minimal Cloudflare Pages Function context -- only the fields this handler reads.
 interface PagesContext {
-  request: Request;
+  request: Request
 }
 
 const ACCEPTED_CONTENT_TYPES = [
   'application/csp-report',
-  'application/reports+json',
-];
+  'application/reports+json'
+]
 
 export async function onRequestPost(context: PagesContext): Promise<Response> {
-  const { request } = context;
+  const {request} = context
 
-  const contentType = request.headers.get('Content-Type') ?? '';
-  const accepted = ACCEPTED_CONTENT_TYPES.some((t) => contentType.includes(t));
+  const contentType = request.headers.get('Content-Type') ?? ''
+  const accepted = ACCEPTED_CONTENT_TYPES.some((t) => contentType.includes(t))
   if (!accepted) {
-    return new Response(null, { status: 415 });
+    return new Response(null, {status: 415})
   }
 
-  const userAgent = request.headers.get('User-Agent') ?? '';
+  const userAgent = request.headers.get('User-Agent') ?? ''
 
   try {
-    const body = await request.text();
+    const body = await request.text()
     // Parse permissively -- both report types are JSON; swallow errors so a
     // malformed body never causes a retry storm.
-    let report: unknown;
+    let report: unknown
     try {
-      report = JSON.parse(body);
+      report = JSON.parse(body)
     } catch {
-      report = { raw: body };
+      report = {raw: body}
     }
 
-    console.log(
-      JSON.stringify({
-        event: 'csp-report',
-        userAgent,
-        report,
-      }),
-    );
+    console.log(JSON.stringify({event: 'csp-report', userAgent, report}))
   } catch {
     // Body read failure -- still return 204 to suppress retries.
   }
 
-  return new Response(null, { status: 204 });
+  return new Response(null, {status: 204})
 }

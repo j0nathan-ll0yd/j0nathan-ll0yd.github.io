@@ -32,16 +32,18 @@ const IEND_SIGNATURE = Buffer.from([
   0xae,
   0x42,
   0x60,
-  0x82, // pre-computed CRC for empty IEND
-]);
+  0x82 // pre-computed CRC for empty IEND
+])
 
 export function truncateAtIEND(buf: Buffer): Buffer {
   if (!Buffer.isBuffer(buf) || buf.length < IEND_SIGNATURE.length + 8) {
     // 8 = PNG signature size; not enough room for a valid PNG
-    return buf;
+    return buf
   }
-  const idx = buf.indexOf(IEND_SIGNATURE);
-  if (idx === -1) return buf;
-  const end = idx + IEND_SIGNATURE.length;
-  return end === buf.length ? buf : buf.subarray(0, end);
+  const idx = buf.indexOf(IEND_SIGNATURE)
+  if (idx === -1) {
+    return buf
+  }
+  const end = idx + IEND_SIGNATURE.length
+  return end === buf.length ? buf : buf.subarray(0, end)
 }

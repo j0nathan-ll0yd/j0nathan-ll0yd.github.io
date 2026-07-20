@@ -10,65 +10,54 @@
 // else 204) and Cache-Control: no-store — never a 4xx/5xx, which would surface as
 // a console error and trip the post-deploy smoke check.
 
-const RUM_UPSTREAM = 'https://cloudflareinsights.com/cdn-cgi/rum';
+const RUM_UPSTREAM = 'https://cloudflareinsights.com/cdn-cgi/rum'
 
 // Minimal Cloudflare Pages Function context — only the field used here.
 interface PagesContext {
-  request: Request;
+  request: Request
 }
 
 // Minimal CF fetch extensions. `duplex` is required by undici (Node) when
 // streaming a request body; it is a no-op on the Cloudflare Workers runtime.
 interface CfRequestInit extends RequestInit {
-  duplex?: 'half';
+  duplex?: 'half'
 }
 
 function noContent(): Response {
-  return new Response(null, {
-    status: 204,
-    headers: { 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store' },
-  });
+  return new Response(null, {status: 204, headers: {'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store'}})
 }
 
 export async function onRequest(context: PagesContext): Promise<Response> {
-  const { request } = context;
+  const {request} = context
 
   // The beacon only POSTs; anything else is a no-op.
   if (request.method !== 'POST') {
-    return noContent();
+    return noContent()
   }
 
-  const outboundHeaders: Record<string, string> = {};
-  const contentType = request.headers.get('Content-Type');
+  const outboundHeaders: Record<string, string> = {}
+  const contentType = request.headers.get('Content-Type')
   if (contentType) {
-    outboundHeaders['Content-Type'] = contentType;
+    outboundHeaders['Content-Type'] = contentType
   }
-  const clientIp = request.headers.get('CF-Connecting-IP');
+  const clientIp = request.headers.get('CF-Connecting-IP')
   if (clientIp) {
-    outboundHeaders['X-Forwarded-For'] = clientIp;
+    outboundHeaders['X-Forwarded-For'] = clientIp
   }
 
-  let upstream: Response;
+  let upstream: Response
   try {
-    const init: CfRequestInit = {
-      method: 'POST',
-      headers: outboundHeaders,
-      body: request.body,
-      duplex: 'half',
-    };
-    upstream = await fetch(RUM_UPSTREAM, init);
+    const init: CfRequestInit = {method: 'POST', headers: outboundHeaders, body: request.body, duplex: 'half'}
+    upstream = await fetch(RUM_UPSTREAM, init)
   } catch {
     // Network failure — swallow so the page stays clean (data best-effort).
-    return noContent();
+    return noContent()
   }
 
   // Forward a 2xx through; collapse any non-2xx to 204 so the browser never
   // logs an error (RUM data is best-effort telemetry).
   if (upstream.ok) {
-    return new Response(null, {
-      status: 204,
-      headers: { 'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store' },
-    });
+    return new Response(null, {status: 204, headers: {'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store'}})
   }
-  return noContent();
+  return noContent()
 }

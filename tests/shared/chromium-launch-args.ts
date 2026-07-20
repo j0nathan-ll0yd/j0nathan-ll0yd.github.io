@@ -46,5 +46,5 @@ export const CHROMIUM_DETERMINISM_ARGS: ReadonlyArray<string> = [
   // See Chromium 40827297, Chromium 460486.
   '--use-gl=swiftshader',
   '--disable-gpu',
-  '--in-process-gpu',
-];
+  '--in-process-gpu'
+]
