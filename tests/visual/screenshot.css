@@ -55,8 +55,15 @@
   visibility: hidden !important;
 }
 
-/* Hide poll status indicator (non-deterministic state) */
-.poll-dot {
+/* Hide the poll/connection status indicator (non-deterministic state).
+   Covers both the dot AND the label: the label text swaps between "LIVE"
+   (WebSocket connected) and "POLLING" (fallback) depending on runtime
+   connection state at capture time, which leaked into the isolated
+   #topBar baseline (438px diff at mobile-390). Hiding .poll-status (the
+   #pollStatus wrapper) neutralizes dot + label together while
+   visibility:hidden preserves layout so the title position is unchanged. */
+.poll-status,
+.lg-poll-status {
   visibility: hidden !important;
 }
 
