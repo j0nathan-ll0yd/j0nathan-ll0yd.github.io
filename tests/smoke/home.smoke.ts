@@ -281,6 +281,18 @@ test.describe('production home dashboard', () => {
     const expected = process.env.EXPECTED_BUILD;
     if (!expected) return;
 
+    // Rapid successive deploys: if a NEWER deploy landed between this deploy and
+    // this smoke run (e.g. two PRs merged minutes apart), the origin correctly
+    // serves the newer build, not `expected`. That is a forward supersession, not
+    // a failed deploy, so it must pass. We distinguish it from a genuinely
+    // stale/rolled-back OLDER build by `builtAt`: EXPECTED_BUILT_AFTER is this
+    // deploy's workflow start time (workflow_run.run_started_at), and every build
+    // this deploy (or any later one) produces has builtAt >= that instant, while a
+    // stale older build's builtAt predates it. Unset (older workflow / manual
+    // dispatch) => strict exact-match, preserving the original behavior.
+    const builtAfterMs = Date.parse(process.env.EXPECTED_BUILT_AFTER ?? '');
+    const acceptsNewer = !Number.isNaN(builtAfterMs);
+
     // version.json is edge-cached (`Cache-Control: max-age=600`) and the deploy
     // does NOT purge the Cloudflare cache, so the EDGE can keep serving the
     // PREVIOUS build for up to ~10 min post-deploy. Issue #106 (smoke run
@@ -300,15 +312,24 @@ test.describe('production home dashboard', () => {
           const fresh = await page.request.get(`/version.json?cb=${Date.now()}`, {
             headers: { 'Cache-Control': 'no-cache' },
           });
-          if (fresh.status() !== 200) return null;
-          return (await fresh.json()).build as string;
+          if (fresh.status() !== 200) return false;
+          const live = await fresh.json();
+          if (live.build === expected) return true;
+          // Accept a NEWER superseding deploy (builtAt at/after this deploy started),
+          // never an older/stale one. See the comment above.
+          return (
+            acceptsNewer
+            && typeof live.builtAt === 'string'
+            && Date.parse(live.builtAt) >= builtAfterMs
+          );
         },
         {
-          message: 'live origin never served the just-deployed build within the propagation window',
+          message:
+            'live origin never served the just-deployed build (or a newer superseding build) within the propagation window',
           timeout: 60_000,
           intervals: [2_000, 3_000, 5_000],
         },
       )
-      .toBe(expected);
+      .toBe(true);
   });
 });

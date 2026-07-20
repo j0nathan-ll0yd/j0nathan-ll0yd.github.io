@@ -68,8 +68,13 @@ jobs:
         id: smoke
         # The just-deployed commit; the smoke check asserts the live version.json
         # serves it. Empty on workflow_dispatch -> that assertion self-skips.
+        # EXPECTED_BUILT_AFTER is this deploy's start time: a NEWER deploy that
+        # superseded this one between deploy and smoke (rapid successive merges)
+        # serves a build with builtAt >= this instant and is accepted; a stale
+        # older build (builtAt before it) still fails. See home.smoke.ts.
         env:
           EXPECTED_BUILD: ${{ github.event.workflow_run.head_sha }}
+          EXPECTED_BUILT_AFTER: ${{ github.event.workflow_run.run_started_at }}
         run: npm run test:smoke
         continue-on-error: true
 
