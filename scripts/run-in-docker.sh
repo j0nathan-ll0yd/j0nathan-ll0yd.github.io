@@ -48,8 +48,14 @@ VERSION=$(./scripts/playwright-version.sh)
 # does a fresh clean install exactly as before -- only the host is now spared.
 # NOTE: the shadow volume mount MUST come AFTER the `/work` bind mount so it
 # layers on top of it.
+# Forward GITHUB_TOKEN so the container's `npm ci` can authenticate to GitHub
+# Packages for @j0nathan-ll0yd/config (private registry, added in #142). The
+# repo .npmrc sets //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}; without the
+# env var it expands to empty and the install 401s. Export it before running
+# (e.g. `GITHUB_TOKEN=$(gh auth token) npm run test:visual`). Unset -> no-op.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
+  -e GITHUB_TOKEN \
   -v "$(pwd):/work" \
   -v /work/node_modules \
   -w /work \
