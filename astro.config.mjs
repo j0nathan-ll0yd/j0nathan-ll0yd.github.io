@@ -32,7 +32,28 @@ export default defineConfig({
     server: {proxy: {'/api/live': {target: CLOUDFRONT_BASE, changeOrigin: true, rewrite: (path) => path.replace(/^\/api\/live/, '')}}}
   },
   integrations: [
-    sitemap(),
+    sitemap({
+      // Enrich the sitemap with per-page SEO signals. The built surface is small
+      // (home + privacy); 404 is excluded by Astro automatically, the filter is a
+      // guard so a future non-canonical route can never leak in. lastmod is the
+      // build time: content is data-driven and can change on every deploy, so a
+      // per-build timestamp is honest and avoids a bespoke per-page mtime pipeline.
+      filter: (page) => !page.includes('/404'),
+      changefreq: 'weekly',
+      priority: 0.7,
+      lastmod: new Date(),
+      serialize(item) {
+        const path = new URL(item.url).pathname.replace(/\/$/, '') || '/'
+        if (path === '/') {
+          item.changefreq = 'daily'
+          item.priority = 1.0
+        } else if (path === '/privacy') {
+          item.changefreq = 'monthly'
+          item.priority = 0.3
+        }
+        return item
+      }
+    }),
     AstroPWA({
       registerType: 'autoUpdate',
       // The graceful update controller is hand-rolled in public/js/sw-register.js

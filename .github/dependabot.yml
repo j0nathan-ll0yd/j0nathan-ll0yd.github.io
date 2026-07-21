@@ -25,8 +25,10 @@ updates:
       - dependency-name: astro
         update-types:
           - version-update:semver-major
-      # @vite-pwa/astro has known peer-dep mismatch with Astro 6 -- handled
-      # by --legacy-peer-deps. Major bumps risk breaking that workaround.
+      # @vite-pwa/astro caps its astro peer at ^5 (mismatch with Astro 7) --
+      # handled by --legacy-peer-deps plus a package.json `overrides` pin of
+      # vite-plugin-pwa ^1.3.0 for vite-8 support. Major bumps risk breaking that
+      # workaround and the SW precache injection (scripts/check-sw-precache.mjs).
       - dependency-name: "@vite-pwa/*"
         update-types:
           - version-update:semver-major

@@ -34,7 +34,11 @@ jobs:
         run: bash scripts/ci-setup.sh
 
       - name: Build
-        run: npm run build
+        # --json emits structured (NDJSON) build logs for CI log triage. Scoped to
+        # deploy workflows only; local `npm run build` stays human-readable. The `--`
+        # forwards the flag to `astro build` while preserving the prebuild/postbuild
+        # lifecycle hooks. Nothing downstream parses the human log format.
+        run: npm run build -- --json
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4

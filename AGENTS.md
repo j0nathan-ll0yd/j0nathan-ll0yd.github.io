@@ -1,6 +1,6 @@
 # AGENTS.md -- Human Datastream Portfolio
 
-Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" dashboard. Astro 6 static site deployed to Cloudflare Pages. Read-only display surface for personal data (health, activity, GitHub, reading, location). All widgets are imported from `@lifegames/web/production` (the yalc-linked Design System package) -- this repo contains no widget source code.
+Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" dashboard. Astro 7 static site (Vite 8 / Rust compiler) deployed to Cloudflare Pages. Read-only display surface for personal data (health, activity, GitHub, reading, location). All widgets are imported from `@lifegames/web/production` (the yalc-linked Design System package) -- this repo contains no widget source code.
 
 ## Commands
 
@@ -23,7 +23,7 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 
 ```text
 .
-├── astro.config.mjs              # Astro 6, PWA, sitemap
+├── astro.config.mjs              # Astro 7, PWA, sitemap (enriched)
 ├── src/
 │   ├── pages/                    # index.astro (loads data, composes DS widgets), 404.astro
 │   ├── layouts/                  # Dashboard.astro (head, SEO meta, JSON-LD, DS CSS)
@@ -68,6 +68,7 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 - **Externalize inline scripts**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
 - **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
+- **SW precache gate (Astro 7)**: `scripts/check-sw-precache.mjs` runs in `postbuild` and asserts the Workbox precache manifest in `dist/sw.js` is populated (entry count >= 80% of built assets, app shell present). Catches the silent failure where the PWA build succeeds but ships an empty precache (offline broken) -- the specific risk from `@vite-pwa/astro` (peer-capped at astro ^5) driving Workbox under Vite 8 / Rolldown. The wrapper is kept working via `--legacy-peer-deps` (`.npmrc`) + a `vite-plugin-pwa ^1.3.0` `overrides` pin (`package.json`); see those files for the standing-workaround rationale.
 - **Simple Analytics is served first-party (Issue #83, 2026-06-24):** SA is no longer loaded from `scripts.simpleanalyticscdn.com`. Two Cloudflare Pages Functions handle it entirely within our origin:
   - `/sa` → `functions/sa.ts` (Cloudflare strips the `.ts` extension → route `/sa`, NOT `/sa.js`): fetches `https://simpleanalyticsexternal.com/proxy.js?hostname=jonathanlloyd.me&path=/simple` (a v11 SA script baked with our hostname + collection path), caches aggressively at the edge. On upstream failure returns a harmless JS no-op.
   - `/simple/*` → `functions/simple/[[path]].ts`: catch-all reverse proxy forwarding to `https://queue.simpleanalyticscdn.com/<rest>` with the `/simple` prefix stripped. Preserves method/body/content-type; sets `X-Forwarded-For`+`X-Real-IP` from `CF-Connecting-IP` for geo accuracy. On upstream failure returns a silent 204 (or 1×1 transparent GIF for `.gif` paths) — never a 5xx.
