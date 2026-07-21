@@ -1,6 +1,6 @@
 // Shared HTTP helpers for scripts/audit/*.mjs. Every audit check fetches the
 // same live origins (jonathanlloyd.me + the staging CloudFront data plane,
-// which IS the live-serving data plane per monorepo-LifegamesPortal/surfaces.yaml)
+// which IS the live-serving data plane per atlas/surfaces.yaml)
 // and needs the same resilience: a transient 5xx in the seconds after a deploy
 // is not an outage (see web's tests/smoke/home.smoke.ts getStable(), issue #106)
 // but a steady-state 5xx still fails once the retry budget is spent.
