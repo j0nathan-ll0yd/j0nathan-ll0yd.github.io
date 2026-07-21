@@ -97,14 +97,12 @@ async function main() {
       process.exit(report('validate-robots', [
         {severity: 'fail', id: 'robots-fetch', message: `HTTP ${res.status} fetching ${ROBOTS_URL}`}
       ]))
-      return
     }
     body = await res.text()
   } catch (err) {
     process.exit(report('validate-robots', [
       {severity: 'fail', id: 'robots-fetch', message: `fetch failed: ${err.message}`}
     ]))
-    return
   }
 
   const golden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf-8'))

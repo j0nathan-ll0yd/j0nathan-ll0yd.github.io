@@ -59,14 +59,12 @@ async function main() {
       process.exit(report('check-security-txt', [
         {severity: 'fail', id: 'security-txt-fetch', message: `HTTP ${res.status} fetching ${SECURITY_TXT_URL}`}
       ]))
-      return
     }
     body = await res.text()
   } catch (err) {
     process.exit(report('check-security-txt', [
       {severity: 'fail', id: 'security-txt-fetch', message: `fetch failed: ${err.message}`}
     ]))
-    return
   }
 
   process.exit(report('check-security-txt', validateSecurityTxt(body)))
