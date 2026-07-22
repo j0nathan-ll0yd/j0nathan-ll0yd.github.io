@@ -1,4 +1,4 @@
 {
   "extends": ["astro/tsconfigs/strict", "@j0nathan-ll0yd/config/tsconfig-base.json"],
-  "exclude": ["tests/**", "public/vendor/**"]
+  "exclude": ["tests/**", "public/vendor/**", "dist/**"]
 }
