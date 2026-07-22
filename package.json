@@ -35,7 +35,8 @@
     "@lifegames/schemas": "file:.yalc/@lifegames/schemas",
     "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
     "@lifegames/web": "file:.yalc/@lifegames/web",
-    "astro": "^7.1.3"
+    "astro": "^7.1.3",
+    "fast-xml-validator": "^1.4.0"
   },
   "overrides": {
     "vite-plugin-pwa": "^1.3.0"
