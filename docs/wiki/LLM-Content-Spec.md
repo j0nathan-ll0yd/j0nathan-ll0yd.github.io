@@ -156,7 +156,7 @@ This is required because Cloudflare Pages caches HTML at the edge and bypasses P
 | OAuth Protected Resource | SKIP | No auth surface (static portfolio) |
 | MCP Server Card | PASS | Static JSON file |
 | Agent Skills | PASS | Static JSON + SKILL.md |
-| WebMCP | PASS | Inline ES5 script with feature detection |
+| WebMCP | PASS | External ES2017 async script with feature detection |
 
 ## Consumers
 
