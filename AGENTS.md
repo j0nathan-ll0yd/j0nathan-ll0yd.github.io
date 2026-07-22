@@ -64,8 +64,8 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 
 - **No hardcoded values**: all colors, spacing, and typography come from `@lifegames/tokens` `var()` custom properties.
 - **No new widgets here**: never create `src/components/*.astro`; widgets belong in the Design System.
-- **Inline JS is ES5 only**: in `<script is:inline>` blocks and any `public/js/*.js`, use `var`, `function` declarations, and IIFEs -- no `let`/`const`/arrow functions/template literals. Bundled module scripts may use modern syntax.
-- **Externalize inline scripts**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`.
+- **Raw scripts are ES2017 (SYNTAX rule)**: `<script is:inline>` bodies and any `public/js/*.js` are served raw (never transpiled by Vite), so their syntax floor is **ES2017** -- `const`/`let`, arrow functions, template literals, and `async`/`await` are all allowed. The site's real browser floor (service workers, PWA, canvas islands) is well above ES5, and async/await has had universal browser support since 2017. Avoid post-ES2017 syntax that lacks universal support. Bundled module scripts (processed by Vite) may use any modern syntax. This rule governs SYNTAX only and is independent of the CSP externalization rule below (CSP dictates _where_ scripts load, not what syntax they use).
+- **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
 - **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
 - **SW precache gate (Astro 7)**: `scripts/check-sw-precache.mjs` runs in `postbuild` and asserts the Workbox precache manifest in `dist/sw.js` is populated (entry count >= 80% of built assets, app shell present). Catches the silent failure where the PWA build succeeds but ships an empty precache (offline broken) -- the specific risk from `@vite-pwa/astro` (peer-capped at astro ^5) driving Workbox under Vite 8 / Rolldown. The wrapper is kept working via `--legacy-peer-deps` (`.npmrc`) + a `vite-plugin-pwa ^1.3.0` `overrides` pin (`package.json`); see those files for the standing-workaround rationale.
@@ -88,7 +88,7 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
 
 ## Do Not
 
-- Use ES6+ syntax in inline scripts.
+- Rely on post-ES2017 syntax in raw-served scripts (`public/js/*.js`, `<script is:inline>` bodies). ES2017 -- `const`/`let`, arrow functions, template literals, `async`/`await` -- is allowed; only avoid newer syntax that lacks universal browser support.
 - Create new `src/components/*.astro` files or hand-edit CSS (everything comes from the DS).
 - Import from relative `../lib/` or `../scripts/` paths instead of the `@lifegames/*` namespace.
 - Hardcode hex colors or pixel values.
