@@ -60,13 +60,11 @@ async function main() {
     process.exit(report('validate-sitemap', [
       {severity: 'fail', id: 'sitemap-index-fetch', message: `fetch failed: ${err.message}`}
     ]))
-    return
   }
   if (!indexRes.ok) {
     process.exit(report('validate-sitemap', [
       {severity: 'fail', id: 'sitemap-index-fetch', message: `HTTP ${indexRes.status} fetching ${SITEMAP_INDEX_URL}`}
     ]))
-    return
   }
   const indexXml = await indexRes.text()
   const indexPath = path.join(tmpDir, 'sitemap-index.xml')

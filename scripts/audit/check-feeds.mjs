@@ -10,7 +10,8 @@
 // structural parsing already gives us -- the same judgment call the plan
 // makes for CrUX/PSI (D10).
 
-import {XMLParser, XMLValidator} from 'fast-xml-parser'
+import {XMLParser} from 'fast-xml-parser'
+import {SyntaxValidator} from 'fast-xml-validator'
 import {SITE_URL} from '@lifegames/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 
@@ -24,16 +25,24 @@ export function validateFeedXml(xml, now = new Date()) {
 
   // XMLParser.parse() is deliberately lenient (verified: it does not throw on
   // `<rss><channel><title>unclosed`, mismatched tags, or even `<<<garbage>>>`
-  // -- fast-xml-parser recovers rather than erroring). XMLValidator.validate()
-  // is the library's own stricter well-formedness check (bundled, no new
-  // dependency) and is what actually catches malformed XML.
-  const validation = XMLValidator.validate(xml)
-  if (validation !== true) {
-    return [{
-      severity: 'fail',
-      id: 'feed-xml-parse',
-      message: `not well-formed XML (${validation.err.code} at line ${validation.err.line}): ${validation.err.msg}`
-    }]
+  // -- fast-xml-parser recovers rather than erroring). fast-xml-validator's
+  // SyntaxValidator is the stricter well-formedness check that actually catches
+  // malformed XML.
+  //
+  // Migration: fast-xml-parser v5 deprecated its bundled XMLValidator (and the
+  // XMLParser.parse validationOptions overload), splitting validation into the
+  // SEPARATE `fast-xml-validator` package from the same maintainer
+  // (NaturalIntelligence). SyntaxValidator.validate() is the non-deprecated
+  // successor. Behavioral note: XMLValidator.validate() RETURNED
+  // `true | ValidationError`, whereas SyntaxValidator.validate() returns `true`
+  // on success and THROWS a ValidationError (`.code` / `.line` / `.col` /
+  // `.message`) on malformed XML -- so we wrap it in try/catch to preserve this
+  // function's return-a-finding, never-throw contract. Same inputs -> same
+  // pass/fail semantics on the feeds.
+  try {
+    SyntaxValidator.validate(xml)
+  } catch (err) {
+    return [{severity: 'fail', id: 'feed-xml-parse', message: `not well-formed XML (${err.code} at line ${err.line}): ${err.message}`}]
   }
 
   const parser = new XMLParser({ignoreAttributes: false, attributeNamePrefix: '@_'})

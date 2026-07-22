@@ -50,7 +50,7 @@ For production widgets, complete ALL of the following. Check off each item as yo
 - [ ] Import component in `src/pages/index.astro`
 - [ ] Load build-time data in frontmatter via `fs.readFileSync` (if applicable)
 - [ ] Render component with props in the appropriate dashboard column
-- [ ] Inline script uses ES5 only: `var`, `function`, IIFEs — no `let`/`const`/arrows
+- [ ] Inline script is externalized to `public/js/*.js` (CSP `script-src 'self'`) and may use ES2017 syntax: `const`/`let`, arrow functions, template literals, `async`/`await`
 
 ### Showcase
 
@@ -113,7 +113,7 @@ For sandbox widgets, complete this lighter checklist:
 
 ## Important Conventions
 
-- ES5 only in `<script is:inline>` blocks — this is a hard rule, violations break the build
+- Externalize scripts to `public/js/*.js` for CSP (`script-src 'self'`) — this is the hard rule the `audit:inline-scripts` gate enforces; raw-served script syntax may be ES2017 (`const`/`let`, arrow functions, template literals, `async`/`await`), which is NOT gated
 - Glass-morphism: `background: var(--glass-bg); border: 1px solid var(--glass-border); backdrop-filter: blur(var(--blur-md));`
 - Widget header right section: `.live-dot` + `.widget-timestamp[data-live="{endpoint}"]`
 - Image widgets: use `imgFallbackAttrs()` from `src/lib/image-utils.ts` for onerror fallback

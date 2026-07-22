@@ -99,16 +99,14 @@ ${dataSourceLines}
           name: 'get_current_reading',
           description: ${sq(copyLlm.mcp.toolGetCurrentReading)},
           inputSchema: { type: 'object', properties: {}, required: [] },
-          execute: function() {
-            return fetch(${sq(booksUrl)})
-              .then(function(res) { return res.json(); })
-              .then(function(data) {
-                var books = data.books || [];
-                var reading = books.filter(function(b) { return b.status === 'reading'; });
-                var upNext = books.filter(function(b) { return b.status === 'up-next'; });
-                var finished = books.filter(function(b) { return b.status === 'finished'; }).slice(0, 5);
-                return { content: [{ type: 'text', text: JSON.stringify({ reading: reading, upNext: upNext, recentlyFinished: finished }) }] };
-              });
+          execute: async function() {
+            const res = await fetch(${sq(booksUrl)});
+            const data = await res.json();
+            const books = data.books || [];
+            const reading = books.filter((b) => b.status === 'reading');
+            const upNext = books.filter((b) => b.status === 'up-next');
+            const finished = books.filter((b) => b.status === 'finished').slice(0, 5);
+            return { content: [{ type: 'text', text: JSON.stringify({ reading, upNext, recentlyFinished: finished }) }] };
           }
         },
         {
