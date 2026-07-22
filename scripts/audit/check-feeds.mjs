@@ -27,6 +27,19 @@ export function validateFeedXml(xml, now = new Date()) {
   // -- fast-xml-parser recovers rather than erroring). XMLValidator.validate()
   // is the library's own stricter well-formedness check (bundled, no new
   // dependency) and is what actually catches malformed XML.
+  //
+  // NB (deprecation, deliberately retained): fast-xml-parser v5 flags
+  // XMLValidator @deprecated because it split validation into the SEPARATE
+  // `fast-xml-validator` package -- every in-package validation path
+  // (XMLValidator.validate + the XMLParser.parse validationOptions overload) is
+  // deprecated, and no non-deprecated same-package alternative exists. Adopting
+  // fast-xml-validator would add a new runtime dependency, which this file's
+  // design explicitly avoids; the deprecated API is fully functional, so the
+  // ts6385 hint is accepted rather than resolved by taking on a dependency.
+  // This is unrelated to GHSA-8r6m-32jq-jx6q (DOCTYPE entity-expansion DoS):
+  // that is patched in the pinned fast-xml-parser 5.10.1 -- `npm audit` is clean
+  // here, so this repo is not vulnerable (the sibling repos flagged by the
+  // advisory are on an older 5.9.3-5.10.0 and need the 5.10.1 bump, not us).
   const validation = XMLValidator.validate(xml)
   if (validation !== true) {
     return [{
