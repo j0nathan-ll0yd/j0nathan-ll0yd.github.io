@@ -20,8 +20,34 @@
 
 import {execFileSync} from 'node:child_process'
 
+// The labels every audit issue is tagged with. Kept in sync with the repo via
+// ensureLabel() below so a missing label can never red the audit job (the
+// original failure mode: `gh issue create --label audit` exited 1 with
+// "'audit' not found", and the filing step -- unlike the check steps -- had no
+// continue-on-error, so the whole job went red). Defense in depth over the
+// one-time `gh label create` bootstrap; enforced at the highest tier (estate
+// rule B10) rather than by hand-created labels alone.
+const AUDIT_LABELS = [
+  {name: 'audit', color: 'ededed', description: 'lp-audit finding'},
+  {name: 'audit:report-only', color: 'ededed', description: 'report-only (non-blocking) audit finding'}
+]
+
 function gh(args) {
   return execFileSync('gh', args, {encoding: 'utf-8'})
+}
+
+/**
+ * Idempotently create/update a label. `--force` makes `gh label create` a
+ * no-op-or-update when the label already exists, so this is safe to run every
+ * time. Failures are logged and swallowed: label provisioning is best-effort
+ * infrastructure and must never fail the audit job it supports.
+ */
+function ensureLabel({name, color, description}, repo) {
+  try {
+    gh(['label', 'create', name, '--repo', repo, '--color', color, '--description', description, '--force'])
+  } catch (err) {
+    console.warn(`Warning: could not ensure label "${name}": ${err.message}`)
+  }
 }
 
 function fileOrUpdateIssue({id, title}, repo, runUrl) {
@@ -84,11 +110,28 @@ function main() {
     return
   }
   if (!repo) {
-    console.error('GH_REPO env var not set -- cannot file issues.')
-    process.exit(1)
+    // Report-only infrastructure must never red the audit job it reports on
+    // (estate rule: the filer supports the audit, it does not gate it). Log
+    // loudly and exit clean rather than exit(1).
+    console.error('GH_REPO env var not set -- cannot file issues; skipping.')
+    return
   }
+
+  // Provision labels before any create/list so a missing label can't red the
+  // job. Idempotent and best-effort (see ensureLabel).
+  for (const label of AUDIT_LABELS) {
+    ensureLabel(label, repo)
+  }
+
   for (const check of failed) {
-    fileOrUpdateIssue(check, repo, runUrl)
+    // A `gh` hiccup while filing one issue must not abort the loop or fail the
+    // job -- log it and move on. dedupe-by-title behavior is preserved inside
+    // fileOrUpdateIssue; this only guards its I/O.
+    try {
+      fileOrUpdateIssue(check, repo, runUrl)
+    } catch (err) {
+      console.error(`Warning: could not file/update issue for check "${check.id}": ${err.message}`)
+    }
   }
 }
 
