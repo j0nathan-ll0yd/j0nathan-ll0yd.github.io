@@ -10,10 +10,10 @@
     "url": "https://www.jsonfeed.org/version/1.1/",
     "version": "JSON Feed 1.1",
     "conformance_testable": false,
-    "retrieved": "2026-07-29",
-    "content_sha256": "ea1c634a47d374932c1aac2e41b079bdb01806892fa06f6b27905f88f0c6e9af",
-    "normative_quote": "items (required, array) is an array where each item represents an individual piece of content in the feed. JSON Feed 1.1 does not forbid an empty items array.",
-    "note": "conformance_testable is false: the spec allows an empty items array outright. This id is our own local operational judgment that a feed with no items at all is noteworthy, not a spec violation -- matching the severity: warn already on disk."
+    "retrieved": "2026-07-30",
+    "content_sha256": "29358ea2650cfda6f4ada99dd4bb15b58ed77bf8b3bc8d725fd13995e6bebe0e",
+    "normative_quote": "items is an array, and is required.",
+    "note": "conformance_testable is false: the spec allows an empty items array outright (JSON Feed 1.1 does not forbid it -- this is our own inference, not spec text). This id is our own local operational judgment that a feed with no items at all is noteworthy, not a spec violation -- matching the severity: warn already on disk. Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: the quote paraphrased the items field ('is an array where each item represents an individual piece of content in the feed') instead of using the spec's own sentence, and embedded our own non-spec commentary inside normative_quote."
   },
   "applicability": "A parsed feed.json document whose \"items\" array is present and empty.",
   "expectation": "\"items\".length > 0.",

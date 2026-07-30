@@ -13,8 +13,9 @@
     "retrieved": "2026-07-29",
     "content_sha256": "3c73eefa9651695b3b16a8020dce636940967f17c0b087f26b87d8d4d74be868",
     "normative_quote": "An H1 with the name of the project or site. This is the only required section.",
-    "note": "The spec describes exactly one H1; a second H1 is a local structural convention we enforce, not a spec-tested conformance failure -- conformance_testable is false. Recalled from training-data familiarity with the public page, not re-verified against a live fetch this session."
+    "note": "The spec describes exactly one H1; a second H1 is a local structural convention we enforce, not a spec-tested conformance failure -- conformance_testable is false. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30; the quote is exact and unchanged."
   },
+  "policy_note": "llmstxt.org never states a prohibition on a second H1 -- 'this is the only required section' means the H1 is the only mandatory element, not that no other H1-level heading may appear. The prohibition this rule enforces is entirely our own inference (required does not imply exclusive); the source text contains no such rule. rule_class stays convention / conformance_testable stays false, which is the intended, correctly-modeled outcome.",
   "applicability": "An llms.txt body that already has a valid H1.",
   "expectation": "No further line matches /^#\\s+\\S/.",
   "cases": [

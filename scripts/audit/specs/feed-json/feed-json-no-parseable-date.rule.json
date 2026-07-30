@@ -10,10 +10,10 @@
     "url": "https://www.jsonfeed.org/version/1.1/",
     "version": "JSON Feed 1.1",
     "conformance_testable": false,
-    "retrieved": "2026-07-29",
-    "content_sha256": "33c44c2e09902316cc146d4933e6c943153b4b6d1d4b510ff91fb69ba629486e",
-    "normative_quote": "date_published (optional, string) specifies the date in RFC 3339 format. JSON Feed 1.1 does not require date_published to be present or parseable on any item.",
-    "note": "conformance_testable is false: the spec treats date_published as optional and imposes no parseability requirement. This id is a local data-quality convention -- without at least one parseable date, this validator's own freshness check (feed-json-stale) cannot run at all, which is worth a warn."
+    "retrieved": "2026-07-30",
+    "content_sha256": "f9ae195530026807cafe5cfd1d04d10d98640aa47130b230b4e98607bca126c2",
+    "normative_quote": "date_published (optional, string) specifies the date in RFC 3339 format.",
+    "note": "conformance_testable is false: the spec treats date_published as optional and imposes no parseability requirement (JSON Feed 1.1 does not require date_published to be present or parseable on any item -- this is our own inference, not spec text). This id is a local data-quality convention -- without at least one parseable date, this validator's own freshness check (feed-json-stale) cannot run at all, which is worth a warn. Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30; the first sentence was already an exact quote and is unchanged, the second sentence (non-spec commentary) has been moved out of normative_quote into this note."
   },
   "applicability": "A parsed feed.json document whose \"items\" array is non-empty.",
   "expectation": "At least one item's \"date_published\" parses as a valid date.",

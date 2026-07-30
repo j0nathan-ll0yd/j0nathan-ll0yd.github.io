@@ -10,10 +10,10 @@
     "url": "https://www.jsonfeed.org/version/1.1/",
     "version": "JSON Feed 1.1",
     "conformance_testable": true,
-    "retrieved": "2026-07-29",
-    "content_sha256": "8b6d6b7d7dc3790ce29e8f03a1bf442bac92833ddcb7a0eb6cce64565f692bcd",
-    "normative_quote": "version (required, string) ... title (required, string) ... items (required, array).",
-    "note": "Recalled from training-data familiarity with the published JSON Feed 1.1 spec, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified."
+    "retrieved": "2026-07-30",
+    "content_sha256": "fc4b97f9fa5416815d81fa7c9e12d052855f3e8e741118b9a7287a9f790664d4",
+    "normative_quote": "version (required, string) is the URL of the version of the format the feed uses... title (required, string) is the name of the feed... items is an array, and is required.",
+    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: 'items (required, array)' was a reformatting the spec does not use for the items field -- the spec states 'items is an array, and is required.' Each clause above is verbatim from its own sentence in the spec, joined with ellipses."
   },
   "applicability": "A parsed feed.json document.",
   "expectation": "The document has own-properties \"version\", \"title\", and \"items\".",

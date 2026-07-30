@@ -10,10 +10,10 @@
     "url": "https://llmstxt.org/",
     "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
     "conformance_testable": false,
-    "retrieved": "2026-07-29",
-    "content_sha256": "1fd24a9072f3d9fd83410c4980e2120095cae988d7b23f2dcff359a24a95773b",
-    "normative_quote": "Zero or more markdown sections (h2) delimited by an H2 headers, containing a list of URLs that provide additional context... each link SHOULD be in the form: - [name](url): notes.",
-    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Recalled from training-data familiarity with the public page, not re-verified against a live fetch this session."
+    "retrieved": "2026-07-30",
+    "content_sha256": "d685604b49c7de520de64f635f137f88b7dddfd537025a713ff82874e3fbd5c5",
+    "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available. Each \"file list\" is a markdown list, containing a required markdown hyperlink [name](url), then optionally a : and notes about the file.",
+    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote invented a SHOULD not present in the source, dropped the term \"file lists\", and had a grammar error ('delimited by an H2 headers')."
   },
   "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen.",
   "expectation": "The list item matches /^[-*]\\s+\\[name\\]\\(url\\)(: notes)?$/.",

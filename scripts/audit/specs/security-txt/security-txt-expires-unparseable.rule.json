@@ -10,10 +10,10 @@
     "url": "https://www.rfc-editor.org/rfc/rfc9116",
     "version": "RFC 9116 (April 2022)",
     "conformance_testable": true,
-    "retrieved": "2026-07-29",
-    "content_sha256": "2fe3c99b5c689499297a61a1fad9f6afc445f4480ce1c7741d9c14710f5e0809",
-    "normative_quote": "The value of this field MUST be formatted as a datetime string as specified in [RFC5322], which security.txt implementations are RECOMMENDED to represent using the ISO 8601 / RFC 3339 profile.",
-    "note": "Recalled from training-data familiarity with the published RFC, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified."
+    "retrieved": "2026-07-30",
+    "content_sha256": "490c17dc93ed6235a9b5dd62ddf23ebd4fe9f075759d90e810178a9d57d75e93",
+    "normative_quote": "The value of this field is formatted according to the Internet profiles of [ISO.8601-1] and [ISO.8601-2] as defined in [RFC3339].",
+    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects a prior defect: the quote cited RFC 5322 (a generic email/field-grammar RFC referenced elsewhere in §2.2) and inverted the RFC's own MUST/RECOMMENDED framing -- the real §2.5.5 text places no MUST on the date format at all; RFC3339/ISO 8601 formatting is simply stated as how the field's value is formatted, with no normative strength attached to that clause."
   },
   "applicability": "A security.txt body containing an Expires: field whose value does not parse as a date.",
   "expectation": "`new Date(expiresValue)` is not NaN.",
