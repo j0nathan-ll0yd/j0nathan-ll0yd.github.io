@@ -24,7 +24,29 @@ if (!existsSync(SCHEMAS_PKG)) {
   process.exit(1)
 }
 
-// Read the DS SHA from the yalc package's .lp-sync-manifest.json or yalc.lock
+// Resolve the upstream design-system-Lifegames sha for provenance. Priority:
+//   1. Git HEAD of the DS repo (sibling checkout, or DS_REPO_ROOT override).
+//   2. lpGitSha from the yalc package's .lp-sync-manifest.json.
+// If neither resolves we FAIL LOUDLY rather than silently recording a
+// plausible-looking placeholder. A provenance field whose failure mode is
+// "record nothing" is worse than one that errors: check-contract-lock.mjs
+// deliberately excludes generatedFrom.sha, so no gate can ever tell a genuine
+// sha from a swallowed "unknown". Set CONTRACT_LOCK_ALLOW_UNKNOWN_SHA=1 to opt
+// into a deliberate "unknown" (e.g. an environment with no DS provenance).
+
+// (1) DS repo HEAD. Defaults to the sibling checkout; DS_REPO_ROOT overrides it
+// for worktrees where ../design-system-Lifegames does not resolve. stderr is
+// suppressed so a missing path does not print git's fatal noise before the
+// clean diagnostic below.
+const dsRepoRoot = process.env.DS_REPO_ROOT ?? join(REPO_ROOT, '..', 'design-system-Lifegames')
+let dsRepoSha = null
+try {
+  dsRepoSha = execSync('git rev-parse HEAD', {cwd: dsRepoRoot, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore']}).trim()
+} catch {
+  // Fall through to the manifest, then the loud failure below.
+}
+
+// (2) Manifest fallback — the LP git sha the schemas were synced from.
 let dsSha = null
 const manifestPath = join(SCHEMAS_PKG, 'vendored', '.lp-sync-manifest.json')
 if (existsSync(manifestPath)) {
@@ -32,16 +54,23 @@ if (existsSync(manifestPath)) {
   dsSha = manifest.lpGitSha ?? null
 }
 
-// Also try to get DS repo HEAD directly if available as a sibling
-const dsRepoRoot = join(REPO_ROOT, '..', 'design-system-Lifegames')
-let dsRepoSha = null
-try {
-  dsRepoSha = execSync('git rev-parse HEAD', {cwd: dsRepoRoot, encoding: 'utf-8'}).trim()
-} catch {
-  // DS repo not available as sibling — use manifest SHA
+const resolvedSha = dsRepoSha ?? dsSha
+let upstreamSha
+if (resolvedSha) {
+  upstreamSha = resolvedSha
+} else if (process.env.CONTRACT_LOCK_ALLOW_UNKNOWN_SHA === '1') {
+  upstreamSha = 'unknown'
+  console.warn('[contract-lock] WARNING: recording generatedFrom.sha="unknown" (CONTRACT_LOCK_ALLOW_UNKNOWN_SHA=1).')
+} else {
+  console.error('[contract-lock] ERROR: could not resolve the upstream design-system-Lifegames sha.')
+  console.error(`  tried git HEAD at: ${dsRepoRoot}`)
+  console.error(`  tried manifest at: ${manifestPath}`)
+  console.error('  Fix one of:')
+  console.error('    - run from the main checkout where ../design-system-Lifegames exists, or')
+  console.error('    - set DS_REPO_ROOT=/path/to/design-system-Lifegames, or')
+  console.error('    - set CONTRACT_LOCK_ALLOW_UNKNOWN_SHA=1 to deliberately record "unknown".')
+  process.exit(1)
 }
-
-const upstreamSha = dsRepoSha ?? dsSha ?? 'unknown'
 
 // Collect all schema-relevant files from the yalc package
 // Include vendored schemas, authored schemas, generated schemas, and dist types
