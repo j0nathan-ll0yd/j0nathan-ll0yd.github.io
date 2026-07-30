@@ -38,3 +38,8 @@ yalc.lock
 # Local onboarding scratch docs
 docs/ONBOARDING.md
 docs/onboarding-review/
+
+# Stryker mutation testing (decisions/0011, B2 spec/eval pilot): sandbox
+# copies and generated reports, both reproducible from stryker.conf.json.
+.stryker-tmp/
+reports/mutation/

@@ -14,11 +14,26 @@ import {XMLParser} from 'fast-xml-parser'
 import {SyntaxValidator} from 'fast-xml-validator'
 import {SITE_URL} from '@lifegames/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
+import {emit, rules} from './specs/load.mjs'
 
+// Stryker disable all -- fetch-target URLs, read only by main() (network-path
+// plumbing with no test coverage), never by the pure validators.
 const FEED_XML_URL = `${SITE_URL}/feed.xml`
 const FEED_JSON_URL = `${SITE_URL}/feed.json`
+// Stryker restore all
+// Shared between validateFeedXml (out of the B2 pilot's scope) and
+// validateFeedJson (in scope) -- deliberately NOT threaded through
+// specs/feed-json/feed-json-stale.rule.json's params, which instead declares
+// params_pending and why (decisions/0011 §B3): deriving it here would delete
+// the constant validateFeedXml still reads, and threading it for JSON only
+// would leave the same 7 living in two places.
 const FRESHNESS_WINDOW_DAYS = 7 // matches the plan's "event-driven ... 7d soft window" cadence class
+const R = rules('feed-json')
 
+// Stryker disable all -- validateFeedXml is explicitly OUT of the B2 pilot's
+// scope (UD2 brought in validateFeedJson only, one function from this file, not
+// the file); the mutation gate targets only the three pure pilot functions
+// (decisions/0011, UD1).
 /** Pure validation function: (feed.xml body) -> findings[]. Testable without network. */
 export function validateFeedXml(xml, now = new Date()) {
   const findings = []
@@ -88,57 +103,54 @@ export function validateFeedXml(xml, now = new Date()) {
 
   return findings
 }
+// Stryker restore all
 
 /** Pure validation function: (feed.json body, parsed) -> findings[]. Testable without network. */
 export function validateFeedJson(json, now = new Date()) {
   const findings = []
   for (const field of ['version', 'title', 'items']) {
     if (!(field in json)) {
-      findings.push({severity: 'fail', id: 'feed-json-field', message: `missing required top-level field "${field}"`})
+      findings.push(emit(R, 'feed-json-field', `missing required top-level field "${field}"`))
     }
   }
   if (json.version && !/^https:\/\/jsonfeed\.org\/version\/1(\.\d+)?$/.test(json.version)) {
-    findings.push({severity: 'fail', id: 'feed-json-version', message: `"version" (${json.version}) is not a recognized JSON Feed version URI`})
+    findings.push(emit(R, 'feed-json-version', `"version" (${json.version}) is not a recognized JSON Feed version URI`))
   }
   if (!Array.isArray(json.items)) {
     return findings
   }
   if (json.items.length === 0) {
-    findings.push({severity: 'warn', id: 'feed-json-no-items', message: '"items" array is empty'})
+    findings.push(emit(R, 'feed-json-no-items', '"items" array is empty'))
     return findings
   }
   for (const [idx, item] of json.items.entries()) {
     if (!item.id) {
-      findings.push({severity: 'fail', id: 'feed-json-item-field', message: `items[${idx}] missing required "id"`})
+      findings.push(emit(R, 'feed-json-item-field', `items[${idx}] missing required "id"`))
     }
     if (!item.content_html && !item.content_text) {
-      findings.push({
-        severity: 'fail',
-        id: 'feed-json-item-field',
-        message: `items[${idx}] has neither "content_html" nor "content_text" (JSON Feed 1.1 requires at least one)`
-      })
+      findings.push(emit(R, 'feed-json-item-field', `items[${idx}] has neither "content_html" nor "content_text" (JSON Feed 1.1 requires at least one)`))
     }
   }
 
   const newestPublished =
     json.items.map((item) => item.date_published && new Date(item.date_published)).filter((d) => d && !Number.isNaN(d.getTime())).sort((a, b) => b - a)[0]
   if (!newestPublished) {
-    findings.push({severity: 'warn', id: 'feed-json-no-parseable-date', message: 'no item has a parseable "date_published"'})
+    findings.push(emit(R, 'feed-json-no-parseable-date', 'no item has a parseable "date_published"'))
   } else {
     const ageDays = (now - newestPublished) / 86_400_000
     if (ageDays > FRESHNESS_WINDOW_DAYS) {
-      findings.push({
-        severity: 'fail',
-        id: 'feed-json-stale',
-        message: `newest item is ${ageDays.toFixed(1)} days old (${newestPublished.toISOString()}), ` +
-          `exceeds the ${FRESHNESS_WINDOW_DAYS}-day soft window`
-      })
+      findings.push(
+        emit(R, 'feed-json-stale',
+          `newest item is ${ageDays.toFixed(1)} days old (${newestPublished.toISOString()}), ` + `exceeds the ${FRESHNESS_WINDOW_DAYS}-day soft window`)
+      )
     }
   }
 
   return findings
 }
 
+// Stryker disable all -- main() is network-path plumbing with no test coverage
+// (decisions/0011, UD1: the mutation gate scopes to the three pure pilot functions).
 async function main() {
   const findings = []
 
@@ -153,24 +165,30 @@ async function main() {
     findings.push({severity: 'fail', id: 'feed-xml-fetch', message: `fetch failed: ${err.message}`})
   }
 
+  // NB2 (decisions/0011): json is resolved/parsed INSIDE the try, but
+  // validateFeedJson() is called OUTSIDE it. The catch below pushes
+  // feed-json-fetch; if emit() ever threw for an unregistered id while the
+  // call sat inside this try, that throw would be mislabelled a fetch
+  // failure. check-security-txt.mjs and validate-llms-txt.mjs already call
+  // their validators outside their own fetch trys -- this matches them.
+  let json
   try {
     const res = await fetchStable(FEED_JSON_URL)
     if (!res.ok) {
       findings.push({severity: 'fail', id: 'feed-json-fetch', message: `HTTP ${res.status} fetching ${FEED_JSON_URL}`})
     } else {
-      let json
       try {
         json = await res.json()
       } catch (err) {
         findings.push({severity: 'fail', id: 'feed-json-parse', message: `not valid JSON: ${err.message}`})
         json = null
       }
-      if (json) {
-        findings.push(...validateFeedJson(json))
-      }
     }
   } catch (err) {
     findings.push({severity: 'fail', id: 'feed-json-fetch', message: `fetch failed: ${err.message}`})
+  }
+  if (json) {
+    findings.push(...validateFeedJson(json))
   }
 
   process.exit(report('check-feeds', findings))
@@ -179,3 +197,4 @@ async function main() {
 if (isMain(import.meta.url)) {
   main()
 }
+// Stryker restore all

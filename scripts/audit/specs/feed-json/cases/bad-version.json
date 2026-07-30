@@ -1,0 +1,7 @@
+{
+  "version": "https://example.com/notjsonfeed",
+  "title": "Example Feed",
+  "items": [
+    {"id": "1", "content_text": "hello", "date_published": "2026-07-16T00:00:00.000Z"}
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "id": "feed-json-field",
+  "title": "feed.json must contain version, title, and items",
+  "artifact": "feed.json",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "JSON Feed",
+    "clause": "1.1, Top-Level",
+    "url": "https://www.jsonfeed.org/version/1.1/",
+    "version": "JSON Feed 1.1",
+    "conformance_testable": true,
+    "retrieved": "2026-07-30",
+    "content_sha256": "fc4b97f9fa5416815d81fa7c9e12d052855f3e8e741118b9a7287a9f790664d4",
+    "normative_quote": "version (required, string) is the URL of the version of the format the feed uses... title (required, string) is the name of the feed... items is an array, and is required.",
+    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: 'items (required, array)' was a reformatting the spec does not use for the items field -- the spec states 'items is an array, and is required.' Each clause above is verbatim from its own sentence in the spec, joined with ellipses."
+  },
+  "applicability": "A parsed feed.json document.",
+  "expectation": "The document has own-properties \"version\", \"title\", and \"items\".",
+  "cases": [
+    {
+      "name": "an empty object is missing all three required top-level fields",
+      "outcome": "failed",
+      "input_file": "cases/missing-fields.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-field",
+          "severity": "fail"
+        },
+        {
+          "id": "feed-json-field",
+          "severity": "fail"
+        },
+        {
+          "id": "feed-json-field",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a conformant document",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

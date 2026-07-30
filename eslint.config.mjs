@@ -21,6 +21,8 @@ export default [
       'docs/**',
       'public/**',
       'tests/**',
+      '.stryker-tmp/**',
+      'reports/**',
       '**/*.d.ts'
     ]
   },

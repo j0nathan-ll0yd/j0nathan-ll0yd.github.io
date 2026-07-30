@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {validateFeedJson, validateFeedXml} from '../../scripts/audit/check-feeds.mjs'
+import {validateFeedXml} from '../../scripts/audit/check-feeds.mjs'
 
 const NOW = new Date('2026-07-16T00:00:00.000Z')
 
@@ -63,44 +63,11 @@ describe('validateFeedXml', () => {
   })
 })
 
-const validJsonFeed = {
-  version: 'https://jsonfeed.org/version/1.1',
-  title: 'Example Feed',
-  items: [{id: '1', content_text: 'hello', date_published: '2026-07-16T00:00:00.000Z'}]
-}
-
-describe('validateFeedJson', () => {
-  it('a conformant, fresh JSON Feed 1.1 produces zero findings', () => {
-    expect(validateFeedJson(validJsonFeed, NOW)).toEqual([])
-  })
-
-  it('missing required top-level fields fails', () => {
-    const findings = validateFeedJson({}, NOW)
-    expect(findings.map((f) => f.id)).toEqual(['feed-json-field', 'feed-json-field', 'feed-json-field'])
-  })
-
-  it('a non-JSON-Feed version URI fails', () => {
-    const findings = validateFeedJson({...validJsonFeed, version: 'https://example.com/notjsonfeed'}, NOW)
-    expect(findings.map((f) => f.id)).toContain('feed-json-version')
-  })
-
-  it('an empty items array is a warn', () => {
-    const findings = validateFeedJson({...validJsonFeed, items: []}, NOW)
-    expect(findings).toEqual([expect.objectContaining({severity: 'warn', id: 'feed-json-no-items'})])
-  })
-
-  it('an item missing id fails', () => {
-    const findings = validateFeedJson({...validJsonFeed, items: [{content_text: 'x'}]}, NOW)
-    expect(findings.map((f) => f.id)).toContain('feed-json-item-field')
-  })
-
-  it('an item with neither content_html nor content_text fails', () => {
-    const findings = validateFeedJson({...validJsonFeed, items: [{id: '1'}]}, NOW)
-    expect(findings.map((f) => f.id)).toContain('feed-json-item-field')
-  })
-
-  it('known-answer: a newest item older than the 7-day soft window fails freshness', () => {
-    const findings = validateFeedJson({...validJsonFeed, items: [{id: '1', content_text: 'x', date_published: '2026-01-01T00:00:00.000Z'}]}, NOW)
-    expect(findings).toEqual([expect.objectContaining({severity: 'fail', id: 'feed-json-stale'})])
-  })
-})
+// decisions/0011 Step 4.5: every validateFeedJson case formerly hand-written
+// here (conformant/fresh, missing-fields, bad-version, empty-items,
+// item-missing-id, item-missing-content, known-answer-stale) now lives as a
+// derived case in specs/feed-json/*.rule.json, exercised against equivalent
+// (or, for the freshness boundary, more precise) fixtures by
+// tests/audit/spec-cases.test.ts -- deleted here as replacement, not as
+// inconvenience. validateFeedXml is out of the B2 pilot's scope (UD2 brought
+// in validateFeedJson only) and its tests above are untouched.

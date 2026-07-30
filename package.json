@@ -48,6 +48,8 @@
     "@lhci/cli": "^0.15.1",
     "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vite-pwa/astro": "^1.2.0",
     "ajv": "^8.20.0",
     "cheerio": "^1.2.0",

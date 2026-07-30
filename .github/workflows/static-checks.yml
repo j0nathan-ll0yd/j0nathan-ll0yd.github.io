@@ -1,15 +1,26 @@
 name: Static Checks
 
-# Type-safety + lint gates (Wave 2: adopt @j0nathan-ll0yd/config).
+# Type-safety + lint gates (Wave 2: adopt @j0nathan-ll0yd/config), plus the B2
+# spec/eval pilot's derived-eval gates (decisions/0011, DR3):
 #   - typecheck: `astro check` against the estate tsconfig floor
 #     (astro/tsconfigs/strict + @j0nathan-ll0yd/config/tsconfig-base.json).
 #   - lint: `eslint .` with the estate flat-config standard (type-aware).
+#   - spec-cases: `npm run test:unit` -- the same suite that already ran on
+#     the self-hosted `visual-tests.yml:172` PR-only lane, now ALSO on this
+#     GitHub-hosted lane covering both `pull_request` and `push: main`
+#     (independent of the self-hosted fleet's liveness -- B15, decision 0009).
+#   - spec-severity-ratchet: `node scripts/audit/check-spec-severity.mjs` --
+#     the monotonic severity ratchet + deletion assertion + params_pending
+#     ratchet over scripts/audit/specs/**/*.rule.json.
+#   - spec-mutation-score: `npx stryker run` -- the sufficiency claim (§2 DR2)
+#     over the three pure pilot functions (validateSecurityTxt, validateLlmsTxt,
+#     validateFeedJson).
 #
-# Both need the yalc-linked @lifegames/* packages resolved (src imports them), so
-# they use the same design-system setup as deploy.yml (ci-setup.sh). The
-# @j0nathan-ll0yd scope is on GitHub Packages; `packages: read` + the built-in
-# Actions token (committed .npmrc expands ${GITHUB_TOKEN}) authenticate it during
-# ci-setup.sh's `npm ci`.
+# All five need the yalc-linked @lifegames/* packages resolved (src and
+# scripts/audit/**/*.mjs both import them), so they use the same design-system
+# setup as deploy.yml (ci-setup.sh). The @j0nathan-ll0yd scope is on GitHub
+# Packages; `packages: read` + the built-in Actions token (committed .npmrc
+# expands ${GITHUB_TOKEN}) authenticate it during ci-setup.sh's `npm ci`.
 on:
   pull_request:
   push:
@@ -69,3 +80,88 @@ jobs:
 
       - name: Lint (eslint)
         run: npm run lint
+
+  spec-cases:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      # Includes tests/audit/spec-cases.test.ts (decisions/0011): every case
+      # declared in scripts/audit/specs/**/*.rule.json is read out of the
+      # catalog and asserted against its validator here, on every PR and on
+      # push: main -- not only on the self-hosted visual-tests.yml PR lane.
+      - name: Unit + spec-cases tests (vitest)
+        run: npm run test:unit
+
+  spec-severity-ratchet:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          # check-spec-severity.mjs diffs scripts/audit/specs/severity-baseline.json
+          # against `git show origin/main:...` -- a shallow (fetch-depth: 1)
+          # checkout would not have origin/main reachable on a pull_request
+          # event. Full history is cheap for a repo this size.
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      # Monotonic severity ratchet + deletion assertion (REVERSAL 1) +
+      # params_pending ratchet (N6) over scripts/audit/specs/**/*.rule.json
+      # (decisions/0011). No `tee`, no `|| true` -- a non-zero exit here MUST
+      # fail the job (S3 no-op-gate hazard).
+      - name: Spec severity ratchet
+        run: node scripts/audit/check-spec-severity.mjs
+
+  spec-mutation-score:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      # Stryker mutation score over the three pure pilot functions only
+      # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
+      # everything else in those three files). thresholds.break in
+      # stryker.conf.json is the measured floor (decisions/0011, UD1) --
+      # `stryker run` itself exits non-zero below it, no `|| true`.
+      - name: Mutation score (stryker)
+        run: npx stryker run

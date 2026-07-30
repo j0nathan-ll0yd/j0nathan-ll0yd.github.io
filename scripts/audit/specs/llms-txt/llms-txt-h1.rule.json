@@ -1,0 +1,41 @@
+{
+  "id": "llms-txt-h1",
+  "title": "llms.txt must begin with an H1 title",
+  "artifact": "llms.txt",
+  "rule_class": "convention",
+  "severity": "fail",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "Format section, item 2",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "3c73eefa9651695b3b16a8020dce636940967f17c0b087f26b87d8d4d74be868",
+    "normative_quote": "An H1 with the name of the project or site. This is the only required section.",
+    "note": "conformance_testable is false: llmstxt.org itself frames its structure as a convention for LLM-friendly indexing, not a conformance-tested format, even though the H1 is its one genuinely required element -- see rule_class rationale in the artifact's own catalog README-equivalent (validate-llms-txt.mjs's header comment). Recalled from training-data familiarity with the public page, not re-verified against a live fetch this session (this agent has no WebFetch access)."
+  },
+  "applicability": "Any llms.txt body.",
+  "expectation": "The first non-blank line matches /^#\\s+\\S/.",
+  "cases": [
+    {
+      "name": "first non-blank line is not an H1",
+      "outcome": "failed",
+      "input_file": "cases/missing-h1.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-h1",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a fully spec-conformant file",
+      "outcome": "passed",
+      "input_file": "../../../../tests/audit/fixtures/llms-valid.txt",
+      "input_kind": "text",
+      "expect": []
+    }
+  ]
+}

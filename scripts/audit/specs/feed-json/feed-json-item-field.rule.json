@@ -1,0 +1,56 @@
+{
+  "id": "feed-json-item-field",
+  "title": "each item must have an id and at least one content field",
+  "artifact": "feed.json",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "JSON Feed",
+    "clause": "1.1, Items",
+    "url": "https://www.jsonfeed.org/version/1.1/",
+    "version": "JSON Feed 1.1",
+    "conformance_testable": true,
+    "retrieved": "2026-07-30",
+    "content_sha256": "ff5932ca105b6976f766702ef7611f6380ff0099508ae110dfe5a6713b019c4e",
+    "normative_quote": "id (required, string) is unique for that item for that feed over time... content_html and content_text are each optional strings — but one or both must be present.",
+    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: the content clause was reworded ('each optional, but at least one is required') from the spec's actual wording ('each optional strings -- but one or both must be present'). The id clause was already accurate and is unchanged."
+  },
+  "applicability": "An entry in a parsed feed.json document's \"items\" array.",
+  "expectation": "The item has an \"id\", and at least one of \"content_html\" / \"content_text\".",
+  "cases": [
+    {
+      "name": "an item missing id",
+      "outcome": "failed",
+      "input_file": "cases/item-missing-id.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-item-field",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an item with neither content_html nor content_text",
+      "outcome": "failed",
+      "input_file": "cases/item-missing-content.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-item-field",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a conformant document",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}
