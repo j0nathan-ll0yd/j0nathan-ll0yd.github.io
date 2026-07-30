@@ -7,37 +7,19 @@ import {validateLlmsTxt} from '../../scripts/audit/validate-llms-txt.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixture = (name: string) => readFileSync(path.join(__dirname, 'fixtures', name), 'utf-8')
 
+// decisions/0011 Step 4.5: the clean-file, known-answer(llms-invalid.txt),
+// missing-H1, and bare-URL-list-item cases formerly hand-written here now
+// live as derived cases in specs/llms-txt/*.rule.json (llms-txt-h1.rule.json,
+// llms-txt-blockquote.rule.json, llms-txt-non-link-list-item.rule.json),
+// exercised against the SAME fixture files by tests/audit/spec-cases.test.ts
+// -- deleted here as replacement, not as inconvenience. Retained below: BOM
+// handling, "Optional" section semantics, and free-form pre-H2 prose, none of
+// which the rule catalog declares a dedicated case for.
 describe('validateLlmsTxt', () => {
-  it('a fully spec-conformant file produces zero findings', () => {
-    const findings = validateLlmsTxt(fixture('llms-valid.txt'))
-    expect(findings).toEqual([])
-  })
-
-  it('known-answer fixture: bare bullets, an empty section, and no blockquote all flag', () => {
-    const findings = validateLlmsTxt(fixture('llms-invalid.txt'))
-    const ids = findings.map((f) => f.id)
-    expect(ids).toContain('llms-txt-blockquote')
-    expect(ids).toContain('llms-txt-non-link-list-item')
-    expect(ids).toContain('llms-txt-h2-no-file-list')
-  })
-
-  it('missing H1 fails immediately and stops further parsing', () => {
-    const findings = validateLlmsTxt('Not a heading at all\n\n> some quote\n')
-    expect(findings).toHaveLength(1)
-    expect(findings[0].id).toBe('llms-txt-h1')
-  })
-
   it('strips an optional BOM before validating', () => {
     const withBom = '﻿' + fixture('llms-valid.txt')
     const findings = validateLlmsTxt(withBom)
     expect(findings).toEqual([])
-  })
-
-  it('a bare-URL list item (not a markdown link) is flagged', () => {
-    const text = '# Site\n\n> Summary\n\n## Links\n\n- https://example.com/bare\n'
-    const findings = validateLlmsTxt(text)
-    expect(findings).toHaveLength(1)
-    expect(findings[0].id).toBe('llms-txt-non-link-list-item')
   })
 
   it('an H2 section named "Optional" is validated the same as any other section', () => {

@@ -1,0 +1,21 @@
+{
+  "id": "llms-full-txt",
+  "title": "llms-full.txt must be fetchable, non-empty, and non-erroring",
+  "artifact": "llms.txt",
+  "rule_class": "operational",
+  "severity": "fail",
+  "untested_rationale": "checkPresence('llms-full-txt', LLMS_FULL_URL, ...) (validate-llms-txt.mjs) emits this bare id under three distinct conditions -- a thrown fetch error, a non-2xx HTTP status, and an empty body -- and takes the id as a parameter rather than a literal, so it cannot be exercised by a pure-function input (it requires a live HTTP round-trip). One id currently covers three failure modes; splitting it is a behaviour change deferred to a later ratchet increment (decisions/0011), not this pilot. Covered instead by the production smoke suite's prod-domain route assertions (audits.yaml B1, the exact incident this validator exists to catch -- audits.yaml:195 records llms-full.txt/index.md 404ing on jonathanlloyd.me until 2026-07-17 while this validator probed CloudFront and saw nothing).",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "n/a",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "68af7d6eef389ed8198206f70464256bfbfb007c703b211766f360236ef59e26",
+    "normative_quote": "llms-full.txt has no formal spec of its own -- it is a CloudFront-only artifact this repo composes and serves; this id covers its own operational presence/emptiness handling.",
+    "note": "No spec clause applies -- conformance_testable is false by construction, matching rule_class: operational."
+  },
+  "applicability": "N/A -- fires on a transport or emptiness failure, not on parsed content.",
+  "expectation": "N/A -- see untested_rationale."
+}

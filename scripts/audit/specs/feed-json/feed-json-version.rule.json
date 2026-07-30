@@ -1,0 +1,43 @@
+{
+  "id": "feed-json-version",
+  "title": "version must be a recognized JSON Feed version URI",
+  "artifact": "feed.json",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "JSON Feed",
+    "clause": "1.1, Top-Level",
+    "url": "https://www.jsonfeed.org/version/1.1/",
+    "version": "JSON Feed 1.1",
+    "conformance_testable": true,
+    "retrieved": "2026-07-29",
+    "content_sha256": "1eb431a56796b9b0ea034c97c4ba99021f0313ff7ff5d69f5411030671dc5077",
+    "normative_quote": "version (required, string) is the URL of the version of the format the feed uses, technically a required field, but it's not required if you were already using JSON Feed and it doesn't validate: https://jsonfeed.org/version/1.1.",
+    "note": "Recalled from training-data familiarity with the published JSON Feed 1.1 spec, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified."
+  },
+  "applicability": "A parsed feed.json document whose \"version\" field is present.",
+  "expectation": "\"version\" matches /^https:\\/\\/jsonfeed\\.org\\/version\\/1(\\.\\d+)?$/.",
+  "cases": [
+    {
+      "name": "version is not a JSON Feed URI",
+      "outcome": "failed",
+      "input_file": "cases/bad-version.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-version",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a conformant document",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

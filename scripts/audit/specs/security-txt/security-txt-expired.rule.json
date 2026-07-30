@@ -1,0 +1,43 @@
+{
+  "id": "security-txt-expired",
+  "title": "Expires must not be in the past",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.5",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": true,
+    "retrieved": "2026-07-29",
+    "content_sha256": "c670968fea70819d7936a99a6f490390aca7df13580c23bd7c0ee24e129ec2bf",
+    "normative_quote": "The \"Expires\" field indicates the date and time after which the data contained in the \"security.txt\" file is considered stale and should not be used. Consumers of a security.txt file whose Expires date has passed SHOULD consider its contents stale.",
+    "note": "Recalled from training-data familiarity with the published RFC, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified."
+  },
+  "applicability": "A security.txt body containing a parseable Expires: value.",
+  "expectation": "The parsed Expires instant is not earlier than the evaluation instant.",
+  "cases": [
+    {
+      "name": "Expires 5 days in the past",
+      "outcome": "failed",
+      "input_file": "cases/expired.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expired",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "Expires in the future -- this rule does not fire",
+      "outcome": "passed",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

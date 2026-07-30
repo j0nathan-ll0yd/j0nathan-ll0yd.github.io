@@ -1,0 +1,41 @@
+{
+  "id": "llms-txt-h2-no-file-list",
+  "title": "An H2 section should contain at least one file-list item",
+  "artifact": "llms.txt",
+  "rule_class": "convention",
+  "severity": "warn",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "Format section, item 5",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "902e5a21e6ecee412fd78270eb557d36a6cc40982436444d6aa292daaf2b9bfa",
+    "normative_quote": "H2 sections are \"file lists\" of links -- zero or more markdown sections (h2) delimited by H2 headers, containing a list of URLs.",
+    "note": "conformance_testable is false. This id is a warn, not a fail, on disk today (check-security-txt.mjs precedent for the analogous decision does not apply here -- llmstxt.org genuinely has no conformance concept for an empty H2 section, so warn stays warn; rule_class: convention permits either severity). Recalled from training-data familiarity with the public page, not re-verified against a live fetch this session."
+  },
+  "applicability": "An H2 section whose body contains no list items at all.",
+  "expectation": "Every H2 section has at least one line matching /^[-*]\\s+/.",
+  "cases": [
+    {
+      "name": "an H2 section with prose but no list",
+      "outcome": "failed",
+      "input_file": "cases/empty-section.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-h2-no-file-list",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "a fully spec-conformant file",
+      "outcome": "passed",
+      "input_file": "../../../../tests/audit/fixtures/llms-valid.txt",
+      "input_kind": "text",
+      "expect": []
+    }
+  ]
+}

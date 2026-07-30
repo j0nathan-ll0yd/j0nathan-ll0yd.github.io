@@ -1,0 +1,57 @@
+{
+  "id": "security-txt-contact-missing",
+  "title": "security.txt must contain a Contact field",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.1",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": true,
+    "retrieved": "2026-07-29",
+    "content_sha256": "9b631fb4ea1ea9bd33191e0f3b59d257c85d5882761ab50786bff8f886ffd9ef",
+    "normative_quote": "The \"Contact\" field indicates a method that researchers should use for reporting security vulnerabilities... At least one instance of this field MUST always be present in a \"security.txt\" file.",
+    "note": "Recalled from training-data familiarity with the published RFC, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified. Raised from severity: warn to severity: fail in this change (decisions/0011) -- the live file (public/.well-known/security.txt) already has a Contact: line, so this is green today and carries no rollout risk; see policy_note."
+  },
+  "policy_note": "Prior to this change, check-security-txt.mjs:47-49 emitted this id at severity: warn while its own message cited '(required by RFC 9116 §2.5.1)' -- a genuine MUST mislabelled at a severity lib/http.mjs:44 never fails the check on. rule_class: conformance forces severity: fail (this schema's own constraint), which is what surfaces the mislabel and corrects it rather than relabelling the rule_class down to match the old severity.",
+  "applicability": "A security.txt body of any length -- EXCEPT one whose Expires field is missing or unparseable, where security-txt-expires-missing / security-txt-expires-unparseable fire and return early (check-security-txt.mjs:19-23,27-34) before this check ever runs. The Deletion-Test rehearsal (decisions/0011, Step 4 AC) surfaced this as a real gap: a reimplementation guided only by an earlier, unqualified version of this sentence ('A security.txt body of any length') independently derived an unconditional Contact check and produced an extra security-txt-contact-missing finding on cases/no-expires.txt, which the declared case's expect (correctly) excludes.",
+  "expectation": "The body contains at least one line matching /^Contact:\\s*\\S/ (case-insensitive). This check does not run at all when Expires is missing or unparseable -- see applicability.",
+  "cases": [
+    {
+      "name": "no Contact field",
+      "outcome": "failed",
+      "input_file": "cases/no-contact.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-contact-missing",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "no Expires field -- this rule is inapplicable too (early return happens before the Contact check ever runs)",
+      "outcome": "inapplicable",
+      "input_file": "cases/no-expires.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-missing",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "Contact field present -- this rule does not fire",
+      "outcome": "passed",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

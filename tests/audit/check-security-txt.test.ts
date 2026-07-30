@@ -7,48 +7,35 @@ function daysFromNow(days: number): string {
   return new Date(NOW.getTime() + days * 86_400_000).toISOString()
 }
 
+// decisions/0011 Step 4.5: the known-answer(20d)/comfortably-future(400d)/
+// past(-5d)/missing-Expires/unparseable cases formerly hand-written here now
+// live as derived cases in specs/security-txt/*.rule.json, exercised by
+// tests/audit/spec-cases.test.ts against the SAME (or a superset) input --
+// deleted here as replacement, not as inconvenience. Retained below: the
+// severity-raise regression NB1 explicitly requires be rewritten rather than
+// deleted, and the 29-day adjacent-boundary point the catalog does not
+// declare a dedicated case for.
 describe('validateSecurityTxt', () => {
-  it('known-answer: Expires 20 days out fails the 30-day threshold', () => {
-    const body = `Contact: mailto:security@example.com\nExpires: ${daysFromNow(20)}\n`
-    const findings = validateSecurityTxt(body, NOW)
-    expect(findings).toHaveLength(1)
-    expect(findings[0].id).toBe('security-txt-expiring-soon')
-  })
-
-  it('Expires comfortably in the future (matching the live 2027-06-18 value) passes clean', () => {
-    const body = `Contact: mailto:security@example.com\nExpires: ${daysFromNow(400)}\n`
-    expect(validateSecurityTxt(body, NOW)).toEqual([])
-  })
-
-  it('Expires in the past fails as expired, not merely "expiring soon"', () => {
-    const body = `Contact: mailto:security@example.com\nExpires: ${daysFromNow(-5)}\n`
-    const findings = validateSecurityTxt(body, NOW)
-    expect(findings).toHaveLength(1)
-    expect(findings[0].id).toBe('security-txt-expired')
-  })
-
-  it('a missing Expires field fails distinctly from an expiring one', () => {
-    const findings = validateSecurityTxt('Contact: mailto:security@example.com\n', NOW)
-    expect(findings).toHaveLength(1)
-    expect(findings[0].id).toBe('security-txt-expires-missing')
-  })
-
-  it('an unparseable Expires value fails distinctly', () => {
-    const findings = validateSecurityTxt('Expires: not-a-date\n', NOW)
-    expect(findings).toHaveLength(1)
-    expect(findings[0].id).toBe('security-txt-expires-unparseable')
-  })
-
-  it('a missing Contact field is a warn, not a fail', () => {
+  it('a missing Contact field fails -- RFC 9116 §2.5.1 lists Contact as mandatory', () => {
+    // Raised from severity: warn to severity: fail (decisions/0011,
+    // specs/security-txt/security-txt-contact-missing.rule.json): RFC 9116
+    // genuinely requires at least one Contact field, and rule_class:
+    // conformance forces severity: fail so lib/http.mjs's exit-code check
+    // actually reacts to a missing mandatory field.
     const findings = validateSecurityTxt(`Expires: ${daysFromNow(400)}\n`, NOW)
     expect(findings).toEqual([
-      expect.objectContaining({severity: 'warn', id: 'security-txt-contact-missing'})
+      expect.objectContaining({severity: 'fail', id: 'security-txt-contact-missing'})
     ])
   })
 
-  it('exactly at the 30-day boundary still fails (threshold is inclusive of "below")', () => {
+  it('one day before the 30-day boundary still fails (the comparison is strict <)', () => {
     const body = `Contact: mailto:security@example.com\nExpires: ${daysFromNow(29)}\n`
     const findings = validateSecurityTxt(body, NOW)
     expect(findings.map((f) => f.id)).toContain('security-txt-expiring-soon')
   })
+  // The exactly-30-day boundary itself is the catalog's own case
+  // (specs/security-txt/cases/expires-30d.txt), asserted by
+  // tests/audit/spec-cases.test.ts plus its dedicated exactness check --
+  // duplicating it here would be exactly the lockstep-maintenance cost
+  // REVERSAL 2 (decisions/0011) warns against.
 })

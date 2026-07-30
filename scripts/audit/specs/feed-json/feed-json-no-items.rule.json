@@ -1,0 +1,43 @@
+{
+  "id": "feed-json-no-items",
+  "title": "an empty items array is worth flagging",
+  "artifact": "feed.json",
+  "rule_class": "local-policy",
+  "severity": "warn",
+  "spec": {
+    "name": "JSON Feed",
+    "clause": "1.1, Top-Level",
+    "url": "https://www.jsonfeed.org/version/1.1/",
+    "version": "JSON Feed 1.1",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "ea1c634a47d374932c1aac2e41b079bdb01806892fa06f6b27905f88f0c6e9af",
+    "normative_quote": "items (required, array) is an array where each item represents an individual piece of content in the feed. JSON Feed 1.1 does not forbid an empty items array.",
+    "note": "conformance_testable is false: the spec allows an empty items array outright. This id is our own local operational judgment that a feed with no items at all is noteworthy, not a spec violation -- matching the severity: warn already on disk."
+  },
+  "applicability": "A parsed feed.json document whose \"items\" array is present and empty.",
+  "expectation": "\"items\".length > 0.",
+  "cases": [
+    {
+      "name": "items is an empty array",
+      "outcome": "failed",
+      "input_file": "cases/empty-items.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-no-items",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "a conformant document with items",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

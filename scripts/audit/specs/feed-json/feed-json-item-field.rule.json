@@ -1,0 +1,56 @@
+{
+  "id": "feed-json-item-field",
+  "title": "each item must have an id and at least one content field",
+  "artifact": "feed.json",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "JSON Feed",
+    "clause": "1.1, Items",
+    "url": "https://www.jsonfeed.org/version/1.1/",
+    "version": "JSON Feed 1.1",
+    "conformance_testable": true,
+    "retrieved": "2026-07-29",
+    "content_sha256": "26f54864cd94ecaae5333965caa4d95bf03e3758f0eb68655a797fde7415938e",
+    "normative_quote": "id (required, string) is unique for that item for that feed over time... content_html and content_text are each optional, but at least one is required.",
+    "note": "Recalled from training-data familiarity with the published JSON Feed 1.1 spec, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified."
+  },
+  "applicability": "An entry in a parsed feed.json document's \"items\" array.",
+  "expectation": "The item has an \"id\", and at least one of \"content_html\" / \"content_text\".",
+  "cases": [
+    {
+      "name": "an item missing id",
+      "outcome": "failed",
+      "input_file": "cases/item-missing-id.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-item-field",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an item with neither content_html nor content_text",
+      "outcome": "failed",
+      "input_file": "cases/item-missing-content.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-item-field",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a conformant document",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

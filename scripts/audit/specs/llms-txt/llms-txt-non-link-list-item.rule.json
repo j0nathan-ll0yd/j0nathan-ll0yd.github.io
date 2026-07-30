@@ -1,0 +1,41 @@
+{
+  "id": "llms-txt-non-link-list-item",
+  "title": "H2 file-list items must be markdown links",
+  "artifact": "llms.txt",
+  "rule_class": "convention",
+  "severity": "fail",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "Format section, item 5",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "1fd24a9072f3d9fd83410c4980e2120095cae988d7b23f2dcff359a24a95773b",
+    "normative_quote": "Zero or more markdown sections (h2) delimited by an H2 headers, containing a list of URLs that provide additional context... each link SHOULD be in the form: - [name](url): notes.",
+    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Recalled from training-data familiarity with the public page, not re-verified against a live fetch this session."
+  },
+  "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen.",
+  "expectation": "The list item matches /^[-*]\\s+\\[name\\]\\(url\\)(: notes)?$/.",
+  "cases": [
+    {
+      "name": "a bare-URL list item, not a markdown link",
+      "outcome": "failed",
+      "input_file": "cases/non-link-item.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a fully spec-conformant file",
+      "outcome": "passed",
+      "input_file": "../../../../tests/audit/fixtures/llms-valid.txt",
+      "input_kind": "text",
+      "expect": []
+    }
+  ]
+}

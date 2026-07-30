@@ -1,0 +1,9 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "Example Feed",
+  "items": [
+    {"id": "1", "content_text": "older", "date_published": "2026-07-10T00:00:00.000Z"},
+    {"id": "2", "content_text": "newest", "date_published": "2026-07-15T00:00:00.000Z"},
+    {"id": "3", "content_text": "middle", "date_published": "2026-07-12T00:00:00.000Z"}
+  ]
+}

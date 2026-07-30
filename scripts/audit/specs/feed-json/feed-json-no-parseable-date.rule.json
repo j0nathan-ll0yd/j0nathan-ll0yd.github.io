@@ -1,0 +1,43 @@
+{
+  "id": "feed-json-no-parseable-date",
+  "title": "at least one item should have a parseable date_published",
+  "artifact": "feed.json",
+  "rule_class": "convention",
+  "severity": "warn",
+  "spec": {
+    "name": "JSON Feed",
+    "clause": "1.1, Items",
+    "url": "https://www.jsonfeed.org/version/1.1/",
+    "version": "JSON Feed 1.1",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "33c44c2e09902316cc146d4933e6c943153b4b6d1d4b510ff91fb69ba629486e",
+    "normative_quote": "date_published (optional, string) specifies the date in RFC 3339 format. JSON Feed 1.1 does not require date_published to be present or parseable on any item.",
+    "note": "conformance_testable is false: the spec treats date_published as optional and imposes no parseability requirement. This id is a local data-quality convention -- without at least one parseable date, this validator's own freshness check (feed-json-stale) cannot run at all, which is worth a warn."
+  },
+  "applicability": "A parsed feed.json document whose \"items\" array is non-empty.",
+  "expectation": "At least one item's \"date_published\" parses as a valid date.",
+  "cases": [
+    {
+      "name": "the only item's date_published does not parse",
+      "outcome": "failed",
+      "input_file": "cases/no-parseable-date.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-no-parseable-date",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "a conformant document with a parseable date",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

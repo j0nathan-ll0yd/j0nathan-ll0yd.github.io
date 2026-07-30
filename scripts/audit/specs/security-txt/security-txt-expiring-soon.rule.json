@@ -1,0 +1,76 @@
+{
+  "id": "security-txt-expiring-soon",
+  "title": "Expires must be at least params.minDaysRemaining days in the future",
+  "artifact": "security.txt",
+  "rule_class": "local-policy",
+  "severity": "fail",
+  "params": {
+    "minDaysRemaining": 30
+  },
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.5",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-29",
+    "content_sha256": "6b357b3b5f0fe5aded273837542c998e54f8b2de0a9189c16f0ad48ff85be64e",
+    "normative_quote": "Security.txt implementations are RECOMMENDED to use an Expires date of no more than a year in the future. RFC 9116 places no lower bound on how far out Expires must be, and does not require a warning window before expiry.",
+    "note": "conformance_testable is false because RFC 9116 imposes no minimum-days-remaining threshold -- see policy_note. Recalled from training-data familiarity with the published RFC, not re-verified against a live fetch this session."
+  },
+  "policy_note": "RFC 9116 §2.5.5 requires only that Expires be future-dated (see security-txt-expired) and RECOMMENDS under one year (OQ5, deferred to the first ratchet increment). The 30-day floor here is a LOCAL operational buffer so the monthly audit cadence (audit-web.yml monthly job) gets at least one warning cycle before the file actually expires. It is supplied by params.minDaysRemaining and read by check-security-txt.mjs on the production path (main()'s call to validateSecurityTxt) -- it is not restated as a separate literal in the validator.",
+  "applicability": "A security.txt body containing a parseable, non-past Expires value.",
+  "expectation": "The parsed Expires instant is at least params.minDaysRemaining days after the evaluation instant.",
+  "cases": [
+    {
+      "name": "20 days out -- fails the 30-day floor",
+      "outcome": "failed",
+      "input_file": "cases/expires-20d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expiring-soon",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "exactly at the threshold passes -- the comparison is strict (<), not (<=)",
+      "outcome": "passed",
+      "input_file": "cases/expires-30d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "40 days out -- probe C perturbs params.minDaysRemaining past this to prove it is the real comparison operand",
+      "outcome": "passed",
+      "input_file": "cases/expires-40d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "400 days out",
+      "outcome": "passed",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "no Expires field -- this rule is inapplicable, security-txt-expires-missing fires instead",
+      "outcome": "inapplicable",
+      "input_file": "cases/no-expires.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-missing",
+          "severity": "fail"
+        }
+      ]
+    }
+  ]
+}

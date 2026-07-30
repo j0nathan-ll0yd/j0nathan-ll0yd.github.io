@@ -1,0 +1,43 @@
+{
+  "id": "security-txt-expires-unparseable",
+  "title": "The Expires field must be a parseable date",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.5",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": true,
+    "retrieved": "2026-07-29",
+    "content_sha256": "2fe3c99b5c689499297a61a1fad9f6afc445f4480ce1c7741d9c14710f5e0809",
+    "normative_quote": "The value of this field MUST be formatted as a datetime string as specified in [RFC5322], which security.txt implementations are RECOMMENDED to represent using the ISO 8601 / RFC 3339 profile.",
+    "note": "Recalled from training-data familiarity with the published RFC, not re-verified against a live fetch this session (this agent has no WebFetch access). The deferred drift probe (ADR 0011 follow-up (h)) must reconcile this quote against a live re-fetch of spec.url before it is treated as verified."
+  },
+  "applicability": "A security.txt body containing an Expires: field whose value does not parse as a date.",
+  "expectation": "`new Date(expiresValue)` is not NaN.",
+  "cases": [
+    {
+      "name": "Expires value is not a date",
+      "outcome": "failed",
+      "input_file": "cases/unparseable.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-unparseable",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "Expires value parses cleanly -- this rule does not fire",
+      "outcome": "passed",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}
