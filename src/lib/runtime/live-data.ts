@@ -10,7 +10,6 @@ import type {
   GithubEventsExport,
   GithubStarredReposExport,
   HealthExport,
-  LocationExport,
   SleepExport,
   TheatreReviewsExport,
   WorkoutsExport
@@ -29,8 +28,6 @@ import {
   updateSystemStatus,
   updateWorkouts
 } from '@lifegames/web/runtime/updaters'
-import {updatePlaceLeaderboardV3} from '@lifegames/web/runtime/updaters-leaderboard-variations'
-import {updateExplorationOdometerV3} from '@lifegames/web/runtime/updaters-odometer-variations'
 import {PollEngine} from './poll-engine'
 import type {ResourceKey} from '@lifegames/portal-contract/constants'
 
@@ -43,8 +40,7 @@ const LIVE_CARDS = [
   'cardDevLog',
   'cardReading',
   'cardStarredRepos',
-  'cardTheatreReviews',
-  ...(import.meta.env.DEV ? ['cardPlaceLeaderboardV3', 'cardExplorationOdometerV3'] : [])
+  'cardTheatreReviews'
 ]
 
 // ── Module-scoped state for cross-resource dependencies ──────────────
@@ -116,26 +112,32 @@ type ResourceTypeMap = {
   books: BooksExport
   githubEvents: GithubEventsExport
   articles: ArticlesExport
-  location: LocationExport
   focus: FocusExport
   theatreReviews: TheatreReviewsExport
   starredRepos: GithubStarredReposExport
 }
 
-const RESOURCE_DISCRIMINANTS: Record<ResourceKey, string> = {
+// A payload that passed structural validation: one of the known export shapes
+// (each carries generatedAt). Each switch branch narrows this to the concrete
+// export type via ResourceTypeMap.
+type ValidatedPayload = ResourceTypeMap[keyof ResourceTypeMap]
+
+// Partial over ResourceKey: the contract's ResourceKey still enumerates `location`
+// (its ENDPOINTS entry is retired in a coordinated portal-contract change), but the
+// web dashboard no longer polls or renders it, so it carries no discriminant here.
+const RESOURCE_DISCRIMINANTS: Partial<Record<ResourceKey, string>> = {
   health: 'quantities',
   sleep: 'date',
   workouts: 'workouts',
   books: 'books',
   githubEvents: 'events',
   articles: 'articles',
-  location: 'topPlaces',
   focus: 'currentFocus',
   theatreReviews: 'reviews',
   starredRepos: 'repos'
 }
 
-function validateResource<K extends ResourceKey>(key: K, rawData: unknown): ResourceTypeMap[K] | null {
+function validateResource(key: ResourceKey, rawData: unknown): ValidatedPayload | null {
   if (typeof rawData !== 'object' || rawData === null) {
     return null
   }
@@ -143,10 +145,11 @@ function validateResource<K extends ResourceKey>(key: K, rawData: unknown): Reso
   if (typeof obj.generatedAt !== 'string') {
     return null
   }
-  if (!(RESOURCE_DISCRIMINANTS[key] in obj)) {
+  const discriminant = RESOURCE_DISCRIMINANTS[key]
+  if (discriminant === undefined || !(discriminant in obj)) {
     return null
   }
-  return rawData as ResourceTypeMap[K]
+  return rawData as ValidatedPayload
 }
 
 // ── Per-resource incremental update dispatch ─────────────────────────
@@ -194,12 +197,6 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
       case 'articles':
         updateReadingFeed(adaptArticles(validated as ResourceTypeMap['articles']))
         break
-      case 'location': {
-        const data = validated as ResourceTypeMap['location']
-        updatePlaceLeaderboardV3(data)
-        updateExplorationOdometerV3(data)
-        break
-      }
       case 'focus': {
         // Route through applyFocus so a focus change detected by polling (e.g. the WS is down)
         // also transitions client-side suppression, not just the overlay. But within the
@@ -305,15 +302,6 @@ const startFetch = async () => {
       updateReadingFeed(adaptArticles(data.articles))
     } catch (e) {
       console.warn('[live-data] Articles update failed:', e)
-    }
-  }
-
-  if (data.location) {
-    try {
-      updatePlaceLeaderboardV3(data.location)
-      updateExplorationOdometerV3(data.location)
-    } catch (e) {
-      console.warn('[live-data] Location update failed:', e)
     }
   }
 

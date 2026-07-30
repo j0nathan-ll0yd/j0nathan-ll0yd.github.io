@@ -84,12 +84,6 @@
       "name": "Workouts",
       "description": "Workout sessions with type, duration, and calorie burn",
       "mimeType": "application/json"
-    },
-    {
-      "uri": "https://d1pfm520aduift.cloudfront.net/location.json",
-      "name": "Location aggregates",
-      "description": "Aggregated place summaries and location data",
-      "mimeType": "application/json"
     }
   ]
 }

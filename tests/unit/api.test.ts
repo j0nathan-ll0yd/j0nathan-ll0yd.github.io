@@ -13,7 +13,6 @@ vi.mock('@lifegames/portal-contract/constants',
       starredRepos: '/github-starred-repos.json',
       githubEvents: '/github-events.json',
       articles: '/articles.json',
-      location: '/location.json',
       focus: '/focus.json',
       theatreReviews: '/theatre-reviews.json'
     }
@@ -31,7 +30,6 @@ const booksFixture = {generatedAt: '2024-01-01T00:00:00Z', books: []}
 const githubEventsFixture = {generatedAt: '2024-01-01T00:00:00Z', events: []}
 const starredReposFixture = {generatedAt: '2024-01-01T00:00:00Z'}
 const articlesFixture = {generatedAt: '2024-01-01T00:00:00Z', articles: []}
-const locationFixture = {generatedAt: '2024-01-01T00:00:00Z', lat: 37.7, lng: -122.4}
 const focusFixture = {generatedAt: '2024-01-01T00:00:00Z', sessions: []}
 const theatreFixture = {generatedAt: '2024-01-01T00:00:00Z', reviews: []}
 
@@ -111,9 +109,8 @@ describe('fetchAllEndpoints', () => {
   })
 
   it('returns all data when all endpoints succeed', async () => {
-    // Order matches Promise.all in fetchAllEndpoints.
-    // In the vitest environment import.meta.env.DEV=true, so location IS fetched:
-    // health, sleep, workouts, books, githubEvents, starredRepos, articles, location, focus, theatreReviews
+    // Order matches Promise.all in fetchAllEndpoints:
+    // health, sleep, workouts, books, githubEvents, starredRepos, articles, focus, theatreReviews
     const fetchMock = vi.fn().mockResolvedValueOnce(makeFetchResponse(healthFixture)) // health
       .mockResolvedValueOnce(makeFetchResponse(sleepFixture)) // sleep
       .mockResolvedValueOnce(makeFetchResponse(workoutsFixture)) // workouts
@@ -121,7 +118,6 @@ describe('fetchAllEndpoints', () => {
       .mockResolvedValueOnce(makeFetchResponse(githubEventsFixture)) // githubEvents
       .mockResolvedValueOnce(makeFetchResponse(starredReposFixture)) // starredRepos
       .mockResolvedValueOnce(makeFetchResponse(articlesFixture)) // articles
-      .mockResolvedValueOnce(makeFetchResponse(locationFixture)) // location (DEV=true)
       .mockResolvedValueOnce(makeFetchResponse(focusFixture)) // focus
       .mockResolvedValueOnce(makeFetchResponse(theatreFixture)) // theatreReviews
     vi.stubGlobal('fetch', fetchMock)
@@ -143,8 +139,7 @@ describe('fetchAllEndpoints', () => {
         makeFetchResponse(booksFixture)
       ).mockResolvedValueOnce(makeFetchResponse(githubEventsFixture)).mockResolvedValueOnce(makeFetchResponse(starredReposFixture)).mockResolvedValueOnce(
         makeFetchResponse(articlesFixture)
-      ).mockResolvedValueOnce(makeFetchResponse(locationFixture)) // location (DEV=true)
-      .mockResolvedValueOnce(makeFetchResponse(focusFixture)).mockResolvedValueOnce(makeFetchResponse(theatreFixture))
+      ).mockResolvedValueOnce(makeFetchResponse(focusFixture)).mockResolvedValueOnce(makeFetchResponse(theatreFixture))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await fetchAllEndpoints()
@@ -173,9 +168,8 @@ describe('fetchAllEndpoints', () => {
       .mockResolvedValueOnce(makeFetchResponse(workoutsFixture)).mockResolvedValueOnce(makeFetchResponse(booksFixture)).mockResolvedValueOnce(
         makeFetchResponse(githubEventsFixture)
       ).mockResolvedValueOnce(makeFetchResponse(starredReposFixture)).mockResolvedValueOnce(makeFetchResponse(articlesFixture)).mockResolvedValueOnce(
-        makeFetchResponse(locationFixture)
-      ) // location (DEV=true)
-      .mockResolvedValueOnce(makeFetchResponse(focusFixture)).mockResolvedValueOnce(makeFetchResponse(theatreFixture))
+        makeFetchResponse(focusFixture)
+      ).mockResolvedValueOnce(makeFetchResponse(theatreFixture))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await fetchAllEndpoints()

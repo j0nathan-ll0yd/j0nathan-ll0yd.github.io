@@ -24,8 +24,7 @@
       { name: 'Bookshelf', url: 'https://d1pfm520aduift.cloudfront.net/books.json', description: 'Books with status, ratings, progress, and cover images' },
       { name: 'Reading feed', url: 'https://d1pfm520aduift.cloudfront.net/articles.json', description: 'Starred articles and RSS feed items' },
       { name: 'Theatre reviews', url: 'https://d1pfm520aduift.cloudfront.net/theatre-reviews.json', description: 'Theatre show reviews with ratings and venue info' },
-      { name: 'Workouts', url: 'https://d1pfm520aduift.cloudfront.net/workouts.json', description: 'Workout sessions with type, duration, and calorie burn' },
-      { name: 'Location aggregates', url: 'https://d1pfm520aduift.cloudfront.net/location.json', description: 'Aggregated place summaries and location data' }
+      { name: 'Workouts', url: 'https://d1pfm520aduift.cloudfront.net/workouts.json', description: 'Workout sessions with type, duration, and calorie burn' }
     ];
 
     navigator.modelContext.provideContext({

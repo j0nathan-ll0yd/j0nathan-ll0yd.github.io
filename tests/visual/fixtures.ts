@@ -2,7 +2,7 @@
  * Fixture scenario compositions for visual regression tests.
  *
  * Maps scenario names to raw fixture file paths owned by `@lifegames/fixtures`
- * (Plan #04). Each scenario defines which JSON file serves each of the 10
+ * (Plan #04). Each scenario defines which JSON file serves each of the 9
  * CloudFront endpoints; the Playwright route-interception layer (helpers.ts)
  * fulfills `${CLOUDFRONT_BASE}/<endpoint>` from these files.
  */
@@ -28,7 +28,7 @@ function fixture(dir: string, file: string): string {
   return require.resolve(`@lifegames/fixtures/generated/${dir}/${camelFile}.json`)
 }
 
-/** Baseline fixtures for all 10 endpoints */
+/** Baseline fixtures for all 9 endpoints */
 const BASELINE: FixtureSet = {
   '/health.json': fixture('health', 'baseline'),
   '/sleep.json': fixture('sleep', 'baseline'),
@@ -37,7 +37,6 @@ const BASELINE: FixtureSet = {
   '/github-starred-repos.json': fixture('github-starred-repos', 'baseline'),
   '/github-events.json': fixture('github-events', 'baseline'),
   '/articles.json': fixture('articles', 'baseline'),
-  '/location.json': fixture('location', 'baseline'),
   '/focus.json': fixture('focus', 'empty'),
   '/theatre-reviews.json': fixture('theatre-reviews', 'baseline')
 }
@@ -49,8 +48,8 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
   populated: {...BASELINE},
 
   // True-empty state for every domain. Uses the DS triad `empty` variations
-  // (real empties that did not exist before the triad — health/location formerly
-  // borrowed `missing-optional`/`empty-top-places` as the closest stand-ins).
+  // (real empties that did not exist before the triad — health formerly
+  // borrowed `missing-optional` as the closest stand-in).
   // The `missing-optional` health render path it no longer exercises here is
   // preserved by the `health-missing-optional` widget variation below.
   empty: {
@@ -61,7 +60,6 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
     '/books.json': fixture('books', 'empty'),
     '/github-events.json': fixture('github-events', 'empty'),
     '/articles.json': fixture('articles', 'empty'),
-    '/location.json': fixture('location', 'empty'),
     '/theatre-reviews.json': fixture('theatre-reviews', 'empty'),
     '/github-starred-repos.json': fixture('github-starred-repos', 'empty')
   },
@@ -86,7 +84,6 @@ const DASHBOARD_SCENARIOS: Record<string, FixtureSet> = {
     '/github-starred-repos.json': fixture('github-starred-repos', 'full'),
     '/github-events.json': fixture('github-events', 'full'),
     '/articles.json': fixture('articles', 'full'),
-    '/location.json': fixture('location', 'full'),
     '/theatre-reviews.json': fixture('theatre-reviews', 'full')
   }
 }

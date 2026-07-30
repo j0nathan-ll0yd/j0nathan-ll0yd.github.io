@@ -14,7 +14,6 @@ vi.mock('@lifegames/portal-contract/constants',
       starredRepos: '/github-starred-repos.json',
       githubEvents: '/github-events.json',
       articles: '/articles.json',
-      location: '/location.json',
       focus: '/focus.json',
       theatreReviews: '/theatre-reviews.json'
     }
@@ -274,7 +273,7 @@ describe('PollEngine', () => {
       await engine.pollNow()
 
       // FAST (health, sleep, workouts, focus) + SLOW (books, articles, githubEvents,
-      // starredRepos, theatreReviews) = 9 in production (location is DEV-only).
+      // starredRepos, theatreReviews) = 9 resources.
       expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(9)
     })
   })

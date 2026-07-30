@@ -28,8 +28,6 @@ const SLOW_KEYS: ResourceKey[] = [
   'starredRepos',
   'theatreReviews'
 ]
-// DEV-only: location polling (tree-shaken in production)
-const DEV_KEYS: ResourceKey[] = import.meta.env.DEV ? ['location'] : []
 
 const FAST_INTERVAL_MS = 30_000
 const SLOW_INTERVAL_MS = 120_000
@@ -128,7 +126,7 @@ export class PollEngine {
 
   /** Immediately poll all resources */
   async pollNow(): Promise<void> {
-    await this.pollTier([...FAST_KEYS, ...DEV_KEYS, ...SLOW_KEYS])
+    await this.pollTier([...FAST_KEYS, ...SLOW_KEYS])
   }
 
   getStatus(): PollStatus {
@@ -156,7 +154,7 @@ export class PollEngine {
   private startTimers(): void {
     const fastMs = this.mode === 'passive' ? PASSIVE_FAST_INTERVAL_MS : FAST_INTERVAL_MS
     const slowMs = this.mode === 'passive' ? PASSIVE_SLOW_INTERVAL_MS : SLOW_INTERVAL_MS
-    this.fastTimer = setInterval(() => void this.pollTier([...FAST_KEYS, ...DEV_KEYS]), fastMs)
+    this.fastTimer = setInterval(() => void this.pollTier(FAST_KEYS), fastMs)
     this.slowTimer = setInterval(() => void this.pollTier(SLOW_KEYS), slowMs)
   }
 
