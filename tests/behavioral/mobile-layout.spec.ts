@@ -56,7 +56,6 @@ async function interceptRoutes(page: Page, overrides: Record<string, string> = {
       '/github-starred-repos.json': baselineFixture('github-starred-repos'),
       '/github-events.json': baselineFixture('github-events'),
       '/articles.json': baselineFixture('articles'),
-      '/location.json': baselineFixture('location'),
       '/focus.json': emptyFixture('focus'),
       '/theatre-reviews.json': baselineFixture('theatre-reviews'),
       ...overrides

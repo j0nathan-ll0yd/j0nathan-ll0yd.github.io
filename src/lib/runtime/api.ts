@@ -6,7 +6,6 @@ import type {
   GithubEventsExport,
   GithubStarredReposExport,
   HealthExport,
-  LocationExport,
   SleepExport,
   TheatreReviewsExport,
   WorkoutsExport
@@ -24,7 +23,6 @@ export interface FetchResult {
   githubEvents: GithubEventsExport | null
   starredRepos: GithubStarredReposExport | null
   articles: ArticlesExport | null
-  location: LocationExport | null
   focus: FocusExport | null
   theatreReviews: TheatreReviewsExport | null
   timestamps: Record<string, string | null>
@@ -55,7 +53,6 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     githubEvents,
     starredRepos,
     articles,
-    location,
     focus,
     theatreReviews
   ] = await Promise.all([
@@ -66,9 +63,6 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     fetchWithTimeout<GithubEventsExport>(BASE + ENDPOINTS.githubEvents),
     fetchWithTimeout<GithubStarredReposExport>(BASE + ENDPOINTS.starredRepos),
     fetchWithTimeout<ArticlesExport>(BASE + ENDPOINTS.articles),
-    import.meta.env.DEV
-      ? fetchWithTimeout<LocationExport>(BASE + ENDPOINTS.location)
-      : Promise.resolve(null),
     fetchWithTimeout<FocusExport>(BASE + ENDPOINTS.focus),
     fetchWithTimeout<TheatreReviewsExport>(BASE + ENDPOINTS.theatreReviews)
   ])
@@ -81,7 +75,6 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     githubEvents,
     starredRepos,
     articles,
-    location,
     focus,
     theatreReviews,
     timestamps: {
@@ -91,7 +84,6 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
       githubEvents: githubEvents?.generatedAt ?? null,
       starredRepos: starredRepos?.generatedAt ?? null,
       articles: articles?.generatedAt ?? null,
-      location: location?.generatedAt ?? null,
       focus: focus?.generatedAt ?? null,
       theatreReviews: theatreReviews?.generatedAt ?? null
     }

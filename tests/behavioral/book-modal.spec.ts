@@ -40,7 +40,6 @@ async function interceptRoutes(page: Page): Promise<void> {
       '/github-starred-repos.json': baselineFixture('github-starred-repos', 'baseline'),
       '/github-events.json': baselineFixture('github-events', 'baseline'),
       '/articles.json': baselineFixture('articles', 'baseline'),
-      '/location.json': baselineFixture('location', 'baseline'),
       '/focus.json': baselineFixture('focus', 'empty'),
       '/theatre-reviews.json': baselineFixture('theatre-reviews', 'baseline')
     }

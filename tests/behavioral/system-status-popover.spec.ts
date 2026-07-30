@@ -5,7 +5,7 @@
  * build with baseline fixtures, asserting the Health row's .sys-info button
  * + #tip-health popover (Health has the most links — canonical example):
  *   - SSR: 7 info buttons (Health, Sleep, Books, Articles, GithubEvents,
- *     StarredRepos, TheatreReviews); Location row gets none.
+ *     StarredRepos, TheatreReviews).
  *   - Click opens popover; Escape closes + focus returns to the button.
  *   - Enter and Space keyboard activation.
  *   - Exact link href / rel / target inside the popover.
@@ -40,7 +40,6 @@ async function interceptRoutes(page: Page): Promise<void> {
       '/github-starred-repos.json': baselineFixture('github-starred-repos', 'baseline'),
       '/github-events.json': baselineFixture('github-events', 'baseline'),
       '/articles.json': baselineFixture('articles', 'baseline'),
-      '/location.json': baselineFixture('location', 'baseline'),
       '/focus.json': baselineFixture('focus', 'empty'),
       '/theatre-reviews.json': baselineFixture('theatre-reviews', 'baseline')
     }
@@ -118,15 +117,12 @@ test.describe('SystemStatus provenance disclosure — popover behavior', () => {
   })
 
   // -----------------------------------------------------------------------
-  // 1. SSR structure — 7 buttons present; Location row has none
+  // 1. SSR structure — 7 buttons present
   // -----------------------------------------------------------------------
-  test('1. seven .sys-info buttons rendered; Location row gets none', async () => {
+  test('1. seven .sys-info buttons rendered', async () => {
     const buttons = page.locator('#systemStatus .sys-info')
     // Health, Sleep, Books, Articles, GithubEvents, StarredRepos, TheatreReviews
     await expect(buttons).toHaveCount(7)
-
-    // Location is filtered in production (SystemStatus.astro compact branch line 48)
-    await expect(page.locator('#systemStatus .sys-line[data-source="location"] .sys-info')).toHaveCount(0)
   })
 
   // -----------------------------------------------------------------------

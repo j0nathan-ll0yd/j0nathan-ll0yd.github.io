@@ -4,7 +4,7 @@ import {
   BioTerminal, BookModal, Hydration, IdentityCard,
   SystemStatus, HeartRate, MovementRings, Workouts, NightSummary,
   StarredRepoList, DevActivityLog, ReadingFeed, Bookshelf,
-  FocusOverlay, DndOverlay, PlaceLeaderboardV3, ExplorationOdometerV3,
+  FocusOverlay, DndOverlay,
   TheatreReviews,
 } from '@lifegames/web/production';
 import { loadDashboardData } from '../lib/load-dashboard-data';
@@ -54,8 +54,6 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
               <MovementRings health={health} />
               <Hydration health={health} />
               <NightSummary health={health} />
-              {import.meta.env.DEV && <PlaceLeaderboardV3 />}
-              {import.meta.env.DEV && <ExplorationOdometerV3 />}
             </div>
           </div>
         </section>

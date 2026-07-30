@@ -65,7 +65,6 @@ vi.mock('../../src/lib/runtime/api',
         githubEvents: null,
         starredRepos: null,
         articles: null,
-        location: null,
         focus: null,
         theatreReviews: null,
         timestamps: {}
@@ -90,7 +89,6 @@ vi.mock('@lifegames/portal-contract/constants', async (importActual) => {
       starredRepos: '/github-starred-repos.json',
       githubEvents: '/github-events.json',
       articles: '/articles.json',
-      location: '/location.json',
       focus: '/focus.json',
       theatreReviews: '/theatre-reviews.json'
     }

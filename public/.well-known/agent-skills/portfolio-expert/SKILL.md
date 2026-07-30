@@ -20,7 +20,7 @@ Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrast
 
 The portfolio at jonathanlloyd.me is a sci-fi "Human Datastream" dashboard — a single-page application that visualizes real-time personal data across two domains:
 
-- **Body:** Heart rate, HRV, sleep, activity, workouts, hydration, location
+- **Body:** Heart rate, HRV, sleep, activity, workouts, hydration
 - **Mind:** GitHub commits, repositories, languages, books, articles, theatre reviews
 
 ### Technology Stack
@@ -46,7 +46,6 @@ All data is served from CloudFront with 5-minute edge TTL. Health data uses 7-da
 | <https://d1pfm520aduift.cloudfront.net/articles.json>             | Article feed items                       |
 | <https://d1pfm520aduift.cloudfront.net/theatre-reviews.json>      | Theatre reviews                          |
 | <https://d1pfm520aduift.cloudfront.net/workouts.json>             | Workout sessions and summaries           |
-| <https://d1pfm520aduift.cloudfront.net/location.json>             | Location aggregates                      |
 
 ## LLM-Optimized Content
 

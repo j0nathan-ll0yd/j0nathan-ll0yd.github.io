@@ -32,8 +32,7 @@ const dataSources = [
   {name: copyLlm.mcp.dsBooksName, url: cf(ENDPOINTS.books), description: copyLlm.mcp.dsBooksDesc},
   {name: copyLlm.mcp.dsArticlesName, url: cf(ENDPOINTS.articles), description: copyLlm.mcp.dsArticlesDesc},
   {name: copyLlm.mcp.dsTheatreReviewsName, url: cf(ENDPOINTS.theatreReviews), description: copyLlm.mcp.dsTheatreReviewsDesc},
-  {name: copyLlm.mcp.dsWorkoutsName, url: cf(ENDPOINTS.workouts), description: copyLlm.mcp.dsWorkoutsDesc},
-  {name: copyLlm.mcp.dsLocationName, url: cf(ENDPOINTS.location), description: copyLlm.mcp.dsLocationDesc}
+  {name: copyLlm.mcp.dsWorkoutsName, url: cf(ENDPOINTS.workouts), description: copyLlm.mcp.dsWorkoutsDesc}
 ]
 
 const booksUrl = cf(ENDPOINTS.books)
@@ -164,8 +163,7 @@ const serverCard = {
     {uri: cf(ENDPOINTS.books), name: copyLlm.mcp.dsBooksName, description: copyLlm.mcp.dsBooksDesc, mimeType: 'application/json'},
     {uri: cf(ENDPOINTS.articles), name: copyLlm.mcp.dsArticlesName, description: copyLlm.mcp.dsArticlesDesc, mimeType: 'application/json'},
     {uri: cf(ENDPOINTS.theatreReviews), name: copyLlm.mcp.dsTheatreReviewsName, description: copyLlm.mcp.dsTheatreReviewsDesc, mimeType: 'application/json'},
-    {uri: cf(ENDPOINTS.workouts), name: copyLlm.mcp.dsWorkoutsName, description: copyLlm.mcp.dsWorkoutsDesc, mimeType: 'application/json'},
-    {uri: cf(ENDPOINTS.location), name: copyLlm.mcp.dsLocationName, description: copyLlm.mcp.dsLocationDesc, mimeType: 'application/json'}
+    {uri: cf(ENDPOINTS.workouts), name: copyLlm.mcp.dsWorkoutsName, description: copyLlm.mcp.dsWorkoutsDesc, mimeType: 'application/json'}
   ]
 }
 
@@ -181,7 +179,7 @@ const agentSkills = {
       description: copyLlm.mcp.agentSkillDescription,
       type: 'skill-md',
       url: `${SITE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md`,
-      digest: 'sha256:de0b3c87b52024f93139a078be314c2d879def1170bb1659b52086aa1067e084'
+      digest: 'sha256:d767dd16da34fcc3f80887e64bd8502158bb78b867f2ff077d7e9e9dee822f8e'
     }
   ]
 }
