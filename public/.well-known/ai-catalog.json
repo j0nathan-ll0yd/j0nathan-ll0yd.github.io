@@ -11,7 +11,7 @@
       "displayName": "Human Datastream MCP Server",
       "type": "application/mcp-server-card+json",
       "url": "https://jonathanlloyd.me/.well-known/mcp/server-card.json",
-      "description": "MCP server card describing read-only access to Jonathan Lloyd's live personal data: biometrics, GitHub activity, reading lists, theatre reviews, and location aggregates.",
+      "description": "MCP server card describing read-only access to Jonathan Lloyd's live personal data: biometrics, GitHub activity, reading lists, and theatre reviews.",
       "representativeQueries": [
         "What is Jonathan Lloyd's current heart rate?",
         "What has Jonathan been reading lately?",

@@ -8,7 +8,7 @@
       site: 'https://jonathanlloyd.me',
       github: 'https://github.com/j0nathan-ll0yd',
       linkedin: 'https://www.linkedin.com/in/lifegames/',
-      bio: 'Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration, location) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.',
+      bio: 'Engineering director and backend engineer with 24+ years of experience. Built this portfolio as a living data dashboard — real biometrics and constant updates of body (health, activity, hydration) and mind (coding, reading, learning). Jack into his human datastream as the world becomes more AI-centric.',
       expertise: [
         'Backend Engineering', 'Software Engineering', 'Engineering Leadership', 'Cloud Infrastructure', 'Data Visualization', 'Serverless Architecture', 'TypeScript', 'Go', 'AWS'
       ],
