@@ -1,10 +1,10 @@
 {
   "generatedFrom": {
     "repo": "j0nathan-ll0yd/design-system-Lifegames",
-    "sha": "unknown",
+    "sha": "f698fee013068105fa6e251a77648ce39d093e93",
     "checksum": "sha256:13e69b71de821ccd80bd6eb18a5e8469cb3e4e842ebb2e28ba1414cb28150b09"
   },
-  "generatedAt": "2026-07-30T21:31:27.171Z",
+  "generatedAt": "2026-07-30T21:53:28.153Z",
   "generatorVersion": "1.0.0",
   "files": {
     "raw-schemas/articles-export.schema.json": "sha256:4a3d6514ab959b251ad88bef79020747bbddb865d0a7c913e71fe36f608ffd36",
