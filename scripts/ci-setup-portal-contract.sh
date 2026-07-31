@@ -39,6 +39,15 @@ fi
 echo "[ci-setup-pc] LP_DIR=$LP_DIR"
 echo "[ci-setup-pc] LP_REF=$LP_REF"
 
+# A leftover $LP_DIR that is NOT a git repo (e.g. a stale /tmp dir from a prior
+# aborted run) makes `git clone` fail: "destination path already exists and is
+# not an empty directory". Remove such a dir deterministically before cloning
+# rather than aborting -- observed first-hand (atlas 0013, Task 2 #2).
+if [ -d "$LP_DIR" ] && [ ! -d "$LP_DIR/.git" ]; then
+  echo "[ci-setup-pc] $LP_DIR exists but is not a git repo; removing stale dir."
+  rm -rf "$LP_DIR"
+fi
+
 if [ -d "$LP_DIR/.git" ]; then
   echo "[ci-setup-pc] Updating existing backend clone..."
   git -C "$LP_DIR" fetch origin "$LP_REF" --depth 1
@@ -56,5 +65,20 @@ echo "[ci-setup-pc] Installing + yalc-publishing portal-contract..."
 # prepublishOnly (codegen + tsc) needs docs/api/openapi.yaml + schemas/ from the
 # backend checkout, plus portal-contract's own devDeps.
 (cd "$LP_DIR/packages/portal-contract" && pnpm install && npx -y yalc publish)
+
+# `yalc publish` updates the STORE only -- it does NOT touch an already-linked
+# consumer's .yalc/ tree. A prior standalone run of this script reported
+# "published in store" yet left this web repo's .yalc/@lifegames/portal-contract
+# holding the retired `location` member, needing a separate `yalc update` to
+# actually land (atlas 0013, Task 2 #1 -- the silent-no-op class). So: if THIS
+# web repo already links portal-contract, pull the freshly published bytes into
+# its .yalc/ now. Guarded on the link dir existing, so a fresh CI checkout (where
+# .yalc/ is gitignored/absent and the caller's later `yalc add` handles it) is
+# untouched -- this only refreshes an EXISTING stale consumer.
+WEB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -d "$WEB_ROOT/.yalc/@lifegames/portal-contract" ]; then
+  echo "[ci-setup-pc] Refreshing this repo's consumer link (npx yalc update @lifegames/portal-contract)..."
+  (cd "$WEB_ROOT" && npx -y yalc update @lifegames/portal-contract)
+fi
 
 echo "[ci-setup-pc] Done."

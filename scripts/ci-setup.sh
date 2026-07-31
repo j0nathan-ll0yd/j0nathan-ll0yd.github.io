@@ -28,6 +28,14 @@ echo "[ci-setup] DS_REF=$DS_REF"
 echo "[ci-setup] Publishing @lifegames/portal-contract (backend producer)..."
 bash "$SCRIPT_DIR/ci-setup-portal-contract.sh"
 
+# Remove a stale non-repo $DS_DIR (leftover from an aborted run) before cloning,
+# so `git clone` never aborts with "destination path already exists and is not an
+# empty directory" (atlas 0013, Task 2 #2 -- same failure mode as the LP clone).
+if [ -d "$DS_DIR" ] && [ ! -d "$DS_DIR/.git" ]; then
+  echo "[ci-setup] $DS_DIR exists but is not a git repo; removing stale dir."
+  rm -rf "$DS_DIR"
+fi
+
 if [ -d "$DS_DIR/.git" ]; then
   echo "[ci-setup] Updating existing DS clone..."
   git -C "$DS_DIR" fetch origin "$DS_REF" --depth 1
