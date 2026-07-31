@@ -60,22 +60,25 @@
         "note": {"type": "string"},
         "verified_against_source": {
           "type": "boolean",
-          "description": "Whether normative_quote has been transcribed and checked, character-for-character, against the primary source at verification_url. This is the checkable promotion of the prose disclosure ADR 0011's citation sweep found in 13 of 24 rule files but could not enforce ('recalled from training-data familiarity' vs 'verified against a live fetch') -- the defect rate tracked exactly the claims that skipped verification (7 of 7 conformance rules defective on first authoring). rule_class: conformance REQUIRES this true (see the conformance branch in the top-level allOf): a rule asserting an external MUST may not ship on unverified authority. A rule that cites no external clause (spec.clause 'n/a' -- rule_class: operational, or a purely local threshold) sets this false with a verification_note saying so; false honestly means 'no external-source claim was verified', which is exactly correct when there is no external clause to verify. Such a rule is never forced to claim true."
+          "description": "Whether normative_quote has been transcribed and checked against the primary source at verification_url. 'Checked' means faithful to the source's rendered text: whitespace across line wraps is normalized and markdown formatting is de-marked (code-span backticks around `version`/`[name](url)`/`:` and hyperlink syntax like [RFC 3339](url) are reduced to the text they render), but no word, clause, section, or sentence boundary is altered, and separate source passages joined into one quote are separated by an ellipsis rather than spliced. This is the checkable promotion of the prose disclosure ADR 0011's citation sweep found in 13 of 24 rule files but could not enforce ('recalled from training-data familiarity' vs 'verified against a live fetch') -- the defect rate tracked exactly the claims that skipped verification (7 of 7 conformance rules defective on first authoring). The gate keys on spec.clause, NOT the author-chosen rule_class (see the clause branch in the top-level allOf): a rule that cites ANY external clause (spec.clause != 'n/a') MUST set this true -- so downgrading rule_class can no longer buy an exemption. A rule that cites no external clause (spec.clause 'n/a' -- operational transport ids, or a purely local threshold whose quote is a self-authored statement about the ABSENCE of external coverage) MUST set this false with a verification_note saying so; false honestly means 'no external-source claim was verified', which is exactly correct when there is no external clause to verify."
         },
         "verified_at": {
           "type": "string",
-          "minLength": 1,
-          "description": "ISO-8601 date normative_quote was checked against verification_url. Required when verified_against_source is true (see the spec-level allOf); omitted otherwise."
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "ISO-8601 calendar date (YYYY-MM-DD) normative_quote was checked against verification_url. Required when verified_against_source is true (see the spec-level allOf); omitted otherwise."
         },
         "verification_url": {
           "type": "string",
-          "pattern": "^https://",
-          "description": "The IMMUTABLE or commit-pinned source actually fetched and transcribed from when verified_against_source is true: an RFC's canonical plaintext (https://www.rfc-editor.org/rfc/rfcNNNN.txt) or a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA. Distinct from spec.url, which may be a living HTML page that drifts. ADR 0011 follow-up (b): a hash-and-compare drift probe only works against an immutable target, so living sources (llmstxt.org -> AnswerDotAI/llms-txt; JSON Feed -> manton/JSONFeed) MUST be pinned to a SHA here, not cited by their living URL. check-spec-verification.mjs asserts this immutable/pinned shape. Required when verified_against_source is true."
+          "anyOf": [
+            {"pattern": "^https://www\\.rfc-editor\\.org/rfc/rfc[0-9]+\\.txt$"},
+            {"pattern": "^https://raw\\.githubusercontent\\.com/[^/]+/[^/]+/[0-9a-f]{40}/.+"}
+          ],
+          "description": "The IMMUTABLE or commit-pinned source actually fetched and transcribed from when verified_against_source is true: an RFC's canonical plaintext (https://www.rfc-editor.org/rfc/rfcNNNN.txt) or a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA. Distinct from spec.url, which may be a living HTML page that drifts. ADR 0011 follow-up (b): a hash-and-compare drift probe only works against an immutable target, so living sources (llmstxt.org -> AnswerDotAI/llms-txt; JSON Feed -> manton/JSONFeed) MUST be pinned to a SHA here, not cited by their living URL. The anyOf patterns above bind this shape at load time (via specs/load.mjs's ajv); check-spec-verification.mjs re-asserts it for a clean message. Required when verified_against_source is true."
         },
         "verification_note": {
           "type": "string",
           "minLength": 1,
-          "description": "Required when verified_against_source is false (see the spec-level allOf): states why. Either 'no external clause to verify' (spec.clause 'n/a' -- normative_quote is a self-authored statement about the ABSENCE of external coverage, e.g. operational transport-failure ids or a purely local threshold) or an honest 'not yet checked' pending note."
+          "description": "Required when verified_against_source is false (see the spec-level allOf): states why there is no external-source claim to verify. Because the clause branch of the top-level allOf forces verified_against_source true for every rule that cites an external clause, a false rule is always a spec.clause 'n/a' rule -- its normative_quote is a self-authored statement about the ABSENCE of external coverage (operational transport-failure ids, or a purely local threshold), and this note records that."
         }
       },
       "allOf": [
@@ -134,9 +137,15 @@
       "then": {
         "properties": {
           "severity": {"const": "fail"},
-          "spec": {"properties": {"conformance_testable": {"const": true}, "verified_against_source": {"const": true}}}
+          "spec": {"properties": {"conformance_testable": {"const": true}}}
         }
       }
+    },
+    {
+      "_comment": "The source-verification gate keys on spec.clause, NOT the author-chosen rule_class (ADR 0011 follow-up (a), review fix): a rule that cites ANY external clause (clause != 'n/a') MUST be verified against its source, so a rule cannot dodge verification by downgrading its rule_class from conformance to local-policy/convention. A clause 'n/a' rule (its quote a self-authored statement about the absence of external coverage) MUST be false and carry a verification_note. This subsumes the old rule_class: conformance -> true rule, since every conformance rule cites a real clause.",
+      "if": {"required": ["spec"], "properties": {"spec": {"required": ["clause"], "properties": {"clause": {"const": "n/a"}}}}},
+      "then": {"properties": {"spec": {"properties": {"verified_against_source": {"const": false}}}}},
+      "else": {"properties": {"spec": {"properties": {"verified_against_source": {"const": true}}}}}
     },
     {
       "if": {"required": ["rule_class"], "properties": {"rule_class": {"const": "operational"}}},

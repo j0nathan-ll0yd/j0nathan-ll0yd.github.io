@@ -10,18 +10,26 @@
 //   not ship unless its normative_quote has been verified, character-for-
 //   character, against the primary source (verified_against_source: true).
 //
-// This is deliberately a SECOND enforcement site. rule.schema.json already
-// makes the same assertion structurally (the conformance branch of its
-// top-level allOf sets spec.verified_against_source const true), so
-// specs/load.mjs THROWS on a false conformance rule on every audit run -- the
-// highest tier (B10). This script exists alongside it because it (1) reads the
-// rule files RAW rather than through ajv, so it prints a clean, greppable
-// violation instead of an ajv stack trace -- the surface the known-answer
-// probe demonstrates; and (2) checks two things ajv cannot express well:
-//   - a verified rule's verification_url is IMMUTABLE or commit-pinned (an
-//     RFC .txt, or a raw.githubusercontent.com blob pinned to a 40-hex SHA),
-//     not a living HTML page that silently drifts (ADR 0011 follow-up (b));
-//   - the field's honest complement: a false rule carries a verification_note.
+// The gate keys on spec.clause, NOT the author-chosen rule_class (review fix):
+// a rule that cites ANY external clause (clause != 'n/a') must be verified, so
+// a rule cannot dodge verification by downgrading rule_class from conformance
+// to local-policy/convention; a clause 'n/a' rule (whose quote is a
+// self-authored statement about the absence of external coverage) must be
+// false and disclose why.
+//
+// This is deliberately a SECOND enforcement site. rule.schema.json binds ALL
+// of this structurally at load time via ajv -- the clause branch of its
+// top-level allOf forces verified_against_source true iff clause != 'n/a', and
+// verification_url's anyOf forces the immutable/pinned shape -- so
+// specs/load.mjs THROWS on any violation on every audit run (the highest tier,
+// B10; the header's earlier claim that ajv "cannot express" the URL shape was
+// wrong -- draft-07 expresses it exactly, and the schema now does). This
+// script exists alongside the schema because it reads the rule files RAW
+// rather than through ajv, so a violation is a clean, greppable message
+// instead of an ajv stack trace -- the surface the known-answer probe
+// demonstrates -- and it is defence-in-depth for the two facts ajv could in
+// principle regress on: the immutable/pinned verification_url, and the honest
+// complement (a false rule carries a verification_note).
 //
 // It walks the specs tree via load.mjs's artifacts() -- the same single walker
 // check-spec-severity.mjs and the spec-cases harness use -- so the three
@@ -90,13 +98,21 @@ export function verifyRules(rules) {
       continue
     }
 
-    // The gate: a conformance rule asserts an external MUST and may not ship
-    // on unverified authority. This is the assertion the known-answer probe
-    // flips (ADR 0011's non-negotiable acceptance criterion).
-    if (rule.rule_class === 'conformance' && v !== true) {
+    // The gate keys on spec.clause, not the author-chosen rule_class: a rule
+    // citing ANY external clause must be verified, closing the rule_class
+    // downgrade bypass (ADR 0011 follow-up (a) review fix). This is the
+    // assertion the known-answer probe flips.
+    const citesExternalClause = typeof spec.clause === 'string' && spec.clause !== 'n/a'
+    if (citesExternalClause && v !== true) {
       violations.push(
-        `${rel}: rule_class "conformance" requires spec.verified_against_source: true, but it is false -- ` +
-          "a rule asserting an external standard's MUST may not ship unverified against its cited source (ADR 0011 follow-up (a), the 7-of-7 defect class)"
+        `${rel}: spec.clause "${spec.clause}" cites an external clause, so spec.verified_against_source must be true, but it is false -- ` +
+          'a rule asserting an external standard may not ship unverified against its cited source, regardless of rule_class (ADR 0011 follow-up (a), the 7-of-7 defect class)'
+      )
+    }
+    if (!citesExternalClause && v === true) {
+      violations.push(
+        `${rel}: spec.clause is "n/a" (no external clause), so spec.verified_against_source must be false, but it claims true -- ` +
+          'a rule with no external clause has no source to verify against; its normative_quote is a self-authored statement about the absence of external coverage'
       )
     }
 
@@ -140,11 +156,11 @@ function main() {
   if (violations.length === 0) {
     const rules = readRawRules([])
     const verified = rules.filter((r) => r.rule.spec?.verified_against_source === true).length
-    const conformance = rules.filter((r) => r.rule.rule_class === 'conformance').length
+    const clauseCiting = rules.filter((r) => typeof r.rule.spec?.clause === 'string' && r.rule.spec.clause !== 'n/a').length
     console.log('  (no violations)')
     console.log(
-      `  ${rules.length} rule(s) checked: ${verified} verified_against_source, ${conformance} conformance ` +
-        '(all conformance rules verified against an immutable/pinned source), 0 violation(s)'
+      `  ${rules.length} rule(s) checked: ${clauseCiting} cite an external clause and are all verified against an immutable/pinned source ` +
+        `(${verified} verified_against_source total), 0 violation(s)`
     )
     process.exit(0)
   }

@@ -11,9 +11,9 @@
     "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
     "conformance_testable": false,
     "retrieved": "2026-07-30",
-    "content_sha256": "d685604b49c7de520de64f635f137f88b7dddfd537025a713ff82874e3fbd5c5",
-    "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available. Each \"file list\" is a markdown list, containing a required markdown hyperlink [name](url), then optionally a : and notes about the file.",
-    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote invented a SHOULD not present in the source, dropped the term \"file lists\", and had a grammar error ('delimited by an H2 headers').",
+    "content_sha256": "688e06ba20eefb59048e0af19acfb4af9a601b575d2d521fa85c4168139afcd3",
+    "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available... Each \"file list\" is a markdown list, containing a required markdown hyperlink [name](url), then optionally a : and notes about the file.",
+    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Verified against the pinned source (AnswerDotAI/llms-txt @c7178b9, nbs/index.qmd) on 2026-07-30. The quote joins two SEPARATE Format list items -- the parent H2 bullet (source line 45) and its nested child (line 46) -- with an ellipsis; neither is reworded. Source line 45 ends \"...is available\" with no period; backticks around [name](url) and : are de-marked. Corrects two defects: an earlier version invented a SHOULD and dropped the term \"file lists\"; this review pass removed a fabricated period that had spliced the two items into continuous prose (the same splice defect security-txt-expires-missing's note describes).",
     "verified_against_source": true,
     "verified_at": "2026-07-30",
     "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
