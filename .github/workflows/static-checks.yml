@@ -35,6 +35,45 @@ permissions:
   packages: read
 
 jobs:
+  # atlas decision 0013: `file:.yalc/*` freshness gate. This is the load-bearing
+  # job -- merging to main IS the production deploy (Cloudflare Pages), so a stale
+  # linked package must be caught HERE, on the PR, not at deploy time.
+  #
+  # THE BINDING: ci-setup.sh reconstructs .yalc from upstream main (DS_REF/LP_REF
+  # default to main) BEFORE the check runs, so `check:yalc-freshness` compares the
+  # committed .yalc-lock.json against an UPSTREAM-fresh tree, not the PR author's
+  # local disk. An upstream change that the committed lock does not reflect reds
+  # this job until the lock is regenerated. That upstream reconstruction is what
+  # makes the lock mean something -- a lock<->disk check that hashed only the
+  # author's own machine would be self-blessing (the defect mantle#291's first
+  # version shipped). It also enforces producer-before-consumer merge ordering: a
+  # web bump that needs an unmerged DS change reds here until DS main carries it.
+  yalc-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      # Reconstructs .yalc/@lifegames/* from upstream main -- the reconstruction
+      # that binds the committed lock to upstream (see the job comment above).
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      # No `|| true`, no `continue-on-error`: a stale lock MUST fail this job
+      # (S3 no-op-gate hazard). YALC_FRESHNESS_SKIP is deliberately NOT set here.
+      - name: Yalc freshness gate (lock vs upstream-reconstructed .yalc)
+        run: npm run check:yalc-freshness
+
   typecheck:
     runs-on: ubuntu-latest
     steps:
