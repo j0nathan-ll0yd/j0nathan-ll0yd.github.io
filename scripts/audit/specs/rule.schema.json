@@ -40,7 +40,7 @@
     "spec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "clause", "url", "version", "conformance_testable", "retrieved", "content_sha256", "normative_quote"],
+      "required": ["name", "clause", "url", "version", "conformance_testable", "retrieved", "content_sha256", "normative_quote", "verified_against_source"],
       "properties": {
         "name": {"type": "string", "minLength": 1},
         "clause": {"type": "string", "minLength": 1},
@@ -57,8 +57,37 @@
           "description": "sha256 of this file's own normative_quote, computed at authoring time (see scripts/audit/specs/hash-normative-quotes.mjs). The external drift probe that re-fetches spec.url and compares is deferred to a follow-up PR (ADR 0011 follow-up (h)); until it lands this field is recorded but not verified."
         },
         "normative_quote": {"type": "string", "minLength": 1},
-        "note": {"type": "string"}
-      }
+        "note": {"type": "string"},
+        "verified_against_source": {
+          "type": "boolean",
+          "description": "Whether normative_quote has been transcribed and checked, character-for-character, against the primary source at verification_url. This is the checkable promotion of the prose disclosure ADR 0011's citation sweep found in 13 of 24 rule files but could not enforce ('recalled from training-data familiarity' vs 'verified against a live fetch') -- the defect rate tracked exactly the claims that skipped verification (7 of 7 conformance rules defective on first authoring). rule_class: conformance REQUIRES this true (see the conformance branch in the top-level allOf): a rule asserting an external MUST may not ship on unverified authority. A rule that cites no external clause (spec.clause 'n/a' -- rule_class: operational, or a purely local threshold) sets this false with a verification_note saying so; false honestly means 'no external-source claim was verified', which is exactly correct when there is no external clause to verify. Such a rule is never forced to claim true."
+        },
+        "verified_at": {
+          "type": "string",
+          "minLength": 1,
+          "description": "ISO-8601 date normative_quote was checked against verification_url. Required when verified_against_source is true (see the spec-level allOf); omitted otherwise."
+        },
+        "verification_url": {
+          "type": "string",
+          "pattern": "^https://",
+          "description": "The IMMUTABLE or commit-pinned source actually fetched and transcribed from when verified_against_source is true: an RFC's canonical plaintext (https://www.rfc-editor.org/rfc/rfcNNNN.txt) or a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA. Distinct from spec.url, which may be a living HTML page that drifts. ADR 0011 follow-up (b): a hash-and-compare drift probe only works against an immutable target, so living sources (llmstxt.org -> AnswerDotAI/llms-txt; JSON Feed -> manton/JSONFeed) MUST be pinned to a SHA here, not cited by their living URL. check-spec-verification.mjs asserts this immutable/pinned shape. Required when verified_against_source is true."
+        },
+        "verification_note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required when verified_against_source is false (see the spec-level allOf): states why. Either 'no external clause to verify' (spec.clause 'n/a' -- normative_quote is a self-authored statement about the ABSENCE of external coverage, e.g. operational transport-failure ids or a purely local threshold) or an honest 'not yet checked' pending note."
+        }
+      },
+      "allOf": [
+        {
+          "if": {"required": ["verified_against_source"], "properties": {"verified_against_source": {"const": true}}},
+          "then": {"required": ["verified_at", "verification_url"]}
+        },
+        {
+          "if": {"required": ["verified_against_source"], "properties": {"verified_against_source": {"const": false}}},
+          "then": {"required": ["verification_note"]}
+        }
+      ]
     },
     "applicability": {"type": "string", "minLength": 1},
     "expectation": {"type": "string", "minLength": 1},
@@ -105,7 +134,7 @@
       "then": {
         "properties": {
           "severity": {"const": "fail"},
-          "spec": {"properties": {"conformance_testable": {"const": true}}}
+          "spec": {"properties": {"conformance_testable": {"const": true}, "verified_against_source": {"const": true}}}
         }
       }
     },

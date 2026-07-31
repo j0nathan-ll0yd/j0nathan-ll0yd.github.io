@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "490c17dc93ed6235a9b5dd62ddf23ebd4fe9f075759d90e810178a9d57d75e93",
     "normative_quote": "The value of this field is formatted according to the Internet profiles of [ISO.8601-1] and [ISO.8601-2] as defined in [RFC3339].",
-    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects a prior defect: the quote cited RFC 5322 (a generic email/field-grammar RFC referenced elsewhere in §2.2) and inverted the RFC's own MUST/RECOMMENDED framing -- the real §2.5.5 text places no MUST on the date format at all; RFC3339/ISO 8601 formatting is simply stated as how the field's value is formatted, with no normative strength attached to that clause."
+    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects a prior defect: the quote cited RFC 5322 (a generic email/field-grammar RFC referenced elsewhere in §2.2) and inverted the RFC's own MUST/RECOMMENDED framing -- the real §2.5.5 text places no MUST on the date format at all; RFC3339/ISO 8601 formatting is simply stated as how the field's value is formatted, with no normative strength attached to that clause.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
   },
   "applicability": "A security.txt body containing an Expires: field whose value does not parse as a date.",
   "expectation": "`new Date(expiresValue)` is not NaN.",

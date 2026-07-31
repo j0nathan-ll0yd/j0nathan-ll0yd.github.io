@@ -14,7 +14,9 @@
     "retrieved": "2026-07-29",
     "content_sha256": "40231fb4bff3ceb487106f3b48a0d06db9fcc5c424606798eb500784bfa181fb",
     "normative_quote": "RFC 9116 specifies the content and location of security.txt; it does not define behavior for transport-layer failures when a consumer attempts to retrieve it. This id covers this repo's own operational handling of that failure mode.",
-    "note": "No spec clause applies -- conformance_testable is false by construction, matching rule_class: operational."
+    "note": "No spec clause applies -- conformance_testable is false by construction, matching rule_class: operational.",
+    "verified_against_source": false,
+    "verification_note": "clause n/a -- rule_class: operational. normative_quote is a self-authored statement about the ABSENCE of external spec coverage for this transport/fetch/presence condition; there is no external normative clause to transcribe or verify against a source."
   },
   "applicability": "N/A -- this id fires on a transport failure, not on the parsed body.",
   "expectation": "N/A -- see untested_rationale."

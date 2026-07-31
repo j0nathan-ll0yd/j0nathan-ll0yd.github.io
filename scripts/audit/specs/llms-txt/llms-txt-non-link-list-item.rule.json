@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "d685604b49c7de520de64f635f137f88b7dddfd537025a713ff82874e3fbd5c5",
     "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available. Each \"file list\" is a markdown list, containing a required markdown hyperlink [name](url), then optionally a : and notes about the file.",
-    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote invented a SHOULD not present in the source, dropped the term \"file lists\", and had a grammar error ('delimited by an H2 headers')."
+    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote invented a SHOULD not present in the source, dropped the term \"file lists\", and had a grammar error ('delimited by an H2 headers').",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
   "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen.",
   "expectation": "The list item matches /^[-*]\\s+\\[name\\]\\(url\\)(: notes)?$/.",

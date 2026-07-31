@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "29358ea2650cfda6f4ada99dd4bb15b58ed77bf8b3bc8d725fd13995e6bebe0e",
     "normative_quote": "items is an array, and is required.",
-    "note": "conformance_testable is false: the spec allows an empty items array outright (JSON Feed 1.1 does not forbid it -- this is our own inference, not spec text). This id is our own local operational judgment that a feed with no items at all is noteworthy, not a spec violation -- matching the severity: warn already on disk. Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: the quote paraphrased the items field ('is an array where each item represents an individual piece of content in the feed') instead of using the spec's own sentence, and embedded our own non-spec commentary inside normative_quote."
+    "note": "conformance_testable is false: the spec allows an empty items array outright (JSON Feed 1.1 does not forbid it -- this is our own inference, not spec text). This id is our own local operational judgment that a feed with no items at all is noteworthy, not a spec violation -- matching the severity: warn already on disk. Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: the quote paraphrased the items field ('is an array where each item represents an individual piece of content in the feed') instead of using the spec's own sentence, and embedded our own non-spec commentary inside normative_quote.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/manton/JSONFeed/7a864ecfc2b35404b5c8ca4902f26cb6bd965d4a/pages/version/1.1.markdown"
   },
   "applicability": "A parsed feed.json document whose \"items\" array is present and empty.",
   "expectation": "\"items\".length > 0.",

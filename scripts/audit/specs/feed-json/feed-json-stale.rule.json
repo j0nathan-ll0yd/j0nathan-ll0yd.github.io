@@ -14,7 +14,9 @@
     "retrieved": "2026-07-29",
     "content_sha256": "ae46a3efd048d15b450695301f0d3f2661b3bad08301a684f2efaa57535010dd",
     "normative_quote": "JSON Feed 1.1 does not define a freshness requirement on the newest item's date_published. This is entirely a local operational policy.",
-    "note": "conformance_testable is false; no external spec imposes this threshold."
+    "note": "conformance_testable is false; no external spec imposes this threshold.",
+    "verified_against_source": false,
+    "verification_note": "clause n/a -- normative_quote is a self-authored statement that JSON Feed 1.1 defines no freshness requirement on the newest item. The staleness threshold is entirely local operational policy, so there is no external clause to verify against a source."
   },
   "applicability": "A parsed feed.json document with at least one parseable date_published.",
   "expectation": "The newest item's date_published is not more than FRESHNESS_WINDOW_DAYS days before the evaluation instant. The comparison is strict (>), not (>=): exactly 7 days old passes.",

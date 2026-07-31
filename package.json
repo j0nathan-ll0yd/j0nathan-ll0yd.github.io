@@ -12,6 +12,7 @@
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "audit:sa-path": "node scripts/check-sa-proxy-path.mjs",
+    "audit:spec-verification": "node scripts/audit/check-spec-verification.mjs",
     "build": "astro build",
     "postbuild": "node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",

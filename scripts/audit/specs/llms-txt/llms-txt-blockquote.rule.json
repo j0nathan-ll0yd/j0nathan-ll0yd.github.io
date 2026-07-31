@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "037c197814e5e884a6780b309e032f65d007eebd6893c8abdb6c75c0b42f3ae3",
     "normative_quote": "A blockquote with a short summary of the project, containing key information necessary for understanding the rest of the file",
-    "note": "conformance_testable is false, per the divergence recorded in policy_note: the spec's own prose marks only the H1 as strictly required. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: 'as would be immediately useful to an LLM' was fabricated and does not appear on the page; the real item 3 also reads 'the project', not 'the project or site'."
+    "note": "conformance_testable is false, per the divergence recorded in policy_note: the spec's own prose marks only the H1 as strictly required. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: 'as would be immediately useful to an LLM' was fabricated and does not appear on the page; the real item 3 also reads 'the project', not 'the project or site'.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
   "policy_note": "Migrated verbatim from validate-llms-txt.mjs:69-72 (pre-pilot): 'required by this validator; the spec's own prose marks only the H1 as strictly required, but every real-world llms.txt -- including this site's -- includes it, and the team's validator contract treats it as required.' This is a declared, reviewable local convention, not a claim about llmstxt.org conformance.",
   "applicability": "An llms.txt body whose first non-blank line is a valid H1.",

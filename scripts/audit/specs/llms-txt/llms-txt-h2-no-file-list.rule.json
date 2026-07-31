@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "20f950d4231821c26e53317dc319338bf1e9a430f97dfd45173d2f008ea25ed9",
     "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available",
-    "note": "conformance_testable is false. This id is a warn, not a fail, on disk today (check-security-txt.mjs precedent for the analogous decision does not apply here -- llmstxt.org genuinely has no conformance concept for an empty H2 section, so warn stays warn; rule_class: convention permits either severity). Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote was a close paraphrase, not the spec's own sentence."
+    "note": "conformance_testable is false. This id is a warn, not a fail, on disk today (check-security-txt.mjs precedent for the analogous decision does not apply here -- llmstxt.org genuinely has no conformance concept for an empty H2 section, so warn stays warn; rule_class: convention permits either severity). Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote was a close paraphrase, not the spec's own sentence.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
   "applicability": "An H2 section whose body contains no list items at all.",
   "expectation": "Every H2 section has at least one line matching /^[-*]\\s+/.",
