@@ -10,6 +10,32 @@ import {getScenarioFixtures, scenarioHasWorkouts, type ScenarioName} from './fix
 
 export const stylePath = path.join(import.meta.dirname, 'screenshot.css')
 
+/**
+ * Frozen wall-clock for the hydration-boundary render path.
+ *
+ * The DS adapters that render relative time (`adaptStarredRepos`,
+ * `adaptGithubEvents`, `adaptArticles` in `@lifegames/web/runtime/adapters`)
+ * compute "N weeks/days ago" against `Date.now()` at hydration time. The visual
+ * fixtures carry ABSOLUTE dates, so with a live clock every widget's relative
+ * time drifts one unit per real week -- a wall-clock time bomb that reds an
+ * unrelated PR the moment CI runs after a week boundary flips (issue: the
+ * starred-repos baseline moving 18w -> 19w on a workflow-YAML-only bump).
+ *
+ * `page.clock.setFixedTime()` pins `Date.now()`/`new Date()` in the browser to a
+ * constant (while keeping every timer running), so the adapters -- which already
+ * read `Date.now()` -- resolve to a reproducible value forever, independent of
+ * when the suite runs. This is the hydration-boundary analogue of the canvas
+ * `freezeAt(ms)` seam (heart-rate.spec.ts): the harness already freezes the ECG
+ * clock and hides #liveClock; it simply never froze THIS clock.
+ *
+ * The constant equals the `generatedAt` of the three time-relative fixtures
+ * (`@lifegames/fixtures/generated/{github-starred-repos,github-events,articles}/*`),
+ * which all share `2026-03-18T12:00:00.000Z`. Pinning "now" to when the fixture
+ * was generated makes the rendered relative time self-documenting: it is exactly
+ * the "as of generation" view the fixture author encoded.
+ */
+export const FROZEN_NOW_MS = Date.parse('2026-03-18T12:00:00.000Z')
+
 /** Widget selectors for element-level screenshots. */
 export const WIDGET_SELECTORS = {
   identityCard: '#identityCard',
@@ -99,6 +125,11 @@ export interface NavigateOptions {
  * reveal animation. Data population is confirmed by skeleton removal below.
  */
 export async function navigateAndWait(page: Page, options: NavigateOptions = {}): Promise<void> {
+  // Freeze the hydration-boundary clock BEFORE any page script runs so the
+  // relative-time adapters resolve deterministically (see FROZEN_NOW_MS). This
+  // is the sole chokepoint for every visual render (all specs route through
+  // here), so freezing once here covers the whole suite.
+  await page.clock.setFixedTime(FROZEN_NOW_MS)
   await page.goto('/')
   await page.evaluate(() => document.fonts.ready)
 
