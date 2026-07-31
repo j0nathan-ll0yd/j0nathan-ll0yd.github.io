@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "1b694d771ffccb909e9c042094d2918c088af931593b3ae1dd55bf069ad17871",
     "normative_quote": "version (required, string) is the URL of the version of the format the feed uses. This should appear at the very top, though we recognize that not all JSON generators allow for ordering.",
-    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: the quote's trailing clause ('technically a required field, but it's not required if you were already using JSON Feed and it doesn't validate') was fabricated and does not appear in the spec."
+    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: the quote's trailing clause ('technically a required field, but it's not required if you were already using JSON Feed and it doesn't validate') was fabricated and does not appear in the spec.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/manton/JSONFeed/7a864ecfc2b35404b5c8ca4902f26cb6bd965d4a/pages/version/1.1.markdown"
   },
   "applicability": "A parsed feed.json document whose \"version\" field is present.",
   "expectation": "\"version\" matches /^https:\\/\\/jsonfeed\\.org\\/version\\/1(\\.\\d+)?$/.",

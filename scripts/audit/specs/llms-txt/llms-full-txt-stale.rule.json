@@ -17,7 +17,9 @@
     "retrieved": "2026-07-29",
     "content_sha256": "50d273e92553791f6d8de411fbc6a9d70c8f7de84da120258cada3e589d054b1",
     "normative_quote": "llms-full.txt has no formal spec of its own. This threshold is a local operational buffer: the composer runs on a 30-minute EventBridge rate plus an event trigger, a 3-hour warn window covers a couple of missed ticks, and +1h accounts for the prod-domain proxy's 1-hour edge cache.",
-    "note": "conformance_testable is false; no external spec imposes this threshold."
+    "note": "conformance_testable is false; no external spec imposes this threshold.",
+    "verified_against_source": false,
+    "verification_note": "clause n/a -- rule_class: operational. normative_quote is a self-authored statement about the ABSENCE of external spec coverage for this transport/fetch/presence condition; there is no external normative clause to transcribe or verify against a source."
   },
   "applicability": "N/A -- see untested_rationale.",
   "expectation": "N/A -- see untested_rationale."

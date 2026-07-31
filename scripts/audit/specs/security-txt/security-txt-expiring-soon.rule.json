@@ -14,11 +14,14 @@
     "version": "RFC 9116 (April 2022)",
     "conformance_testable": false,
     "retrieved": "2026-07-29",
-    "content_sha256": "6b357b3b5f0fe5aded273837542c998e54f8b2de0a9189c16f0ad48ff85be64e",
-    "normative_quote": "Security.txt implementations are RECOMMENDED to use an Expires date of no more than a year in the future. RFC 9116 places no lower bound on how far out Expires must be, and does not require a warning window before expiry.",
-    "note": "conformance_testable is false because RFC 9116 imposes no minimum-days-remaining threshold -- see policy_note. Recalled from training-data familiarity with the published RFC, not re-verified against a live fetch this session."
+    "content_sha256": "b9c46a7d3270a09dbbe31778125bbebd4a14dee2290932f996895846906cddd2",
+    "normative_quote": "It is RECOMMENDED that the value of this field be less than a year into the future to avoid staleness.",
+    "note": "conformance_testable is false because RFC 9116 imposes no minimum-days-remaining threshold -- see policy_note. normative_quote is now the verbatim RECOMMENDED sentence of §2.5.5, transcribed from the immutable rfc9116.txt on 2026-07-30 (identical to the sentence already verified in security-txt-expires-missing). The 30-day floor this rule actually enforces is local operational policy (params.minDaysRemaining), recorded in policy_note, not implied by the quote.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
   },
-  "policy_note": "RFC 9116 §2.5.5 requires only that Expires be future-dated (see security-txt-expired) and RECOMMENDS under one year (OQ5, deferred to the first ratchet increment). The 30-day floor here is a LOCAL operational buffer so the monthly audit cadence (audit-web.yml monthly job) gets at least one warning cycle before the file actually expires. It is supplied by params.minDaysRemaining and read by check-security-txt.mjs on the production path (main()'s call to validateSecurityTxt) -- it is not restated as a separate literal in the validator.",
+  "policy_note": "RFC 9116 §2.5.5 requires only that Expires be future-dated (see security-txt-expired) and RECOMMENDS under one year (OQ5, deferred to the first ratchet increment). The 30-day floor here is a LOCAL operational buffer so the monthly audit cadence (audit-web.yml monthly job) gets at least one warning cycle before the file actually expires. It is supplied by params.minDaysRemaining and read by check-security-txt.mjs on the production path (main()'s call to validateSecurityTxt) -- it is not restated as a separate literal in the validator. RFC 9116 places no lower bound on how far out Expires must be, and does not require a warning window before expiry; the 30-day floor is entirely this repo's operational choice (its prior home in normative_quote as commentary was moved here in the ADR 0011 follow-up (a) review pass).",
   "applicability": "A security.txt body containing a parseable, non-past Expires value.",
   "expectation": "The parsed Expires instant is at least params.minDaysRemaining days after the evaluation instant.",
   "cases": [

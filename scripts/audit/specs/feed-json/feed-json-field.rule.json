@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "fc4b97f9fa5416815d81fa7c9e12d052855f3e8e741118b9a7287a9f790664d4",
     "normative_quote": "version (required, string) is the URL of the version of the format the feed uses... title (required, string) is the name of the feed... items is an array, and is required.",
-    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: 'items (required, array)' was a reformatting the spec does not use for the items field -- the spec states 'items is an array, and is required.' Each clause above is verbatim from its own sentence in the spec, joined with ellipses."
+    "note": "Verified against a live fetch of https://www.jsonfeed.org/version/1.1/ on 2026-07-30. Corrects a prior defect: 'items (required, array)' was a reformatting the spec does not use for the items field -- the spec states 'items is an array, and is required.' Each clause above is verbatim from its own sentence in the spec, joined with ellipses.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/manton/JSONFeed/7a864ecfc2b35404b5c8ca4902f26cb6bd965d4a/pages/version/1.1.markdown"
   },
   "applicability": "A parsed feed.json document.",
   "expectation": "The document has own-properties \"version\", \"title\", and \"items\".",

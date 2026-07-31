@@ -13,7 +13,10 @@
     "retrieved": "2026-07-30",
     "content_sha256": "8161c8dc46eb6e674cccc7a0f0d5004063a23981505cd503a0a5b1c4059ae7fd",
     "normative_quote": "The \"Expires\" field indicates the date and time after which the data contained in the \"security.txt\" file is considered stale and should not be used (as per Section 5.3). The value of this field is formatted according to the Internet profiles of [ISO.8601-1] and [ISO.8601-2] as defined in [RFC3339]. It is RECOMMENDED that the value of this field be less than a year into the future to avoid staleness. This field MUST always be present and MUST NOT appear more than once.",
-    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects a prior defect: the quote spliced the first and last sentences of §2.5.5 together with no ellipsis, silently dropping the two middle sentences. Now quotes §2.5.5 in full."
+    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects a prior defect: the quote spliced the first and last sentences of §2.5.5 together with no ellipsis, silently dropping the two middle sentences. Now quotes §2.5.5 in full.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
   },
   "applicability": "A security.txt body of any length.",
   "expectation": "The body contains at least one line matching /^Expires:\\s*\\S/ (case-insensitive).",

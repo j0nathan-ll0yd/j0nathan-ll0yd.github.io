@@ -11,9 +11,12 @@
     "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
     "conformance_testable": false,
     "retrieved": "2026-07-29",
-    "content_sha256": "3c73eefa9651695b3b16a8020dce636940967f17c0b087f26b87d8d4d74be868",
-    "normative_quote": "An H1 with the name of the project or site. This is the only required section.",
-    "note": "conformance_testable is false: llmstxt.org itself frames its structure as a convention for LLM-friendly indexing, not a conformance-tested format, even though the H1 is its one genuinely required element -- see rule_class rationale in the artifact's own catalog README-equivalent (validate-llms-txt.mjs's header comment). Recalled from training-data familiarity with the public page, not re-verified against a live fetch this session (this agent has no WebFetch access)."
+    "content_sha256": "54213ead2ea14da262d557f5c42b32293ce36bafcf7c50606e85aa28014946dd",
+    "normative_quote": "An H1 with the name of the project or site. This is the only required section",
+    "note": "conformance_testable is false: llmstxt.org frames its structure as a convention for LLM-friendly indexing, not a conformance-tested format, even though the H1 is its one genuinely required element -- see validate-llms-txt.mjs's header comment. Verified against the pinned source (AnswerDotAI/llms-txt @c7178b9, nbs/index.qmd) on 2026-07-30: the quote is exact (Format list item 2; source line 42 carries no trailing period, and a stray one was removed in this review pass). (Was previously disclosed as recalled-not-verified; the disclosure is now the checkable verified_against_source field.)",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
   "applicability": "Any llms.txt body.",
   "expectation": "The first non-blank line matches /^#\\s+\\S/.",

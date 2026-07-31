@@ -12,6 +12,10 @@ name: Static Checks
 #   - spec-severity-ratchet: `node scripts/audit/check-spec-severity.mjs` --
 #     the monotonic severity ratchet + deletion assertion + params_pending
 #     ratchet over scripts/audit/specs/**/*.rule.json.
+#   - spec-verification: `node scripts/audit/check-spec-verification.mjs` --
+#     ADR 0011 follow-up (a): every rule_class: conformance rule must carry
+#     spec.verified_against_source: true against an immutable/pinned source, the
+#     mechanism that stops the 7-of-7 citation-defect class from recurring.
 #   - spec-mutation-score: `npx stryker run` -- the sufficiency claim (§2 DR2)
 #     over the three pure pilot functions (validateSecurityTxt, validateLlmsTxt,
 #     validateFeedJson).
@@ -138,6 +142,34 @@ jobs:
       # fail the job (S3 no-op-gate hazard).
       - name: Spec severity ratchet
         run: node scripts/audit/check-spec-severity.mjs
+
+  spec-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: npm
+
+      - name: Setup design-system + install dependencies
+        env:
+          DS_REF: main
+          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/ci-setup.sh
+
+      # ADR 0011 follow-up (a): a rule_class: conformance rule may not ship
+      # unless its normative_quote is verified against an immutable/pinned
+      # source (spec.verified_against_source: true). Reads the rule files raw
+      # (not via ajv) so a violation is a clean message, and asserts the
+      # immutable/pinned verification_url shape (follow-up (b)). No `|| true` --
+      # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
+      - name: Spec source-verification gate
+        run: node scripts/audit/check-spec-verification.mjs
 
   spec-mutation-score:
     runs-on: ubuntu-latest
