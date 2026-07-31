@@ -6,7 +6,7 @@
  * 4c: Overlay tests (focus-work, focus-dnd).
  */
 import {expect, type Page, test} from './pw-fixtures'
-import {captureFullPage, setupPage, stabilizeForLocatorScreenshot, stylePath, waitForStableBox, WIDGET_SELECTORS} from './helpers'
+import {captureFullPage, FROZEN_NOW_MS, setupPage, stabilizeForLocatorScreenshot, stylePath, waitForStableBox, WIDGET_SELECTORS} from './helpers'
 
 // ---------------------------------------------------------------------------
 // 4a: Baseline Widget Screenshots (populated scenario)
@@ -123,6 +123,27 @@ test.describe('Widgets - populated', () => {
     await stabilizeForLocatorScreenshot(page)
     const widget = page.locator(WIDGET_SELECTORS.starredRepos)
     await expect(widget).toHaveScreenshot('widget-starred-repos.png', {stylePath})
+  })
+
+  // Behavioral guard (non-screenshot, planning-protocol visual-state rule) for the
+  // relative-time freeze. The three relative-time widgets (starred repos, dev log,
+  // reading feed) render "N weeks/days ago" against the browser clock; a live clock
+  // re-arms the wall-clock time bomb this change defused. These assertions are
+  // week-boundary-INDEPENDENT: they compare the rendered labels against values
+  // derived purely from the frozen constant, so they fail the instant the freeze is
+  // removed (whereas a screenshot baseline only reds after the next week flip).
+  test('relative-time clock is frozen (anti-re-arm guard)', async () => {
+    // 1. The browser clock is pinned to FROZEN_NOW_MS, not the real wall clock.
+    //    (The real clock is months ahead; if this ever equals Date.now() the pin
+    //    is gone.) This is the load-bearing proof the adapters cannot drift.
+    const browserNow = await page.evaluate(() => Date.now())
+    expect(browserNow).toBe(FROZEN_NOW_MS)
+
+    // 2. The starred-repos labels reflect the pinned "now" (fixture starredAt dates
+    //    are Feb-Mar 2026; @ 2026-03-18 the oldest is "3 weeks ago"). Under a live
+    //    clock these would all read ~20+ weeks -- the exact drift that reds CI.
+    const dates = await page.locator('#cardStarredRepos .gh-sl-date').allInnerTexts()
+    expect(dates).toEqual(['2 days ago', '5 days ago', '1 week ago', '2 weeks ago', '3 weeks ago'])
   })
 
   test('theatre reviews', async () => {
