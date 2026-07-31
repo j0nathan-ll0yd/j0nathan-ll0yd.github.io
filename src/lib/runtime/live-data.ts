@@ -117,15 +117,11 @@ type ResourceTypeMap = {
   starredRepos: GithubStarredReposExport
 }
 
-// A payload that passed structural validation: one of the known export shapes
-// (each carries generatedAt). Each switch branch narrows this to the concrete
-// export type via ResourceTypeMap.
-type ValidatedPayload = ResourceTypeMap[keyof ResourceTypeMap]
-
-// Partial over ResourceKey: the contract's ResourceKey still enumerates `location`
-// (its ENDPOINTS entry is retired in a coordinated portal-contract change), but the
-// web dashboard no longer polls or renders it, so it carries no discriminant here.
-const RESOURCE_DISCRIMINANTS: Partial<Record<ResourceKey, string>> = {
+// Structural discriminant per resource: a field whose presence (alongside a string
+// `generatedAt`) marks a payload as the expected export shape. A full Record over
+// ResourceKey so that adding a resource to ENDPOINTS without a discriminant here is a
+// compile error, not a silently-unvalidated payload at runtime.
+const RESOURCE_DISCRIMINANTS: Record<ResourceKey, string> = {
   health: 'quantities',
   sleep: 'date',
   workouts: 'workouts',
@@ -137,7 +133,7 @@ const RESOURCE_DISCRIMINANTS: Partial<Record<ResourceKey, string>> = {
   starredRepos: 'repos'
 }
 
-function validateResource(key: ResourceKey, rawData: unknown): ValidatedPayload | null {
+function validateResource<K extends ResourceKey>(key: K, rawData: unknown): ResourceTypeMap[K] | null {
   if (typeof rawData !== 'object' || rawData === null) {
     return null
   }
@@ -145,11 +141,10 @@ function validateResource(key: ResourceKey, rawData: unknown): ValidatedPayload 
   if (typeof obj.generatedAt !== 'string') {
     return null
   }
-  const discriminant = RESOURCE_DISCRIMINANTS[key]
-  if (discriminant === undefined || !(discriminant in obj)) {
+  if (!(RESOURCE_DISCRIMINANTS[key] in obj)) {
     return null
   }
-  return rawData as ValidatedPayload
+  return rawData as ResourceTypeMap[K]
 }
 
 // ── Per-resource incremental update dispatch ─────────────────────────
