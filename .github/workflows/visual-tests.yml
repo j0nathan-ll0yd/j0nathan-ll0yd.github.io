@@ -117,10 +117,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Download DS+dist artifact
+      - name: Download dist artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: visual-tests-ds-dist
+          # upload-artifact flattens a single-dir `path: dist` to the artifact
+          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
+          # preview server expects.
+          path: dist
 
       - name: Install dependencies
         env:
@@ -179,10 +183,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Download DS+dist artifact
+      - name: Download dist artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: visual-tests-ds-dist
+          # upload-artifact flattens a single-dir `path: dist` to the artifact
+          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
+          # preview server expects.
+          path: dist
 
       - name: Install dependencies
         env:
