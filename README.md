@@ -15,7 +15,7 @@ npm run build          # production build into dist/
 npm run preview        # preview the production build
 ```
 
-All UI widgets are imported from the yalc-linked Design System package (`@lifegames/web/production`); this repo contains no widget source. If `npm install` cannot resolve the `@lifegames/*` packages, link them from `design-system-Lifegames` first (`pnpm yalc:publish` in that repo).
+All UI widgets are imported from the Design System package (`@j0nathan-ll0yd/web/production`), published to GitHub Packages; this repo contains no widget source. `npm ci --legacy-peer-deps` resolves the `@j0nathan-ll0yd/*` packages from the registry (`@j0nathan-ll0yd:registry=https://npm.pkg.github.com` in `.npmrc`, authenticated by `GITHUB_TOKEN` in CI or a PAT in `~/.npmrc` locally).
 
 ## Architecture
 
@@ -26,11 +26,11 @@ data/*.json ──► index.astro (build time) ──► static HTML ──► C
                                                   │
                                   client hydration │ runtime polling
                                                   ▼
-                          CloudFront JSON ──► @lifegames/web/runtime/live-data
+                          CloudFront JSON ──► @j0nathan-ll0yd/web/runtime/live-data
 ```
 
 - **Astro 6 static output** -- 0 KB JS by default; interactivity via selective islands.
-- **Design System** (`@lifegames/web`, `@lifegames/tokens`, `@lifegames/schemas`) -- yalc-linked from `design-system-Lifegames`; source of all widgets, CSS tokens, and fixture schemas.
+- **Design System** (`@j0nathan-ll0yd/web`, `@j0nathan-ll0yd/tokens`, `@j0nathan-ll0yd/schemas`) -- published from `design-system-Lifegames` to GitHub Packages; source of all widgets, CSS tokens, and fixture schemas.
 - **CloudFront data layer** -- live data fetched after page load; polled (30s fast / 120s slow) with WebSocket fallback.
 
 ## Testing
@@ -49,10 +49,10 @@ npm run test:visual:update       # regenerate baselines in Docker (only sanction
 
 Two data paths feed the dashboard:
 
-- **Build-time** -- `src/lib/load-dashboard-data.ts` returns the DS-owned SSR shell from `@lifegames/fixtures` (`getDashboardFixture()`). Fixtures are no longer hand-baked in this repo; the single source of truth is `design-system-Lifegames/packages/fixtures`. `import.meta.env.FIXTURE_VARIATION` (wired in `astro.config.mjs`) selects a named variation; default is `baseline`.
-- **Runtime** -- the client polls CloudFront JSON endpoints via `@lifegames/web/runtime/live-data` for live values once the page loads.
+- **Build-time** -- `src/lib/load-dashboard-data.ts` returns the DS-owned SSR shell from `@j0nathan-ll0yd/fixtures` (`getDashboardFixture()`). Fixtures are no longer hand-baked in this repo; the single source of truth is `design-system-Lifegames/packages/fixtures`. `import.meta.env.FIXTURE_VARIATION` (wired in `astro.config.mjs`) selects a named variation; default is `baseline`.
+- **Runtime** -- the client polls CloudFront JSON endpoints via `@j0nathan-ll0yd/web/runtime/live-data` for live values once the page loads.
 
-Consumer-side fixtures are forbidden (Invariant I2, enforced by `npm run audit:fixtures` in the prebuild gate). Visual tests render reproducible snapshots by intercepting the CloudFront endpoints and serving raw fixtures from `@lifegames/fixtures/generated/<domain>/<variation>.json`.
+Consumer-side fixtures are forbidden (Invariant I2, enforced by `npm run audit:fixtures` in the prebuild gate). Visual tests render reproducible snapshots by intercepting the CloudFront endpoints and serving raw fixtures from `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json`.
 
 ## Deploy
 
@@ -68,4 +68,4 @@ Push to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`): `npm ru
 
 ## Tech Stack
 
-Astro 6, Vitest, Playwright, Ajv, wrangler (Cloudflare Pages), `@vite-pwa/astro`, `@astrojs/sitemap`, and pngjs/pixelmatch for screenshot diffing. Visual styling, fonts, and interactive widgets are provided by the Design System (`@lifegames/*`).
+Astro 6, Vitest, Playwright, Ajv, wrangler (Cloudflare Pages), `@vite-pwa/astro`, `@astrojs/sitemap`, and pngjs/pixelmatch for screenshot diffing. Visual styling, fonts, and interactive widgets are provided by the Design System (`@j0nathan-ll0yd/*`).

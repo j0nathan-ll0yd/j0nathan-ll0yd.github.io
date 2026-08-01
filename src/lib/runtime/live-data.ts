@@ -1,8 +1,8 @@
 import {fetchAllEndpoints, fetchWithTimeout} from './api'
-import {updateFocusOverlay} from '@lifegames/web/runtime/updaters-focus'
-import {updateTheatreReviews} from '@lifegames/web/runtime/updaters-theatre'
+import {updateFocusOverlay} from '@j0nathan-ll0yd/web/runtime/updaters-focus'
+import {updateTheatreReviews} from '@j0nathan-ll0yd/web/runtime/updaters-theatre'
 import {updatePollStatus} from './updaters-status'
-import {updateHeartRateFooter, updateMovementRings} from '@lifegames/web/runtime/updaters-movement'
+import {updateHeartRateFooter, updateMovementRings} from '@j0nathan-ll0yd/web/runtime/updaters-movement'
 import type {
   ArticlesExport,
   BooksExport,
@@ -13,9 +13,9 @@ import type {
   SleepExport,
   TheatreReviewsExport,
   WorkoutsExport
-} from '@lifegames/web/types/exports'
-import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
-import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@lifegames/web/runtime/adapters'
+} from '@j0nathan-ll0yd/web/types/exports'
+import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@j0nathan-ll0yd/web/runtime/adapters'
 import {WSClient} from './ws-client'
 import {
   updateBookshelf,
@@ -27,9 +27,9 @@ import {
   updateStarredRepos,
   updateSystemStatus,
   updateWorkouts
-} from '@lifegames/web/runtime/updaters'
+} from '@j0nathan-ll0yd/web/runtime/updaters'
 import {PollEngine} from './poll-engine'
-import type {ResourceKey} from '@lifegames/portal-contract/constants'
+import type {ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const LIVE_CARDS = [
   'cardHR',
@@ -56,7 +56,7 @@ let ws: WSClient | null = null
 // While focus is a hiding mode the gate denies every suppressible artifact (403). The
 // client mirrors that: overlay immediately, pause suppressible polling, and hold the live
 // cards in their skeleton state so no stale real data lingers in the DOM under the overlay.
-// HIDING_FOCUS_MODES is the cross-platform single source of truth (@lifegames/portal-contract),
+// HIDING_FOCUS_MODES is the cross-platform single source of truth (@j0nathan-ll0yd/portal-contract),
 // shared with the backend gate + the DS overlay so the three layers can never drift — the web
 // layer is cosmetic + efficiency only; the edge gate is the real privacy boundary, so a
 // mismatch degrades to redundant 403 polls, never a data leak.

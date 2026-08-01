@@ -41,17 +41,18 @@ VERSION=$(./scripts/playwright-version.sh)
 # the bind-mounted HOST node_modules, clobbering the macOS arm64 darwin binaries.
 # The host then fails `npm run build` / dprint / git commit until a manual
 # `npm ci`. The anonymous volume gives the container its own node_modules layer,
-# so the install never touches the host. `.yalc/@lifegames/*` still resolves:
-# it lives under the `/work` bind mount, so `npm ci` re-creates the file:
-# symlinks inside the container-private node_modules pointing at the real
-# .yalc sources. `--rm` disposes the anonymous volume on exit, so each run
-# does a fresh clean install exactly as before -- only the host is now spared.
+# so the install never touches the host. The `@j0nathan-ll0yd/*` packages resolve
+# from GitHub Packages (the forwarded GITHUB_TOKEN authenticates the registry read)
+# into the container-private node_modules -- no host state is involved. `--rm`
+# disposes the anonymous volume on exit, so each run does a fresh clean install
+# exactly as before -- only the host is now spared.
 # NOTE: the shadow volume mount MUST come AFTER the `/work` bind mount so it
 # layers on top of it.
 # Forward GITHUB_TOKEN so the container's `npm ci` can authenticate to GitHub
-# Packages for @j0nathan-ll0yd/config (private registry, added in #142). The
-# repo .npmrc sets //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}; without the
-# env var it expands to empty and the install 401s. Export it before running
+# Packages for the @j0nathan-ll0yd/* scope (the six DS/LP packages + config).
+# GitHub Packages requires a token even to read public packages. The repo .npmrc
+# sets //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}; without the env var it
+# expands to empty and the install 401s. Export it before running
 # (e.g. `GITHUB_TOKEN=$(gh auth token) npm run test:visual`). Unset -> no-op.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \

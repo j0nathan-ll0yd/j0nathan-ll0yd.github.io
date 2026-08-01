@@ -14,7 +14,7 @@ import {mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, headStable, isMain, report} from './lib/http.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

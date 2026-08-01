@@ -8,7 +8,7 @@
 // standing gap security-txt-expiring-soon exists to eventually catch (§7
 // finding #4 of the monorepo audit plan).
 
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 import {emit, rules} from './specs/load.mjs'
 

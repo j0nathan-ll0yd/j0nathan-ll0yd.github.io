@@ -3,7 +3,7 @@
 //
 // Tier 1/2/3 enforcement (Plan #11). The committed .contract-lock.json must
 // match what `scripts/generate-contract-lock.mjs` would produce for the current
-// .yalc/@lifegames/schemas tree. This guards every field except the two that
+// node_modules/@j0nathan-ll0yd/schemas tree. This guards every field except the two that
 // the generator writes non-deterministically:
 //   - `generatedAt`          -- wall-clock timestamp, changes every run.
 //   - `generatedFrom.sha`    -- live DS repo HEAD when a sibling checkout exists.
@@ -25,9 +25,9 @@ import {fileURLToPath} from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dirname, '..')
 const LOCK_FILE = join(REPO_ROOT, '.contract-lock.json')
-const SCHEMAS_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'schemas')
-// Raw export schemas moved to the backend-owned @lifegames/portal-contract package.
-const PORTAL_CONTRACT_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'portal-contract')
+const SCHEMAS_PKG = join(REPO_ROOT, 'node_modules', '@j0nathan-ll0yd', 'schemas')
+// Raw export schemas moved to the backend-owned @j0nathan-ll0yd/portal-contract package.
+const PORTAL_CONTRACT_PKG = join(REPO_ROOT, 'node_modules', '@j0nathan-ll0yd', 'portal-contract')
 
 // Fields the generator writes non-deterministically -- excluded from the diff.
 const VOLATILE = new Set(['generatedAt', 'generatedFrom.sha'])
@@ -54,8 +54,8 @@ if (!existsSync(LOCK_FILE)) {
 }
 if (!existsSync(SCHEMAS_PKG)) {
   // Cannot recompute -- environment problem, not a hand-edit. Surface clearly.
-  console.error('[check-contract-lock] ERROR: .yalc/@lifegames/schemas not found.')
-  console.error('  Run `pnpm yalc:publish` from design-system-Lifegames first (or `bash scripts/ci-setup.sh` in CI).')
+  console.error('[check-contract-lock] ERROR: node_modules/@j0nathan-ll0yd/schemas not found.')
+  console.error('  Run `npm ci --legacy-peer-deps` first (installs the schemas package from the registry).')
   process.exit(1)
 }
 

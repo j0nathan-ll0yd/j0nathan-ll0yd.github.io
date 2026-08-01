@@ -15,7 +15,7 @@ A **widget** is an Astro component rendered inside a `.tri-card` wrapper that di
 Components that are **not** widgets:
 
 - **Overlays** — full-screen takeovers (FocusOverlay, DndOverlay) that obscure the dashboard
-- **Modals** — interactive dialogs triggered by user action (BookModal). BookModal uses the native `<dialog>` element: it opens via `showModal()` (top-layer rendering, automatic background `inert`, Escape-to-close via the `cancel` event, `::backdrop` pseudo-element) and closes via `close()`. Focus is stored on open and restored to the trigger on close. Backdrop-click-to-close uses the `getBoundingClientRect()` pattern. The bundled DS TypeScript runtime (`@lifegames/web/production/BookModal.astro`) is the sole activation path — there is no web-side ES5 copy.
+- **Modals** — interactive dialogs triggered by user action (BookModal). BookModal uses the native `<dialog>` element: it opens via `showModal()` (top-layer rendering, automatic background `inert`, Escape-to-close via the `cancel` event, `::backdrop` pseudo-element) and closes via `close()`. Focus is stored on open and restored to the trigger on close. Backdrop-click-to-close uses the `getBoundingClientRect()` pattern. The bundled DS TypeScript runtime (`@j0nathan-ll0yd/web/production/BookModal.astro`) is the sole activation path — there is no web-side ES5 copy.
 - **Utility components** — non-data components (OGImage, ComingSoon)
 - **Layout components** — page structure (Dashboard.astro, Showcase.astro)
 
@@ -111,7 +111,7 @@ Widgets use a hybrid responsive approach:
 Every widget MUST support three mandatory states and MAY support additional states.
 
 > **States vs. fixtures — how the three states map to the DS standard triad.** The
-> design system's `@lifegames/fixtures` defines a standard **variation triad** —
+> design system's `@j0nathan-ll0yd/fixtures` defines a standard **variation triad** —
 > `empty` / `baseline` / `full` — for every domain (DS `GOVERNANCE.md` **P3.2**, the
 > canonical authority). Two of the three widget states below are driven by triad
 > **data fixtures**: the **Empty** state by the `empty` variation, and the **Active**
@@ -215,7 +215,7 @@ Data flows through two parallel pipelines:
 
 ```text
 BUILD TIME (SSR shell):
-  @lifegames/fixtures (getDashboardFixture, post-adapter baseline) → loadDashboardData() (index.astro frontmatter) → Astro component props → HTML
+  @j0nathan-ll0yd/fixtures (getDashboardFixture, post-adapter baseline) → loadDashboardData() (index.astro frontmatter) → Astro component props → HTML
 
 RUNTIME:
   CloudFront endpoints → fetch (api.ts) → adapter functions (adapters.ts) → updater functions (updaters.ts) → DOM
@@ -424,8 +424,8 @@ Widgets with meaningful visual variations (see [Section 3.4](#34-variation-state
 
 **Adding a new variation screenshot test:**
 
-1. Add the fixture variation **in the DS package**: `design-system-Lifegames/packages/fixtures/src/variations/{data-type}.ts`, then regenerate (`pnpm -F @lifegames/fixtures generate`) and `pnpm yalc:publish` so the new `@lifegames/fixtures/generated/<domain>/<variation>.json` is available to this repo.
-2. Refresh the link in this repo: `npm install --legacy-peer-deps` (or `yalc update`).
+1. Add the fixture variation **in the DS package**: `design-system-Lifegames/packages/fixtures/src/variations/{data-type}.ts`, then regenerate (`pnpm -F @j0nathan-ll0yd/fixtures generate`) and publish a new `@j0nathan-ll0yd/fixtures` version so the new `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` is available to this repo.
+2. Adopt it in this repo: bump the `@j0nathan-ll0yd/fixtures` version and `npm install --legacy-peer-deps`.
 3. Add a scenario in `tests/visual/fixtures.ts` that overrides the relevant endpoint
 4. Add the test in `tests/visual/widgets.spec.ts`:
 
@@ -527,16 +527,16 @@ Build output validation tests in `tests/build/` verify the built site:
 ### 6.4 Generated Fixture Data
 
 > **Fixtures are DS-owned (Plan #04).** The single source of truth for fixtures is
-> `@lifegames/fixtures` in `design-system-Lifegames/packages/fixtures/`. The factories,
+> `@j0nathan-ll0yd/fixtures` in `design-system-Lifegames/packages/fixtures/`. The factories,
 > named variations, and committed generated output (raw `src/generated/` + post-adapter
 > `src/post-adapter/`) all live in the DS package. **This repo hand-bakes no fixtures** —
 > consumer-side fixtures are forbidden by Invariant I2 and the `npm run audit:fixtures`
 > prebuild gate (any `data/**`, `test/fixtures/**`, or `src/**/fixtures/**` JSON fails the
 > build). The web consumes fixtures from the package: the SSR shell calls
 > `getDashboardFixture()` (post-adapter `baseline` by default), and the Playwright visual
-> layer reads `@lifegames/fixtures/generated/<domain>/<variation>.json` via CloudFront
-> route interception. To add or change a fixture, edit it in the DS package and run
-> `pnpm yalc:publish` from there. The subsections below describe the DS-side authoring
+> layer reads `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` via CloudFront
+> route interception. To add or change a fixture, edit it in the DS package and publish
+> a new `@j0nathan-ll0yd/fixtures` version from there. The subsections below describe the DS-side authoring
 > model and the variation catalog that this repo consumes.
 
 #### 6.4.1 Factory Pattern
@@ -551,7 +551,7 @@ export function createHealthFixture(overrides?, omitKeys?): HealthExport {
 }
 ```
 
-Factories produce valid, typed objects that match the raw CloudFront export schemas (the backend's contract, consumed by DS via `@lifegames/portal-contract`).
+Factories produce valid, typed objects that match the raw CloudFront export schemas (the backend's contract, consumed by DS via `@j0nathan-ll0yd/portal-contract`).
 
 #### 6.4.2 Variation Definitions
 
@@ -606,11 +606,11 @@ edge-case fixtures.
 Fixture generation and validation run **in the DS package**, not this repo. This repo only
 has the consumer-side guard that forbids fixtures from reappearing locally.
 
-| Script                                 | Command                                | Where           | Purpose                                                                                                                                                   |
-| -------------------------------------- | -------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/fixtures/scripts/generate.*` | `pnpm -F @lifegames/fixtures generate` | DS              | Runs all factories + variations, applies adapters, writes raw + post-adapter JSON                                                                         |
-| `@lifegames/fixtures` validation       | `pnpm -F @lifegames/fixtures test`     | DS              | Validates generated output against raw-export + `Dashboard*` display schemas (also gated by the DS `fixtures` CI job + the `check-freshness.sh` git-diff) |
-| `scripts/audit-fixtures.mjs`           | `npm run audit:fixtures`               | web (this repo) | Invariant I2 gate (prebuild + CI): fails if any `data/**`, `test/fixtures/**`, or `src/**/fixtures/**` JSON exists locally                                |
+| Script                                 | Command                                     | Where           | Purpose                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/fixtures/scripts/generate.*` | `pnpm -F @j0nathan-ll0yd/fixtures generate` | DS              | Runs all factories + variations, applies adapters, writes raw + post-adapter JSON                                                                         |
+| `@j0nathan-ll0yd/fixtures` validation  | `pnpm -F @j0nathan-ll0yd/fixtures test`     | DS              | Validates generated output against raw-export + `Dashboard*` display schemas (also gated by the DS `fixtures` CI job + the `check-freshness.sh` git-diff) |
+| `scripts/audit-fixtures.mjs`           | `npm run audit:fixtures`                    | web (this repo) | Invariant I2 gate (prebuild + CI): fails if any `data/**`, `test/fixtures/**`, or `src/**/fixtures/**` JSON exists locally                                |
 
 ---
 
@@ -697,8 +697,8 @@ Use this checklist when adding a new production widget:
 - [ ] **Fixtures (DS-owned)**: Add fixture data in the DS package, not here
   - [ ] Add factory in `design-system-Lifegames/packages/fixtures/src/factories/{data-type}.ts` (if new endpoint)
   - [ ] Add variations in `packages/fixtures/src/variations/{data-type}.ts`
-  - [ ] Regenerate + validate in DS: `pnpm -F @lifegames/fixtures generate && pnpm -F @lifegames/fixtures test`, then `pnpm yalc:publish`
-  - [ ] In this repo, refresh the link (`npm install --legacy-peer-deps`); do NOT add fixtures locally (`npm run audit:fixtures` enforces Invariant I2)
+  - [ ] Regenerate + validate in DS: `pnpm -F @j0nathan-ll0yd/fixtures generate && pnpm -F @j0nathan-ll0yd/fixtures test`, then publish a new `@j0nathan-ll0yd/fixtures` version
+  - [ ] In this repo, bump the `@j0nathan-ll0yd/fixtures` version + `npm install --legacy-peer-deps`; do NOT add fixtures locally (`npm run audit:fixtures` enforces Invariant I2)
 
 - [ ] **Screenshot tests**: Add visual regression tests
   - [ ] Register widget ID in `WIDGET_SELECTORS` (`tests/visual/helpers.ts`)
@@ -735,15 +735,15 @@ Sandbox widgets have a lighter checklist:
 
 The compliance matrix is derived from these canonical source files. If the matrix conflicts with these sources, the sources are authoritative:
 
-| Requirement        | Canonical Source                                                                                             |
-| ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| Dashboard widgets  | `src/pages/index.astro` (component imports)                                                                  |
-| Widget IDs         | `tests/visual/helpers.ts` (`WIDGET_SELECTORS`)                                                               |
-| Screenshot tests   | `tests/visual/widgets.spec.ts`                                                                               |
-| Fixture scenarios  | `tests/visual/fixtures.ts`                                                                                   |
-| Generated fixtures | `@lifegames/fixtures` (DS: `design-system-Lifegames/packages/fixtures/src/generated/` + `src/post-adapter/`) |
-| Unit tests         | `tests/lib/*.test.ts` file contents                                                                          |
-| Showcase presence  | `src/showcase/*.astro` file contents                                                                         |
+| Requirement        | Canonical Source                                                                                                  |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Dashboard widgets  | `src/pages/index.astro` (component imports)                                                                       |
+| Widget IDs         | `tests/visual/helpers.ts` (`WIDGET_SELECTORS`)                                                                    |
+| Screenshot tests   | `tests/visual/widgets.spec.ts`                                                                                    |
+| Fixture scenarios  | `tests/visual/fixtures.ts`                                                                                        |
+| Generated fixtures | `@j0nathan-ll0yd/fixtures` (DS: `design-system-Lifegames/packages/fixtures/src/generated/` + `src/post-adapter/`) |
+| Unit tests         | `tests/lib/*.test.ts` file contents                                                                               |
+| Showcase presence  | `src/showcase/*.astro` file contents                                                                              |
 
 ---
 

@@ -8,7 +8,7 @@
 // Not itself a route: Pages Functions only creates routes for modules that
 // export an onRequest* handler; this module exports a factory.
 
-import {CLOUDFRONT_BASE} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 
 // Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {

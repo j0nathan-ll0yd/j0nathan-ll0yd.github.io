@@ -71,12 +71,12 @@ vi.mock('../../src/lib/runtime/api',
       })
   }))
 
-vi.mock('@lifegames/portal-contract/constants', async (importActual) => {
+vi.mock('@j0nathan-ll0yd/portal-contract/constants', async (importActual) => {
   // Pull the REAL cross-platform constants (HIDING_FOCUS_MODES, FOCUS_MODES) from the
   // contract so this test enforces the single source of truth instead of duplicating it —
   // a hardcoded copy here would pass even if the contract's hiding modes changed. Only the
   // network URLs + endpoint paths are overridden with test doubles.
-  const actual = await importActual<typeof import('@lifegames/portal-contract/constants')>()
+  const actual = await importActual<typeof import('@j0nathan-ll0yd/portal-contract/constants')>()
   return {
     ...actual,
     CLOUDFRONT_BASE: 'https://mock.cloudfront.net',

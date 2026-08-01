@@ -5,7 +5,7 @@
  * jitter, which defeats Playwright's animations:'disabled'. Previously the
  * canvas was hidden in screenshot.css (the "paper over flake" anti-pattern).
  * That carve-out is now removed; instead the canvas exposes a deterministic
- * test seam, window.__hrEcg, defined in @lifegames/web/runtime/heart-rate-init:
+ * test seam, window.__hrEcg, defined in @j0nathan-ll0yd/web/runtime/heart-rate-init:
  *
  *   window.__hrEcg = {
  *     ready: boolean,                 // true after the first step()

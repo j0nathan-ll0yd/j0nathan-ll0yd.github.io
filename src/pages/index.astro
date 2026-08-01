@@ -6,9 +6,9 @@ import {
   StarredRepoList, DevActivityLog, ReadingFeed, Bookshelf,
   FocusOverlay, DndOverlay,
   TheatreReviews,
-} from '@lifegames/web/production';
+} from '@j0nathan-ll0yd/web/production';
 import { loadDashboardData } from '../lib/load-dashboard-data';
-import { a11y, app, identity } from '@lifegames/copy';
+import { a11y, app, identity } from '@j0nathan-ll0yd/copy';
 
 const { profile, health, github, reading, books, system, starredRepos } = await loadDashboardData();
 ---
@@ -75,7 +75,7 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
   <BookModal />
 
   <script>
-    import { initInputModality } from '@lifegames/web/runtime/input-modality';
+    import { initInputModality } from '@j0nathan-ll0yd/web/runtime/input-modality';
     initInputModality();
   </script>
 
@@ -93,13 +93,13 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
         const bg = new URLSearchParams(location.search).get('bg');
         if (bg === 'off') return;
         if (bg === 'canvas') {
-          import('@lifegames/web/runtime/particles').then(m => m.startParticles());
+          import('@j0nathan-ll0yd/web/runtime/particles').then(m => m.startParticles());
         } else {
           import('../lib/mobile-bg').then(m => m.initMobileBg(bg === 'lite' ? 'lite' : 'svg'));
         }
         return;
       }
-      import('@lifegames/web/runtime/particles').then(m => m.startParticles());
+      import('@j0nathan-ll0yd/web/runtime/particles').then(m => m.startParticles());
     });
   </script>
 

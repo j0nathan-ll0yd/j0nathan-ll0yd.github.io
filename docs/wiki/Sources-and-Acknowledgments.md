@@ -93,7 +93,7 @@ is now a static, hand-maintained content-modification constant. We pointed
 site root), enriched the `Person` node with `givenName`/`familyName`,
 `disambiguatingDescription`, a real 200x200 avatar `ImageObject` (the OG card stays
 reserved for `og:image`), and corrected `knowsLanguage` from `["en"]` to the BCP-47
-`["en-US"]`. Every identity string is still sourced from `@lifegames/copy`; no value
+`["en-US"]`. Every identity string is still sourced from `@j0nathan-ll0yd/copy`; no value
 was hardcoded. Closing the article's validation gap, we added a build-output test
 (`tests/build/json-ld.test.ts`) that parses the emitted `@graph` from `/`,
 `/privacy`, and `/404` and asserts every `{"@id"}` reference resolves to a node
@@ -101,7 +101,7 @@ that defines that `@id` on the same page (no dangling links), that `ProfilePage`
 and `Dataset` appear only on the home page, and that a `WebPage` node appears on
 `/privacy`. Two of his recommendations are deferred, not rejected: a Wikidata
 `sameAs` (the highest-value Knowledge Graph signal) and `worksFor` / `alumniOf`
-both await real data plus new `@lifegames/copy` fields, and we will not invent
+both await real data plus new `@j0nathan-ll0yd/copy` fields, and we will not invent
 identity values to satisfy the schema.
 
 ### 2026-07-20 -- `font-family` recommendations
@@ -134,7 +134,7 @@ and several commenters in his own threads argue curated stacks are "never worse
 than generic, usually better." The article does not cover emoji fonts.
 
 **What we did.** We audited every `font-family` declaration and font token that
-reaches the site (this repo plus the yalc-linked `@lifegames/tokens` design
+reaches the site (this repo plus the registry-published `@j0nathan-ll0yd/tokens` design
 system, which is the source of truth for font values) against Morgan's advice.
 The good news first: our rendered typography already matches the shape he
 endorses -- body and headings resolve to `'Space Grotesk', 'Space Grotesk
@@ -144,14 +144,14 @@ warranted. Where the audit paid off was as a forcing function to actually _look_
 at the font plumbing, and in doing so it surfaced a genuine, live production bug
 that had nothing to do with the stacks themselves: `Dashboard.astro` imported the
 design system's `preamble`, `css.layered`, `compat`, `components`, `effects`, and
-`reset` stylesheets but **never imported `@lifegames/tokens/fonts`, the file that
+`reset` stylesheets but **never imported `@j0nathan-ll0yd/tokens/fonts`, the file that
 holds the `@font-face` rules**. A stale comment even claimed the `@font-face`
 rules came from `preamble` (they do not -- `preamble` only declares the cascade
 layer order). The result: `@font-face` appeared zero times in the built output,
 the preloaded 22 KB `space-grotesk-latin.woff2` was fetched but never claimed by
 any rule, and every `'Space Grotesk'` reference silently fell through to the
 system `sans-serif`. **The brand font had never been rendering in production.**
-We fixed it in this repo by adding the missing `@import '@lifegames/tokens/fonts'`
+We fixed it in this repo by adding the missing `@import '@j0nathan-ll0yd/tokens/fonts'`
 to the global style block in `Dashboard.astro` and correcting the two misleading
 comments (the font-loading claim and a "preloaded but not used" warning that had
 been misattributed to a Vite dev-server timing artifact). After the fix a

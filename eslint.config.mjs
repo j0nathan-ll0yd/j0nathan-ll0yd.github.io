@@ -12,7 +12,6 @@ export default [
     ignores: [
       'dist/**',
       '.astro/**',
-      '.yalc/**',
       'coverage/**',
       'node_modules/**',
       'previews/**',

@@ -2,7 +2,7 @@ import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
-import {DATASET_DISTRIBUTIONS, DATASET_VARIABLES, SITE_URL} from '@lifegames/portal-contract/constants'
+import {DATASET_DISTRIBUTIONS, DATASET_VARIABLES, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const distDir = path.resolve(process.cwd(), 'dist')
 
@@ -114,7 +114,7 @@ describe('JSON-LD Structured Data', () => {
     expect(person.sameAs.length).toBeGreaterThan(0)
   })
 
-  // Guards against a silently-dropped @lifegames/copy field: worksFor/alumniOf are
+  // Guards against a silently-dropped @j0nathan-ll0yd/copy field: worksFor/alumniOf are
   // assembled from identity.person.employer* / alumniOf*, and JSON.stringify omits
   // undefined, so a missing copy field would vanish with no other test noticing.
   // Structural (not value-pinned) so it survives an employer/school change.
@@ -142,7 +142,7 @@ describe('JSON-LD Structured Data', () => {
   })
 })
 
-describe('JSON-LD Dataset (sourced from @lifegames/portal-contract)', () => {
+describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () => {
   it('contains a Dataset node', () => {
     const dataset = graph.find((n: any) => n['@type'] === 'Dataset')
     expect(dataset).toBeDefined()

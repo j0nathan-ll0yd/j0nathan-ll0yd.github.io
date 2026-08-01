@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
   issues: write
-  packages: read # read @j0nathan-ll0yd/config from GitHub Packages during ci-setup.sh's npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
 
 concurrency:
   group: deploy
@@ -27,11 +27,10 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
 
-      - name: Setup design-system + install dependencies
+      - name: Install dependencies
         env:
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci-setup.sh
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         # --json emits structured (NDJSON) build logs for CI log triage. Scoped to
@@ -87,14 +86,13 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      # fetch-images.mjs imports @lifegames/portal-contract (yalc dep), so this
-      # job needs the same producer setup as build-and-deploy. Without it the
-      # script dies with ERR_MODULE_NOT_FOUND before it can check anything.
-      - name: Setup design-system + install dependencies
+      # fetch-images.mjs imports @j0nathan-ll0yd/portal-contract, so this job needs
+      # the dependencies installed. Without it the script dies with
+      # ERR_MODULE_NOT_FOUND before it can check anything.
+      - name: Install dependencies
         env:
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci-setup.sh
+        run: npm ci --legacy-peer-deps
 
       - name: Check for new images
         id: check

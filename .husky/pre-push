@@ -12,25 +12,14 @@
 #    (use only for branches that genuinely don't touch rendered output -- e.g.
 #    docs-only edits -- and accept that CI will catch any pixel regression).
 
-# 0) Install integrity + yalc freshness (fast, fs-only). The doctor runs FIRST so
-#    a broken node_modules/.bin symlink (the yalc-churn failure mode, atlas 0013
-#    Task 3) is reported clearly here instead of detonating as a cryptic
-#    "command not found" inside format:check/lint below. The freshness gate then
-#    compares .yalc against the committed .yalc-lock.json (lock <-> local disk);
-#    CI's yalc-freshness job re-binds it to upstream main. Escape for local
-#    iteration against an unpublished DS branch: YALC_FRESHNESS_SKIP=1 git push.
-echo "[pre-push] Preflight: install integrity -> yalc freshness"
+# 0) Install integrity (fast, fs-only). The doctor runs FIRST so a broken
+#    node_modules/.bin symlink is reported clearly here instead of detonating as
+#    a cryptic "command not found" inside format:check/lint below.
+echo "[pre-push] Preflight: install integrity"
 
 if ! npm run doctor:install; then
   echo ""
   echo "ERROR: install integrity check failed (see fix above)."
-  echo ""
-  exit 1
-fi
-
-if ! npm run check:yalc-freshness; then
-  echo ""
-  echo "ERROR: yalc freshness gate failed (a stale linked dependency would ship)."
   echo ""
   exit 1
 fi

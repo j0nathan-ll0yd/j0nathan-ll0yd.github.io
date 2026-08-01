@@ -6,12 +6,10 @@
   "scripts": {
     "prepare": "husky",
     "check:contract-lock": "node scripts/check-contract-lock.mjs",
-    "check:yalc-freshness": "node scripts/check-yalc-freshness.mjs",
-    "generate:yalc-lock": "node scripts/generate-yalc-lock.mjs",
     "doctor:install": "node scripts/doctor-install.mjs",
     "dev": "astro dev",
     "generate:webmcp": "node scripts/generate-webmcp.mjs",
-    "prebuild": "npm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@lifegames/schemas/scripts/validate.ts && npm run audit:fixtures && npm run audit:inline-scripts && npm run audit:sa-path",
+    "prebuild": "npm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@j0nathan-ll0yd/schemas/scripts/validate.ts && npm run audit:fixtures && npm run audit:inline-scripts && npm run audit:sa-path",
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "audit:sa-path": "node scripts/check-sa-proxy-path.mjs",
@@ -33,12 +31,12 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@lifegames/copy": "file:.yalc/@lifegames/copy",
-    "@lifegames/fixtures": "file:.yalc/@lifegames/fixtures",
-    "@lifegames/portal-contract": "file:.yalc/@lifegames/portal-contract",
-    "@lifegames/schemas": "file:.yalc/@lifegames/schemas",
-    "@lifegames/tokens": "file:.yalc/@lifegames/tokens",
-    "@lifegames/web": "file:.yalc/@lifegames/web",
+    "@j0nathan-ll0yd/copy": "^1.0.0",
+    "@j0nathan-ll0yd/fixtures": "^1.0.0",
+    "@j0nathan-ll0yd/portal-contract": "^1.0.0",
+    "@j0nathan-ll0yd/schemas": "^1.0.0",
+    "@j0nathan-ll0yd/tokens": "^1.0.0",
+    "@j0nathan-ll0yd/web": "^1.0.0",
     "astro": "^7.1.3",
     "fast-xml-validator": "^1.4.0"
   },

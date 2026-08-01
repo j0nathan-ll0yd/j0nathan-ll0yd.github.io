@@ -2,7 +2,7 @@
 // Replaces both cloudflare/api-catalog-content-type.js (Worker) and public/_headers
 // because root middleware disables _headers file processing.
 
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
 // already an origin. Sourcing both from the contract keeps the CSP in sync with

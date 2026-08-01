@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /* audit-fixtures.mjs -- Invariant I2 gate (Plan #04, docs/onboarding-review/04-fixtures-as-ssr-shell.md).
  *
- * Fixtures are DS-owned: the single source of truth is `@lifegames/fixtures`.
+ * Fixtures are DS-owned: the single source of truth is `@j0nathan-ll0yd/fixtures`.
  * This consumer repo must NEVER hand-bake local fixture/snapshot JSON again --
  * the SSR shell comes from `getDashboardFixture()` and the Playwright layer reads
- * `@lifegames/fixtures/generated/<domain>/<variation>.json`. This gate forbids the
+ * `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json`. This gate forbids the
  * old hand-baked locations from reappearing.
  *
  * FORBIDDEN (any match fails the build):
@@ -13,8 +13,11 @@
  *   - src/**\/fixtures/**\/*.json (any in-source fixture snapshot)
  *
  * Runs in `prebuild`; CI gates on it. Regenerate/extend fixtures in
- * design-system-Lifegames/packages/fixtures, then `pnpm yalc:publish`. */
-import {globSync} from 'glob'
+ * design-system-Lifegames/packages/fixtures, then publish a new
+ * @j0nathan-ll0yd/fixtures version. */
+// Node's built-in glob (Node >= 22) -- avoids depending on an ambient transitive
+// `glob` version, whose hoisted major floats with the dependency tree.
+import {globSync} from 'node:fs'
 
 var PATTERNS = [
   'data/**/*.json',
@@ -22,9 +25,15 @@ var PATTERNS = [
   'src/**/fixtures/**/*.json'
 ]
 
+// Defensive: the search roots (data/, test/fixtures/, src/) should never contain
+// node_modules, but keep the guard so a stray nested install can't trip the gate.
+var isIgnored = function(p) {
+  return /(^|[\\/])node_modules[\\/]/.test(p)
+}
+
 var offenders = []
 for (var i = 0; i < PATTERNS.length; i++) {
-  var matches = globSync(PATTERNS[i], {ignore: ['node_modules/**', '**/node_modules/**', '.yalc/**']})
+  var matches = globSync(PATTERNS[i], {exclude: isIgnored})
   for (var m = 0; m < matches.length; m++) {
     offenders.push(matches[m])
   }
@@ -36,9 +45,9 @@ if (offenders.length > 0) {
     console.error('  x ' + offenders[o])
   }
   console.error('\nFixtures are DS-owned. Add/edit them in')
-  console.error('design-system-Lifegames/packages/fixtures, then `pnpm yalc:publish`.')
-  console.error('Consume via `@lifegames/fixtures` (SSR shell) and')
-  console.error('`@lifegames/fixtures/generated/<domain>/<variation>.json` (Playwright).')
+  console.error('design-system-Lifegames/packages/fixtures, then publish a new @j0nathan-ll0yd/fixtures version.')
+  console.error('Consume via `@j0nathan-ll0yd/fixtures` (SSR shell) and')
+  console.error('`@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` (Playwright).')
   process.exit(1)
 }
 

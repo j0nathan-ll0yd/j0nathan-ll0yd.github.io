@@ -2,7 +2,7 @@ import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const distDir = path.resolve(process.cwd(), 'dist')
 

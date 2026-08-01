@@ -12,7 +12,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
-  packages: read # read @j0nathan-ll0yd/config from GitHub Packages during ci-setup.sh's npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
 
 jobs:
   preview:
@@ -29,11 +29,10 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
 
-      - name: Setup design-system + install dependencies
+      - name: Install dependencies
         env:
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci-setup.sh
+        run: npm ci --legacy-peer-deps
 
       - name: Build
         # --json emits structured (NDJSON) build logs for CI log triage. Scoped to

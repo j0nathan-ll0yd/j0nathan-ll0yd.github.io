@@ -3,7 +3,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {PollEngine} from '../../src/lib/runtime/poll-engine'
 
 // Mock constants module
-vi.mock('@lifegames/portal-contract/constants',
+vi.mock('@j0nathan-ll0yd/portal-contract/constants',
   () => ({
     CLOUDFRONT_BASE: 'https://mock.cloudfront.net',
     ENDPOINTS: {

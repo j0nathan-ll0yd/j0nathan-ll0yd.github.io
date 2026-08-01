@@ -37,7 +37,7 @@ concurrency:
 
 permissions:
   contents: read
-  packages: read # read @j0nathan-ll0yd/config from GitHub Packages during ci-setup.sh / npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
 
 jobs:
   contract-check:
@@ -53,55 +53,18 @@ jobs:
         with:
           node-version-file: '.nvmrc'
 
-      - name: Resolve producer refs for parity with current branch
-        id: producers
+      - name: Install dependencies
         env:
-          HEAD_REF: ${{ github.head_ref || github.ref_name }}
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
-        run: |
-          # Prefer same-named branches on the producer repos (cross-repo
-          # coordinated PRs); otherwise fall back to main. Mirrors the setup job
-          # so the contract gate resolves the SAME producer state (e.g. a new
-          # @lifegames/fixtures package that only exists on the coordinated branch).
-          DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
-          LP_REPO_URL="https://x-access-token:${LP_REPO_TOKEN}@github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git"
-          lsr() { git -c "http.https://github.com/.extraheader=" ls-remote "$@" | cut -f1; }
-          resolve_ref() {
-            local repo_url="$1" out_prefix="$2" candidate_sha=""
-            if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
-              candidate_sha=$(lsr "$repo_url" "refs/heads/$HEAD_REF")
-            fi
-            if [ -n "$candidate_sha" ]; then
-              echo "[$out_prefix] using matching branch: $HEAD_REF ($candidate_sha)"
-              echo "${out_prefix}_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
-            else
-              local main_sha
-              main_sha=$(lsr "$repo_url" refs/heads/main)
-              if [ -z "$main_sha" ]; then
-                echo "::error::[$out_prefix] could not resolve ANY ref (branch '$HEAD_REF' or main) — auth or connectivity problem, refusing to build against an unknown producer state"
-                exit 1
-              fi
-              echo "[$out_prefix] no matching branch for '$HEAD_REF'; falling back to main ($main_sha)"
-              echo "${out_prefix}_ref=main" >> "$GITHUB_OUTPUT"
-            fi
-          }
-          resolve_ref "$DS_REPO_URL" ds
-          resolve_ref "$LP_REPO_URL" lp
-
-      - name: Setup design-system for yalc schemas
-        env:
-          DS_REF: ${{ steps.producers.outputs.ds_ref }}
-          LP_REF: ${{ steps.producers.outputs.lp_ref }}
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci-setup.sh
+        run: npm ci --legacy-peer-deps
 
       # Tier 2 (Plan #11): the single contract gate. Recomputes the expected lock
-      # from the current yalc-linked schemas and compares every checksum, so it
-      # catches BOTH upstream schema drift (lock vs live .yalc/) AND hand-edits to
-      # .contract-lock.json that slipped past the local pre-commit hook (e.g.
-      # `--no-verify`, or a clone without Husky). Deterministic: excludes only the
-      # volatile generatedAt/sha, so it never false-positives.
+      # from the installed @j0nathan-ll0yd/schemas + portal-contract packages and
+      # compares every checksum, so it catches BOTH schema drift (lock vs the
+      # installed registry package) AND hand-edits to .contract-lock.json that
+      # slipped past the local pre-commit hook (e.g. `--no-verify`, or a clone
+      # without Husky). Deterministic: excludes only the volatile generatedAt/sha,
+      # so it never false-positives.
       - name: Verify .contract-lock.json is not hand-edited
         run: |
           node scripts/check-contract-lock.mjs || {
@@ -119,54 +82,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Resolve producer refs for parity with current branch
-        id: producers
+      - name: Install dependencies
         env:
-          HEAD_REF: ${{ github.head_ref || github.ref_name }}
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
-        run: |
-          # Prefer same-named branches on the producer repos (cross-repo
-          # coordinated PRs); otherwise fall back to main.
-          # design-system-Lifegames is public (plain ls-remote); the backend
-          # mantle-LifegamesPortal is private (token-authed ls-remote).
-          DS_REPO_URL=https://github.com/j0nathan-ll0yd/design-system-Lifegames.git
-          LP_REPO_URL="https://x-access-token:${LP_REPO_TOKEN}@github.com/j0nathan-ll0yd/mantle-LifegamesPortal.git"
-          # actions/checkout persists a GITHUB_TOKEN extraheader in the
-          # workspace .git/config; ls-remote run from the workspace inherits it
-          # and it clobbers the URL credentials (GITHUB_TOKEN cannot read the
-          # private backend). Neutralize it for these lookups.
-          lsr() { git -c "http.https://github.com/.extraheader=" ls-remote "$@" | cut -f1; }
-          resolve_ref() {
-            local repo_url="$1" out_prefix="$2" candidate_sha=""
-            if [ -n "$HEAD_REF" ] && [ "$HEAD_REF" != "main" ]; then
-              candidate_sha=$(lsr "$repo_url" "refs/heads/$HEAD_REF")
-            fi
-            if [ -n "$candidate_sha" ]; then
-              echo "[$out_prefix] using matching branch: $HEAD_REF ($candidate_sha)"
-              echo "${out_prefix}_ref=$HEAD_REF" >> "$GITHUB_OUTPUT"
-              echo "${out_prefix}_sha=$candidate_sha" >> "$GITHUB_OUTPUT"
-            else
-              local main_sha
-              main_sha=$(lsr "$repo_url" refs/heads/main)
-              if [ -z "$main_sha" ]; then
-                echo "::error::[$out_prefix] could not resolve ANY ref (branch '$HEAD_REF' or main) — auth or connectivity problem, refusing to build against an unknown producer state"
-                exit 1
-              fi
-              echo "[$out_prefix] no matching branch for '$HEAD_REF'; falling back to main ($main_sha)"
-              echo "${out_prefix}_ref=main" >> "$GITHUB_OUTPUT"
-              echo "${out_prefix}_sha=$main_sha" >> "$GITHUB_OUTPUT"
-            fi
-          }
-          resolve_ref "$DS_REPO_URL" ds
-          resolve_ref "$LP_REPO_URL" lp
-
-      - name: Setup design-system + install dependencies
-        env:
-          DS_REF: ${{ steps.producers.outputs.ds_ref }}
-          LP_REF: ${{ steps.producers.outputs.lp_ref }}
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci-setup.sh
+        run: npm ci --legacy-peer-deps
 
       - name: Run unit tests (app-owned client runtime)
         run: npm run test:unit
@@ -174,20 +93,13 @@ jobs:
       - name: Build Astro site
         run: npm run build
 
-      - name: Upload DS+dist artifact
+      - name: Upload dist artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: visual-tests-ds-dist
-          path: |
-            .yalc
-            yalc.lock
-            dist
+          path: dist
           retention-days: 1
           include-hidden-files: true
-
-    outputs:
-      ds-sha: ${{ steps.producers.outputs.ds_sha }}
-      lp-sha: ${{ steps.producers.outputs.lp_sha }}
 
   visual-tests:
     needs: setup
@@ -205,10 +117,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Download DS+dist artifact
+      - name: Download dist artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: visual-tests-ds-dist
+          # upload-artifact flattens a single-dir `path: dist` to the artifact
+          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
+          # preview server expects.
+          path: dist
 
       - name: Install dependencies
         env:
@@ -267,10 +183,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Download DS+dist artifact
+      - name: Download dist artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: visual-tests-ds-dist
+          # upload-artifact flattens a single-dir `path: dist` to the artifact
+          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
+          # preview server expects.
+          path: dist
 
       - name: Install dependencies
         env:

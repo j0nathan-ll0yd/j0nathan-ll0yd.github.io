@@ -29,9 +29,9 @@ The agent-discovery JSON files (`mcp/server-card.json`, `agent-skills/index.json
 **`scripts/generate-webmcp.mjs`**, wired into `prebuild`. Do **not** hand-edit the static
 files — they are overwritten on the next build. Change the generator instead.
 
-- **Prose** (names, descriptions, representative queries) comes from `@lifegames/copy`
+- **Prose** (names, descriptions, representative queries) comes from `@j0nathan-ll0yd/copy`
   (`identity` + `llm` namespaces) — zero wording is duplicated in the repo.
-- **URLs / identifiers** come from `@lifegames/portal-contract` (`SITE_URL`,
+- **URLs / identifiers** come from `@j0nathan-ll0yd/portal-contract` (`SITE_URL`,
   `CLOUDFRONT_BASE`, `ENDPOINTS`) so the CDN host never drifts.
 
 Regenerate + verify:

@@ -24,10 +24,6 @@ lhci-reports/
 # lychee (audit-web.yml B5) link-check cache, restored via actions/cache in CI.
 .lycheecache
 
-# yalc (Phase 1 local cross-repo linking; see lifegames-design-system CLAUDE.md)
-.yalc/
-yalc.lock
-
 # direnv local-only env overrides (secrets; .envrc itself is committed)
 .env.local
 .direnv/
