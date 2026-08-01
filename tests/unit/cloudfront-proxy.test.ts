@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {makeCloudfrontProxy} from '../../functions/_lib/proxy'
 import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
 import {onRequest as feedXmlRoute} from '../../functions/feed.xml.ts'

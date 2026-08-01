@@ -1,8 +1,8 @@
 // Section delimiters and field labels are presentational scaffolding for the
 // humanstxt.org format — they live here, not in the copy package. All
 // customer-facing string values (name, title, location, URLs, stack, etc.)
-// are sourced from @lifegames/copy to honour the zero-duplication invariant.
-import identity from '@lifegames/copy/identity.flat.json'
+// are sourced from @j0nathan-ll0yd/copy to honour the zero-duplication invariant.
+import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
 
 export const prerender = true
 

@@ -3,10 +3,10 @@ name: Format
 # Blocking format gate (dprint). dprint.json now `extends` the shared
 # @j0nathan-ll0yd/config base from node_modules, so the check must run against an
 # installed dependency tree -- the standalone dprint/check action cannot resolve a
-# package `extends`. We install via the repo's design-system setup (ci-setup.sh)
-# and run `npm run format:check`. The @j0nathan-ll0yd scope lives on GitHub
-# Packages; the built-in Actions token authenticates it via `packages: read`
-# (the committed .npmrc expands ${GITHUB_TOKEN}). Local: `npm run format`.
+# package `extends`. We install with `npm ci --legacy-peer-deps` and run
+# `npm run format:check`. The @j0nathan-ll0yd scope lives on GitHub Packages; the
+# built-in Actions token authenticates it via `packages: read` (the committed
+# .npmrc expands ${GITHUB_TOKEN}). Local: `npm run format`.
 on:
   pull_request:
   push:
@@ -29,12 +29,10 @@ jobs:
           node-version-file: '.nvmrc'
           cache: npm
 
-      - name: Setup design-system + install dependencies
+      - name: Install dependencies
         env:
-          DS_REF: main
-          LP_REPO_TOKEN: ${{ secrets.LP_REPO_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash scripts/ci-setup.sh
+        run: npm ci --legacy-peer-deps
 
       - name: dprint check
         run: npm run format:check

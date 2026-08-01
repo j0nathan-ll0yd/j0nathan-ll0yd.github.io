@@ -1,9 +1,9 @@
 import {defineCollection} from 'astro:content'
 import {file} from 'astro/loaders'
 import {fileURLToPath} from 'node:url'
-import {identitySchema} from '@lifegames/copy/identity.zod'
+import {identitySchema} from '@j0nathan-ll0yd/copy/identity.zod'
 
-const identityPath = fileURLToPath(import.meta.resolve('@lifegames/copy/identity.flat.json'))
+const identityPath = fileURLToPath(import.meta.resolve('@j0nathan-ll0yd/copy/identity.flat.json'))
 
 const copy = defineCollection({
   // file() does not natively handle a single flat object, so wrap it under one

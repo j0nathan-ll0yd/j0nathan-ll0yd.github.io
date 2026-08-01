@@ -1,4 +1,4 @@
-# Cross-Platform Copy Package (`@lifegames/copy`)
+# Cross-Platform Copy Package (`@j0nathan-ll0yd/copy`)
 
 Single source of truth for every customer-facing string across the four Lifegames
 Portal repos. Produced by the **design system** (`design-system-Lifegames`),
@@ -10,10 +10,10 @@ context management, cross-repository").
 
 ## Scope
 
-| Wave | Surface |
-|---|---|
+| Wave             | Surface                                                                                                                                                                                                                              |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **V1 (shipped)** | The **identity slice**: `person`, `site`, `seo`, `a11y`. Migrated everywhere the identity was hardcoded/duplicated (web `Dashboard.astro` + PWA manifest, backend LLM-content pipeline, the DS OG-image widget, iOS Settings→About). |
-| **V2 (backlog)** | Widget labels + empty-states, error/validation messages (passthrough model — copy holds display text, client may override), iOS feature-module sweep, a11y breadth, email/notification templates. |
+| **V2 (backlog)** | Widget labels + empty-states, error/validation messages (passthrough model — copy holds display text, client may override), iOS feature-module sweep, a11y breadth, email/notification templates.                                    |
 
 **Never copy:** dynamic/interpolated runtime values (book titles, `${status}`), debug
 logs, JSON-LD machine metadata that isn't prose, and **test/`#Preview` mock data**.
@@ -49,7 +49,7 @@ as a **rich** tree. Every leaf is `{ value, _meta }`:
 
 ## Build & codegen
 
-`packages/copy/scripts/build.ts` (run via `pnpm -F @lifegames/copy build`):
+`packages/copy/scripts/build.ts` (run via `pnpm -F @j0nathan-ll0yd/copy build`):
 
 1. **Validate the rich file** against `packages/copy/schema/identity.schema.json`
    (draft-07, `$defs` `CopyString`/`CopyStringList`) with Ajv + `ajv-formats`.
@@ -71,17 +71,17 @@ freshness-gated (`git diff` over `packages/copy/dist` + `Sources/LifegamesCopy`)
 
 ## Consumption
 
-| Layer | How |
-|---|---|
-| **Web** | Astro Content Collection `copy` in `src/content.config.ts` — `file()` loader over `@lifegames/copy/identity.flat.json` (object-map parser: `{ identity: data }`, so Astro uses the key as id and validates the untouched value), `schema: identitySchema` (the generated flat Zod). `Dashboard.astro` reads `getEntry('copy','identity').data`. `astro.config.mjs` imports the flat JSON for the PWA manifest. |
-| **iOS** | SPM product `LifegamesCopy` (`design-system-Lifegames`). `CopyLoader.loadIdentity()` (throwing) or `CopyLoader.identity` (non-throwing, for default args). Shown in Settings → About. |
-| **Backend** | `import identity from '@lifegames/copy/identity.flat.json'` — esbuild inlines it into the `ComposeLlmContent` Lambda. Drives `profile.ts`, `view.ts` (`EXPERTISE`), and the `llms-txt.eta` blockquote (`siteDescription`). |
-| **Design system** | `LifegamesWidgets` `OGImageProps` defaults from `CopyLoader.identity`. |
+| Layer             | How                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Web**           | Astro Content Collection `copy` in `src/content.config.ts` — `file()` loader over `@j0nathan-ll0yd/copy/identity.flat.json` (object-map parser: `{ identity: data }`, so Astro uses the key as id and validates the untouched value), `schema: identitySchema` (the generated flat Zod). `Dashboard.astro` reads `getEntry('copy','identity').data`. `astro.config.mjs` imports the flat JSON for the PWA manifest. |
+| **iOS**           | SPM product `LifegamesCopy` (`design-system-Lifegames`). `CopyLoader.loadIdentity()` (throwing) or `CopyLoader.identity` (non-throwing, for default args). Shown in Settings → About.                                                                                                                                                                                                                               |
+| **Backend**       | `import identity from '@j0nathan-ll0yd/copy/identity.flat.json'` — esbuild inlines it into the `ComposeLlmContent` Lambda. Drives `profile.ts`, `view.ts` (`EXPERTISE`), and the `llms-txt.eta` blockquote (`siteDescription`).                                                                                                                                                                                     |
+| **Design system** | `LifegamesWidgets` `OGImageProps` defaults from `CopyLoader.identity`.                                                                                                                                                                                                                                                                                                                                              |
 
 ## Enforcement (highest-tier, not docs)
 
 - **D9 leaf boundary**: `eslint-local-rules/copy-src-no-dependencies.js` forbids
-  `packages/copy/src` from importing any `@lifegames/*` or UI framework, so the
+  `packages/copy/src` from importing any `@j0nathan-ll0yd/*` or UI framework, so the
   backend Lambda imports copy without pulling in UI/DS code. The schema is a
   build-time devDep importable only from `packages/copy/scripts/`.
 - **CI** `copy` job: `build` + `test` (Ajv + ICU MF1 parse + `maxChars` + flat
@@ -91,10 +91,9 @@ freshness-gated (`git diff` over `packages/copy/dist` + `Sources/LifegamesCopy`)
 
 ## Distribution
 
-JS consumers (web, backend) link `@lifegames/copy` via **yalc**: `pnpm yalc:publish`
-from the DS builds + pushes it to each consumer's `.yalc/`. iOS resolves the DS via
-SPM (path/tag). `.yalc/` is gitignored, so CI repopulates it by cloning the **public**
-design-system repo and building the (self-contained, zero-dep) copy package — web via
-`scripts/ci-setup.sh`, backend via `scripts/ci-setup-copy.sh` (both prefer a same-named
-DS branch for coordinated PRs, else `main`). yalc-only — there is no npm/registry
-publishing.
+JS consumers (web, backend) install `@j0nathan-ll0yd/copy` from **GitHub Packages**
+(`npm.pkg.github.com`) as a published, versioned dependency (`^1.0.0`); the resolved
+version + integrity hash is pinned in each consumer's lockfile, which is the committed
+provenance record. iOS resolves the DS via SPM (path/tag). The DS publishes new versions
+from `main` (Changesets); consumers bump the caret range / lockfile to adopt them. (Atlas
+decision 0015 retired the previous yalc linking and its `ci-setup*.sh` repopulation.)

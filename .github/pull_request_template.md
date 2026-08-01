@@ -14,7 +14,7 @@
 
 ## Fixtures (Invariant I2)
 
-- [ ] No consumer-side fixtures added (`data/`, `test/fixtures/`, `src/**/fixtures/`); fixtures are DS-owned in `@lifegames/fixtures` (`npm run audit:fixtures` passes).
+- [ ] No consumer-side fixtures added (`data/`, `test/fixtures/`, `src/**/fixtures/`); fixtures are DS-owned in `@j0nathan-ll0yd/fixtures` (`npm run audit:fixtures` passes).
 
 ## Test plan
 

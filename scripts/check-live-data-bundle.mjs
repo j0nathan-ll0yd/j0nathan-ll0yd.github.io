@@ -4,7 +4,7 @@
 // `import '../lib/runtime/live-data'` (in src/pages/index.astro), producing an
 // empty <script></script> tag in production. The build itself succeeds silently.
 // The data runtime is app-local under src/lib/runtime/ — relocated out of the
-// @lifegames/web design-system package (see ADR 0005 in design-system-Lifegames).
+// @j0nathan-ll0yd/web design-system package (see ADR 0005 in design-system-Lifegames).
 //
 // We assert that the live-data runtime — reachable from the entry
 // `index.astro_astro_type_script_index_*_lang.*.js` chunk(s) — contains string

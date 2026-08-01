@@ -11,7 +11,7 @@ import {readFileSync} from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import robotsParser from 'robots-parser'
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))

@@ -47,7 +47,7 @@
  * module that fails to load is caught there regardless of CSP nuance.
  */
 import {expect, type Page, test as base} from '@playwright/test'
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 interface CspViolation {
   directive: string

@@ -1,4 +1,4 @@
-import {CLOUDFRONT_BASE, ENDPOINTS} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import type {
   ArticlesExport,
   BooksExport,
@@ -9,7 +9,7 @@ import type {
   SleepExport,
   TheatreReviewsExport,
   WorkoutsExport
-} from '@lifegames/web/types/exports'
+} from '@j0nathan-ll0yd/web/types/exports'
 
 // In dev mode, Vite proxies /api/live/* to CloudFront to avoid CORS issues.
 // In production, fetch directly from CloudFront (CORS allows jonathanlloyd.me).

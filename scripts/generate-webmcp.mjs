@@ -1,22 +1,22 @@
 // Generates public/js/webmcp.js — the static WebMCP client script served raw
 // (NOT bundled) to expose navigator.modelContext tools to MCP-aware browsers.
 //
-// All CloudFront addressing is sourced from @lifegames/portal-contract so the
+// All CloudFront addressing is sourced from @j0nathan-ll0yd/portal-contract so the
 // raw served file never hardcodes the CDN host. Run via `npm run generate:webmcp`
 // (wired into prebuild). The output is byte-stable across runs.
 //
-// All customer-facing prose is sourced from @lifegames/copy (identity + llm
+// All customer-facing prose is sourced from @j0nathan-ll0yd/copy (identity + llm
 // namespaces). Zero prose is hardcoded in this file.
 import {writeFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
-import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
-// Copy flat JSON — prose sourced from @lifegames/copy so wording is never duplicated.
+// Copy flat JSON — prose sourced from @j0nathan-ll0yd/copy so wording is never duplicated.
 const req = createRequire(import.meta.url)
-const copyIdentity = req('@lifegames/copy/identity.flat.json')
-const copyLlm = req('@lifegames/copy/llm.flat.json')
+const copyIdentity = req('@j0nathan-ll0yd/copy/identity.flat.json')
+const copyLlm = req('@j0nathan-ll0yd/copy/llm.flat.json')
 
 const cf = (path) => `${CLOUDFRONT_BASE}${path}`
 
@@ -189,7 +189,7 @@ writeFileSync(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n')
 console.log(`Generated ${agentSkillsPath}`)
 
 // Generate agent-card.json — A2A v1.0 AgentCard (normative source: a2aproject/A2A
-// specification/a2a.proto). Prose from @lifegames/copy; structure/URLs from portal-contract.
+// specification/a2a.proto). Prose from @j0nathan-ll0yd/copy; structure/URLs from portal-contract.
 // REQUIRED per the proto: name, description, supportedInterfaces, version, capabilities,
 // defaultInputModes, defaultOutputModes, skills. NB: this is a discovery-only card for a
 // READ-ONLY data source — there is no live A2A JSON-RPC endpoint, so the single interface
@@ -221,7 +221,7 @@ writeFileSync(agentCardPath, JSON.stringify(agentCard, null, 2) + '\n')
 console.log(`Generated ${agentCardPath}`)
 
 // Generate ai-catalog.json — ARD AI Catalog v1.0 (normative source: agenticresourcediscovery/
-// ard-spec spec/schemas/ai-catalog.schema.json). Prose from @lifegames/copy; URLs/identifiers
+// ard-spec spec/schemas/ai-catalog.schema.json). Prose from @j0nathan-ll0yd/copy; URLs/identifiers
 // from portal-contract. REQUIRED: top-level specVersion + entries; each entry needs identifier
 // (RFC 8141 urn:air:<publisher>:<namespace>:<name>), displayName, type (IANA media type), and
 // exactly one of url/data. host + entries are additionalProperties:false — no stray fields.

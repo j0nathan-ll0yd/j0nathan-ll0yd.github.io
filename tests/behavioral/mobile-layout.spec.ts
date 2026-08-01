@@ -23,20 +23,20 @@
  */
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
-import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const require = createRequire(import.meta.url)
 
 function baselineFixture(dir: string): string {
-  return require.resolve(`@lifegames/fixtures/generated/${dir}/baseline.json`)
+  return require.resolve(`@j0nathan-ll0yd/fixtures/generated/${dir}/baseline.json`)
 }
 
 function emptyFixture(dir: string): string {
-  return require.resolve(`@lifegames/fixtures/generated/${dir}/empty.json`)
+  return require.resolve(`@j0nathan-ll0yd/fixtures/generated/${dir}/empty.json`)
 }
 
 /** Bug-6 fixture: an article with `articleTitle: ""` + an overlong `sourceTitle`. */
-const READING_EMPTY_TITLE_FIXTURE = require.resolve('@lifegames/fixtures/generated/articles/hoodlineEmptyTitle.json')
+const READING_EMPTY_TITLE_FIXTURE = require.resolve('@j0nathan-ll0yd/fixtures/generated/articles/hoodlineEmptyTitle.json')
 
 /** 1×1 transparent PNG used as a placeholder for external images. */
 const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' + 'Nl7BcQAAAABJRU5ErkJggg==', 'base64')

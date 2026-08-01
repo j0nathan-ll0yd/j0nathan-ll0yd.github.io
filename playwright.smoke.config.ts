@@ -1,5 +1,5 @@
 import {defineConfig} from '@playwright/test'
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 // Production smoke check — runs against the LIVE deployed site after each deploy.
 //

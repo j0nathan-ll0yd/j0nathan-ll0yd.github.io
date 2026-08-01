@@ -42,10 +42,10 @@ do. Static metadata (who made the site, which crawlers are allowed, what
 standards the site uses) is known at build time and must not depend on runtime
 infrastructure.
 
-### Strings from `@lifegames/copy` for customer-facing content
+### Strings from `@j0nathan-ll0yd/copy` for customer-facing content
 
 Any string a human or agent reads as prose — name, location, job title, bio,
-social links — is sourced from `@lifegames/copy/identity.flat.json`. Endpoints
+social links — is sourced from `@j0nathan-ll0yd/copy/identity.flat.json`. Endpoints
 import this flat JSON at build time; the copy package is the single source of
 truth. Presentational scaffolding (section delimiters like `/* TEAM */`,
 protocol field labels like `Name:`, `Hosting:`) lives in the endpoint itself
@@ -178,7 +178,7 @@ content philosophy, domain rationales, privacy stance, and composition model.
 Managed in `src/pages/humans.txt.ts`. Follows the humanstxt.org three-section
 convention (`/* TEAM */`, `/* SITE */`, `/* THANKS */`). All data values
 (`Name:`, `From:`, `Contact:`, `Software:`, `Hosting:`, `Standards:`,
-`/* THANKS */` credits) are sourced from `@lifegames/copy`; section delimiters
+`/* THANKS */` credits) are sourced from `@j0nathan-ll0yd/copy`; section delimiters
 and field labels are endpoint scaffolding. `Contact:` points to the LinkedIn
 URL (`identity.person.sameAs[0]`), not an email address. `Last update:` is
 derived from the build timestamp (honest, because the endpoint is prerendered
@@ -209,5 +209,5 @@ backing file (dangling 404).
 - [Feed-Spec.md](Feed-Spec.md) — `/feed.xml` and `/feed.json` content
   philosophy, domain inclusion/exclusion rationales, privacy stance, honest
   timestamps, and composition model.
-- [Copy-Package-Spec.md](Copy-Package-Spec.md) — `@lifegames/copy` authoring
+- [Copy-Package-Spec.md](Copy-Package-Spec.md) — `@j0nathan-ll0yd/copy` authoring
   model, build pipeline, and zero-duplication invariant.

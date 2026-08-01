@@ -11,7 +11,7 @@
 // convention vs which are this repo's own operational handling, and the case
 // inputs each one derives from.
 
-import {LLM_CONTENT_PATHS, SITE_URL} from '@lifegames/portal-contract/constants'
+import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 import {emit, rules} from './specs/load.mjs'
 

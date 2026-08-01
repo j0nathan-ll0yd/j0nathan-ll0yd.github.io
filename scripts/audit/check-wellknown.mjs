@@ -14,7 +14,7 @@
 // Each surface's assertions are a pure `validateXShape(json, contentType)`
 // function (testable without network); main() below is just fetch-and-call.
 
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 
 // Pinned per docs/discovery-surface.md "Agent-discovery conformance notes"

@@ -13,7 +13,7 @@
 import {access, mkdir, writeFile} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {CLOUDFRONT_BASE} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const PUBLIC_DIR = join(__dirname, '..', 'public')

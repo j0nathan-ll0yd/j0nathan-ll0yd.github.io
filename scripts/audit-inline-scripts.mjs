@@ -25,8 +25,14 @@
  * is not a CSP issue and is ignored.
  *
  * Tier 1 (this script) runs in `prebuild`; CI gates on it. */
-import {globSync} from 'glob'
-import fs from 'node:fs'
+// Node's built-in glob (Node >= 22) -- avoids depending on an ambient transitive
+// `glob` version, whose hoisted major floats with the dependency tree.
+import fs, {globSync} from 'node:fs'
+
+// Defensive node_modules guard for the file scans below (fs.globSync `exclude`).
+var isIgnored = function(p) {
+  return /(^|[\\/])node_modules[\\/]/.test(p)
+}
 
 var EVENT_HANDLER_RE =
   /\son(click|load|error|change|submit|focus|blur|input|keyup|keydown|mouseenter|mouseleave|mouseover|mouseout|dblclick|contextmenu)\s*=/i
@@ -56,7 +62,7 @@ function lineAt(content, index) {
   return content.slice(0, index).split('\n').length
 }
 
-var files = globSync('src/**/*.{astro,html}', {ignore: ['node_modules/**', '**/node_modules/**']})
+var files = globSync('src/**/*.{astro,html}', {exclude: isIgnored})
 var violations = 0
 
 for (var f = 0; f < files.length; f++) {
@@ -100,7 +106,7 @@ for (var f = 0; f < files.length; f++) {
  * carry inline event-handler attributes (e.g. onerror="..."), which CSP blocks
  * at runtime. Flag the HTML-attribute form only (quote right after `=`); plain
  * JS property assignment like `el.onclick = fn` is not an issue and is ignored. */
-var jsFiles = globSync('public/js/**/*.js', {ignore: ['node_modules/**', '**/node_modules/**']})
+var jsFiles = globSync('public/js/**/*.js', {exclude: isIgnored})
 
 for (var jf = 0; jf < jsFiles.length; jf++) {
   var jsFile = jsFiles[jf]

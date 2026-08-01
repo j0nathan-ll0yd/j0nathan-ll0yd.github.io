@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// doctor-install.mjs -- cheap install-integrity preflight (atlas decision 0013, Task 3).
+// doctor-install.mjs -- cheap install-integrity preflight.
 //
-// yalc churns node_modules aggressively: `yalc add` reinstalls, and npm can shunt a wrapper package
-// into `node_modules/.ignored/<pkg>` while leaving `node_modules/.bin/<tool>` a DANGLING symlink
-// into the now-empty original location. The platform binary is fine (e.g.
+// An install churn (npm reinstalls, peer-dep shunting under --legacy-peer-deps, overrides) can shunt
+// a wrapper package into `node_modules/.ignored/<pkg>` while leaving `node_modules/.bin/<tool>` a
+// DANGLING symlink into the now-empty original location. The platform binary is fine (e.g.
 // node_modules/@dprint/darwin-arm64/), but the CLI entrypoint the toolchain calls is broken. This
-// surfaced only as a cryptic `sh: dprint: command not found` at pre-push time, after a confusing
-// diagnosis -- `npm rebuild dprint` reported success and fixed nothing; a full `npm install` did.
+// surfaces only as a cryptic `sh: dprint: command not found` at pre-push time, after a confusing
+// diagnosis -- `npm rebuild dprint` reports success and fixes nothing; a full `npm install` does.
 //
 // This doctor makes that failure LOUD and EARLY: it verifies the toolchain binaries the hooks and
 // CI actually invoke are present and resolvable, and reports the exact fix -- rather than letting
@@ -73,7 +73,7 @@ if (!existsSync(join(REPO_ROOT, 'node_modules'))) {
     try {
       const shunted = statSync(ignoredDir).isDirectory()
       if (shunted) {
-        problems.push('node_modules/.ignored/ exists -- npm shunted one or more packages aside (the yalc-churn smell that dangles .bin links).')
+        problems.push('node_modules/.ignored/ exists -- npm shunted one or more packages aside (the install-churn smell that dangles .bin links).')
       }
     } catch {
       // Non-fatal: the presence check above is the signal.
@@ -90,8 +90,8 @@ console.error('')
 console.error('==================================================================')
 console.error('  ERROR: install integrity check FAILED.')
 console.error('  A toolchain binary is missing or a node_modules/.bin symlink is broken.')
-console.error('  This is the yalc-churn failure mode (atlas 0013, Task 3): it otherwise')
-console.error('  surfaces as a cryptic "command not found" mid-hook.')
+console.error('  This is an install-churn failure mode: it otherwise surfaces as a')
+console.error('  cryptic "command not found" mid-hook.')
 console.error('==================================================================')
 for (const p of problems) {
   console.error(`  * ${p}`)

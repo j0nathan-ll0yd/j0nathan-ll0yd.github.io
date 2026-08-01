@@ -5,7 +5,7 @@
  */
 import path from 'path'
 import {expect, type Locator, type Page} from '@playwright/test'
-import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {getScenarioFixtures, scenarioHasWorkouts, type ScenarioName} from './fixtures'
 
 export const stylePath = path.join(import.meta.dirname, 'screenshot.css')
@@ -14,7 +14,7 @@ export const stylePath = path.join(import.meta.dirname, 'screenshot.css')
  * Frozen wall-clock for the hydration-boundary render path.
  *
  * The DS adapters that render relative time (`adaptStarredRepos`,
- * `adaptGithubEvents`, `adaptArticles` in `@lifegames/web/runtime/adapters`)
+ * `adaptGithubEvents`, `adaptArticles` in `@j0nathan-ll0yd/web/runtime/adapters`)
  * compute "N weeks/days ago" against `Date.now()` at hydration time. The visual
  * fixtures carry ABSOLUTE dates, so with a live clock every widget's relative
  * time drifts one unit per real week -- a wall-clock time bomb that reds an
@@ -29,7 +29,7 @@ export const stylePath = path.join(import.meta.dirname, 'screenshot.css')
  * clock and hides #liveClock; it simply never froze THIS clock.
  *
  * The constant equals the `generatedAt` of the three time-relative fixtures
- * (`@lifegames/fixtures/generated/{github-starred-repos,github-events,articles}/*`),
+ * (`@j0nathan-ll0yd/fixtures/generated/{github-starred-repos,github-events,articles}/*`),
  * which all share `2026-03-18T12:00:00.000Z`. Pinning "now" to when the fixture
  * was generated makes the rendered relative time self-documenting: it is exactly
  * the "as of generation" view the fixture author encoded.

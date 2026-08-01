@@ -18,13 +18,13 @@
  */
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
-import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const require = createRequire(import.meta.url)
 
 function baselineFixture(dir: string, file: string): string {
   const camelFile = file.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase())
-  return require.resolve(`@lifegames/fixtures/generated/${dir}/${camelFile}.json`)
+  return require.resolve(`@j0nathan-ll0yd/fixtures/generated/${dir}/${camelFile}.json`)
 }
 
 const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' + 'Nl7BcQAAAABJRU5ErkJggg==', 'base64')
@@ -85,7 +85,7 @@ async function navigateAndWaitForHydration(page: Page): Promise<void> {
 // Health is the canonical test target: it has three links in its popover.
 const HEALTH_BUTTON = '#systemStatus .sys-line[data-source="health"] .sys-info'
 const HEALTH_POPOVER = '#tip-health'
-// First link in the Health popover: Apple Watch 11 (exact URL from @lifegames/copy)
+// First link in the Health popover: Apple Watch 11 (exact URL from @j0nathan-ll0yd/copy)
 const WATCH_LINK_HREF = 'https://www.apple.com/apple-watch-series-11/'
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 # AGENTS.md -- Human Datastream Portfolio
 
-Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" dashboard. Astro 7 static site (Vite 8 / Rust compiler) deployed to Cloudflare Pages. Read-only display surface for personal data (health, activity, GitHub, reading, location). All widgets are imported from `@lifegames/web/production` (the yalc-linked Design System package) -- this repo contains no widget source code.
+Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" dashboard. Astro 7 static site (Vite 8 / Rust compiler) deployed to Cloudflare Pages. Read-only display surface for personal data (health, activity, GitHub, reading, location). All widgets are imported from `@j0nathan-ll0yd/web/production` (the Design System package, consumed from GitHub Packages) -- this repo contains no widget source code.
 
 ## Commands
 
@@ -37,32 +37,32 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 └── .github/workflows/            # deploy, visual-tests, smoke-check
 ```
 
-`src/` holds only page/layout/route logic. Widgets, tokens, and runtime scripts all live in the Design System and are consumed via the `@lifegames/*` packages.
+`src/` holds only page/layout/route logic. Widgets, tokens, and runtime scripts all live in the Design System and are consumed via the `@j0nathan-ll0yd/*` packages.
 
 ## Data Flow
 
-| Context         | Source                                                    | Mechanism                                                             |
-| --------------- | --------------------------------------------------------- | --------------------------------------------------------------------- |
-| Build-time      | `@lifegames/fixtures` (`getDashboardFixture()`)           | `loadDashboardData()` in `index.astro` frontmatter                    |
-| Visual fixtures | `@lifegames/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
-| Client-side     | CloudFront                                                | `@lifegames/web/runtime/live-data.ts` after page load                 |
-| Polling         | CloudFront JSON                                           | PollEngine (30s fast, 120s slow), `?_poll=1` bypass                   |
-| WebSocket       | API Gateway                                               | Adaptive fallback when WS unavailable                                 |
+| Context         | Source                                                         | Mechanism                                                             |
+| --------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Build-time      | `@j0nathan-ll0yd/fixtures` (`getDashboardFixture()`)           | `loadDashboardData()` in `index.astro` frontmatter                    |
+| Visual fixtures | `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
+| Client-side     | CloudFront                                                     | `@j0nathan-ll0yd/web/runtime/live-data.ts` after page load            |
+| Polling         | CloudFront JSON                                                | PollEngine (30s fast, 120s slow), `?_poll=1` bypass                   |
+| WebSocket       | API Gateway                                                    | Adaptive fallback when WS unavailable                                 |
 
-Fixtures are DS-owned (Plan #04): the SSR shell comes from `@lifegames/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`npm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@lifegames/fixtures/generated/` via CloudFront route interception.
+Fixtures are DS-owned (Plan #04): the SSR shell comes from `@j0nathan-ll0yd/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`npm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` via CloudFront route interception.
 
 ## Design System Integration
 
-Production widgets, CSS, and runtime scripts come from `@lifegames/web/production` (yalc-linked from `design-system-Lifegames`).
+Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/production` (published from `design-system-Lifegames` to GitHub Packages).
 
-- Import runtime modules from `@lifegames/web/runtime/*` -- never relative paths like `../lib/` or `../scripts/`.
-- CSS flows from `@lifegames/tokens` via `@import`; there are no `public/css/*.css` files. Mark `<style>` blocks that import DS CSS with `is:global`.
-- `data/*.json` is Ajv-validated against `@lifegames/schemas` in the prebuild hook (`additionalProperties: false` -- any unmapped field fails the build).
-- **Customer-facing identity strings** come from `@lifegames/copy` (single source of truth; zero duplication). The Astro Content Collection `copy` (`src/content.config.ts`) loads `@lifegames/copy/identity.flat.json`, validated by the generated flat Zod (`@lifegames/copy/identity.zod`); `Dashboard.astro` reads `getEntry('copy','identity').data`; `astro.config.mjs` imports the flat JSON for the PWA manifest. Never hardcode bios, names, titles, expertise, or skip/OG-image text -- add or edit them in `design-system-Lifegames/packages/copy/src/identity.en-US.json` (ICU MF1), then `pnpm yalc:publish` from the DS. Spec: `docs/wiki/Copy-Package-Spec.md`.
+- Import runtime modules from `@j0nathan-ll0yd/web/runtime/*` -- never relative paths like `../lib/` or `../scripts/`.
+- CSS flows from `@j0nathan-ll0yd/tokens` via `@import`; there are no `public/css/*.css` files. Mark `<style>` blocks that import DS CSS with `is:global`.
+- `data/*.json` is Ajv-validated against `@j0nathan-ll0yd/schemas` in the prebuild hook (`additionalProperties: false` -- any unmapped field fails the build).
+- **Customer-facing identity strings** come from `@j0nathan-ll0yd/copy` (single source of truth; zero duplication). The Astro Content Collection `copy` (`src/content.config.ts`) loads `@j0nathan-ll0yd/copy/identity.flat.json`, validated by the generated flat Zod (`@j0nathan-ll0yd/copy/identity.zod`); `Dashboard.astro` reads `getEntry('copy','identity').data`; `astro.config.mjs` imports the flat JSON for the PWA manifest. Never hardcode bios, names, titles, expertise, or skip/OG-image text -- add or edit them in `design-system-Lifegames/packages/copy/src/identity.en-US.json` (ICU MF1), then publish a new `@j0nathan-ll0yd/copy` version from the DS. Spec: `docs/wiki/Copy-Package-Spec.md`.
 
 ## Conventions
 
-- **No hardcoded values**: all colors, spacing, and typography come from `@lifegames/tokens` `var()` custom properties.
+- **No hardcoded values**: all colors, spacing, and typography come from `@j0nathan-ll0yd/tokens` `var()` custom properties.
 - **No new widgets here**: never create `src/components/*.astro`; widgets belong in the Design System.
 - **Raw scripts are ES2017 (SYNTAX rule)**: `<script is:inline>` bodies and any `public/js/*.js` are served raw (never transpiled by Vite), so their syntax floor is **ES2017** -- `const`/`let`, arrow functions, template literals, and `async`/`await` are all allowed. The site's real browser floor (service workers, PWA, canvas islands) is well above ES5, and async/await has had universal browser support since 2017. Avoid post-ES2017 syntax that lacks universal support. Bundled module scripts (processed by Vite) may use any modern syntax. This rule governs SYNTAX only and is independent of the CSP externalization rule below (CSP dictates _where_ scripts load, not what syntax they use).
 - **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
@@ -77,26 +77,26 @@ Production widgets, CSS, and runtime scripts come from `@lifegames/web/productio
   - **Invariant (enforced by `audit:sa-path` in prebuild):** the `path=` query value in `functions/sa.ts`'s proxy URL MUST equal the route directory name (`/simple`). Mismatch = silent total data loss. The blocking assertion runs in `prebuild` and exits non-zero on mismatch.
   - **Privacy note:** collection now appears first-party (`/simple/*`), but SA remains cookieless and data still terminates at Simple Analytics — no new tracking is introduced.
   - **Rollback:** revert the commit. CSP, loader, and markup return to the CDN hosts; analytics resumes on next deploy.
-- **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `npm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`. (Scope: the schema-file subset of `schemas` + `portal-contract` only, for the Ajv build contract -- narrower than the yalc-freshness gate below.)
-- **Yalc freshness gate (`.yalc-lock.json`) -- atlas decision 0013**: `.yalc/` is gitignored, so a merged upstream `@lifegames/*` fix changes nothing in a deploying checkout, and merging here IS a production deploy (Cloudflare Pages). The gate reconciles the one state git keeps -- a committed `.yalc-lock.json` recording the SHA-256 content hash of all six linked packages -- against the on-disk `.yalc` tree. Enforced at three tiers: the CI **`yalc-freshness`** job in `static-checks.yml` (runs on every PR, so it **blocks merge**), and the local `pre-push` hook; both run `npm run check:yalc-freshness`. **What binds it to upstream:** the CI job runs `ci-setup.sh` (which reconstructs `.yalc` from upstream `main`) _before_ the check, so CI compares the lock against an upstream-fresh tree -- a lock<->disk check alone would be self-blessing. **After changing a linked package** (a DS/LP producer change you have refreshed locally), regenerate + commit: `bash scripts/ci-setup.sh && node scripts/generate-yalc-lock.mjs && git add .yalc-lock.json` (or, if the yalc store is already fresh, `npx yalc update && node scripts/generate-yalc-lock.mjs && git add .yalc-lock.json`). The lock diff is the reviewable record of what the deploy will ship. Loud local escape hatch for iterating against an unpublished DS branch: `YALC_FRESHNESS_SKIP=1` (never set in CI on main). This also enforces producer-before-consumer merge ordering: a web bump needing an unmerged DS change reds CI until DS `main` carries it.
-- **Install integrity doctor (`npm run doctor:install`)**: `yalc add`/`update` churns `node_modules` and can leave a `node_modules/.bin/*` symlink dangling (a postinstall-linked binary like `dprint` whose wrapper npm shunted aside), surfacing later as a cryptic `command not found` mid-hook. The doctor runs first in `pre-push` and fails loud with the fix (`npm install --legacy-peer-deps` -- `npm rebuild <pkg>` does not repair it).
+- **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `npm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`. (Scope: the schema-file subset of `schemas` + `portal-contract` only, for the Ajv build contract -- narrower than the full dependency set pinned in `package-lock.json`.)
+- **Design System packages come from the registry (GitHub Packages), pinned in `package-lock.json`** -- atlas decision 0015 (yalc retirement). The six `@j0nathan-ll0yd/*` packages (`copy`, `fixtures`, `portal-contract`, `schemas`, `tokens`, `web`) are consumed as published `^1.0.0` deps; `npm ci --legacy-peer-deps` resolves them via `@j0nathan-ll0yd:registry=https://npm.pkg.github.com` in `.npmrc` (the built-in Actions `GITHUB_TOKEN` in CI, or a local PAT in the machine-global `~/.npmrc`, authenticates the read -- all six are public). The resolved version + integrity hash in `package-lock.json` is the committed provenance record decision 0013 asked for: the artifact reviewed in git, the artifact CI builds, and the artifact that deploys are now one and the same, so the yalc-freshness gate (and its `.yalc-lock.json`, `ci-setup.sh`, and `.yalc/` tree) is retired. Merging to `main` IS a production deploy (Cloudflare Pages), so a producer change must be published as a new version and the caret range / lockfile bumped here before it can ship -- a web bump needing an unpublished DS change simply cannot resolve that version.
+- **Install integrity doctor (`npm run doctor:install`)**: an install churn (npm reinstalls, `--legacy-peer-deps` peer shunting) can leave a `node_modules/.bin/*` symlink dangling (a postinstall-linked binary like `dprint` whose wrapper npm shunted aside), surfacing later as a cryptic `command not found` mid-hook. The doctor runs first in `pre-push` and fails loud with the fix (`npm install --legacy-peer-deps` -- `npm rebuild <pkg>` does not repair it).
 - **Formatting**: 2-space indent, UTF-8, LF line endings.
 
 ## Testing
 
 - **Visual baselines:** regenerate only in Docker (`npm run test:visual:update`); host-rendered PNGs fail CI.
-- **Canvas widgets use a deterministic test seam, not hidden pixels:** rAF + RNG defeats Playwright's `animations: 'disabled'`, but never hide a canvas via `visibility: hidden` in `screenshot.css` -- that masks regressions. Each canvas widget exposes a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@lifegames/web/runtime/heart-rate-init`) with `ready`, `seed(n)`, `freezeAt(ms|null)`, `step(frames)`, and `state()`. The seam is gated by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor, so it is `undefined` (dead-code-eliminated) in production. Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`). Seam-driven screenshots need a `--mode test` visual build.
+- **Canvas widgets use a deterministic test seam, not hidden pixels:** rAF + RNG defeats Playwright's `animations: 'disabled'`, but never hide a canvas via `visibility: hidden` in `screenshot.css` -- that masks regressions. Each canvas widget exposes a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@j0nathan-ll0yd/web/runtime/heart-rate-init`) with `ready`, `seed(n)`, `freezeAt(ms|null)`, `step(frames)`, and `state()`. The seam is gated by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor, so it is `undefined` (dead-code-eliminated) in production. Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`). Seam-driven screenshots need a `--mode test` visual build.
 - **Production smoke check (replaces the retired pixel-drift suite):** `tests/smoke/home.smoke.ts` (config `playwright.smoke.config.ts`, helpers `tests/smoke/fixtures.ts`) asserts the live site at `https://jonathanlloyd.me` actually hydrated -- HTTP 200, all widget containers present, `.is-loading` skeletons cleared, the bio terminal typed its content (the #50 CSP-blocked-hydration regression guard), the service worker registered, and no external-script CSP violation / chunk-load failure / unexpected console error. Runs natively on `ubuntu-latest` (no Docker, no pixel baselines) via `.github/workflows/smoke-check.yml` on `workflow_run` after `deploy.yml`; it is post-deploy and non-blocking (files a `smoke-failure` issue rather than blocking the deploy). Run locally with `npm run test:smoke`. The retired drift suite could not stay green against a live data stream and could not catch a blocked-hydration failure (the SSR shell renders at the correct pixels even when hydration is dead).
 
 ## Do Not
 
 - Rely on post-ES2017 syntax in raw-served scripts (`public/js/*.js`, `<script is:inline>` bodies). ES2017 -- `const`/`let`, arrow functions, template literals, `async`/`await` -- is allowed; only avoid newer syntax that lacks universal browser support.
 - Create new `src/components/*.astro` files or hand-edit CSS (everything comes from the DS).
-- Import from relative `../lib/` or `../scripts/` paths instead of the `@lifegames/*` namespace.
+- Import from relative `../lib/` or `../scripts/` paths instead of the `@j0nathan-ll0yd/*` namespace.
 - Hardcode hex colors or pixel values.
 - Bypass prebuild schema validation.
 - Hand-edit `.contract-lock.json` (Husky + CI enforce it; regenerate via `scripts/generate-contract-lock.mjs`).
-- Hand-edit `.yalc-lock.json`, or refresh a linked `@lifegames/*` package without regenerating it (the CI `yalc-freshness` gate blocks the merge; regenerate via `scripts/generate-yalc-lock.mjs`).
+- Depend on a `@j0nathan-ll0yd/*` producer change that is not yet published to the registry -- publish a new version from the producer repo first, then bump the caret range / lockfile here (merging to `main` deploys production).
 - Regenerate visual baselines outside Docker (`npm run test:visual:update` is the only sanctioned path; host PNGs fail CI).
 
 ## Detailed Reference

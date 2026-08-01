@@ -1,8 +1,8 @@
 import {defineConfig} from 'astro/config'
 import AstroPWA from '@vite-pwa/astro'
 import sitemap from '@astrojs/sitemap'
-import {CLOUDFRONT_BASE, SITE_URL} from '@lifegames/portal-contract/constants'
-import identity from '@lifegames/copy/identity.flat.json'
+import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -25,7 +25,7 @@ export default defineConfig({
       // Expose the build-time fixture-variation selector to source. Astro/Vite
       // only forwards VITE_-prefixed env to import.meta.env by default; the
       // visual suite sets FIXTURE_VARIATION on the build process to pick a named
-      // @lifegames/fixtures post-adapter variation (default 'baseline').
+      // @j0nathan-ll0yd/fixtures post-adapter variation (default 'baseline').
       'import.meta.env.FIXTURE_VARIATION': JSON.stringify(process.env.FIXTURE_VARIATION ?? 'baseline')
     },
     build: {

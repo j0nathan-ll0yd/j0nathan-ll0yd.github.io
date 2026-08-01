@@ -29,7 +29,7 @@
 // pageview metrics).
 
 import {chromium} from '@playwright/test'
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 
 const NAV_TIMEOUT_MS = 30_000

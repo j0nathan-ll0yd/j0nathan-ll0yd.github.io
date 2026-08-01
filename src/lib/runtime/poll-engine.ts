@@ -1,4 +1,4 @@
-import {CLOUDFRONT_BASE, ENDPOINTS, type ResourceKey} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
 
 /** Connection/poll status the engine emits via `onStatusChange`; rendered by `updaters-status`. */
 export interface PollStatus {

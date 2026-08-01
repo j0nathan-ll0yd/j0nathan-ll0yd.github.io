@@ -1,9 +1,9 @@
 ---
 import { getEntry } from 'astro:content';
-import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@lifegames/portal-contract/constants';
-import { llm } from '@lifegames/copy';
+import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
+import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
-if (!_identityEntry) throw new Error('[Dashboard.astro] @lifegames/copy identity entry missing — check yalc link and content.config.ts');
+if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
 const identity = _identityEntry.data;
 const {
   title = identity.seo.title,
@@ -29,7 +29,7 @@ const isHome = Astro.url.pathname === '/';
 // Profile's last content-modification date. This is a STATIC literal, not the
 // build time: the ProfilePage content (bio, job title, links) changes rarely and
 // a build-time date would be non-deterministic and dishonest. Bump this by hand
-// whenever the profile content in @lifegames/copy identity.person changes. The
+// whenever the profile content in @j0nathan-ll0yd/copy identity.person changes. The
 // legitimately-live surface is the Dataset (temporalCoverage), not this page.
 const PROFILE_MODIFIED = '2026-07-20T00:00:00Z';
 
@@ -189,7 +189,7 @@ const jsonLdGraph = isHome
   })} />
 
   {/* Font preload (critical for swap timing) — paired with the @font-face rules
-     imported via @lifegames/tokens/fonts in the <style is:global> block below. */}
+     imported via @j0nathan-ll0yd/tokens/fonts in the <style is:global> block below. */}
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
 
@@ -203,31 +203,31 @@ const jsonLdGraph = isHome
   )}
   {import.meta.env.DEV && <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">}
   {/* Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
-       Astro processes this <style> (non-inline), resolves the @imports via @lifegames/tokens,
+       Astro processes this <style> (non-inline), resolves the @imports via @j0nathan-ll0yd/tokens,
        and inlines the result at build time because astro.config.mjs sets build.inlineStylesheets: 'always'.
        LCP behavior is preserved vs the previous in-file :root token block. */}
   <style is:global>
-    @import '@lifegames/tokens/preamble';
-    @import '@lifegames/tokens/fonts';
-    @import '@lifegames/tokens/css.layered';
-    @import '@lifegames/tokens/compat';
-    @import '@lifegames/tokens/components';
-    @import '@lifegames/tokens/effects';
-    @import '@lifegames/tokens/reset';
-    @import '@lifegames/web/styles/a11y.css';
-    @import '@lifegames/web/styles/view-transitions.css';
+    @import '@j0nathan-ll0yd/tokens/preamble';
+    @import '@j0nathan-ll0yd/tokens/fonts';
+    @import '@j0nathan-ll0yd/tokens/css.layered';
+    @import '@j0nathan-ll0yd/tokens/compat';
+    @import '@j0nathan-ll0yd/tokens/components';
+    @import '@j0nathan-ll0yd/tokens/effects';
+    @import '@j0nathan-ll0yd/tokens/reset';
+    @import '@j0nathan-ll0yd/web/styles/a11y.css';
+    @import '@j0nathan-ll0yd/web/styles/view-transitions.css';
   </style>
-  {/* @font-face rules (Space Grotesk + Fallback) come from @lifegames/tokens/fonts,
+  {/* @font-face rules (Space Grotesk + Fallback) come from @j0nathan-ll0yd/tokens/fonts,
       imported in the <style is:global> block above. preamble only declares the
       cascade-layer order; it carries no @font-face rules. */}
   <style is:inline>/* ===== DESIGN TOKENS =====
-   Sourced from @lifegames/tokens (imported via the <style> block above this
+   Sourced from @j0nathan-ll0yd/tokens (imported via the <style> block above this
    <style is:inline> tag). All bare names (--neon-*, --glass-*, --text*,
    --font-size-*, --space-*, --radius-*, --blur-*, --glow-*) resolve via the
    compat layer; --lg-* names resolve from css.layered. Same hex values. */
 
 /* ===== GLOBAL STYLES =====
-   Reset is provided by @lifegames/tokens/reset (imported in the layered
+   Reset is provided by @j0nathan-ll0yd/tokens/reset (imported in the layered
    <style is:global> block above). A universal `* { margin: 0; padding: 0 }`
    reset MUST NOT be reintroduced here — un-layered styles win over layered
    styles at any specificity, and that would clobber `.right-panel`'s
@@ -330,7 +330,7 @@ html { overflow-y: scroll; }
 }
 
 /* Focus indicators (.neon-pill, .shelf-book, .book-modal-close) are provided
-   by @lifegames/tokens/reset (base.css lines 116-130) — no duplication here. */
+   by @j0nathan-ll0yd/tokens/reset (base.css lines 116-130) — no duplication here. */
 
 /* Critical visibility — inlined to avoid LCP delay from deferred components.css */
 .tri-card { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }
@@ -342,7 +342,7 @@ html { overflow-y: scroll; }
 .left-panel-bio { opacity: 0; transform: translateX(-30px); transition: opacity 0.8s ease, transform 0.8s ease; }
 .left-panel-bio.visible { opacity: 1; transform: translateX(0); }</style>
   <style is:global>
-    @import '@lifegames/tokens/layout';
+    @import '@j0nathan-ll0yd/tokens/layout';
   </style>
   {import.meta.env.PROD && <script is:inline src="/js/sa-stub.js"></script>}
 </head>

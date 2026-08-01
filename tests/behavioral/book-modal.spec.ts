@@ -14,18 +14,18 @@
  */
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
-import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@lifegames/portal-contract/constants'
+import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const require = createRequire(import.meta.url)
 
-// Resolve the "full" books fixture via the @lifegames/fixtures package exports
+// Resolve the "full" books fixture via the @j0nathan-ll0yd/fixtures package exports
 // map. This fixture has reading+finished+upNext books with all fields populated.
-const BOOKS_FULL_FIXTURE: string = require.resolve('@lifegames/fixtures/generated/books/full.json')
+const BOOKS_FULL_FIXTURE: string = require.resolve('@j0nathan-ll0yd/fixtures/generated/books/full.json')
 
 // Other endpoints use baseline fixtures (unchanged from visual suite).
 function baselineFixture(dir: string, file: string): string {
   const camelFile = file.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpperCase())
-  return require.resolve(`@lifegames/fixtures/generated/${dir}/${camelFile}.json`)
+  return require.resolve(`@j0nathan-ll0yd/fixtures/generated/${dir}/${camelFile}.json`)
 }
 
 /** Set up route interception: books→full, everything else→baseline or block */

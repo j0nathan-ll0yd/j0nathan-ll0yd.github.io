@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // generate-contract-lock.mjs — Generate .contract-lock.json for the web repo.
-// Tracks the @lifegames/schemas package consumed via yalc from design-system-Lifegames.
+// Tracks the @j0nathan-ll0yd/schemas package consumed from the registry (GitHub Packages).
 import {createHash} from 'node:crypto'
 import {existsSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
@@ -10,23 +10,23 @@ import {fileURLToPath} from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dirname, '..')
 const LOCK_FILE = join(REPO_ROOT, '.contract-lock.json')
-const SCHEMAS_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'schemas')
-// Raw export schemas moved to the backend-owned @lifegames/portal-contract package.
-const PORTAL_CONTRACT_PKG = join(REPO_ROOT, '.yalc', '@lifegames', 'portal-contract')
+const SCHEMAS_PKG = join(REPO_ROOT, 'node_modules', '@j0nathan-ll0yd', 'schemas')
+// Raw export schemas moved to the backend-owned @j0nathan-ll0yd/portal-contract package.
+const PORTAL_CONTRACT_PKG = join(REPO_ROOT, 'node_modules', '@j0nathan-ll0yd', 'portal-contract')
 
 function sha256(content) {
   return createHash('sha256').update(content, 'utf-8').digest('hex')
 }
 
 if (!existsSync(SCHEMAS_PKG)) {
-  console.error('[contract-lock] ERROR: .yalc/@lifegames/schemas not found.')
-  console.error('  Run `pnpm yalc:publish` from design-system-Lifegames first.')
+  console.error('[contract-lock] ERROR: node_modules/@j0nathan-ll0yd/schemas not found.')
+  console.error('  Run `npm ci --legacy-peer-deps` (or `npm install --legacy-peer-deps`) first.')
   process.exit(1)
 }
 
 // Resolve the upstream design-system-Lifegames sha for provenance. Priority:
 //   1. Git HEAD of the DS repo (sibling checkout, or DS_REPO_ROOT override).
-//   2. lpGitSha from the yalc package's .lp-sync-manifest.json.
+//   2. lpGitSha from the installed package's .lp-sync-manifest.json.
 // If neither resolves we FAIL LOUDLY rather than silently recording a
 // plausible-looking placeholder. A provenance field whose failure mode is
 // "record nothing" is worse than one that errors: check-contract-lock.mjs
@@ -72,7 +72,7 @@ if (resolvedSha) {
   process.exit(1)
 }
 
-// Collect all schema-relevant files from the yalc package
+// Collect all schema-relevant files from the installed package
 // Include vendored schemas, authored schemas, generated schemas, and dist types
 const filePatterns = [
   {dir: join(PORTAL_CONTRACT_PKG, 'raw-schemas'), key: 'raw-schemas', filter: (f) => f.endsWith('.schema.json')},

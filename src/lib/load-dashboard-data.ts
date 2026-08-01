@@ -1,8 +1,8 @@
-import {type DashboardFixture, fixtures, type FixtureVariation, getDashboardFixture} from '@lifegames/fixtures'
+import {type DashboardFixture, fixtures, type FixtureVariation, getDashboardFixture} from '@j0nathan-ll0yd/fixtures'
 
 /**
  * The dashboard payload that backs the SSR build output. This is the exact
- * post-adapter display shape produced by `@lifegames/fixtures` (Plan #04,
+ * post-adapter display shape produced by `@j0nathan-ll0yd/fixtures` (Plan #04,
  * docs/onboarding-review/04-fixtures-as-ssr-shell.md). The fixtures package is
  * the single source of truth for representative content; this repo no longer
  * hand-bakes `data/*.json`.

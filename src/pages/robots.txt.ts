@@ -1,4 +1,4 @@
-import {SITE_URL} from '@lifegames/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 // /llms.txt has no dedicated LLM_CONTENT_PATHS constant — it is a Cloudflare Pages
 // Function proxy (functions/llms.txt.ts) that does not map to a CloudFront path.
