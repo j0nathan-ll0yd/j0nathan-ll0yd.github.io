@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Publishes @lifegames/portal-contract to the LOCAL yalc store for CI.
+# Publishes the portal-contract package to the LOCAL yalc store for CI.
 #
-# @lifegames/portal-contract is produced by the backend repo
+# portal-contract is produced by the backend repo
 # (mantle-LifegamesPortal/packages/portal-contract). This web repo depends on it
-# directly (file:.yalc/@lifegames/portal-contract), AND the design-system clone
-# that ci-setup.sh builds also depends on it. Because `.yalc/` is gitignored,
-# CI must publish it to the local yalc store before either consumer installs.
+# directly, AND the design-system clone that ci-setup.sh builds also depends on
+# it. Because `.yalc/` is gitignored, CI must publish it to the local yalc store
+# before either consumer installs.
+#
+# `yalc publish` publishes under whatever name the package.json on disk declares,
+# so no package name is hardcoded here; the yalc retirement (atlas#1) renamed
+# this package, and the refresh guard below derives the current name off the clone.
 #
 # This script ONLY clones the backend and yalc-publishes portal-contract; the
 # caller (ci-setup.sh) is responsible for `npx yalc add`-ing it into the right
@@ -66,19 +70,24 @@ echo "[ci-setup-pc] Installing + yalc-publishing portal-contract..."
 # backend checkout, plus portal-contract's own devDeps.
 (cd "$LP_DIR/packages/portal-contract" && pnpm install && npx -y yalc publish)
 
+# Derive the package's real name from the clone -- the yalc retirement (atlas#1)
+# renamed it, so the store key and any .yalc/<name> link path track this, not a
+# hardcoded literal.
+PC_PKG="$(node -p "require('$LP_DIR/packages/portal-contract/package.json').name")"
+
 # `yalc publish` updates the STORE only -- it does NOT touch an already-linked
 # consumer's .yalc/ tree. A prior standalone run of this script reported
-# "published in store" yet left this web repo's .yalc/@lifegames/portal-contract
-# holding the retired `location` member, needing a separate `yalc update` to
-# actually land (atlas 0013, Task 2 #1 -- the silent-no-op class). So: if THIS
-# web repo already links portal-contract, pull the freshly published bytes into
-# its .yalc/ now. Guarded on the link dir existing, so a fresh CI checkout (where
-# .yalc/ is gitignored/absent and the caller's later `yalc add` handles it) is
-# untouched -- this only refreshes an EXISTING stale consumer.
+# "published in store" yet left this web repo's .yalc/<portal-contract> holding
+# the retired `location` member, needing a separate `yalc update` to actually
+# land (atlas 0013, Task 2 #1 -- the silent-no-op class). So: if THIS web repo
+# already links portal-contract, pull the freshly published bytes into its .yalc/
+# now. Guarded on the link dir existing, so a fresh CI checkout (where .yalc/ is
+# gitignored/absent and the caller's later `yalc add` handles it) is untouched --
+# this only refreshes an EXISTING stale consumer.
 WEB_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [ -d "$WEB_ROOT/.yalc/@lifegames/portal-contract" ]; then
-  echo "[ci-setup-pc] Refreshing this repo's consumer link (npx yalc update @lifegames/portal-contract)..."
-  (cd "$WEB_ROOT" && npx -y yalc update @lifegames/portal-contract)
+if [ -d "$WEB_ROOT/.yalc/$PC_PKG" ]; then
+  echo "[ci-setup-pc] Refreshing this repo's consumer link (npx yalc update $PC_PKG)..."
+  (cd "$WEB_ROOT" && npx -y yalc update "$PC_PKG")
 fi
 
 echo "[ci-setup-pc] Done."
