@@ -1,12 +1,65 @@
 version: 2
+
+# The seven @j0nathan-ll0yd/* dependencies (copy, fixtures, portal-contract,
+# schemas, tokens, web, config) resolve from GitHub Packages, which requires
+# authentication even though every one of them is public -- an unauthenticated
+# GET of https://npm.pkg.github.com/@j0nathan-ll0yd%2fconfig returns 401.
+# Without this block Dependabot cannot see the internal packages at all, so a
+# published bump never reaches this consumer and the site silently keeps
+# building against a stale tarball.
+#
+# The token must live in the *Dependabot* secret store (Settings -> Secrets and
+# variables -> Dependabot), not the Actions one: Dependabot never sees the
+# workflow GITHUB_TOKEN, and GitHub forbids Dependabot secret names beginning
+# with `GITHUB_`, so `${{secrets.GITHUB_TOKEN}}` is not expressible here.
+# `read:packages` is the only scope required.
+#
+# Deliberately NOT set:
+#   replaces-base -- would route *every* npm dependency through GitHub Packages,
+#     which does not proxy registry.npmjs.org.
+#   scope         -- would make Dependabot regenerate .npmrc purely from these
+#     credentials and discard the committed one, dropping `legacy-peer-deps=true`
+#     and breaking install (see .npmrc). The committed `@j0nathan-ll0yd:registry=`
+#     line already does the scope mapping; Dependabot strips the
+#     `${GITHUB_TOKEN}` auth line (it drops any .npmrc line containing `${...}`)
+#     and appends the real credential from here.
+registries:
+  github-packages:
+    type: npm-registry
+    url: https://npm.pkg.github.com
+    token: ${{secrets.GH_PACKAGES_READ_TOKEN}}
+
 updates:
   - package-ecosystem: npm
     directory: /
+    registries:
+      - github-packages
     schedule:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
     groups:
+      # Declared FIRST on purpose: a dependency lands in the first group it
+      # matches, and the internal packages must never be split across the
+      # framework groups below.
+      #
+      # The @j0nathan-ll0yd/* set is interdependent (fixtures -> schemas -> web
+      # -> tokens/copy, and portal-contract underneath schemas/fixtures), so six
+      # racing single-package PRs would each red the typecheck until the last
+      # one merged. One grouped PR lands the set together.
+      #
+      # MAJORS ARE INCLUDED: major/minor/patch are listed explicitly, and no
+      # `ignore` rule below matches this scope. Dependabot still only sees
+      # versions that were actually published, so the Atlas package-version-drift
+      # reconciliation runner remains the backstop for source that changed
+      # without a version bump -- Dependabot cannot detect that case at all.
+      lifegames-internal:
+        patterns:
+          - "@j0nathan-ll0yd/*"
+        update-types:
+          - major
+          - minor
+          - patch
       astro:
         patterns:
           - astro
