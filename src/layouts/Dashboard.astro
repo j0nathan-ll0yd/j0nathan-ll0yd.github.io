@@ -211,7 +211,7 @@ const jsonLdGraph = isHome
     @import '@j0nathan-ll0yd/tokens/fonts';
     @import '@j0nathan-ll0yd/tokens/css.layered';
     @import '@j0nathan-ll0yd/tokens/compat';
-    @import '@j0nathan-ll0yd/tokens/components';
+    @import '@j0nathan-ll0yd/web/styles/components.css';
     @import '@j0nathan-ll0yd/tokens/effects';
     @import '@j0nathan-ll0yd/tokens/reset';
     @import '@j0nathan-ll0yd/web/styles/a11y.css';
@@ -342,7 +342,7 @@ html { overflow-y: scroll; }
 .left-panel-bio { opacity: 0; transform: translateX(-30px); transition: opacity 0.8s ease, transform 0.8s ease; }
 .left-panel-bio.visible { opacity: 1; transform: translateX(0); }</style>
   <style is:global>
-    @import '@j0nathan-ll0yd/tokens/layout';
+    @import '@j0nathan-ll0yd/web/styles/layout.css';
   </style>
   {import.meta.env.PROD && <script is:inline src="/js/sa-stub.js"></script>}
 </head>
