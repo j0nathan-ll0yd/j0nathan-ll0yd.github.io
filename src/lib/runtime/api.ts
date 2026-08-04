@@ -9,7 +9,7 @@ import type {
   SleepExport,
   TheatreReviewsExport,
   WorkoutsExport
-} from '@j0nathan-ll0yd/web/types/exports'
+} from '@j0nathan-ll0yd/portal-contract/schemas'
 
 // In dev mode, Vite proxies /api/live/* to CloudFront to avoid CORS issues.
 // In production, fetch directly from CloudFront (CORS allows jonathanlloyd.me).

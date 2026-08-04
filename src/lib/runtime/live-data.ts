@@ -13,7 +13,7 @@ import type {
   SleepExport,
   TheatreReviewsExport,
   WorkoutsExport
-} from '@j0nathan-ll0yd/web/types/exports'
+} from '@j0nathan-ll0yd/portal-contract/schemas'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@j0nathan-ll0yd/web/runtime/adapters'
 import {WSClient} from './ws-client'
