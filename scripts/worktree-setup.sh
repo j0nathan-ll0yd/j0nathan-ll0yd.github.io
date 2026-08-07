@@ -1,36 +1,33 @@
 #!/usr/bin/env sh
-set -e
+# Worktree provisioner — Decision 0005 + speed optimizations
+set -u
 
-echo "Setting up new worktree..."
+worktree="$(git rev-parse --show-toplevel)"
+main="$(dirname "$(git rev-parse --git-common-dir)")"
 
-COMMON_DIR=$(git rev-parse --git-common-dir)
-# Handle case where COMMON_DIR is just .git (in main worktree itself, though this shouldn't run there)
-if [ "$COMMON_DIR" = ".git" ]; then
-    MAIN_WT=$(git rev-parse --show-toplevel)
-else
-    # COMMON_DIR is usually an absolute path ending in .git
-    MAIN_WT=$(dirname "$COMMON_DIR")
+[ "$worktree" = "$main" ] && exit 0
+
+log() { printf 'worktree-setup: %s\n' "$1"; }
+
+# 1) Synchronous (< 100ms): Seed required gitignored config
+for rel in .env.local .claude/rules; do
+  src="$main/$rel"
+  dst="$worktree/$rel"
+  if [ -e "$src" ] && [ ! -e "$dst" ]; then
+    mkdir -p "$(dirname "$dst")"
+    cp -R "$src" "$dst" 2>/dev/null && log "seeded $rel"
+  fi
+done
+
+# 2) Direnv auto-allow
+if command -v direnv >/dev/null 2>&1 && [ -f "$worktree/.envrc" ]; then
+  ( cd "$worktree" && direnv allow >/dev/null 2>&1 || true )
 fi
 
-if [ -f "$MAIN_WT/.env.local" ]; then
-    echo "Copying .env.local from main worktree..."
-    cp "$MAIN_WT/.env.local" .env.local
+# 3) Fast dependency install (non-blocking)
+if [ "${WORKTREE_SKIP_INSTALL:-0}" != "1" ] && [ -f "$worktree/package-lock.json" ]; then
+  log "installing dependencies (npm ci)…"
+  ( cd "$worktree" && npm ci >/dev/null 2>&1 ) &
 fi
 
-if [ -d "$MAIN_WT/.claude/rules" ]; then
-    echo "Copying .claude/rules/ from main worktree..."
-    mkdir -p .claude
-    cp -r "$MAIN_WT/.claude/rules" .claude/
-fi
-
-if [ -f "package-lock.json" ] || [ -f "package.json" ]; then
-    echo "Running npm ci..."
-    npm ci
-fi
-
-if command -v direnv >/dev/null 2>&1; then
-    echo "Allowing direnv..."
-    direnv allow
-fi
-
-echo "Worktree setup complete."
+log "done (background tasks PID $!)"
