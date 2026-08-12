@@ -17,7 +17,7 @@
 #    a cryptic "command not found" inside format:check/lint below.
 echo "[pre-push] Preflight: install integrity"
 
-if ! npm run doctor:install; then
+if ! pnpm run doctor:install; then
   echo ""
   echo "ERROR: install integrity check failed (see fix above)."
   echo ""
@@ -26,23 +26,23 @@ fi
 
 echo "[pre-push] Static gates: format:check -> typecheck -> lint"
 
-if ! npm run format:check; then
+if ! pnpm run format:check; then
   echo ""
-  echo "ERROR: dprint format check failed. Fix with:  npm run format"
+  echo "ERROR: dprint format check failed. Fix with:  pnpm run format"
   echo ""
   exit 1
 fi
 
-if ! npm run typecheck; then
+if ! pnpm run typecheck; then
   echo ""
   echo "ERROR: astro check (typecheck) failed. Fix the type errors above."
   echo ""
   exit 1
 fi
 
-if ! npm run lint; then
+if ! pnpm run lint; then
   echo ""
-  echo "ERROR: eslint failed. Fix the lint errors above (some are auto-fixable:  npx eslint . --fix)."
+  echo "ERROR: eslint failed. Fix the lint errors above (some are auto-fixable:  pnpm exec eslint . --fix)."
   echo ""
   exit 1
 fi
@@ -55,14 +55,14 @@ fi
 echo "[pre-push] Running visual regression suite in Docker (arm64-native, CI-parity image)."
 echo "[pre-push] To skip on a non-visual change: SKIP_VISUAL=1 git push"
 
-if ! npm run test:visual; then
+if ! pnpm run test:visual; then
   echo ""
   echo "ERROR: visual regression suite failed locally."
   echo ""
   echo "  Open the HTML report:   open playwright-report/index.html"
   echo ""
   echo "  If the diff is intentional (you changed pixels on purpose):"
-  echo "      npm run test:visual:update"
+  echo "      pnpm run test:visual:update"
   echo "      git add tests/visual/__screenshots__/"
   echo "      git commit -m 'chore: regenerate visual baselines'"
   echo ""

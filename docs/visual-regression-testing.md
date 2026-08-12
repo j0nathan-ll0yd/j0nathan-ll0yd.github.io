@@ -61,7 +61,7 @@ tests/
     └── png-iend-truncate.test.ts       # Vitest unit tests for truncateAtIEND
 
 scripts/
-├── playwright-version.sh               # Extracts Playwright version from package-lock
+├── playwright-version.sh               # Extracts Playwright version from pnpm-lock.yaml
 └── run-in-docker.sh                    # Local Docker baseline regen wrapper
 
 .github/workflows/
@@ -78,7 +78,7 @@ The captured pixels must be byte-stable across runs and across the macOS-develop
 
 | Layer                       | Mechanism                                                                                                                                                                                                                                                                                                         | Purpose                                                                                                    |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Docker image**            | `mcr.microsoft.com/playwright:v${VERSION}-noble` resolved dynamically from `package-lock.json` via `scripts/playwright-version.sh` + `docker manifest inspect` guard                                                                                                                                              | Same rendering environment locally and in CI                                                               |
+| **Docker image**            | `mcr.microsoft.com/playwright:v${VERSION}-noble` resolved dynamically from `pnpm-lock.yaml` via `scripts/playwright-version.sh` + `docker manifest inspect` guard                                                                                                                                              | Same rendering environment locally and in CI                                                               |
 | **Container options**       | `--ipc=host --shm-size=2g` on regression workflows                                                                                                                                                                                                                                                                | Avoid 64MB `/dev/shm` crash on tall fullPage screenshots                                                   |
 | **Chromium flags (shared)** | `tests/shared/chromium-launch-args.ts` — `--force-device-scale-factor=1`, `--font-render-hinting=none`, `--disable-lcd-text`, `--disable-font-subpixel-positioning`, `--disable-skia-runtime-opts`, `--disable-dev-shm-usage`                                                                                     | Kill subpixel/font-hinting/skia raster variance                                                            |
 | **Software raster**         | `--use-gl=swiftshader --disable-gpu --in-process-gpu`                                                                                                                                                                                                                                                             | Eliminate Chromium MSAA atlas-path SVG raster non-determinism (Chromium 40827297)                          |
@@ -185,7 +185,7 @@ The current architecture is the survivor of a cascading sequence of bug classes.
 
 **Symptom.** Drift detection filed `visual-drift` issues on every production deploy (#25, #28, #30, #32, #38). Locally-regenerated baselines failed CI immediately.
 
-**Root cause.** Baselines were generated on macOS (Quartz font rendering). CI ran on `ubuntu-latest` with `npx playwright install` (Linux FreeType font rendering). The drift workflow ran on bare `ubuntu-latest` with a different rendering environment from the regression suite.
+**Root cause.** Baselines were generated on macOS (Quartz font rendering). CI ran on `ubuntu-latest` with `pnpm exec playwright install` (Linux FreeType font rendering). The drift workflow ran on bare `ubuntu-latest` with a different rendering environment from the regression suite.
 
 **Fix.**
 
@@ -276,8 +276,8 @@ Lives in `ci-runners-private/.github/workflows/`. Triggered only by `workflow_ca
 
 Jobs:
 
-- `setup` — checks out this repo at `ref`, runs `npm ci --legacy-peer-deps` (resolves the `@j0nathan-ll0yd/*` packages from GitHub Packages), builds the Astro site (the SSR shell comes from `@j0nathan-ll0yd/fixtures`), uploads the `dist` artifact.
-- `visual-tests` — 4-shard matrix (`fail-fast: false`). Each shard downloads the setup artifact, runs `npx playwright test --shard=N/4` with `SKIP_BUILD=true`. In `update_snapshots` mode forces `workers=1` to eliminate the intra-shard write race (microsoft/playwright#9760).
+- `setup` — checks out this repo at `ref`, runs `ppnpm install --frozen-lockfile` (resolves the `@j0nathan-ll0yd/*` packages from GitHub Packages), builds the Astro site (the SSR shell comes from `@j0nathan-ll0yd/fixtures`), uploads the `dist` artifact.
+- `visual-tests` — 4-shard matrix (`fail-fast: false`). Each shard downloads the setup artifact, runs `pnpm exec playwright test --shard=N/4` with `SKIP_BUILD=true`. In `update_snapshots` mode forces `workers=1` to eliminate the intra-shard write race (microsoft/playwright#9760).
 - `commit-baselines` — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`.
 - `merge-reports` — merges blob reports from each shard into a single HTML report.
 
@@ -289,7 +289,7 @@ Triggers: `workflow_run` after a successful `Deploy to Cloudflare Pages` run; `w
 
 Jobs:
 
-- `smoke-check` (bare `ubuntu-latest` — no Docker) — checkout → setup-node → `npm ci --legacy-peer-deps` → `npx playwright install --with-deps chromium` → `npm run test:smoke` (`continue-on-error: true`) → upload `smoke-playwright-report` → on failure files a GitHub issue titled "Production smoke check failed after deploy" with labels `smoke-failure`, `automated` (deduped by title).
+- `smoke-check` (bare `ubuntu-latest` — no Docker) — checkout → setup-node → `ppnpm install --frozen-lockfile` → `pnpm exec playwright install --with-deps chromium` → `pnpm run test:smoke` (`continue-on-error: true`) → upload `smoke-playwright-report` → on failure files a GitHub issue titled "Production smoke check failed after deploy" with labels `smoke-failure`, `automated` (deduped by title).
 
 The smoke check is non-blocking (informational tier) during initial bake-in. Unlike the retired drift suite, it runs natively without Docker — no QEMU, no SwiftShader, no `--shm-size` workaround needed, and no baseline PNGs to maintain.
 
@@ -300,13 +300,13 @@ The smoke check is non-blocking (informational tier) during initial bake-in. Unl
 ### 6.1 Run regression locally (Docker, arm64-native, CI-parity bytes)
 
 ```bash
-npm run test:visual          # 4 viewports × ~44 tests = ~176 tests (Docker, CI-parity)
+pnpm run test:visual          # 4 viewports × ~44 tests = ~176 tests (Docker, CI-parity)
 ```
 
 ### 6.2 Run smoke check locally
 
 ```bash
-npm run test:smoke           # Hits live https://jonathanlloyd.me natively; no Docker needed
+pnpm run test:smoke           # Hits live https://jonathanlloyd.me natively; no Docker needed
 ```
 
 The smoke check requires network access to live production and has no baselines to update.
@@ -314,7 +314,7 @@ The smoke check requires network access to live production and has no baselines 
 ### 6.3 Regenerate regression baselines in Docker locally (canonical)
 
 ```bash
-npm run test:visual:update   # arm64-native, CI-parity bytes
+pnpm run test:visual:update   # arm64-native, CI-parity bytes
 git add tests/visual/__screenshots__/
 git commit -m "chore: regenerate visual baselines"
 ```

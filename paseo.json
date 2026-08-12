@@ -1,25 +1,25 @@
 {
   "_notes": [
-    "Paseo worktree lifecycle. The six @j0nathan-ll0yd/* deps resolve from GitHub Packages (npm.pkg.github.com); `npm ci` needs the registry token, which the worktree inherits from the machine-global ~/.npmrc (the committed .npmrc expands ${GITHUB_TOKEN}).",
+    "Paseo worktree lifecycle. The six @j0nathan-ll0yd/* deps resolve from GitHub Packages (npm.pkg.github.com); `pnpm install` needs the registry token. pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc (atlas decision 0032 removed that line), so the token comes from the machine-global ~/.npmrc, which a worktree inherits.",
     ".env.local (SA_API_KEY, optional) and .envrc are gitignored — copied from main checkout; direnv users still need `direnv allow`.",
     "Astro dev/preview binds fixed port 4321 — do not run two worktrees' dev servers concurrently without overriding the port."
   ],
   "worktree": {
     "setup": [
       "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && { cp \"$MAIN/.env.local\" .env.local 2>/dev/null || true; } && { cp \"$MAIN/.envrc\" .envrc 2>/dev/null || true; }",
-      "npm ci --legacy-peer-deps"
+      "pnpm install --frozen-lockfile"
     ]
   },
   "scripts": {
-    "test": { "command": "npm test" },
-    "build": { "command": "npm run build" },
+    "test": { "command": "pnpm test" },
+    "build": { "command": "pnpm build" },
     "dev": {
       "type": "service",
-      "command": "npm run dev -- --port $PASEO_PORT"
+      "command": "pnpm dev -- --port $PASEO_PORT"
     },
     "preview": {
       "type": "service",
-      "command": "npm run preview -- --port $PASEO_PORT"
+      "command": "pnpm preview -- --port $PASEO_PORT"
     }
   }
 }

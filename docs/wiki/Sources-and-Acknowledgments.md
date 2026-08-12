@@ -158,7 +158,7 @@ been misattributed to a Vite dev-server timing artifact). After the fix a
 production build emits the four expected `@font-face` rules and the preload is
 consumed. Because the previous visual-regression baselines were minted while the
 font was silently falling back to Arial, they must be regenerated in Docker
-(`npm run test:visual:update`) as a follow-up so they reflect the real Space
+(`pnpm run test:visual:update`) as a follow-up so they reflect the real Space
 Grotesk glyphs.
 
 We deliberately did **not** touch the visible font stacks, and we recorded two

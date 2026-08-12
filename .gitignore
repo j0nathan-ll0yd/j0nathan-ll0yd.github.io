@@ -39,3 +39,10 @@ docs/onboarding-review/
 # copies and generated reports, both reproducible from stryker.conf.json.
 .stryker-tmp/
 reports/mutation/
+
+# pnpm content-addressed store. The Docker visual harness (scripts/run-in-docker.sh)
+# used to write one here because pnpm places its store on the same filesystem as the
+# project; the harness now pins --store-dir inside the container-private node_modules
+# volume. Kept ignored as a backstop -- a stray store is ~700MB of binary blobs and
+# GitHub rejects the push (single files exceed the 100MB limit).
+.pnpm-store/

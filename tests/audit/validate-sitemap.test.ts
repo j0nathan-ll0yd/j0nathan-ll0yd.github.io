@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixturePath = (name: string) => path.join(__dirname, 'fixtures', name)
 const vendorPath = (name: string) => path.join(__dirname, '..', '..', 'scripts', 'audit', 'vendor', name)
 
-// `npm run test:unit` is invoked from several places in this repo (its own
+// `pnpm run test:unit` is invoked from several places in this repo (its own
 // package.json script, and as a pre-check step inside visual-tests.yml) that
 // have nothing to do with the audit-web.yml workflow and are not guaranteed
 // to have xmllint on PATH -- unlike audit-web.yml's weekly job, which

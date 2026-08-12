@@ -2,7 +2,7 @@
 // (NOT bundled) to expose navigator.modelContext tools to MCP-aware browsers.
 //
 // All CloudFront addressing is sourced from @j0nathan-ll0yd/portal-contract so the
-// raw served file never hardcodes the CDN host. Run via `npm run generate:webmcp`
+// raw served file never hardcodes the CDN host. Run via `pnpm run generate:webmcp`
 // (wired into prebuild). The output is byte-stable across runs.
 //
 // All customer-facing prose is sourced from @j0nathan-ll0yd/copy (identity + llm

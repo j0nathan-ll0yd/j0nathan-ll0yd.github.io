@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
   issues: write
-  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during pnpm install
 
 concurrency:
   group: deploy
@@ -21,23 +21,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       - name: Build
         # --json emits structured (NDJSON) build logs for CI log triage. Scoped to
-        # deploy workflows only; local `npm run build` stays human-readable. The `--`
-        # forwards the flag to `astro build` while preserving the prebuild/postbuild
-        # lifecycle hooks. Nothing downstream parses the human log format.
-        run: npm run build -- --json
+        # deploy workflows only; local `pnpm build` stays human-readable. pnpm forwards
+        # trailing args to the script directly (no `--` separator needed), preserving the
+        # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
+        run: pnpm build --json
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4
@@ -81,18 +90,27 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
 
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # fetch-images.mjs imports @j0nathan-ll0yd/portal-contract, so this job needs
       # the dependencies installed. Without it the script dies with
       # ERR_MODULE_NOT_FOUND before it can check anything.
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       - name: Check for new images
         id: check
@@ -117,7 +135,7 @@ jobs:
 
           **To fix:**
           \`\`\`bash
-          npm run fetch:images
+          pnpm run fetch:images
           git add public/images/
           git commit -m "Add new optimized images from CloudFront"
           git push

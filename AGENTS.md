@@ -5,19 +5,19 @@ Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" 
 ## Commands
 
 ```bash
-npm install                       # use --legacy-peer-deps if the peer-dep gate fails
-npm run dev                       # localhost:4321
-npm run build                     # production build (reads data/*.json)
-npm run preview                   # preview the production output
-npm run test:build                # Vitest build-output tests (SEO, JSON-LD, images)
-npm run test:visual               # Playwright visual regression in Docker (arm64-native, CI-parity)
-npm run test:visual:update        # regenerate baselines in Docker (the only sanctioned path)
-npm run validate:build-fixtures   # Ajv validation of data/*.json against DS schemas
-npm run generate:fixtures         # regenerate test/fixtures/build-data/*.json
-npm run fetch:images              # download images from CloudFront to public/images/
+pnpm install                      # exact pnpm version comes from packageManager (corepack)
+pnpm dev                          # localhost:4321
+pnpm build                        # production build (reads data/*.json)
+pnpm preview                      # preview the production output
+pnpm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
+pnpm run test:visual              # Playwright visual regression in Docker (arm64-native, CI-parity)
+pnpm run test:visual:update       # regenerate baselines in Docker (the only sanctioned path)
+pnpm run validate:build-fixtures  # Ajv validation of data/*.json against DS schemas
+pnpm run generate:fixtures        # regenerate test/fixtures/build-data/*.json
+pnpm run fetch:images             # download images from CloudFront to public/images/
 ```
 
-Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `cloudflare/wrangler-action@v4` -> Cloudflare Pages.
+Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `pnpm build` -> `cloudflare/wrangler-action@v4` -> Cloudflare Pages.
 
 ## Repository Structure
 
@@ -49,7 +49,7 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `npm run build` -> `c
 | Polling         | CloudFront JSON                                                | PollEngine (30s fast, 120s slow), `?_poll=1` bypass                   |
 | WebSocket       | API Gateway                                                    | Adaptive fallback when WS unavailable                                 |
 
-Fixtures are DS-owned (Plan #04): the SSR shell comes from `@j0nathan-ll0yd/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`npm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` via CloudFront route interception.
+Fixtures are DS-owned (Plan #04): the SSR shell comes from `@j0nathan-ll0yd/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`pnpm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` via CloudFront route interception.
 
 ## Design System Integration
 
@@ -67,8 +67,8 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 - **Raw scripts are ES2017 (SYNTAX rule)**: `<script is:inline>` bodies and any `public/js/*.js` are served raw (never transpiled by Vite), so their syntax floor is **ES2017** -- `const`/`let`, arrow functions, template literals, and `async`/`await` are all allowed. The site's real browser floor (service workers, PWA, canvas islands) is well above ES5, and async/await has had universal browser support since 2017. Avoid post-ES2017 syntax that lacks universal support. Bundled module scripts (processed by Vite) may use any modern syntax. This rule governs SYNTAX only and is independent of the CSP externalization rule below (CSP dictates _where_ scripts load, not what syntax they use).
 - **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
-- **Inline-script gate**: `npm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
-- **SW precache gate (Astro 7)**: `scripts/check-sw-precache.mjs` runs in `postbuild` and asserts the Workbox precache manifest in `dist/sw.js` is populated (entry count >= 80% of built assets, app shell present). Catches the silent failure where the PWA build succeeds but ships an empty precache (offline broken) -- the specific risk from `@vite-pwa/astro` (peer-capped at astro ^5) driving Workbox under Vite 8 / Rolldown. The wrapper is kept working via `--legacy-peer-deps` (`.npmrc`) + a `vite-plugin-pwa ^1.3.0` `overrides` pin (`package.json`); see those files for the standing-workaround rationale.
+- **Inline-script gate**: `pnpm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
+- **SW precache gate (Astro 7)**: `scripts/check-sw-precache.mjs` runs in `postbuild` and asserts the Workbox precache manifest in `dist/sw.js` is populated (entry count >= 80% of built assets, app shell present). Catches the silent failure where the PWA build succeeds but ships an empty precache (offline broken) -- the specific risk from `@vite-pwa/astro` (peer-capped at astro ^5) driving Workbox under Vite 8 / Rolldown. The wrapper is kept working via `strictPeerDependencies: false` + a `vite-plugin-pwa ^1.3.0` `overrides` pin, both in `pnpm-workspace.yaml`; see that file for the standing-workaround rationale.
 - **Simple Analytics is served first-party (Issue #83, 2026-06-24):** SA is no longer loaded from `scripts.simpleanalyticscdn.com`. Two Cloudflare Pages Functions handle it entirely within our origin:
   - `/sa` → `functions/sa.ts` (Cloudflare strips the `.ts` extension → route `/sa`, NOT `/sa.js`): fetches `https://simpleanalyticsexternal.com/proxy.js?hostname=jonathanlloyd.me&path=/simple` (a v11 SA script baked with our hostname + collection path), caches aggressively at the edge. On upstream failure returns a harmless JS no-op.
   - `/simple/*` → `functions/simple/[[path]].ts`: catch-all reverse proxy forwarding to `https://queue.simpleanalyticscdn.com/<rest>` with the `/simple` prefix stripped. Preserves method/body/content-type; sets `X-Forwarded-For`+`X-Real-IP` from `CF-Connecting-IP` for geo accuracy. On upstream failure returns a silent 204 (or 1×1 transparent GIF for `.gif` paths) — never a 5xx.
@@ -77,16 +77,16 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
   - **Invariant (enforced by `audit:sa-path` in prebuild):** the `path=` query value in `functions/sa.ts`'s proxy URL MUST equal the route directory name (`/simple`). Mismatch = silent total data loss. The blocking assertion runs in `prebuild` and exits non-zero on mismatch.
   - **Privacy note:** collection now appears first-party (`/simple/*`), but SA remains cookieless and data still terminates at Simple Analytics — no new tracking is introduced.
   - **Rollback:** revert the commit. CSP, loader, and markup return to the CDN hosts; analytics resumes on next deploy.
-- **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `npm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`. (Scope: the schema-file subset of `schemas` + `portal-contract` only, for the Ajv build contract -- narrower than the full dependency set pinned in `package-lock.json`.)
-- **Design System packages come from the registry (GitHub Packages), pinned in `package-lock.json`** -- atlas decision 0015 (yalc retirement). The six `@j0nathan-ll0yd/*` packages (`copy`, `fixtures`, `portal-contract`, `schemas`, `tokens`, `web`) are consumed as published `^1.0.0` deps; `npm ci --legacy-peer-deps` resolves them via `@j0nathan-ll0yd:registry=https://npm.pkg.github.com` in `.npmrc` (the built-in Actions `GITHUB_TOKEN` in CI, or a local PAT in the machine-global `~/.npmrc`, authenticates the read -- all six are public). The resolved version + integrity hash in `package-lock.json` is the committed provenance record decision 0013 asked for: the artifact reviewed in git, the artifact CI builds, and the artifact that deploys are now one and the same, so the yalc-freshness gate (and its `.yalc-lock.json`, `ci-setup.sh`, and `.yalc/` tree) is retired. Merging to `main` IS a production deploy (Cloudflare Pages), so a producer change must be published as a new version and the caret range / lockfile bumped here before it can ship -- a web bump needing an unpublished DS change simply cannot resolve that version.
-- **Install integrity doctor (`npm run doctor:install`)**: an install churn (npm reinstalls, `--legacy-peer-deps` peer shunting) can leave a `node_modules/.bin/*` symlink dangling (a postinstall-linked binary like `dprint` whose wrapper npm shunted aside), surfacing later as a cryptic `command not found` mid-hook. The doctor runs first in `pre-push` and fails loud with the fix (`npm install --legacy-peer-deps` -- `npm rebuild <pkg>` does not repair it).
+- **Contract-lock is generated, never hand-edited**: `.contract-lock.json` freshness is enforced by a Husky pre-commit hook + a `contract-check` CI job (both run `pnpm run check:contract-lock`). Regenerate with `node scripts/generate-contract-lock.mjs && git add .contract-lock.json`. (Scope: the schema-file subset of `schemas` + `portal-contract` only, for the Ajv build contract -- narrower than the full dependency set pinned in `pnpm-lock.yaml`.)
+- **Design System packages come from the registry (GitHub Packages), pinned in `pnpm-lock.yaml`** -- atlas decision 0015 (yalc retirement). The six `@j0nathan-ll0yd/*` packages (`copy`, `fixtures`, `portal-contract`, `schemas`, `tokens`, `web`) are consumed as published `^1.0.0` deps; `pnpm install --frozen-lockfile` resolves them via `@j0nathan-ll0yd:registry=https://npm.pkg.github.com` in `.npmrc`. Auth is NOT committed (atlas decision 0032): locally the token comes from the machine-global `~/.npmrc`, and in CI each installing job runs `pnpm config set '//npm.pkg.github.com/:_authToken'` with the built-in Actions `GITHUB_TOKEN` before installing -- all six are public but GitHub Packages requires a token even to read. The resolved version + integrity hash in `pnpm-lock.yaml` is the committed provenance record decision 0013 asked for: the artifact reviewed in git, the artifact CI builds, and the artifact that deploys are now one and the same, so the yalc-freshness gate (and its `.yalc-lock.json`, `ci-setup.sh`, and `.yalc/` tree) is retired. Merging to `main` IS a production deploy (Cloudflare Pages), so a producer change must be published as a new version and the caret range / lockfile bumped here before it can ship -- a web bump needing an unpublished DS change simply cannot resolve that version.
+- **Install integrity doctor (`pnpm run doctor:install`)**: an install churn can leave a `node_modules/.bin/*` symlink dangling (under pnpm every `.bin` entry links into the content-addressed `node_modules/.pnpm/` store, so a pruned store or a cross-platform clobber from the Docker visual harness produces exactly this), surfacing later as a cryptic `command not found` mid-hook. The doctor runs first in `pre-push` and fails loud with the fix (`pnpm install --frozen-lockfile`, or `rm -rf node_modules && pnpm install --frozen-lockfile` -- a targeted rebuild does not repair it).
 - **Formatting**: 2-space indent, UTF-8, LF line endings.
 
 ## Testing
 
-- **Visual baselines:** regenerate only in Docker (`npm run test:visual:update`); host-rendered PNGs fail CI.
+- **Visual baselines:** regenerate only in Docker (`pnpm run test:visual:update`); host-rendered PNGs fail CI.
 - **Canvas widgets use a deterministic test seam, not hidden pixels:** rAF + RNG defeats Playwright's `animations: 'disabled'`, but never hide a canvas via `visibility: hidden` in `screenshot.css` -- that masks regressions. Each canvas widget exposes a `window.__<widget>` seam (defined in its DS runtime init, e.g. `@j0nathan-ll0yd/web/runtime/heart-rate-init`) with `ready`, `seed(n)`, `freezeAt(ms|null)`, `step(frames)`, and `state()`. The seam is gated by BOTH `import.meta.env.MODE === 'test'` AND a `data-test="1"` ancestor, so it is `undefined` (dead-code-eliminated) in production. Reference: `#hrEcgCanvas` / `window.__hrEcg` (`tests/visual/heart-rate.spec.ts`). Seam-driven screenshots need a `--mode test` visual build.
-- **Production smoke check (replaces the retired pixel-drift suite):** `tests/smoke/home.smoke.ts` (config `playwright.smoke.config.ts`, helpers `tests/smoke/fixtures.ts`) asserts the live site at `https://jonathanlloyd.me` actually hydrated -- HTTP 200, all widget containers present, `.is-loading` skeletons cleared, the bio terminal typed its content (the #50 CSP-blocked-hydration regression guard), the service worker registered, and no external-script CSP violation / chunk-load failure / unexpected console error. Runs natively on `ubuntu-latest` (no Docker, no pixel baselines) via `.github/workflows/smoke-check.yml` on `workflow_run` after `deploy.yml`; it is post-deploy and non-blocking (files a `smoke-failure` issue rather than blocking the deploy). Run locally with `npm run test:smoke`. The retired drift suite could not stay green against a live data stream and could not catch a blocked-hydration failure (the SSR shell renders at the correct pixels even when hydration is dead).
+- **Production smoke check (replaces the retired pixel-drift suite):** `tests/smoke/home.smoke.ts` (config `playwright.smoke.config.ts`, helpers `tests/smoke/fixtures.ts`) asserts the live site at `https://jonathanlloyd.me` actually hydrated -- HTTP 200, all widget containers present, `.is-loading` skeletons cleared, the bio terminal typed its content (the #50 CSP-blocked-hydration regression guard), the service worker registered, and no external-script CSP violation / chunk-load failure / unexpected console error. Runs natively on `ubuntu-latest` (no Docker, no pixel baselines) via `.github/workflows/smoke-check.yml` on `workflow_run` after `deploy.yml`; it is post-deploy and non-blocking (files a `smoke-failure` issue rather than blocking the deploy). Run locally with `pnpm run test:smoke`. The retired drift suite could not stay green against a live data stream and could not catch a blocked-hydration failure (the SSR shell renders at the correct pixels even when hydration is dead).
 
 ## Do Not
 
@@ -97,7 +97,8 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 - Bypass prebuild schema validation.
 - Hand-edit `.contract-lock.json` (Husky + CI enforce it; regenerate via `scripts/generate-contract-lock.mjs`).
 - Depend on a `@j0nathan-ll0yd/*` producer change that is not yet published to the registry -- publish a new version from the producer repo first, then bump the caret range / lockfile here (merging to `main` deploys production).
-- Regenerate visual baselines outside Docker (`npm run test:visual:update` is the only sanctioned path; host PNGs fail CI).
+- Regenerate visual baselines outside Docker (`pnpm run test:visual:update` is the only sanctioned path; host PNGs fail CI).
+- Use `npm` in this repo. It is a pnpm project (atlas decision 0032): `packageManager` pins `pnpm@11.13.0`, `pnpm-workspace.yaml` holds the overrides/peer/supply-chain settings, and an `npm install` here would write a foreign lockfile and shunt packages aside (`pnpm run doctor:install` reports it).
 
 ## Detailed Reference
 

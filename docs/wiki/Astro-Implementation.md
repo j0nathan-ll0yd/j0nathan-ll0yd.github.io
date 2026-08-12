@@ -18,7 +18,7 @@ This is Astro's **islands architecture**: the page is static HTML with selective
 
 ### GitHub Actions Deployment
 
-`.github/workflows/deploy.yml` builds with `npm run build` and deploys to Cloudflare Pages via `cloudflare/wrangler-action@v3` on every push to `main`.
+`.github/workflows/deploy.yml` builds with `pnpm run build` and deploys to Cloudflare Pages via `cloudflare/wrangler-action@v3` on every push to `main`.
 
 ## Data Flow
 
@@ -76,7 +76,7 @@ Data is passed to components as Astro props. No client-side data fetching occurs
 
 ## Component Showcase (Dev Only)
 
-A visual storyboard at `/showcase/` for iterating on components during development. Only available via `npm run dev` -- excluded from production builds via a local Astro integration that conditionally injects routes when `command === 'dev'`.
+A visual storyboard at `/showcase/` for iterating on components during development. Only available via `pnpm run dev` -- excluded from production builds via a local Astro integration that conditionally injects routes when `command === 'dev'`.
 
 Showcase pages live in `src/showcase/` (not `src/pages/`) and import the real `.astro` components, rendering them with both empty and active state data side-by-side. Empty state data comes from `data/showcase-empty.json`.
 

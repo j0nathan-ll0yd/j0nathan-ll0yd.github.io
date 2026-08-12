@@ -76,7 +76,7 @@ if [ -n "$BUILD_DIR" ]; then
   echo -e "${BOLD}Testing local build: ${BUILD_DIR}${NC}"
   if [ ! -d "$BUILD_DIR" ]; then
     echo -e "${RED}Error: Build directory '${BUILD_DIR}' not found.${NC}"
-    echo "Run 'npm run build' first, then: $0 https://example.com ./dist"
+    echo "Run 'pnpm build' first, then: $0 https://example.com ./dist"
     exit 1
   fi
   # Strip trailing slash

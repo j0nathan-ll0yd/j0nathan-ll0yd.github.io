@@ -38,7 +38,7 @@ on:
 permissions:
   contents: read
   issues: write
-  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during pnpm install
 
 jobs:
   smoke-check:
@@ -50,19 +50,28 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run production smoke check
         id: smoke
@@ -75,7 +84,7 @@ jobs:
         env:
           EXPECTED_BUILD: ${{ github.event.workflow_run.head_sha }}
           EXPECTED_BUILT_AFTER: ${{ github.event.workflow_run.run_started_at }}
-        run: npm run test:smoke
+        run: pnpm run test:smoke
         continue-on-error: true
 
       - name: Upload playwright report
@@ -146,7 +155,7 @@ jobs:
                 '',
                 '### Next Steps',
                 '1. Open the `smoke-playwright-report` artifact in the run above to see which assertion failed.',
-                '2. Reproduce locally (native, no Docker): `npm run test:smoke`.',
+                '2. Reproduce locally (native, no Docker): `pnpm run test:smoke`.',
                 '3. Fix the deploy/hydration regression, or — if a new inline script was added intentionally — externalise it so CSP `self` allows it and update the baseline in `tests/smoke/fixtures.ts`.',
               ].join('\n'),
             });

@@ -14,7 +14,7 @@
 #
 # Keep `scripts/playwright-version.sh` and the Dockerfile FROM tag in
 # `ci-runners-private/images/runner-playwright/Dockerfile` in lockstep with
-# `@playwright/test` in package-lock.json.
+# `@playwright/test` in pnpm-lock.yaml.
 set -euo pipefail
 
 CONFIG="${1:?config path required (e.g. playwright.config.ts)}"
@@ -36,29 +36,55 @@ VERSION=$(./scripts/playwright-version.sh)
 # and pass. Real pixel diffs still fail every retry, so this never masks them.
 #
 # `-v /work/node_modules` shadows the repo's node_modules with a container-private
-# ANONYMOUS volume. Without it, the container's `npm ci` writes Linux-platform
+# ANONYMOUS volume. Without it, the container's install writes Linux-platform
 # native packages (@rollup/rollup-linux-*, dprint, esbuild, sharp) straight into
 # the bind-mounted HOST node_modules, clobbering the macOS arm64 darwin binaries.
-# The host then fails `npm run build` / dprint / git commit until a manual
-# `npm ci`. The anonymous volume gives the container its own node_modules layer,
-# so the install never touches the host. The `@j0nathan-ll0yd/*` packages resolve
-# from GitHub Packages (the forwarded GITHUB_TOKEN authenticates the registry read)
-# into the container-private node_modules -- no host state is involved. `--rm`
-# disposes the anonymous volume on exit, so each run does a fresh clean install
-# exactly as before -- only the host is now spared.
+# The host then fails `pnpm build` / dprint / git commit until a manual
+# `pnpm install`. The anonymous volume gives the container its own node_modules
+# layer, so the install never touches the host. The `@j0nathan-ll0yd/*` packages
+# resolve from GitHub Packages (the forwarded GITHUB_TOKEN authenticates the
+# registry read) into the container-private node_modules -- no host state is
+# involved. `--rm` disposes the anonymous volume on exit, so each run does a fresh
+# clean install exactly as before -- only the host is now spared.
 # NOTE: the shadow volume mount MUST come AFTER the `/work` bind mount so it
 # layers on top of it.
-# Forward GITHUB_TOKEN so the container's `npm ci` can authenticate to GitHub
+#
+# `--store-dir /work/node_modules/.pnpm-store` is load-bearing for the SAME reason.
+# pnpm puts its content-addressed store on the same filesystem as the project so it
+# can hardlink into node_modules; left to itself it picks `<project>/.pnpm-store`,
+# i.e. straight into the bind-mounted HOST repo -- ~700MB of blobs, some over
+# GitHub's 100MB per-file limit, which a later `git add -A` will happily stage and
+# the push will then be rejected for (observed 2026-08-12). Pointing it INSIDE the
+# shadowed node_modules volume keeps it container-private and disposed by `--rm`,
+# and keeps store and node_modules on one filesystem so hardlinking still works.
+# .gitignore lists `.pnpm-store/` as the backstop.
+#
+# pnpm is provisioned in-container with `corepack` (bundled with the image's Node),
+# which reads the exact `packageManager` pin from package.json -- so the container
+# runs the same pnpm the host and CI do. COREPACK_ENABLE_DOWNLOAD_PROMPT=0 makes
+# that first-run download non-interactive (it otherwise blocks on a y/N prompt
+# with no TTY).
+#
+# Forward GITHUB_TOKEN so the container's install can authenticate to GitHub
 # Packages for the @j0nathan-ll0yd/* scope (the six DS/LP packages + config).
-# GitHub Packages requires a token even to read public packages. The repo .npmrc
-# sets //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}; without the env var it
-# expands to empty and the install 401s. Export it before running
-# (e.g. `GITHUB_TOKEN=$(gh auth token) npm run test:visual`). Unset -> no-op.
+# GitHub Packages requires a token even to read public packages. Unlike npm, pnpm
+# does NOT expand ${GITHUB_TOKEN} from a committed project .npmrc (atlas decision
+# 0032 removed that line), so the token is written to the container's USER-level
+# npmrc with `pnpm config set` before installing -- the same wiring every workflow
+# uses. Export it before running
+# (e.g. `GITHUB_TOKEN=$(gh auth token) pnpm run test:visual`).
+# Unset -> `pnpm config set` writes an empty value and the install 401s, exactly
+# as it did before under npm.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
+  -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
   -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
-  /bin/bash -c "npm ci --legacy-peer-deps && npx playwright test --config=${CONFIG} $*"
+  /bin/bash -c "corepack enable pnpm \
+    && corepack pnpm --version \
+    && corepack pnpm config set '//npm.pkg.github.com/:_authToken' \"\${GITHUB_TOKEN:-}\" \
+    && corepack pnpm install --frozen-lockfile --store-dir /work/node_modules/.pnpm-store \
+    && corepack pnpm exec playwright test --config=${CONFIG} $*"

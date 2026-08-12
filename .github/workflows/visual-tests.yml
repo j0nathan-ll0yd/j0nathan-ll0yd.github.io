@@ -37,7 +37,7 @@ concurrency:
 
 permissions:
   contents: read
-  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during pnpm install
 
 jobs:
   contract-check:
@@ -48,15 +48,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
 
-      - name: Install dependencies
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       # Tier 2 (Plan #11): the single contract gate. Recomputes the expected lock
       # from the installed @j0nathan-ll0yd/schemas + portal-contract packages and
@@ -82,16 +91,27 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Install dependencies
+      # The self-hosted playwright runner image carries Node but not pnpm; provision the
+      # `packageManager`-pinned version before any pnpm invocation below.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Run unit tests (app-owned client runtime)
-        run: npm run test:unit
+        run: pnpm run test:unit
 
       - name: Build Astro site
-        run: npm run build
+        run: pnpm run build
 
       - name: Upload dist artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
@@ -126,10 +146,21 @@ jobs:
           # preview server expects.
           path: dist
 
-      - name: Install dependencies
+      # The self-hosted playwright runner image carries Node but not pnpm; provision the
+      # `packageManager`-pinned version before any pnpm invocation below.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Run visual regression tests
         env:
@@ -138,8 +169,8 @@ jobs:
         # In update_snapshots mode, force workers=1 to eliminate the within-shard
         # write race that produces truncated PNGs (microsoft/playwright#9760).
         # Validation mode keeps the playwright.config.ts default (workers='50%' in CI).
-        # Browsers are PREINSTALLED in the runner image -- do NOT add `npx playwright install`.
-        run: npx playwright test --shard=${{ matrix.shard }}/4 ${{ (inputs.update_snapshots || false) && '--update-snapshots --workers=1' || '' }}
+        # Browsers are PREINSTALLED in the runner image -- do NOT add `playwright install`.
+        run: pnpm exec playwright test --shard=${{ matrix.shard }}/4 ${{ (inputs.update_snapshots || false) && '--update-snapshots --workers=1' || '' }}
 
       - name: Upload regenerated baselines
         if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
@@ -192,17 +223,28 @@ jobs:
           # preview server expects.
           path: dist
 
-      - name: Install dependencies
+      # The self-hosted playwright runner image carries Node but not pnpm; provision the
+      # `packageManager`-pinned version before any pnpm invocation below.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Run behavioral (interaction) tests
         # Reuses dist/ from setup. Browsers are PREINSTALLED in the runner image
-        # -- do NOT add `npx playwright install`.
+        # -- do NOT add `playwright install`.
         env:
           SKIP_BUILD: 'true'
-        run: npx playwright test --config=playwright.behavioral.config.ts
+        run: pnpm exec playwright test --config=playwright.behavioral.config.ts
 
       - name: Upload behavioral report
         if: ${{ !cancelled() }}
@@ -252,7 +294,7 @@ jobs:
       - name: Mark workspace as safe (container uid mismatch)
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Reconstruct baselines (per file, take the shard that changed it)
-        # Pure bash + coreutils (the noble image has them; no npm ci needed). For
+        # Pure bash + coreutils (the noble image has them; no install needed). For
         # every committed baseline, take the ONE shard copy whose bytes differ from
         # base; if none differ, keep base. Deterministic -- independent of artifact
         # download order -- which is what the old merge-multiple was not.
@@ -311,10 +353,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Install dependencies (Playwright CLI only)
+      # The self-hosted playwright runner image carries Node but not pnpm; provision the
+      # `packageManager`-pinned version before any pnpm invocation below.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies (Playwright CLI only)
+        run: pnpm install --frozen-lockfile
       - name: Download blob reports
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
@@ -322,7 +375,7 @@ jobs:
           pattern: blob-report-*
           merge-multiple: true
       - name: Merge into HTML report
-        run: npx playwright merge-reports --reporter html ./all-blob-reports
+        run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
       - name: Upload merged HTML report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:

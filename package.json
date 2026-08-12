@@ -3,13 +3,18 @@
   "version": "1.0.0",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@11.13.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=11.0.0"
+  },
   "scripts": {
     "prepare": "husky",
     "check:contract-lock": "node scripts/check-contract-lock.mjs",
     "doctor:install": "node scripts/doctor-install.mjs",
     "dev": "astro dev",
     "generate:webmcp": "node scripts/generate-webmcp.mjs",
-    "prebuild": "npm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD npx tsx node_modules/@j0nathan-ll0yd/schemas/scripts/validate.ts && npm run audit:fixtures && npm run audit:inline-scripts && npm run audit:sa-path",
+    "prebuild": "pnpm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD pnpm exec tsx node_modules/@j0nathan-ll0yd/schemas/scripts/validate.ts && pnpm run audit:fixtures && pnpm run audit:inline-scripts && pnpm run audit:sa-path",
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "audit:sa-path": "node scripts/check-sa-proxy-path.mjs",
@@ -18,12 +23,12 @@
     "postbuild": "node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",
     "fetch:images": "node scripts/fetch-images.mjs",
-    "test": "npm run test:unit && npm run test:build",
+    "test": "pnpm run test:unit && pnpm run test:build",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:build": "vitest run --config vitest.build.config.ts",
     "test:visual": "./scripts/run-in-docker.sh playwright.config.ts",
     "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots --workers=1",
-    "test:smoke": "npx playwright test --config=playwright.smoke.config.ts",
+    "test:smoke": "pnpm exec playwright test --config=playwright.smoke.config.ts",
     "test:behavioral": "./scripts/run-in-docker.sh playwright.behavioral.config.ts",
     "format": "dprint fmt",
     "format:check": "dprint check",
@@ -39,9 +44,6 @@
     "@j0nathan-ll0yd/web": "^2.0.0",
     "astro": "^7.1.3",
     "fast-xml-validator": "^1.4.0"
-  },
-  "overrides": {
-    "vite-plugin-pwa": "^1.3.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

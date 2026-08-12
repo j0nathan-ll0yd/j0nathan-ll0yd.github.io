@@ -16,7 +16,7 @@
  *     region bypasses the fullPage stitched-capture bug.
  *
  * To verify Chromium accepts these flags (after a flag-list change):
- *   npx playwright test --grep "NOMATCH_SENTINEL_NO_TESTS" --reporter=list 2>&1 \
+ *   pnpm exec playwright test --grep "NOMATCH_SENTINEL_NO_TESTS" --reporter=list 2>&1 \
  *     | grep -iE "(unknown|invalid|unrecognized)" && echo "FAIL" || echo "OK"
  */
 export const CHROMIUM_DETERMINISM_ARGS: ReadonlyArray<string> = [

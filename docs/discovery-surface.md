@@ -37,7 +37,7 @@ files — they are overwritten on the next build. Change the generator instead.
 Regenerate + verify:
 
 ```bash
-npm run generate:webmcp
+pnpm run generate:webmcp
 # then validate agent-card.json against a2aproject/A2A specification/a2a.proto
 # and ai-catalog.json against agenticresourcediscovery/ard-spec spec/schemas/ai-catalog.schema.json
 ```

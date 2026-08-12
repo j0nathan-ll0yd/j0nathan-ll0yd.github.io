@@ -6,12 +6,12 @@ A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboar
 
 ```bash
 # Development
-npm install
-npm run dev       # http://localhost:4321
+pnpm install
+pnpm run dev       # http://localhost:4321
 
 # Production build
-npm run build     # Outputs to dist/
-npm run preview   # Preview build locally
+pnpm run build     # Outputs to dist/
+pnpm run preview   # Preview build locally
 ```
 
 Deployment is automatic via GitHub Actions on push to `main`.
