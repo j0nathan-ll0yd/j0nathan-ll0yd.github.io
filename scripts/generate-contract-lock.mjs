@@ -20,7 +20,7 @@ function sha256(content) {
 
 if (!existsSync(SCHEMAS_PKG)) {
   console.error('[contract-lock] ERROR: node_modules/@j0nathan-ll0yd/schemas not found.')
-  console.error('  Run `npm ci --legacy-peer-deps` (or `npm install --legacy-peer-deps`) first.')
+  console.error('  Run `pnpm install --frozen-lockfile` first.')
   process.exit(1)
 }
 

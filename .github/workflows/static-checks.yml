@@ -5,7 +5,7 @@ name: Static Checks
 #   - typecheck: `astro check` against the estate tsconfig floor
 #     (astro/tsconfigs/strict + @j0nathan-ll0yd/config/tsconfig-base.json).
 #   - lint: `eslint .` with the estate flat-config standard (type-aware).
-#   - spec-cases: `npm run test:unit` -- the same suite that already ran on
+#   - spec-cases: `pnpm run test:unit` -- the same suite that already ran on
 #     the self-hosted `visual-tests.yml:172` PR-only lane, now ALSO on this
 #     GitHub-hosted lane covering both `pull_request` and `push: main`
 #     (independent of the self-hosted fleet's liveness -- B15, decision 0009).
@@ -16,15 +16,17 @@ name: Static Checks
 #     ADR 0011 follow-up (a): every rule_class: conformance rule must carry
 #     spec.verified_against_source: true against an immutable/pinned source, the
 #     mechanism that stops the 7-of-7 citation-defect class from recurring.
-#   - spec-mutation-score: `npx stryker run` -- the sufficiency claim (§2 DR2)
+#   - spec-mutation-score: `pnpm exec stryker run` -- the sufficiency claim (§2 DR2)
 #     over the three pure pilot functions (validateSecurityTxt, validateLlmsTxt,
 #     validateFeedJson).
 #
 # All five need the @j0nathan-ll0yd/* packages resolved (src and
 # scripts/audit/**/*.mjs both import them). Those packages are published to
-# GitHub Packages, so a plain `npm ci --legacy-peer-deps` resolves them:
-# `packages: read` + the built-in Actions token (committed .npmrc expands
-# ${GITHUB_TOKEN}) authenticate the registry read.
+# GitHub Packages, so `pnpm install --frozen-lockfile` resolves them once the
+# registry read is authenticated: `packages: read` + the built-in Actions token,
+# written to the runner's user-level npmrc by each job's "Authenticate to GitHub
+# Packages" step (pnpm does not expand ${GITHUB_TOKEN} from the committed .npmrc
+# -- atlas decision 0032).
 on:
   pull_request:
   push:
@@ -41,19 +43,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       - name: Type check (astro check)
-        run: npm run typecheck
+        run: pnpm run typecheck
 
   lint:
     runs-on: ubuntu-latest
@@ -61,25 +72,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       # Generate Astro's content-collection types (.astro/*.d.ts) so type-aware
       # ESLint can resolve `astro:content` in src/content.config.ts. astro check
       # syncs on its own; eslint does not, so sync explicitly here.
       - name: Astro sync
-        run: npx astro sync
+        run: pnpm exec astro sync
 
       - name: Lint (eslint)
-        run: npm run lint
+        run: pnpm run lint
 
   spec-cases:
     runs-on: ubuntu-latest
@@ -87,23 +107,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       # Includes tests/audit/spec-cases.test.ts (decisions/0011): every case
       # declared in scripts/audit/specs/**/*.rule.json is read out of the
       # catalog and asserted against its validator here, on every PR and on
       # push: main -- not only on the self-hosted visual-tests.yml PR lane.
       - name: Unit + spec-cases tests (vitest)
-        run: npm run test:unit
+        run: pnpm run test:unit
 
   spec-severity-ratchet:
     runs-on: ubuntu-latest
@@ -117,16 +146,25 @@ jobs:
           # event. Full history is cheap for a repo this size.
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       # Monotonic severity ratchet + deletion assertion (REVERSAL 1) +
       # params_pending ratchet (N6) over scripts/audit/specs/**/*.rule.json
@@ -141,16 +179,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       # ADR 0011 follow-up (a): a rule_class: conformance rule may not ship
       # unless its normative_quote is verified against an immutable/pinned
@@ -167,16 +214,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       # Stryker mutation score over the three pure pilot functions only
       # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
@@ -184,4 +240,4 @@ jobs:
       # stryker.conf.json is the measured floor (decisions/0011, UD1) --
       # `stryker run` itself exits non-zero below it, no `|| true`.
       - name: Mutation score (stryker)
-        run: npx stryker run
+        run: pnpm exec stryker run

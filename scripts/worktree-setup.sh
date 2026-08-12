@@ -25,9 +25,9 @@ if command -v direnv >/dev/null 2>&1 && [ -f "$worktree/.envrc" ]; then
 fi
 
 # 3) Fast dependency install (non-blocking)
-if [ "${WORKTREE_SKIP_INSTALL:-0}" != "1" ] && [ -f "$worktree/package-lock.json" ]; then
-  log "installing dependencies (npm ci)…"
-  ( cd "$worktree" && npm ci >/dev/null 2>&1 ) &
+if [ "${WORKTREE_SKIP_INSTALL:-0}" != "1" ] && [ -f "$worktree/pnpm-lock.yaml" ]; then
+  log "installing dependencies (pnpm install --frozen-lockfile)…"
+  ( cd "$worktree" && pnpm install --frozen-lockfile >/dev/null 2>&1 ) &
 fi
 
 log "done (background tasks PID $!)"

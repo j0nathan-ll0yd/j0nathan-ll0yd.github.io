@@ -304,7 +304,7 @@ These files are imported by showcase pages to render skeleton/empty/active state
 
 ## 5. Showcase Requirements
 
-The component showcase (`/showcase/` during `npm run dev`) is the visual storyboard for all widgets.
+The component showcase (`/showcase/` during `pnpm run dev`) is the visual storyboard for all widgets.
 
 ### 5.1 Production Widget Showcase
 
@@ -425,7 +425,7 @@ Widgets with meaningful visual variations (see [Section 3.4](#34-variation-state
 **Adding a new variation screenshot test:**
 
 1. Add the fixture variation **in the DS package**: `design-system-Lifegames/packages/fixtures/src/variations/{data-type}.ts`, then regenerate (`pnpm -F @j0nathan-ll0yd/fixtures generate`) and publish a new `@j0nathan-ll0yd/fixtures` version so the new `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` is available to this repo.
-2. Adopt it in this repo: bump the `@j0nathan-ll0yd/fixtures` version and `npm install --legacy-peer-deps`.
+2. Adopt it in this repo: bump the `@j0nathan-ll0yd/fixtures` version and `ppnpm install`.
 3. Add a scenario in `tests/visual/fixtures.ts` that overrides the relevant endpoint
 4. Add the test in `tests/visual/widgets.spec.ts`:
 
@@ -437,7 +437,7 @@ test("variation name", async ({ page }) => {
 });
 ```
 
-5. Generate baselines: `npm run test:visual:update`
+5. Generate baselines: `pnpm run test:visual:update`
 
 #### 6.1.3 Fixture Scenarios
 
@@ -530,7 +530,7 @@ Build output validation tests in `tests/build/` verify the built site:
 > `@j0nathan-ll0yd/fixtures` in `design-system-Lifegames/packages/fixtures/`. The factories,
 > named variations, and committed generated output (raw `src/generated/` + post-adapter
 > `src/post-adapter/`) all live in the DS package. **This repo hand-bakes no fixtures** —
-> consumer-side fixtures are forbidden by Invariant I2 and the `npm run audit:fixtures`
+> consumer-side fixtures are forbidden by Invariant I2 and the `pnpm run audit:fixtures`
 > prebuild gate (any `data/**`, `test/fixtures/**`, or `src/**/fixtures/**` JSON fails the
 > build). The web consumes fixtures from the package: the SSR shell calls
 > `getDashboardFixture()` (post-adapter `baseline` by default), and the Playwright visual
@@ -610,7 +610,7 @@ has the consumer-side guard that forbids fixtures from reappearing locally.
 | -------------------------------------- | ------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/fixtures/scripts/generate.*` | `pnpm -F @j0nathan-ll0yd/fixtures generate` | DS              | Runs all factories + variations, applies adapters, writes raw + post-adapter JSON                                                                         |
 | `@j0nathan-ll0yd/fixtures` validation  | `pnpm -F @j0nathan-ll0yd/fixtures test`     | DS              | Validates generated output against raw-export + `Dashboard*` display schemas (also gated by the DS `fixtures` CI job + the `check-freshness.sh` git-diff) |
-| `scripts/audit-fixtures.mjs`           | `npm run audit:fixtures`                    | web (this repo) | Invariant I2 gate (prebuild + CI): fails if any `data/**`, `test/fixtures/**`, or `src/**/fixtures/**` JSON exists locally                                |
+| `scripts/audit-fixtures.mjs`           | `pnpm run audit:fixtures`                    | web (this repo) | Invariant I2 gate (prebuild + CI): fails if any `data/**`, `test/fixtures/**`, or `src/**/fixtures/**` JSON exists locally                                |
 
 ---
 
@@ -698,14 +698,14 @@ Use this checklist when adding a new production widget:
   - [ ] Add factory in `design-system-Lifegames/packages/fixtures/src/factories/{data-type}.ts` (if new endpoint)
   - [ ] Add variations in `packages/fixtures/src/variations/{data-type}.ts`
   - [ ] Regenerate + validate in DS: `pnpm -F @j0nathan-ll0yd/fixtures generate && pnpm -F @j0nathan-ll0yd/fixtures test`, then publish a new `@j0nathan-ll0yd/fixtures` version
-  - [ ] In this repo, bump the `@j0nathan-ll0yd/fixtures` version + `npm install --legacy-peer-deps`; do NOT add fixtures locally (`npm run audit:fixtures` enforces Invariant I2)
+  - [ ] In this repo, bump the `@j0nathan-ll0yd/fixtures` version + `ppnpm install`; do NOT add fixtures locally (`pnpm run audit:fixtures` enforces Invariant I2)
 
 - [ ] **Screenshot tests**: Add visual regression tests
   - [ ] Register widget ID in `WIDGET_SELECTORS` (`tests/visual/helpers.ts`)
   - [ ] Add baseline test in `tests/visual/widgets.spec.ts`
   - [ ] Add variation tests for each visual variation
   - [ ] Add any dynamic selectors to `tests/visual/screenshot.css`
-  - [ ] Run `npm run test:visual:update` to generate baselines
+  - [ ] Run `pnpm run test:visual:update` to generate baselines
 
 - [ ] **Unit tests**: Add test coverage
   - [ ] Test adapter function (if created)
@@ -713,7 +713,7 @@ Use this checklist when adding a new production widget:
   - [ ] Test widget-specific logic modules
 
 - [ ] **Documentation**: Update references
-  - [ ] Update the compliance matrix: `npm run compliance`
+  - [ ] Update the compliance matrix: `pnpm run compliance`
   - [ ] Test all 4 responsive breakpoints (1400px, 1100px, 900px, 600px)
 
 ### 8.2 Adding a Sandbox Widget
@@ -729,7 +729,7 @@ Sandbox widgets have a lighter checklist:
 
 ## 9. Compliance Matrix
 
-> **Deprecated (Phase 1):** `scripts/widget-compliance.mjs` and the `npm run compliance` script have been removed. The script referenced `src/showcase/` which was deleted in Phase 1. If compliance enforcement is needed at the catalog level, it will be owned by the Design System as a separate follow-up plan.
+> **Deprecated (Phase 1):** `scripts/widget-compliance.mjs` and the `pnpm run compliance` script have been removed. The script referenced `src/showcase/` which was deleted in Phase 1. If compliance enforcement is needed at the catalog level, it will be owned by the Design System as a separate follow-up plan.
 
 ### Canonical Sources of Truth
 

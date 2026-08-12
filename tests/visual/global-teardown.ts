@@ -36,7 +36,7 @@ import type {FullConfig} from '@playwright/test'
  *     carry negligible metadata, so keeping it costs ~nothing in size.
  *
  * The optimization is lossless (decoded RGBA is unchanged), which the very next
- * `npm run test:visual` compare proves by staying green against the optimized
+ * `pnpm run test:visual` compare proves by staying green against the optimized
  * baselines.
  */
 

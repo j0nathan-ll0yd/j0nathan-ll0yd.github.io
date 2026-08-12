@@ -15,14 +15,18 @@ version: 2
 # `read:packages` is the only scope required.
 #
 # Deliberately NOT set:
-#   replaces-base -- would route *every* npm dependency through GitHub Packages,
+#   replaces-base -- would route *every* dependency through GitHub Packages,
 #     which does not proxy registry.npmjs.org.
 #   scope         -- would make Dependabot regenerate .npmrc purely from these
-#     credentials and discard the committed one, dropping `legacy-peer-deps=true`
-#     and breaking install (see .npmrc). The committed `@j0nathan-ll0yd:registry=`
-#     line already does the scope mapping; Dependabot strips the
-#     `${GITHUB_TOKEN}` auth line (it drops any .npmrc line containing `${...}`)
-#     and appends the real credential from here.
+#     credentials and discard the committed one. Since the pnpm migration (atlas
+#     decision 0032) the committed .npmrc is nothing BUT the
+#     `@j0nathan-ll0yd:registry=` scope mapping, so regenerating it would be a
+#     near-no-op rather than the breakage it used to be -- but leaving it unset
+#     keeps the mapping under version control, which is where it belongs.
+#
+# `package-ecosystem: npm` is correct under pnpm: Dependabot's npm ecosystem
+# handles package-lock.json, yarn.lock AND pnpm-lock.yaml. It reads the pnpm
+# lockfile and the `overrides:` block in pnpm-workspace.yaml.
 registries:
   github-packages:
     type: npm-registry
@@ -79,9 +83,10 @@ updates:
         update-types:
           - version-update:semver-major
       # @vite-pwa/astro caps its astro peer at ^5 (mismatch with Astro 7) --
-      # handled by --legacy-peer-deps plus a package.json `overrides` pin of
-      # vite-plugin-pwa ^1.3.0 for vite-8 support. Major bumps risk breaking that
-      # workaround and the SW precache injection (scripts/check-sw-precache.mjs).
+      # handled by `strictPeerDependencies: false` plus the `overrides` pin of
+      # vite-plugin-pwa ^1.3.0 for vite-8 support, both in pnpm-workspace.yaml.
+      # Major bumps risk breaking that workaround and the SW precache injection
+      # (scripts/check-sw-precache.mjs).
       - dependency-name: "@vite-pwa/*"
         update-types:
           - version-update:semver-major

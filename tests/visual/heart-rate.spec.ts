@@ -33,7 +33,7 @@
  *
  * To enable this suite (a separate, deferred change owned by the visual-refresh
  * session): build the visual preview with `astro build --mode test`, then run
- * `npm run test:visual:update:docker` to mint the baselines below.
+ * `pnpm run test:visual:update` to mint the baselines below.
  */
 import {expect, type Page, test} from './pw-fixtures'
 import {setupPage, stylePath, WIDGET_SELECTORS} from './helpers'

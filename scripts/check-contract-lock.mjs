@@ -55,7 +55,7 @@ if (!existsSync(LOCK_FILE)) {
 if (!existsSync(SCHEMAS_PKG)) {
   // Cannot recompute -- environment problem, not a hand-edit. Surface clearly.
   console.error('[check-contract-lock] ERROR: node_modules/@j0nathan-ll0yd/schemas not found.')
-  console.error('  Run `npm ci --legacy-peer-deps` first (installs the schemas package from the registry).')
+  console.error('  Run `pnpm install --frozen-lockfile` first (installs the schemas package from the registry).')
   process.exit(1)
 }
 

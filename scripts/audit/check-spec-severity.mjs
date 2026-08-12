@@ -62,7 +62,7 @@ function readBaselineFile(path) {
 }
 
 function readBaselineAtMain() {
-  // SEVERITY_BASELINE_SHOW_ARG lets `npm run audit:test`-adjacent can-fail
+  // SEVERITY_BASELINE_SHOW_ARG lets `pnpm run audit:test`-adjacent can-fail
   // rehearsals point `git show` at a scratch blob instead of origin/main --
   // needed because THIS pilot's own baseline file has no history on
   // origin/main yet (it is introduced by this PR), so probe G leg 2 (a

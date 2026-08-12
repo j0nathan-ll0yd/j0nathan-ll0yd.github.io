@@ -38,7 +38,7 @@ concurrency:
 permissions:
   contents: read
   issues: write
-  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during npm ci
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during pnpm install
 
 jobs:
   daily:
@@ -51,24 +51,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: B1 -- production smoke suite (scheduled, not just post-deploy)
         id: smoke
         continue-on-error: true
-        run: npm run test:smoke
+        run: pnpm run test:smoke
 
       - name: Upload playwright report
         if: always()
@@ -119,16 +128,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       # validate-sitemap.mjs shells out to xmllint (scripts/audit/vendor/*.xsd
       # schema validation) -- present by default on macOS but NOT preinstalled
@@ -146,7 +164,7 @@ jobs:
       # whose .zip was missing its nested Frameworks bundle -- unrelated to
       # this repo, but a real local failure mode for this class of tooling).
       - name: Install Playwright Chromium (shared by B3/B4)
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Resolve shared Chrome path
         id: chrome
@@ -187,7 +205,7 @@ jobs:
         # Budgets (perf>=0.90, a11y/best-practices/seo>=0.95) are v1 starting
         # values (D4 report-only), NOT yet verified as met by the live site --
         # ratchet or ship-fix per Phase 6 bake-in, don't silently loosen them.
-        run: npx lhci autorun --config=.lighthouserc.json
+        run: pnpm exec lhci autorun --config=.lighthouserc.json
 
       - name: Upload Lighthouse reports
         if: always()
@@ -202,7 +220,7 @@ jobs:
         continue-on-error: true
         env:
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.path }}
-        run: npx pa11y-ci
+        run: pnpm exec pa11y-ci
 
       - name: Restore lychee link cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -270,16 +288,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
-          cache: npm
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm ci --legacy-peer-deps
+        run: pnpm install --frozen-lockfile
 
       - name: B2 -- security.txt RFC 9116 expiry
         id: security_txt
