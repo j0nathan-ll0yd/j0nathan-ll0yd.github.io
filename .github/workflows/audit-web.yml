@@ -192,6 +192,21 @@ jobs:
         continue-on-error: true
         run: node scripts/audit/check-feeds.mjs
 
+      # ADR 0011 follow-up (b). Re-fetches each rule's PINNED primary source
+      # (an immutable RFC .txt or a 40-hex-SHA-pinned raw.githubusercontent
+      # blob -- follow-up (a) constrains verification_url to exactly those) and
+      # asserts every normative_quote still occurs in it, in order. This is the
+      # DRIFT half only; the offline integrity half blocks on every PR in
+      # static-checks.yml. It lives here, weekly and report-only, because
+      # upstream drift runs on an external clock and depends on two
+      # third-party hosts -- blocking merges on their uptime would import it
+      # into our merge path. An unreachable source reports INDETERMINATE, which
+      # is a finding, never a pass.
+      - name: B2 -- external spec drift (pinned sources vs normative quotes)
+        id: spec_drift
+        continue-on-error: true
+        run: node scripts/audit/check-spec-drift.mjs
+
       - name: B7/B8 -- security headers, TLS/cert expiry, CSP drift
         id: headers
         continue-on-error: true
@@ -260,6 +275,7 @@ jobs:
               {"id":"sitemap","title":"B2 sitemap XSD validator","outcome":"${{ steps.sitemap.outcome }}"},
               {"id":"robots","title":"B2 robots.txt validator","outcome":"${{ steps.robots.outcome }}"},
               {"id":"feeds","title":"B2 feed.xml/feed.json validator","outcome":"${{ steps.feeds.outcome }}"},
+              {"id":"spec-drift","title":"B2 external spec drift (pinned sources vs normative quotes)","outcome":"${{ steps.spec_drift.outcome }}"},
               {"id":"headers","title":"B7/B8 headers, TLS, CSP drift","outcome":"${{ steps.headers.outcome }}"},
               {"id":"lhci","title":"B3 Lighthouse CI budgets","outcome":"${{ steps.lhci.outcome }}"},
               {"id":"pa11y","title":"B4 pa11y-ci accessibility","outcome":"${{ steps.pa11y.outcome }}"},
