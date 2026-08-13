@@ -1,5 +1,5 @@
 // tests/audit/validate-llms-txt.property.test.ts -- the llms.txt structural
-// convention stated as four executable invariants over generated documents,
+// convention stated as five executable invariants over generated documents,
 // instead of as hand-written example files (Phoenix eval right-sizing pilot).
 //
 // The rule catalog under scripts/audit/specs/llms-txt/ stays as the normative
@@ -8,7 +8,7 @@
 // one fixture file per rule, each pinning one hand-picked example.
 //
 // Two halves:
-//   1. Soundness. A document that satisfies all four invariants by construction
+//   1. Soundness. A document that satisfies all five invariants by construction
 //      produces no findings.
 //   2. Discrimination. For each invariant, a targeted mutation of that same
 //      generated document breaks exactly that invariant, and the validator
@@ -26,14 +26,25 @@ const H2_RE = /^##\s+\S/
 const BLOCKQUOTE_RE = /^>\s+\S/
 const LIST_ITEM_RE = /^[-*]\s+/
 const LINK_ITEM_RE = /^[-*]\s+\[[^\]]+\]\([^)]+\)(:\s*.*)?$/
-const MARKDOWN_LINK_RE = /\[[^\]]*\]\([^)]*\)/g
+// v3: a WELL-FORMED markdown link needs a nonempty label and a nonempty
+// destination. ANY_LINK_SHAPE_RE matches the loose shape v2 accepted, so the
+// invariant can tell an empty part from a real link.
+const MARKDOWN_LINK_RE = /\[[^\]]+\]\([^)]+\)/g
+const ANY_LINK_SHAPE_RE = /\[[^\]]*\]\([^)]*\)/g
+const WELL_FORMED_LINK_RE = /^\[[^\]]+\]\([^)]+\)$/
 const BARE_URL_RE = /https?:\/\//
 
 const linesOf = (text: string) => text.split(/\r\n|\r|\n/)
 const nonBlankOf = (text: string) => linesOf(text).filter((line) => line.trim() !== '')
 
-// The four structural invariants, stated over raw text and derived from
+// The five structural invariants, stated over raw text and derived from
 // llmstxt.org -- deliberately independent of the validator they check.
+//
+// Two of them state the LIFEGAMES PROFILE of the convention rather than a
+// strict reading of it (atlas decision 0040): linkListItems allows a
+// descriptive item with no URL, and h2NoFileList asks only that a section is
+// not dangling. Each rule file's policy_note carries the divergence; these
+// properties check the validator against the profile it actually implements.
 const invariants = {
   h1First: (text: string) => H1_RE.test(nonBlankOf(text)[0] ?? ''),
   blockquoteNext: (text: string) => {
@@ -41,9 +52,11 @@ const invariants = {
     const h1Index = nonBlank.findIndex((line) => H1_RE.test(line))
     return h1Index !== -1 && BLOCKQUOTE_RE.test(nonBlank[h1Index + 1] ?? '')
   },
-  // v2 (LLMS_STRUCTURE_SPEC_VERSION = 2): a list item may be descriptive prose.
+  // v3 (LLMS_STRUCTURE_SPEC_VERSION = 3): a list item may be descriptive prose.
   // What it may NOT do is carry a URL the author failed to wrap in a markdown
-  // link. Strip every [text](url) and no http(s) URL may survive.
+  // link, or a link shape with an empty label or an empty destination. Strip
+  // every WELL-FORMED [text](url) and no http(s) URL may survive; no loose
+  // [..](..) shape on the line may have an empty part.
   linkListItems: (text: string) => {
     let sawH2 = false
     for (const line of linesOf(text)) {
@@ -51,13 +64,39 @@ const invariants = {
         sawH2 = true
         continue
       }
-      if (sawH2 && LIST_ITEM_RE.test(line) && BARE_URL_RE.test(line.replace(MARKDOWN_LINK_RE, ''))) {
+      if (!sawH2 || !LIST_ITEM_RE.test(line)) {
+        continue
+      }
+      const malformed = (line.match(ANY_LINK_SHAPE_RE) ?? []).some((shape) => !WELL_FORMED_LINK_RE.test(shape))
+      if (malformed || BARE_URL_RE.test(line.replace(MARKDOWN_LINK_RE, ''))) {
         return false
       }
     }
     return true
   },
-  singleH1: (text: string) => linesOf(text).filter((line) => H1_RE.test(line)).length === 1
+  singleH1: (text: string) => linesOf(text).filter((line) => H1_RE.test(line)).length === 1,
+  // The fifth invariant, added by the adversarial review (MEDIUM finding #6):
+  // the property suite stated four of the five rules the catalog declares, so
+  // llms-txt-h2-no-file-list rested on its hand-written case alone. Every H2
+  // heading has at least one non-blank line under it, up to the next H2 or end
+  // of file. Profile wording, deliberately -- it asks for content, not a file
+  // list (atlas decision 0040).
+  h2NoFileList: (text: string) => {
+    let openSection = false
+    for (const line of linesOf(text)) {
+      if (H2_RE.test(line)) {
+        if (openSection) {
+          return false
+        }
+        openSection = true
+        continue
+      }
+      if (openSection && line.trim() !== '') {
+        openSection = false
+      }
+    }
+    return !openSection
+  }
 }
 
 type InvariantName = keyof typeof invariants
@@ -78,16 +117,20 @@ const mutations: Record<InvariantName, {ruleId: string; mutate: (text: string) =
       return lines.join('\n')
     }
   },
-  singleH1: {ruleId: 'llms-txt-second-h1', mutate: (text) => `${text}\n# Second Title\n`}
+  singleH1: {ruleId: 'llms-txt-second-h1', mutate: (text) => `${text}\n# Second Title\n`},
+  // A heading appended with nothing under it. Chosen over emptying an existing
+  // section because removing a section's items would also change linkListItems'
+  // subject matter; appending touches one invariant and no other.
+  h2NoFileList: {ruleId: 'llms-txt-h2-no-file-list', mutate: (text) => `${text}\n## Dangling\n`}
 }
 
 const ids = (text: string) => validateLlmsTxt(text).map((finding: {id: string}) => finding.id)
 
 const PROPERTY_OPTIONS = {numRuns: 500, seed: 42}
 
-// covers: llms-txt#Served llms.txt conforms to the llmstxt.org structure
+// covers: llms-txt#Served llms.txt conforms to the Lifegames llms.txt profile
 describe('validateLlmsTxt structural invariants', () => {
-  it('accepts every document that satisfies all four invariants', () => {
+  it('accepts every document that satisfies all five invariants', () => {
     fc.assert(fc.property(wellFormedLlmsTxtArb, (text) => {
       expect(INVARIANT_NAMES.filter((name) => !invariants[name](text))).toEqual([])
       expect(validateLlmsTxt(text)).toEqual([])

@@ -1,7 +1,7 @@
 // tests/audit/llms-txt-arbitraries.ts -- input generators for the llms.txt
 // property and differential tests (Phoenix eval right-sizing pilot).
 //
-// Two arbitraries, two jobs:
+// Four arbitraries, two jobs:
 //   wellFormedLlmsTxtArb  builds a document that satisfies every structural
 //                         invariant by construction. The property test mutates
 //                         it to break exactly one invariant at a time.
@@ -9,6 +9,11 @@
 //                         malformed. This is the corpus shape atlas decision
 //                         0036 used to find the divergence classes the declared
 //                         rule cases cannot see.
+//   llmsTxtV2BodyArb      that pool plus the lines v2 changed its answer on.
+//   llmsTxtV3BodyArb      that pool plus the lines v3 changed its answer on.
+// Each pool is ADDITIVE and frozen once its version ships: a differential run
+// reproduces only if its input space does. LINE_POOLS below exports all three
+// so the differential suite can pin them by digest.
 
 import fc from 'fast-check'
 
@@ -88,3 +93,28 @@ const V2_LINES = [
 export const llmsTxtV2BodyArb: fc.Arbitrary<string> = fc.array(fc.constantFrom(...V2_LINES), {minLength: 1, maxLength: 9}).map((lines) =>
   `${lines.join('\n')}\n`
 )
+
+// v3 tightened one thing: a markdown link needs a nonempty label AND a nonempty
+// destination. Neither pool above holds a line that can show it -- v2 stripped
+// "[](url)" and "[name]()" as if they were real links, so the v2 pool cannot
+// reach the divergence. Kept as a THIRD pool so the two above stay byte-faithful
+// to the evidence they were built for.
+const V3_LINES = [
+  ...V2_LINES,
+  '- [](https://x.com)',
+  '- [name]()',
+  '- [Docs](https://example.com/docs',
+  '- [ok](https://ok.com)'
+]
+
+/** The v2 pool plus the lines v3's link rule changed its answer on. */
+export const llmsTxtV3BodyArb: fc.Arbitrary<string> = fc.array(fc.constantFrom(...V3_LINES), {minLength: 1, maxLength: 9}).map((lines) =>
+  `${lines.join('\n')}\n`
+)
+
+// The three pools, exported so the differential suite can pin them by digest.
+// An exact divergence count is only reproducible if the input SPACE is fixed as
+// well as the seed and the run count: appending one line here shifts every
+// sample that follows it. The pin turns "someone edited the pool" from a silent
+// count change into a named failure.
+export const LINE_POOLS: Record<'v1' | 'v2' | 'v3', readonly string[]> = {v1: LINES, v2: V2_LINES, v3: V3_LINES}

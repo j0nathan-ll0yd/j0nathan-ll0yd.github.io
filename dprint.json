@@ -19,6 +19,9 @@
     "**/coverage",
     "**/*.d.ts",
     "**/*.astro",
-    "src/env.d.ts"
+    "src/env.d.ts",
+    "scripts/audit/lib/llms-structure.mjs",
+    "tests/audit/fixtures/llms-structure.v1.mjs",
+    "tests/audit/fixtures/llms-structure.v2.mjs"
   ]
 }

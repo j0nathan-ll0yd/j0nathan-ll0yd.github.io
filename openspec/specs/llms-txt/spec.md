@@ -1,5 +1,8 @@
 # LLM Content Discovery (llms.txt)
 
+Surface: `llm-outputs` (atlas `surfaces.yaml`). That entry is the registry record for these
+three artifacts; this spec is the behavior contract for the serving side of it.
+
 ## Purpose
 
 Serve the llms.txt discovery index and its full-content dump so LLM agents can find and read
@@ -24,9 +27,11 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 - Served paths: `LLM_CONTENT_PATHS` — `@j0nathan-ll0yd/portal-contract/constants`. It covers
   `llmsFull`, `llmsSmall`, and `indexMarkdown`. `/llms.txt` has no constant; its route hardcodes
   the path (`functions/llms.txt.ts:11`). See Gaps.
-- Structural rules: `checkLlmsStructure(rawText)` — `scripts/audit/lib/llms-structure.mjs:70`.
+- Structural rules: `checkLlmsStructure(rawText)` — `scripts/audit/lib/llms-structure.mjs:87`.
   A pure, framework-free module the backend producer vendors too; atlas holds the canonical copy
-  and this repo pins it by sha256. `LLMS_STRUCTURE_SPEC_VERSION` is **2**.
+  and this repo pins it by sha256 — the digest sidecar `scripts/audit/lib/llms-structure.mjs.sha256`
+  and the assertions in `tests/audit/llms-structure.integrity.test.ts`, which mirror the producer's
+  own pin. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:44`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
@@ -51,21 +56,36 @@ so nothing exercises the live backend-to-CloudFront-to-proxy path.
 - **WHEN** the proxy handles the request
 - **THEN** the system SHALL return the upstream content with the declared content-type
 
-### Requirement: Served llms.txt conforms to the llmstxt.org structure
+### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 
 The served llms.txt SHALL begin with an H1, SHALL follow it with a summary blockquote, and SHALL
 contain exactly one H1. Every H2 section list item that carries an http(s) URL SHALL wrap it as a
-`[name](url)` markdown link, and every H2 heading SHALL have content under it.
+well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
+heading SHALL have content under it.
 Verified by `tests/audit/spec-cases.test.ts` (the five convention rules, derived cases) and
-`tests/audit/validate-llms-txt.property.test.ts:89` (the four structural invariants as properties,
-tethered by the `covers:` comment at `:88`).
+`tests/audit/validate-llms-txt.property.test.ts:132` (the five structural invariants as properties,
+tethered by the `covers:` comment at `:131`).
 
-SPEC VERSION 2, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
+SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
 section to hold a list. The producer contract test found the live index legitimately mixing file
 lists with descriptive sections, so v2 permits a list item with no URL and an H2 section carrying
-prose. Both relaxations diverge from the cited llmstxt.org clause; the divergence is recorded in
-each rule's `policy_note`, not hidden. v2 is stricter in exactly one place: an unlinked URL in a
-link item's notes tail now fires, where v1's permissive tail swallowed it.
+prose. v3 tightened the link test in one place: a link needs a nonempty label AND a nonempty
+destination, so `- [](https://x.com)` and `- [name]()` now fire where v2 stripped them as if they
+were real links. v2 was also stricter than v1 in exactly one place: an unlinked URL in a link
+item's notes tail fires, where v1's permissive tail swallowed it.
+
+The v1→v2 and v2→v3 deltas are pinned as evidence, not described in prose:
+`tests/audit/llms-differential.test.ts` differences the live reference against frozen copies of
+each earlier version over a fixed seed, run count, and input pool, and asserts the exact
+divergence classes and counts.
+
+PROFILE, NOT STRICT CONFORMANCE (atlas decision 0040). The two v2 relaxations diverge from the
+llmstxt.org clause the rule files cite. What this repo checks is therefore the LIFEGAMES llms.txt
+PROFILE — llmstxt.org-derived, with two documented relaxations — and not byte-for-byte conformance
+to the relaxed clauses. A green structural run means "conforms to the profile"; it does not mean
+"conforms strictly to llmstxt.org". The relaxations are named in `llms-txt-h2-no-file-list` and
+`llms-txt-non-link-list-item`, in each rule's `policy_note`, with the provenance of the original
+clause left intact beside them.
 
 #### Scenario: A well-formed index passes every structural rule
 
@@ -85,6 +105,13 @@ link item's notes tail now fires, where v1's permissive tail swallowed it.
 - **WHEN** validateLlmsTxt runs
 - **THEN** it SHALL emit `llms-txt-non-link-list-item`
 
+#### Scenario: A link with an empty part is a defect
+
+- **GIVEN** an H2 section list item whose markdown link has an empty label (`- [](url)`) or an
+  empty destination (`- [name]()`)
+- **WHEN** validateLlmsTxt runs
+- **THEN** it SHALL emit `llms-txt-non-link-list-item`
+
 ### Requirement: Full-content artifacts stay fresh
 
 llms-full.txt and index.md SHALL be no older than the rule's `params.maxAgeHours` (4 hours).
@@ -100,12 +127,21 @@ and each normative quote SHALL still occur in that source.
 Verified by `scripts/audit/check-spec-verification.mjs` (blocking) and
 `scripts/audit/check-spec-drift.mjs` (weekly).
 
+The anchor is a PROVENANCE claim, not a conformance claim. What these two gates prove is that the
+quoted clause is really what the pinned source says — nothing more. Where a rule departs from the
+clause it quotes, that departure is the LIFEGAMES llms.txt PROFILE (atlas decision 0040), stated in
+the rule's `policy_note` beside the intact citation. Two rules are in that position today,
+`llms-txt-h2-no-file-list` and `llms-txt-non-link-list-item`; both are `rule_class: convention`, and
+neither asserts strict structural conformance to the llmstxt.org clause it cites. Every other rule
+in the catalog checks its clause as quoted.
+
 ## Validation matrix
 
 | Requirement              | Unit                                       | Integration                               | Audit (prod)                                       | Provenance          |
 | ------------------------ | ------------------------------------------ | ----------------------------------------- | -------------------------------------------------- | ------------------- |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | GAP (backend to proxy to served untested) | B5 lychee (the URL and its outbound links resolve) | —                   |
-| Structural conformance   | spec-cases + property test                 | — (external consumer)                     | weekly structural                                  | —                   |
+| Structural profile       | spec-cases + property test                 | — (external consumer)                     | weekly structural                                  | —                   |
+| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer pins the same digest             | —                                                  | sha256 + sidecar    |
 | Freshness                | GAP                                        | —                                         | weekly                                             | maxAgeHours in rule |
 | External anchor          | spec-verification                          | —                                         | weekly drift                                       | pinned source       |
 

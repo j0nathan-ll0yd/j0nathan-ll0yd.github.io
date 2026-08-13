@@ -1,5 +1,16 @@
-// Canonical source: atlas/contracts/llms-structure/reference.mjs. Vendored copy,
-// pinned by sha256. Edit the atlas canonical, then re-vendor.
+// FROZEN v2 OF THE SHARED STRUCTURAL REFERENCE. Test fixture, not production
+// code, and deliberately never updated.
+//
+// Byte-identical to scripts/audit/lib/llms-structure.mjs at v2
+// (sha256 4def82075af979b55f3db13e8ae16e7a172d4c1eca276aa9dcd0d7414dd7e6da),
+// with only this header replacing the vendoring notice. It exists so the
+// v2->v3 delta is pinned as evidence rather than described in prose: the
+// differential suite compares v3 against these bytes and reports exactly one
+// divergence class, the empty-link tightening. Without a frozen v2, the moment
+// v3 shipped there was nothing left to difference it against.
+//
+// llms-structure.v1.mjs alongside does the same job one version earlier, for
+// the atlas decision 0036 reproduction and the v1->v2 relaxation proof.
 //
 // The five STRUCTURAL rules of the llms.txt convention (llmstxt.org), as one
 // pure function shared by every repo that checks them. The producer
@@ -34,14 +45,7 @@
 // Both relaxations diverge from the llmstxt.org clause the rule files cite.
 // That divergence is recorded in each rule's policy_note, not hidden here.
 //
-// V3 TIGHTENING. A markdown link now needs a nonempty label AND a nonempty
-// destination to count as one. v2's link regex allowed both parts to be empty,
-// so "- [](https://x.com)" (empty label, an effectively unlinked URL) and
-// "- [name]()" (empty destination, a broken link) both passed the link-item
-// check. v3 flags each as llms-txt-non-link-list-item. Well-formed links,
-// descriptive prose items, and the pinned trailing-colon behavior are unchanged.
-//
-// THREE BEHAVIORS PINNED BY ATLAS DECISION 0036, UNCHANGED BY v2 AND v3. A blind
+// THREE BEHAVIORS PINNED BY ATLAS DECISION 0036, UNCHANGED BY v2. A blind
 // regeneration from the rule catalog passed every declared case and still
 // diverged from the implementation on these. They are load-bearing:
 //   1. With no valid H1 the check returns early and emits ONLY llms-txt-h1.
@@ -52,27 +56,17 @@
 //      (:\s*.*)? tail; v2 allows it because stripping the markdown link leaves
 //      no URL behind. The behavior is identical, the mechanism is not.
 
-export const LLMS_STRUCTURE_SPEC_VERSION = 3
+export const LLMS_STRUCTURE_SPEC_VERSION = 2
 
 const H1_RE = /^#\s+\S/
 const BLOCKQUOTE_RE = /^>\s+\S/
 const H2_RE = /^##\s+(.+?)\s*$/
 const LIST_ITEM_RE = /^[-*]\s+/
-// A WELL-FORMED markdown link needs a nonempty label AND a nonempty destination.
-// v2 used `[^\]]*`/`[^)]*` (both optional), so `[](url)` and `[name]()` passed as
-// links: the first hid an unlinked URL, the second was a broken link with no
-// destination. v3 requires `+` on both sides, so only a real link is stripped as one.
-const MARKDOWN_LINK_RE = /\[[^\]]+\]\([^)]+\)/g
-// Any `[..](..)` shape, empty parts included — used to catch the two malformed cases.
-const ANY_LINK_SHAPE_RE = /\[[^\]]*\]\([^)]*\)/g
-const WELL_FORMED_LINK_RE = /^\[[^\]]+\]\([^)]+\)$/
+const MARKDOWN_LINK_RE = /\[[^\]]*\]\([^)]*\)/g
 const BARE_URL_RE = /https?:\/\//
 
-/** True when a list item carries an http(s) URL that is not inside a well-formed [text](url) link. */
+/** True when a list item carries an http(s) URL that is not inside a [text](url) link. */
 const hasUnlinkedUrl = (line) => BARE_URL_RE.test(line.replace(MARKDOWN_LINK_RE, ''))
-
-/** True when a list item carries a `[..](..)` shape with an empty label or empty destination. */
-const hasMalformedLink = (line) => (line.match(ANY_LINK_SHAPE_RE) ?? []).some((shape) => !WELL_FORMED_LINK_RE.test(shape))
 
 /**
  * Check the structure of an llms.txt body against the llmstxt.org convention.
@@ -160,13 +154,11 @@ export function checkLlmsStructure(rawText) {
     }
     // v2: a descriptive item with no URL is legal; an unlinked URL is not.
     // behavior 3 falls out of this: "- [Name](url):" strips to "- :", no URL.
-    // v3: a malformed link — empty label "[](url)" or empty destination "[name]()"
-    // — is flagged too: the first hides an unlinked URL, the second is a broken link.
-    if (LIST_ITEM_RE.test(line) && currentSection && (hasUnlinkedUrl(line) || hasMalformedLink(line))) {
+    if (LIST_ITEM_RE.test(line) && currentSection && hasUnlinkedUrl(line)) {
       sectionFindings.push({
         id: 'llms-txt-non-link-list-item',
-        message: `H2 section "${currentSection.name}" has a list item that is not a well-formed ` +
-          `"[name](url)" markdown link (bare, empty-label, or empty-destination URL): ${JSON.stringify(line.trim())}`
+        message: `H2 section "${currentSection.name}" has a list item with a bare URL that is not a ` +
+          `"[name](url)" markdown link: ${JSON.stringify(line.trim())}`
       })
     }
   }
