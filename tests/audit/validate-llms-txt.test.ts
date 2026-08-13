@@ -26,16 +26,16 @@ describe('validateLlmsTxt', () => {
     const validOptional = '# Site\n\n> Summary\n\n## Optional\n\n- [Extra](https://example.com/extra)\n'
     expect(validateLlmsTxt(validOptional)).toEqual([])
 
-    // v2 (LLMS_STRUCTURE_SPEC_VERSION = 2): the violating item carries an
-    // unlinked URL. A bare bullet with no URL was the v1 example here and is
-    // legal now; the point of this test is the "Optional" heading getting no
-    // special treatment, so the example moved rather than the assertion.
+    // Since v2: the violating item carries an unlinked URL. A bare bullet with
+    // no URL was the v1 example here and is legal now; the point of this test
+    // is the "Optional" heading getting no special treatment, so the example
+    // moved rather than the assertion.
     const invalidOptional = '# Site\n\n> Summary\n\n## Optional\n\n- bare bullet: https://example.com/extra\n'
     const findings = validateLlmsTxt(invalidOptional)
     expect(findings.map((f) => f.id)).toContain('llms-txt-non-link-list-item')
   })
 
-  it('a list item with no URL at all is descriptive prose, not a broken link (v2)', () => {
+  it('a list item with no URL at all is descriptive prose, not a broken link (profile relaxation)', () => {
     const descriptive = '# Site\n\n> Summary\n\n## Technology\n\n- Framework: Astro (static site generation)\n'
     expect(validateLlmsTxt(descriptive)).toEqual([])
   })
