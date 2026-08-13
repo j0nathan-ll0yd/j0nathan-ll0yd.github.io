@@ -16,11 +16,17 @@ name: Static Checks
 #     ADR 0011 follow-up (a): every rule_class: conformance rule must carry
 #     spec.verified_against_source: true against an immutable/pinned source, the
 #     mechanism that stops the 7-of-7 citation-defect class from recurring.
+#   - spec-quote-integrity: `node scripts/audit/check-spec-drift.mjs
+#     --integrity-only` -- ADR 0011 follow-up (b), offline half: every
+#     spec.content_sha256 must still equal sha256(spec.normative_quote), so a
+#     quote edited after authoring cannot ship green. Deliberately offline; the
+#     network half (re-fetching each pinned primary source) runs weekly and
+#     report-only in audit-web.yml so third-party uptime never gates a merge.
 #   - spec-mutation-score: `pnpm exec stryker run` -- the sufficiency claim (§2 DR2)
 #     over the three pure pilot functions (validateSecurityTxt, validateLlmsTxt,
 #     validateFeedJson).
 #
-# All five need the @j0nathan-ll0yd/* packages resolved (src and
+# All six need the @j0nathan-ll0yd/* packages resolved (src and
 # scripts/audit/**/*.mjs both import them). Those packages are published to
 # GitHub Packages, so `pnpm install --frozen-lockfile` resolves them once the
 # registry read is authenticated: `packages: read` + the built-in Actions token,
@@ -207,6 +213,45 @@ jobs:
       # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       - name: Spec source-verification gate
         run: node scripts/audit/check-spec-verification.mjs
+
+  spec-quote-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # ADR 0011 follow-up (b), OFFLINE half: spec.content_sha256 must still
+      # equal sha256(spec.normative_quote). Nothing checked this before --
+      # hash-normative-quotes.mjs is a WRITER that rewrites the field to match
+      # whatever the quote now says, so editing a quote and re-running it
+      # produced a green, self-consistent, silently-altered citation.
+      #
+      # `--integrity-only` keeps this job OFF the network deliberately: the
+      # drift half re-fetches third-party sources and runs weekly in
+      # audit-web.yml, so their uptime never gates a merge here. No `|| true`
+      # -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
+      - name: Spec quote-integrity gate
+        run: node scripts/audit/check-spec-drift.mjs --integrity-only
 
   spec-mutation-score:
     runs-on: ubuntu-latest
