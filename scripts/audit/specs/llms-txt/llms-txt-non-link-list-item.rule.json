@@ -18,9 +18,16 @@
     "verified_at": "2026-07-30",
     "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
-  "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen.",
-  "expectation": "The list item matches /^[-*]\\s+\\[name\\]\\(url\\)(: notes)?$/.",
+  "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen -- AND ONLY IN A BODY WITH A VALID H1. validate-llms-txt.mjs:61 returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-h2-no-file-list; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
+  "expectation": "The list item matches /^[-*]\\s+\\[name\\]\\(url\\)(: notes)?$/, where the optional tail is a colon followed by ANY text INCLUDING NOTHING -- the implementing regex is /(:\\s*.*)?$/, so '- [Name](url):' with an empty tail is legal. Stated explicitly because the ADR 0036 rehearsal read '(: notes)?' as requiring notes, which diverged on 60 of 20,000 fuzz inputs while passing every case then declared. The permissive tail is recorded as the implementation's behaviour, not endorsed: tightening it to require notes is a candidate change, and would need this line and cases/link-item-bare-colon.txt to move together.",
   "cases": [
+    {
+      "name": "a link item with a bare trailing colon and no notes is legal (ADR 0036: pins the permissive tail)",
+      "outcome": "passed",
+      "input_file": "cases/link-item-bare-colon.txt",
+      "input_kind": "text",
+      "expect": []
+    },
     {
       "name": "a bare-URL list item, not a markdown link",
       "outcome": "failed",
