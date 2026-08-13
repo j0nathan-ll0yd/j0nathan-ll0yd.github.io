@@ -1,5 +1,16 @@
-// Canonical source: atlas/contracts/llms-structure/reference.mjs. Vendored copy,
-// pinned by sha256. Edit the atlas canonical, then re-vendor.
+// FROZEN v1 OF THE SHARED STRUCTURAL REFERENCE. Test fixture, not production
+// code, and deliberately never updated.
+//
+// Byte-identical to scripts/audit/lib/llms-structure.mjs at v1
+// (sha256 0e9ea67e228b46a324149d95fb3e81d73947c65426a2f2003079ef08ea4d06a6),
+// with only this header replacing the vendoring notice. Two tests need v1
+// semantics to stay reachable after the reference moves on:
+//   1. The atlas decision 0036 reproduction. Its blind regeneration is a v1-era
+//      artifact, so comparing it against a moving reference would stop
+//      reproducing 0036 the moment a rule relaxed. Pinned here, the three
+//      divergence classes stay provable forever.
+//   2. The v2 relaxation proof. Differencing v2 against v1 shows the relaxation
+//      touches exactly the two rules it claims and nothing else.
 //
 // The five STRUCTURAL rules of the llms.txt convention (llmstxt.org), as one
 // pure function shared by every repo that checks them. The producer
@@ -16,46 +27,24 @@
 // llms-full.txt and index.md presence) depend on a live HTTP response and stay
 // with each consumer.
 //
-// V2 RELAXATION. A real llms.txt mixes file lists with descriptive sections.
-// The producer contract test found the live index doing exactly that, and v1
-// called it broken. v2 relaxes the two section rules and touches nothing else:
-//   - llms-txt-non-link-list-item now fires only when a list item carries a
-//     BARE URL that is not wrapped as a markdown link. Strip every [text](url)
-//     from the line; if an http(s) URL survives, the author meant to link and
-//     did not. A descriptive item with no URL ("- Framework: Astro (...)") is
-//     legal. This keeps catching unlinked URLs, which is the failure that
-//     actually costs an agent a fetch, and stops flagging prose.
-//   - llms-txt-h2-no-file-list now fires only on a DANGLING H2: a heading with
-//     no list items AND no prose under it, up to the next H2 or end of file. A
-//     prose section ("## Expertise" followed by a paragraph) is legal. The id
-//     still reads true, it is just narrower: an empty section has no file list
-//     and nothing else either, which is an authoring defect rather than a
-//     stylistic choice.
-// Both relaxations diverge from the llmstxt.org clause the rule files cite.
-// That divergence is recorded in each rule's policy_note, not hidden here.
-//
-// THREE BEHAVIORS PINNED BY ATLAS DECISION 0036, UNCHANGED BY v2. A blind
-// regeneration from the rule catalog passed every declared case and still
-// diverged from the implementation on these. They are load-bearing:
+// THREE BEHAVIORS PINNED BY ATLAS DECISION 0036. A blind regeneration from the
+// rule catalog passed every declared case and still diverged from the
+// implementation on these. They are load-bearing, not incidental:
 //   1. With no valid H1 the check returns early and emits ONLY llms-txt-h1.
 //      Structure is unrecoverable past that point, so no section rule runs.
 //   2. llms-txt-second-h1 is emitted PER offending line, not once per body.
 //   3. A bare trailing colon, "- [Name](url):" with nothing after it, PASSES
-//      the link-item check. v1 allowed it through LINK_ITEM_RE's optional
-//      (:\s*.*)? tail; v2 allows it because stripping the markdown link leaves
-//      no URL behind. The behavior is identical, the mechanism is not.
+//      the link-item check. LINK_ITEM_RE's tail is (:\s*.*)?$ and the notes are
+//      optional. Recorded as the implementation's behavior, not endorsed;
+//      tightening it is a candidate change that moves both sides at once.
 
-export const LLMS_STRUCTURE_SPEC_VERSION = 2
+export const LLMS_STRUCTURE_SPEC_VERSION = 1
 
 const H1_RE = /^#\s+\S/
 const BLOCKQUOTE_RE = /^>\s+\S/
 const H2_RE = /^##\s+(.+?)\s*$/
 const LIST_ITEM_RE = /^[-*]\s+/
-const MARKDOWN_LINK_RE = /\[[^\]]*\]\([^)]*\)/g
-const BARE_URL_RE = /https?:\/\//
-
-/** True when a list item carries an http(s) URL that is not inside a [text](url) link. */
-const hasUnlinkedUrl = (line) => BARE_URL_RE.test(line.replace(MARKDOWN_LINK_RE, ''))
+const LINK_ITEM_RE = /^[-*]\s+\[([^\]]+)\]\(([^)]+)\)(:\s*.*)?$/
 
 /**
  * Check the structure of an llms.txt body against the llmstxt.org convention.
@@ -107,16 +96,14 @@ export function checkLlmsStructure(rawText) {
   // H1 is fine (free-form body). From the first H2 onward: every H2 section's
   // list items must be markdown links.
   let sawH2 = false
-  let currentSection = null // { name, hasContent }
+  let currentSection = null // { name, hasListItem }
   const sectionFindings = []
 
-  // v2: fires only on a DANGLING heading -- nothing at all under it. A section
-  // holding prose, a sub-heading, or a list is content-bearing and legal.
   const closeSection = () => {
-    if (currentSection && !currentSection.hasContent) {
+    if (currentSection && !currentSection.hasListItem) {
       sectionFindings.push({
         id: 'llms-txt-h2-no-file-list',
-        message: `H2 section "${currentSection.name}" is empty -- no file list and no prose before the next H2 or end of file`
+        message: `H2 section "${currentSection.name}" has no [name](url) file-list items` + ' (llmstxt.org: H2 sections are "file lists" of links)'
       })
     }
   }
@@ -127,11 +114,8 @@ export function checkLlmsStructure(rawText) {
     if (h2Match) {
       closeSection()
       sawH2 = true
-      currentSection = {name: h2Match[1], hasContent: false}
+      currentSection = {name: h2Match[1], hasListItem: false}
       continue
-    }
-    if (currentSection && line.trim() !== '') {
-      currentSection.hasContent = true
     }
     if (H1_RE.test(line)) {
       // behavior 2: one finding per offending line, not one per body.
@@ -141,14 +125,16 @@ export function checkLlmsStructure(rawText) {
     if (!sawH2) {
       continue // free-form pre-H2 body: anything but headings is spec-legal
     }
-    // v2: a descriptive item with no URL is legal; an unlinked URL is not.
-    // behavior 3 falls out of this: "- [Name](url):" strips to "- :", no URL.
-    if (LIST_ITEM_RE.test(line) && currentSection && hasUnlinkedUrl(line)) {
-      sectionFindings.push({
-        id: 'llms-txt-non-link-list-item',
-        message: `H2 section "${currentSection.name}" has a list item with a bare URL that is not a ` +
-          `"[name](url)" markdown link: ${JSON.stringify(line.trim())}`
-      })
+    if (LIST_ITEM_RE.test(line) && currentSection) {
+      currentSection.hasListItem = true
+      // behavior 3: LINK_ITEM_RE's optional (:\s*.*)? tail accepts a bare colon.
+      if (!LINK_ITEM_RE.test(line)) {
+        sectionFindings.push({
+          id: 'llms-txt-non-link-list-item',
+          message: `H2 section "${currentSection.name}" has a list item that is not a ` +
+            `"[name](url)" or "[name](url): notes" markdown link: ${JSON.stringify(line.trim())}`
+        })
+      }
     }
   }
   closeSection()

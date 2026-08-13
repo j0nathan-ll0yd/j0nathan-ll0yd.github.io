@@ -47,7 +47,7 @@
       ]
     },
     {
-      "name": "known-answer fixture: bare bullets, an empty section, and no blockquote all flag together (REVERSAL 2 -- a shared multi-violation input is a legal failed case; its expect lists every id the input emits)",
+      "name": "known-answer fixture: an unlinked URL, a dangling section, and no blockquote all flag together (REVERSAL 2 -- a shared multi-violation input is a legal failed case; its expect lists every id the input emits). The fixture moved to v2 violations in the same commit as the v2 relaxation: under v1 it used a bare bullet with no URL and a prose-only section, both legal now, which would have quietly reduced this case to a single-violation input.",
       "outcome": "failed",
       "input_file": "../../../../tests/audit/fixtures/llms-invalid.txt",
       "input_kind": "text",

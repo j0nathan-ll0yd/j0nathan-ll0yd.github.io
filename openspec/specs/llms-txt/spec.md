@@ -24,7 +24,11 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 - Served paths: `LLM_CONTENT_PATHS` — `@j0nathan-ll0yd/portal-contract/constants`. It covers
   `llmsFull`, `llmsSmall`, and `indexMarkdown`. `/llms.txt` has no constant; its route hardcodes
   the path (`functions/llms.txt.ts:11`). See Gaps.
-- Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:39`
+- Structural rules: `checkLlmsStructure(rawText)` — `scripts/audit/lib/llms-structure.mjs:70`.
+  A pure, framework-free module the backend producer vendors too; atlas holds the canonical copy
+  and this repo pins it by sha256. `LLMS_STRUCTURE_SPEC_VERSION` is **2**.
+- Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:44`. A catalog wrapper
+  that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
   declared in `scripts/audit/specs/rule.schema.json:126` and stamped by `emit()`, never chosen by the
   validator. Proposed follow-up: a named `LlmsFinding` typedef so the output shape is specified,
@@ -49,11 +53,19 @@ so nothing exercises the live backend-to-CloudFront-to-proxy path.
 
 ### Requirement: Served llms.txt conforms to the llmstxt.org structure
 
-The served llms.txt SHALL begin with an H1, SHALL follow it with a summary blockquote, SHALL
-contain exactly one H1, and every H2 file-list item SHALL be a markdown link.
+The served llms.txt SHALL begin with an H1, SHALL follow it with a summary blockquote, and SHALL
+contain exactly one H1. Every H2 section list item that carries an http(s) URL SHALL wrap it as a
+`[name](url)` markdown link, and every H2 heading SHALL have content under it.
 Verified by `tests/audit/spec-cases.test.ts` (the five convention rules, derived cases) and
-`tests/audit/validate-llms-txt.property.test.ts:84` (the four structural invariants as properties,
-tethered by the `covers:` comment at `:83`).
+`tests/audit/validate-llms-txt.property.test.ts:89` (the four structural invariants as properties,
+tethered by the `covers:` comment at `:88`).
+
+SPEC VERSION 2, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
+section to hold a list. The producer contract test found the live index legitimately mixing file
+lists with descriptive sections, so v2 permits a list item with no URL and an H2 section carrying
+prose. Both relaxations diverge from the cited llmstxt.org clause; the divergence is recorded in
+each rule's `policy_note`, not hidden. v2 is stricter in exactly one place: an unlinked URL in a
+link item's notes tail now fires, where v1's permissive tail swallowed it.
 
 #### Scenario: A well-formed index passes every structural rule
 
@@ -61,11 +73,23 @@ tethered by the `covers:` comment at `:83`).
 - **WHEN** validateLlmsTxt runs
 - **THEN** it SHALL emit no fail-severity structural finding
 
+#### Scenario: A descriptive section is not a defect
+
+- **GIVEN** an H2 section whose items describe the stack rather than link to files
+- **WHEN** validateLlmsTxt runs
+- **THEN** it SHALL emit no finding for those items
+
+#### Scenario: An unlinked URL is a defect
+
+- **GIVEN** an H2 section list item carrying a bare http(s) URL outside a markdown link
+- **WHEN** validateLlmsTxt runs
+- **THEN** it SHALL emit `llms-txt-non-link-list-item`
+
 ### Requirement: Full-content artifacts stay fresh
 
 llms-full.txt and index.md SHALL be no older than the rule's `params.maxAgeHours` (4 hours).
-Verified by the `scripts/audit/validate-llms-txt.mjs` freshness path (`checkPresence` at `:127`,
-the age comparison at `:163`, the threshold read from the rule file at `:203-204`) — GAP at unit:
+Verified by the `scripts/audit/validate-llms-txt.mjs` freshness path (`checkPresence` at `:52`,
+the age comparison at `:88`, the threshold read from the rule file at `:128-129`) — GAP at unit:
 operational rules carry no cases by schema, so only the weekly audit exercises this. The rule
 files record this as N3, "derived but unverifiable".
 

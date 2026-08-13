@@ -69,3 +69,22 @@ const LINES = [
 
 /** Random compositions of llms.txt-shaped lines: mostly malformed, deliberately. */
 export const llmsTxtBodyArb: fc.Arbitrary<string> = fc.array(fc.constantFrom(...LINES), {minLength: 1, maxLength: 9}).map((lines) => `${lines.join('\n')}\n`)
+
+// v2 added two relaxations and one tightening that the 0036 pool cannot reach:
+// it holds no list item without a URL, and no link item whose notes carry a
+// second, unlinked URL. Kept as a SEPARATE pool so llmsTxtBodyArb above stays
+// byte-faithful to the 0036 evidence.
+const V2_LINES = [
+  ...LINES,
+  '- Framework: Astro (static site generation, 0 KB JS by default)',
+  '- Hosting: Cloudflare Pages via GitHub Actions',
+  '- Site: https://example.com',
+  '- [Name](https://example.com): mirror at https://mirror.example.com',
+  '## Expertise',
+  'Backend Engineering, Go, AWS'
+]
+
+/** The 0036 pool plus the lines v2's section rules changed their answer on. */
+export const llmsTxtV2BodyArb: fc.Arbitrary<string> = fc.array(fc.constantFrom(...V2_LINES), {minLength: 1, maxLength: 9}).map((lines) =>
+  `${lines.join('\n')}\n`
+)

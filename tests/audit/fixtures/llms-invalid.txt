@@ -4,9 +4,7 @@ No blockquote follows the H1 above -- this is a structural violation.
 
 ## Links
 
-- Not a markdown link, just a bare bullet
+- Not a markdown link, just a bare URL: https://example.com/bare
 - [Proper Link](https://example.com/ok)
 
 ## Empty Section
-
-Just prose, no list items at all.

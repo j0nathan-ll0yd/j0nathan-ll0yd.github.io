@@ -26,6 +26,8 @@ const H2_RE = /^##\s+\S/
 const BLOCKQUOTE_RE = /^>\s+\S/
 const LIST_ITEM_RE = /^[-*]\s+/
 const LINK_ITEM_RE = /^[-*]\s+\[[^\]]+\]\([^)]+\)(:\s*.*)?$/
+const MARKDOWN_LINK_RE = /\[[^\]]*\]\([^)]*\)/g
+const BARE_URL_RE = /https?:\/\//
 
 const linesOf = (text: string) => text.split(/\r\n|\r|\n/)
 const nonBlankOf = (text: string) => linesOf(text).filter((line) => line.trim() !== '')
@@ -39,6 +41,9 @@ const invariants = {
     const h1Index = nonBlank.findIndex((line) => H1_RE.test(line))
     return h1Index !== -1 && BLOCKQUOTE_RE.test(nonBlank[h1Index + 1] ?? '')
   },
+  // v2 (LLMS_STRUCTURE_SPEC_VERSION = 2): a list item may be descriptive prose.
+  // What it may NOT do is carry a URL the author failed to wrap in a markdown
+  // link. Strip every [text](url) and no http(s) URL may survive.
   linkListItems: (text: string) => {
     let sawH2 = false
     for (const line of linesOf(text)) {
@@ -46,7 +51,7 @@ const invariants = {
         sawH2 = true
         continue
       }
-      if (sawH2 && LIST_ITEM_RE.test(line) && !LINK_ITEM_RE.test(line)) {
+      if (sawH2 && LIST_ITEM_RE.test(line) && BARE_URL_RE.test(line.replace(MARKDOWN_LINK_RE, ''))) {
         return false
       }
     }
