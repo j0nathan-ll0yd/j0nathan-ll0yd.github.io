@@ -20,8 +20,24 @@
   },
   "policy_note": "llmstxt.org never states a prohibition on a second H1 -- 'this is the only required section' means the H1 is the only mandatory element, not that no other H1-level heading may appear. The prohibition this rule enforces is entirely our own inference (required does not imply exclusive); the source text contains no such rule. rule_class stays convention / conformance_testable stays false, which is the intended, correctly-modeled outcome.",
   "applicability": "An llms.txt body that already has a valid H1.",
-  "expectation": "No further line matches /^#\\s+\\S/.",
+  "expectation": "No further line matches /^#\\s+\\S/. Emission is PER OFFENDING LINE, not once per body: a body with three H1s emits this finding twice. Stated explicitly because the ADR 0036 Posture-3 rehearsal produced a blind regeneration that emitted once, passed every case then declared, and diverged from the implementation on 113 of 20,000 fuzz inputs -- the multiset assertion is count-sensitive, so only a case with TWO extra H1s can discriminate the two readings (cases/two-extra-h1s.txt below).",
   "cases": [
+    {
+      "name": "two extra H1s emit the finding twice (ADR 0036: pins per-line emission, which no single-violation case can discriminate)",
+      "outcome": "failed",
+      "input_file": "cases/two-extra-h1s.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-second-h1",
+          "severity": "fail"
+        },
+        {
+          "id": "llms-txt-second-h1",
+          "severity": "fail"
+        }
+      ]
+    },
     {
       "name": "a second H1 appears after the first",
       "outcome": "failed",

@@ -18,9 +18,21 @@
     "verified_at": "2026-07-30",
     "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
-  "applicability": "An H2 section whose body contains no list items at all.",
-  "expectation": "Every H2 section has at least one line matching /^[-*]\\s+/.",
+  "applicability": "An H2 section whose body contains no list items at all -- AND ONLY IN A BODY WITH A VALID H1. validate-llms-txt.mjs:61 returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many empty H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-non-link-list-item; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
+  "expectation": "Every H2 section has at least one line matching /^[-*]\\s+/. Emission is per empty section: a body with three empty H2 sections emits this finding three times.",
   "cases": [
+    {
+      "name": "an H2 section under a missing H1 is NOT reported -- the validator returns early (ADR 0036: pins the unstated precondition)",
+      "outcome": "inapplicable",
+      "input_file": "cases/h2-under-missing-h1.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-h1",
+          "severity": "fail"
+        }
+      ]
+    },
     {
       "name": "an H2 section with prose but no list",
       "outcome": "failed",
