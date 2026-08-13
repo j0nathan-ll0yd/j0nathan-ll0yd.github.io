@@ -80,6 +80,7 @@ const ids = (text: string) => validateLlmsTxt(text).map((finding: {id: string}) 
 
 const PROPERTY_OPTIONS = {numRuns: 500, seed: 42}
 
+// covers: llms-txt#Served llms.txt conforms to the llmstxt.org structure
 describe('validateLlmsTxt structural invariants', () => {
   it('accepts every document that satisfies all four invariants', () => {
     fc.assert(fc.property(wellFormedLlmsTxtArb, (text) => {
