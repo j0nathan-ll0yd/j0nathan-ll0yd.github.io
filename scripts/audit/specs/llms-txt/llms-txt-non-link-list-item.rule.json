@@ -18,8 +18,9 @@
     "verified_at": "2026-07-30",
     "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
-  "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen -- AND ONLY IN A BODY WITH A VALID H1. validate-llms-txt.mjs:61 returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-h2-no-file-list; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
-  "expectation": "The list item matches /^[-*]\\s+\\[name\\]\\(url\\)(: notes)?$/, where the optional tail is a colon followed by ANY text INCLUDING NOTHING -- the implementing regex is /(:\\s*.*)?$/, so '- [Name](url):' with an empty tail is legal. Stated explicitly because the ADR 0036 rehearsal read '(: notes)?' as requiring notes, which diverged on 60 of 20,000 fuzz inputs while passing every case then declared. The permissive tail is recorded as the implementation's behaviour, not endorsed: tightening it to require notes is a candidate change, and would need this line and cases/link-item-bare-colon.txt to move together.",
+  "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen -- AND ONLY IN A BODY WITH A VALID H1. The shared reference returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-h2-no-file-list; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
+  "expectation": "SPEC VERSION 2 (llms-structure.mjs LLMS_STRUCTURE_SPEC_VERSION = 2). The item carries no BARE URL: strip every /\\[[^\\]]*\\]\\([^)]*\\)/ markdown link from the line, and no /https?:\\/\\// may remain. Three consequences, each pinned by a case below. (a) A descriptive item with no URL at all -- '- Framework: Astro (...)' -- is LEGAL, where v1 flagged it. (b) An unlinked URL is still a finding wherever it sits, so '- Site: https://example.com' fails. (c) An unlinked URL in the notes tail now fails, where v1's /(:\\s*.*)?$/ tail swallowed it -- the one place v2 is STRICTER, not looser. The ADR 0036 bare-colon behaviour survives unchanged: '- [Name](url):' strips to '- :', which holds no URL, so it passes for a new reason and the same result.",
+  "policy_note": "v2 DIVERGES from the normative quote above, deliberately. llmstxt.org says a file-list item contains 'a required markdown hyperlink [name](url)'; v2 requires that only of items that carry a URL. The reason is content, not convenience: the live index at https://jonathanlloyd.me/llms.txt mixes file-list sections with descriptive ones ('## Technology' lists '- Framework: Astro (...)'), and the producer contract test in mantle-LifegamesPortal surfaced v1 flagging four such items as broken links. Flagging prose trains readers to ignore the rule, which costs more than the convention gains. The failure v2 still catches is the one that costs an agent a fetch: a URL the author meant to link and did not. Measured against the live index on 2026-08-13: v1 emitted 8 findings, v2 emits 3, and all 3 are genuine unlinked URLs in the '## About' section.",
   "cases": [
     {
       "name": "a link item with a bare trailing colon and no notes is legal (ADR 0036: pins the permissive tail)",
@@ -29,9 +30,28 @@
       "expect": []
     },
     {
+      "name": "a descriptive item with no URL at all is legal (v2: pins the relaxation)",
+      "outcome": "passed",
+      "input_file": "cases/descriptive-list-item.txt",
+      "input_kind": "text",
+      "expect": []
+    },
+    {
       "name": "a bare-URL list item, not a markdown link",
       "outcome": "failed",
       "input_file": "cases/non-link-item.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an unlinked URL in the notes tail of an otherwise valid link item (v2: pins the one place v2 is stricter than v1)",
+      "outcome": "failed",
+      "input_file": "cases/link-item-notes-url.txt",
       "input_kind": "text",
       "expect": [
         {

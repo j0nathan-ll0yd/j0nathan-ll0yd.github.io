@@ -18,8 +18,9 @@
     "verified_at": "2026-07-30",
     "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
   },
-  "applicability": "An H2 section whose body contains no list items at all -- AND ONLY IN A BODY WITH A VALID H1. validate-llms-txt.mjs:61 returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many empty H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-non-link-list-item; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
-  "expectation": "Every H2 section has at least one line matching /^[-*]\\s+/. Emission is per empty section: a body with three empty H2 sections emits this finding three times.",
+  "applicability": "An H2 section whose body is entirely empty -- AND ONLY IN A BODY WITH A VALID H1. The shared reference returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many empty H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-non-link-list-item; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
+  "expectation": "SPEC VERSION 2 (llms-structure.mjs LLMS_STRUCTURE_SPEC_VERSION = 2). Every H2 section has at least one non-blank line under it, up to the next H2 or end of file. The line may be a list item, prose, or a sub-heading -- v2 asks only that the section is not DANGLING. A prose section ('## Expertise' followed by a paragraph) is legal, where v1 required a list item and flagged it. The title still reads true and the id is unchanged: an empty section has no file list, and nothing else either. Emission is per empty section: a body with three dangling H2 headings emits this finding three times.",
+  "policy_note": "v2 DIVERGES from the normative quote above, deliberately. llmstxt.org describes H2 sections as containing 'file lists' of URLs; v2 permits a section that carries prose instead. The reason is content: the live index at https://jonathanlloyd.me/llms.txt has a '## Expertise' section that is one descriptive paragraph, and v1 reported it as a defect on every weekly run. The residual defect v2 still catches is the unambiguous one -- a heading an author left with nothing under it. Paired with the same-dated relaxation in llms-txt-non-link-list-item; both were prompted by the mantle-LifegamesPortal producer contract test.",
   "cases": [
     {
       "name": "an H2 section under a missing H1 is NOT reported -- the validator returns early (ADR 0036: pins the unstated precondition)",
@@ -34,9 +35,16 @@
       ]
     },
     {
-      "name": "an H2 section with prose but no list",
-      "outcome": "failed",
+      "name": "an H2 section with prose but no list is legal (v2: pins the relaxation)",
+      "outcome": "passed",
       "input_file": "cases/empty-section.txt",
+      "input_kind": "text",
+      "expect": []
+    },
+    {
+      "name": "a dangling H2 heading with nothing at all under it",
+      "outcome": "failed",
+      "input_file": "cases/dangling-h2.txt",
       "input_kind": "text",
       "expect": [
         {

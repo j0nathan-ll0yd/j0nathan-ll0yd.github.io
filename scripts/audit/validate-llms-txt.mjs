@@ -13,6 +13,7 @@
 
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
+import {checkLlmsStructure} from './lib/llms-structure.mjs'
 import {emit, rules} from './specs/load.mjs'
 
 const R = rules('llms-txt')
@@ -29,95 +30,19 @@ const LLMS_FULL_URL = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
 const INDEX_MD_URL = `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
 // Stryker restore all
 
-const LINK_ITEM_RE = /^[-*]\s+\[([^\]]+)\]\(([^)]+)\)(:\s*.*)?$/
-const LIST_ITEM_RE = /^[-*]\s+/
-
 /**
  * Validate llms.txt structure against the llmstxt.org convention.
  * Pure function (string in, findings out) so it's testable without network.
+ *
+ * The five structural rules live in lib/llms-structure.mjs, the shared
+ * reference the backend producer vendors too (canonical copy in atlas,
+ * pinned by sha256). This function is the CATALOG WRAPPER over it: the
+ * reference decides WHAT is wrong, the rule files decide how bad it is.
+ * emit() stamps severity from the rule and throws on an id no rule file
+ * declares, so surjectivity survives the extraction unchanged.
  */
 export function validateLlmsTxt(rawText) {
-  const findings = []
-  let text = rawText
-
-  // 1. Optional BOM.
-  if (text.charCodeAt(0) === 0xfeff) {
-    text = text.slice(1)
-  }
-
-  const lines = text.split(/\r\n|\r|\n/)
-  let i = 0
-  const nextNonBlank = () => {
-    while (i < lines.length && lines[i].trim() === '') {
-      i++
-    }
-    return i < lines.length ? lines[i] : null
-  }
-
-  // 2. First non-blank line MUST be an H1.
-  const h1Line = nextNonBlank()
-  if (h1Line === null || !/^#\s+\S/.test(h1Line)) {
-    findings.push(emit(R, 'llms-txt-h1', `first non-blank line must be "# <title>"; got ${JSON.stringify(h1Line)}`))
-    return findings // structure is unrecoverable past this point
-  }
-  i++
-
-  // 3. Next non-blank line MUST be a blockquote -- specs/llms-txt/llms-txt-blockquote.rule.json
-  // records why this validator treats it as required even though the spec's own
-  // prose marks only the H1 as strictly required.
-  const bqLine = nextNonBlank()
-  if (bqLine === null || !/^>\s+\S/.test(bqLine)) {
-    findings.push(emit(R, 'llms-txt-blockquote', `expected a "> summary" blockquote immediately after the H1; got ${JSON.stringify(bqLine)}`))
-  } else {
-    i++
-  }
-
-  // 4/5. Walk remaining lines. Before the first H2: anything except another
-  // H1 is fine (free-form body). From the first H2 onward: every H2 section's
-  // list items must be markdown links.
-  let sawH2 = false
-  let currentSection = null // { name, hasListItem, isOptional }
-  const sectionFindings = []
-
-  const closeSection = () => {
-    if (currentSection && !currentSection.hasListItem) {
-      sectionFindings.push(
-        emit(R, 'llms-txt-h2-no-file-list',
-          `H2 section "${currentSection.name}" has no [name](url) file-list items` + ' (llmstxt.org: H2 sections are "file lists" of links)')
-      )
-    }
-  }
-
-  for (; i < lines.length; i++) {
-    const line = lines[i]
-    const h2Match = /^##\s+(.+?)\s*$/.exec(line)
-    if (h2Match) {
-      closeSection()
-      sawH2 = true
-      currentSection = {name: h2Match[1], hasListItem: false, isOptional: h2Match[1].trim() === 'Optional'}
-      continue
-    }
-    if (/^#\s+\S/.test(line)) {
-      sectionFindings.push(emit(R, 'llms-txt-second-h1', `unexpected second H1 at "${line}" -- only one H1 is allowed`))
-      continue
-    }
-    if (!sawH2) {
-      continue // free-form pre-H2 body: anything but headings is spec-legal
-    }
-    if (LIST_ITEM_RE.test(line) && currentSection) {
-      currentSection.hasListItem = true
-      if (!LINK_ITEM_RE.test(line)) {
-        sectionFindings.push(
-          emit(R, 'llms-txt-non-link-list-item',
-            `H2 section "${currentSection.name}" has a list item that is not a ` +
-              `"[name](url)" or "[name](url): notes" markdown link: ${JSON.stringify(line.trim())}`)
-        )
-      }
-    }
-  }
-  closeSection()
-
-  return [...findings, ...sectionFindings]
+  return checkLlmsStructure(rawText).map((finding) => emit(R, finding.id, finding.message))
 }
 
 // Stryker disable all -- checkPresence and main() are network-path plumbing with

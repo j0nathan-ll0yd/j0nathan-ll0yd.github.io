@@ -1,0 +1,8 @@
+# Site
+
+> Summary
+
+## Technology
+
+- Framework: Astro (static site generation, 0 KB JS by default)
+- Hosting: Cloudflare Pages via GitHub Actions
