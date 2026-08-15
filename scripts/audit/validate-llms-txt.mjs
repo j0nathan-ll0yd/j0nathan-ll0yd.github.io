@@ -48,6 +48,7 @@ export function validateLlmsTxt(rawText) {
 // Stryker disable all -- checkPresence and main() are network-path plumbing with
 // no test coverage; Stryker targets only the pure validateLlmsTxt above
 // (decisions/0011, UD1: the mutation gate scopes to the three pure pilot functions).
+// covers: llms-txt#Full-content artifacts stay fresh
 /** Existence/non-emptiness/freshness check for an artifact with no formal spec. */
 async function checkPresence(id, url, maxAgeHours) {
   const findings = []

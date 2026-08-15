@@ -10,6 +10,7 @@
 //   not ship unless its normative_quote has been verified, character-for-
 //   character, against the primary source (verified_against_source: true).
 //
+// covers: llms-txt#Conformance claims are anchored to the external convention
 // The gate keys on spec.clause, NOT the author-chosen rule_class (review fix):
 // a rule that cites ANY external clause (clause != 'n/a') must be verified, so
 // a rule cannot dodge verification by downgrading rule_class from conformance
