@@ -44,7 +44,7 @@ permissions:
 
 jobs:
   typecheck:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -73,7 +73,7 @@ jobs:
         run: pnpm run typecheck
 
   lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -108,7 +108,7 @@ jobs:
         run: pnpm run lint
 
   spec-cases:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -141,7 +141,7 @@ jobs:
         run: pnpm run test:unit
 
   spec-severity-ratchet:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -180,7 +180,7 @@ jobs:
         run: node scripts/audit/check-spec-severity.mjs
 
   spec-verification:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -215,7 +215,7 @@ jobs:
         run: node scripts/audit/check-spec-verification.mjs
 
   spec-quote-integrity:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -254,7 +254,7 @@ jobs:
         run: node scripts/audit/check-spec-drift.mjs --integrity-only
 
   spec-mutation-score:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, micro]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
