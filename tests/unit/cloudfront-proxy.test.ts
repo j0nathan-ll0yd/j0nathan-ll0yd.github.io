@@ -52,6 +52,7 @@ describe('makeCloudfrontProxy', () => {
 })
 
 describe('proxy routes', () => {
+  // covers: llms-txt#Discovery index and full dump are served at the contract paths
   // Every artifact the site serves from its own domain: upstream CloudFront
   // path + the public Content-Type the route owns.
   const routes: Array<[string, () => Promise<Response>, string, string]> = [

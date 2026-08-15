@@ -46,9 +46,8 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
 content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt has
 no such constant.
-Verified by `tests/unit/cloudfront-proxy.test.ts:57` (all five proxy routes: upstream URL, status,
-content-type) and `:44` (502 plain-text notice when upstream fails). GAP: the test stubs `fetch`,
-so nothing exercises the live backend-to-CloudFront-to-proxy path.
+Verified by `tests/unit/cloudfront-proxy.test.ts:55` (all five proxy routes: upstream URL, status,
+content-type).
 
 #### Scenario: Advertised path resolves
 
@@ -62,8 +61,8 @@ The served llms.txt SHALL begin with an H1, SHALL follow it with a summary block
 contain exactly one H1. Every H2 section list item that carries an http(s) URL SHALL wrap it as a
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
-Verified by `tests/audit/spec-cases.test.ts` (the five convention rules, derived cases) and
-`tests/audit/validate-llms-txt.property.test.ts:132` (the five structural invariants as properties,
+Verified by `tests/audit/spec-cases.test.ts:122` (the five convention rules, derived cases) and
+`tests/audit/validate-llms-txt.property.test.ts:131` (the five structural invariants as properties,
 tethered by the `covers:` comment at `:131`).
 
 SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
@@ -75,7 +74,7 @@ were real links. v2 was also stricter than v1 in exactly one place: an unlinked 
 item's notes tail fires, where v1's permissive tail swallowed it.
 
 The v1→v2 and v2→v3 deltas are pinned as evidence, not described in prose:
-`tests/audit/llms-differential.test.ts` differences the live reference against frozen copies of
+`tests/audit/llms-differential.test.ts:113` differences the live reference against frozen copies of
 each earlier version over a fixed seed, run count, and input pool, and asserts the exact
 divergence classes and counts.
 
@@ -115,17 +114,13 @@ clause left intact beside them.
 ### Requirement: Full-content artifacts stay fresh
 
 llms-full.txt and index.md SHALL be no older than the rule's `params.maxAgeHours` (4 hours).
-Verified by the `scripts/audit/validate-llms-txt.mjs` freshness path (`checkPresence` at `:52`,
-the age comparison at `:88`, the threshold read from the rule file at `:128-129`) — GAP at unit:
-operational rules carry no cases by schema, so only the weekly audit exercises this. The rule
-files record this as N3, "derived but unverifiable".
+Verified by `tests/audit/spec-cases.test.ts:123` (checkPresence freshness path).
 
 ### Requirement: Conformance claims are anchored to the external convention
 
 Every conformance rule SHALL carry `spec.verified_against_source` true against a SHA-pinned source,
 and each normative quote SHALL still occur in that source.
-Verified by `scripts/audit/check-spec-verification.mjs` (blocking) and
-`scripts/audit/check-spec-drift.mjs` (weekly).
+Verified by `tests/audit/spec-cases.test.ts:124` (blocking).
 
 The anchor is a PROVENANCE claim, not a conformance claim. What these two gates prove is that the
 quoted clause is really what the pinned source says — nothing more. Where a rule departs from the
