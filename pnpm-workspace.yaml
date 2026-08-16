@@ -13,6 +13,12 @@
 # major-bump ignore rules in .github/dependabot.yml.
 overrides:
   vite-plugin-pwa: ^1.3.0
+  # Security: force the patched nanoid across the transitive tree. nanoid < 3.3.18
+  # (resolved 3.3.16 here, pulled in transitively) is GHSA-2v37-7h3g-55p8 --
+  # predictable output when fed a non-integer size. No direct dependency, so this
+  # override is the pin; Dependabot's normal patch bumps still apply on top. Drop
+  # once every parent's range floats to >=3.3.18 on its own.
+  nanoid@<3.3.18: ^3.3.18
 
 # Translated from the npm-only `.npmrc` `legacy-peer-deps=true`. @vite-pwa/astro
 # (<=1.2.0) caps its astro peer at ^5 while this project is on astro 7, so a
