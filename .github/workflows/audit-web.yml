@@ -46,7 +46,9 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')) ||
       (github.event_name == 'schedule' && github.event.schedule == '17 6 * * *')
-    runs-on: [self-hosted, linux, arm64, node]
+    # playwright label: Chromium is preinstalled in the runner-playwright image; the node
+    # label cannot `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
+    runs-on: [self-hosted, linux, arm64, playwright]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,9 +73,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
+      # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add `playwright install`.
       - name: B1 -- production smoke suite (scheduled, not just post-deploy)
         id: smoke
         continue-on-error: true
@@ -123,7 +123,10 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')) ||
       (github.event_name == 'schedule' && github.event.schedule == '23 5 * * 1')
-    runs-on: [self-hosted, linux, arm64, node]
+    # playwright label: Chromium is preinstalled in the runner-playwright image (shared by
+    # B3 LHCI / B4 pa11y via the resolved executablePath below); the node label cannot
+    # `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
+    runs-on: [self-hosted, linux, arm64, playwright]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -163,9 +166,8 @@ jobs:
       # while developing this workflow (a Puppeteer-downloaded Chrome build
       # whose .zip was missing its nested Frameworks bundle -- unrelated to
       # this repo, but a real local failure mode for this class of tooling).
-      - name: Install Playwright Chromium (shared by B3/B4)
-        run: pnpm exec playwright install --with-deps chromium
-
+      # Chromium is PREINSTALLED in the runner-playwright image; resolve its path below
+      # (shared by B3 LHCI / B4 pa11y) instead of `playwright install`.
       - name: Resolve shared Chrome path
         id: chrome
         run: |

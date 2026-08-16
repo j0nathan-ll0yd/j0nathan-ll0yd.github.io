@@ -43,7 +43,10 @@ permissions:
 jobs:
   smoke-check:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    runs-on: [self-hosted, linux, arm64, node]
+    # playwright label: the runner-playwright image (FROM mcr.microsoft.com/playwright)
+    # ships Chromium + system deps preinstalled. The node label cannot `playwright install
+    # --with-deps` -- apt-get to ports.ubuntu.com is blocked by the runner's egress isolation.
+    runs-on: [self-hosted, linux, arm64, playwright]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -70,9 +73,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
+      # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add
+      # `playwright install` (matches visual-tests.yml).
       - name: Run production smoke check
         id: smoke
         # The just-deployed commit; the smoke check asserts the live version.json
