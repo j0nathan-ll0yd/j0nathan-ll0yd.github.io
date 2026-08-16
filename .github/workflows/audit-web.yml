@@ -46,7 +46,7 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')) ||
       (github.event_name == 'schedule' && github.event.schedule == '17 6 * * *')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -123,7 +123,7 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')) ||
       (github.event_name == 'schedule' && github.event.schedule == '23 5 * * 1')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -299,7 +299,7 @@ jobs:
     if: >-
       (github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')) ||
       (github.event_name == 'schedule' && github.event.schedule == '41 4 2 * *')
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
