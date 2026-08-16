@@ -16,8 +16,10 @@ const isCI = !!process.env.CI
 
 export default defineConfig({
   testDir: './tests/behavioral',
-  testMatch: '**/*.spec.ts',
-
+  // The signed OpenSpec covers contract deliberately scans only `*.test.ts`.
+  // Keep these two conformance matrices on that suffix and name them explicitly
+  // so Playwright executes their requirement tethers without broadening discovery.
+  testMatch: ['**/*.spec.ts', '**/bookshelf-matrix.test.ts', '**/theatre-reviews-matrix.test.ts'],
   fullyParallel: false,
   workers: 1,
   forbidOnly: isCI,
