@@ -73,6 +73,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Distinguish a self-hosted runner egress outage from a real site regression BEFORE
+      # the continue-on-error checks run, so an egress outage reds the job with an
+      # actionable message instead of masking as a smoke no-op (2026-08-17 incident).
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash scripts/audit/preflight-egress.sh
+
       # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add `playwright install`.
       - name: B1 -- production smoke suite (scheduled, not just post-deploy)
         id: smoke
@@ -150,6 +156,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Distinguish a self-hosted runner egress outage from a real site regression before
+      # the continue-on-error checks run (2026-08-17 incident).
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash scripts/audit/preflight-egress.sh
 
       # validate-sitemap.mjs shells out to xmllint (scripts/audit/vendor/*.xsd
       # schema validation) -- present by default on macOS but NOT preinstalled
@@ -325,6 +336,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Distinguish a self-hosted runner egress outage from a real site regression before
+      # the continue-on-error checks run (2026-08-17 incident).
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash scripts/audit/preflight-egress.sh
 
       - name: B2 -- security.txt RFC 9116 expiry
         id: security_txt
