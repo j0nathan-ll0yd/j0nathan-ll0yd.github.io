@@ -14,10 +14,10 @@ importers:
     dependencies:
       '@j0nathan-ll0yd/copy':
         specifier: ^1.0.0
-        version: 1.0.1
+        version: 1.0.2
       '@j0nathan-ll0yd/fixtures':
         specifier: ^1.0.3
-        version: 1.0.6
+        version: 1.0.7
       '@j0nathan-ll0yd/portal-contract':
         specifier: ^1.0.0
         version: 1.0.2
@@ -29,7 +29,7 @@ importers:
         version: 2.2.0
       '@j0nathan-ll0yd/web':
         specifier: ^2.0.0
-        version: 2.0.3
+        version: 2.0.4
       astro:
         specifier: ^7.1.3
         version: 7.1.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@25.3.0)(rollup@4.60.4)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -1730,11 +1730,11 @@ packages:
     peerDependencies:
       eslint: '>=10.0.0'
 
-  '@j0nathan-ll0yd/copy@1.0.1':
-    resolution: {integrity: sha512-SCtN843tdW0fT0SUs5XZEtplthJTfWhXnctLkYiYnzN5h6dgOVrMHLzN0thYyODzztmtqt1hhVCJDQ+ygPlA5w==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/1.0.1/7faac3ea181ddd5e89b1f322729b9ffde3374a12}
+  '@j0nathan-ll0yd/copy@1.0.2':
+    resolution: {integrity: sha512-rxyk502PzI8jNyXYaJisvY81OB+wXt1lQjraC9USx/SqDTEAq4gd7FeKUD/QfgyRqEvchScKqzkrCORKzcmMJQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/1.0.2/0144bd93c7648087832eb2926db56586a6022c37}
 
-  '@j0nathan-ll0yd/fixtures@1.0.6':
-    resolution: {integrity: sha512-ahwzWmqhOgHbp9YTSVKHaEyYsZFiq/GQBqcOwpNzR8AAen98Y8PmlL7tPHweCwrf9CS75LjHYAZBvZyvhQKgwg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.0.6/563682ae12cb14ce9b7fd501f1b29fa711b9e433}
+  '@j0nathan-ll0yd/fixtures@1.0.7':
+    resolution: {integrity: sha512-ERew0UT0psaNCHAq9K8XmBNecbAKfGVf7GGwiJ/8ebyH7cUR2yKMKVqOW9wzhk9GoPHjtUASvHgy2idztq9kPg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.0.7/790a23167344ceab7b70db930916cc4a9dc56ff7}
 
   '@j0nathan-ll0yd/portal-contract@1.0.2':
     resolution: {integrity: sha512-+Dv/8iQxp8OCv/lQmn6TvAhu7bmqgkKKDQvxs2kn6BFEf2ayJ6vHVSd7inIQ8yxIwZ10EN914cMzwBII6eX/RQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/1.0.2/0ed9363fb96ef1356a3176ca1e4642f8165492b5}
@@ -1745,8 +1745,8 @@ packages:
   '@j0nathan-ll0yd/tokens@2.2.0':
     resolution: {integrity: sha512-FH7hnVGIFqvfHF+3WJFIh5OdDAA8rOmD8bXSzMZwInWImx2oxu+s8byrpzWzwnWUjihEWmpvAa3ghprxsmdiBw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.2.0/d00918b7b9025568913f7436e8e1b67ae5572cce}
 
-  '@j0nathan-ll0yd/web@2.0.3':
-    resolution: {integrity: sha512-pu+mwc9nKswo4ghjx7gyHS/AO8PJHJDkJlO0U5G3lPYqalMwdrh1x4d+6pP6s/mHLAcy/kaOqYczfkUqxFLn+A==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/2.0.3/3cbc0040a70574d1a7b332e25a8c904b49113592}
+  '@j0nathan-ll0yd/web@2.0.4':
+    resolution: {integrity: sha512-Xw7USC9ruz9lVuAP6W9PAo4zlEMqwDUTnlr1bY6owBfZwwAn4OAeqoXhn8avDLIsROXiZT23PN4lPX7nbp+pLA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/2.0.4/a2e3d0992f141f7ae65fe3cbb4b0feb65dfe9b38}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -7459,13 +7459,13 @@ snapshots:
       - supports-color
       - typescript
 
-  '@j0nathan-ll0yd/copy@1.0.1': {}
+  '@j0nathan-ll0yd/copy@1.0.2': {}
 
-  '@j0nathan-ll0yd/fixtures@1.0.6':
+  '@j0nathan-ll0yd/fixtures@1.0.7':
     dependencies:
       '@j0nathan-ll0yd/portal-contract': 1.0.2
       '@j0nathan-ll0yd/schemas': 2.0.0
-      '@j0nathan-ll0yd/web': 2.0.3
+      '@j0nathan-ll0yd/web': 2.0.4
 
   '@j0nathan-ll0yd/portal-contract@1.0.2': {}
 
@@ -7477,9 +7477,9 @@ snapshots:
 
   '@j0nathan-ll0yd/tokens@2.2.0': {}
 
-  '@j0nathan-ll0yd/web@2.0.3':
+  '@j0nathan-ll0yd/web@2.0.4':
     dependencies:
-      '@j0nathan-ll0yd/copy': 1.0.1
+      '@j0nathan-ll0yd/copy': 1.0.2
       '@j0nathan-ll0yd/portal-contract': 1.0.2
       '@j0nathan-ll0yd/tokens': 2.2.0
 
