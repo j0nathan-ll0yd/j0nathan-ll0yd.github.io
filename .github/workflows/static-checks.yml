@@ -25,6 +25,16 @@ name: Static Checks
 #   - spec-mutation-score: `pnpm exec stryker run` -- the sufficiency claim (§2 DR2)
 #     over the three pure pilot functions (validateSecurityTxt, validateLlmsTxt,
 #     validateFeedJson).
+#   - covers-conformance: `node scripts/openspec-covers.mjs --blocking`
+#     (= `pnpm run check:covers`) -- the openspec-covers gate (atlas decision
+#     0072, finding M6): every requirement in openspec/specs/**/spec.md must
+#     have a resolving `covers:` tether in tests/, and every tether must name a
+#     real requirement. The rule is the vendored contract
+#     (scripts/vendor/openspec-covers.mjs, COVERS_SPEC_VERSION 3), byte-pinned
+#     by tests/unit/openspec-covers.integrity.test.ts and re-checked by the
+#     wrapper itself. Zero external deps (node builtins only), so this job
+#     skips pnpm install and GitHub Packages auth on purpose -- registry
+#     liveness never gates it.
 #
 # All six need the @j0nathan-ll0yd/* packages resolved (src and
 # scripts/audit/**/*.mjs both import them). Those packages are published to
@@ -286,3 +296,23 @@ jobs:
       # `stryker run` itself exits non-zero below it, no `|| true`.
       - name: Mutation score (stryker)
         run: pnpm exec stryker run
+
+  covers-conformance:
+    runs-on: [self-hosted, linux, arm64, node]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+
+      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper
+      # verifies the vendored contract's sha256 pin, then checks every
+      # openspec requirement <-> covers: tether both ways. Node builtins only:
+      # no pnpm install, no GitHub Packages auth, so a registry outage never
+      # gates this job. No `|| true` -- a non-zero exit MUST fail the job
+      # (S3 no-op-gate hazard). Same invocation as `pnpm run check:covers`.
+      - name: Covers conformance (openspec-covers, blocking)
+        run: node scripts/openspec-covers.mjs --blocking
