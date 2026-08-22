@@ -147,7 +147,6 @@ in the catalog checks its clause as quoted.
   correctness against real upstream content rests on the weekly audit alone.
 - The upstream producer is out of this repo; nothing here asserts what it composes.
 - Operational rules (fetch, freshness) have no unit cases by schema.
-- llms-small.txt exists in the contract but has no proxy and no check.
 - llms.txt has no LLM_CONTENT_PATHS entry (llms-full and index.md do) — a contract asymmetry.
 
 ## Enforcement note
