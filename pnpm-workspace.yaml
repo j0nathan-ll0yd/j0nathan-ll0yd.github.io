@@ -68,6 +68,7 @@ minimumReleaseAgeExclude:
   - '@j0nathan-ll0yd/config'
   - '@j0nathan-ll0yd/copy'
   - '@j0nathan-ll0yd/fixtures'
+  - '@j0nathan-ll0yd/observability'
   - '@j0nathan-ll0yd/portal-contract'
   - '@j0nathan-ll0yd/schemas'
   - '@j0nathan-ll0yd/tokens'

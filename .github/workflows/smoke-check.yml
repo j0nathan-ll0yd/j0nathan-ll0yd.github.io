@@ -73,6 +73,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Fail before the report-only smoke step when the self-hosted runner cannot reach
+      # external hosts. A responding 5xx still passes this transport probe and remains a
+      # site/app failure for Playwright to report (issue #186).
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash scripts/audit/preflight-egress.sh
+
       # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add
       # `playwright install` (matches visual-tests.yml).
       - name: Run production smoke check
