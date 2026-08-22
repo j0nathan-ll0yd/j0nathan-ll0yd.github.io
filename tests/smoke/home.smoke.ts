@@ -76,7 +76,7 @@ test.describe('production home dashboard', () => {
   test('raw HTML is edge-composed and contains no fixture-backed live widgets', async ({page}) => {
     const response = await getStable(page.request, '/', {headers: {Accept: 'text/html'}})
     expect(response.status(), 'home page did not return HTTP 200').toBe(200)
-    expect(['live', 'partial', 'fixture']).toContain(response.headers()['x-ssr-data'])
+    expect(['live', 'partial', 'unavailable']).toContain(response.headers()['x-ssr-data'])
 
     const html = await response.text()
     expect(html).toContain('id="ssrDashboardSnapshot"')

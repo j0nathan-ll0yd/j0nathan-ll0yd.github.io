@@ -101,7 +101,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('Content-Type', 'text/html; charset=utf-8')
   headers.set('Cache-Control', 'no-store')
   const liveCount = Object.values(snapshot).filter((domain) => domain.source === 'live').length
-  headers.set('X-SSR-Data', liveCount === Object.keys(snapshot).length ? 'live' : liveCount === 0 ? 'fixture' : 'partial')
+  headers.set('X-SSR-Data', liveCount === Object.keys(snapshot).length ? 'live' : liveCount === 0 ? 'unavailable' : 'partial')
   varyOnClientShell(headers)
   return new Response(html, {status: 200, headers})
 }

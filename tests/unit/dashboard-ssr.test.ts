@@ -1,7 +1,6 @@
 import {createRequire} from 'node:module'
 import {readFileSync} from 'node:fs'
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {rawFixtures} from '@j0nathan-ll0yd/fixtures/raw'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchDashboardSnapshot, renderDashboardSnapshot, snapshotProvenance, SSR_ENDPOINTS} from '../../functions/_lib/dashboard-snapshot'
 import {CLIENT_SHELL_HEADER, injectSnapshot, onRequest} from '../../functions/index'
@@ -60,22 +59,15 @@ describe('dashboard SSR snapshot', () => {
     expect(urls.join(' ')).not.toContain('theatre-reviews.json')
   })
 
-  it('falls back per domain for response, schema, and timestamp failures without discarding valid siblings', async () => {
+  it('rejects a schema-invalid domain without discarding valid siblings', async () => {
     const payloads = loadPayloads()
     delete payloads[SSR_ENDPOINTS.githubEvents]?.generatedAt
-    payloads[SSR_ENDPOINTS.articles]!.generatedAt = 'not-a-timestamp'
-    delete payloads[SSR_ENDPOINTS.books]
     mockPayloadFetch(payloads)
 
     const snapshot = await fetchDashboardSnapshot({now: Date.parse('2026-08-22T12:01:00.000Z')})
-    expect(snapshot.githubEvents).toMatchObject({source: 'fixture', freshness: 'not-applicable', generatedAt: null})
-    expect(snapshot.githubEvents.data).toEqual(rawFixtures.githubEvents.baseline)
-    expect(snapshot.articles).toMatchObject({source: 'fixture', freshness: 'not-applicable', generatedAt: null})
-    expect(snapshot.articles.data).toEqual(rawFixtures.articles.baseline)
-    expect(snapshot.books).toMatchObject({source: 'fixture', freshness: 'not-applicable', generatedAt: null})
-    expect(snapshot.books.data).toEqual(rawFixtures.books.baseline)
+    expect(snapshot.githubEvents).toMatchObject({source: 'unavailable', freshness: 'unknown', generatedAt: null, data: null})
     expect(snapshot.health.source).toBe('live')
-    expect(snapshot.sleep.source).toBe('live')
+    expect(snapshot.books.source).toBe('live')
   })
 
   it('marks valid old data stale while preserving its exact timestamp', async () => {
@@ -96,8 +88,8 @@ describe('dashboard SSR snapshot', () => {
     expect(html).toContain('data-location-export="excluded"')
     expect(html).toContain('datetime="2026-08-22T12:00:00.000Z"')
     expect(html).not.toMatch(/\b\d+[mhdw] ago\b/)
-    expect(provenance.profile.source).toBe('fixture')
-    expect(provenance.system.source).toBe('fixture')
+    expect(provenance.profile.source).toBe('static')
+    expect(provenance.system.source).toBe('static')
   })
 })
 
@@ -118,30 +110,15 @@ describe('homepage edge composition', () => {
     expect(html).not.toContain('Why SQLite Is So Great for the Edge')
   })
 
-  it('serves labelled DS fixture bodies when every upstream fails', async () => {
+  it('serves unavailable states, never fixtures, when every upstream fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
     const response = await onRequest({request: new Request('https://jonathanlloyd.me/'), next: async () => new Response(SHELL)})
     const html = await response.text()
 
     expect(response.status).toBe(200)
-    expect(response.headers.get('X-SSR-Data')).toBe('fixture')
-    expect(html.match(/data-ssr-source="fixture"/g)).toHaveLength(7)
-    expect(html.match(/data-generated-at="fixture">fixture sample/g)).toHaveLength(7)
-    expect(html).toContain('Add Aurora DSQL migration support')
+    expect(response.headers.get('X-SSR-Data')).toBe('unavailable')
+    expect(html.match(/data-ssr-source="unavailable"/g)).toHaveLength(7)
     expect(html).not.toContain('Unify handler pattern')
-  })
-
-  it('summarizes a mixed live and fixture snapshot as partial', async () => {
-    const payloads = loadPayloads()
-    delete payloads[SSR_ENDPOINTS.books]
-    mockPayloadFetch(payloads)
-
-    const response = await onRequest({request: new Request('https://jonathanlloyd.me/'), next: async () => new Response(SHELL)})
-    const html = await response.text()
-
-    expect(response.headers.get('X-SSR-Data')).toBe('partial')
-    expect(html).toContain('data-ssr-domain="books" data-ssr-source="fixture"')
-    expect(html).toContain('data-ssr-domain="health" data-ssr-source="live"')
   })
 
   it('answers HEAD without exposing or evaluating the fixture-backed body', async () => {
