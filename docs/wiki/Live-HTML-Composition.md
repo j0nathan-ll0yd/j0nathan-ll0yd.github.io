@@ -8,11 +8,11 @@ The deployed homepage must never present Design System fixture activity as factu
 
 Location, focus state, and theatre reviews are deliberately absent from the public HTML snapshot. Location is a privacy exclusion. Focus is a privacy control rather than dashboard content. Theatre reviews have no server-rendered live presentation in this stage. Their fixture-rendered widgets are removed with the rest of the fixture region.
 
-Profile identity and system presentation are outside that replaceable region. They are the documented static-content exception and are labelled `source: static` in the page provenance.
+Profile identity and system presentation are outside that replaceable region. They have no raw backend export, remain DS-owned samples, and are honestly labelled `source: fixture` in the page provenance.
 
 ## Provenance and freshness
 
-Each live card carries `data-ssr-domain`, `data-ssr-source`, `data-ssr-freshness`, and, when known, `data-generated-at`. The HTML also contains a `meta[name="ssr-data"]` JSON provenance map and an `X-SSR-Data` response summary. Visible source times are absolute source timestamps; the edge does not invent relative times.
+Each card carries `data-ssr-domain`, `data-ssr-source`, `data-ssr-freshness`, and, for live data, `data-generated-at`. The HTML also contains a `meta[name="ssr-data"]` JSON provenance map. Successful GET responses summarize the seven fetched domains with `X-SSR-Data: live|partial|fixture`. Visible live-source times are absolute source timestamps; the edge does not invent relative times. A fallback card visibly says `fixture sample` and reports `freshness: not-applicable` rather than presenting a fixture timestamp as real provenance.
 
 Freshness thresholds are domain-specific:
 
@@ -22,7 +22,7 @@ Freshness thresholds are domain-specific:
 | Workouts, GitHub activity | 7 days |
 | Articles, books, starred repositories | 30 days |
 
-A valid older export remains visible but is marked stale. Fetch errors, timeouts, non-2xx responses, malformed JSON, schema failures, and invalid generation timestamps produce an explicit per-domain unavailable state. A failed domain never borrows fixture content and does not discard valid sibling domains. The seven fetches have a 2.5-second bound and a 60-second Cloudflare fetch cache hint.
+A valid older export remains visible but is marked stale. Fetch errors, timeouts, non-2xx responses, malformed JSON, schema failures, and invalid generation timestamps fall back only the affected domain to its baseline from `@j0nathan-ll0yd/fixtures/raw`. Fallback data is always present, explicitly labelled `source: fixture`, and never discards valid live sibling domains. The package's deterministic raw-fixture factories read Node's `process.env` override seam, so `wrangler.jsonc` pins `nodejs_compat` for both local and deployed Pages Functions. The seven fetches have a 2.5-second bound and a 60-second Cloudflare fetch cache hint.
 
 If the static shell cannot be read or its replacement markers are missing, the Function fails closed with a minimal non-indexable 503 page. It never passes through the fixture-backed document.
 
@@ -34,8 +34,8 @@ The fragment response contains only the marker-bounded dashboard fragment, uses 
 
 ## Verification
 
-`tests/unit/dashboard-ssr.test.ts` covers endpoint allowlisting, privacy exclusion, schema isolation, stale timestamps, provenance, all-upstream failure, fixture removal, closed failure, and the private fragment boundary. The normal build remains network-free. For local Pages integration after `pnpm build`, run:
+`tests/unit/dashboard-ssr.test.ts` covers endpoint allowlisting, privacy exclusion, isolated response/schema/timestamp fallbacks, stale live timestamps, provenance, all-upstream fallback, build-shell replacement, closed failure, and the private fragment boundary. The normal build remains network-free. For local Pages integration after `pnpm build`, run:
 
 ```bash
-pnpm exec wrangler pages dev dist --compatibility-date=2026-06-10
+pnpm exec wrangler pages dev
 ```

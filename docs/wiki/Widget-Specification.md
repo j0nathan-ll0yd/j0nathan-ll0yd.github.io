@@ -224,7 +224,7 @@ CLIENT RUNTIME:
   CloudFront endpoints → fetch (api.ts) → adapter functions (adapters.ts) → updater functions (updaters.ts) → DOM
 ```
 
-Build-time fixtures are DS-owned (Plan #04, see [Section 6.4](#64-generated-fixture-data)); this repo reads no `data/*.json` and hand-bakes no fixtures. The deployed root Function replaces the complete fixture-backed region before returning public HTML, so no-JS clients and crawlers receive live validated values or explicit unavailable states. The post-adapter set every test consumer reads is the uniform standard triad (`empty` / `baseline` / `full`); the raw pre-adapter set additionally keeps domain-specific extras (e.g. `over-ten`, `full-90-days`). See DS `GOVERNANCE.md` P3.2 and [Live HTML Composition](Live-HTML-Composition.md).
+Build-time fixtures are DS-owned (Plan #04, see [Section 6.4](#64-generated-fixture-data)); this repo reads no `data/*.json` and hand-bakes no fixtures. The deployed root Function replaces the complete fixture-backed region before returning public HTML, so no-JS clients and crawlers receive schema-validated live values when available. A failed source falls back only that domain to its DS-owned raw baseline and visibly reports `source: fixture`; valid siblings remain live. The post-adapter set every test consumer reads is the uniform standard triad (`empty` / `baseline` / `full`); the raw pre-adapter set additionally keeps domain-specific extras (e.g. `over-ten`, `full-90-days`). See DS `GOVERNANCE.md` P3.2 and [Live HTML Composition](Live-HTML-Composition.md).
 
 ### 4.2 CloudFront Endpoints
 

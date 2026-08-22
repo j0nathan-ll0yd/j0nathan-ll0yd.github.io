@@ -33,7 +33,7 @@ Astro creates a deterministic Design System shell from package-owned fixtures. A
 
 - **Astro 7 static output** -- deterministic, network-free build input and selective client runtime.
 - **Design System** (`@j0nathan-ll0yd/web`, `@j0nathan-ll0yd/tokens`, `@j0nathan-ll0yd/schemas`) -- published from `design-system-Lifegames` to GitHub Packages; source of all widgets, CSS tokens, and fixture schemas.
-- **Pages edge composition** -- seven raw exports are independently Ajv-validated against `@j0nathan-ll0yd/portal-contract`; failures render explicit unavailable states and never fixture claims.
+- **Pages edge composition** -- seven raw exports are independently Ajv-validated against `@j0nathan-ll0yd/portal-contract`; each failed domain renders its DS-owned baseline with explicit `fixture` provenance while valid siblings stay live.
 - **CloudFront data layer** -- live data is also fetched after page load; polled (30s fast / 120s slow) with WebSocket fallback.
 
 ## Testing
@@ -53,14 +53,14 @@ pnpm run test:visual:update      # regenerate baselines in Docker (only sanction
 Three data paths feed the dashboard:
 
 - **Build-time** -- `src/lib/load-dashboard-data.ts` returns the DS-owned deterministic shell from `@j0nathan-ll0yd/fixtures` (`getDashboardFixture()`). `import.meta.env.FIXTURE_VARIATION` selects a named test variation; default is `baseline`.
-- **Public HTML** -- `functions/index.ts` fetches and validates the approved raw exports at the edge, removes the entire fixture region, and composes live semantic HTML with per-domain source, freshness, and exact generation time. Location is explicitly excluded.
+- **Public HTML** -- `functions/index.ts` fetches and validates the approved raw exports at the edge, removes the entire build-time fixture region, and composes semantic HTML with per-domain `live|fixture` source, freshness, and exact live generation time. A source hiccup falls back only that domain to the DS baseline and labels it as a fixture sample. Location is explicitly excluded.
 - **Runtime** -- the client polls CloudFront JSON endpoints via `@j0nathan-ll0yd/web/runtime/live-data` for live values once the page loads.
 
 Consumer-side fixtures are forbidden (Invariant I2, enforced by `pnpm run audit:fixtures` in the prebuild gate). Visual tests render reproducible snapshots by intercepting the CloudFront endpoints and serving raw fixtures from `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json`. See [Live HTML Composition](docs/wiki/Live-HTML-Composition.md) for provenance and failure semantics.
 
 ## Deploy
 
-Push to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`): `pnpm build` then `cloudflare/wrangler-action@v4` deploys `dist/` and `functions/` to the `human-datastream` Cloudflare Pages project. No manual deploy step.
+Push to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`): `pnpm build` then `cloudflare/wrangler-action@v4` deploys `dist/` and `functions/` to the `human-datastream` Cloudflare Pages project. `wrangler.jsonc` pins the Pages runtime compatibility used locally and in production, including the Node.js compatibility required by the published raw-fixture factories. No manual deploy step.
 
 ## Documentation
 
