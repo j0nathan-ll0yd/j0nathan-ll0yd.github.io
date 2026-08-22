@@ -8,3 +8,11 @@
 m\.media-amazon\.com
 images-na\.ssl-images-amazon\.com
 basemaps\.cartocdn\.com
+
+# Exact bot-specific false positives verified 2026-08-22. LinkedIn returns its
+# non-standard anti-automation 999 to Lychee while the profile resolves in a
+# browser. Cloudflare rewrites the privacy-page mailto links to this same-origin
+# email-obfuscation route, which intentionally has no standalone GET resource.
+# Keep both patterns path-specific; GitHub and HTTP error classes stay checked.
+^https://www\.linkedin\.com/in/lifegames/?$
+^https://jonathanlloyd\.me/cdn-cgi/l/email-protection$
