@@ -40,10 +40,9 @@ const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/csp-repo
 // report per innerHTML sink while it runs.
 const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint"
 
-const LINK_HEADER = [
+export const LINK_HEADER = [
   '</llms.txt>; rel="describedby"; type="text/plain"',
   '</.well-known/api-catalog>; rel="api-catalog"',
-  '</.well-known/agent-card.json>; rel="https://www.agentcard.org/rel"',
   '</.well-known/ai-catalog.json>; rel="ai-catalog"',
   '</sitemap-index.xml>; rel="sitemap"',
   '</humans.txt>; rel="author"',

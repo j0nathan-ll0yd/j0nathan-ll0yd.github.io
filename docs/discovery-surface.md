@@ -1,9 +1,8 @@
 # Discovery & Well-Known Surface
 
 How `jonathanlloyd.me` makes itself discoverable to humans, search engines, and AI
-agents. Every file below is **generated or route-emitted** (never hand-maintained as a
-static blob), and every agent-facing file is **pinned to a named spec version** with the
-date it was last verified — so drift from a moving spec is detectable rather than silent.
+agents. Every file below is generated or route-emitted, and moving agent-discovery
+specifications carry a point-in-time verification date.
 
 ## At a glance
 
@@ -19,68 +18,89 @@ date it was last verified — so drift from a moving spec is detectable rather t
 | `/.well-known/webfinger`                           | Fediverse alias (JRD)                                       | static + `_middleware.ts`                                               | RFC 7033                               |
 | `/.well-known/mcp/server-card.json`                | MCP server descriptor                                       | `scripts/generate-webmcp.mjs`                                           | MCP server card                        |
 | `/.well-known/agent-skills/index.json`             | Agent Skills discovery index                                | `scripts/generate-webmcp.mjs`                                           | agentskills.io discovery 0.2.0         |
-| `/.well-known/agent-card.json`                     | A2A agent card                                              | `scripts/generate-webmcp.mjs`                                           | **A2A v1.0** (2026-07-07)              |
-| `/.well-known/ai-catalog.json`                     | ARD capability catalog                                      | `scripts/generate-webmcp.mjs`                                           | **ARD `specVersion` 1.0** (2026-07-07) |
+| `/.well-known/ai-catalog.json`                     | ARD capability catalog                                      | `scripts/generate-webmcp.mjs`                                           | **ARD `specVersion` 1.0** (2026-08-22) |
 
 ## Source of truth
 
 The agent-discovery JSON files (`mcp/server-card.json`, `agent-skills/index.json`,
-`agent-card.json`, `ai-catalog.json`) and `public/js/webmcp.js` are all emitted by
-**`scripts/generate-webmcp.mjs`**, wired into `prebuild`. Do **not** hand-edit the static
-files — they are overwritten on the next build. Change the generator instead.
+`ai-catalog.json`) and `public/js/webmcp.js` are emitted by
+`scripts/generate-webmcp.mjs`, which runs during `prebuild`. Do not hand-edit these
+outputs.
 
-- **Prose** (names, descriptions, representative queries) comes from `@j0nathan-ll0yd/copy`
-  (`identity` + `llm` namespaces) — zero wording is duplicated in the repo.
-- **URLs / identifiers** come from `@j0nathan-ll0yd/portal-contract` (`SITE_URL`,
-  `CLOUDFRONT_BASE`, `ENDPOINTS`) so the CDN host never drifts.
+- Prose comes from `@j0nathan-ll0yd/copy` (`identity` + `llm` namespaces).
+- URLs and identifiers come from `@j0nathan-ll0yd/portal-contract` (`SITE_URL`,
+  `CLOUDFRONT_BASE`, `ENDPOINTS`).
 
-Regenerate + verify:
+Regenerate and verify:
 
 ```bash
 pnpm run generate:webmcp
-# then validate agent-card.json against a2aproject/A2A specification/a2a.proto
-# and ai-catalog.json against agenticresourcediscovery/ard-spec spec/schemas/ai-catalog.schema.json
+# Validate ai-catalog.json against ards-project/ard-spec
+# spec/schemas/ai-catalog.schema.json.
 ```
 
 ## Agent-discovery conformance notes
 
-### `agent-card.json` — A2A v1.0
+### ARD `ai-catalog.json` — `specVersion` 1.0
 
-Conforms to the A2A `AgentCard` message in `a2aproject/A2A` `specification/a2a.proto`.
-Required fields present: `name`, `description`, `supportedInterfaces`, `version`,
-`capabilities`, `defaultInputModes`, `defaultOutputModes`, `skills`. There is **no
-top-level `url`** in v1.0 — the endpoint lives inside `supportedInterfaces[]`
-(`url` + `protocolBinding` + `protocolVersion`).
+Verified 2026-08-22 against the canonical
+[`ards-project/ard-spec`](https://github.com/ards-project/ard-spec) repository and its
+authoritative
+[`ai-catalog.schema.json`](https://github.com/ards-project/ard-spec/blob/main/spec/schemas/ai-catalog.schema.json).
+The published specification remains v0.9 draft and the schema still requires
+`specVersion: "1.0"`. A v0.91 editorial draft exists in the repository, but it is
+explicitly marked for review and retains `/.well-known/ai-catalog.json` as a normative
+consumer fallback; this site is not adopting its draft-only `ard.json` publisher shape.
 
-> **Caveat — discovery-only card.** This site is a **read-only data source**, not a live
-> A2A JSON-RPC/gRPC agent. To satisfy the required `supportedInterfaces`, the single
-> interface points at the machine-readable **MCP server-card** (`HTTP+JSON`). Integrators
-> should consume data via the MCP server-card, not by sending A2A tasks. If A2A ever grows
-> a real endpoint, replace this interface entry.
+The catalog contains two honest resources:
 
-### `ai-catalog.json` — ARD `specVersion` 1.0
+- the read-only MCP server descriptor at `/.well-known/mcp/server-card.json`;
+- the Agent Skills index at `/.well-known/agent-skills/index.json`.
 
-Conforms to `agenticresourcediscovery/ard-spec` `spec/schemas/ai-catalog.schema.json`.
-Required: top-level `specVersion` + `entries`; each entry has `identifier` (RFC 8141
-`urn:air:<publisher>:<namespace>:<name>`), `displayName`, `type` (IANA media type), and
-exactly one of `url`/`data`. `host` and each entry are `additionalProperties: false` — no
-stray fields (e.g. the pre-2026-07 files used `name` instead of `displayName`).
+Each entry has the required domain-anchored `urn:air:` identifier, `displayName`, media
+type, and exactly one locator. ARD defines no dedicated media type for the Agent Skills
+index, so that entry remains `application/json`.
 
-> **Caveat — agent-skills entry type.** ARD defines no dedicated media type for an
-> agent-skills index, so that entry is typed `application/json`. The MCP and A2A entries use
-> `application/mcp-server-card+json` and `application/a2a-agent-card+json` respectively.
+### A2A — not advertised
+
+The site does not deploy an A2A server, so it does not publish an A2A Agent Card. The
+previous card only resembled the v1 `AgentCard` structure: its required `HTTP+JSON`
+interface URL was the static MCP server-card document, not an endpoint implementing A2A
+operations. That conflicted with the current A2A requirement that every declared
+interface accurately identify its transport and operational URL.
+
+Evidence verified 2026-08-22:
+
+- the repository has no A2A route or operation handler;
+- a `message/send` POST to the card's advertised MCP document returned HTTP 405;
+- the current A2A
+  [`a2a.proto`](https://github.com/a2aproject/A2A/blob/main/specification/a2a.proto)
+  maps HTTP+JSON send operations to `POST /message:send`, and its
+  [protocol specification](https://github.com/a2aproject/A2A/blob/main/docs/specification.md)
+  defines an Agent Card as metadata published by an A2A server.
+
+Accordingly, `/.well-known/agent-card.json`, its ARD catalog entry, its HTTP `Link`
+advertisement, and its dedicated audit assertions were removed. Do not restore them
+unless a real conforming A2A endpoint is deployed.
+
+## Deferred discovery surfaces
+
+- **DNS-AID / DNS publication:** deferred. The current document is
+  [`draft-mozley-aidiscovery-01`](https://datatracker.ietf.org/doc/draft-mozley-aidiscovery/),
+  last updated 2026-04-16. The IETF Datatracker classifies it as an active individual
+  Internet-Draft, explicitly unendorsed by the IETF and with no formal standing. The
+  2026-08-22 verification found no `_agents.jonathanlloyd.me` SVCB or TXT record. Revisit
+  publication only after a relevant working group adopts a stable mechanism.
+- **Cloudflare NLWeb:** deferred. Cloudflare's
+  [NLWeb integration](https://developers.cloudflare.com/ai-search/how-to/nlweb/) remains a
+  public preview intended for experimentation, while
+  [AI Search pricing](https://developers.cloudflare.com/ai-search/platform/limits-pricing/)
+  remains open-beta pricing with future billing still unspecified. Revisit `/ask` and
+  `/mcp` only after NLWeb leaves preview and AI Search leaves open beta with production
+  terms.
 
 ## Spec-drift watch
 
-These agent-discovery specs are young and moving. Conformance above is **point-in-time
-(2026-07-07)**, not permanent:
-
-- **A2A** cut v1.0 in 2026 (restructured the card into `supportedInterfaces`). Re-check the
-  proto for further field changes.
-- **ARD** is a v0.9 draft whose manifest `specVersion` is `1.0`; field names "may still
-  change," and adoption is near-zero (a 2026-06-18 census found 0/39 major sites serving a
-  discoverable `ai-catalog.json`). This is a first-mover bet.
-- **DNS-AID** and **NLWeb** remain on the _watch_ list — not adopted (individual IETF draft;
-  requires a live LLM endpoint on a paid, non-GA Cloudflare product, respectively).
-
-A recurring issue tracks re-verification of all of the above on a monthly cadence.
+ARD, DNS-AID, NLWeb, A2A, and Agent Skills discovery are moving surfaces. The status
+above is point-in-time as of 2026-08-22, not permanent. A recurring issue tracks monthly
+re-verification.

@@ -106,6 +106,7 @@ Beyond LLM content, the site publishes machine-readable discovery files for AI a
 | `public/.well-known/mcp/server-card.json` | MCP SEP-2127 | Declares read-only data resources for MCP clients |
 | `public/.well-known/agent-skills/index.json` | Agent Skills Discovery v0.2.0 | Skills discovery index |
 | `public/.well-known/agent-skills/portfolio-expert/SKILL.md` | agentskills.io | Curated portfolio context for agents |
+| `public/.well-known/ai-catalog.json` | ARD `specVersion` 1.0 | Catalogs the MCP and Agent Skills resources |
 
 ### Content Signals
 

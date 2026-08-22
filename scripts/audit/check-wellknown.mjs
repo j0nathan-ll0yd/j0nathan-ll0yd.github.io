@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // scripts/audit/check-wellknown.mjs -- B2. Structural assertions for the
-// agent-discovery .well-known surface. Automates the manual monthly A2A/ARD
+// agent-discovery .well-known surface. Automates the manual monthly ARD
 // re-verification chore documented in docs/discovery-surface.md ("A recurring
 // issue tracks re-verification of all of the above on a monthly cadence").
 //
@@ -18,9 +18,8 @@ import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 
 // Pinned per docs/discovery-surface.md "Agent-discovery conformance notes"
-// (point-in-time 2026-07-07). A monthly T3 skill re-verifies these against
+// (point-in-time 2026-08-22). A monthly T3 skill re-verifies this against
 // the upstream specs; bump only after that re-verification, not casually.
-export const PINNED_A2A_SPEC_VERSION = '1.0'
 export const PINNED_ARD_SPEC_VERSION = '1.0'
 
 function assertFields(obj, fields, id, label, findings) {
@@ -51,38 +50,6 @@ export function validateWebfingerShape(json, contentType) {
   return findings
 }
 
-/** agent-card.json (A2A AgentCard). Pure -- testable without network. */
-export function validateAgentCardShape(json) {
-  const findings = []
-  assertFields(json, [
-    'name',
-    'description',
-    'supportedInterfaces',
-    'version',
-    'capabilities',
-    'defaultInputModes',
-    'defaultOutputModes',
-    'skills'
-  ], 'wellknown-agent-card-shape', `agent-card.json (A2A v${PINNED_A2A_SPEC_VERSION})`, findings)
-  if (Array.isArray(json.supportedInterfaces)) {
-    if (json.supportedInterfaces.length === 0) {
-      findings.push({
-        severity: 'fail',
-        id: 'wellknown-agent-card-no-interfaces',
-        message: 'agent-card.json "supportedInterfaces" is empty -- A2A requires at least one'
-      })
-    }
-    for (const iface of json.supportedInterfaces) {
-      assertFields(iface, ['url', 'protocolBinding', 'protocolVersion'], 'wellknown-agent-card-interface-shape',
-        'agent-card.json supportedInterfaces[] entry', findings)
-    }
-  }
-  if (Array.isArray(json.skills) && json.skills.length === 0) {
-    findings.push({severity: 'warn', id: 'wellknown-agent-card-no-skills', message: 'agent-card.json "skills" array is empty'})
-  }
-  return findings
-}
-
 /** ai-catalog.json (ARD -- Agentic Resource Discovery). Pure -- testable without network. */
 export function validateAiCatalogShape(json) {
   const findings = []
@@ -92,7 +59,7 @@ export function validateAiCatalogShape(json) {
       severity: 'warn',
       id: 'wellknown-ai-catalog-spec-version-drift',
       message: `ai-catalog.json "specVersion" is "${json.specVersion}", pinned constant is ` +
-        `"${PINNED_ARD_SPEC_VERSION}" -- re-verify against agenticresourcediscovery/ard-spec`
+        `"${PINNED_ARD_SPEC_VERSION}" -- re-verify against ards-project/ard-spec`
     })
   }
   if (Array.isArray(json.entries)) {
@@ -149,11 +116,9 @@ export function validateApiCatalogShape(json, contentType) {
   return findings
 }
 
-// Never throws -- every failure mode (network error, non-2xx, bad JSON)
-// resolves to `{ error }` so the 5 checks in main() can safely run under a
-// single Promise.all without one rejection discarding the other 4 results
-// (C77 cascade-safety: a bare Promise.all over independent HTTP fetches must
-// not let one throw abort the rest).
+// Never throws -- every expected failure mode (network error, non-2xx, bad
+// JSON) resolves to `{ error }`. main() also uses Promise.allSettled so an
+// unexpected validator rejection cannot discard the other checks (C77).
 async function fetchJson(url, headers) {
   let res
   try {
@@ -183,7 +148,7 @@ async function fetchAndValidate(url, validate, fetchErrorId, headers) {
 }
 
 async function main() {
-  const results = await Promise.all([
+  const settled = await Promise.allSettled([
     fetchAndValidate(
       `${SITE_URL}/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me`,
       validateWebfingerShape,
@@ -192,11 +157,17 @@ async function main() {
       // early-return in functions/_middleware.ts (same header the smoke suite uses).
       {Accept: 'application/jrd+json'}
     ),
-    fetchAndValidate(`${SITE_URL}/.well-known/agent-card.json`, validateAgentCardShape, 'wellknown-agent-card-fetch'),
     fetchAndValidate(`${SITE_URL}/.well-known/ai-catalog.json`, validateAiCatalogShape, 'wellknown-ai-catalog-fetch'),
     fetchAndValidate(`${SITE_URL}/.well-known/mcp/server-card.json`, validateMcpServerCardShape, 'wellknown-mcp-server-card-fetch'),
     fetchAndValidate(`${SITE_URL}/.well-known/api-catalog`, validateApiCatalogShape, 'wellknown-api-catalog-fetch')
   ])
+  const results = settled.map((result) => {
+    if (result.status === 'fulfilled') {
+      return result.value
+    }
+    const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
+    return [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]
+  })
   process.exit(report('check-wellknown', results.flat()))
 }
 
