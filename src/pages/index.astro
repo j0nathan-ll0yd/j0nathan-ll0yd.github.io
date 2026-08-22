@@ -39,6 +39,8 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
     <main id="main-content" class="right-panel">
       <div class="triptych-grid" id="triptychGrid">
 
+        <template id="dashboard-live-start"></template>
+
         <section class="triptych-column triptych-column-body" aria-label={a11y.region.body}>
           <h2 class="column-header column-header-pink">{app.sections.body}</h2>
           {/* Two bento columns: transparent (display:contents) except at the
@@ -66,6 +68,8 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
           <Bookshelf books={books} />
           <TheatreReviews />
         </section>
+
+        <template id="dashboard-live-end"></template>
 
       </div>
     </main>
@@ -106,6 +110,8 @@ const { profile, health, github, reading, books, system, starredRepos } = await 
   <script is:inline src="/js/clock.js"></script>
 
   <script is:inline src="/js/card-reveal.js"></script>
+
+  <script is:inline src="/js/dashboard-shell.js"></script>
 
   {import.meta.env.PROD && <script is:inline src="/js/scroll-depth.js"></script>}
 

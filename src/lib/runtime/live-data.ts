@@ -220,12 +220,9 @@ function handleResourceUpdate(key: ResourceKey, rawData: unknown): void {
 }
 
 // ── Skeleton loading ─────────────────────────────────────────────────
-LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.add('is-loading'))
-
-// Fallback: remove skeletons after 8s if data never arrives
-const fallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
-}, 8000)
+// Production raw HTML carries the truthful edge snapshot. Wait for the private
+// Design System shell bootstrap before querying its widget targets.
+let fallbackTimer: ReturnType<typeof setTimeout> | null = null
 
 // ── Initial fetch + start continuous polling ─────────────────────────
 const startFetch = async () => {
@@ -380,11 +377,26 @@ const startFetch = async () => {
   ws.connect()
 }
 
-if ('requestIdleCallback' in window) {
-  requestIdleCallback(() => void startFetch(), {timeout: 500})
-} else {
-  setTimeout(() => void startFetch(), 200)
+async function bootLiveData(): Promise<void> {
+  const shellWindow = window as Window & {__dashboardShellReady?: Promise<boolean>}
+  const shellReady = await (shellWindow.__dashboardShellReady ?? Promise.resolve(true))
+  if (!shellReady) {
+    return
+  }
+
+  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.add('is-loading'))
+  fallbackTimer = setTimeout(() => {
+    LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  }, 8000)
+
+  if ('requestIdleCallback' in window) {
+    requestIdleCallback(() => void startFetch(), {timeout: 500})
+  } else {
+    setTimeout(() => void startFetch(), 200)
+  }
 }
+
+void bootLiveData()
 
 // ── BFCache lifecycle handlers ────────────────────────────────────────
 // pagehide(persisted=true): browser is freezing the page into BFCache.

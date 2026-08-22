@@ -33,7 +33,7 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `pnpm build` -> `clou
 ├── tests/                        # build (Vitest), visual + smoke (Playwright)
 ├── scripts/                      # fixture validation, image fetch, type gen, CI setup
 ├── public/                       # assets, images, .well-known, manifest
-├── functions/                    # _middleware.ts (security headers) + llms.txt.ts (CloudFront proxy)
+├── functions/                    # Pages edge composition, security headers, data proxies
 └── .github/workflows/            # deploy, visual-tests, smoke-check
 ```
 
@@ -44,12 +44,13 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `pnpm build` -> `clou
 | Context         | Source                                                         | Mechanism                                                             |
 | --------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Build-time      | `@j0nathan-ll0yd/fixtures` (`getDashboardFixture()`)           | `loadDashboardData()` in `index.astro` frontmatter                    |
+| Production HTML | CloudFront raw exports                                          | `functions/index.ts` validates and edge-composes a truthful snapshot  |
 | Visual fixtures | `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
 | Client-side     | CloudFront                                                     | `@j0nathan-ll0yd/web/runtime/live-data.ts` after page load            |
 | Polling         | CloudFront JSON                                                | PollEngine (30s fast, 120s slow), `?_poll=1` bypass                   |
 | WebSocket       | API Gateway                                                    | Adaptive fallback when WS unavailable                                 |
 
-Fixtures are DS-owned (Plan #04): the SSR shell comes from `@j0nathan-ll0yd/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`pnpm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` via CloudFront route interception.
+Fixtures are DS-owned (Plan #04): the deterministic build and visual-test shell comes from `@j0nathan-ll0yd/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). On the deployed homepage, `functions/index.ts` replaces the complete fixture-backed dashboard region before the HTML response leaves the edge. This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`pnpm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` via CloudFront route interception.
 
 ## Design System Integration
 
@@ -65,7 +66,7 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 - **No hardcoded values**: all colors, spacing, and typography come from `@j0nathan-ll0yd/tokens` `var()` custom properties.
 - **No new widgets here**: never create `src/components/*.astro`; widgets belong in the Design System.
 - **Raw scripts are ES2017 (SYNTAX rule)**: `<script is:inline>` bodies and any `public/js/*.js` are served raw (never transpiled by Vite), so their syntax floor is **ES2017** -- `const`/`let`, arrow functions, template literals, and `async`/`await` are all allowed. The site's real browser floor (service workers, PWA, canvas islands) is well above ES5, and async/await has had universal browser support since 2017. Avoid post-ES2017 syntax that lacks universal support. Bundled module scripts (processed by Vite) may use any modern syntax. This rule governs SYNTAX only and is independent of the CSP externalization rule below (CSP dictates _where_ scripts load, not what syntax they use).
-- **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (10 total: `card-reveal`, `clock`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
+- **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (11 total: `card-reveal`, `clock`, `dashboard-shell`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp`, `book-modal`, `social-click-track`). CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
 - **Inline-script gate**: `pnpm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
 - **SW precache gate (Astro 7)**: `scripts/check-sw-precache.mjs` runs in `postbuild` and asserts the Workbox precache manifest in `dist/sw.js` is populated (entry count >= 80% of built assets, app shell present). Catches the silent failure where the PWA build succeeds but ships an empty precache (offline broken) -- the specific risk from `@vite-pwa/astro` (peer-capped at astro ^5) driving Workbox under Vite 8 / Rolldown. The wrapper is kept working via `strictPeerDependencies: false` + a `vite-plugin-pwa ^1.3.0` `overrides` pin, both in `pnpm-workspace.yaml`; see that file for the standing-workaround rationale.

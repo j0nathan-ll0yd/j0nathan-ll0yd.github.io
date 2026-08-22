@@ -73,6 +73,23 @@ const REQUIRED_CONTAINERS = [
 ]
 
 test.describe('production home dashboard', () => {
+  test('raw HTML is edge-composed and contains no fixture-backed live widgets', async ({page}) => {
+    const response = await getStable(page.request, '/', {headers: {Accept: 'text/html'}})
+    expect(response.status(), 'home page did not return HTTP 200').toBe(200)
+    expect(['live', 'partial', 'unavailable']).toContain(response.headers()['x-ssr-data'])
+
+    const html = await response.text()
+    expect(html).toContain('id="ssrDashboardSnapshot"')
+    expect(html).toContain('<meta name="ssr-data"')
+    expect(html).toContain('data-location-export="excluded"')
+    expect(html).not.toContain('id="cardHR"')
+    expect(html).not.toContain('id="cardDevLog"')
+    expect(html).not.toContain('id="cardReading"')
+    expect(html).not.toContain('id="cardBooks"')
+    expect(html).not.toContain('Unify handler pattern')
+    expect(html).not.toContain('Why SQLite Is So Great for the Edge')
+  })
+
   test('serves 200 and the document shell renders', async ({page}) => {
     const response = await page.goto('/', {waitUntil: 'domcontentloaded'})
     expect(response, 'no response object from navigation').not.toBeNull()
