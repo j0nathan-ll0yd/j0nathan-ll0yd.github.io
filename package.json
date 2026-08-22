@@ -21,6 +21,7 @@
     "audit:spec-verification": "node scripts/audit/check-spec-verification.mjs",
     "audit:spec-integrity": "node scripts/audit/check-spec-drift.mjs --integrity-only",
     "audit:spec-drift": "node scripts/audit/check-spec-drift.mjs",
+    "check:covers": "node scripts/openspec-covers.mjs --blocking",
     "build": "astro build",
     "postbuild": "node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",
