@@ -1,0 +1,34 @@
+[
+  {
+    "number": 30,
+    "title": "[audit] B2 feed.xml/feed.json validator",
+    "state": "OPEN",
+    "body": "Please investigate the feed product behavior manually.",
+    "labels": [
+      {"name": "audit"},
+      {"name": "audit:report-only"}
+    ]
+  },
+  {
+    "number": 31,
+    "title": "[audit] B2 feed.xml/feed.json validator",
+    "state": "OPEN",
+    "body": "<!-- audit-check-issue:v1 check-id=another-check -->\n\nA different automated issue.",
+    "labels": [
+      {"name": "audit"},
+      {"name": "audit:report-only"},
+      {"name": "audit:managed"}
+    ]
+  },
+  {
+    "number": 32,
+    "title": "[audit] B2 feed.xml/feed.json validator product follow-up",
+    "state": "OPEN",
+    "body": "<!-- audit-check-issue:v1 check-id=feeds -->",
+    "labels": [
+      {"name": "audit"},
+      {"name": "audit:report-only"},
+      {"name": "audit:managed"}
+    ]
+  }
+]
