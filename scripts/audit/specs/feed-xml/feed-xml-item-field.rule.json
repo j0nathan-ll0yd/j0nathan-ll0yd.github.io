@@ -1,0 +1,46 @@
+{
+  "id": "feed-xml-item-field",
+  "title": "each feed item follows the local title, link, and guid profile",
+  "artifact": "feed.xml",
+  "rule_class": "local-policy",
+  "severity": "fail",
+  "spec": {
+    "name": "RSS 2.0",
+    "clause": "Elements of <item>",
+    "url": "https://www.rssboard.org/rss-specification",
+    "version": "RSS 2.0.11 (March 30, 2009)",
+    "conformance_testable": false,
+    "retrieved": "2026-08-22",
+    "content_sha256": "50adf917d24adbbca33d3649d22c60643d28b15e0be06b0835b03391db469425",
+    "normative_quote": "All elements of an item are optional, however at least one of title or description must be present.... link The URL of the item.... guid A string that uniquely identifies the item.",
+    "note": "RSS permits description without title and makes link and guid optional. This site's feed profile deliberately requires title, link, and guid for every generated item, so the rule is local policy rather than RSS conformance.",
+    "verified_against_source": true,
+    "verified_at": "2026-08-22",
+    "verification_url": "https://www.rssboard.org/rss-2-0-11"
+  },
+  "applicability": "Each item in a parsed RSS channel.",
+  "expectation": "Every item contains non-empty title, link, and guid elements.",
+  "cases": [
+    {
+      "name": "an item is missing its local-profile guid",
+      "outcome": "failed",
+      "input_file": "cases/item-missing-guid.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-xml-item-field",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a conformant, fresh RSS document",
+      "outcome": "passed",
+      "input_file": "cases/valid.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

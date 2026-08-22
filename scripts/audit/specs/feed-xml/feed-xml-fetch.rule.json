@@ -1,0 +1,23 @@
+{
+  "id": "feed-xml-fetch",
+  "title": "feed.xml must be fetchable over HTTP",
+  "artifact": "feed.xml",
+  "rule_class": "operational",
+  "severity": "fail",
+  "untested_rationale": "check-feeds.mjs emits this id when the live feed returns a non-2xx response or transport fails. A body fixture cannot create that condition. The production smoke test checks the route, and the scheduled B2 audit exercises fetchStable against the live origin.",
+  "spec": {
+    "name": "RSS 2.0",
+    "clause": "n/a",
+    "url": "https://www.rssboard.org/rss-specification",
+    "version": "RSS 2.0.11 (March 30, 2009)",
+    "conformance_testable": false,
+    "retrieved": "2026-08-22",
+    "content_sha256": "500228c272c2b9e93960a1eab30077b6ac9c4a90ba53c361fedbc5c40380cf0e",
+    "normative_quote": "RSS 2.0 specifies a document format. It does not define this repository's handling of transport failures while fetching feed.xml.",
+    "note": "No specification clause applies to this operational failure path.",
+    "verified_against_source": false,
+    "verification_note": "Clause n/a. The quote states why this operational transport rule has no external source clause."
+  },
+  "applicability": "A live HTTP request for feed.xml.",
+  "expectation": "The request succeeds with a 2xx response before body validation begins."
+}

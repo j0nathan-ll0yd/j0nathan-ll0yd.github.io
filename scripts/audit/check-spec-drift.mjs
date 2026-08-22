@@ -36,10 +36,9 @@
 // SOURCE PINNING IS A PRECONDITION, ALREADY MET. ADR 0011 flagged that a naive
 // page hash churns on any copy edit for the two LIVING sources (llmstxt.org,
 // jsonfeed.org). That blocker is gone: follow-up (a) (PR #155) constrains
-// spec.verification_url at load time to an immutable RFC plaintext or a
-// 40-hex-SHA-pinned raw.githubusercontent.com blob, so every re-fetch reads
-// identical bytes by construction. All 15 externally-cited rules resolve to
-// exactly THREE such URLs.
+// spec.verification_url at load time to an immutable RFC plaintext, a
+// 40-hex-SHA-pinned raw.githubusercontent.com blob, or an archived numbered
+// RSS Advisory Board specification. A living source URL is not accepted.
 //
 // TIER SPLIT (B10 is per-assertion -- ADR 0011's own precedent). The two
 // halves do not belong at the same altitude:
@@ -60,6 +59,7 @@ import {createHash} from 'node:crypto'
 import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import * as cheerio from 'cheerio'
 import {artifacts} from './specs/load.mjs'
 
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'specs')
@@ -113,9 +113,28 @@ export function demarkMarkdown(s) {
   return String(s).replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/[`*_]/g, '')
 }
 
+/**
+ * Reduce an HTML specification to rendered text. RSS Advisory Board archives
+ * are immutable, versioned HTML pages. Separating block and table elements
+ * keeps adjacent cells from being concatenated before whitespace collapses.
+ */
+export function dehtml(s) {
+  const source = String(s)
+  if (!/(?:<!doctype\s+html|<html\b)/i.test(source)) {
+    return source
+  }
+  const $ = cheerio.load(source)
+  $('script, style, noscript').remove()
+  $('br, p, div, li, tr, td, th, h1, h2, h3, h4, h5, h6').each((_index, element) => {
+    $(element).before(' ')
+    $(element).after(' ')
+  })
+  return $.root().text()
+}
+
 /** Canonical comparison form: normalized, then de-marked. */
 export function comparable(s) {
-  return demarkMarkdown(normalizeText(s))
+  return demarkMarkdown(normalizeText(dehtml(s)))
 }
 
 /** Split a normative_quote into its spliced passages, in order. */

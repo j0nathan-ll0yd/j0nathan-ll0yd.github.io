@@ -18,7 +18,14 @@
 
 import {createHash} from 'node:crypto'
 import {describe, expect, it, vi} from 'vitest'
-import {checkIntegrityOnly, checkQuoteIntegrity, checkSourceDrift, MIN_SEGMENT_CHARS, quoteSegments} from '../../scripts/audit/check-spec-drift.mjs'
+import {
+  checkIntegrityOnly,
+  checkQuoteIntegrity,
+  checkSourceDrift,
+  comparable,
+  MIN_SEGMENT_CHARS,
+  quoteSegments
+} from '../../scripts/audit/check-spec-drift.mjs'
 
 const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
 
@@ -154,5 +161,10 @@ describe('check-spec-drift: checkSourceDrift can fail', () => {
     const quote = 'a required markdown hyperlink name, then optionally a : and notes'
     const raw = 'containing `a required markdown hyperlink [name](url), then optionally a : and notes` about the file.'
     expect(await checkSourceDrift([verifiedRule(quote)], {fetchText: fetchReturning(raw)})).toEqual([])
+  })
+
+  it('reduces archived HTML specs to rendered text with separated table cells', () => {
+    const html = '<!doctype html><html><body><table><tr><td>title</td><td>The name of the channel.</td></tr></table></body></html>'
+    expect(comparable(html)).toContain('title The name of the channel.')
   })
 })

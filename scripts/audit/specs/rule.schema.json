@@ -71,9 +71,10 @@
           "type": "string",
           "anyOf": [
             {"pattern": "^https://www\\.rfc-editor\\.org/rfc/rfc[0-9]+\\.txt$"},
-            {"pattern": "^https://raw\\.githubusercontent\\.com/[^/]+/[^/]+/[0-9a-f]{40}/.+"}
+            {"pattern": "^https://raw\\.githubusercontent\\.com/[^/]+/[^/]+/[0-9a-f]{40}/.+"},
+            {"pattern": "^https://www\\.rssboard\\.org/rss-2-0-[0-9]+$"}
           ],
-          "description": "The IMMUTABLE or commit-pinned source actually fetched and transcribed from when verified_against_source is true: an RFC's canonical plaintext (https://www.rfc-editor.org/rfc/rfcNNNN.txt) or a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA. Distinct from spec.url, which may be a living HTML page that drifts. ADR 0011 follow-up (b): a hash-and-compare drift probe only works against an immutable target, so living sources (llmstxt.org -> AnswerDotAI/llms-txt; JSON Feed -> manton/JSONFeed) MUST be pinned to a SHA here, not cited by their living URL. The anyOf patterns above bind this shape at load time (via specs/load.mjs's ajv); check-spec-verification.mjs re-asserts it for a clean message. Required when verified_against_source is true."
+          "description": "The immutable or commit-pinned source fetched and transcribed when verified_against_source is true: an RFC's canonical plaintext, a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA, or a numbered RSS Advisory Board archive. Distinct from spec.url, which may be a living page. ADR 0011 follow-up (b): a drift probe requires an immutable target. The anyOf patterns above bind this shape at load time; check-spec-verification.mjs re-asserts it for a clean message. Required when verified_against_source is true."
         },
         "verification_note": {
           "type": "string",

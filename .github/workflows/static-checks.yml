@@ -289,9 +289,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Stryker mutation score over the three pure pilot functions only
+      # Stryker mutation score over the four catalog-backed pure validators
       # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
-      # everything else in those three files). thresholds.break in
+      # network-path plumbing in those files). thresholds.break in
       # stryker.conf.json is the measured floor (decisions/0011, UD1) --
       # `stryker run` itself exits non-zero below it, no `|| true`.
       - name: Mutation score (stryker)

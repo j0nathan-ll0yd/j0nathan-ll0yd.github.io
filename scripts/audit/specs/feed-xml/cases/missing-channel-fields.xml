@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Example Feed</title>
+    <item>
+      <title>First</title>
+      <link>https://example.com/1</link>
+      <guid>item-1</guid>
+      <pubDate>Thu, 16 Jul 2026 00:00:00 GMT</pubDate>
+    </item>
+  </channel>
+</rss>

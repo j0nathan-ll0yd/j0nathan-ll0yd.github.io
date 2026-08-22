@@ -4,7 +4,9 @@
   "artifact": "feed.json",
   "rule_class": "local-policy",
   "severity": "fail",
-  "params_pending": "FRESHNESS_WINDOW_DAYS (check-feeds.mjs:20, value 7) is shared with validateFeedXml (check-feeds.mjs:71,80), which is out of this pilot's scope (UD2 brought in validateFeedJson only, one function from check-feeds.mjs, not the file). Threading it into this rule's own params would delete the shared constant and break validateFeedXml, or leave the same 7 living in two places (SEV2 again in a new costume) -- see decisions/0011 §B3. Deriving it requires bringing feed.xml into the catalog as a fourth artifact, which is a follow-up ratchet increment, not this pilot.",
+  "params": {
+    "maxAgeDays": 7
+  },
   "spec": {
     "name": "JSON Feed",
     "clause": "n/a",
