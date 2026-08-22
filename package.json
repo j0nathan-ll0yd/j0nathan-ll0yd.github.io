@@ -41,6 +41,7 @@
   "dependencies": {
     "@j0nathan-ll0yd/copy": "^1.0.0",
     "@j0nathan-ll0yd/fixtures": "^1.0.3",
+    "@j0nathan-ll0yd/observability": "^1.0.0",
     "@j0nathan-ll0yd/portal-contract": "^1.0.0",
     "@j0nathan-ll0yd/schemas": "^2.0.0",
     "@j0nathan-ll0yd/tokens": "^2.0.0",
