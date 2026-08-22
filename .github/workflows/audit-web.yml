@@ -4,10 +4,11 @@
 # touches site source, CSP, or build behavior.
 #
 # REPORT-ONLY (D4): every check step below runs `continue-on-error: true`, so
-# a failing check never fails the job or blocks anything -- it files/updates
-# one GitHub issue per check id (D5) and the job still finishes and pings its
-# Healthchecks.io dead-man's-switch (D6). Promotion to blocking is a Phase 6
-# decision, not something this workflow does on its own.
+# a failing check never fails the job or blocks anything -- it reconciles one
+# machine-owned GitHub issue per check id (D5), including closing it only after
+# that check's whole result bucket is green. The job still finishes and pings
+# its Healthchecks.io dead-man's-switch (D6). Promotion to blocking is a Phase
+# 6 decision, not something this workflow does on its own.
 #
 # MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to Cloudflare Pages
 # AND is the only branch GitHub will fire `schedule:`/`workflow_dispatch` from
@@ -100,7 +101,7 @@ jobs:
           SA_API_KEY: ${{ secrets.SA_API_KEY }}
         run: node scripts/audit/check-analytics.mjs
 
-      - name: File/update issues for failing checks
+      - name: Reconcile managed audit issues
         if: always() && github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -276,7 +277,7 @@ jobs:
           fail: true
           jobSummary: true
 
-      - name: File/update issues for failing checks
+      - name: Reconcile managed audit issues
         if: always() && github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -352,7 +353,7 @@ jobs:
         continue-on-error: true
         run: node scripts/audit/check-wellknown.mjs
 
-      - name: File/update issues for failing checks
+      - name: Reconcile managed audit issues
         if: always() && github.event_name != 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
