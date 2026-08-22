@@ -1,4 +1,5 @@
 import Ajv, {type ValidateFunction} from 'ajv'
+import {rawFixtures} from '@j0nathan-ll0yd/fixtures/raw'
 import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import type {
   ArticlesExport,
@@ -18,8 +19,8 @@ import sleepSchema from '@j0nathan-ll0yd/portal-contract/raw-schemas/sleep-expor
 import workoutsSchema from '@j0nathan-ll0yd/portal-contract/raw-schemas/workouts-export.schema.json' with {type: 'json'}
 
 type LiveDomain = 'health' | 'sleep' | 'workouts' | 'githubEvents' | 'articles' | 'books' | 'starredRepos'
-type Source = 'live' | 'unavailable'
-type Freshness = 'fresh' | 'stale' | 'unknown'
+type Source = 'live' | 'fixture'
+type Freshness = 'fresh' | 'stale' | 'not-applicable'
 
 interface DomainTypeMap {
   health: HealthExport
@@ -36,7 +37,7 @@ export interface SnapshotDomain<K extends LiveDomain = LiveDomain> {
   source: Source
   freshness: Freshness
   generatedAt: string | null
-  data: DomainTypeMap[K] | null
+  data: DomainTypeMap[K]
 }
 
 export type DashboardSnapshot = { [K in LiveDomain]: SnapshotDomain<K> }
@@ -89,15 +90,30 @@ const validators: { [K in LiveDomain]: ValidateFunction<DomainTypeMap[K]> } = {
   starredRepos: ajv.compile<GithubStarredReposExport>(starredReposSchema)
 }
 
-function unavailable<K extends LiveDomain>(key: K): SnapshotDomain<K> {
-  return {key, source: 'unavailable', freshness: 'unknown', generatedAt: null, data: null}
+function baseline<T>(domain: LiveDomain, variations: Readonly<Record<string, T>>): T {
+  const value = variations.baseline
+  if (value === undefined) {
+    throw new Error(`Missing ${domain} baseline in @j0nathan-ll0yd/fixtures/raw`)
+  }
+  return value
 }
 
-function classifyFreshness(key: LiveDomain, generatedAt: string, now: number): Freshness {
+const fixtureFallbacks: { [K in LiveDomain]: DomainTypeMap[K] } = {
+  health: baseline('health', rawFixtures.health),
+  sleep: baseline('sleep', rawFixtures.sleep),
+  workouts: baseline('workouts', rawFixtures.workouts),
+  githubEvents: baseline('githubEvents', rawFixtures.githubEvents),
+  articles: baseline('articles', rawFixtures.articles),
+  books: baseline('books', rawFixtures.books),
+  starredRepos: baseline('starredRepos', rawFixtures.starredRepos)
+}
+
+function fixtureFallback<K extends LiveDomain>(key: K): SnapshotDomain<K> {
+  return {key, source: 'fixture', freshness: 'not-applicable', generatedAt: null, data: fixtureFallbacks[key]}
+}
+
+function classifyFreshness(key: LiveDomain, generatedAt: string, now: number): 'fresh' | 'stale' {
   const generatedMs = Date.parse(generatedAt)
-  if (!Number.isFinite(generatedMs)) {
-    return 'unknown'
-  }
   return now - generatedMs <= MAX_AGE_MS[key] ? 'fresh' : 'stale'
 }
 
@@ -108,22 +124,22 @@ async function fetchDomain<K extends LiveDomain>(key: K, now: number, timeoutMs:
     const init: CfRequestInit = {signal: controller.signal, cf: {cacheEverything: true, cacheTtl: 60}}
     const response = await fetch(`${CLOUDFRONT_BASE}${SSR_ENDPOINTS[key]}`, init)
     if (!response.ok) {
-      return unavailable(key)
+      return fixtureFallback(key)
     }
 
     const candidate: unknown = await response.json()
     const validate = validators[key] as ValidateFunction<DomainTypeMap[K]>
     if (!validate(candidate)) {
-      return unavailable(key)
+      return fixtureFallback(key)
     }
 
     const generatedAt = candidate.generatedAt
     if (!Number.isFinite(Date.parse(generatedAt))) {
-      return unavailable(key)
+      return fixtureFallback(key)
     }
     return {key, source: 'live', freshness: classifyFreshness(key, generatedAt, now), generatedAt, data: candidate}
   } catch {
-    return unavailable(key)
+    return fixtureFallback(key)
   } finally {
     clearTimeout(timer)
   }
@@ -135,7 +151,7 @@ export async function fetchDashboardSnapshot(options: {now?: number; timeoutMs?:
   const settled = await Promise.allSettled(DOMAIN_ORDER.map((key) => fetchDomain(key, now, timeoutMs)))
   const domains = settled.map((result, index) => {
     const key = DOMAIN_ORDER[index]!
-    return result.status === 'fulfilled' ? result.value : unavailable(key)
+    return result.status === 'fulfilled' ? result.value : fixtureFallback(key)
   })
   return Object.fromEntries(domains.map((domain) => [domain.key, domain])) as DashboardSnapshot
 }
@@ -159,13 +175,12 @@ function safeLink(url: string, label: string): string {
 function card(domain: SnapshotDomain, title: string, body: string): string {
   const generated = domain.generatedAt
     ? `<time datetime="${escapeHtml(domain.generatedAt)}">${escapeHtml(domain.generatedAt)}</time>`
-    : '<span data-generated-at="unknown">unknown</span>'
-  const content = domain.data === null ? '<p>Live data unavailable.</p>' : body
+    : '<span data-generated-at="fixture">fixture sample</span>'
   return `<section class="tri-card" id="ssrCard-${domain.key}" data-ssr-domain="${domain.key}" data-ssr-source="${domain.source}" data-ssr-freshness="${domain.freshness}"${
     domain.generatedAt ? ` data-generated-at="${escapeHtml(domain.generatedAt)}"` : ''
   }><div class="widget-header"><h3 class="widget-label">${
     escapeHtml(title)
-  }</h3><div class="widget-header-right"><span class="widget-timestamp">${domain.source} / ${domain.freshness}</span></div></div><div class="widget-body"><p>Generated: ${generated}</p>${content}</div></section>`
+  }</h3><div class="widget-header-right"><span class="widget-timestamp">${domain.source} / ${domain.freshness}</span></div></div><div class="widget-body"><p>Generated: ${generated}</p>${body}</div></section>`
 }
 
 function renderHealth(domain: SnapshotDomain<'health'>): string {
@@ -272,8 +287,8 @@ export function snapshotProvenance(snapshot: DashboardSnapshot): Record<string, 
     return [key, {source: domain.source, freshness: domain.freshness, generatedAt: domain.generatedAt}]
   }))
   return {
-    profile: {source: 'static', freshness: 'not-applicable', generatedAt: null},
-    system: {source: 'static', freshness: 'not-applicable', generatedAt: null},
+    profile: {source: 'fixture', freshness: 'not-applicable', generatedAt: null},
+    system: {source: 'fixture', freshness: 'not-applicable', generatedAt: null},
     ...live
   }
 }
