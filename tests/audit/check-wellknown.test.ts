@@ -1,8 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {
-  PINNED_A2A_SPEC_VERSION,
   PINNED_ARD_SPEC_VERSION,
-  validateAgentCardShape,
   validateAiCatalogShape,
   validateApiCatalogShape,
   validateMcpServerCardShape,
@@ -37,38 +35,6 @@ describe('validateWebfingerShape', () => {
     expect(shapeFindings).toHaveLength(2)
     expect(shapeFindings.some((f) => f.message.includes('"subject"'))).toBe(true)
     expect(shapeFindings.some((f) => f.message.includes('"links"'))).toBe(true)
-  })
-})
-
-describe('validateAgentCardShape', () => {
-  const valid = {
-    name: 'x',
-    description: 'x',
-    version: '1.0.0',
-    capabilities: {},
-    defaultInputModes: ['text/plain'],
-    defaultOutputModes: ['application/json'],
-    supportedInterfaces: [{url: 'https://example.com', protocolBinding: 'HTTP+JSON', protocolVersion: '1.0'}],
-    skills: [{id: 'x'}]
-  }
-
-  it(`a conformant A2A v${PINNED_A2A_SPEC_VERSION} card produces zero findings`, () => {
-    expect(validateAgentCardShape(valid)).toEqual([])
-  })
-
-  it('an empty supportedInterfaces array fails -- A2A requires at least one', () => {
-    const findings = validateAgentCardShape({...valid, supportedInterfaces: []})
-    expect(findings.map((f) => f.id)).toContain('wellknown-agent-card-no-interfaces')
-  })
-
-  it('a supportedInterfaces entry missing protocolBinding fails', () => {
-    const findings = validateAgentCardShape({...valid, supportedInterfaces: [{url: 'https://example.com'}]})
-    expect(findings.map((f) => f.id)).toContain('wellknown-agent-card-interface-shape')
-  })
-
-  it('an empty skills array is a warn', () => {
-    const findings = validateAgentCardShape({...valid, skills: []})
-    expect(findings).toEqual([expect.objectContaining({severity: 'warn', id: 'wellknown-agent-card-no-skills'})])
   })
 })
 

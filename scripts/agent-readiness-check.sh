@@ -379,33 +379,40 @@ fi
 # --- Check 12: WebMCP ---
 log_section "Check 12: WebMCP (navigator.modelContext)"
 if [ -n "$BUILD_DIR" ]; then
-  # Check if the inline script contains modelContext
   index_html=$(local_file_content "/index.html")
-  if echo "$index_html" | grep -q 'navigator.modelContext'; then
-    log_pass "WebMCP script found in index.html (navigator.modelContext)"
-    if echo "$index_html" | grep -q 'provideContext'; then
+  webmcp_source="$index_html"
+  if echo "$index_html" | grep -q '/js/webmcp.js' && local_file_exists "/js/webmcp.js"; then
+    webmcp_source=$(local_file_content "/js/webmcp.js")
+  fi
+  if echo "$webmcp_source" | grep -q 'navigator.modelContext'; then
+    log_pass "WebMCP script found (navigator.modelContext)"
+    if echo "$webmcp_source" | grep -q 'provideContext'; then
       log_pass "  Uses provideContext() API"
     fi
-    if echo "$index_html" | grep -q 'get_profile\|get_data_sources\|get_current_reading\|get_tech_stack'; then
-      tool_count=$(echo "$index_html" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
+    if echo "$webmcp_source" | grep -q 'get_profile\|get_data_sources\|get_current_reading\|get_tech_stack'; then
+      tool_count=$(echo "$webmcp_source" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
       log_pass "  $tool_count tools registered"
     fi
   else
-    log_fail "WebMCP script not found in index.html"
+    log_fail "WebMCP script not found in index.html or /js/webmcp.js"
   fi
 else
   body=$(fetch_body "${BASE_URL}/")
-  if echo "$body" | grep -q 'navigator.modelContext'; then
-    log_pass "WebMCP script found in page source (navigator.modelContext)"
-    if echo "$body" | grep -q 'provideContext'; then
+  webmcp_source="$body"
+  if echo "$body" | grep -q '/js/webmcp.js'; then
+    webmcp_source=$(fetch_body "${BASE_URL}/js/webmcp.js")
+  fi
+  if echo "$webmcp_source" | grep -q 'navigator.modelContext'; then
+    log_pass "WebMCP script found (navigator.modelContext)"
+    if echo "$webmcp_source" | grep -q 'provideContext'; then
       log_pass "  Uses provideContext() API"
     fi
-    tool_count=$(echo "$body" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
+    tool_count=$(echo "$webmcp_source" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
     if [ "$tool_count" -gt 0 ]; then
       log_pass "  $tool_count tools registered"
     fi
   else
-    log_fail "WebMCP script not found in page source"
+    log_fail "WebMCP script not found in page source or /js/webmcp.js"
     log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
 fi

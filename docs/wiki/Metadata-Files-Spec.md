@@ -82,6 +82,9 @@ Discovery `<link>` relations in use:
 
 | Relation                                          | File                 | Standard             |
 | ------------------------------------------------- | -------------------- | -------------------- |
+| `rel="describedby" type="text/plain"`          | `/llms.txt`          | RFC 8288             |
+| `rel="api-catalog"`                              | `/.well-known/api-catalog` | RFC 9727       |
+| `rel="ai-catalog"`                               | `/.well-known/ai-catalog.json` | ARD        |
 | `rel="sitemap"`                                   | `/sitemap-index.xml` | HTML Living Standard |
 | `rel="author"`                                    | `/humans.txt`        | HTML Living Standard |
 | `rel="alternate" type="application/rss+xml"`      | `/feed.xml`          | RSS 2.0 / HTML5      |
@@ -94,8 +97,7 @@ this site avoids:
 
 - **`lastmod` stamped to the deploy date.** A deploy-time `lastmod` on an
   unchanged page teaches search engines the signal is fake. The sitemap either
-  derives `lastmod` from real content history or omits it. See
-  [sitemap-philosophy.md](.omc/plans/sitemap-philosophy.md) for the full ADR.
+  derives `lastmod` from real content history or omits it.
 - **Rotting hardcoded dates.** `humans.txt` derives `Last update:` from
   `new Date().toISOString().slice(0, 10)` at build time. This is honest: the
   file IS regenerated on every deploy (because it is a prerendered endpoint),
@@ -142,9 +144,7 @@ Auto-generated at build time by `@astrojs/sitemap`. Lists the single canonical
 URL `https://jonathanlloyd.me/`. `lastmod` is omitted (config: no `lastmod`
 option set) to avoid the deploy-timestamp anti-pattern. The index/child split
 is `@astrojs/sitemap`'s default output shape; it is protocol-valid and harmless
-at this scale. See [sitemap-philosophy.md](.omc/plans/sitemap-philosophy.md)
-for the full decision record including research citations and the astro#16838
-resolution.
+at this scale.
 
 ### `/llms.txt` — backend-composed live
 
@@ -201,9 +201,6 @@ backing file (dangling 404).
 
 ## Cross-References
 
-- [sitemap-philosophy.md](.omc/plans/sitemap-philosophy.md) — Full ADR for
-  the sitemap decision: `@astrojs/sitemap` vs hand-authored, `lastmod` stance,
-  host-scoping principle, and astro#16838 resolution.
 - [LLM-Content-Spec.md](LLM-Content-Spec.md) — `/llms.txt` content rules,
   freshness model, agent-readiness inventory, and middleware header spec.
 - [Feed-Spec.md](Feed-Spec.md) — `/feed.xml` and `/feed.json` content
