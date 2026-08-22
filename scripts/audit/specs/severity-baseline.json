@@ -1,6 +1,6 @@
 {
   "_comment": "Monotonic severity ratchet baseline for scripts/audit/specs/**/*.rule.json (decisions/0011). severities[id] records the STRONGEST severity ('fail' > 'warn') this id has ever carried -- a decrease is forbidden outright by scripts/audit/check-spec-severity.mjs, both here (this file may never record a weaker value than it did on origin/main) and against the live catalog (a rule file may never emit weaker than what this file records). Downgrading an id therefore requires DELETING it from severities below, which is checked separately: an id may only leave this file if it has also left the live pilot-scoped catalog (an artifact retirement or a genuine rule removal), never as a bare edit. params_pending_count is a parallel ratchet (N6): the number of rule files carrying params_pending may not increase. Do not hand-edit this file to make a gate failure go away -- fix the rule file, or if a genuine retirement, remove the id from both this file and its catalog in the same commit.",
-  "params_pending_count": 1,
+  "params_pending_count": 0,
   "severities": {
     "feed-json-field": "fail",
     "feed-json-item-field": "fail",
@@ -8,6 +8,15 @@
     "feed-json-no-parseable-date": "warn",
     "feed-json-stale": "fail",
     "feed-json-version": "fail",
+    "feed-xml-channel-field": "fail",
+    "feed-xml-fetch": "fail",
+    "feed-xml-item-field": "fail",
+    "feed-xml-no-items": "warn",
+    "feed-xml-no-parseable-pubdate": "warn",
+    "feed-xml-parse": "fail",
+    "feed-xml-shape": "fail",
+    "feed-xml-stale": "fail",
+    "feed-xml-version": "fail",
     "index-md": "fail",
     "index-md-freshness-unknown": "warn",
     "index-md-stale": "fail",

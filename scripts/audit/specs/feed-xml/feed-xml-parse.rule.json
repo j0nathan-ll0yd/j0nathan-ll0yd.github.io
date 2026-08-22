@@ -1,0 +1,46 @@
+{
+  "id": "feed-xml-parse",
+  "title": "feed.xml must be well-formed XML",
+  "artifact": "feed.xml",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RSS 2.0",
+    "clause": "What is RSS?",
+    "url": "https://www.rssboard.org/rss-specification",
+    "version": "RSS 2.0.11 (March 30, 2009)",
+    "conformance_testable": true,
+    "retrieved": "2026-08-22",
+    "content_sha256": "9614a8a32a9491eb3d2a951c7b49ca680241a14b5b84d0b7af48b4ac4602f0e3",
+    "normative_quote": "RSS is a dialect of XML. All RSS files must conform to the XML 1.0 specification, as published on the World Wide Web Consortium (W3C) website.",
+    "note": "Verified against the RSS Advisory Board's numbered 2.0.11 archive.",
+    "verified_against_source": true,
+    "verified_at": "2026-08-22",
+    "verification_url": "https://www.rssboard.org/rss-2-0-11"
+  },
+  "applicability": "The bytes served as feed.xml.",
+  "expectation": "The document passes strict XML syntax validation before RSS fields are inspected.",
+  "cases": [
+    {
+      "name": "an unclosed element is not well-formed XML",
+      "outcome": "failed",
+      "input_file": "cases/malformed.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-xml-parse",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a conformant, fresh RSS document",
+      "outcome": "passed",
+      "input_file": "cases/valid.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

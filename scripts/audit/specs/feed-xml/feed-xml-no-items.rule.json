@@ -1,0 +1,46 @@
+{
+  "id": "feed-xml-no-items",
+  "title": "an RSS channel with no items is worth flagging",
+  "artifact": "feed.xml",
+  "rule_class": "local-policy",
+  "severity": "warn",
+  "spec": {
+    "name": "RSS 2.0",
+    "clause": "Elements of <item>",
+    "url": "https://www.rssboard.org/rss-specification",
+    "version": "RSS 2.0.11 (March 30, 2009)",
+    "conformance_testable": false,
+    "retrieved": "2026-08-22",
+    "content_sha256": "2ccf19acae22d28ac14621a2478dcf2f0efc95e61a2b58284a0907ac12e26d49",
+    "normative_quote": "A channel may contain any number of <item>s.",
+    "note": "The specification permits zero items. This warning is a local data-quality policy, not an RSS conformance failure.",
+    "verified_against_source": true,
+    "verified_at": "2026-08-22",
+    "verification_url": "https://www.rssboard.org/rss-2-0-11"
+  },
+  "applicability": "A parsed RSS channel with no item elements.",
+  "expectation": "The channel contains at least one item.",
+  "cases": [
+    {
+      "name": "a channel contains no items",
+      "outcome": "failed",
+      "input_file": "cases/empty.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-xml-no-items",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "a conformant, fresh RSS document",
+      "outcome": "passed",
+      "input_file": "cases/valid.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

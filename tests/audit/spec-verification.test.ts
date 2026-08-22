@@ -15,6 +15,7 @@ import {checkSpecVerification, verifyRules} from '../../scripts/audit/check-spec
 
 const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
 const PINNED = 'https://raw.githubusercontent.com/owner/repo/0123456789abcdef0123456789abcdef01234567/path.md'
+const RSSBOARD_ARCHIVE = 'https://www.rssboard.org/rss-2-0-11'
 
 // Every spec field is optional here so the failure-mode tests can `delete` or
 // override it without fighting a narrowed inferred type (astro check runs
@@ -58,6 +59,12 @@ describe('check-spec-verification: verifyRules accepts honest rules', () => {
   it('accepts a verified rule with a commit-pinned GitHub blob', () => {
     const r = verifiedClauseRule()
     r.rule.spec.verification_url = PINNED
+    expect(verifyRules([r])).toEqual([])
+  })
+
+  it('accepts a verified rule with a numbered RSS Advisory Board archive', () => {
+    const r = verifiedClauseRule()
+    r.rule.spec.verification_url = RSSBOARD_ARCHIVE
     expect(verifyRules([r])).toEqual([])
   })
 
@@ -120,6 +127,12 @@ describe('check-spec-verification: the gate CAN fail (known-answer property)', (
   it('fails a verified rule whose verification_url is a living (unpinnable) page', () => {
     const r = verifiedClauseRule()
     r.rule.spec.verification_url = 'https://llmstxt.org/'
+    expect(verifyRules([r]).some((m) => m.includes('not an immutable/pinned source'))).toBe(true)
+  })
+
+  it('rejects the living RSS page even though numbered RSS archives are allowed', () => {
+    const r = verifiedClauseRule()
+    r.rule.spec.verification_url = 'https://www.rssboard.org/rss-specification'
     expect(verifyRules([r]).some((m) => m.includes('not an immutable/pinned source'))).toBe(true)
   })
 

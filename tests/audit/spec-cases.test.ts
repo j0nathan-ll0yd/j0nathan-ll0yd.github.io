@@ -28,7 +28,7 @@ import {fileURLToPath} from 'node:url'
 import {artifacts, rules} from '../../scripts/audit/specs/load.mjs'
 import {validateSecurityTxt} from '../../scripts/audit/check-security-txt.mjs'
 import {validateLlmsTxt} from '../../scripts/audit/validate-llms-txt.mjs'
-import {validateFeedJson} from '../../scripts/audit/check-feeds.mjs'
+import {validateFeedJson, validateFeedXml} from '../../scripts/audit/check-feeds.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -80,7 +80,8 @@ const ARTIFACT_VALIDATORS: Record<
   'feed-json': {
     fn: validateFeedJson as never,
     invoke: (fn, input, c) => (fn as typeof validateFeedJson)(input as Record<string, unknown>, new Date(c.now as string))
-  }
+  },
+  'feed-xml': {fn: validateFeedXml as never, invoke: (fn, input, c) => (fn as typeof validateFeedXml)(input as string, new Date(c.now as string))}
 }
 
 function loadCaseInput(ruleFilePath: string, c: Case): unknown {
@@ -187,6 +188,19 @@ describe('spec-cases harness: exactness of arithmetically-derived boundary times
     const json = loadCaseInput(rule.__ruleFilePath, boundaryCase) as {items: Array<{date_published: string}>}
     const now = new Date(boundaryCase.now as string)
     const published = new Date(json.items[0].date_published)
+    const ageDays = (now.getTime() - published.getTime()) / 86_400_000
+    expect(Number.isInteger(ageDays)).toBe(true)
+    expect(ageDays).toBe(7)
+  })
+
+  it('feed-xml exactly-7-days.xml is exactly 7.0 days before its case now (integral ageDays)', () => {
+    const R = rules('feed-xml') as Record<string, RuleFile>
+    const rule = R['feed-xml-stale']
+    const boundaryCase = rule.cases!.find((c) => c.name.startsWith('newest item is exactly 7 days old'))!
+    const xml = loadCaseInput(rule.__ruleFilePath, boundaryCase) as string
+    const now = new Date(boundaryCase.now as string)
+    const match = /<pubDate>([^<]+)<\/pubDate>/.exec(xml)!
+    const published = new Date(match[1])
     const ageDays = (now.getTime() - published.getTime()) / 86_400_000
     expect(Number.isInteger(ageDays)).toBe(true)
     expect(ageDays).toBe(7)

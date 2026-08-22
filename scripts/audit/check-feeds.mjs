@@ -21,19 +21,11 @@ import {emit, rules} from './specs/load.mjs'
 const FEED_XML_URL = `${SITE_URL}/feed.xml`
 const FEED_JSON_URL = `${SITE_URL}/feed.json`
 // Stryker restore all
-// Shared between validateFeedXml (out of the B2 pilot's scope) and
-// validateFeedJson (in scope) -- deliberately NOT threaded through
-// specs/feed-json/feed-json-stale.rule.json's params, which instead declares
-// params_pending and why (decisions/0011 §B3): deriving it here would delete
-// the constant validateFeedXml still reads, and threading it for JSON only
-// would leave the same 7 living in two places.
-const FRESHNESS_WINDOW_DAYS = 7 // matches the plan's "event-driven ... 7d soft window" cadence class
-const R = rules('feed-json')
+const R_JSON = rules('feed-json')
+const R_XML = rules('feed-xml')
+const JSON_FRESHNESS_WINDOW_DAYS = R_JSON['feed-json-stale'].params.maxAgeDays
+const XML_FRESHNESS_WINDOW_DAYS = R_XML['feed-xml-stale'].params.maxAgeDays
 
-// Stryker disable all -- validateFeedXml is explicitly OUT of the B2 pilot's
-// scope (UD2 brought in validateFeedJson only, one function from this file, not
-// the file); the mutation gate targets only the three pure pilot functions
-// (decisions/0011, UD1).
 /** Pure validation function: (feed.xml body) -> findings[]. Testable without network. */
 export function validateFeedXml(xml, now = new Date()) {
   const findings = []
@@ -57,7 +49,7 @@ export function validateFeedXml(xml, now = new Date()) {
   try {
     SyntaxValidator.validate(xml)
   } catch (err) {
-    return [{severity: 'fail', id: 'feed-xml-parse', message: `not well-formed XML (${err.code} at line ${err.line}): ${err.message}`}]
+    return [emit(R_XML, 'feed-xml-parse', `not well-formed XML (${err.code} at line ${err.line}): ${err.message}`)]
   }
 
   const parser = new XMLParser({ignoreAttributes: false, attributeNamePrefix: '@_'})
@@ -65,83 +57,86 @@ export function validateFeedXml(xml, now = new Date()) {
 
   const channel = doc?.rss?.channel
   if (!channel) {
-    findings.push({severity: 'fail', id: 'feed-xml-shape', message: 'no <rss><channel> root found'})
+    findings.push(emit(R_XML, 'feed-xml-shape', 'no <rss><channel> root found'))
     return findings
+  }
+  if (doc.rss['@_version'] !== '2.0') {
+    findings.push(emit(R_XML, 'feed-xml-version', '<rss> version attribute is not "2.0"'))
   }
   for (const field of ['title', 'link', 'description']) {
     if (!channel[field]) {
-      findings.push({severity: 'fail', id: 'feed-xml-channel-field', message: `<channel> missing required <${field}>`})
+      findings.push(emit(R_XML, 'feed-xml-channel-field', `<channel> missing required <${field}>`))
     }
   }
 
   const items = channel.item === undefined ? [] : (Array.isArray(channel.item) ? channel.item : [channel.item])
   if (items.length === 0) {
-    findings.push({severity: 'warn', id: 'feed-xml-no-items', message: '<channel> has no <item> entries'})
+    findings.push(emit(R_XML, 'feed-xml-no-items', '<channel> has no <item> entries'))
     return findings
   }
   for (const [idx, item] of items.entries()) {
     for (const field of ['title', 'link', 'guid']) {
       if (!item[field]) {
-        findings.push({severity: 'fail', id: 'feed-xml-item-field', message: `item[${idx}] missing required <${field}>`})
+        findings.push(emit(R_XML, 'feed-xml-item-field', `item[${idx}] missing local-profile <${field}>`))
       }
     }
   }
 
   const newestPubDate = items.map((item) => item.pubDate && new Date(item.pubDate)).filter((d) => d && !Number.isNaN(d.getTime())).sort((a, b) => b - a)[0]
   if (!newestPubDate) {
-    findings.push({severity: 'warn', id: 'feed-xml-no-parseable-pubdate', message: 'no item has a parseable <pubDate>'})
+    findings.push(emit(R_XML, 'feed-xml-no-parseable-pubdate', 'no item has a parseable <pubDate>'))
   } else {
     const ageDays = (now - newestPubDate) / 86_400_000
-    if (ageDays > FRESHNESS_WINDOW_DAYS) {
-      findings.push({
-        severity: 'fail',
-        id: 'feed-xml-stale',
-        message: `newest item is ${ageDays.toFixed(1)} days old (${newestPubDate.toISOString()}), ` + `exceeds the ${FRESHNESS_WINDOW_DAYS}-day soft window`
-      })
+    if (ageDays > XML_FRESHNESS_WINDOW_DAYS) {
+      findings.push(
+        emit(R_XML, 'feed-xml-stale',
+          `newest item is ${ageDays.toFixed(1)} days old (${newestPubDate.toISOString()}), ` + `exceeds the ${XML_FRESHNESS_WINDOW_DAYS}-day soft window`)
+      )
     }
   }
 
   return findings
 }
-// Stryker restore all
 
 /** Pure validation function: (feed.json body, parsed) -> findings[]. Testable without network. */
 export function validateFeedJson(json, now = new Date()) {
   const findings = []
   for (const field of ['version', 'title', 'items']) {
     if (!(field in json)) {
-      findings.push(emit(R, 'feed-json-field', `missing required top-level field "${field}"`))
+      findings.push(emit(R_JSON, 'feed-json-field', `missing required top-level field "${field}"`))
     }
   }
   if (json.version && !/^https:\/\/jsonfeed\.org\/version\/1(\.\d+)?$/.test(json.version)) {
-    findings.push(emit(R, 'feed-json-version', `"version" (${json.version}) is not a recognized JSON Feed version URI`))
+    findings.push(emit(R_JSON, 'feed-json-version', `"version" (${json.version}) is not a recognized JSON Feed version URI`))
   }
   if (!Array.isArray(json.items)) {
     return findings
   }
   if (json.items.length === 0) {
-    findings.push(emit(R, 'feed-json-no-items', '"items" array is empty'))
+    findings.push(emit(R_JSON, 'feed-json-no-items', '"items" array is empty'))
     return findings
   }
   for (const [idx, item] of json.items.entries()) {
     if (!item.id) {
-      findings.push(emit(R, 'feed-json-item-field', `items[${idx}] missing required "id"`))
+      findings.push(emit(R_JSON, 'feed-json-item-field', `items[${idx}] missing required "id"`))
     }
     if (!item.content_html && !item.content_text) {
-      findings.push(emit(R, 'feed-json-item-field', `items[${idx}] has neither "content_html" nor "content_text" (JSON Feed 1.1 requires at least one)`))
+      findings.push(
+        emit(R_JSON, 'feed-json-item-field', `items[${idx}] has neither "content_html" nor "content_text" (JSON Feed 1.1 requires at least one)`)
+      )
     }
   }
 
   const newestPublished =
     json.items.map((item) => item.date_published && new Date(item.date_published)).filter((d) => d && !Number.isNaN(d.getTime())).sort((a, b) => b - a)[0]
   if (!newestPublished) {
-    findings.push(emit(R, 'feed-json-no-parseable-date', 'no item has a parseable "date_published"'))
+    findings.push(emit(R_JSON, 'feed-json-no-parseable-date', 'no item has a parseable "date_published"'))
   } else {
     const ageDays = (now - newestPublished) / 86_400_000
-    if (ageDays > FRESHNESS_WINDOW_DAYS) {
+    if (ageDays > JSON_FRESHNESS_WINDOW_DAYS) {
       findings.push(
-        emit(R, 'feed-json-stale',
-          `newest item is ${ageDays.toFixed(1)} days old (${newestPublished.toISOString()}), ` + `exceeds the ${FRESHNESS_WINDOW_DAYS}-day soft window`)
+        emit(R_JSON, 'feed-json-stale',
+          `newest item is ${ageDays.toFixed(1)} days old (${newestPublished.toISOString()}), ` + `exceeds the ${JSON_FRESHNESS_WINDOW_DAYS}-day soft window`)
       )
     }
   }
@@ -157,12 +152,12 @@ async function main() {
   try {
     const res = await fetchStable(FEED_XML_URL)
     if (!res.ok) {
-      findings.push({severity: 'fail', id: 'feed-xml-fetch', message: `HTTP ${res.status} fetching ${FEED_XML_URL}`})
+      findings.push(emit(R_XML, 'feed-xml-fetch', `HTTP ${res.status} fetching ${FEED_XML_URL}`))
     } else {
       findings.push(...validateFeedXml(await res.text()))
     }
   } catch (err) {
-    findings.push({severity: 'fail', id: 'feed-xml-fetch', message: `fetch failed: ${err.message}`})
+    findings.push(emit(R_XML, 'feed-xml-fetch', `fetch failed: ${err.message}`))
   }
 
   // NB2 (decisions/0011): json is resolved/parsed INSIDE the try, but

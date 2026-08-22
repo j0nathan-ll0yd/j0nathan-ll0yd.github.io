@@ -43,15 +43,15 @@ import {artifacts} from './specs/load.mjs'
 
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), 'specs')
 
-// An immutable canonical RFC plaintext, or a GitHub raw blob pinned to a full
-// 40-hex commit SHA. A living URL (llmstxt.org, jsonfeed.org, an RFC's HTML
-// landing page) is REJECTED here even for a currently-correct quote: the point
-// of verification_url is that a future re-fetch reads the same bytes.
+// An immutable canonical RFC plaintext, a GitHub raw blob pinned to a full
+// 40-hex commit SHA, or a numbered RSS Advisory Board archive. A living URL is
+// rejected even for a currently-correct quote.
 const RFC_TXT = /^https:\/\/www\.rfc-editor\.org\/rfc\/rfc\d+\.txt$/
 const PINNED_GITHUB = /^https:\/\/raw\.githubusercontent\.com\/[^/]+\/[^/]+\/[0-9a-f]{40}\/.+/
+const RSSBOARD_ARCHIVE = /^https:\/\/www\.rssboard\.org\/rss-2-0-\d+$/
 
 function isImmutableSource(url) {
-  return RFC_TXT.test(url) || PINNED_GITHUB.test(url)
+  return RFC_TXT.test(url) || PINNED_GITHUB.test(url) || RSSBOARD_ARCHIVE.test(url)
 }
 
 /**
@@ -127,7 +127,8 @@ export function verifyRules(rules) {
       } else if (!isImmutableSource(url)) {
         violations.push(
           `${rel}: spec.verification_url "${url}" is not an immutable/pinned source -- ` +
-            'must be an RFC .txt (rfc-editor.org/rfc/rfcNNNN.txt) or a raw.githubusercontent.com blob pinned to a 40-hex commit SHA ' +
+            'must be an RFC .txt, a raw.githubusercontent.com blob pinned to a 40-hex commit SHA, ' +
+            'or a numbered rssboard.org RSS archive ' +
             '(ADR 0011 follow-up (b): a living page cannot be re-verified byte-for-byte)'
         )
       }
