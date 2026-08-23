@@ -116,6 +116,21 @@ clause left intact beside them.
 llms-full.txt and index.md SHALL be no older than the rule's `params.maxAgeHours` (4 hours).
 Verified by `tests/audit/spec-cases.test.ts:123` (checkPresence freshness path).
 
+#### Scenario: The staleness rules load as operational and are never case-run
+
+- **GIVEN** `llms-full-txt-stale` and `index-md-stale` each declare `params.maxAgeHours` 4 and
+  `rule_class: operational`
+- **WHEN** the spec-cases harness loads the llms-txt catalog through `rules('llms-txt')`
+- **THEN** both rules SHALL validate against the rule schema, which for an operational rule requires
+  an `untested_rationale` and forbids `cases`, and the harness SHALL assert each carries no `cases`
+  rather than case-running it
+
+What that scenario does NOT prove: the 4-hour comparison itself. `checkPresence`
+(`scripts/audit/validate-llms-txt.mjs:207`) computes `ageHours` from a live HTTP response, so no
+pure-function case can exercise it and the covering test never calls it. That the production path
+reads `params.maxAgeHours` from these rule files rather than a literal is true
+(`scripts/audit/validate-llms-txt.mjs:130-131`) but is asserted by no test. See Gaps.
+
 ### Requirement: Conformance claims are anchored to the external convention
 
 Every conformance rule SHALL carry `spec.verified_against_source` true against a SHA-pinned source,
@@ -129,6 +144,14 @@ the rule's `policy_note` beside the intact citation. Two rules are in that posit
 `llms-txt-h2-no-file-list` and `llms-txt-non-link-list-item`; both are `rule_class: convention`, and
 neither asserts strict structural conformance to the llmstxt.org clause it cites. Every other rule
 in the catalog checks its clause as quoted.
+
+#### Scenario: A clause-citing rule cannot load unverified
+
+- **GIVEN** the five llms-txt convention rules each cite an llmstxt.org Format-section clause
+- **WHEN** the spec-cases harness loads the llms-txt catalog through `rules('llms-txt')`
+- **THEN** the rule schema SHALL require `spec.verified_against_source` true with a `verified_at`
+  date and an immutable or commit-pinned `verification_url` on every one of them, and SHALL reject
+  the load otherwise
 
 ## Validation matrix
 
@@ -151,6 +174,8 @@ in the catalog checks its clause as quoted.
 
 ## Enforcement note
 
-This repo has no `mantle check openspec` tooling, so the `covers:` tethers in the covering test
-files are authored for humans and a future gate, not machine-enforced yet. Adding a lightweight
-covers check is a follow-up.
+This repo has no `mantle check openspec` tooling. The `covers:` tethers in the covering test files
+are instead enforced by the vendored openspec-covers contract
+(`scripts/vendor/openspec-covers.mjs`, `COVERS_SPEC_VERSION` 4), run blocking by
+`pnpm run check:covers` and by the `covers-conformance` job in `.github/workflows/static-checks.yml`
+on every pull request and every push to main.
