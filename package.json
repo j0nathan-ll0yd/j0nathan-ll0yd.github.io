@@ -44,8 +44,8 @@
     "@j0nathan-ll0yd/observability": "^1.0.0",
     "@j0nathan-ll0yd/portal-contract": "^1.0.0",
     "@j0nathan-ll0yd/schemas": "^2.0.0",
-    "@j0nathan-ll0yd/tokens": "^2.0.0",
-    "@j0nathan-ll0yd/web": "^2.0.0",
+    "@j0nathan-ll0yd/tokens": "^2.2.1",
+    "@j0nathan-ll0yd/web": "^2.1.0",
     "astro": "^7.1.3",
     "fast-xml-validator": "^1.4.0"
   },
