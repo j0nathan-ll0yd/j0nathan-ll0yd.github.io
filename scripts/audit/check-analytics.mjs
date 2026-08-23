@@ -1,32 +1,7 @@
 #!/usr/bin/env node
-// scripts/audit/check-analytics.mjs -- B6. Loads the live homepage in a real
-// browser (Playwright chromium, the same engine/dependency as
-// playwright.smoke.config.ts -- no launch-arg determinism flags needed here
-// either, since this takes no screenshots) and asserts BOTH first-party
-// analytics proxies actually fire:
-//   - Cloudflare Web Analytics: GET /cf-insights.js (200) then POST /cf-rum
-//   - Simple Analytics: GET /sa (200) then GET /simple/simple.gif (pageview)
-//
-// Status codes below were captured from a REAL browser-triggered request
-// (not a hand-built curl probe -- an earlier curl attempt lacking the SA
-// client's full query string got HTTP 200 from the same route, which would
-// have been the wrong assertion). Verified live 2026-07-16: /cf-rum forwards
-// upstream.status when ok (contract doc in functions/cf-rum.ts says "ALWAYS a
-// clean 2xx"), and the real SA collector accepts a well-formed pageview ping
-// with HTTP 202 (functions/simple/[[path]].ts forwards upstream.status verbatim).
-//
-// The `/simple/append` sendBeacon ping (used for on-page-duration tracking)
-// only fires on pagehide/visibilitychange, not on initial load -- it is NOT
-// asserted here to keep this check fast and deterministic; the pageview pixel
-// already proves the SA collection path is wired end-to-end.
-//
-// When SA_API_KEY is set, a second, server-side check proves the SA INGESTION
-// pipeline works END TO END: it fires a synthetic SA event through the
-// first-party /simple/events proxy and polls the Stats API until that event's
-// count increments (an after > before delta). See checkSaIngestion for the
-// empirical basis (the headless browser beacon is bot-filtered and never
-// counted; a server-side EVENT is, in ~11-32s, and doesn't distort real
-// pageview metrics).
+// Loads the live homepage in Playwright and requires both first-party analytics proxy chains to
+// fire. Browser-observed statuses avoid curl-shape false positives. With `SA_API_KEY`, it also
+// posts a synthetic event and polls the Stats API because headless pageviews are bot-filtered.
 
 import {chromium} from '@playwright/test'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -103,32 +78,9 @@ export function evaluateBeacons(seen) {
   return findings
 }
 
-// --- SA end-to-end ingestion check (trigger a synthetic event, then confirm) ---
-//
-// This is a REAL end-to-end pipeline test: fire a server-side Simple Analytics
-// EVENT through our own first-party proxy, then poll the SA Stats API until the
-// event's count increments (an after > before DELTA). It confirms
-// first-party proxy -> SA collector -> ingestion -> Stats API, unambiguously.
-//
-// The design was chosen EMPIRICALLY (not from docs) -- see the PR thread on #150
-// for the full experiment log. Key measured facts against the live account:
-//   1. The client-side headless beacon is NOT counted. SA's own script stamps
-//      `bot=true` in the pixel params when it detects the automated browser
-//      (HeadlessChrome UA / navigator.webdriver), so a Playwright-driven page
-//      load can never be confirmed via the API -- proven: a real-UA, bot=false,
-//      residential-IP pixel replay to a unique path stayed at 0 pageviews for
-//      7+ minutes.
-//   2. A server-side EVENT posted to the SA collect API (`/simple/events` proxy
-//      -> queue.simpleanalyticscdn.com) with a realistic UA IS counted, and is
-//      queryable via `?fields=pageviews&events=<name>` -> `events:[{name,total}]`.
-//      Measured ingestion latency: ~11-32s, including from a GitHub Actions
-//      Azure datacenter IP (the proxy forwards CF-Connecting-IP as
-//      X-Forwarded-For, so SA sees the runner IP -- it is NOT datacenter-filtered
-//      here). This is why the poll below only needs a few-minute budget.
-//   3. We use an EVENT, not a pageview, on purpose: events are separate from
-//      pageviews/visitors in SA, so the daily synthetic signal does NOT distort
-//      this low-traffic site's real pageview metrics (a synthetic pageview would
-//      roughly double them). One fixed event name = one tidy dashboard row.
+// A headless browser beacon cannot prove ingestion because Simple Analytics classifies it as bot
+// traffic. Post a synthetic event through the first-party proxy and poll the Stats API for a
+// count delta instead. Events avoid distorting the site's pageview total.
 const INGESTION_EVENT_NAME = 'audit_ingestion_probe'
 // Realistic desktop Chrome UA -- avoids SA's server-side UA reject-list
 // (bot/crawl/curl/node-fetch/axios/...) that would classify the event as a bot.

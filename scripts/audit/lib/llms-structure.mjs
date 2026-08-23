@@ -1,56 +1,10 @@
-// Canonical source: atlas/contracts/llms-structure/reference.mjs. Vendored copy,
-// pinned by sha256. Edit the atlas canonical, then re-vendor.
+// Shared llms-structure reference, byte-pinned across Atlas, LP, and the site.
+// Keep this dependency-free because both Node audit scripts and Mantle code import it.
+// Consumers own severity, provenance, and live-HTTP checks.
 //
-// The five STRUCTURAL rules of the llms.txt convention (llmstxt.org), as one
-// pure function shared by every repo that checks them. The producer
-// (mantle-LifegamesPortal, the llm-content capability) and the consumer (this
-// site's audit validator) vendor the same bytes, so a file that passes on one
-// side cannot fail on the other for a reason neither can see.
-//
-// FRAMEWORK-FREE ON PURPOSE. No imports, no network, no severity, plain ES
-// modules. It must import cleanly into a web .mjs script and a mantle-LP
-// TypeScript context alike. Severity, provenance, and the spec citations stay
-// in each consumer's own rule catalog, which wraps these findings.
-//
-// SCOPE. Structural rules only. The operational rules (fetch, freshness,
-// llms-full.txt and index.md presence) depend on a live HTTP response and stay
-// with each consumer.
-//
-// V2 RELAXATION. A real llms.txt mixes file lists with descriptive sections.
-// The producer contract test found the live index doing exactly that, and v1
-// called it broken. v2 relaxes the two section rules and touches nothing else:
-//   - llms-txt-non-link-list-item now fires only when a list item carries a
-//     BARE URL that is not wrapped as a markdown link. Strip every [text](url)
-//     from the line; if an http(s) URL survives, the author meant to link and
-//     did not. A descriptive item with no URL ("- Framework: Astro (...)") is
-//     legal. This keeps catching unlinked URLs, which is the failure that
-//     actually costs an agent a fetch, and stops flagging prose.
-//   - llms-txt-h2-no-file-list now fires only on a DANGLING H2: a heading with
-//     no list items AND no prose under it, up to the next H2 or end of file. A
-//     prose section ("## Expertise" followed by a paragraph) is legal. The id
-//     still reads true, it is just narrower: an empty section has no file list
-//     and nothing else either, which is an authoring defect rather than a
-//     stylistic choice.
-// Both relaxations diverge from the llmstxt.org clause the rule files cite.
-// That divergence is recorded in each rule's policy_note, not hidden here.
-//
-// V3 TIGHTENING. A markdown link now needs a nonempty label AND a nonempty
-// destination to count as one. v2's link regex allowed both parts to be empty,
-// so "- [](https://x.com)" (empty label, an effectively unlinked URL) and
-// "- [name]()" (empty destination, a broken link) both passed the link-item
-// check. v3 flags each as llms-txt-non-link-list-item. Well-formed links,
-// descriptive prose items, and the pinned trailing-colon behavior are unchanged.
-//
-// THREE BEHAVIORS PINNED BY ATLAS DECISION 0036, UNCHANGED BY v2 AND v3. A blind
-// regeneration from the rule catalog passed every declared case and still
-// diverged from the implementation on these. They are load-bearing:
-//   1. With no valid H1 the check returns early and emits ONLY llms-txt-h1.
-//      Structure is unrecoverable past that point, so no section rule runs.
-//   2. llms-txt-second-h1 is emitted PER offending line, not once per body.
-//   3. A bare trailing colon, "- [Name](url):" with nothing after it, PASSES
-//      the link-item check. v1 allowed it through LINK_ITEM_RE's optional
-//      (:\s*.*)? tail; v2 allows it because stripping the markdown link leaves
-//      no URL behind. The behavior is identical, the mechanism is not.
+// Atlas decision 0036 and the conformance vectors record the rule history. Three behaviors
+// are intentional: an invalid H1 stops later checks, each extra H1 emits a finding, and a
+// linked list item with only a trailing colon remains valid.
 
 export const LLMS_STRUCTURE_SPEC_VERSION = 3
 

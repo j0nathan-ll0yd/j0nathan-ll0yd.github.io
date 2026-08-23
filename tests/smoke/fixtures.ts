@@ -1,50 +1,8 @@
 /**
- * Smoke-check fixtures: deterministic page-error capture.
- *
- * Extends the base `page` fixture to collect, across the whole test:
- *   - CSP violations            (securitypolicyviolation events)
- *   - unhandled promise rejections (failed dynamic import() / chunk loads)
- *   - uncaught page errors       (page.on('pageerror'))
- *   - console.error messages     (page.on('console'))
- *
- * These are the direct, near-zero-false-positive detectors for the deploy-
- * failure class this suite exists for: a first-party script that should load
- * (a hydration module / `_astro/*.js` chunk) gets blocked or fails to load.
- *
- * Collectors are installed via addInitScript BEFORE any page script runs, so no
- * early-firing violation is missed. Assertions run at fixture teardown.
- *
- * --- CSP design note (read before changing the CSP assertions) -------------
- * Production serves a strict CSP: `script-src 'self' <analytics hosts>` with NO
- * `'unsafe-inline'`. By design, EVERY inline <script> and inline event-handler
- * attribute is blocked. The site is built to externalise scripts to hashed
- * `_astro/*.js` / `/js/*.js` files that `'self'` trusts (see PR #50).
- *
- * Three hand-authored `is:inline` scripts in the design-system components
- * (IdentityCard social-click tracking, BookModal click handler, an SSR fixture
- * data block) are still inline and therefore still CSP-blocked on prod. That is
- * a STANDING condition — an incomplete tail of the #50 externalisation work,
- * tracked separately for the design system to fix. It is NOT a per-deploy
- * regression. Because a `securitypolicyviolation` event carries no script
- * sample under this CSP (no `'report-sample'`), a blocked inline script cannot
- * be fingerprinted at runtime — so we cannot tell "known legacy inline script"
- * from "newly-inlined hydration module" by event metadata alone.
- *
- * Therefore the CSP assertions are:
- *   1. HARD FAIL on any violation whose blockedURI is a concrete URL (http/https)
- *      — i.e. an EXTERNAL first-party or third-party script the CSP rejected.
- *      This is the genuine per-deploy regression signal and is GREEN today.
- *   2. REGRESSION-GUARD the count of blocked inline <script> elements against a
- *      documented baseline. The baseline is now 0 — #07 externalised the three
- *      legacy inline scripts (verified gone on live prod) — so ANY blocked inline
- *      <script> (e.g. a hydration module wrongly inlined again — the #50 class)
- *      pushes the count over the baseline and fails.
- *   3. Inline event-handler attributes (`script-src-attr`, e.g. <img onerror>)
- *      fire data-dependently and are an accepted pattern — recorded, never failed.
- *
- * The primary #50-class detector is the DOM-hydration assertions in the spec
- * (bio terminal types its content; `.is-loading` skeletons clear). A hydration
- * module that fails to load is caught there regardless of CSP nuance.
+ * Collects CSP violations, unhandled rejections, page errors, and console errors before page
+ * scripts run, then asserts at fixture teardown. Concrete blocked script URLs fail immediately.
+ * Inline script violations use a zero baseline, while data-dependent inline event handlers remain
+ * recorded but accepted. Hydration assertions provide the independent first-party load signal.
  */
 import {expect, type Page, test as base} from '@playwright/test'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -180,7 +138,7 @@ export const test = base.extend({
     const urlBlocked = cspViolations.filter((v) => isUrlBlock(v.blockedURI))
     const inlineScriptBlocked = cspViolations.filter(isInlineScriptBlock)
 
-    // Use soft assertions so a deploy with multiple problems (e.g. a CSP
+    // Use soft assertions so a deploy with multiple problems (for example, a CSP
     // regression AND a chunk-load failure) reports them all in one run instead
     // of masking the later ones behind the first failure.
 

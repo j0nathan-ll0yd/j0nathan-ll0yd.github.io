@@ -33,37 +33,9 @@ strictPeerDependencies: false
 # gate-checkable instead of an invisible default.
 minimumReleaseAge: 1440
 
-# MEASURED 2026-08-12 during the npm->pnpm migration, and load-bearing for the
-# production deploy: pnpm 11 does NOT apply minimumReleaseAge only at resolution
-# time. It re-verifies EVERY LOCKFILE ENTRY on every install, including
-# `pnpm install --frozen-lockfile`. Without the exclusions below, a bare
-# `pnpm install --frozen-lockfile` fails hard:
-#
-#   [ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION] 4 lockfile entries failed verification:
-#     @j0nathan-ll0yd/fixtures@1.0.6 was published at 2026-08-12T13:36:33.000Z,
-#     within the minimumReleaseAge cutoff (...)   [+ schemas, tokens, web]
-#
-# That turns the documented producer->consumer flow (AGENTS.md: publish a new
-# @j0nathan-ll0yd/* version from design-system-Lifegames, then bump the caret
-# range / lockfile here) into a 24-hour outage of `deploy.yml` -- merging to main
-# IS the production Cloudflare Pages deploy, so it would 24h-red the prod deploy
-# after every same-day DS publish, not merely inconvenience a local install.
-#
-# Scope is deliberately narrow: ONLY the seven first-party estate packages this
-# repo consumes from GitHub Packages. Every third-party dependency from
-# registry.npmjs.org -- the actual compromised-maintainer threat model the age
-# gate defends against -- remains fully subject to the 24h floor.
-#
-# BARE NAMES, never `name@version`: exclusion then covers all future versions and
-# does not re-break on the next bump (atlas decision 0015(d)). Same mechanism and
-# same rationale as mantle-LifegamesPortal/pnpm-workspace.yaml, which likewise
-# excludes @j0nathan-ll0yd/* packages it consumes but does not publish.
-#
-# NOTE for atlas decision 0032 Phase 4: item 5 as written permits
-# minimumReleaseAgeExclude only for "a repo's own freshly-published internal
-# package". The estate's actual practice (LP) and this measurement are broader --
-# any internally-published @j0nathan-ll0yd/* dependency. The Phase-4 check must
-# allow this shape or the site's deploy breaks; see the PR discussion.
+# Same-day first-party releases must bypass minimumReleaseAge or frozen production deploys fail
+# for 24 hours. Only the seven @j0nathan-ll0yd packages are excluded; third-party dependencies
+# retain the supply-chain age floor. Bare names keep future internal versions deployable.
 minimumReleaseAgeExclude:
   - '@j0nathan-ll0yd/config'
   - '@j0nathan-ll0yd/copy'

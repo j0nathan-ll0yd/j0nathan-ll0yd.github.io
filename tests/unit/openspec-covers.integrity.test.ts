@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {createHash} from 'node:crypto'
 
-export const OPENSPEC_COVERS_SHA256 = '82287af2f8392f6a39a6396e4b40e6841bf9884f8f5de7da635680613645bf3f'
+export const OPENSPEC_COVERS_SHA256 = '380733e423898f25f94fcbcecd63cf3201f4c516a96e7f4b1e3f5e9afefbe9d6'
 
 describe('openspec-covers vendor integrity', () => {
   it('matches the pinned OPENSPEC_COVERS_SHA256 constant', () => {

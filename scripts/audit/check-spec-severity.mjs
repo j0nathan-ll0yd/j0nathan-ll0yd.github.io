@@ -1,41 +1,8 @@
 #!/usr/bin/env node
-// scripts/audit/check-spec-severity.mjs -- B2 spec/eval pilot (decisions/0011).
-// The monotonic severity ratchet + deletion assertion + params_pending ratchet
-// (B4 + CC5 + REVERSAL 1 + N6). The round-1 "discrimination gate" this pilot
-// once proposed is GONE -- constraints (i)-(iii) in specs/load.mjs replace it
-// at catalog-load time, on every import, not just in CI. What remains here is
-// the one mitigation that genuinely needs history: severity can only ever get
-// STRONGER for a given id, never weaker, and an id can only leave the
-// tracked baseline if it also left the live, pilot-scoped catalog.
-//
-// Three independent checks, all against scripts/audit/specs/severity-baseline.json:
-//
-//   (a) FILE REGRESSION: the committed baseline itself may never record a
-//       weaker severity for an id than it did on origin/main. This is what
-//       makes probe G leg 2 (editing both files symmetrically) still fail --
-//       a byte-symmetric "fail"->"warn" edit in both files is NOT read as
-//       "the ids agree," it is read as "the file weakened," because the
-//       comparison is against history (origin/main), not self-consistency.
-//   (b) LIVE VS BASELINE: no rule file may currently emit a severity weaker
-//       than what the baseline records for that id. This is what catches
-//       probe G leg 1 (only the rule file edited, baseline left alone).
-//   (c) DELETION ASSERTION (REVERSAL 1): an id present in the baseline at
-//       origin/main but absent from the current baseline file is only
-//       legitimate if it ALSO left the live catalog (a genuine retirement,
-//       or the artifact moved out of pilot scope). If it is still emitted by
-//       a rule file, deleting it from the baseline is delete-then-downgrade,
-//       and this is what catches probe G leg 3.
-//
-// Downgrading a severity therefore always requires DELETING the id from the
-// baseline (a distinct, greppable act with no legitimate co-occurring
-// reason), never a same-line edit -- the diff is self-incriminating rather
-// than self-consistent (CC5).
-//
-// A fourth, unrelated-but-adjacent check rides along because this script
-// already walks the same two artifacts: params_pending_count (N6) may not
-// increase. A rule declaring params_pending is a parked obligation, not a
-// solved one, and Principle 2 forbids a threshold ratchet with no
-// enforcement tier.
+// Monotonic severity and pending-parameter ratchet.
+// Compare the baseline with origin/main, compare live rules with the baseline, and allow a baseline
+// id to disappear only when the live catalog also retired it. This prevents coordinated
+// rule-plus-baseline downgrades from becoming self-consistent. params_pending_count may not grow.
 
 import {execFileSync} from 'node:child_process'
 import {readFileSync} from 'node:fs'

@@ -1,41 +1,6 @@
-// tests/audit/llms-differential.test.ts -- the reusable differential harness,
-// used three times: to pin atlas decision 0036 forever, to prove the v2
-// relaxation changed exactly what it claims, and to prove the v3 tightening did.
-//
-// 0036 asked the Deletion Test question: the declared rule cases all pass
-// against a blind regeneration of validateLlmsTxt, so does that green mean
-// CORRECT? It does not. Three behaviours diverge between the original and the
-// regeneration, and the rule catalog of the day could not see any of them:
-//   1. missing H1        the original returns early and stops; the regeneration
-//                        keeps checking the section rules.
-//   2. second H1         the original emits one finding PER offending line; the
-//                        regeneration emits one per body.
-//   3. bare trailing colon  "- [n](u):" passes the original and fails the
-//                        regeneration.
-//
-// 0036 found them with 406 lines of one-off fuzz, classify, and diff drivers.
-// All three suites below are one call each to scripts/audit/lib/differential.mjs.
-//
-// Each suite compares against a FROZEN reference, never a moving one. The 0036
-// regeneration is a v1-era artifact, so pointing it at the live reference would
-// stop reproducing 0036 the moment a rule relaxed -- which v2 then did, and v3
-// did again. fixtures/llms-structure.v1.mjs and fixtures/llms-structure.v2.mjs
-// are those pins.
-//
-// REPRODUCIBILITY (adversarial review, MEDIUM finding #6). The claim these
-// suites make is quantitative -- "N inputs, these classes, zero unattributed" --
-// and a quantitative claim that cannot be re-run is an anecdote. Four things fix
-// the run, all pinned as constants below and asserted before any count is:
-//   - the input SPACE: LINE_POOLS, pinned by sha256. Appending one line to a
-//     pool shifts every sample after it.
-//   - the input COUNT: RUNS, passed explicitly rather than left to the harness
-//     default.
-//   - the input STREAM: SEED, likewise, plus the fast-check version that turns
-//     a seed into a sample. A major bump can re-order the stream.
-//   - the ANSWER: exact divergent totals and per-class counts, not "> 0".
-// A count that moves now names which of the four changed instead of quietly
-// re-baselining. TO RE-PIN: change one input at a time, re-run, and record the
-// new numbers with the reason in the same commit.
+// Differential suites pin the decision-0036 behaviors and the v2/v3 semantic deltas against
+// frozen references. Reproducibility depends on the input-pool hash, run count, seed, fast-check
+// version, and exact per-class totals; change and re-record one input at a time.
 
 import {describe, expect, it} from 'vitest'
 import {createHash} from 'node:crypto'
