@@ -243,7 +243,7 @@ test.describe('production home dashboard', () => {
   })
 
   test('Content-Usage preference covers representative site content', async ({page}) => {
-    for (const path of ['/', '/privacy', '/robots.txt']) {
+    for (const path of ['/', '/privacy/', '/robots.txt']) {
       const res = await getStable(page.request, path)
       expect(res.status(), `${path} did not return HTTP 200`).toBe(200)
       expect(res.headers()['content-usage'], `${path} has the wrong Content-Usage header`).toBe('train-ai=n, search=y')

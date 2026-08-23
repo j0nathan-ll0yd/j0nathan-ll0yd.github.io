@@ -111,9 +111,10 @@ Beyond LLM content, the site publishes machine-readable discovery files for AI a
 ### AI Usage Preferences
 
 Site responses carry the HTTP header `Content-Usage: train-ai=n, search=y` via
-`functions/_middleware.ts`. The IETF AI Preferences Working Group drafts attach-05 and
-vocab-07 (verified 2026-08-19) define this header and the two current vocabulary
-categories:
+`functions/_middleware.ts` for Function responses and the `public/_headers` wildcard
+for static responses/cache hits. The IETF AI Preferences Working Group drafts
+attach-05 and vocab-07 (verified 2026-08-19) define this header and the two current
+vocabulary categories:
 
 - Search indexing: allowed
 - AI model training: blocked
@@ -136,9 +137,11 @@ The middleware handles:
 3. **API catalog Content-Type** — RFC 9727 `application/linkset+json` override for `/.well-known/api-catalog`
 4. **Markdown negotiation** — Serves `text/markdown` from CloudFront when agents send `Accept: text/markdown`
 5. **Homepage cache bypass** — Sets `CDN-Cache-Control: no-store` on `/` (defense-in-depth; primary bypass is the Cache Rule below)
-6. **Content-use preference** — Sets `Content-Usage: train-ai=n, search=y` on site responses
+6. **Content-use preference** — Sets `Content-Usage: train-ai=n, search=y` on Function responses
 
-The `_headers` file is NOT used because root middleware disables Cloudflare Pages' `_headers` processing.
+The `public/_headers` wildcard mirrors the content-use preference for static asset
+responses and cache hits. Cloudflare does not apply `_headers` rules to Pages Function
+responses, which is why middleware also sets it.
 
 #### Cache Rule (dashboard-only, not version-controlled)
 

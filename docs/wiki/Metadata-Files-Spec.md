@@ -73,10 +73,10 @@ guessing paths. This site uses two complementary signals:
 - **HTTP `Link` response header** (`functions/_middleware.ts`) — injected on
   the homepage (`/`) only, for agents that inspect headers without parsing HTML.
 
-The middleware is the **single authority for response headers**. The `public/_headers`
-file is inert — Cloudflare Pages disables `_headers` processing
-when a root Pages Function middleware is present. Any header change must go in
-`functions/_middleware.ts`.
+Response-header policy has two complementary authorities. `public/_headers` applies to
+static asset responses and cache hits. `functions/_middleware.ts` applies to Pages
+Function responses; Cloudflare explicitly does not apply `_headers` rules to those
+responses. Cross-cutting headers must be kept in sync across both paths.
 
 Discovery `<link>` relations in use:
 
@@ -140,8 +140,9 @@ uses only the site's approved `User-agent`, `Allow`, `Disallow`, and `Sitemap`
 directives so unknown extensions cannot regress Lighthouse SEO.
 
 The separate content-use reservation is delivered on site responses as
-`Content-Usage: train-ai=n, search=y` by `functions/_middleware.ts`. This is the HTTP
-header form in IETF AI Preferences Working Group drafts attach-05 and vocab-07
+`Content-Usage: train-ai=n, search=y` by `functions/_middleware.ts` for Function
+responses and the `public/_headers` wildcard for static responses/cache hits. This is
+the HTTP header form in IETF AI Preferences Working Group drafts attach-05 and vocab-07
 (verified 2026-08-19). Although attach-05 also describes a robots extension, this site
 does not emit it in `/robots.txt` until Lighthouse recognizes it. The current WG
 vocabulary defines `train-ai` and `search` only.
