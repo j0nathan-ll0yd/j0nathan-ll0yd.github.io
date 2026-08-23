@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CONTENT_USAGE, LINK_HEADER, onRequest} from '../../functions/_middleware'
 
@@ -14,6 +15,16 @@ describe('discovery Link header', () => {
 })
 
 describe('Content-Usage response header', () => {
+  it('is declared for static asset responses and cache hits', () => {
+    const staticHeaders = readFileSync('public/_headers', 'utf-8')
+    const nextBlock = staticHeaders.indexOf('\n/robots.txt')
+    expect(nextBlock).toBeGreaterThan(0)
+
+    const wildcardBlock = staticHeaders.slice(0, nextBlock)
+    expect(wildcardBlock).toMatch(/^  Content-Usage: train-ai=n, search=y$/m)
+    expect(staticHeaders).not.toMatch(/Content-Signal/i)
+  })
+
   it('is added to normal site responses', async () => {
     const response = await onRequest({request: new Request('https://jonathanlloyd.me/privacy/'), next: async () => new Response('privacy')})
 

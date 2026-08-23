@@ -218,18 +218,39 @@ fi
 log_section "Check 6: Content-Usage HTTP response header"
 if [ -n "$BUILD_DIR" ]; then
   middleware_path="${SCRIPT_DIR}/../functions/_middleware.ts"
-  usage_value=$(sed -nE "s/^[[:space:]]*export const CONTENT_USAGE = ['\"]([^'\"]+)['\"][[:space:]]*$/\1/p" "$middleware_path" | head -1)
-  usage_source="middleware configuration"
-else
-  headers=$(fetch_headers "${BASE_URL}/")
-  usage_value=$(echo "$headers" | grep -i '^content-usage:' | head -1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true)
-  usage_source="live homepage response"
-fi
+  static_headers_path="${SCRIPT_DIR}/../public/_headers"
+  middleware_usage=$(sed -nE "s/^[[:space:]]*export const CONTENT_USAGE = ['\"]([^'\"]+)['\"][[:space:]]*$/\1/p" "$middleware_path" | head -1)
+  static_usage=$(awk '
+    $0 == "/*" { in_wildcard = 1; next }
+    in_wildcard && $0 ~ /^\// { exit }
+    in_wildcard && tolower($1) == "content-usage:" {
+      sub(/^[^:]+:[[:space:]]*/, "")
+      sub(/[[:space:]]*$/, "")
+      print
+      exit
+    }
+  ' "$static_headers_path")
 
-if [ "$usage_value" = "$EXPECTED_CONTENT_USAGE" ]; then
-  log_pass "Content-Usage is '$EXPECTED_CONTENT_USAGE' in $usage_source"
+  if [ "$middleware_usage" = "$EXPECTED_CONTENT_USAGE" ] && [ "$static_usage" = "$EXPECTED_CONTENT_USAGE" ]; then
+    log_pass "Content-Usage is '$EXPECTED_CONTENT_USAGE' in middleware and the static wildcard"
+  else
+    log_fail "Content-Usage config mismatch (middleware='$middleware_usage', static wildcard='$static_usage')"
+  fi
 else
-  log_fail "Content-Usage in $usage_source is '$usage_value' (expected '$EXPECTED_CONTENT_USAGE')"
+  usage_failures=()
+  for usage_path in "/" "/privacy/" "/robots.txt"; do
+    headers=$(fetch_headers "${BASE_URL}${usage_path}")
+    usage_value=$(echo "$headers" | grep -i '^content-usage:' | head -1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true)
+    if [ "$usage_value" != "$EXPECTED_CONTENT_USAGE" ]; then
+      usage_failures+=("${usage_path}='$usage_value'")
+    fi
+  done
+
+  if [ "${#usage_failures[@]}" -eq 0 ]; then
+    log_pass "Content-Usage is '$EXPECTED_CONTENT_USAGE' on live dynamic and static routes"
+  else
+    log_fail "Content-Usage live mismatch: ${usage_failures[*]}"
+  fi
 fi
 
 # --- Check 7: API Catalog ---

@@ -1,6 +1,6 @@
-// Pages Function middleware: content negotiation + security headers
-// Replaces both cloudflare/api-catalog-content-type.js (Worker) and public/_headers
-// because root middleware disables _headers file processing.
+// Pages Function middleware: content negotiation + response headers.
+// Cloudflare applies public/_headers only to static asset responses, so this
+// middleware carries the same cross-cutting policy on Function responses.
 
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
@@ -99,9 +99,9 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // sw.js and version.json must always revalidate so a new deploy is picked up
   // promptly: sw.js drives the update-check path in public/js/sw-register.js, and
   // version.json is the smoke check's freshness probe. Set here, not in
-  // public/_headers, because this middleware disables _headers processing. Modern
-  // Chromium already bypasses the HTTP cache for sw.js via updateViaCache:'imports';
-  // this covers older engines and version.json defensively.
+  // public/_headers, because Cloudflare does not apply that file to Pages Function
+  // responses. Modern Chromium already bypasses the HTTP cache for sw.js via
+  // updateViaCache:'imports'; this covers older engines and version.json defensively.
   if (url.pathname === '/sw.js' || url.pathname === '/version.json') {
     headers.set('Cache-Control', 'max-age=0, no-store')
   }

@@ -9,7 +9,7 @@ specifications carry a point-in-time verification date.
 | File                                               | Purpose                                                     | Produced by                                                             | Spec / version (verified)              |
 | -------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
 | `/robots.txt`                                      | Per-agent crawl policy                                      | `src/pages/robots.txt.ts`                                               | RFC 9309 directives + Sitemap           |
-| `Content-Usage` response header                    | Machine-readable content-use preference                     | `functions/_middleware.ts`                                             | IETF WG drafts attach-05 / vocab-07     |
+| `Content-Usage` response header                    | Machine-readable content-use preference                     | `functions/_middleware.ts` + `public/_headers`                         | IETF WG drafts attach-05 / vocab-07     |
 | `/sitemap-index.xml`                               | URL discovery for search engines                            | `@astrojs/sitemap` (`astro.config.mjs`)                                 | Sitemaps 0.9                           |
 | `/humans.txt`                                      | Human authorship credits                                    | `src/pages/humans.txt.ts`                                               | humanstxt.org                          |
 | `/feed.xml`, `/feed.json`                          | Content feeds                                               | `functions/feed.xml.ts`, `functions/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
@@ -86,9 +86,13 @@ unless a real conforming A2A endpoint is deployed.
 
 ### AI content-use preference
 
-Every site response carries `Content-Usage: train-ai=n, search=y`, set by the root
-Pages Function middleware. This is the HTTP response-header form defined by the IETF AI
-Preferences Working Group drafts
+Every site response carries `Content-Usage: train-ai=n, search=y`. The root Pages
+Function middleware sets it on Function responses, including negotiated Markdown;
+the `public/_headers` wildcard sets it on static asset responses and cache hits.
+Cloudflare
+[does not apply `_headers` rules to Pages Functions](https://developers.cloudflare.com/pages/configuration/headers/),
+so both paths are required. This is the HTTP response-header form defined by the IETF
+AI Preferences Working Group drafts
 [`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)
 and
 [`draft-ietf-aipref-vocab-07`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-07.html),
