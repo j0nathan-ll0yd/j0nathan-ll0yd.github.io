@@ -55,6 +55,33 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=human-datastream
 
+      - name: Purge stale production cache metadata
+        # Cloudflare's custom-domain cache can retain an unchanged Pages asset's
+        # old response headers across deploys and 304 revalidation. Purging after
+        # the new deployment makes cross-cutting _headers changes atomic with the
+        # release instead of waiting for per-PoP eviction.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          curl --silent --show-error --fail-with-body \
+            --connect-timeout 5 --max-time 30 \
+            --request POST \
+            --url "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"purge_everything":true}' \
+            | node --input-type=module -e '
+                let body = ""
+                for await (const chunk of process.stdin) body += chunk
+                const result = JSON.parse(body)
+                if (!result.success) {
+                  console.error("Cloudflare cache purge failed:", JSON.stringify(result.errors))
+                  process.exit(1)
+                }
+                console.log("Cloudflare production zone cache purged.")
+              '
+
       - name: Notify backend of new deploy
         # Lets already-open dashboard tabs pick up the new build in real time via
         # the WebSocket push (backend POST /deploy/notify -> broadcast app-update).
