@@ -1,59 +1,9 @@
 #!/usr/bin/env node
-// scripts/audit/check-spec-drift.mjs -- B2 spec/eval pilot, ADR 0011
-// follow-up (b): the external-spec drift probe. This is the deferral atlas
-// registers as a standing red -- `b2-spec-drift` in
-// audits/checks/gate-can-fail.mjs carries no ledger date on purpose, so A2b
-// reports it overdue until this probe actually ships.
-//
-// WHAT IT ANSWERS, and why that is two questions and not one:
-//
-//   1. INTEGRITY (offline). Does spec.content_sha256 still equal
-//      sha256(spec.normative_quote)? content_sha256 is a self-hash of OUR OWN
-//      transcription (rule.schema.json; hash-normative-quotes.mjs writes it),
-//      so this catches a quote edited locally after authoring. Nothing checked
-//      this before: hash-normative-quotes.mjs is a WRITER that silently
-//      rewrites the field to match whatever the quote now says, so editing a
-//      normative_quote and re-running it produced a green, self-consistent,
-//      silently-altered citation.
-//
-//   2. DRIFT (network). Does the normative_quote still actually OCCUR in the
-//      re-fetched primary source at spec.verification_url? This is the
-//      question ADR 0011 named as genuinely missing -- "spec provenance
-//      against the world", as distinct from provenance of our own
-//      transcription.
-//
-// CORRECTION TO FOLLOW-UP (b) AS WRITTEN. ADR 0011 specifies the probe as
-// "re-fetch spec.url, normalize, hash, compare against content_sha256". That
-// design cannot work, for the same reason the record already had to correct
-// once: content_sha256 is the hash of a ONE-SENTENCE QUOTE, while a re-fetch
-// returns a 45KB RFC. Their hashes can never be equal, so a literal
-// implementation would either always fail or (worse) be "fixed" into a no-op.
-// The checkable form of "the source still says what we claim it says" is
-// CONTAINMENT: the quote must still appear, in order, in the normalized
-// source. That is what this probe implements, and the hash comparison is kept
-// for the question it can actually answer (integrity, half 1 above).
-//
-// SOURCE PINNING IS A PRECONDITION, ALREADY MET. ADR 0011 flagged that a naive
-// page hash churns on any copy edit for the two LIVING sources (llmstxt.org,
-// jsonfeed.org). That blocker is gone: follow-up (a) (PR #155) constrains
-// spec.verification_url at load time to an immutable RFC plaintext, a
-// 40-hex-SHA-pinned raw.githubusercontent.com blob, or an archived numbered
-// RSS Advisory Board specification. A living source URL is not accepted.
-//
-// TIER SPLIT (B10 is per-assertion -- ADR 0011's own precedent). The two
-// halves do not belong at the same altitude:
-//   - Integrity is offline, deterministic, and caused BY a pull request, so it
-//     blocks on the GitHub-hosted static-checks lane (pull_request + push:main).
-//   - Drift is caused by an EXTERNAL clock, never by our diff, and depends on
-//     two third-party hosts. Blocking merges on it would import their uptime
-//     into our merge path. It runs weekly and report-only in audit-web.yml.
-// One script, one catalog walk (via load.mjs's artifacts(), like the other
-// three gates) so the two halves cannot drift on what counts as a rule.
-//
-// A FETCH FAILURE IS NEVER A PASS. An unreachable source is INDETERMINATE --
-// reported as a violation, exactly as A9 treats an unreachable registry
-// (atlas: "INDETERMINATE is exit 3, never a pass"). A probe that goes green
-// when it could not look is the silent-pass hole this estate keeps closing.
+// External-spec integrity and drift probe (ADR 0011).
+// Offline mode verifies each normative quote against its committed self-hash. Network mode
+// verifies ordered quote containment in the immutable primary source; a whole-page hash would
+// compare unlike artifacts. Offline integrity blocks PRs, while external drift runs weekly so
+// third-party uptime cannot gate merges. Fetch failure is indeterminate, never clean.
 
 import {createHash} from 'node:crypto'
 import {readdirSync, readFileSync} from 'node:fs'

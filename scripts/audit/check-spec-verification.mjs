@@ -1,40 +1,8 @@
 #!/usr/bin/env node
-// scripts/audit/check-spec-verification.mjs -- B2 spec/eval pilot, ADR 0011
-// follow-up (a): the source-verification gate. It promotes the prose
-// disclosure the citation sweep found in 13 of 24 rule files ("recalled from
-// training-data familiarity" vs "verified against a live fetch") to a
-// required, checkable schema field (spec.verified_against_source) and enforces
-// the one rule that stops the 7-of-7 conformance defect from recurring:
-//
-//   a rule_class: conformance rule -- one asserting an external MUST -- may
-//   not ship unless its normative_quote has been verified, character-for-
-//   character, against the primary source (verified_against_source: true).
-//
-// covers: llms-txt#Conformance claims are anchored to the external convention
-// The gate keys on spec.clause, NOT the author-chosen rule_class (review fix):
-// a rule that cites ANY external clause (clause != 'n/a') must be verified, so
-// a rule cannot dodge verification by downgrading rule_class from conformance
-// to local-policy/convention; a clause 'n/a' rule (whose quote is a
-// self-authored statement about the absence of external coverage) must be
-// false and disclose why.
-//
-// This is deliberately a SECOND enforcement site. rule.schema.json binds ALL
-// of this structurally at load time via ajv -- the clause branch of its
-// top-level allOf forces verified_against_source true iff clause != 'n/a', and
-// verification_url's anyOf forces the immutable/pinned shape -- so
-// specs/load.mjs THROWS on any violation on every audit run (the highest tier,
-// B10; the header's earlier claim that ajv "cannot express" the URL shape was
-// wrong -- draft-07 expresses it exactly, and the schema now does). This
-// script exists alongside the schema because it reads the rule files RAW
-// rather than through ajv, so a violation is a clean, greppable message
-// instead of an ajv stack trace -- the surface the known-answer probe
-// demonstrates -- and it is defence-in-depth for the two facts ajv could in
-// principle regress on: the immutable/pinned verification_url, and the honest
-// complement (a false rule carries a verification_note).
-//
-// It walks the specs tree via load.mjs's artifacts() -- the same single walker
-// check-spec-severity.mjs and the spec-cases harness use -- so the three
-// gates cannot drift on what counts as a catalog directory.
+// External-source verification gate (ADR 0011).
+// Any rule citing an external clause must carry a verified quote and immutable primary-source URL;
+// a clause marked n/a must disclose why it is unverified. The schema enforces the same branch at
+// load time; this raw-file pass provides focused diagnostics and defense in depth.
 
 import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'

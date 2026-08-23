@@ -1,30 +1,7 @@
-// Canonical source: atlas/contracts/openspec-covers/reference.mjs. Vendored copy,
-// pinned by sha256. Edit the atlas canonical, then re-vendor.
-//
-// The OpenSpec COVERS-CONFORMANCE rule: every `### Requirement:` in a spec tree has at least one
-// test carrying a line-leading `covers: <capability>#<requirement>` annotation, and every such
-// annotation names a requirement that exists. Extracted verbatim in OUTCOME from mantle's
-// `packages/cli/src/analysis/openspec-checker.ts`, which was the estate's only implementation and
-// was welded to TypeScript, to HCL, and to `glob`.
-//
-// FRAMEWORK-FREE AND LANGUAGE-AGNOSTIC ON PURPOSE. Only `node:fs` and `node:path` are imported.
-// No third-party dependency, no bundler, no build step, no package.json — the file on disk IS the
-// artifact, so its sha256 is deterministic and audit A10 can reconcile every vendored copy against
-// this one byte for byte. That determinism is the whole reason this is hand-authored rather than
-// built: a bundle embeds paths, module order, and banners, so its hash moves with no source diff.
-//
-// WHAT IS HERE AND WHAT IS NOT. This file owns the PORTABLE slice: requirement parsing, covers
-// parsing, the bidirectional reconcile, `verified by` citation resolution, scenario GIVEN/WHEN/THEN
-// structure, delta-spec integrity, and near-miss detection. It deliberately does NOT own mantle's
-// repo-bound plugins — the Zod behavior-only fence, the `## Purpose` citation rule, base-spec
-// requirement uniqueness, the generated-inventory and spec-roster stray-count rules, the
-// `@fission-ai` pinning hygiene, and the diff-scoped drift gate. Those stay in mantle and layer on
-// top of this core. A consumer that wants them calls them alongside `checkCovers`, in that order.
-//
-// LANGUAGE TABLE. mantle hardcoded two languages in four `glob.sync` call sites. Here a language is
-// data: `{id, glob, commentRegex, nearMiss}`. TypeScript, HCL, and Swift ship as defaults; a repo
-// registers another by passing its own `languages` array. Swift needs no new regex — the strict
-// TypeScript pattern already matches a line-leading `// covers:` verbatim.
+// Canonical portable covers rule; Atlas is the source and consumers vendor byte-identical copies.
+// It requires line-leading test tethers for spec requirements and rejects orphan or near-miss
+// tethers. Framework-free language data covers TypeScript, HCL, and Swift; repository policy
+// stays with each consumer.
 
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {join} from 'node:path'
@@ -269,28 +246,11 @@ function walkDirectory(cwd, relDir, states, segments, compiledIgnores, results) 
     }
     const reachable = closure(segments, next)
 
-    // FAIL CLOSED on a symlinked DIRECTORY, at spec version 2.
-    //
-    // A Dirent reflects lstat, so a symlink to a directory reports `isDirectory() === false` and a
-    // walker that stops there silently omits the whole subtree. Version 1 called that `glob`'s
-    // `follow: false`. Measured against `glob@13.0.6` it is not: given `openspec/specs/link ->
-    // external` holding `spec.md`, `glob` RETURNS the spec and the skipping walker omits it. So a
-    // repo whose only path to a spec or test tree runs through a symlink would read as ZERO
-    // findings — the checker reporting all-clear over a tree it never opened.
-    //
-    // Following the link instead would trade a silent miss for silent double-counting and symlink
-    // cycles. Refusing is the third option: the scan stops, loudly, at the one entry it cannot
-    // describe. Symlinked FILES still match, exactly as `glob` matches them.
-    //
-    // The refusal is BYPASSABLE, and the message says so. A repo that means to leave a symlinked
-    // directory in the scanned tree adds its path to `specIgnore` or `testIgnore` — an ignored
-    // symlink never reaches this branch. That keeps the refusal a fail-closed default rather than a
-    // wall: the scan still refuses to describe a subtree nobody declared, and a declared one is
-    // pruned as deliberately as `node_modules` is.
-    //
-    // This runs AFTER the ignore test and AFTER the reachability test on purpose. A pnpm
-    // `node_modules` is built out of symlinked directories, and every default ignore list here
-    // prunes it; a symlink that no pattern position can reach hides nothing either way.
+    /**
+     * Refuses reachable symlinked directories because following or skipping them silently changes the
+     * scanned tree. Ignored symlink paths remain skippable; other symlinked directories fail closed
+     * before descent.
+     */
     if (entry.isSymbolicLink() && pointsAtDirectory(join(cwd, relPath))) {
       throw new Error(
         `openspec-covers: refusing to scan symlinked directory ${relPath} — resolve or remove the symlink, or add it to specIgnore/testIgnore to skip it deliberately`
@@ -820,31 +780,9 @@ export function checkDeltaRequirements(cwd, baseRequirements, options = {}) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Reconcile a spec tree against its tests, and report everything the reconcile can see.
- *
- * Every finding is advisory: `severity` is always `'warning'` and the function never throws on a
- * finding. Which types BLOCK is each consumer's policy, not this rule's.
- *
- * It DOES throw on a symlinked directory in the scanned tree (spec version 2) — that is not a
- * finding, it is the scan refusing to describe a tree it cannot see. See `globSync`.
- *
- * The `Finding` shape at `COVERS_SPEC_VERSION` 3, unchanged since version 1, in key order:
- *
- *   {
- *     type: string,               // one of COVERS_FINDING_TYPES
- *     severity: 'warning',        // always; consumers stamp their own severity
- *     file: string,               // path relative to `cwd`, `/`-separated
- *     line: number,               // 1-based
- *     capability?: string,        // present only when the finding names a capability
- *     requirementName?: string,   // present only when the finding names a requirement
- *     message: string,            // human-readable, ends with the fix where one exists
- *     language?: string           // present only when `annotateLanguage` is on
- *   }
- *
- * OPTIONAL KEYS ARE OMITTED, never null — the shape mantle's `OpenSpecFinding` already had, so a
- * vendoring consumer maps nothing. `language` is the ONE opt-in extension: it is off by default so
- * the emitted JSON is identical to the engine this replaces, and on for a consumer that reconciles
- * more than one language and needs to route a finding by it.
+ * Reconciles specs and tests. Findings are advisory and shape-stable; consumers own severity and
+ * blocking policy. It throws only when a symlink prevents a complete scan. Optional finding keys
+ * are omitted; `language` appears only when requested.
  *
  * @param {object} [options]
  * @param {string} [options.cwd] scan root
@@ -853,8 +791,8 @@ export function checkDeltaRequirements(cwd, baseRequirements, options = {}) {
  * @param {string} [options.deltaGlob] delta spec glob
  * @param {readonly string[]} [options.deltaIgnore] delta spec ignore list
  * @param {readonly string[]} [options.testIgnore] default ignore list for language globs
- * @param {readonly object[]} [options.languages] the language table
- * @param {boolean} [options.annotateLanguage] stamp `language` on findings from a test file
+ * @param {readonly object[]} [options.languages] language table
+ * @param {boolean} [options.annotateLanguage] include language on test-file findings
  * @returns {{findings: object[], specsScanned: number, testFilesScanned: number,
  *   requirementsFound: number, coversAnnotationsFound: number}}
  */
