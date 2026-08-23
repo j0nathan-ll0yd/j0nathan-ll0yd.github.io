@@ -13,6 +13,14 @@ import {join} from 'node:path'
  * `covers-conformance.json` and its sidecar, and re-vendor every consumer in ONE pull request (the
  * `0027` same-PR discipline). A vendored copy that lags is a rule the estate has already moved past.
  *
+ * Version 4: ONE NEW RULE — `requirement-without-scenario`. Every `### Requirement:` must carry at
+ * least one `#### Scenario:`. This was the ONLY check the vendor validator enforced that this engine
+ * did not, so the property held solely in the two repos that ran `openspec validate` (mantle,
+ * ios-LifegamesPortal) and was UNGATED across the other 105 of the estate's 134 requirements. Moving
+ * it here makes it run wherever the contract runs. A requirement under a `## REMOVED Requirements`
+ * section is exempt — measured against `@fission-ai/openspec@1.4.1`, which ERRORs on a bare base,
+ * `ADDED` or `MODIFIED` requirement and validates a bare `REMOVED` one clean. See decision `0074`.
+ *
  * Version 3: CONFORMANCE HARDENING, plus one dead-code removal. No rule behavior changes and the
  * `Finding` shape is unchanged. An adversarial mutant hunt (49 source mutations) found 20 correct
  * behaviors that no vector could distinguish from their mutants, so the corpus grew from 25 vectors
@@ -24,12 +32,11 @@ import {join} from 'node:path'
  * that was wrong — `glob` RETURNS a spec behind a symlinked directory — so a silent skip could
  * report zero findings over a tree mantle used to check. The `Finding` shape is unchanged.
  */
-export const COVERS_SPEC_VERSION = 3
+export const COVERS_SPEC_VERSION = 4
 
 /**
- * The CLOSED set of `Finding.type` values at spec version 3, unchanged since version 1. Exported so
- * a consumer can assert it handles every one — a new type is a rule change and needs a
- * `COVERS_SPEC_VERSION` bump.
+ * The CLOSED set of `Finding.type` values at spec version 4. Exported so a consumer can assert it
+ * handles every one — a new type is a rule change and needs a `COVERS_SPEC_VERSION` bump.
  */
 export const COVERS_FINDING_TYPES = Object.freeze([
   'uncovered-requirement',
@@ -39,6 +46,7 @@ export const COVERS_FINDING_TYPES = Object.freeze([
   'citation-missing-line',
   'unlabeled-multi-citation',
   'scenario-gwt-structure',
+  'requirement-without-scenario',
   'delta-base-missing',
   'removed-requirement-migration',
   'duplicate-requirement-name'
@@ -502,6 +510,75 @@ export function checkScenarioGwtStructure(content, filePath) {
 }
 
 /**
+ * Check that every `### Requirement:` carries at least one `#### Scenario:`. Runs on base and delta
+ * specs alike.
+ *
+ * This is the rule added at `COVERS_SPEC_VERSION` 4, and it is deliberately the vendor validator's
+ * rule rather than a new invention: `checkScenarioGwtStructure` above says it is "additive to the
+ * vendor validator, which checks presence of scenarios only", and presence was exactly what no
+ * engine in this estate checked outside the two repos that shell out to `openspec validate`.
+ *
+ * A requirement under a `## REMOVED Requirements` section is EXEMPT. That is not a judgement call —
+ * it is what `@fission-ai/openspec@1.4.1` does, measured directly: a bare `REMOVED` requirement
+ * validates clean, while bare base, `ADDED` and `MODIFIED` requirements each raise
+ * `must include at least one scenario` as an ERROR. A removed requirement is being deleted;
+ * demanding a scenario for it would reject a legitimate retirement delta.
+ *
+ * @param {string} content raw spec.md text
+ * @param {string} filePath path relative to the scan root, for finding messages
+ */
+export function checkRequirementHasScenario(content, filePath) {
+  const findings = []
+  const lines = content.split('\n')
+
+  let inRemovedSection = false
+  let requirementName = null
+  let requirementLine = 0
+  let sawScenario = false
+
+  const emitIfBare = () => {
+    if (requirementName === null || sawScenario || inRemovedSection) {
+      return
+    }
+    findings.push({
+      type: 'requirement-without-scenario',
+      severity: 'warning',
+      file: filePath,
+      line: requirementLine,
+      message: `### Requirement: ${requirementName} has no #### Scenario: block. Every requirement must have at least one scenario.`
+    })
+  }
+
+  for (const [index, line] of lines.entries()) {
+    // A heading at `##` or shallower closes any open requirement and switches section. Evaluated
+    // BEFORE the section flag moves, so the closing requirement is judged under its OWN section.
+    if (/^#{1,2}\s/.test(line)) {
+      emitIfBare()
+      requirementName = null
+      inRemovedSection = /^##\s+REMOVED\b/i.test(line)
+      continue
+    }
+
+    const requirement = /^### Requirement:\s*(.+)$/.exec(line)
+    if (requirement) {
+      emitIfBare()
+      requirementName = requirement[1].trim()
+      requirementLine = index + 1
+      sawScenario = false
+      continue
+    }
+
+    if (requirementName !== null && /^####\s+Scenario:/.test(line)) {
+      sawScenario = true
+    }
+  }
+
+  emitIfBare()
+
+  return findings
+}
+
+/**
  * Resolve a spec's `verified by` citations against the covers index.
  *
  * Emits:
@@ -770,6 +847,7 @@ export function checkDeltaRequirements(cwd, baseRequirements, options = {}) {
     flushRequirement()
 
     findings.push(...checkScenarioGwtStructure(content, deltaFile))
+    findings.push(...checkRequirementHasScenario(content, deltaFile))
   }
 
   return findings
@@ -823,6 +901,7 @@ export function checkCoversDetailed(options = {}) {
 
     allRequirements.push(...parseRequirements(content, specFile, capability))
     findings.push(...checkScenarioGwtStructure(content, specFile))
+    findings.push(...checkRequirementHasScenario(content, specFile))
     findings.push(...checkCoversNearMiss(content, specFile, strictPatterns))
 
     specContents.push({file: specFile, content, capability})

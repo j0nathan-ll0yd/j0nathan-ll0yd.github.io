@@ -20,7 +20,13 @@
     "**/*.d.ts",
     "**/*.astro",
     "src/env.d.ts",
+
+    // Byte-frozen vendored artifacts and the frozen copies the differential test
+    // compares against. Each one's sha256 is asserted by a test, so formatting any
+    // of them rewrites bytes the pin is measured over and reds the integrity test.
+    // The producer formats these before publishing; this repo copies them verbatim.
     "scripts/audit/lib/llms-structure.mjs",
+    "scripts/vendor/openspec-covers.mjs",
     "tests/audit/fixtures/llms-structure.v1.mjs",
     "tests/audit/fixtures/llms-structure.v2.mjs"
   ]
