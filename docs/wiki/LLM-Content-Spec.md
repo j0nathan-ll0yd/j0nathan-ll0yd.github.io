@@ -80,7 +80,7 @@ Must contain, in order:
 
 ## Robots.txt Policy
 
-github.io's `robots.txt` lists `Allow: /llms.txt` before `Disallow: /` under each of the 9 currently-blocked AI bots. The rich variants on CloudFront are governed by the backend repo's robots.txt policy (if any). This spec does not mandate a specific CloudFront robots.txt -- that's a backend concern.
+github.io's `robots.txt` lists `Allow: /llms.txt` before `Disallow: /` under each of the ten currently blocked AI training crawlers. Five named AI search/answer agents are explicitly allowed to read the full site. The rich variants on CloudFront are governed by the backend repo's robots.txt policy (if any). This spec does not mandate a specific CloudFront robots.txt -- that's a backend concern.
 
 ## Compliance (backend)
 
@@ -108,12 +108,19 @@ Beyond LLM content, the site publishes machine-readable discovery files for AI a
 | `public/.well-known/agent-skills/portfolio-expert/SKILL.md` | agentskills.io | Curated portfolio context for agents |
 | `public/.well-known/ai-catalog.json` | ARD `specVersion` 1.0 | Catalogs the MCP and Agent Skills resources |
 
-### Content Signals
+### AI Usage Preferences
 
-`robots.txt` includes `Content-Signal: search=yes, ai-train=no, ai-input=yes` under `User-agent: *` per the IETF draft-romm-aipref-contentsignals spec. This declares:
+Site responses carry the HTTP header `Content-Usage: train-ai=n, search=y` via
+`functions/_middleware.ts`. The IETF AI Preferences Working Group drafts attach-05 and
+vocab-07 (verified 2026-08-19) define this header and the two current vocabulary
+categories:
+
 - Search indexing: allowed
 - AI model training: blocked
-- AI input/RAG/grounding: allowed
+
+The current WG vocabulary does not define an AI-input category. The attachment draft
+also describes a robots extension, but the site does not emit it in `robots.txt` while
+Lighthouse treats that extension as an unknown directive.
 
 ### WebMCP
 
@@ -129,6 +136,7 @@ The middleware handles:
 3. **API catalog Content-Type** — RFC 9727 `application/linkset+json` override for `/.well-known/api-catalog`
 4. **Markdown negotiation** — Serves `text/markdown` from CloudFront when agents send `Accept: text/markdown`
 5. **Homepage cache bypass** — Sets `CDN-Cache-Control: no-store` on `/` (defense-in-depth; primary bypass is the Cache Rule below)
+6. **Content-use preference** — Sets `Content-Usage: train-ai=n, search=y` on site responses
 
 The `_headers` file is NOT used because root middleware disables Cloudflare Pages' `_headers` processing.
 
@@ -142,16 +150,16 @@ This is required because Cloudflare Pages caches HTML at the edge and bypasses P
 
 ### Score Breakdown
 
-#### Current (2026-05-05): 100/100
+#### Current (2026-08-23): 100/100
 
 | Check | Status | Notes |
 |---|---|---|
-| robots.txt | PASS | 9 AI bots blocked, search engines allowed |
+| robots.txt | PASS | 10 training crawlers blocked except `/llms.txt`; 5 search/answer agents allowed |
 | Sitemap | PASS | sitemap-index.xml |
 | Link headers | PASS | Pages Function middleware sets on `/` |
 | Markdown Negotiation | PASS | Pages Function + Cache Rule bypass |
-| AI bot rules | PASS | 9/9 bots configured |
-| Content Signals | PASS | `search=yes, ai-train=no, ai-input=yes` |
+| AI bot rules | PASS | 10/10 training and 5/5 search/answer agents configured |
+| Content-Usage | PASS | HTTP header `train-ai=n, search=y` |
 | API Catalog | PASS | RFC 9727 `application/linkset+json` via middleware |
 | OAuth/OIDC | SKIP | No auth surface (static portfolio) |
 | OAuth Protected Resource | SKIP | No auth surface (static portfolio) |

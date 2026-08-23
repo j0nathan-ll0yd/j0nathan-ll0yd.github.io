@@ -242,6 +242,14 @@ test.describe('production home dashboard', () => {
     expect(reportOnly, 'Trusted Types report-only header missing').toContain("require-trusted-types-for 'script'")
   })
 
+  test('Content-Usage preference covers representative site content', async ({page}) => {
+    for (const path of ['/', '/privacy', '/robots.txt']) {
+      const res = await getStable(page.request, path)
+      expect(res.status(), `${path} did not return HTTP 200`).toBe(200)
+      expect(res.headers()['content-usage'], `${path} has the wrong Content-Usage header`).toBe('train-ai=n, search=y')
+    }
+  })
+
   test('version.json reports the deployed build', async ({page}) => {
     const res = await getStable(page.request, '/version.json')
     expect(res.status(), '/version.json did not return HTTP 200').toBe(200)

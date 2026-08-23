@@ -40,6 +40,11 @@ const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/csp-repo
 // report per innerHTML sink while it runs.
 const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint"
 
+// IETF AI Preferences Working Group drafts attach-05/vocab-07 define
+// Content-Usage as an HTTP Structured Field Dictionary. Keep this out of
+// robots.txt until consumers such as Lighthouse recognize that extension.
+export const CONTENT_USAGE = 'train-ai=n, search=y'
+
 export const LINK_HEADER = [
   '</llms.txt>; rel="describedby"; type="text/plain"',
   '</.well-known/api-catalog>; rel="api-catalog"',
@@ -68,7 +73,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     const mdResponse = await fetch(`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`)
     return new Response(mdResponse.body, {
       status: mdResponse.status,
-      headers: {'Content-Type': 'text/markdown', 'Cache-Control': 'no-store', 'x-markdown-tokens': '2500'}
+      headers: {'Content-Type': 'text/markdown', 'Cache-Control': 'no-store', 'Content-Usage': CONTENT_USAGE, 'x-markdown-tokens': '2500'}
     })
   }
 
@@ -81,6 +86,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY)
   headers.set('X-Content-Type-Options', 'nosniff')
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  headers.set('Content-Usage', CONTENT_USAGE)
   // HSTS: 2-year max-age + subdomains. Preload intentionally omitted -- owner-gated process.
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
   headers.set('X-Frame-Options', 'DENY')

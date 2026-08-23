@@ -8,7 +8,8 @@ specifications carry a point-in-time verification date.
 
 | File                                               | Purpose                                                     | Produced by                                                             | Spec / version (verified)              |
 | -------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
-| `/robots.txt`                                      | Crawl policy incl. per-AI-bot rules + Content-Signal        | `src/pages/robots.txt.ts`                                               | robots.txt + Content-Signal            |
+| `/robots.txt`                                      | Per-agent crawl policy                                      | `src/pages/robots.txt.ts`                                               | RFC 9309 directives + Sitemap           |
+| `Content-Usage` response header                    | Machine-readable content-use preference                     | `functions/_middleware.ts`                                             | IETF WG drafts attach-05 / vocab-07     |
 | `/sitemap-index.xml`                               | URL discovery for search engines                            | `@astrojs/sitemap` (`astro.config.mjs`)                                 | Sitemaps 0.9                           |
 | `/humans.txt`                                      | Human authorship credits                                    | `src/pages/humans.txt.ts`                                               | humanstxt.org                          |
 | `/feed.xml`, `/feed.json`                          | Content feeds                                               | `functions/feed.xml.ts`, `functions/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
@@ -82,6 +83,23 @@ Evidence verified 2026-08-22:
 Accordingly, `/.well-known/agent-card.json`, its ARD catalog entry, its HTTP `Link`
 advertisement, and its dedicated audit assertions were removed. Do not restore them
 unless a real conforming A2A endpoint is deployed.
+
+### AI content-use preference
+
+Every site response carries `Content-Usage: train-ai=n, search=y`, set by the root
+Pages Function middleware. This is the HTTP response-header form defined by the IETF AI
+Preferences Working Group drafts
+[`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)
+and
+[`draft-ietf-aipref-vocab-07`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-07.html),
+both verified 2026-08-19. The current vocabulary defines `train-ai` and `search`;
+it does not define an AI-input category.
+
+The attachment draft also describes a robots extension, but `/robots.txt`
+intentionally omits it. Lighthouse treats directives it does not recognize as an SEO
+failure, so the generated file is limited to the site's approved `User-agent`, `Allow`,
+`Disallow`, and `Sitemap` fields. Named training crawlers remain blocked from the
+dashboard except `/llms.txt`, while named search/answer agents remain allowed.
 
 ## Deferred discovery surfaces
 

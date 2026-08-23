@@ -14,13 +14,6 @@ export function GET(): Response {
 User-agent: *
 Allow: /
 
-# Content usage preferences (contentsignals.org, IETF draft-romm-aipref-contentsignals)
-# search  = build a search index and show results
-# ai-input = use content as live input for AI answers (RAG, grounding)
-# ai-train = train or fine-tune AI models
-# These restrictions are express reservations of rights under Article 4 of EU Directive 2019/790.
-Content-Signal: search=yes, ai-train=no, ai-input=yes
-
 # AI scraping/training bots -- blocked from visual dashboard,
 # LLM discovery index (${LLMS_TXT_PATH}) allowed per Option A of the
 # LLM Content Delivery plan. Rich variants live on CloudFront
@@ -68,9 +61,9 @@ Allow: ${LLMS_TXT_PATH}
 Disallow: /
 
 # AI search/answer agents -- explicitly allowed to read the full site,
-# coherent with Content-Signal search=yes, ai-input=yes. PerplexityBot is a
-# search/retrieval crawler with no separate training token, so it is NOT in the
-# trainer block above -- it inherits Allow: / from User-agent: *.
+# matching the search permission sent in the site's HTTP response headers.
+# PerplexityBot has no separate training token, so it is NOT in the trainer
+# block above -- it inherits Allow: / from User-agent: *.
 User-agent: OAI-SearchBot
 Allow: /
 

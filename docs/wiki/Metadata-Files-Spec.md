@@ -73,8 +73,8 @@ guessing paths. This site uses two complementary signals:
 - **HTTP `Link` response header** (`functions/_middleware.ts`) — injected on
   the homepage (`/`) only, for agents that inspect headers without parsing HTML.
 
-The middleware is the **single authority for response headers**. The `_headers`
-file at repo root is inert — Cloudflare Pages disables `_headers` processing
+The middleware is the **single authority for response headers**. The `public/_headers`
+file is inert — Cloudflare Pages disables `_headers` processing
 when a root Pages Function middleware is present. Any header change must go in
 `functions/_middleware.ts`.
 
@@ -133,10 +133,18 @@ it reaches the web surface.
 ### `/robots.txt` — build-time endpoint
 
 Managed in `src/pages/robots.txt.ts`. Contains allow/disallow directives for
-search engines and 9 named AI bots, a `Sitemap:` pointer, and a
-`Content-Signal:` line per the IETF `draft-romm-aipref-contentsignals` spec
-(`search=yes, ai-train=no, ai-input=yes`). Source of truth for which bots are
-allowed to crawl and under what conditions.
+search engines, ten named AI training crawlers, and five named AI search/answer
+agents, plus a `Sitemap:` pointer. Training crawlers may read `/llms.txt` but are
+blocked from the dashboard; search/answer agents may read the full site. The endpoint
+uses only the site's approved `User-agent`, `Allow`, `Disallow`, and `Sitemap`
+directives so unknown extensions cannot regress Lighthouse SEO.
+
+The separate content-use reservation is delivered on site responses as
+`Content-Usage: train-ai=n, search=y` by `functions/_middleware.ts`. This is the HTTP
+header form in IETF AI Preferences Working Group drafts attach-05 and vocab-07
+(verified 2026-08-19). Although attach-05 also describes a robots extension, this site
+does not emit it in `/robots.txt` until Lighthouse recognizes it. The current WG
+vocabulary defines `train-ai` and `search` only.
 
 ### `/sitemap-index.xml` — `@astrojs/sitemap` integration
 
