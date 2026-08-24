@@ -11,9 +11,9 @@
 // convention vs which are this repo's own operational handling, and the case
 // inputs each one derives from.
 
+import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
-import {checkLlmsStructure} from './lib/llms-structure.mjs'
 import {emit, rules} from './specs/load.mjs'
 
 const R = rules('llms-txt')
