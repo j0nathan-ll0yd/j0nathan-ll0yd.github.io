@@ -21,12 +21,16 @@
     "**/*.astro",
     "src/env.d.ts",
 
-    // Byte-frozen vendored artifacts and the frozen copies the differential test
-    // compares against. Each one's sha256 is asserted by a test, so formatting any
-    // of them rewrites bytes the pin is measured over and reds the integrity test.
-    // The producer formats these before publishing; this repo copies them verbatim.
-    "scripts/audit/lib/llms-structure.mjs",
-    "scripts/vendor/openspec-covers.mjs",
+    // Frozen byte-identical snapshots of the llms-structure reference at v1 and v2. Their sha256 is
+    // measured by the differential suite in tests/audit/llms-differential.test.ts, which differences
+    // the live reference against them over a fixed seed and input pool, so a formatter pass would
+    // re-record history rather than tidy a file.
+    //
+    // This list used to hold two more entries -- scripts/audit/lib/llms-structure.mjs and
+    // scripts/vendor/openspec-covers.mjs, the vendored contract copies. Atlas decision 0079 item 4
+    // wave 2b replaced both with @j0nathan-ll0yd/estate-contracts, which resolves under
+    // node_modules -- already excluded above, and no formatter walks it -- so those two exclusions
+    // are retired by construction rather than restated.
     "tests/audit/fixtures/llms-structure.v1.mjs",
     "tests/audit/fixtures/llms-structure.v2.mjs"
   ]

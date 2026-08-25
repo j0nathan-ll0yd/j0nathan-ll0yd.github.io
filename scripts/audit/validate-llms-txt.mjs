@@ -11,9 +11,9 @@
 // convention vs which are this repo's own operational handling, and the case
 // inputs each one derives from.
 
+import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
-import {checkLlmsStructure} from './lib/llms-structure.mjs'
 import {emit, rules} from './specs/load.mjs'
 
 const R = rules('llms-txt')
@@ -34,9 +34,10 @@ const INDEX_MD_URL = `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
  * Validate llms.txt structure against the llmstxt.org convention.
  * Pure function (string in, findings out) so it's testable without network.
  *
- * The five structural rules live in lib/llms-structure.mjs, the shared
- * reference the backend producer vendors too (canonical copy in atlas,
- * pinned by sha256). This function is the CATALOG WRAPPER over it: the
+ * The five structural rules live in
+ * @j0nathan-ll0yd/estate-contracts/llms-structure, the shared reference atlas
+ * owns and publishes (the backend producer still vendors its own copy of the
+ * same bytes). This function is the CATALOG WRAPPER over it: the
  * reference decides WHAT is wrong, the rule files decide how bad it is.
  * emit() stamps severity from the rule and throws on an id no rule file
  * declares, so surjectivity survives the extraction unchanged.

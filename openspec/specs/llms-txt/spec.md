@@ -27,11 +27,16 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 - Served paths: `LLM_CONTENT_PATHS` — `@j0nathan-ll0yd/portal-contract/constants`. It covers
   `llmsFull`, `llmsSmall`, and `indexMarkdown`. `/llms.txt` has no constant; its route hardcodes
   the path (`functions/llms.txt.ts:11`). See Gaps.
-- Structural rules: `checkLlmsStructure(rawText)` — `scripts/audit/lib/llms-structure.mjs:87`.
-  A pure, framework-free module the backend producer vendors too; atlas holds the canonical copy
-  and this repo pins it by sha256 — the digest sidecar `scripts/audit/lib/llms-structure.mjs.sha256`
-  and the assertions in `tests/audit/llms-structure.integrity.test.ts`, which mirror the producer's
-  own pin. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
+- Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.
+  A pure, framework-free module; atlas owns it and publishes it, and this repo consumes it
+  exact-pinned from the lockfile (atlas decisions 0079 item 4 wave 2b, 0080). It was vendored at
+  `scripts/audit/lib/llms-structure.mjs` with a sha256 sidecar until that migration; the copy is
+  gone. `tests/audit/llms-structure.integrity.test.ts` now checks the SHIPPED bytes against the
+  sidecar shipped beside them and asserts the spec version this repo was written against.
+  `LLMS_STRUCTURE_SPEC_VERSION` is **3**. The backend producer still VENDORS this reference
+  (`mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs`) and pins the same digest,
+  `50ac4620b1981486f92e285f497e6e8a90fbc8c8bb2bd2272698550f4d6662fc`; the two sides agree because
+  that is the digest the package ships, and they will keep agreeing until the producer migrates.
 - Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:44`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
@@ -159,7 +164,7 @@ in the catalog checks its clause as quoted.
 | ------------------------ | ------------------------------------------ | ----------------------------------------- | -------------------------------------------------- | ------------------- |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | GAP (backend to proxy to served untested) | B5 lychee (the URL and its outbound links resolve) | —                   |
 | Structural profile       | spec-cases + property test                 | — (external consumer)                     | weekly structural                                  | —                   |
-| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer pins the same digest             | —                                                  | sha256 + sidecar    |
+| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer still vendors the same digest    | —                                                  | lockfile + sidecar  |
 | Freshness                | GAP                                        | —                                         | weekly                                             | maxAgeHours in rule |
 | External anchor          | spec-verification                          | —                                         | weekly drift                                       | pinned source       |
 
@@ -175,7 +180,9 @@ in the catalog checks its clause as quoted.
 ## Enforcement note
 
 This repo has no `mantle check openspec` tooling. The `covers:` tethers in the covering test files
-are instead enforced by the vendored openspec-covers contract
-(`scripts/vendor/openspec-covers.mjs`, `COVERS_SPEC_VERSION` 4), run blocking by
-`pnpm run check:covers` and by the `covers-conformance` job in `.github/workflows/static-checks.yml`
-on every pull request and every push to main.
+are instead enforced by the openspec-covers contract, consumed from
+`@j0nathan-ll0yd/estate-contracts/openspec-covers` at `COVERS_SPEC_VERSION` 4 (atlas decisions 0079
+item 4 wave 2b, 0080). It was vendored at `scripts/vendor/openspec-covers.mjs` until that migration;
+the copy is gone and must not come back. `scripts/openspec-covers.mjs` wraps the package and runs
+blocking via `pnpm run check:covers` and the `covers-conformance` job in
+`.github/workflows/static-checks.yml`, on every pull request and every push to main.

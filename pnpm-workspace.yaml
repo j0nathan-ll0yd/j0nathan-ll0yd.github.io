@@ -34,11 +34,19 @@ strictPeerDependencies: false
 minimumReleaseAge: 1440
 
 # Same-day first-party releases must bypass minimumReleaseAge or frozen production deploys fail
-# for 24 hours. Only the seven @j0nathan-ll0yd packages are excluded; third-party dependencies
+# for 24 hours. Only the eight @j0nathan-ll0yd packages are excluded; third-party dependencies
 # retain the supply-chain age floor. Bare names keep future internal versions deployable.
+#
+# @j0nathan-ll0yd/estate-contracts is the eighth (atlas decision 0079 item 4 wave 2b). Its source of
+# truth is `j0nathan-ll0yd/atlas`, and it carries the normative cross-repo contracts this repo used
+# to vendor verbatim. A rule change lands as an atlas release plus a lockfile bump here, so blocking
+# that bump for 24 hours would reintroduce the coordination lag the published package exists to
+# delete. The age floor blunts third-party supply-chain attacks; a package the estate publishes
+# itself is not that threat model.
 minimumReleaseAgeExclude:
   - '@j0nathan-ll0yd/config'
   - '@j0nathan-ll0yd/copy'
+  - '@j0nathan-ll0yd/estate-contracts'
   - '@j0nathan-ll0yd/fixtures'
   - '@j0nathan-ll0yd/observability'
   - '@j0nathan-ll0yd/portal-contract'

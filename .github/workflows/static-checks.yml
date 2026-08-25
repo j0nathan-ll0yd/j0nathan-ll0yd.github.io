@@ -2,9 +2,10 @@ name: Static Checks
 
 # Hosted static gates for type/lint, rule cases and ratchets, source verification and quote
 # integrity, mutation score, and OpenSpec covers. The network half of source drift remains weekly
-# so third-party uptime cannot block merges. Covers is dependency-free; jobs that import internal
-# packages authenticate GitHub Packages through the runner's user npmrc because pnpm does not
-# expand GITHUB_TOKEN from the committed project config.
+# so third-party uptime cannot block merges. Every job here installs, covers included since atlas
+# decision 0079 item 4 wave 2b moved the covers rule into @j0nathan-ll0yd/estate-contracts; jobs
+# authenticate GitHub Packages through the runner's user npmrc because pnpm does not expand
+# GITHUB_TOKEN from the committed project config.
 on:
   pull_request:
   push:
@@ -253,9 +254,14 @@ jobs:
 
       # Stryker mutation score over the four catalog-backed pure validators
       # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
-      # network-path plumbing in those files). thresholds.break in
-      # stryker.conf.json is the measured floor (decisions/0011, UD1) --
-      # `stryker run` itself exits non-zero below it, no `|| true`.
+      # network-path plumbing in those files). Four validators across THREE
+      # files -- check-feeds.mjs holds validateFeedXml and validateFeedJson.
+      # The mutate list lost a file, not a validator, when the llms-structure
+      # REFERENCE moved into @j0nathan-ll0yd/estate-contracts; see
+      # `_comment_llms_structure` in stryker.conf.json for what that costs and
+      # why the floor did not move. thresholds.break in stryker.conf.json is
+      # the measured floor (decisions/0011, UD1) -- `stryker run` itself exits
+      # non-zero below it, no `|| true`.
       - name: Mutation score (stryker)
         run: pnpm exec stryker run
 
@@ -265,16 +271,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
+          cache: pnpm
 
-      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper
-      # verifies the vendored contract's sha256 pin, then checks every
-      # openspec requirement <-> covers: tether both ways. Node builtins only:
-      # no pnpm install, no GitHub Packages auth, so a registry outage never
-      # gates this job. No `|| true` -- a non-zero exit MUST fail the job
-      # (S3 no-op-gate hazard). Same invocation as `pnpm run check:covers`.
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # THIS JOB USED TO RUN WITHOUT AN INSTALL, and that was a real property worth naming
+      # before trading it away: the covers rule was vendored in-repo and imported nothing but
+      # node builtins, so a GitHub Packages outage could not gate a merge here.
+      #
+      # Atlas decision 0079 item 4 wave 2b deletes the vendored copy, so the rule now resolves
+      # from @j0nathan-ll0yd/estate-contracts and the install is mandatory. The trade is
+      # deliberate: one divergent local copy of a cross-repo rule is a worse failure than a
+      # registry outage, because a stale copy passes green while enforcing a rule the estate has
+      # already moved past, whereas an outage fails loudly and is retryable. Every other job in
+      # this workflow already carried the same dependency.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper verifies the SHIPPED
+      # rule against the sidecar the package ships beside it and asserts the covers spec version
+      # this repo was written against, then checks every openspec requirement <-> covers: tether
+      # both ways. No `|| true` -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
+      # Same invocation as `pnpm run check:covers`.
       - name: Covers conformance (openspec-covers, blocking)
         run: node scripts/openspec-covers.mjs --blocking
