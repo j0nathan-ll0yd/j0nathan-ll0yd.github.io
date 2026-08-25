@@ -1,9 +1,14 @@
 // FROZEN v2 OF THE SHARED STRUCTURAL REFERENCE. Test fixture, not production
 // code, and deliberately never updated.
 //
-// Byte-identical to scripts/audit/lib/llms-structure.mjs at v2
+// Byte-identical to the shared reference at v2
 // (sha256 4def82075af979b55f3db13e8ae16e7a172d4c1eca276aa9dcd0d7414dd7e6da),
-// with only this header replacing the vendoring notice. It exists so the
+// with only this header replacing the vendoring notice. It was vendored at
+// scripts/audit/lib/llms-structure.mjs then; the reference now ships as
+// @j0nathan-ll0yd/estate-contracts/llms-structure and that path is gone. The
+// "vendor the same bytes" sentence further down is part of the frozen bytes and
+// describes the v2 era, not today: both sides consume the package now.
+// It exists so the
 // v2->v3 delta is pinned as evidence rather than described in prose: the
 // differential suite compares v3 against these bytes and reports exactly one
 // divergence class, the empty-link tightening. Without a frozen v2, the moment
