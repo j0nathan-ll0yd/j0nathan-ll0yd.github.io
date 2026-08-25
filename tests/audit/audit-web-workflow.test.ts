@@ -52,3 +52,22 @@ describe('audit-web runner isolation', () => {
     expect(executable).toContain('run: node scripts/audit/validate-sitemap.mjs')
   })
 })
+
+describe('audit-web dead-man switch', () => {
+  // The switch answers "did the lane run to measurement". A crashed job used to
+  // ping plain success while every bucket reported "skipped", so neither the
+  // reconciler nor Healthchecks.io raised anything.
+  it('routes all three pings through the shared script with the job status', () => {
+    const pings = executable.match(/- name: Healthchecks\.io ping[\s\S]*?run: bash scripts\/audit\/healthchecks-ping\.sh/g) || []
+    expect(pings).toHaveLength(3)
+    for (const ping of pings) {
+      expect(ping).toContain('if: always()')
+      expect(ping).toContain('JOB_STATUS: ${{ job.status }}')
+      expect(ping).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}')
+    }
+  })
+
+  it('no longer curls the ping URL inline, which could not distinguish a wedged lane', () => {
+    expect(executable).not.toMatch(/curl .*\$HC_URL/)
+  })
+})

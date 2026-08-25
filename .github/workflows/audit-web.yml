@@ -114,16 +114,16 @@ jobs:
             ]
         run: node scripts/audit/lib/file-check-issues.mjs
 
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (every check is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
         if: always()
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
-        run: |
-          if [ -z "$HC_URL" ]; then
-            echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 5 "$HC_URL"
+          JOB_STATUS: ${{ job.status }}
+        run: bash scripts/audit/healthchecks-ping.sh
 
   weekly:
     name: Weekly (B2 artifacts, B3 LHCI, B4 pa11y, B5 lychee, B7 headers, B8 cache)
@@ -303,16 +303,16 @@ jobs:
             ]
         run: node scripts/audit/lib/file-check-issues.mjs
 
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (every check is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
         if: always()
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
-        run: |
-          if [ -z "$HC_URL" ]; then
-            echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 5 "$HC_URL"
+          JOB_STATUS: ${{ job.status }}
+        run: bash scripts/audit/healthchecks-ping.sh
 
   monthly:
     name: Monthly (B2 security.txt + agent-discovery re-verification)
@@ -372,13 +372,13 @@ jobs:
             ]
         run: node scripts/audit/lib/file-check-issues.mjs
 
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (every check is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
         if: always()
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
-        run: |
-          if [ -z "$HC_URL" ]; then
-            echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 5 "$HC_URL"
+          JOB_STATUS: ${{ job.status }}
+        run: bash scripts/audit/healthchecks-ping.sh
