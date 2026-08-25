@@ -237,13 +237,42 @@ jobs:
         continue-on-error: true
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.path }}
-        # Budgets (perf>=0.90, a11y/best-practices/seo>=0.95) are v1 starting
-        # values (D4 report-only), NOT yet verified as met by the live site --
-        # ratchet or ship-fix per Phase 6 bake-in, don't silently loosen them.
+        # Budgets (perf>=0.90, a11y/seo>=0.95) are v1 starting values (D4
+        # report-only) -- ratchet or ship-fix per Phase 6 bake-in, don't silently
+        # loosen them.
         #
-        # Chrome flags live in .lighthouserc.json (ci.collect.settings.chromeFlags),
-        # not here: `lhci autorun` takes no chrome-flags argument, so the rc file is
-        # the only seam. Two container defects, found in that order:
+        # best-practices is the ONE exception, held at 0.90 with an expiry:
+        #
+        # Measured ceiling. Once B3 could complete at all (#212), best-practices
+        # came in at a dead-flat 0.93/0.93/0.93 -- run 32899112390 -- because
+        # errors-in-console and inspector-issues each zero out (weight 1 each) on
+        # console errors the SITE does not cause. They are ERR_CONNECTION_REFUSED
+        # against hosts this runner's egress allowlist denies. A budget above the
+        # measured ceiling reds on network policy, which trains readers to ignore
+        # the check. 0.90 sits below the ceiling and still catches a real
+        # regression.
+        #
+        # Why the residue cannot be allowlisted away. After the runner-side
+        # CloudFront allowlist, the last ~4 requests go to m.media-amazon.com for
+        # book covers. Sampling resolved that host onto CloudFront, Akamai AND
+        # Fastly, so no address-prefix allowlist can hold it and the 4 errors are a
+        # DNS lottery -- flaky, not stable. ci.collect.settings.blockedUrlPatterns
+        # in .lighthouserc.json blocks them instead, so they fail the same way every
+        # run. Chrome's Network.setBlockedURLs drops them without logging a console
+        # error, measured: errors-in-console goes empty and the requests report
+        # status -1.
+        #
+        # REVISIT TRIGGER, so this relaxation cannot outlive its cause: the real
+        # defect is that the site hot-links Amazon-hosted images at all. Image
+        # localization (download, optimize, commit into Astro) is being scoped
+        # separately. WHEN THAT LANDS, both halves come out together -- the
+        # blockedUrlPatterns entry is deleted and best-practices goes back to 0.95.
+        # Neither change is finished without the other.
+        #
+        # Chrome flags and the blocklist live in .lighthouserc.json, not here:
+        # `lhci autorun` takes no chrome-flags argument and the rc file is strict
+        # JSON that takes no comments, so this step is the only place the reasoning
+        # fits. Two container defects preceded the budget work, in this order:
         #
         # --no-sandbox: these runners are containers whose distro disables
         # unprivileged user namespaces under AppArmor, so Chrome aborted at launch
