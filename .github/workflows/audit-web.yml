@@ -163,12 +163,18 @@ jobs:
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
         run: bash scripts/audit/preflight-egress.sh
 
-      # validate-sitemap.mjs shells out to xmllint (scripts/audit/vendor/*.xsd
-      # schema validation) -- present by default on macOS but NOT preinstalled
-      # on the ubuntu-latest image (verified: a bare `xmllint` step 404s with
-      # ENOENT). libxml2-utils is a small, fast apt package.
-      - name: Install xmllint (libxml2-utils, for B2 sitemap XSD validation)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+      # NO PACKAGE INSTALL STEP HERE, BY DESIGN. This job used to `apt-get
+      # install libxml2-utils` for the xmllint that validate-sitemap.mjs shelled
+      # out to. These runners sit behind a default-deny egress allowlist
+      # (ci-runners-private) that does not include ports.ubuntu.com or
+      # deb.nodesource.com -- the same isolation the two `runs-on` comments above
+      # already call out for `playwright install --with-deps`. apt-get exited 100
+      # on every attempt and killed the whole report-only job before a single
+      # check ran (31999694781, 32600311656, 32695529989 -- 15 days dark).
+      # validate-sitemap.mjs now validates in-process via
+      # scripts/audit/lib/sitemap-schema.mjs (fast-xml-parser +
+      # fast-xml-validator, already in the lockfile), so nothing here needs the
+      # network beyond the site under test. Do not reintroduce a per-run install.
 
       # pa11y-ci (Puppeteer) and @lhci/cli (chrome-launcher) each otherwise
       # download their own Chrome-for-Testing copy. Installing Playwright's
