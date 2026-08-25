@@ -77,7 +77,8 @@ jobs:
       - name: Astro sync
         run: pnpm exec astro sync
 
-      - name: Lint (eslint)
+      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
+      - name: lint
         run: pnpm run lint
 
   spec-cases:
@@ -184,7 +185,8 @@ jobs:
       # (not via ajv) so a violation is a clean message, and asserts the
       # immutable/pinned verification_url shape (follow-up (b)). No `|| true` --
       # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
-      - name: Spec source-verification gate
+      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
+      - name: spec-verification
         run: node scripts/audit/check-spec-verification.mjs
 
   spec-quote-integrity:
