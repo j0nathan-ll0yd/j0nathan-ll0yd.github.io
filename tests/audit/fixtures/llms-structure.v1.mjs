@@ -1,9 +1,14 @@
 // FROZEN v1 OF THE SHARED STRUCTURAL REFERENCE. Test fixture, not production
 // code, and deliberately never updated.
 //
-// Byte-identical to scripts/audit/lib/llms-structure.mjs at v1
+// Byte-identical to the shared reference at v1
 // (sha256 0e9ea67e228b46a324149d95fb3e81d73947c65426a2f2003079ef08ea4d06a6),
-// with only this header replacing the vendoring notice. Two tests need v1
+// with only this header replacing the vendoring notice. It was vendored at
+// scripts/audit/lib/llms-structure.mjs then; the reference now ships as
+// @j0nathan-ll0yd/estate-contracts/llms-structure and that path is gone. The
+// "vendor the same bytes" sentence further down is part of the frozen bytes and
+// describes the v1 era, not today: both sides consume the package now.
+// Two tests need v1
 // semantics to stay reachable after the reference moves on:
 //   1. The atlas decision 0036 reproduction. Its blind regeneration is a v1-era
 //      artifact, so comparing it against a moving reference would stop

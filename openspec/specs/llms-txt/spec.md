@@ -28,15 +28,22 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `llmsFull`, `llmsSmall`, and `indexMarkdown`. `/llms.txt` has no constant; its route hardcodes
   the path (`functions/llms.txt.ts:11`). See Gaps.
 - Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.
-  A pure, framework-free module; atlas owns it and publishes it, and this repo consumes it
-  exact-pinned from the lockfile (atlas decisions 0079 item 4 wave 2b, 0080). It was vendored at
-  `scripts/audit/lib/llms-structure.mjs` with a sha256 sidecar until that migration; the copy is
-  gone. `tests/audit/llms-structure.integrity.test.ts` now checks the SHIPPED bytes against the
-  sidecar shipped beside them and asserts the spec version this repo was written against.
-  `LLMS_STRUCTURE_SPEC_VERSION` is **3**. The backend producer still VENDORS this reference
-  (`mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs`) and pins the same digest,
-  `50ac4620b1981486f92e285f497e6e8a90fbc8c8bb2bd2272698550f4d6662fc`; the two sides agree because
-  that is the digest the package ships, and they will keep agreeing until the producer migrates.
+  A pure, framework-free module; atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME THE
+  PACKAGE. The producer imports it in
+  `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
+  `scripts/audit/validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
+  exact-pinned at `0.1.0` (here `package.json:56`) and resolves it from its lockfile — atlas
+  decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
+  Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
+  here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
+  a sha256 sidecar, until the 2026-08 migration deleted both.
+  Agreement is enforced by atlas audit A10 (`audits/checks/conformance-fixtures.mjs`), which asserts
+  every consumer's declared specifier is EXACT and IDENTICAL across consumers. A range specifier is a
+  finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
+  silent re-vendor cannot pass unnoticed.
+  `tests/audit/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
+  beside them — sha256 `50ac4620b1981486f92e285f497e6e8a90fbc8c8bb2bd2272698550f4d6662fc` — and
+  asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:44`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
@@ -164,7 +171,7 @@ in the catalog checks its clause as quoted.
 | ------------------------ | ------------------------------------------ | ----------------------------------------- | -------------------------------------------------- | ------------------- |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | GAP (backend to proxy to served untested) | B5 lychee (the URL and its outbound links resolve) | —                   |
 | Structural profile       | spec-cases + property test                 | — (external consumer)                     | weekly structural                                  | —                   |
-| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer still vendors the same digest    | —                                                  | lockfile + sidecar  |
+| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin      | —                                                  | lockfile + sidecar  |
 | Freshness                | GAP                                        | —                                         | weekly                                             | maxAgeHours in rule |
 | External anchor          | spec-verification                          | —                                         | weekly drift                                       | pinned source       |
 

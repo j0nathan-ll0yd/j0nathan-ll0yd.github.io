@@ -36,8 +36,9 @@ const INDEX_MD_URL = `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
  *
  * The five structural rules live in
  * @j0nathan-ll0yd/estate-contracts/llms-structure, the shared reference atlas
- * owns and publishes (the backend producer still vendors its own copy of the
- * same bytes). This function is the CATALOG WRAPPER over it: the
+ * owns and publishes. The backend producer consumes the same package at the
+ * same exact pin, so neither side holds a copy to drift. This function is the
+ * CATALOG WRAPPER over it: the
  * reference decides WHAT is wrong, the rule files decide how bad it is.
  * emit() stamps severity from the rule and throws on an id no rule file
  * declares, so surjectivity survives the extraction unchanged.

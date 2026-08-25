@@ -234,7 +234,7 @@ describe('differential: the live reference against frozen v2 (the v3 tightening)
     expect(ids('# S\n\n> Sum\n\n## Links\n\n- [name]()\n')).toEqual([NON_LINK])
     expect(ids('# S\n\n> Sum\n\n## Links\n\n- [ok](https://ok.com)\n')).toEqual([])
     // v2 answered [] to both of the first two. This is the regression the
-    // vendored bytes now carry, stated as an example rather than a count.
+    // shipped bytes now carry, stated as an example rather than a count.
     expect(v2('# S\n\n> Sum\n\n## Links\n\n- [](https://x.com)\n')).toEqual([])
     expect(v2('# S\n\n> Sum\n\n## Links\n\n- [name]()\n')).toEqual([])
   })
