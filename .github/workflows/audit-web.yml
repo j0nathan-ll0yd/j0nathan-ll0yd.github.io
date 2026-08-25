@@ -262,12 +262,24 @@ jobs:
         # error, measured: errors-in-console goes empty and the requests report
         # status -1.
         #
+        # What still holds 0.93, measured after the blocklist landed (run
+        # 32900059618): the Amazon requests now report status -1 and log NOTHING,
+        # so errors-in-console is down to 3 entries, all the same WebSocket --
+        # wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com/live,
+        # ERR_CONNECTION_REFUSED. That is API Gateway, which the CloudFront
+        # allowlist does not cover. inspector-issues (CSP) is the other zero.
+        #
         # REVISIT TRIGGER, so this relaxation cannot outlive its cause: the real
         # defect is that the site hot-links Amazon-hosted images at all. Image
         # localization (download, optimize, commit into Astro) is being scoped
-        # separately. WHEN THAT LANDS, both halves come out together -- the
-        # blockedUrlPatterns entry is deleted and best-practices goes back to 0.95.
-        # Neither change is finished without the other.
+        # separately. WHEN THAT LANDS, delete the blockedUrlPatterns entry -- it
+        # has no purpose once nothing requests that host.
+        #
+        # Deleting it is NOT enough to restore 0.95, and raising the budget on that
+        # signal alone will red this step again. errors-in-console stays zeroed
+        # while the WebSocket errors remain, so 0.95 needs the wss host reachable
+        # from the runner (or otherwise silenced) AND inspector-issues resolved.
+        # Re-measure before ratcheting; do not infer the score.
         #
         # Chrome flags and the blocklist live in .lighthouserc.json, not here:
         # `lhci autorun` takes no chrome-flags argument and the rc file is strict
