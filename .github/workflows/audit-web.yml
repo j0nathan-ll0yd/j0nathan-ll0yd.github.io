@@ -241,14 +241,25 @@ jobs:
         # values (D4 report-only), NOT yet verified as met by the live site --
         # ratchet or ship-fix per Phase 6 bake-in, don't silently loosen them.
         #
-        # --no-sandbox lives in .lighthouserc.json (ci.collect.settings.chromeFlags),
+        # Chrome flags live in .lighthouserc.json (ci.collect.settings.chromeFlags),
         # not here: `lhci autorun` takes no chrome-flags argument, so the rc file is
-        # the only seam. These runners are containers whose distro disables
-        # unprivileged user namespaces under AppArmor, so Chrome aborts at launch
-        # with "No usable sandbox!" and lhci reports the downstream symptom
+        # the only seam. Two container defects, found in that order:
+        #
+        # --no-sandbox: these runners are containers whose distro disables
+        # unprivileged user namespaces under AppArmor, so Chrome aborted at launch
+        # with "No usable sandbox!" and lhci reported the downstream symptom
         # (ECONNREFUSED on the DevTools port) -- run 32890887108. B4 below never hit
-        # this because .pa11yci has carried the same flag from the start. The two
-        # configs must keep agreeing; a flag added to one belongs in the other.
+        # this because .pa11yci has carried the same flag from the start.
+        #
+        # --disable-dev-shm-usage: with the launch fixed, Chrome started and
+        # navigated, then the page died mid-trace and Lighthouse timed out at 30s
+        # with NO_FCP -- run 32891570773. Docker's default /dev/shm is 64MB and
+        # Lighthouse's tracing is far heavier on shared memory than pa11y's axe run,
+        # which is why B4 loads the same URL in 1.5s on the same binary in the same
+        # container. The flag moves shared memory to /tmp.
+        #
+        # The two configs must keep agreeing; a flag added to one belongs in the
+        # other unless the reason is tool-specific, as --disable-dev-shm-usage is.
         run: pnpm exec lhci autorun --config=.lighthouserc.json
 
       - name: Upload Lighthouse reports
