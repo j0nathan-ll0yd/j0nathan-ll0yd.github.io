@@ -252,12 +252,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Stryker mutation score over the three catalog-backed pure validators
+      # Stryker mutation score over the four catalog-backed pure validators
       # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
-      # network-path plumbing in those files). It was four until the
-      # llms-structure reference moved into @j0nathan-ll0yd/estate-contracts --
-      # see `_comment_llms_structure` in stryker.conf.json for what that costs
-      # and why the floor did not move. thresholds.break in stryker.conf.json is
+      # network-path plumbing in those files). Four validators across THREE
+      # files -- check-feeds.mjs holds validateFeedXml and validateFeedJson.
+      # The mutate list lost a file, not a validator, when the llms-structure
+      # REFERENCE moved into @j0nathan-ll0yd/estate-contracts; see
+      # `_comment_llms_structure` in stryker.conf.json for what that costs and
+      # why the floor did not move. thresholds.break in stryker.conf.json is
       # the measured floor (decisions/0011, UD1) -- `stryker run` itself exits
       # non-zero below it, no `|| true`.
       - name: Mutation score (stryker)

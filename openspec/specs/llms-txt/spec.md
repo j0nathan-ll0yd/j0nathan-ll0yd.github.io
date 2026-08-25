@@ -180,7 +180,9 @@ in the catalog checks its clause as quoted.
 ## Enforcement note
 
 This repo has no `mantle check openspec` tooling. The `covers:` tethers in the covering test files
-are instead enforced by the vendored openspec-covers contract
-(`scripts/vendor/openspec-covers.mjs`, `COVERS_SPEC_VERSION` 4), run blocking by
-`pnpm run check:covers` and by the `covers-conformance` job in `.github/workflows/static-checks.yml`
-on every pull request and every push to main.
+are instead enforced by the openspec-covers contract, consumed from
+`@j0nathan-ll0yd/estate-contracts/openspec-covers` at `COVERS_SPEC_VERSION` 4 (atlas decisions 0079
+item 4 wave 2b, 0080). It was vendored at `scripts/vendor/openspec-covers.mjs` until that migration;
+the copy is gone and must not come back. `scripts/openspec-covers.mjs` wraps the package and runs
+blocking via `pnpm run check:covers` and the `covers-conformance` job in
+`.github/workflows/static-checks.yml`, on every pull request and every push to main.
