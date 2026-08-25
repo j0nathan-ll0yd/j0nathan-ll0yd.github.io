@@ -16,7 +16,7 @@
     "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects a prior defect: the second sentence ('Consumers of a security.txt file whose Expires date has passed SHOULD consider its contents stale') was fabricated -- no such consumer-facing SHOULD exists anywhere in RFC 9116; §5.3 (referenced by the real first sentence) addresses producers, not consumers. See policy_note for why this rule still fails at severity: fail despite the RFC imposing no explicit consumer obligation.",
     "verified_against_source": true,
     "verified_at": "2026-07-30",
-    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116"
   },
   "policy_note": "RFC 9116 does not mandate any particular consumer behavior toward an expired security.txt (see note). Failing this rule at severity: fail is our own operational judgment -- an Expires date in the past signals the file's contents (including Contact) may be stale, and treating that as a hard failure is a reasonable, defensible inference from the RFC's stated purpose for the field, not a claim that the RFC itself requires it.",
   "applicability": "A security.txt body containing a parseable Expires: value.",
