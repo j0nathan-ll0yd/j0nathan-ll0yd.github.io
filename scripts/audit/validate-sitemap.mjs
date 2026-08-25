@@ -1,26 +1,22 @@
 #!/usr/bin/env node
 // scripts/audit/validate-sitemap.mjs -- B2. Fetches the live sitemap index +
-// its child sitemap(s), validates each against the vendored sitemaps.org 0.9
-// XSDs via `xmllint` (zero new npm dependency for XML schema validation --
-// xmllint ships with macOS and is apt-installed on the ubuntu-latest CI
-// runner), then HEADs every <loc> to assert same-origin + 200.
+// its child sitemap(s), validates each against the sitemaps.org 0.9 schema,
+// then HEADs every <loc> to assert same-origin + 200.
+//
+// Schema validation runs IN-PROCESS via lib/sitemap-schema.mjs (fast-xml-parser
+// + fast-xml-validator, both already in the dependency tree). It used to shell
+// out to `xmllint`, which forced audit-web.yml to apt-get libxml2-utils on every
+// run; the self-hosted runners are egress-isolated and that install exited 100,
+// killing the whole weekly job before any check ran. See lib/sitemap-schema.mjs
+// for the full rationale and the XSD-fidelity guarantee.
 //
 // @astrojs/sitemap always emits a two-tier structure -- a sitemapindex
 // (sitemap-index.xml) pointing at one or more urlset files (sitemap-0.xml, ...)
 // -- verified against this repo's own `dist/` build output, 2026-07-16.
 
-import {execFileSync} from 'node:child_process'
-import {mkdtempSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, headStable, isMain, report} from './lib/http.mjs'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const VENDOR_DIR = path.join(__dirname, 'vendor')
-const SITEINDEX_XSD = path.join(VENDOR_DIR, 'siteindex-0.9.xsd')
-const URLSET_XSD = path.join(VENDOR_DIR, 'sitemap-0.9.xsd')
+import {validateSitemapDocument} from './lib/sitemap-schema.mjs'
 
 const SITEMAP_INDEX_URL = `${SITE_URL}/sitemap-index.xml`
 const SITE_ORIGIN = new URL(SITE_URL).origin
@@ -38,20 +34,25 @@ export function extractLocs(xml) {
   return locs
 }
 
-/** Run `xmllint --noout --schema <xsd> <file>`; returns a finding array (empty = valid). Exported: testable with local fixtures, no network. */
-export function validateAgainstXsd(id, xmlPath, xsdPath, sourceUrl) {
-  try {
-    execFileSync('xmllint', ['--noout', '--schema', xsdPath, xmlPath], {stdio: 'pipe'})
+/**
+ * Validate one sitemap document against the sitemaps.org 0.9 schema for
+ * `profile` ('urlset' or 'sitemapindex'); returns a finding array (empty =
+ * valid). Exported: pure, testable with local fixtures, no network.
+ */
+export function validateAgainstSchema(id, xml, profile, sourceUrl) {
+  const violations = validateSitemapDocument(xml, profile)
+  if (violations.length === 0) {
     return []
-  } catch (err) {
-    const stderr = err.stderr ? err.stderr.toString() : err.message
-    return [{severity: 'fail', id, message: `${sourceUrl} failed XSD validation against ${path.basename(xsdPath)}:\n${stderr.trim()}`}]
   }
+  return [{
+    severity: 'fail',
+    id,
+    message: `${sourceUrl} failed sitemaps.org 0.9 (${profile}) schema validation:\n${violations.map((v) => `  ${v}`).join('\n')}`
+  }]
 }
 
 async function main() {
   const findings = []
-  const tmpDir = mkdtempSync(path.join(tmpdir(), 'audit-sitemap-'))
 
   let indexRes
   try {
@@ -67,9 +68,7 @@ async function main() {
     ]))
   }
   const indexXml = await indexRes.text()
-  const indexPath = path.join(tmpDir, 'sitemap-index.xml')
-  writeFileSync(indexPath, indexXml)
-  findings.push(...validateAgainstXsd('sitemap-index-xsd', indexPath, SITEINDEX_XSD, SITEMAP_INDEX_URL))
+  findings.push(...validateAgainstSchema('sitemap-index-xsd', indexXml, 'sitemapindex', SITEMAP_INDEX_URL))
 
   const childSitemapUrls = extractLocs(indexXml)
   if (childSitemapUrls.length === 0) {
@@ -79,7 +78,7 @@ async function main() {
   // Validate every child urlset file against the sitemap.xsd, and collect
   // every page <loc> across all of them for the same-origin + 200 sweep.
   const allPageLocs = []
-  for (const [idx, childUrl] of childSitemapUrls.entries()) {
+  for (const childUrl of childSitemapUrls) {
     let childRes
     try {
       childRes = await fetchStable(childUrl)
@@ -92,9 +91,7 @@ async function main() {
       continue
     }
     const childXml = await childRes.text()
-    const childPath = path.join(tmpDir, `sitemap-child-${idx}.xml`)
-    writeFileSync(childPath, childXml)
-    findings.push(...validateAgainstXsd('sitemap-child-xsd', childPath, URLSET_XSD, childUrl))
+    findings.push(...validateAgainstSchema('sitemap-child-xsd', childXml, 'urlset', childUrl))
     allPageLocs.push(...extractLocs(childXml))
   }
 
