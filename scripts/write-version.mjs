@@ -16,3 +16,6 @@ const outPath = path.resolve(process.cwd(), 'dist', 'version.json')
 
 writeFileSync(outPath, JSON.stringify({build, builtAt: new Date().toISOString()}) + '\n')
 console.log(`[write-version] wrote dist/version.json (build=${build})`)
+
+// A2B SCRATCH: deliberate lint violation (no-unused-vars) -- do not merge
+const a2bScratchUnused = 1
