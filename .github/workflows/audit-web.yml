@@ -240,6 +240,15 @@ jobs:
         # Budgets (perf>=0.90, a11y/best-practices/seo>=0.95) are v1 starting
         # values (D4 report-only), NOT yet verified as met by the live site --
         # ratchet or ship-fix per Phase 6 bake-in, don't silently loosen them.
+        #
+        # --no-sandbox lives in .lighthouserc.json (ci.collect.settings.chromeFlags),
+        # not here: `lhci autorun` takes no chrome-flags argument, so the rc file is
+        # the only seam. These runners are containers whose distro disables
+        # unprivileged user namespaces under AppArmor, so Chrome aborts at launch
+        # with "No usable sandbox!" and lhci reports the downstream symptom
+        # (ECONNREFUSED on the DevTools port) -- run 32890887108. B4 below never hit
+        # this because .pa11yci has carried the same flag from the start. The two
+        # configs must keep agreeing; a flag added to one belongs in the other.
         run: pnpm exec lhci autorun --config=.lighthouserc.json
 
       - name: Upload Lighthouse reports

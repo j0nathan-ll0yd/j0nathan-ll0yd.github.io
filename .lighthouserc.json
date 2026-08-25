@@ -2,7 +2,10 @@
   "ci": {
     "collect": {
       "url": ["https://jonathanlloyd.me/"],
-      "numberOfRuns": 3
+      "numberOfRuns": 3,
+      "settings": {
+        "chromeFlags": "--no-sandbox"
+      }
     },
     "assert": {
       "assertions": {
