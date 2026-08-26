@@ -18,6 +18,9 @@
 
 type Mode = 'lite' | 'svg'
 
+// A2b gate-can-fail mutant (DO NOT MERGE): deliberate unused local.
+const a2bDeliberateUnusedMutant = 'red the lint gate'
+
 // Real stellar colors (sRGB blackbody chromaticity) + population weights (sum 100).
 const STAR_COLORS: ReadonlyArray<readonly [string, number]> = [
   ['#9bb0ff', 3], // O  — blue
