@@ -1,8 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="80" height="120" viewBox="0 0 80 120" role="img" aria-label="No cover available">
   <!-- First-party "no cover" placeholder (atlas decision 0086). Serve this from
        the consumer's static root at /images/no-cover.svg. Literal colors mirror
-       DS tokens: --lg-card-background, --lg-color-border-subtle, --lg-color-text-muted.
-       SVG paint servers cannot resolve CSS custom properties (W2 exemption). -->
+       the DS tokens lg-card-background, lg-color-border-subtle and
+       lg-color-text-muted; SVG paint servers cannot resolve CSS custom
+       properties, so the values are inlined here (W2 exemption).
+       Keep double hyphens out of this comment: they are illegal inside an XML
+       comment, and an SVG that is not well-formed XML fails to decode in an
+       img element while still serving 200 to fetch. That is how this asset
+       shipped unrenderable in 3.0.0. -->
   <rect x="0.5" y="0.5" width="79" height="119" rx="4" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)" />
   <rect x="12.5" y="30.5" width="55" height="42" rx="2" fill="none" stroke="#9ca3af" stroke-opacity="0.45" />
   <path d="M12.5 62.5 L28 47 L41 60 L52 51 L67.5 66.5" fill="none" stroke="#9ca3af" stroke-opacity="0.45" stroke-linecap="round" stroke-linejoin="round" />
