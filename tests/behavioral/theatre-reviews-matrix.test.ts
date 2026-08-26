@@ -57,6 +57,20 @@ async function interceptDashboardData(page: Page, theatreFixture: FixtureRespons
   })
 }
 
+/**
+ * Fulfill the fixture's off-origin poster requests with real AVIF bytes.
+ *
+ * Must be registered AFTER interceptDashboardData: Playwright matches handlers
+ * most-recently-registered first, so registering earlier would leave that
+ * catch-all abort in charge. The bytes are a committed poster from
+ * public/images/theatre/, so the browser decodes a genuine AVIF rather than a
+ * stand-in that would error and send the widget down the placeholder path.
+ */
+async function servePosterBytes(page: Page): Promise<void> {
+  const avif = readFileSync(new URL('../../public/images/theatre/just-in-time-card.avif', import.meta.url))
+  await page.route('**/*.avif', (route) => route.fulfill({body: avif, contentType: 'image/avif'}))
+}
+
 async function loadTheatreFixture(page: Page, variation: string): Promise<void> {
   await interceptDashboardData(page, {path: fixture('theatre-reviews', variation)})
   await page.goto('/')
@@ -128,7 +142,18 @@ test.describe('Theatre Reviews Render Conformance', () => {
 
   // covers: theatre-reviews-render#Full variation renders populated optimized-image review cards
   test('renders optimized poster picture sources and safe outbound links', async ({page}) => {
-    await loadTheatreFixture(page, 'full')
+    // The posters in this fixture are hosted on coasttocoastreviews.com, which
+    // interceptDashboardData aborts along with every other off-origin request.
+    // Serve them real AVIF bytes instead: a poster that never loads errors, and
+    // @j0nathan-ll0yd/web >= 3.0.1 then removes the <picture>'s <source>
+    // candidates on its way to the same-origin placeholder -- it has to, or the
+    // dead source keeps winning and paints a broken glyph (DS #229). Without
+    // this the assertions below would measure the torn-down state rather than
+    // the optimized-image path they exist to cover.
+    await interceptDashboardData(page, {path: fixture('theatre-reviews', 'full')})
+    await servePosterBytes(page)
+    await page.goto('/')
+    await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
 
     const cards = page.locator('#cardTheatreReviews .theatre-card')
     await expect(cards).toHaveCount(8)
