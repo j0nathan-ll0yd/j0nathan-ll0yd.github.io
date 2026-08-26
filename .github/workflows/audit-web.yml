@@ -49,7 +49,11 @@ jobs:
       (github.event_name == 'schedule' && github.event.schedule == '17 6 * * *')
     # playwright label: Chromium is preinstalled in the runner-playwright image; the node
     # label cannot `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
-    runs-on: [self-hosted, linux, arm64, playwright]
+    # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) — routes
+    # this job onto the pinned subnet whose source-scoped rule allows CloudFront :443, so page
+    # assets keep loading once the shared-bridge CloudFront rule is removed. Admission-neutral;
+    # inert until the host flips COLIMA_CFEDGE_LABELS (stage C3).
+    runs-on: [self-hosted, linux, arm64, playwright, cfedge]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -133,7 +137,10 @@ jobs:
     # playwright label: Chromium is preinstalled in the runner-playwright image (shared by
     # B3 LHCI / B4 pa11y via the resolved executablePath below); the node label cannot
     # `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
-    runs-on: [self-hosted, linux, arm64, playwright]
+    # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) — keeps
+    # CloudFront asset egress for B3/B4 once the shared-bridge rule is source-scoped. Inert until
+    # stage C3 flips COLIMA_CFEDGE_LABELS.
+    runs-on: [self-hosted, linux, arm64, playwright, cfedge]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
