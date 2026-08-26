@@ -259,36 +259,31 @@ jobs:
         # the check. 0.90 sits below the ceiling and still catches a real
         # regression.
         #
-        # Why the residue cannot be allowlisted away. After the runner-side
-        # CloudFront allowlist, the last ~4 requests go to m.media-amazon.com for
-        # book covers. Sampling resolved that host onto CloudFront, Akamai AND
-        # Fastly, so no address-prefix allowlist can hold it and the 4 errors are a
-        # DNS lottery -- flaky, not stable. ci.collect.settings.blockedUrlPatterns
-        # in .lighthouserc.json blocks them instead, so they fail the same way every
-        # run. Chrome's Network.setBlockedURLs drops them without logging a console
-        # error, measured: errors-in-console goes empty and the requests report
-        # status -1.
+        # The Amazon half of that ceiling is now CLOSED (atlas decision 0086, W3).
+        # It used to read: after the runner-side CloudFront allowlist, the last ~4
+        # requests went to m.media-amazon.com for book covers, on a host that
+        # sampled onto CloudFront, Akamai AND Fastly, so no address-prefix
+        # allowlist could hold it; ci.collect.settings.blockedUrlPatterns blocked
+        # them instead. The site no longer requests that host at all -- the backend
+        # serves first-party CloudFront image URLs and @j0nathan-ll0yd/web >=3.0.0
+        # falls back to the same-origin /images/no-cover.svg, never a third-party
+        # host. The blocklist entry has been deleted; it had no purpose left.
         #
-        # What still holds 0.93, measured after the blocklist landed (run
-        # 32900059618): the Amazon requests now report status -1 and log NOTHING,
-        # so errors-in-console is down to 3 entries, all the same WebSocket --
+        # What still holds the ceiling, measured after the blocklist landed (run
+        # 32900059618): errors-in-console was already down to 3 entries with the
+        # Amazon requests silenced, all the same WebSocket --
         # wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com/live,
         # ERR_CONNECTION_REFUSED. That is API Gateway, which the CloudFront
         # allowlist does not cover. inspector-issues (CSP) is the other zero.
+        # Neither is affected by the image work, so the budget STAYS at 0.90 here.
         #
-        # REVISIT TRIGGER, so this relaxation cannot outlive its cause: the real
-        # defect is that the site hot-links Amazon-hosted images at all. Image
-        # localization (download, optimize, commit into Astro) is being scoped
-        # separately. WHEN THAT LANDS, delete the blockedUrlPatterns entry -- it
-        # has no purpose once nothing requests that host.
+        # REVISIT TRIGGER, reduced to its remaining half: 0.95 needs the wss host
+        # reachable from the runner (or otherwise silenced) AND inspector-issues
+        # resolved. Both are network-policy items tracked separately, not site
+        # defects. Re-measure a real B3 run before ratcheting; do not infer the
+        # score from this note.
         #
-        # Deleting it is NOT enough to restore 0.95, and raising the budget on that
-        # signal alone will red this step again. errors-in-console stays zeroed
-        # while the WebSocket errors remain, so 0.95 needs the wss host reachable
-        # from the runner (or otherwise silenced) AND inspector-issues resolved.
-        # Re-measure before ratcheting; do not infer the score.
-        #
-        # Chrome flags and the blocklist live in .lighthouserc.json, not here:
+        # Chrome flags live in .lighthouserc.json, not here:
         # `lhci autorun` takes no chrome-flags argument and the rc file is strict
         # JSON that takes no comments, so this step is the only place the reasoning
         # fits. Two container defects preceded the budget work, in this order:

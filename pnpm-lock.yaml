@@ -16,8 +16,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.2
       '@j0nathan-ll0yd/fixtures':
-        specifier: ^1.0.3
-        version: 1.0.7
+        specifier: ^1.1.0
+        version: 1.1.0
       '@j0nathan-ll0yd/observability':
         specifier: ^1.0.0
         version: 1.0.0
@@ -25,14 +25,14 @@ importers:
         specifier: ^1.0.0
         version: 1.0.2
       '@j0nathan-ll0yd/schemas':
-        specifier: ^2.0.0
-        version: 2.0.0
+        specifier: ^2.1.0
+        version: 2.1.0
       '@j0nathan-ll0yd/tokens':
         specifier: ^2.2.1
         version: 2.2.1
       '@j0nathan-ll0yd/web':
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: ^3.0.0
+        version: 3.0.0
       astro:
         specifier: ^7.1.3
         version: 7.1.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)(@types/node@25.3.0)(rollup@4.60.4)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -1833,8 +1833,8 @@ packages:
     peerDependencies:
       typescript: 5.9.2 || 5.9.3 || 6.0.3
 
-  '@j0nathan-ll0yd/fixtures@1.0.7':
-    resolution: {integrity: sha512-ERew0UT0psaNCHAq9K8XmBNecbAKfGVf7GGwiJ/8ebyH7cUR2yKMKVqOW9wzhk9GoPHjtUASvHgy2idztq9kPg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.0.7/790a23167344ceab7b70db930916cc4a9dc56ff7}
+  '@j0nathan-ll0yd/fixtures@1.1.0':
+    resolution: {integrity: sha512-fBS+NMpHsY712/P957TwatR/nE4AbbowDlzGbwmdRhS/OqSjkTWsqintuKQqY/6l36ZA716AV/QPBR9pnx/NEw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.1.0/57bfdbc09a48195f9bd5b999eb88840e46e9c5c2}
 
   '@j0nathan-ll0yd/observability@1.0.0':
     resolution: {integrity: sha512-RXrWGD7E3uFxZJj4XdtHf3Po5kkxV5ajQIkY8J9F+uZ1q/iVeeq0BkZMabbFcq5oX4nK3N2NVlwMqa4LOSvLjQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/observability/1.0.0/4f802427590ea9ba6964a49427faf2c43a75f464}
@@ -1842,20 +1842,14 @@ packages:
   '@j0nathan-ll0yd/portal-contract@1.0.2':
     resolution: {integrity: sha512-+Dv/8iQxp8OCv/lQmn6TvAhu7bmqgkKKDQvxs2kn6BFEf2ayJ6vHVSd7inIQ8yxIwZ10EN914cMzwBII6eX/RQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/1.0.2/0ed9363fb96ef1356a3176ca1e4642f8165492b5}
 
-  '@j0nathan-ll0yd/schemas@2.0.0':
-    resolution: {integrity: sha512-4/sv332+Fq7yM3B2KbnFsHyLEJ3FNaF6Aa3gItbRoL3lNk9ecRhYSCl5TH6Qq5mMbh9uZKh8VxVaI7itk5SxYQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.0.0/b29d19504d628d37b29461ca656971c8b3d1327a}
-
-  '@j0nathan-ll0yd/tokens@2.2.0':
-    resolution: {integrity: sha512-FH7hnVGIFqvfHF+3WJFIh5OdDAA8rOmD8bXSzMZwInWImx2oxu+s8byrpzWzwnWUjihEWmpvAa3ghprxsmdiBw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.2.0/d00918b7b9025568913f7436e8e1b67ae5572cce}
+  '@j0nathan-ll0yd/schemas@2.1.0':
+    resolution: {integrity: sha512-zjm7I6z5eaNpLga51KDXj2KRohAPyaNnkeRVMrZf6S0dg3Q9mTRSn9oDlBUE17u7xZkEDLZVGQBhOLkAo5JUPg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.1.0/e07694d47a5b442cdd05db37a3af142fdb8384b8}
 
   '@j0nathan-ll0yd/tokens@2.2.1':
     resolution: {integrity: sha512-yc0tl7jbA71yShjQtpanTdwfPSEJbvAfjvQQH0BH21ZnyFO9L9c8xMA8y+y4kLjrqjSLxaqzvCVK11jdcIvzfQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.2.1/6f3f5f1ae54b9133461f8fc2af275a8cc5bada2b}
 
-  '@j0nathan-ll0yd/web@2.0.4':
-    resolution: {integrity: sha512-Xw7USC9ruz9lVuAP6W9PAo4zlEMqwDUTnlr1bY6owBfZwwAn4OAeqoXhn8avDLIsROXiZT23PN4lPX7nbp+pLA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/2.0.4/a2e3d0992f141f7ae65fe3cbb4b0feb65dfe9b38}
-
-  '@j0nathan-ll0yd/web@2.1.0':
-    resolution: {integrity: sha512-KPElYLfGF4xY4nsZ8xvT9BAuEyMsCGm0bc4d5yc2Vi/RrRflz3/sC/Vea01ROlIK+jpZoj+ETS7KcX+ctL5ZGw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/2.1.0/7f4368215a362be83c952daa1aa8f2ef53a06ff3}
+  '@j0nathan-ll0yd/web@3.0.0':
+    resolution: {integrity: sha512-kScRBwae1aZtaizuUF0NneZAWHkAFq11XdoL+XAybwzQkNRHsmj8RrcMpDvHPHg1x6PQ4pymNvKpEAUVKEBVRg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/3.0.0/f3af46e112cba9389aab6e8973835a18928a6f4e}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -7787,11 +7781,11 @@ snapshots:
     dependencies:
       typescript: 5.9.3
 
-  '@j0nathan-ll0yd/fixtures@1.0.7':
+  '@j0nathan-ll0yd/fixtures@1.1.0':
     dependencies:
       '@j0nathan-ll0yd/portal-contract': 1.0.2
-      '@j0nathan-ll0yd/schemas': 2.0.0
-      '@j0nathan-ll0yd/web': 2.0.4
+      '@j0nathan-ll0yd/schemas': 2.1.0
+      '@j0nathan-ll0yd/web': 3.0.0
 
   '@j0nathan-ll0yd/observability@1.0.0':
     dependencies:
@@ -7807,23 +7801,15 @@ snapshots:
 
   '@j0nathan-ll0yd/portal-contract@1.0.2': {}
 
-  '@j0nathan-ll0yd/schemas@2.0.0':
+  '@j0nathan-ll0yd/schemas@2.1.0':
     dependencies:
       '@j0nathan-ll0yd/portal-contract': 1.0.2
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
 
-  '@j0nathan-ll0yd/tokens@2.2.0': {}
-
   '@j0nathan-ll0yd/tokens@2.2.1': {}
 
-  '@j0nathan-ll0yd/web@2.0.4':
-    dependencies:
-      '@j0nathan-ll0yd/copy': 1.0.2
-      '@j0nathan-ll0yd/portal-contract': 1.0.2
-      '@j0nathan-ll0yd/tokens': 2.2.0
-
-  '@j0nathan-ll0yd/web@2.1.0':
+  '@j0nathan-ll0yd/web@3.0.0':
     dependencies:
       '@j0nathan-ll0yd/copy': 1.0.2
       '@j0nathan-ll0yd/portal-contract': 1.0.2

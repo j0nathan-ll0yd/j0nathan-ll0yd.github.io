@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="80" height="120" viewBox="0 0 80 120" role="img" aria-label="No cover available">
+  <!-- First-party "no cover" placeholder (atlas decision 0086). Serve this from
+       the consumer's static root at /images/no-cover.svg. Literal colors mirror
+       DS tokens: --lg-card-background, --lg-color-border-subtle, --lg-color-text-muted.
+       SVG paint servers cannot resolve CSS custom properties (W2 exemption). -->
+  <rect x="0.5" y="0.5" width="79" height="119" rx="4" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.1)" />
+  <rect x="12.5" y="30.5" width="55" height="42" rx="2" fill="none" stroke="#9ca3af" stroke-opacity="0.45" />
+  <path d="M12.5 62.5 L28 47 L41 60 L52 51 L67.5 66.5" fill="none" stroke="#9ca3af" stroke-opacity="0.45" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="52" cy="41" r="4" fill="#9ca3af" fill-opacity="0.45" />
+  <text x="40" y="90" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#9ca3af">No cover</text>
+</svg>
