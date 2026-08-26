@@ -9,12 +9,15 @@ import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd
 // the live addressing without hardcoded literals.
 const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin
 
-const CSP = [
+// Exported so tests/audit/csp-golden.test.ts can diff it against
+// tests/audit/golden/csp.txt. check-headers.mjs only catches that drift against
+// the LIVE site, which is after a deploy; the two must move in lockstep here.
+export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://books.google.com ${CLOUDFRONT_BASE}`,
+  `img-src 'self' data: https://*.basemaps.cartocdn.com ${CLOUDFRONT_BASE}`,
   `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
   "worker-src 'self'",
   "object-src 'none'",
@@ -91,7 +94,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
   headers.set('X-Frame-Options', 'DENY')
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break cross-origin Amazon and Carto tile resources.
+  // COEP/CORP omitted -- would break the cross-origin Carto tile resources.
   headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
   headers.set('Permissions-Policy',
     'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()')

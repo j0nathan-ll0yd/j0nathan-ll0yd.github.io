@@ -14,7 +14,7 @@ supplementary and is never this capability's proving oracle.
 
 While the theatre-reviews request is pending, the system SHALL show the Theatre Reviews loading
 placeholders and SHALL NOT render review cards.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:66`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:81`.
 
 #### Scenario: The card shows skeleton placeholders while theatre-reviews.json is outstanding
 
@@ -27,7 +27,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:66`.
 
 When the theatre export contains no reviews, the system SHALL display the Theatre Reviews empty
 message, display a zero review count, and SHALL NOT render review cards.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:78`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:93`.
 
 #### Scenario: An empty export shows the empty message and a zero count
 
@@ -40,7 +40,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:78`.
 
 When the baseline theatre fixture is served, the system SHALL render every review card and the
 exported review count, including the source titles.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:87`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:102`.
 
 #### Scenario: The baseline export renders every review and its count
 
@@ -53,7 +53,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:87`.
 
 When reviews cover the available letter-grade range, the system SHALL render a grade badge for each
 review and preserve the highest and lowest grades.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:99`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:113`.
 
 #### Scenario: Every review carries a grade badge across the full letter range
 
@@ -66,7 +66,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:99`.
 
 When reviews have no poster image, the system SHALL retain their cards, titles, and grades while
 rendering no image element for the missing media.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:109`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:123`.
 
 #### Scenario: Image-less reviews keep their cards and drop the image element
 
@@ -79,7 +79,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:109`.
 
 When the export reports the total source count but carries only its seven-review public window,
 the system SHALL show the total count while rendering exactly the exported cards.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:120`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:133`.
 
 #### Scenario: The public window renders its own cards while reporting the source total
 
@@ -91,7 +91,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:120`.
 
 When the fully populated fixture is served, the system SHALL render every review card with its
 optimized poster image source, preserve the source title, and use safe outbound-link attributes.
-Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:129`.
+Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:143`.
 
 #### Scenario: A fully populated export renders optimized posters and safe outbound links
 
