@@ -29,12 +29,25 @@ VERSION=$(./scripts/playwright-version.sh)
 #
 # Corepack follows package.json's exact pnpm pin. GITHUB_TOKEN is written to the container user
 # npmrc because pnpm does not expand it from the committed project config.
+#
+# dist/ gets its own shadow volume for the same reason node_modules does, but the
+# failure it prevents is louder. Rolldown creates its output-chunk directories
+# with a plain mkdir; on the macOS bind mount that call reports EEXIST for a
+# directory the same build just made, and `astro build` dies with
+#   Could not create directory for output chunks: /work/dist/.prerender
+#   Caused by: File exists (os error 17)
+# before a single test runs. Native Linux CI never sees it (no bind mount), so
+# the breakage is local-only -- which is worse, because it takes out the only
+# sanctioned path for regenerating baselines. Keeping dist off the bind mount
+# fixes it outright. The host does not need the container's dist: baselines and
+# test-results are written under tests/, which stays bind-mounted.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
+  -v /work/dist \
   -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "corepack enable pnpm \
