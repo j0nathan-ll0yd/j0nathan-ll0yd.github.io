@@ -3,6 +3,7 @@
 // middleware carries the same cross-cutting policy on Function responses.
 
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {focusPrivacyResponse} from './_lib/proxy'
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
 // already an origin. Sourcing both from the contract keeps the CSP in sync with
@@ -73,7 +74,11 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // Markdown negotiation: serve pre-composed markdown from CloudFront when
   // agents send Accept: text/markdown (passes isitagentready.com check)
   if (accept.includes('text/markdown')) {
-    const mdResponse = await fetch(`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`)
+    const privacyResponse = await focusPrivacyResponse(request.method, LLM_CONTENT_PATHS.llmsFull)
+    if (privacyResponse) {
+      return privacyResponse
+    }
+    const mdResponse = await fetch(`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`, {cache: 'no-store'})
     return new Response(mdResponse.body, {
       status: mdResponse.status,
       headers: {'Content-Type': 'text/markdown', 'Cache-Control': 'no-store', 'Content-Usage': CONTENT_USAGE, 'x-markdown-tokens': '2500'}

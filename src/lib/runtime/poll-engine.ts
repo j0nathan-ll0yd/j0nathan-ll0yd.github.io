@@ -1,4 +1,6 @@
 import {CLOUDFRONT_BASE, ENDPOINTS, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
+import {fetchWithTimeout} from './api'
+import type {EndpointSuppressed} from './api'
 
 /** Connection/poll status the engine emits via `onStatusChange`; rendered by `updaters-status`. */
 export interface PollStatus {
@@ -15,6 +17,7 @@ type StatusCallback = (status: PollStatus) => void
 interface PollEngineOptions {
   onUpdate: ResourceCallback
   onError?: ErrorCallback
+  onSuppressed?: (result: EndpointSuppressed) => void
   onStatusChange?: StatusCallback
 }
 
@@ -184,19 +187,20 @@ export class PollEngine {
 
     // Append ?_poll=1 to bypass Workbox service worker
     const url = BASE + ENDPOINTS[key] + '?_poll=1'
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 5000)
+    const result = await fetchWithTimeout<unknown>(url)
+    if (result.status === 'suppressed') {
+      this.suppressed = true
+      this.errorCounts.delete(key)
+      this.opts.onSuppressed?.(result)
+      return
+    }
+    if (result.status === 'failed') {
+      this.recordError(key, new Error(result.reason))
+      return
+    }
 
     try {
-      const res = await fetch(url, {signal: controller.signal, cache: 'no-store'})
-      clearTimeout(timer)
-
-      if (!res.ok) {
-        this.recordError(key, new Error(`HTTP ${res.status}`))
-        return
-      }
-
-      const data = await res.json()
+      const data = result.data
 
       // Compare generatedAt fingerprint — skip update if unchanged
       const generatedAt = (data as {generatedAt?: string}).generatedAt
@@ -213,7 +217,6 @@ export class PollEngine {
       this.errorCounts.delete(key)
       this.opts.onUpdate(key, data)
     } catch (err) {
-      clearTimeout(timer)
       this.recordError(key, err instanceof Error ? err : new Error(String(err)))
     }
   }

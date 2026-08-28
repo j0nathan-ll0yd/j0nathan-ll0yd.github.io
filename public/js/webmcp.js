@@ -50,8 +50,21 @@
           description: 'Fetches the current bookshelf from the live API and returns books being read, up next, and recently finished.',
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async function() {
-            const res = await fetch('https://d1pfm520aduift.cloudfront.net/books.json');
-            const data = await res.json();
+            var focusRes = await fetch('https://d1pfm520aduift.cloudfront.net/focus.json', { cache: 'no-store' });
+            if (focusRes.ok) {
+              var focusData = await focusRes.json();
+              if (['Work', 'Do Not Disturb'].includes(focusData.currentFocus)) {
+                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
+              }
+            }
+            var res = await fetch('https://d1pfm520aduift.cloudfront.net/books.json', { cache: 'no-store' });
+            var data = await res.json().catch(function() { return null; });
+            if (!res.ok) {
+              if (data && data.suppressed === true && typeof data.reason === 'string') {
+                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: data.reason }) }] };
+              }
+              return { content: [{ type: 'text', text: JSON.stringify({ failed: true, reason: 'bookshelf unavailable', status: res.status }) }] };
+            }
             const books = data.books || [];
             const reading = books.filter((b) => b.status === 'reading');
             const upNext = books.filter((b) => b.status === 'up-next');
