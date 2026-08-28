@@ -6,9 +6,11 @@
 # REPORT-ONLY (D4): every check step below runs `continue-on-error: true`, so
 # a failing check never fails the job or blocks anything -- it reconciles one
 # machine-owned GitHub issue per check id (D5), including closing it only after
-# that check's whole result bucket is green. The job still finishes and pings
-# its Healthchecks.io dead-man's-switch (D6). Promotion to blocking is a Phase
-# 6 decision, not something this workflow does on its own.
+# that check's whole result bucket is green. Scheduled jobs still finish and
+# ping their Healthchecks.io dead-man's-switch (D6). Manual workflow_dispatch
+# runs never ping, so they cannot mask a missed cron (Atlas decision 0091).
+# Promotion to blocking is a Phase 6 decision, not something this workflow does
+# on its own.
 #
 # MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to Cloudflare Pages
 # AND is the only branch GitHub will fire `schedule:`/`workflow_dispatch` from
@@ -31,6 +33,10 @@ on:
         type: choice
         options: [all, daily, weekly, monthly]
         default: all
+      validate_reconciler:
+        description: 'Exercise the managed-issue reconciler on this manual run (normally schedule-only). Validates the Octokit reconciler without waiting for cron.'
+        type: boolean
+        default: false
 
 concurrency:
   group: audit-web
@@ -106,7 +112,11 @@ jobs:
         run: node scripts/audit/check-analytics.mjs
 
       - name: Reconcile managed audit issues
-        if: always() && github.event_name != 'workflow_dispatch'
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && inputs.validate_reconciler == true)
+          )
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -127,7 +137,7 @@ jobs:
       # continue-on-error), so they keep pinging success and stay the
       # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always()
+        if: always() && github.event_name == 'schedule'
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
@@ -369,7 +379,11 @@ jobs:
           jobSummary: true
 
       - name: Reconcile managed audit issues
-        if: always() && github.event_name != 'workflow_dispatch'
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && inputs.validate_reconciler == true)
+          )
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -400,7 +414,7 @@ jobs:
       # continue-on-error), so they keep pinging success and stay the
       # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always()
+        if: always() && github.event_name == 'schedule'
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
@@ -452,7 +466,11 @@ jobs:
         run: node scripts/audit/check-wellknown.mjs
 
       - name: Reconcile managed audit issues
-        if: always() && github.event_name != 'workflow_dispatch'
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && inputs.validate_reconciler == true)
+          )
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -473,7 +491,7 @@ jobs:
       # continue-on-error), so they keep pinging success and stay the
       # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always()
+        if: always() && github.event_name == 'schedule'
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
