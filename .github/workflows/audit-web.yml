@@ -6,9 +6,11 @@
 # REPORT-ONLY (D4): every check step below runs `continue-on-error: true`, so
 # a failing check never fails the job or blocks anything -- it reconciles one
 # machine-owned GitHub issue per check id (D5), including closing it only after
-# that check's whole result bucket is green. Scheduled jobs still finish and
-# ping their Healthchecks.io dead-man's-switch (D6). Manual workflow_dispatch
-# runs never ping, so they cannot mask a missed cron (Atlas decision 0091).
+# that check's whole result bucket is green. Scheduled jobs and trusted external
+# scheduler dispatches still finish and ping their Healthchecks.io dead-man's-
+# switch (D6; Atlas decision 0092). Ordinary human workflow_dispatch runs do
+# neither. validate_reconciler dispatches exercise only the reconciler and never
+# ping, so they cannot mask a missed check-in (Atlas decision 0091).
 # Promotion to blocking is a Phase 6 decision, not something this workflow does
 # on its own.
 #
@@ -33,6 +35,10 @@ on:
         type: choice
         options: [all, daily, weekly, monthly]
         default: all
+      scheduled_by_external:
+        description: 'Set only by the trusted external scheduler (decision 0092)'
+        type: boolean
+        default: false
       validate_reconciler:
         description: 'Exercise the managed-issue reconciler on this manual run (normally schedule-only). Validates the Octokit reconciler without waiting for cron.'
         type: boolean
@@ -115,7 +121,7 @@ jobs:
         if: >-
           always() && (
             github.event_name == 'schedule' ||
-            (github.event_name == 'workflow_dispatch' && inputs.validate_reconciler == true)
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
           )
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
@@ -137,7 +143,7 @@ jobs:
       # continue-on-error), so they keep pinging success and stay the
       # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always() && github.event_name == 'schedule'
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
@@ -382,7 +388,7 @@ jobs:
         if: >-
           always() && (
             github.event_name == 'schedule' ||
-            (github.event_name == 'workflow_dispatch' && inputs.validate_reconciler == true)
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
           )
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
@@ -414,7 +420,7 @@ jobs:
       # continue-on-error), so they keep pinging success and stay the
       # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always() && github.event_name == 'schedule'
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
@@ -469,7 +475,7 @@ jobs:
         if: >-
           always() && (
             github.event_name == 'schedule' ||
-            (github.event_name == 'workflow_dispatch' && inputs.validate_reconciler == true)
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
           )
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
@@ -491,7 +497,7 @@ jobs:
       # continue-on-error), so they keep pinging success and stay the
       # reconciler's job. See scripts/audit/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always() && github.event_name == 'schedule'
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}

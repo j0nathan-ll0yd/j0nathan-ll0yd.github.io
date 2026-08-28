@@ -10,6 +10,16 @@ const workflow = readFileSync(workflowPath, 'utf8')
 // out to xmllint"), so the banned-command assertions below must look at what the
 // workflow EXECUTES, not at what it explains.
 const executable = workflow.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n')
+const countOccurrences = (text: string, snippet: string) => text.split(snippet).length - 1
+
+const reconcileCondition = `if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
+          )`
+
+const pingCondition =
+  "if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))"
 
 describe('audit-web issue reconciliation wiring', () => {
   it('gives the workflow issue-write permission and reconciles all three scheduled buckets', () => {
@@ -17,14 +27,13 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow.match(/name: Reconcile managed audit issues/g)).toHaveLength(3)
     expect(workflow.match(/uses: actions\/github-script@/g)?.length).toBeGreaterThanOrEqual(3)
     expect(workflow.match(/client: reconciler\.createGithubClient\(github\)/g)).toHaveLength(3)
-    // Atlas decision 0091: each of the three reconcile steps runs on a scheduled
-    // run OR an explicit `validate_reconciler` manual dispatch, never on an
-    // ordinary manual runbook run.
-    expect(workflow.match(/github\.event_name == 'schedule' \|\|/g)).toHaveLength(3)
-    expect(workflow.match(/github\.event_name == 'workflow_dispatch' && inputs\.validate_reconciler == true/g)).toHaveLength(3)
+    // Atlas decision 0092: reconcile scheduled and trusted external dispatches.
+    // Decision 0091 keeps explicit reconciler validation independent of pings.
+    expect(countOccurrences(workflow, reconcileCondition)).toBe(3)
     // Linear regex (no nested quantifier) — the earlier /(?:\s+.*\n)*/ form was a
     // catastrophic-backtracking ReDoS that hung the vitest run.
     expect(workflow).toMatch(/validate_reconciler:\n {8}description: [^\n]*\n {8}type: boolean\n {8}default: false/)
+    expect(workflow).toMatch(/scheduled_by_external:\n {8}description: [^\n]*\n {8}type: boolean\n {8}default: false/)
     expect(executable).not.toMatch(/\bgh\s+(issue|label)\b/)
   })
 
@@ -79,10 +88,9 @@ describe('audit-web dead-man switch', () => {
     const pings = executable.match(/- name: Healthchecks\.io ping[\s\S]*?run: bash scripts\/audit\/healthchecks-ping\.sh/g) || []
     expect(pings).toHaveLength(3)
     for (const ping of pings) {
-      // Atlas decision 0091: the ping fires on `schedule` events only. A manual
-      // workflow_dispatch run must not ping, or a fallback run while cron is dead
-      // keeps the switch green and masks the missed check-in.
-      expect(ping).toContain("if: always() && github.event_name == 'schedule'")
+      // Atlas decision 0092: only schedules and trusted external dispatches ping.
+      // Reconciler-validation and ordinary human dispatches do not.
+      expect(ping).toContain(pingCondition)
       expect(ping).toContain('JOB_STATUS: ${{ job.status }}')
       expect(ping).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}')
     }
