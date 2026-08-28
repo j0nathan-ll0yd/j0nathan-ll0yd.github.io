@@ -25,6 +25,8 @@
  */
 import {expect, test} from './fixtures'
 import type {APIRequestContext, APIResponse} from '@playwright/test'
+import {probeSuppression, suppressionMessage} from '../../scripts/audit/lib/suppression.mjs'
+import {isAllowedImageUrl} from '../image-url-allowlist'
 
 // All navigations use page.goto('/'), resolved against `baseURL` in
 // playwright.smoke.config.ts — keep the target URL defined in one place.
@@ -50,6 +52,22 @@ async function getStable(request: APIRequestContext, url: string, options?: Para
     res = await request.get(url, options)
   }
   return res
+}
+
+async function headStable(request: APIRequestContext, url: string): Promise<APIResponse> {
+  const deadline = Date.now() + 25_000
+  let res = await request.head(url)
+  for (let attempt = 0; res.status() >= 500 && Date.now() < deadline; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(2_000 * 2 ** attempt, 8_000)))
+    res = await request.head(url)
+  }
+  return res
+}
+
+async function skipSuppressedArtifact(label: string): Promise<void> {
+  const result = await probeSuppression()
+  expect(result.status, suppressionMessage(result, label)).not.toBe('overdue')
+  test.skip(result.status === 'suppressed', suppressionMessage(result, label))
 }
 
 // Statically server-rendered containers that must always be present. These are
@@ -129,39 +147,51 @@ test.describe('production home dashboard', () => {
     expect(typedText.length, 'bio terminal body is empty after hydration').toBeGreaterThan(0)
   })
 
-  test('service worker registers for /sw.js', async ({page}) => {
+  test('service worker actively controls the page with /sw.js', async ({page}) => {
     await page.goto('/', {waitUntil: 'load'})
 
-    // sw-register.js registers the SW on window `load`. The registration object
-    // (with its scriptURL) appears within a few hundred ms via the `installing`
-    // state, but full activation can take much longer because the SW precaches
-    // assets over the live network (observed up to ~33s on a throttled link). We
-    // only need the registration to EXIST, not to be active — and we do NOT
-    // require `controller`, which on a cold first load only gets set on the next
-    // navigation (clientsClaim timing). Waiting inside a single page.evaluate
-    // (returning the instant a registration appears) is more reliable than a
-    // cross-process poll and is bounded well under the 45s test timeout.
-    const swScriptUrl = await page.evaluate(async () => {
+    // skipWaiting + clientsClaim must take the cold page through activation and
+    // control. A registration alone is insufficient: an installed-but-idle SW
+    // cannot serve the offline shell or drive controllerchange updates.
+    const controllerUrl = await page.evaluate(async () => {
       if (!('serviceWorker' in navigator)) {
         return null
       }
-      const read = async (): Promise<string | null> => {
-        const reg = await navigator.serviceWorker.getRegistration()
-        return (
-          reg?.active?.scriptURL ?? reg?.installing?.scriptURL ?? reg?.waiting?.scriptURL ?? null
-        )
-      }
+      await navigator.serviceWorker.ready
       const deadline = Date.now() + 35_000
-      let url = await read()
-      while (!url && Date.now() < deadline) {
+      while (!navigator.serviceWorker.controller && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 250))
-        url = await read()
       }
-      return url
+      return navigator.serviceWorker.controller?.scriptURL ?? null
     })
 
-    expect(swScriptUrl, 'no service worker registered for /sw.js within 35s').not.toBeNull()
-    expect(swScriptUrl).toMatch(/\/sw\.js$/)
+    expect(controllerUrl, 'no active service worker controller claimed the page within 35s').not.toBeNull()
+    expect(controllerUrl).toMatch(/\/sw\.js$/)
+  })
+
+  test('hydration and scroll issue no non-allowlisted image requests', async ({page}) => {
+    const imageRequests: string[] = []
+    page.on('request', (request) => {
+      if (request.resourceType() === 'image') {
+        imageRequests.push(request.url())
+      }
+    })
+
+    await page.goto('/', {waitUntil: 'domcontentloaded'})
+    await expect.poll(() => page.locator('.is-loading').count(), {timeout: 20_000}).toBe(0)
+    await page.evaluate(async () => {
+      const scrollables = [document.scrollingElement, ...document.querySelectorAll<HTMLElement>('*')].filter((element): element is HTMLElement =>
+        Boolean(element && element.scrollHeight > element.clientHeight)
+      )
+      for (const element of scrollables) {
+        element.scrollTop = element.scrollHeight
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+    })
+    await page.waitForTimeout(1000)
+
+    const offenders = [...new Set(imageRequests)].filter((url) => !isAllowedImageUrl(url))
+    expect(offenders, `non-allowlisted image requests:\n${offenders.join('\n')}`).toEqual([])
   })
 
   test('humans.txt is reachable and plain text', async ({page}) => {
@@ -172,6 +202,7 @@ test.describe('production home dashboard', () => {
   })
 
   test('feed.xml is reachable and RSS content-type', async ({page}) => {
+    await skipSuppressedArtifact('/feed.xml smoke assertion')
     const res = await getStable(page.request, '/feed.xml')
     expect(res.status(), '/feed.xml did not return 200').toBe(200)
     const contentType = res.headers()['content-type'] || ''
@@ -179,6 +210,7 @@ test.describe('production home dashboard', () => {
   })
 
   test('feed.json is reachable and JSON Feed content-type', async ({page}) => {
+    await skipSuppressedArtifact('/feed.json smoke assertion')
     const res = await getStable(page.request, '/feed.json')
     expect(res.status(), '/feed.json did not return 200').toBe(200)
     const contentType = res.headers()['content-type'] || ''
@@ -186,6 +218,7 @@ test.describe('production home dashboard', () => {
   })
 
   test('llms.txt is reachable and plain text', async ({page}) => {
+    await skipSuppressedArtifact('/llms.txt smoke assertion')
     const res = await getStable(page.request, '/llms.txt')
     expect(res.status(), '/llms.txt did not return 200').toBe(200)
     const contentType = res.headers()['content-type'] || ''
@@ -193,6 +226,7 @@ test.describe('production home dashboard', () => {
   })
 
   test('llms-full.txt is reachable on the prod domain and markdown', async ({page}) => {
+    await skipSuppressedArtifact('/llms-full.txt smoke assertion')
     // Regression guard: until 2026-07-17 only /llms.txt had a proxy route, so
     // the full dump the discovery index advertises 404'd on jonathanlloyd.me.
     const res = await getStable(page.request, '/llms-full.txt')
@@ -202,10 +236,17 @@ test.describe('production home dashboard', () => {
   })
 
   test('index.md is reachable on the prod domain and markdown', async ({page}) => {
+    await skipSuppressedArtifact('/index.md smoke assertion')
     const res = await getStable(page.request, '/index.md')
     expect(res.status(), '/index.md did not return 200').toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/index.md wrong content-type').toContain('text/markdown')
+  })
+
+  test('og-image responds to HEAD as PNG', async ({page}) => {
+    const res = await headStable(page.request, '/assets/og-image.png')
+    expect(res.status(), '/assets/og-image.png HEAD did not return 200').toBe(200)
+    expect(res.headers()['content-type'] || '', '/assets/og-image.png wrong content-type').toContain('image/png')
   })
 
   test('webfinger resolves the Fediverse alias with JRD content-type', async ({page}) => {

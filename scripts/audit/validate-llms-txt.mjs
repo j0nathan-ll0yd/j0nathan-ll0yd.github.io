@@ -14,6 +14,7 @@
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
+import {probeSuppression, suppressionDisposition} from './lib/suppression.mjs'
 import {emit, rules} from './specs/load.mjs'
 
 const R = rules('llms-txt')
@@ -100,6 +101,14 @@ async function checkPresence(id, url, maxAgeHours) {
 }
 
 async function main() {
+  const suppression = suppressionDisposition(await probeSuppression(), 'llms.txt / llms-full.txt / index.md validation')
+  if (suppression === 'skip') {
+    process.exit(0)
+  }
+  if (suppression === 'fail') {
+    process.exit(1)
+  }
+
   let exit = 0
 
   let llmsTxtBody
@@ -121,10 +130,9 @@ async function main() {
 
   // llms-full.txt / index.md: the composer runs on a 30m EventBridge rate +
   // event trigger (§11.2 of the audit plan); a 3h warn window covers a couple
-  // of missed ticks without being noisy. +1h on top because the prod-domain
-  // routes edge-cache the CloudFront upstream for up to an hour
-  // (functions/_lib/proxy.ts: cacheTtl 3600 / s-maxage=3600), so a legitimately
-  // fresh document can read up to 1h older through the proxy. The window itself
+  // of missed ticks without being noisy. +1h on top is conservative now that the
+  // prod-domain routes edge-cache the CloudFront upstream for at most 60s
+  // (functions/_lib/proxy.ts: cacheTtl / s-maxage=60). The window itself
   // is params.maxAgeHours on each artifact's own -stale rule
   // (specs/llms-txt/llms-full-txt-stale.rule.json, index-md-stale.rule.json),
   // read here rather than restated as a literal (decisions/0011, R3).

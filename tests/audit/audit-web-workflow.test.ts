@@ -15,16 +15,27 @@ describe('audit-web issue reconciliation wiring', () => {
   it('gives the workflow issue-write permission and reconciles all three scheduled buckets', () => {
     expect(workflow).toMatch(/permissions:\n(?:  .*\n)*  issues: write/m)
     expect(workflow.match(/name: Reconcile managed audit issues/g)).toHaveLength(3)
-    expect(workflow.match(/run: node scripts\/audit\/lib\/file-check-issues\.mjs/g)).toHaveLength(3)
+    expect(workflow.match(/uses: actions\/github-script@/g)?.length).toBeGreaterThanOrEqual(3)
+    expect(workflow.match(/client: reconciler\.createGithubClient\(github\)/g)).toHaveLength(3)
     expect(workflow.match(/if: always\(\) && github\.event_name != 'workflow_dispatch'/g)).toHaveLength(3)
+    expect(executable).not.toMatch(/\bgh\s+(issue|label)\b/)
   })
 
   it('passes every check outcome, including successes needed for recovery', () => {
-    const resultPayloads = workflow.match(/CHECK_RESULTS_JSON: >-[\s\S]*?run: node scripts\/audit\/lib\/file-check-issues\.mjs/g) || []
-    expect(resultPayloads).toHaveLength(3)
-    for (const payload of resultPayloads) {
-      expect(payload).toContain('"outcome":"${{ steps.')
-    }
+    expect(workflow).toContain("outcome: '${{ steps.smoke.outcome }}'")
+    expect(workflow).toContain("outcome: '${{ steps.llms_txt.outcome }}'")
+    expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
+  })
+
+  it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
+    expect(workflow).toContain('run: node scripts/audit/probe-suppression.mjs --github-output')
+    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(3)
+    expect(workflow).toContain('Lighthouse result is focus-mode-conditioned')
+    expect(workflow).toContain('pa11y / result is focus-mode-conditioned')
+    expect(workflow).toContain("{id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).toContain("{id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).toContain("{id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).not.toMatch(/id: sitemap[\s\S]{0,120}focus_mode/)
   })
 })
 

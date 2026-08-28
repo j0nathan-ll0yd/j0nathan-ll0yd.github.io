@@ -142,11 +142,10 @@ export const test = base.extend({
     // regression AND a chunk-load failure) reports them all in one run instead
     // of masking the later ones behind the first failure.
 
-    // 1. An external script blocked by CSP is a genuine per-deploy regression.
-    expect.soft(urlBlocked,
-      `CSP blocked external script(s) — a real deploy/config regression:\n${urlBlocked.map((v) => `${v.directive} -> ${v.blockedURI}`).join('\n')}`).toEqual(
-        []
-      )
+    // 1. An external URL resource blocked by CSP is a genuine per-deploy regression.
+    expect.soft(urlBlocked, `CSP blocked external URL resource(s), grouped by effective directive/resource type:\n${
+      urlBlocked.map((v) => `${v.directive} -> ${v.blockedURI}`).join('\n')
+    }`).toEqual([])
 
     // 2. Regression-guard the count of blocked inline <script> elements.
     if (inlineScriptBlocked.length > KNOWN_INLINE_SCRIPT_CSP_VIOLATIONS) {

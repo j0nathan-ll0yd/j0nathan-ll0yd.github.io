@@ -119,26 +119,38 @@ jobs:
 
       - name: Create issue for new images
         if: steps.check.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          MISSING=$(cat missing-images.txt)
-          gh issue create \
-            --title "New images detected on CloudFront" \
-            --body "$(cat <<EOF
-          The deploy detected new images on CloudFront that are not yet committed to the repo.
-
-          **Missing images:**
-          \`\`\`
-          ${MISSING}
-          \`\`\`
-
-          **To fix:**
-          \`\`\`bash
-          pnpm run fetch:images
-          git add public/images/
-          git commit -m "Add new optimized images from CloudFront"
-          git push
-          \`\`\`
-          EOF
-          )"
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const fs = await import('node:fs');
+            const readEvidence = (path, fallback) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8').trim() : fallback;
+            const missing = readEvidence('missing-images.txt', '(no manifest-minus-local list was produced; inspect the audit report)');
+            const report = readEvidence('image-audit-report.txt', '(image audit report missing; inspect the workflow log)');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Image mirror audit failed',
+              body: [
+                'The deploy image-mirror check found missing, stale, invalid, or unreachable image artifacts.',
+                '',
+                '**Missing images:**',
+                '```',
+                missing,
+                '```',
+                '',
+                '**Full audit report:**',
+                '```',
+                report,
+                '```',
+                '',
+                '**To update the mirror:**',
+                '```bash',
+                'pnpm run fetch:images',
+                'git add public/images/',
+                'git commit -m "Add optimized images from CloudFront"',
+                'git push',
+                '```',
+                '',
+                'Review local-minus-manifest entries before deleting them; the script never prunes automatically.',
+              ].join('\n'),
+            });

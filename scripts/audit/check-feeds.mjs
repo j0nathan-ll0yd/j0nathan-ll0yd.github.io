@@ -14,6 +14,7 @@ import {XMLParser} from 'fast-xml-parser'
 import {SyntaxValidator} from 'fast-xml-validator'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, isMain, report} from './lib/http.mjs'
+import {probeSuppression, suppressionDisposition} from './lib/suppression.mjs'
 import {emit, rules} from './specs/load.mjs'
 
 // Stryker disable all -- fetch-target URLs, read only by main() (network-path
@@ -147,6 +148,14 @@ export function validateFeedJson(json, now = new Date()) {
 // Stryker disable all -- main() is network-path plumbing with no test coverage
 // (decisions/0011, UD1: the mutation gate scopes to the three pure pilot functions).
 async function main() {
+  const suppression = suppressionDisposition(await probeSuppression(), 'feed.xml / feed.json validation')
+  if (suppression === 'skip') {
+    process.exit(0)
+  }
+  if (suppression === 'fail') {
+    process.exit(1)
+  }
+
   const findings = []
 
   try {
