@@ -58,7 +58,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
 content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt has
 no such constant.
-Verified by `tests/unit/cloudfront-proxy.test.ts:185` (all five proxy routes: upstream URL, status,
+Verified by `tests/unit/cloudfront-proxy.test.ts:252` (all five proxy routes: upstream URL, status,
 content-type).
 
 #### Scenario: Advertised path resolves

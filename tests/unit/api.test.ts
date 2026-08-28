@@ -1,9 +1,10 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {fetchAllEndpoints, fetchWithTimeout} from '../../src/lib/runtime/api'
 
-// Mock constants module
-vi.mock('@j0nathan-ll0yd/portal-contract/constants',
-  () => ({
+vi.mock('@j0nathan-ll0yd/portal-contract/constants', async (importActual) => {
+  const actual = await importActual<typeof import('@j0nathan-ll0yd/portal-contract/constants')>()
+  return {
+    ...actual,
     CLOUDFRONT_BASE: 'https://mock.cloudfront.net',
     ENDPOINTS: {
       health: '/health.json',
@@ -16,21 +17,21 @@ vi.mock('@j0nathan-ll0yd/portal-contract/constants',
       focus: '/focus.json',
       theatreReviews: '/theatre-reviews.json'
     }
-  }))
+  }
+})
 
-function makeFetchResponse(data: unknown, ok = true, status = 200) {
-  return {ok, status, json: () => Promise.resolve(data)}
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {status, headers: {'Content-Type': 'application/json'}})
 }
 
-// Minimal fixture data with generatedAt for timestamps test
-const healthFixture = {generatedAt: '2024-01-01T00:00:00Z', heartRate: 72}
-const sleepFixture = {generatedAt: '2024-01-01T00:00:00Z', duration: 7.5}
+const healthFixture = {generatedAt: '2024-01-01T00:00:00Z', quantities: {}}
+const sleepFixture = {generatedAt: '2024-01-01T00:00:00Z', date: '2024-01-01'}
 const workoutsFixture = {generatedAt: '2024-01-01T00:00:00Z', workouts: []}
 const booksFixture = {generatedAt: '2024-01-01T00:00:00Z', books: []}
 const githubEventsFixture = {generatedAt: '2024-01-01T00:00:00Z', events: []}
-const starredReposFixture = {generatedAt: '2024-01-01T00:00:00Z'}
+const starredReposFixture = {generatedAt: '2024-01-01T00:00:00Z', repos: []}
 const articlesFixture = {generatedAt: '2024-01-01T00:00:00Z', articles: []}
-const focusFixture = {generatedAt: '2024-01-01T00:00:00Z', sessions: []}
+const focusFixture = {generatedAt: '2024-01-01T00:00:00Z', currentFocus: 'Personal'}
 const theatreFixture = {generatedAt: '2024-01-01T00:00:00Z', reviews: []}
 
 describe('fetchWithTimeout', () => {
@@ -43,63 +44,66 @@ describe('fetchWithTimeout', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns parsed JSON on success', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse({foo: 'bar'})))
+  it('returns a discriminated ok result on success', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({foo: 'bar'})))
 
     const promise = fetchWithTimeout<{foo: string}>('https://example.com/data.json')
     await vi.runAllTimersAsync()
-    const result = await promise
 
-    expect(result).toEqual({foo: 'bar'})
+    expect(await promise).toEqual({status: 'ok', data: {foo: 'bar'}})
   })
 
-  it('returns null for 404 response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(null, false, 404)))
+  it('recognizes the suppression disclosure body without logging a generic failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({suppressed: true, reason: 'focus mode active'}, 403)))
 
-    const promise = fetchWithTimeout('https://example.com/missing.json')
+    const promise = fetchWithTimeout('https://mock.cloudfront.net/books.json')
     await vi.runAllTimersAsync()
-    const result = await promise
 
-    expect(result).toBeNull()
+    expect(await promise).toEqual({status: 'suppressed', reason: 'focus mode active'})
   })
 
-  it('returns null for 500 response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(null, false, 500)))
+  it('falls back to focus.json for an unrecognized 403 and identifies hiding', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({message: 'forbidden'}, 403)).mockResolvedValueOnce(
+      jsonResponse({currentFocus: 'Do Not Disturb', generatedAt: '2026-08-27T00:00:00Z'})
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const promise = fetchWithTimeout('https://mock.cloudfront.net/books.json')
+    await vi.runAllTimersAsync()
+
+    expect(await promise).toEqual({status: 'suppressed', reason: 'focus mode active', currentFocus: 'Do Not Disturb'})
+    expect(fetchMock).toHaveBeenLastCalledWith('/api/live/focus.json', expect.objectContaining({cache: 'no-store'}))
+  })
+
+  it.each([404, 500])('returns a discriminated failed result for HTTP %s', async (status) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, {status})))
 
     const promise = fetchWithTimeout('https://example.com/error.json')
     await vi.runAllTimersAsync()
-    const result = await promise
 
-    expect(result).toBeNull()
+    expect(await promise).toEqual({status: 'failed', reason: `HTTP ${status}`, httpStatus: status})
   })
 
-  it('returns null on network error', async () => {
+  it('returns failed on a network error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')))
 
     const promise = fetchWithTimeout('https://example.com/data.json')
     await vi.runAllTimersAsync()
-    const result = await promise
 
-    expect(result).toBeNull()
+    expect(await promise).toEqual({status: 'failed', reason: 'Network error'})
   })
 
-  it('returns null on timeout (AbortError)', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, opts: {signal?: AbortSignal}) => {
-      return new Promise((_resolve, reject) => {
-        if (opts?.signal) {
-          opts.signal.addEventListener('abort', () => {
-            reject(new DOMException('The operation was aborted.', 'AbortError'))
-          })
-        }
-      })
-    }))
+  it('returns failed on timeout', async () => {
+    vi.stubGlobal('fetch',
+      vi.fn().mockImplementation((_url: string, opts: {signal?: AbortSignal}) =>
+        new Promise((_resolve, reject) => opts.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))
+      ))
 
     const promise = fetchWithTimeout('https://example.com/slow.json', 1000)
     vi.advanceTimersByTime(1000)
     await vi.runAllTimersAsync()
-    const result = await promise
 
-    expect(result).toBeNull()
+    expect(await promise).toEqual({status: 'failed', reason: 'AbortError: aborted'})
   })
 })
 
@@ -108,83 +112,46 @@ describe('fetchAllEndpoints', () => {
     vi.unstubAllGlobals()
   })
 
-  it('returns all data when all endpoints succeed', async () => {
-    // Order matches Promise.all in fetchAllEndpoints:
-    // health, sleep, workouts, books, githubEvents, starredRepos, articles, focus, theatreReviews
-    const fetchMock = vi.fn().mockResolvedValueOnce(makeFetchResponse(healthFixture)) // health
-      .mockResolvedValueOnce(makeFetchResponse(sleepFixture)) // sleep
-      .mockResolvedValueOnce(makeFetchResponse(workoutsFixture)) // workouts
-      .mockResolvedValueOnce(makeFetchResponse(booksFixture)) // books
-      .mockResolvedValueOnce(makeFetchResponse(githubEventsFixture)) // githubEvents
-      .mockResolvedValueOnce(makeFetchResponse(starredReposFixture)) // starredRepos
-      .mockResolvedValueOnce(makeFetchResponse(articlesFixture)) // articles
-      .mockResolvedValueOnce(makeFetchResponse(focusFixture)) // focus
-      .mockResolvedValueOnce(makeFetchResponse(theatreFixture)) // theatreReviews
+  it('returns every successful endpoint and its timestamp', async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(focusFixture)).mockResolvedValueOnce(jsonResponse(healthFixture)).mockResolvedValueOnce(
+      jsonResponse(sleepFixture)
+    ).mockResolvedValueOnce(jsonResponse(workoutsFixture)).mockResolvedValueOnce(jsonResponse(booksFixture)).mockResolvedValueOnce(
+      jsonResponse(githubEventsFixture)
+    ).mockResolvedValueOnce(jsonResponse(starredReposFixture)).mockResolvedValueOnce(jsonResponse(articlesFixture)).mockResolvedValueOnce(
+      jsonResponse(theatreFixture)
+    )
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await fetchAllEndpoints()
 
-    expect(result.health).toEqual(healthFixture)
-    expect(result.sleep).toEqual(sleepFixture)
-    expect(result.books).toEqual(booksFixture)
-    expect(result.githubEvents).toEqual(githubEventsFixture)
-    expect(result.articles).toEqual(articlesFixture)
-    expect(result.focus).toEqual(focusFixture)
-    expect(result.theatreReviews).toEqual(theatreFixture)
+    expect(result.health).toEqual({status: 'ok', data: healthFixture})
+    expect(result.books).toEqual({status: 'ok', data: booksFixture})
+    expect(result.focus).toEqual({status: 'ok', data: focusFixture})
+    expect(result.timestamps.health).toBe('2024-01-01T00:00:00Z')
+    expect(result.timestamps.books).toBe('2024-01-01T00:00:00Z')
   })
 
-  it('returns null for failing endpoints without rejecting', async () => {
-    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('fail')) // health fails
-      .mockResolvedValueOnce(makeFetchResponse(sleepFixture)).mockResolvedValueOnce(makeFetchResponse(workoutsFixture)).mockResolvedValueOnce(
-        makeFetchResponse(booksFixture)
-      ).mockResolvedValueOnce(makeFetchResponse(githubEventsFixture)).mockResolvedValueOnce(makeFetchResponse(starredReposFixture)).mockResolvedValueOnce(
-        makeFetchResponse(articlesFixture)
-      ).mockResolvedValueOnce(makeFetchResponse(focusFixture)).mockResolvedValueOnce(makeFetchResponse(theatreFixture))
+  it('does not request gated endpoints when the honest focus source says hiding', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({...focusFixture, currentFocus: 'Work'}))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await fetchAllEndpoints()
 
-    expect(result.health).toBeNull()
-    expect(result.sleep).toEqual(sleepFixture)
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(result.health).toEqual({status: 'suppressed', reason: 'focus mode active', currentFocus: 'Work'})
+    expect(result.theatreReviews.status).toBe('suppressed')
+    expect(result.focus.status).toBe('ok')
+    expect(result.timestamps.health).toBeNull()
   })
 
-  it('returns all nulls when all endpoints fail', async () => {
+  it('keeps endpoint failures explicit without rejecting the aggregate', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('all fail')))
 
     const result = await fetchAllEndpoints()
 
-    expect(result.health).toBeNull()
-    expect(result.sleep).toBeNull()
-    expect(result.workouts).toBeNull()
-    expect(result.books).toBeNull()
-    expect(result.githubEvents).toBeNull()
-    expect(result.articles).toBeNull()
-    expect(result.focus).toBeNull()
-    expect(result.theatreReviews).toBeNull()
-  })
-
-  it('populates timestamps from generatedAt fields', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(makeFetchResponse(healthFixture)).mockResolvedValueOnce(makeFetchResponse(sleepFixture))
-      .mockResolvedValueOnce(makeFetchResponse(workoutsFixture)).mockResolvedValueOnce(makeFetchResponse(booksFixture)).mockResolvedValueOnce(
-        makeFetchResponse(githubEventsFixture)
-      ).mockResolvedValueOnce(makeFetchResponse(starredReposFixture)).mockResolvedValueOnce(makeFetchResponse(articlesFixture)).mockResolvedValueOnce(
-        makeFetchResponse(focusFixture)
-      ).mockResolvedValueOnce(makeFetchResponse(theatreFixture))
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await fetchAllEndpoints()
-
-    expect(result.timestamps.health).toBe('2024-01-01T00:00:00Z')
-    expect(result.timestamps.sleep).toBe('2024-01-01T00:00:00Z')
-    expect(result.timestamps.books).toBe('2024-01-01T00:00:00Z')
-  })
-
-  it('sets timestamps to null for failed endpoints', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('fail')))
-
-    const result = await fetchAllEndpoints()
-
+    expect(result.health).toEqual({status: 'failed', reason: 'all fail'})
+    expect(result.sleep).toEqual({status: 'failed', reason: 'all fail'})
+    expect(result.focus).toEqual({status: 'failed', reason: 'all fail'})
     expect(result.timestamps.health).toBeNull()
-    expect(result.timestamps.sleep).toBeNull()
   })
 })

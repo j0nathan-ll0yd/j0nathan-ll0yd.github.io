@@ -1,4 +1,5 @@
 import {fetchAllEndpoints, fetchWithTimeout} from './api'
+import type {EndpointResult, EndpointSuppressed} from './api'
 import {updateFocusOverlay} from '@j0nathan-ll0yd/web/runtime/updaters-focus'
 import {updateTheatreReviews} from '@j0nathan-ll0yd/web/runtime/updaters-theatre'
 import {updatePollStatus} from './updaters-status'
@@ -54,8 +55,8 @@ let ws: WSClient | null = null
 
 // ── Focus-mode suppression (companion to the backend CloudFront edge gate) ──
 // While focus is a hiding mode the gate denies every suppressible artifact (403). The
-// client mirrors that: overlay immediately, pause suppressible polling, and hold the live
-// cards in their skeleton state so no stale real data lingers in the DOM under the overlay.
+// client mirrors that: overlay immediately, pause suppressible polling, and expose the SSR
+// shell instead of leaving the live cards behind permanent loading overlays.
 // HIDING_FOCUS_MODES is the cross-platform single source of truth (@j0nathan-ll0yd/portal-contract),
 // shared with the backend gate + the DS overlay so the three layers can never drift — the web
 // layer is cosmetic + efficiency only; the edge gate is the real privacy boundary, so a
@@ -92,6 +93,10 @@ function applyFocus(currentFocus: string | null): void {
   }
   suppressed = hiding
 
+  if (hiding) {
+    LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  }
+
   // The overlay is opaque and full-screen, so it is the sole visual treatment — deliberately
   // DON'T re-skeleton the cards. `is-loading` only adds an opaque overlay (Card.astro) without
   // removing the retained data, so it buys no DOM hygiene; worse, a card whose data is
@@ -102,6 +107,20 @@ function applyFocus(currentFocus: string | null): void {
   if (!hiding) {
     void engine?.pollNow()
   }
+}
+
+function endpointData<T>(result: EndpointResult<T>): T | null {
+  return result.status === 'ok' ? result.data : null
+}
+
+function applySuppression(result: EndpointSuppressed): void {
+  if (result.currentFocus) {
+    applyFocus(result.currentFocus)
+    return
+  }
+  suppressed = true
+  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  engine?.setSuppressed(true)
 }
 
 // ── Resource type map for discriminated validation ───────────────────
@@ -233,84 +252,106 @@ const startFetch = async () => {
   // focus is already a hiding mode at load, sets suppression intent (engine is still null;
   // it is propagated via engine.setSuppressed(suppressed) below once created).
   const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE
-  const focusData = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus)
-  applyFocus(focusData?.currentFocus ?? null)
+  const focusResult = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus)
+  applyFocus(focusResult.status === 'ok' ? focusResult.data.currentFocus : null)
 
   const data = await fetchAllEndpoints()
+  const health = endpointData(data.health)
+  const sleep = endpointData(data.sleep)
+  const workouts = endpointData(data.workouts)
+  const books = endpointData(data.books)
+  const githubEvents = endpointData(data.githubEvents)
+  const starredRepos = endpointData(data.starredRepos)
+  const articles = endpointData(data.articles)
+  const theatreReviews = endpointData(data.theatreReviews)
+
+  const initialSuppression = [
+    data.health,
+    data.sleep,
+    data.workouts,
+    data.books,
+    data.githubEvents,
+    data.starredRepos,
+    data.articles,
+    data.theatreReviews
+  ].find((result): result is EndpointSuppressed => result.status === 'suppressed')
+  if (initialSuppression) {
+    applySuppression(initialSuppression)
+  }
 
   // Cache raw data for cross-resource dependencies
-  if (data.health) {
-    lastHealth = data.health
+  if (health) {
+    lastHealth = health
   }
-  if (data.sleep) {
-    lastSleep = data.sleep
+  if (sleep) {
+    lastSleep = sleep
   }
   Object.assign(timestamps, data.timestamps)
 
   // ── Initial DOM updates (identical to previous one-shot behavior) ──
-  if (data.health) {
+  if (health) {
     try {
-      const health = adaptHealth(data.health, data.sleep)
-      updateHeartRate(health)
-      updateHeartRateFooter(health)
-      updateMovementRings(health)
-      updateHydration(health)
+      const adaptedHealth = adaptHealth(health, sleep)
+      updateHeartRate(adaptedHealth)
+      updateHeartRateFooter(adaptedHealth)
+      updateMovementRings(adaptedHealth)
+      updateHydration(adaptedHealth)
     } catch (e) {
       console.warn('[live-data] Health update failed:', e)
     }
   }
 
-  if (data.sleep) {
+  if (sleep) {
     try {
-      updateNightSummary(adaptSleep(data.sleep, data.health))
+      updateNightSummary(adaptSleep(sleep, health))
     } catch (e) {
       console.warn('[live-data] Sleep update failed:', e)
     }
   }
 
-  if (data.workouts !== undefined) {
+  if (workouts) {
     try {
-      updateWorkouts(adaptWorkouts(data.workouts))
+      updateWorkouts(adaptWorkouts(workouts))
     } catch (e) {
       console.warn('[live-data] Workouts update failed:', e)
     }
   }
 
-  if (data.books) {
+  if (books) {
     try {
-      updateBookshelf(adaptBooks(data.books))
+      updateBookshelf(adaptBooks(books))
     } catch (e) {
       console.warn('[live-data] Books update failed:', e)
     }
   }
 
-  if (data.githubEvents) {
+  if (githubEvents) {
     try {
-      updateDevActivityLog(adaptGithubEvents(data.githubEvents))
+      updateDevActivityLog(adaptGithubEvents(githubEvents))
     } catch (e) {
       console.warn('[live-data] GitHub events update failed:', e)
     }
   }
 
-  if (data.articles) {
+  if (articles) {
     try {
-      updateReadingFeed(adaptArticles(data.articles))
+      updateReadingFeed(adaptArticles(articles))
     } catch (e) {
       console.warn('[live-data] Articles update failed:', e)
     }
   }
 
-  if (data.starredRepos) {
+  if (starredRepos) {
     try {
-      updateStarredRepos(adaptStarredRepos(data.starredRepos))
+      updateStarredRepos(adaptStarredRepos(starredRepos))
     } catch (e) {
       console.warn('[live-data] Starred repos update failed:', e)
     }
   }
 
-  if (data.theatreReviews) {
+  if (theatreReviews) {
     try {
-      updateTheatreReviews(data.theatreReviews)
+      updateTheatreReviews(theatreReviews)
     } catch (e) {
       console.warn('[live-data] Theatre reviews update failed:', e)
     }
@@ -318,12 +359,9 @@ const startFetch = async () => {
 
   updateSystemStatus(data.timestamps)
 
-  // Clean up any remaining skeletons (handles partial endpoint failures) — but while
-  // suppressed (loaded during a hiding mode), keep the cards skeletonised: the endpoints
-  // 403 so there is no real data to show, and skeletons are the suppressed presentation.
-  if (!suppressed) {
-    LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
-  }
+  // Clean up every loading overlay, including during suppression: the SSR shell is the
+  // honest fallback presentation and must not remain hidden behind permanent skeletons.
+  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
   if (fallbackTimer) {
     clearTimeout(fallbackTimer)
   }
@@ -331,6 +369,7 @@ const startFetch = async () => {
   // ── Start continuous polling ───────────────────────────────────────
   engine = new PollEngine({
     onUpdate: handleResourceUpdate,
+    onSuppressed: applySuppression,
     onError: (key, err) => console.warn(`[poll] ${key} error:`, err.message),
     onStatusChange: updatePollStatus
   })

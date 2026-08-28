@@ -3,8 +3,10 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {PollEngine} from '../../src/lib/runtime/poll-engine'
 
 // Mock constants module
-vi.mock('@j0nathan-ll0yd/portal-contract/constants',
-  () => ({
+vi.mock('@j0nathan-ll0yd/portal-contract/constants', async (importActual) => {
+  const actual = await importActual<typeof import('@j0nathan-ll0yd/portal-contract/constants')>()
+  return {
+    ...actual,
     CLOUDFRONT_BASE: 'https://mock.cloudfront.net',
     ENDPOINTS: {
       health: '/health.json',
@@ -17,7 +19,8 @@ vi.mock('@j0nathan-ll0yd/portal-contract/constants',
       focus: '/focus.json',
       theatreReviews: '/theatre-reviews.json'
     }
-  }))
+  }
+})
 
 function makeFetchResponse(data: unknown, ok = true, status = 200) {
   return {ok, status, json: () => Promise.resolve(data)}
@@ -26,6 +29,7 @@ function makeFetchResponse(data: unknown, ok = true, status = 200) {
 describe('PollEngine', () => {
   let onUpdate: ReturnType<typeof vi.fn>
   let onError: ReturnType<typeof vi.fn>
+  let onSuppressed: ReturnType<typeof vi.fn>
   let onStatusChange: ReturnType<typeof vi.fn>
   let engine: PollEngine
 
@@ -33,10 +37,11 @@ describe('PollEngine', () => {
     vi.useFakeTimers()
     onUpdate = vi.fn()
     onError = vi.fn()
+    onSuppressed = vi.fn()
     onStatusChange = vi.fn()
     vi.stubGlobal('fetch', vi.fn())
     Object.defineProperty(navigator, 'onLine', {value: true, configurable: true})
-    engine = new PollEngine({onUpdate, onError, onStatusChange})
+    engine = new PollEngine({onUpdate, onError, onSuppressed, onStatusChange})
   })
 
   afterEach(() => {
@@ -229,6 +234,19 @@ describe('PollEngine', () => {
   })
 
   describe('setSuppressed()', () => {
+    it('recognizes a suppression response, pauses gated polling, and emits no poll error', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(makeFetchResponse({suppressed: true, reason: 'focus mode active'}, false, 503))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await engine.pollResource('health')
+      await engine.pollResource('books')
+
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(onSuppressed).toHaveBeenCalledWith({status: 'suppressed', reason: 'focus mode active'})
+      expect(onError).not.toHaveBeenCalled()
+      expect(onUpdate).not.toHaveBeenCalled()
+    })
+
     it('skips a gated resource while suppressed (no fetch, no update)', async () => {
       const fetchMock = vi.fn().mockResolvedValue(makeFetchResponse({generatedAt: '2024-01-02T00:00:00Z'}))
       vi.stubGlobal('fetch', fetchMock)

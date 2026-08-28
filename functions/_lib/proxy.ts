@@ -9,14 +9,17 @@
 // export an onRequest* handler; this module exports a factory.
 
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
-import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 
-const FRESH_CACHE_SECONDS = 3600
+const FRESH_CACHE_SECONDS = 60
 const LAST_KNOWN_GOOD_SECONDS = 3 * 60 * 60
 const MAX_ATTEMPTS = 3
 const RETRY_DELAYS_MS = [100, 300]
-const PUBLIC_CACHE_CONTROL = 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400'
-const STALE_CACHE_CONTROL = 'public, max-age=60, s-maxage=300'
+const PUBLIC_CACHE_CONTROL = `public, max-age=0, s-maxage=${FRESH_CACHE_SECONDS}`
+const STALE_CACHE_CONTROL = `public, max-age=0, s-maxage=${FRESH_CACHE_SECONDS}`
+const SUPPRESSION_RETRY_SECONDS = 60
+const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
+const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
 
 // Minimal Cloudflare Pages Function types -- only the fields used here.
@@ -60,6 +63,23 @@ interface UpstreamFailure {
 
 type UpstreamResult = UpstreamSuccess | UpstreamFailure
 
+interface FocusVisible {
+  status: 'visible'
+}
+
+interface FocusSuppressed {
+  status: 'suppressed'
+  currentFocus: string
+}
+
+interface FocusUnavailable {
+  status: 'unavailable'
+  upstreamStatus?: number
+  errorName?: string
+}
+
+type FocusResult = FocusVisible | FocusSuppressed | FocusUnavailable
+
 function defaultCache(): CacheLike | undefined {
   return (globalThis as typeof globalThis & {caches?: CloudflareCacheStorage}).caches?.default
 }
@@ -99,6 +119,67 @@ function diagnosticFields(path: string, failure: UpstreamFailure, staleHit?: boo
 
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500
+}
+
+async function probeFocus(): Promise<FocusResult> {
+  let response: Response
+  try {
+    response = await fetch(FOCUS_URL, {cache: 'no-store'})
+  } catch (error) {
+    return {status: 'unavailable', errorName: error instanceof Error ? error.name : 'UnknownError'}
+  }
+
+  if (!response.ok) {
+    return {status: 'unavailable', upstreamStatus: response.status}
+  }
+
+  try {
+    const focus = await response.json() as {currentFocus?: unknown}
+    if (typeof focus.currentFocus !== 'string') {
+      return {status: 'unavailable', errorName: 'InvalidFocusState'}
+    }
+    if (HIDING_FOCUS_MODE_SET.has(focus.currentFocus)) {
+      return {status: 'suppressed', currentFocus: focus.currentFocus}
+    }
+    return {status: 'visible'}
+  } catch {
+    return {status: 'unavailable', errorName: 'InvalidFocusJson'}
+  }
+}
+
+function suppressionResponse(method: string): Response {
+  const headers = new Headers({
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Retry-After': String(SUPPRESSION_RETRY_SECONDS),
+    'X-Source': 'cloudfront-proxy-suppressed'
+  })
+  const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
+  return new Response(body, {status: 503, headers})
+}
+
+function focusUnavailableResponse(path: string, result: FocusUnavailable): Response {
+  logger.error('cloudfront_proxy_focus_probe_failed', {
+    artifact: path,
+    upstream_status: result.upstreamStatus ?? null,
+    error_class: result.errorName ?? null
+  })
+  return new Response('focus state unavailable', {
+    status: 502,
+    headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Source': 'cloudfront-proxy-focus-error'}
+  })
+}
+
+export async function focusPrivacyResponse(method: string, path: string): Promise<Response | null> {
+  const focus = await probeFocus()
+  if (focus.status === 'suppressed') {
+    logger.info?.('cloudfront_proxy_suppressed', {artifact: path, current_focus: focus.currentFocus})
+    return suppressionResponse(method)
+  }
+  if (focus.status === 'unavailable') {
+    return focusUnavailableResponse(path, focus)
+  }
+  return null
 }
 
 function delay(ms: number): Promise<void> {
@@ -205,6 +286,15 @@ export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig):
   return async function onRequest(context: CloudfrontProxyContext): Promise<Response> {
     if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
       return new Response('Method not allowed', {status: 405, headers: {Allow: 'GET, HEAD', 'Cache-Control': 'no-store'}})
+    }
+
+    // Privacy gate first. The focus signal is never itself gated, and no-store forces every
+    // Function execution to observe the current state before an artifact fetch or LKG lookup.
+    // Public artifact responses have only a 60s edge TTL, so a response already cached ahead
+    // of a hiding transition has a bounded residual disclosure window and cannot enter SWR.
+    const privacyResponse = await focusPrivacyResponse(context.request.method, path)
+    if (privacyResponse) {
+      return privacyResponse
     }
 
     const cache = defaultCache()

@@ -8,14 +8,16 @@ import {onRequest as indexMdRoute} from '../../functions/index.md.ts'
 import {onRequest as llmsFullRoute} from '../../functions/llms-full.txt.ts'
 import {onRequest as llmsTxtRoute} from '../../functions/llms.txt.ts'
 
-const logger = vi.hoisted(() => ({warn: vi.fn(), error: vi.fn()}))
+const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
 
 // Unit tests for the shared CloudFront proxy factory and the five routes built
 // from it. The regression class under guard: a transient upstream failure being
 // cached for an hour, or a multi-route CloudFront outage having no safe fallback.
 
-const FETCH_CACHE_INIT = {cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 3600, '300-599': 0}}}
+const FETCH_CACHE_INIT = {cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}}}
+const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
+const FOCUS_FETCH_INIT = {cache: 'no-store'}
 
 function makeContext(path = '/thing.txt', method = 'GET') {
   const background: Promise<unknown>[] = []
@@ -27,7 +29,9 @@ function makeContext(path = '/thing.txt', method = 'GET') {
 }
 
 function stubFetch(response: Response) {
-  const mock = vi.fn().mockResolvedValue(response)
+  const mock = vi.fn().mockImplementation((url: string) =>
+    Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : response)
+  )
   vi.stubGlobal('fetch', mock)
   return mock
 }
@@ -57,7 +61,8 @@ describe('makeCloudfrontProxy', () => {
     expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}/thing.txt`, FETCH_CACHE_INIT)
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300, s-maxage=3600, stale-while-revalidate=86400')
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy')
     expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
     expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('200')
@@ -74,8 +79,9 @@ describe('makeCloudfrontProxy', () => {
 
   it('retries a bounded transient failure and returns the recovered response', async () => {
     vi.useFakeTimers()
-    const mock = vi.fn().mockResolvedValueOnce(new Response('temporary', {status: 503, headers: {'x-amz-cf-id': 'failed-request'}})).mockResolvedValueOnce(
-      new Response('recovered')
+    const artifacts = [new Response('temporary', {status: 503, headers: {'x-amz-cf-id': 'failed-request'}}), new Response('recovered')]
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : artifacts.shift()!)
     )
     vi.stubGlobal('fetch', mock)
     vi.stubGlobal('caches', undefined)
@@ -86,7 +92,7 @@ describe('makeCloudfrontProxy', () => {
     await vi.runAllTimersAsync()
     const res = await pending
 
-    expect(mock).toHaveBeenCalledTimes(2)
+    expect(mock).toHaveBeenCalledTimes(3)
     expect(res.status).toBe(200)
     expect(res.headers.get('X-Proxy-Attempts')).toBe('2')
     expect(await res.text()).toBe('recovered')
@@ -96,8 +102,10 @@ describe('makeCloudfrontProxy', () => {
 
   it('serves an explicit stale last-known-good response after retries are exhausted', async () => {
     vi.useFakeTimers()
-    const mock = vi.fn().mockImplementation(() =>
-      Promise.resolve(new Response('upstream down', {status: 503, headers: {'x-amz-cf-id': 'terminal-request'}}))
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL
+        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
+        : new Response('upstream down', {status: 503, headers: {'x-amz-cf-id': 'terminal-request'}}))
     )
     vi.stubGlobal('fetch', mock)
     const cache = stubCache(
@@ -112,11 +120,11 @@ describe('makeCloudfrontProxy', () => {
     await vi.runAllTimersAsync()
     const res = await pending
 
-    expect(mock).toHaveBeenCalledTimes(3)
+    expect(mock).toHaveBeenCalledTimes(4)
     expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=60, s-maxage=300')
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
     expect(res.headers.get('Warning')).toBe('110 - "Response is stale"')
     expect(res.headers.get('X-Proxy-Stale')).toBe('true')
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
@@ -128,8 +136,10 @@ describe('makeCloudfrontProxy', () => {
 
   it('fails visibly and without caching when no safe representation exists', async () => {
     vi.useFakeTimers()
-    const mock = vi.fn().mockImplementation(() =>
-      Promise.resolve(new Response('upstream down', {status: 503, headers: {'x-amz-cf-id': 'terminal-request'}}))
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL
+        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
+        : new Response('upstream down', {status: 503, headers: {'x-amz-cf-id': 'terminal-request'}}))
     )
     vi.stubGlobal('fetch', mock)
     const cache = stubCache()
@@ -140,7 +150,7 @@ describe('makeCloudfrontProxy', () => {
     await vi.runAllTimersAsync()
     const res = await pending
 
-    expect(mock).toHaveBeenCalledTimes(3)
+    expect(mock).toHaveBeenCalledTimes(4)
     expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(502)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
@@ -160,7 +170,7 @@ describe('makeCloudfrontProxy', () => {
 
     const res = await proxy(context)
 
-    expect(mock).toHaveBeenCalledOnce()
+    expect(mock).toHaveBeenCalledTimes(2)
     expect(cache.match).not.toHaveBeenCalled()
     expect(res.status).toBe(502)
     expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
@@ -178,6 +188,63 @@ describe('makeCloudfrontProxy', () => {
     expect(res.status).toBe(405)
     expect(res.headers.get('Allow')).toBe('GET, HEAD')
     expect(res.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  it('fails closed when the ungated focus state cannot be read', async () => {
+    const mock = vi.fn().mockResolvedValue(new Response('focus unavailable', {status: 503}))
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('old content'))
+    const {context} = makeContext()
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const res = await proxy(context)
+
+    expect(mock).toHaveBeenCalledOnce()
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(res.status).toBe(502)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-focus-error')
+  })
+
+  it('prevents a warm response and LKG from leaking across a focus transition, then recovers immediately', async () => {
+    let currentFocus = 'Personal'
+    let artifactCalls = 0
+    const mock = vi.fn().mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus})))
+      }
+      artifactCalls++
+      return Promise.resolve(new Response(`content-${artifactCalls}`))
+    })
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('pre-focus LKG'))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const warm = makeContext()
+    expect(await (await proxy(warm.context)).text()).toBe('content-1')
+    await Promise.all(warm.background)
+    expect(cache.put).toHaveBeenCalledOnce()
+
+    currentFocus = 'Work'
+    const firstSuppressed = await proxy(makeContext().context)
+    expect(firstSuppressed.status).toBe(503)
+    expect(firstSuppressed.headers.get('Retry-After')).toBe('60')
+    expect(firstSuppressed.headers.get('Cache-Control')).toBe('no-store')
+    expect(await firstSuppressed.json()).toEqual({suppressed: true, reason: 'focus mode active'})
+
+    const sustained = await proxy(makeContext().context)
+    expect(sustained.status).toBe(503)
+    expect(artifactCalls).toBe(1)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).toHaveBeenCalledOnce()
+
+    currentFocus = 'Personal'
+    const recovered = await proxy(makeContext().context)
+    expect(recovered.status).toBe(200)
+    expect(await recovered.text()).toBe('content-2')
+    expect(artifactCalls).toBe(2)
   })
 })
 
@@ -199,8 +266,27 @@ describe('proxy routes', () => {
     const {context} = makeContext(route)
     const res = await onRequest(context)
 
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
     expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}${upstreamPath}`, FETCH_CACHE_INIT)
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe(contentType)
+  })
+})
+
+describe('non-retryable upstream privacy responses', () => {
+  it('never retries or serves last-known-good content for an upstream 403', async () => {
+    const mock = stubFetch(new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403}))
+    const cache = stubCache(new Response('pre-focus LKG'))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const res = await proxy(makeContext().context)
+
+    expect(mock).toHaveBeenCalledTimes(2)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(res.status).toBe(502)
+    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('403')
   })
 })

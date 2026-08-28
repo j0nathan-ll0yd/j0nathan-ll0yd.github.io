@@ -51,22 +51,22 @@ vi.mock('../../src/lib/runtime/poll-engine', () => ({
 
 // fetchWithTimeout is the focus-signal fetch at startup; a hoisted spy (default null)
 // lets a test resolve a hiding focus to exercise the load-during-hiding path.
-const fetchSpy = vi.hoisted(() => vi.fn<() => Promise<unknown>>(() => Promise.resolve(null)))
+const fetchSpy = vi.hoisted(() => vi.fn<() => Promise<unknown>>(() => Promise.resolve({status: 'failed', reason: 'fixture unavailable'})))
 
 vi.mock('../../src/lib/runtime/api',
   () => ({
     fetchWithTimeout: fetchSpy,
     fetchAllEndpoints: () =>
       Promise.resolve({
-        health: null,
-        sleep: null,
-        workouts: null,
-        books: null,
-        githubEvents: null,
-        starredRepos: null,
-        articles: null,
-        focus: null,
-        theatreReviews: null,
+        health: {status: 'failed', reason: 'fixture unavailable'},
+        sleep: {status: 'failed', reason: 'fixture unavailable'},
+        workouts: {status: 'failed', reason: 'fixture unavailable'},
+        books: {status: 'failed', reason: 'fixture unavailable'},
+        githubEvents: {status: 'failed', reason: 'fixture unavailable'},
+        starredRepos: {status: 'failed', reason: 'fixture unavailable'},
+        articles: {status: 'failed', reason: 'fixture unavailable'},
+        focus: {status: 'failed', reason: 'fixture unavailable'},
+        theatreReviews: {status: 'failed', reason: 'fixture unavailable'},
         timestamps: {}
       })
   }))
@@ -206,17 +206,16 @@ describe('live-data → focus overlay + suppression wiring', () => {
 
   // Load-during-hiding: opening the dashboard while focus is ALREADY a hiding mode. applyFocus
   // runs before the engine exists, so suppression must be propagated via the post-seed
-  // engine.setSuppressed(suppressed), and the skeletons must be retained (endpoints 403).
+  // engine.setSuppressed(suppressed), while the SSR shell is exposed under the opaque overlay.
   it('loads directly into suppression when focus is already a hiding mode at startup', async () => {
     document.body.innerHTML += '<div id="cardHR" class="is-loading"></div>'
-    fetchSpy.mockResolvedValueOnce({generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'Do Not Disturb'})
+    fetchSpy.mockResolvedValueOnce({status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'Do Not Disturb'}})
 
     await bootLiveData()
 
     expect(engineSpies.setSuppressed).toHaveBeenCalledWith(true)
     expect(document.getElementById('dndOverlay')?.style.display).toBe('flex')
-    // Skeletons stay while suppressed — the 403'd endpoints have no real data to reveal.
-    expect(document.getElementById('cardHR')?.classList.contains('is-loading')).toBe(true)
+    expect(document.getElementById('cardHR')?.classList.contains('is-loading')).toBe(false)
   })
 
   it('ignores a stale focus poll that contradicts the latest push while the WS is connected', async () => {
