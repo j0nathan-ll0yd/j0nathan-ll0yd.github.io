@@ -22,7 +22,9 @@ describe('audit-web issue reconciliation wiring', () => {
     // ordinary manual runbook run.
     expect(workflow.match(/github\.event_name == 'schedule' \|\|/g)).toHaveLength(3)
     expect(workflow.match(/github\.event_name == 'workflow_dispatch' && inputs\.validate_reconciler == true/g)).toHaveLength(3)
-    expect(workflow).toMatch(/validate_reconciler:\n(?:\s+.*\n)*\s+type: boolean/m)
+    // Linear regex (no nested quantifier) — the earlier /(?:\s+.*\n)*/ form was a
+    // catastrophic-backtracking ReDoS that hung the vitest run.
+    expect(workflow).toMatch(/validate_reconciler:\n {8}description: [^\n]*\n {8}type: boolean\n {8}default: false/)
     expect(executable).not.toMatch(/\bgh\s+(issue|label)\b/)
   })
 
