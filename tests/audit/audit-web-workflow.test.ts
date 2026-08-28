@@ -17,7 +17,14 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow.match(/name: Reconcile managed audit issues/g)).toHaveLength(3)
     expect(workflow.match(/uses: actions\/github-script@/g)?.length).toBeGreaterThanOrEqual(3)
     expect(workflow.match(/client: reconciler\.createGithubClient\(github\)/g)).toHaveLength(3)
-    expect(workflow.match(/if: always\(\) && github\.event_name != 'workflow_dispatch'/g)).toHaveLength(3)
+    // Atlas decision 0091: each of the three reconcile steps runs on a scheduled
+    // run OR an explicit `validate_reconciler` manual dispatch, never on an
+    // ordinary manual runbook run.
+    expect(workflow.match(/github\.event_name == 'schedule' \|\|/g)).toHaveLength(3)
+    expect(workflow.match(/github\.event_name == 'workflow_dispatch' && inputs\.validate_reconciler == true/g)).toHaveLength(3)
+    // Linear regex (no nested quantifier) — the earlier /(?:\s+.*\n)*/ form was a
+    // catastrophic-backtracking ReDoS that hung the vitest run.
+    expect(workflow).toMatch(/validate_reconciler:\n {8}description: [^\n]*\n {8}type: boolean\n {8}default: false/)
     expect(executable).not.toMatch(/\bgh\s+(issue|label)\b/)
   })
 
@@ -72,7 +79,10 @@ describe('audit-web dead-man switch', () => {
     const pings = executable.match(/- name: Healthchecks\.io ping[\s\S]*?run: bash scripts\/audit\/healthchecks-ping\.sh/g) || []
     expect(pings).toHaveLength(3)
     for (const ping of pings) {
-      expect(ping).toContain('if: always()')
+      // Atlas decision 0091: the ping fires on `schedule` events only. A manual
+      // workflow_dispatch run must not ping, or a fallback run while cron is dead
+      // keeps the switch green and masks the missed check-in.
+      expect(ping).toContain("if: always() && github.event_name == 'schedule'")
       expect(ping).toContain('JOB_STATUS: ${{ job.status }}')
       expect(ping).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}')
     }
