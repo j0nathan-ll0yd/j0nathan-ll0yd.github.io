@@ -1,22 +1,9 @@
-#!/usr/bin/env node
-// scripts/audit/lib/file-check-issues.mjs -- D5: reconcile one GitHub issue
-// per audit check id. A failed bucket creates or reopens its managed issue; a
-// wholly green bucket gets one recovery comment and closes it. Unknown,
-// skipped, or partially green buckets never close anything.
+// Reconcile one GitHub issue per audit check id. A failed bucket creates or
+// reopens its managed issue; a wholly green bucket gets one recovery comment
+// and closes it. Unknown, skipped, or partially green buckets never close.
 //
-// Invoked once per job from .github/workflows/audit-web.yml with a JSON array
-// of `{ id, title, outcome }` built from that job's step outcomes. Duplicate
-// ids are allowed so one logical bucket can contain multiple results. Shells
-// out to `gh` (preinstalled + auto-authenticated via GH_TOKEN on GitHub-hosted
-// runners) rather than adding an Octokit dependency.
-//
-// Every check step in audit-web.yml uses `continue-on-error: true`, so the
-// script deliberately reads each step's own `outcome` instead of the aggregate
-// job status. This remains report-only: reconciliation failures are logged per
-// bucket and never make the audit job block CI or deploys.
-
-import {execFileSync} from 'node:child_process'
-import {pathToFileURL} from 'node:url'
+// The workflow injects the authenticated Octokit client through
+// actions/github-script. No runner-local `gh` binary is required.
 
 export const AUDIT_LABELS = [
   {name: 'audit', color: 'ededed', description: 'lp-audit finding'},
@@ -29,12 +16,16 @@ const MANAGED_LABEL = 'audit:managed'
 const LEGACY_BODY_SUFFIX = 'This is a **report-only** finding (lp-audit Phase 2, D4) -- it does not block CI or deploys. ' +
   "See the run's job log for this check's own findings output."
 
-function gh(args) {
-  return execFileSync('gh', args, {encoding: 'utf-8'})
-}
-
 function encoded(value) {
   return encodeURIComponent(value)
+}
+
+function repoParts(repo) {
+  const [owner, name] = String(repo).split('/')
+  if (!owner || !name) {
+    throw new Error(`Invalid GitHub repository name: ${repo}`)
+  }
+  return {owner, repo: name}
 }
 
 export function managedMarker(id) {
@@ -74,11 +65,6 @@ function hasExactMarker(issue, id) {
   return (issue.body || '').split('\n').includes(managedMarker(id))
 }
 
-/**
- * Recognize the exact body emitted before lifecycle markers were introduced.
- * This narrow migration path is what allows the existing audit issues to be
- * adopted without treating similarly titled, manually-authored issues as ours.
- */
 export function isLegacyAutoFiledIssue(issue, check, repo) {
   if (issue.title !== issueTitle(check.title) || !hasLabels(issue, LEGACY_LABELS)) {
     return false
@@ -122,78 +108,124 @@ export function bucketOutcome(checks) {
   return 'indeterminate'
 }
 
-export function createGhClient(runGh = gh) {
+export function createGithubClient(github) {
   return {
-    ensureLabel({name, color, description}, repo) {
-      runGh(['label', 'create', name, '--repo', repo, '--color', color, '--description', description, '--force'])
+    async ensureLabel(label, repo) {
+      const coordinates = repoParts(repo)
+      try {
+        await github.rest.issues.getLabel({...coordinates, name: label.name})
+        await github.rest.issues.updateLabel({...coordinates, name: label.name, new_name: label.name, color: label.color, description: label.description})
+      } catch (error) {
+        if (error?.status !== 404) {
+          throw error
+        }
+        await github.rest.issues.createLabel({...coordinates, ...label})
+      }
     },
 
-    listIssues(check, repo) {
-      const raw = runGh([
-        'issue',
-        'list',
-        '--repo',
-        repo,
-        '--state',
-        'all',
-        '--label',
-        'audit',
-        '--search',
-        `"${issueTitle(check.title)}" in:title`,
-        '--json',
-        'number,title,state,body,labels',
-        '--limit',
-        '100'
-      ])
-      return JSON.parse(raw)
+    async listIssues(_check, repo) {
+      const coordinates = repoParts(repo)
+      const response = await github.rest.issues.listForRepo({...coordinates, state: 'all', labels: 'audit', per_page: 100})
+      return response.data.filter((issue) => !issue.pull_request)
     },
 
-    createIssue(check, repo, runUrl) {
-      runGh([
-        'issue',
-        'create',
-        '--repo',
-        repo,
-        '--title',
-        issueTitle(check.title),
-        '--body',
-        issueBody(check, runUrl),
-        '--label',
-        AUDIT_LABELS.map((label) => label.name).join(',')
-      ])
+    async createIssue(check, repo, runUrl) {
+      await github.rest.issues.create({
+        ...repoParts(repo),
+        title: issueTitle(check.title),
+        body: issueBody(check, runUrl),
+        labels: AUDIT_LABELS.map((label) => label.name)
+      })
     },
 
-    addManagedLabel(issueNumber, repo) {
-      runGh(['issue', 'edit', String(issueNumber), '--repo', repo, '--add-label', MANAGED_LABEL])
+    async addManagedLabel(issueNumber, repo) {
+      await github.rest.issues.addLabels({...repoParts(repo), issue_number: issueNumber, labels: [MANAGED_LABEL]})
     },
 
-    addManagedMarker(issue, check, repo) {
-      runGh([
-        'issue',
-        'edit',
-        String(issue.number),
-        '--repo',
-        repo,
-        '--body',
-        `${managedMarker(check.id)}\n\n${issue.body}`
-      ])
+    async addManagedMarker(issue, check, repo) {
+      await github.rest.issues.update({...repoParts(repo), issue_number: issue.number, body: `${managedMarker(check.id)}\n\n${issue.body}`})
     },
 
-    listComments(issueNumber, repo) {
-      const raw = runGh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'comments'])
-      return JSON.parse(raw).comments || []
+    async listComments(issueNumber, repo) {
+      const response = await github.rest.issues.listComments({...repoParts(repo), issue_number: issueNumber, per_page: 100})
+      return response.data
     },
 
-    comment(issueNumber, repo, body) {
-      runGh(['issue', 'comment', String(issueNumber), '--repo', repo, '--body', body])
+    async comment(issueNumber, repo, body) {
+      await github.rest.issues.createComment({...repoParts(repo), issue_number: issueNumber, body})
     },
 
-    close(issueNumber, repo) {
-      runGh(['issue', 'close', String(issueNumber), '--repo', repo, '--reason', 'completed'])
+    async close(issueNumber, repo) {
+      await github.rest.issues.update({...repoParts(repo), issue_number: issueNumber, state: 'closed', state_reason: 'completed'})
     },
 
-    reopen(issueNumber, repo) {
-      runGh(['issue', 'reopen', String(issueNumber), '--repo', repo])
+    async reopen(issueNumber, repo) {
+      await github.rest.issues.update({...repoParts(repo), issue_number: issueNumber, state: 'open'})
+    }
+  }
+}
+
+export function createDryRunClient(seed = {}) {
+  const issues = structuredClone(seed.issues || [])
+  const comments = new Map(Object.entries(seed.comments || {}).map(([number, values]) => [Number(number), structuredClone(values)]))
+  const labels = new Map()
+  const calls = []
+
+  const record = (op, details = {}) => calls.push({op, ...details})
+  const find = (issueNumber) => {
+    const issue = issues.find((candidate) => candidate.number === issueNumber)
+    if (!issue) {
+      throw new Error(`missing dry-run issue #${issueNumber}`)
+    }
+    return issue
+  }
+
+  return {
+    issues,
+    comments,
+    labels,
+    calls,
+    async ensureLabel(label) {
+      record('ensureLabel', {name: label.name})
+      labels.set(label.name, {...label})
+    },
+    async listIssues() {
+      record('listIssues')
+      return issues
+    },
+    async createIssue(check, _repo, runUrl) {
+      record('createIssue')
+      issues.push({
+        number: Math.max(0, ...issues.map(({number}) => number)) + 1,
+        title: issueTitle(check.title),
+        state: 'OPEN',
+        body: issueBody(check, runUrl),
+        labels: AUDIT_LABELS.map(({name}) => ({name}))
+      })
+    },
+    async addManagedLabel(issueNumber) {
+      record('addManagedLabel', {issueNumber})
+      find(issueNumber).labels.push({name: MANAGED_LABEL})
+    },
+    async addManagedMarker(issue, check) {
+      record('addManagedMarker', {issueNumber: issue.number})
+      issue.body = `${managedMarker(check.id)}\n\n${issue.body}`
+    },
+    async listComments(issueNumber) {
+      record('listComments', {issueNumber})
+      return comments.get(issueNumber) || []
+    },
+    async comment(issueNumber, _repo, body) {
+      record('comment', {issueNumber, body})
+      comments.set(issueNumber, [...(comments.get(issueNumber) || []), {body}])
+    },
+    async close(issueNumber) {
+      record('close', {issueNumber})
+      find(issueNumber).state = 'CLOSED'
+    },
+    async reopen(issueNumber) {
+      record('reopen', {issueNumber})
+      find(issueNumber).state = 'OPEN'
     }
   }
 }
@@ -219,39 +251,35 @@ function transitionBody(check, transition, runUrl) {
   ].join('\n')
 }
 
-function ensureTransitionComment(client, issue, check, repo, runUrl, transition) {
+async function ensureTransitionComment(client, issue, check, repo, runUrl, transition) {
   const marker = transitionMarker(check.id, transition, runUrl)
-  const comments = client.listComments(issue.number, repo)
+  const comments = await client.listComments(issue.number, repo)
   if (!commentsContain(comments, marker)) {
-    client.comment(issue.number, repo, transitionBody(check, transition, runUrl))
+    await client.comment(issue.number, repo, transitionBody(check, transition, runUrl))
   }
 }
 
-function adoptLegacyIssue(client, issue, check, repo) {
+async function adoptLegacyIssue(client, issue, check, repo) {
   const originalBody = issue.body
   const originalLabels = issue.labels || []
-  client.addManagedLabel(issue.number, repo)
-  client.addManagedMarker(issue, check, repo)
+  await client.addManagedLabel(issue.number, repo)
+  await client.addManagedMarker(issue, check, repo)
   return {...issue, body: `${managedMarker(check.id)}\n\n${originalBody}`, labels: [...originalLabels, {name: MANAGED_LABEL}]}
 }
 
-function exactCandidates(client, check, repo) {
-  return client.listIssues(check, repo).filter((issue) => issue.title === issueTitle(check.title))
-}
-
-function adoptRecognizedLegacyIssues(client, issues, check, repo) {
-  return issues.map((issue) => {
+async function adoptRecognizedLegacyIssues(client, issues, check, repo) {
+  const adopted = []
+  for (const issue of issues) {
     if (isManagedIssue(issue, check)) {
-      return issue
+      adopted.push(issue)
+    } else if (isLegacyAutoFiledIssue(issue, check, repo)) {
+      adopted.push(await adoptLegacyIssue(client, issue, check, repo))
     }
-    if (!isLegacyAutoFiledIssue(issue, check, repo)) {
-      return null
-    }
-    return adoptLegacyIssue(client, issue, check, repo)
-  }).filter(Boolean)
+  }
+  return adopted
 }
 
-function reconcileFailure(client, issues, check, repo, runUrl) {
+async function reconcileFailure(client, issues, check, repo, runUrl) {
   const open = issues.filter((issue) => stateOf(issue) === 'open').sort((a, b) => b.number - a.number)
   if (open.length > 0) {
     console.log(`Audit issue #${open[0].number} remains open for failing bucket "${check.id}".`)
@@ -261,17 +289,17 @@ function reconcileFailure(client, issues, check, repo, runUrl) {
   const closed = issues.filter((issue) => stateOf(issue) === 'closed').sort((a, b) => b.number - a.number)
   if (closed.length > 0) {
     const issue = closed[0]
-    ensureTransitionComment(client, issue, check, repo, runUrl, 'regressed')
-    client.reopen(issue.number, repo)
+    await ensureTransitionComment(client, issue, check, repo, runUrl, 'regressed')
+    await client.reopen(issue.number, repo)
     console.log(`Reopened audit issue #${issue.number} for regressed bucket "${check.id}".`)
     return
   }
 
-  client.createIssue(check, repo, runUrl)
+  await client.createIssue(check, repo, runUrl)
   console.log(`Filed new issue for failing bucket "${check.id}".`)
 }
 
-function reconcileSuccess(client, issues, check, repo, runUrl) {
+async function reconcileSuccess(client, issues, check, repo, runUrl) {
   const open = issues.filter((issue) => stateOf(issue) === 'open').sort((a, b) => a.number - b.number)
   if (open.length === 0) {
     console.log(`Audit bucket "${check.id}" is green; no managed issue is open.`)
@@ -279,27 +307,27 @@ function reconcileSuccess(client, issues, check, repo, runUrl) {
   }
 
   for (const issue of open) {
-    ensureTransitionComment(client, issue, check, repo, runUrl, 'recovered')
-    client.close(issue.number, repo)
+    await ensureTransitionComment(client, issue, check, repo, runUrl, 'recovered')
+    await client.close(issue.number, repo)
     console.log(`Closed recovered audit issue #${issue.number} for bucket "${check.id}".`)
   }
 }
 
-export function reconcileCheckIssues({checks, repo, runUrl, client = createGhClient()}) {
+export async function reconcileCheckIssues({checks, repo, runUrl, client}) {
   if (!Array.isArray(checks) || checks.length === 0) {
     console.log('No audit check results supplied -- nothing to reconcile.')
     return
   }
-  if (!repo || !runUrl) {
-    console.error('GH_REPO or GH_RUN_URL env var not set -- cannot reconcile audit issues; skipping.')
+  if (!repo || !runUrl || !client) {
+    console.error('Repository, run URL, or GitHub client missing -- cannot reconcile audit issues; skipping.')
     return
   }
 
   for (const label of AUDIT_LABELS) {
     try {
-      client.ensureLabel(label, repo)
-    } catch (err) {
-      console.warn(`Warning: could not ensure label "${label.name}": ${err.message}`)
+      await client.ensureLabel(label, repo)
+    } catch (error) {
+      console.warn(`Warning: could not ensure label "${label.name}": ${error.message}`)
     }
   }
 
@@ -318,31 +346,15 @@ export function reconcileCheckIssues({checks, repo, runUrl, client = createGhCli
 
     const check = bucket[0]
     try {
-      const candidates = exactCandidates(client, check, repo)
-      const managed = adoptRecognizedLegacyIssues(client, candidates, check, repo)
+      const candidates = (await client.listIssues(check, repo)).filter((issue) => issue.title === issueTitle(check.title))
+      const managed = await adoptRecognizedLegacyIssues(client, candidates, check, repo)
       if (outcome === 'failure') {
-        reconcileFailure(client, managed, check, repo, runUrl)
+        await reconcileFailure(client, managed, check, repo, runUrl)
       } else {
-        reconcileSuccess(client, managed, check, repo, runUrl)
+        await reconcileSuccess(client, managed, check, repo, runUrl)
       }
-    } catch (err) {
-      console.error(`Warning: could not reconcile issue for audit bucket "${id}": ${err.message}`)
+    } catch (error) {
+      console.error(`Warning: could not reconcile issue for audit bucket "${id}": ${error.message}`)
     }
   }
-}
-
-export function main(env = process.env) {
-  let checks
-  try {
-    checks = JSON.parse(env.CHECK_RESULTS_JSON || '[]')
-  } catch (err) {
-    console.error(`Invalid CHECK_RESULTS_JSON -- cannot reconcile audit issues; skipping. ${err.message}`)
-    return
-  }
-
-  reconcileCheckIssues({checks, repo: env.GH_REPO, runUrl: env.GH_RUN_URL})
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main()
 }

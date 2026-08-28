@@ -107,16 +107,20 @@ jobs:
 
       - name: Reconcile managed audit issues
         if: always() && github.event_name != 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CHECK_RESULTS_JSON: >-
-            [
-              {"id":"smoke","title":"B1 production smoke suite (scheduled)","outcome":"${{ steps.smoke.outcome }}"},
-              {"id":"analytics","title":"B6 analytics beacons (CF + SA)","outcome":"${{ steps.analytics.outcome }}"}
-            ]
-        run: node scripts/audit/lib/file-check-issues.mjs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'smoke', title: 'B1 production smoke suite (scheduled)', outcome: '${{ steps.smoke.outcome }}'},
+                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: '${{ steps.analytics.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
 
       # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
       # first. Findings never move job.status (every check is
@@ -199,8 +203,14 @@ jobs:
           PATH_OUT=$(node --input-type=module -e "import { chromium } from '@playwright/test'; console.log(chromium.executablePath());")
           echo "path=$PATH_OUT" >> "$GITHUB_OUTPUT"
 
+      - name: Probe focus suppression for conditioned checks
+        id: focus_mode
+        continue-on-error: true
+        run: node scripts/audit/probe-suppression.mjs --github-output
+
       - name: B2 -- llms.txt structural validator
         id: llms_txt
+        if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
         run: node scripts/audit/validate-llms-txt.mjs
 
@@ -216,6 +226,7 @@ jobs:
 
       - name: B2 -- feed.xml / feed.json validator
         id: feeds
+        if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
         run: node scripts/audit/check-feeds.mjs
 
@@ -303,7 +314,12 @@ jobs:
         #
         # The two configs must keep agreeing; a flag added to one belongs in the
         # other unless the reason is tool-specific, as --disable-dev-shm-usage is.
-        run: pnpm exec lhci autorun --config=.lighthouserc.json
+        run: |
+          if [ "${{ steps.focus_mode.outputs.suppressed }}" = "true" ]; then
+            echo "CONDITIONED: Lighthouse measured the focus-mode overlay, not the normal dashboard."
+            echo "> Lighthouse result is focus-mode-conditioned: ${{ steps.focus_mode.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          pnpm exec lhci autorun --config=.lighthouserc.json
 
       - name: Upload Lighthouse reports
         if: always()
@@ -318,7 +334,12 @@ jobs:
         continue-on-error: true
         env:
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.path }}
-        run: pnpm exec pa11y-ci
+        run: |
+          if [ "${{ steps.focus_mode.outputs.suppressed }}" = "true" ]; then
+            echo "CONDITIONED: pa11y measured the focus-mode overlay on /; /privacy remains unconditioned."
+            echo "> pa11y / result is focus-mode-conditioned: ${{ steps.focus_mode.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          pnpm exec pa11y-ci
 
       - name: Restore lychee link cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -329,6 +350,7 @@ jobs:
 
       - name: B5 -- lychee link check (live HTML + llms.txt + feed.xml)
         id: lychee
+        if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
@@ -348,23 +370,30 @@ jobs:
 
       - name: Reconcile managed audit issues
         if: always() && github.event_name != 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CHECK_RESULTS_JSON: >-
-            [
-              {"id":"llms-txt","title":"B2 llms.txt structural validator","outcome":"${{ steps.llms_txt.outcome }}"},
-              {"id":"sitemap","title":"B2 sitemap XSD validator","outcome":"${{ steps.sitemap.outcome }}"},
-              {"id":"robots","title":"B2 robots.txt validator","outcome":"${{ steps.robots.outcome }}"},
-              {"id":"feeds","title":"B2 feed.xml/feed.json validator","outcome":"${{ steps.feeds.outcome }}"},
-              {"id":"spec-drift","title":"B2 external spec drift (pinned sources vs normative quotes)","outcome":"${{ steps.spec_drift.outcome }}"},
-              {"id":"headers","title":"B7/B8 headers, TLS, CSP drift","outcome":"${{ steps.headers.outcome }}"},
-              {"id":"lhci","title":"B3 Lighthouse CI budgets","outcome":"${{ steps.lhci.outcome }}"},
-              {"id":"pa11y","title":"B4 pa11y-ci accessibility","outcome":"${{ steps.pa11y.outcome }}"},
-              {"id":"lychee","title":"B5 lychee link check","outcome":"${{ steps.lychee.outcome }}"}
-            ]
-        run: node scripts/audit/lib/file-check-issues.mjs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.llms_txt.outcome }}'},
+                {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: '${{ steps.sitemap.outcome }}'},
+                {id: 'robots', title: 'B2 robots.txt validator', outcome: '${{ steps.robots.outcome }}'},
+                {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.feeds.outcome }}'},
+                {id: 'spec-drift', title: 'B2 external spec drift (pinned sources vs normative quotes)', outcome: '${{ steps.spec_drift.outcome }}'},
+                {id: 'headers', title: 'B7/B8 headers, TLS, CSP drift', outcome: '${{ steps.headers.outcome }}'},
+                {id: 'lhci', title: 'B3 Lighthouse CI budgets', outcome: '${{ steps.lhci.outcome }}'},
+                {id: 'pa11y', title: 'B4 pa11y-ci accessibility', outcome: '${{ steps.pa11y.outcome }}'},
+                {id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.lychee.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
 
       # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
       # first. Findings never move job.status (every check is
@@ -424,16 +453,20 @@ jobs:
 
       - name: Reconcile managed audit issues
         if: always() && github.event_name != 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CHECK_RESULTS_JSON: >-
-            [
-              {"id":"security-txt","title":"B2 security.txt RFC 9116 expiry","outcome":"${{ steps.security_txt.outcome }}"},
-              {"id":"wellknown","title":"B2 .well-known agent-discovery checks","outcome":"${{ steps.wellknown.outcome }}"}
-            ]
-        run: node scripts/audit/lib/file-check-issues.mjs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'security-txt', title: 'B2 security.txt RFC 9116 expiry', outcome: '${{ steps.security_txt.outcome }}'},
+                {id: 'wellknown', title: 'B2 .well-known agent-discovery checks', outcome: '${{ steps.wellknown.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
 
       # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
       # first. Findings never move job.status (every check is

@@ -4,7 +4,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {
   AUDIT_LABELS,
   bucketOutcome,
-  createGhClient,
+  createDryRunClient,
   issueBody,
   issueTitle,
   managedMarker,
@@ -117,8 +117,8 @@ class FixtureClient {
   }
 }
 
-function reconcile(client: FixtureClient, checks: Check[], runUrl = RUN_2) {
-  reconcileCheckIssues({checks, repo: REPO, runUrl, client})
+async function reconcile(client: FixtureClient, checks: Check[], runUrl = RUN_2) {
+  await reconcileCheckIssues({checks, repo: REPO, runUrl, client})
 }
 
 beforeEach(() => {
@@ -132,7 +132,7 @@ afterEach(() => {
 })
 
 describe('audit bucket outcomes', () => {
-  it('requires every result to be green and lets any failure dominate a mixed bucket', () => {
+  it('requires every result to be green and lets any failure dominate a mixed bucket', async () => {
     expect(bucketOutcome([{outcome: 'success'}, {outcome: 'success'}])).toBe('success')
     expect(bucketOutcome([{outcome: 'success'}, {outcome: 'failure'}])).toBe('failure')
     expect(bucketOutcome([{outcome: 'success'}, {outcome: 'skipped'}])).toBe('indeterminate')
@@ -141,10 +141,10 @@ describe('audit bucket outcomes', () => {
 })
 
 describe('failure lifecycle', () => {
-  it('files a marker-and-label-owned issue without touching manual or unrelated collisions', () => {
+  it('files a marker-and-label-owned issue without touching manual or unrelated collisions', async () => {
     const client = new FixtureClient(loadIssues('manual-collisions'))
 
-    reconcile(client, [{...FEEDS, outcome: 'failure'}])
+    await reconcile(client, [{...FEEDS, outcome: 'failure'}])
 
     expect(client.called('createIssue')).toHaveLength(1)
     expect(client.issues).toHaveLength(4)
@@ -154,12 +154,12 @@ describe('failure lifecycle', () => {
     expect(created.labels.map(({name}) => name)).toEqual(['audit', 'audit:report-only', 'audit:managed'])
   })
 
-  it('is idempotent on repeated failures and does not append failure comments', () => {
+  it('is idempotent on repeated failures and does not append failure comments', async () => {
     const client = new FixtureClient()
     const checks = [{...FEEDS, outcome: 'failure'}]
 
-    reconcile(client, checks, RUN_1)
-    reconcile(client, checks, RUN_2)
+    await reconcile(client, checks, RUN_1)
+    await reconcile(client, checks, RUN_2)
 
     expect(client.called('createIssue')).toHaveLength(1)
     expect(client.called('comment')).toHaveLength(0)
@@ -169,20 +169,20 @@ describe('failure lifecycle', () => {
 })
 
 describe('recovery lifecycle', () => {
-  it('does not close manually-authored, wrong-marker, or merely similarly titled issues', () => {
+  it('does not close manually-authored, wrong-marker, or merely similarly titled issues', async () => {
     const client = new FixtureClient(loadIssues('manual-collisions'))
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}])
+    await reconcile(client, [{...FEEDS, outcome: 'success'}])
 
     expect(client.issues.map(({state}) => state)).toEqual(['OPEN', 'OPEN', 'OPEN'])
     expect(client.called('comment')).toHaveLength(0)
     expect(client.called('close')).toHaveLength(0)
   })
 
-  it('strictly adopts a known legacy auto-filed issue, comments recovery, and then closes it', () => {
+  it('strictly adopts a known legacy auto-filed issue, comments recovery, and then closes it', async () => {
     const client = new FixtureClient(loadIssues('legacy-open'))
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}])
+    await reconcile(client, [{...FEEDS, outcome: 'success'}])
 
     const issue = client.find(169)
     expect(issue.labels.map(({name}) => name)).toContain('audit:managed')
@@ -192,24 +192,24 @@ describe('recovery lifecycle', () => {
     expect(issue.state).toBe('CLOSED')
   })
 
-  it('does nothing on repeated recovery after the managed issue is closed', () => {
+  it('does nothing on repeated recovery after the managed issue is closed', async () => {
     const client = new FixtureClient(loadIssues('managed-open'))
     const checks = [{...FEEDS, outcome: 'success'}]
 
-    reconcile(client, checks, RUN_1)
-    reconcile(client, checks, RUN_2)
+    await reconcile(client, checks, RUN_1)
+    await reconcile(client, checks, RUN_2)
 
     expect(client.called('comment')).toHaveLength(1)
     expect(client.called('close')).toHaveLength(1)
     expect(client.find(21).state).toBe('CLOSED')
   })
 
-  it('reopens a future regression with one useful transition comment and no repeated-failure spam', () => {
+  it('reopens a future regression with one useful transition comment and no repeated-failure spam', async () => {
     const client = new FixtureClient([managedIssue(41)])
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}], RUN_1)
-    reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
-    reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
+    await reconcile(client, [{...FEEDS, outcome: 'success'}], RUN_1)
+    await reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
+    await reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
 
     expect(client.find(41).state).toBe('OPEN')
     expect(client.called('reopen')).toHaveLength(1)
@@ -220,11 +220,11 @@ describe('recovery lifecycle', () => {
 })
 
 describe('mixed and incomplete results', () => {
-  it('keeps a partially failing bucket open while independently closing an all-green bucket', () => {
+  it('keeps a partially failing bucket open while independently closing an all-green bucket', async () => {
     const analytics = {id: 'analytics', title: 'B6 analytics beacons (CF + SA)'}
     const client = new FixtureClient([managedIssue(51), managedIssue(52, analytics)])
 
-    reconcile(client, [
+    await reconcile(client, [
       {...FEEDS, outcome: 'success'},
       {...FEEDS, outcome: 'failure'},
       {...analytics, outcome: 'success'}
@@ -236,10 +236,10 @@ describe('mixed and incomplete results', () => {
     expect(client.comments.get(52)?.[0].body).toContain('Recovery confirmed')
   })
 
-  it('leaves a success-plus-skipped bucket unchanged because it is not wholly green', () => {
+  it('leaves a success-plus-skipped bucket unchanged because it is not wholly green', async () => {
     const client = new FixtureClient([managedIssue(61)])
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}, {...FEEDS, outcome: 'skipped'}])
+    await reconcile(client, [{...FEEDS, outcome: 'success'}, {...FEEDS, outcome: 'skipped'}])
 
     expect(client.find(61).state).toBe('OPEN')
     expect(client.called('listIssues')).toHaveLength(0)
@@ -248,47 +248,47 @@ describe('mixed and incomplete results', () => {
 })
 
 describe('API failure safety', () => {
-  it('does not close when the recovery comment fails and continues reconciling later buckets', () => {
+  it('does not close when the recovery comment fails and continues reconciling later buckets', async () => {
     const analytics = {id: 'analytics', title: 'B6 analytics beacons (CF + SA)'}
     const client = new FixtureClient([managedIssue(71)])
     client.failNext('comment')
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}, {...analytics, outcome: 'failure'}])
+    await reconcile(client, [{...FEEDS, outcome: 'success'}, {...analytics, outcome: 'failure'}])
 
     expect(client.find(71).state).toBe('OPEN')
     expect(client.called('close')).toHaveLength(0)
     expect(client.issues.some(({title}) => title === issueTitle(analytics.title))).toBe(true)
   })
 
-  it('retries a failed close without duplicating the already-recorded recovery comment', () => {
+  it('retries a failed close without duplicating the already-recorded recovery comment', async () => {
     const client = new FixtureClient([managedIssue(72)])
     client.failNext('close')
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}], RUN_1)
-    reconcile(client, [{...FEEDS, outcome: 'success'}], RUN_1)
+    await reconcile(client, [{...FEEDS, outcome: 'success'}], RUN_1)
+    await reconcile(client, [{...FEEDS, outcome: 'success'}], RUN_1)
 
     expect(client.find(72).state).toBe('CLOSED')
     expect(client.called('comment')).toHaveLength(1)
     expect(client.called('close')).toHaveLength(2)
   })
 
-  it('retries a failed reopen without duplicating the already-recorded regression comment', () => {
+  it('retries a failed reopen without duplicating the already-recorded regression comment', async () => {
     const client = new FixtureClient([managedIssue(73, FEEDS, 'CLOSED')])
     client.failNext('reopen')
 
-    reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
-    reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
+    await reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
+    await reconcile(client, [{...FEEDS, outcome: 'failure'}], RUN_2)
 
     expect(client.find(73).state).toBe('OPEN')
     expect(client.called('comment')).toHaveLength(1)
     expect(client.called('reopen')).toHaveLength(2)
   })
 
-  it('never closes a legacy issue unless both managed ownership mutations succeed', () => {
+  it('never closes a legacy issue unless both managed ownership mutations succeed', async () => {
     const client = new FixtureClient(loadIssues('legacy-open'))
     client.failNext('addManagedMarker')
 
-    reconcile(client, [{...FEEDS, outcome: 'success'}])
+    await reconcile(client, [{...FEEDS, outcome: 'success'}])
 
     expect(client.find(169).state).toBe('OPEN')
     expect(client.called('comment')).toHaveLength(0)
@@ -296,20 +296,21 @@ describe('API failure safety', () => {
   })
 })
 
-describe('gh command adapter', () => {
-  it('searches all issue states and creates issues with every ownership label', () => {
-    const commands: string[][] = []
-    const client = createGhClient((args: string[]) => {
-      commands.push(args)
-      return args[0] === 'issue' && args[1] === 'list' ? '[]' : ''
-    })
+describe('actions/github-script dry-run adapter', () => {
+  it('ensures labels, opens a finding, closes it on recovery, and reopens a regression', async () => {
+    const client = createDryRunClient()
 
-    client.listIssues(FEEDS, REPO)
-    client.createIssue(FEEDS, REPO, RUN_1)
+    await reconcileCheckIssues({checks: [{...FEEDS, outcome: 'failure'}], repo: REPO, runUrl: RUN_1, client})
+    expect([...client.labels.keys()]).toEqual(AUDIT_LABELS.map(({name}) => name))
+    expect(client.issues).toHaveLength(1)
+    expect(client.issues[0].state).toBe('OPEN')
+    expect(client.issues[0].body).toContain(managedMarker(FEEDS.id))
 
-    expect(commands[0]).toEqual(expect.arrayContaining(['--state', 'all', '--label', 'audit']))
-    expect(commands[0]).toEqual(expect.arrayContaining(['--json', 'number,title,state,body,labels']))
-    expect(commands[1]).toEqual(expect.arrayContaining(['--label', 'audit,audit:report-only,audit:managed']))
-    expect(commands[1].join('\n')).toContain(managedMarker(FEEDS.id))
+    await reconcileCheckIssues({checks: [{...FEEDS, outcome: 'success'}], repo: REPO, runUrl: RUN_1, client})
+    expect(client.issues[0].state).toBe('CLOSED')
+
+    await reconcileCheckIssues({checks: [{...FEEDS, outcome: 'failure'}], repo: REPO, runUrl: RUN_2, client})
+    expect(client.issues[0].state).toBe('OPEN')
+    expect(client.comments.get(1)?.map(({body}: Comment) => body).join('\n')).toContain('Regression detected')
   })
 })

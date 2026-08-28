@@ -2,27 +2,19 @@ import {describe, expect, it} from 'vitest'
 import {existsSync, readdirSync, readFileSync, statSync} from 'fs'
 import path from 'path'
 import {createRequire} from 'module'
+import {load} from 'cheerio'
+import {isAllowedImageUrl, srcsetCandidates} from '../image-url-allowlist'
 
 const rootDir = process.cwd()
 const distDir = path.resolve(rootDir, 'dist')
 
-// atlas decision 0086 (W3). The CSP no longer allows these hosts, so a build
-// that still emits one of them renders a broken cover in production rather than
-// a hot-linked one. Asserting on the emitted output catches a widget regression
-// that a source-level grep would miss.
-const THIRD_PARTY_IMAGE_HOSTS = ['m.media-amazon.com', 'images.squarespace-cdn.com', 'books.google.com']
-
-// Binary assets cannot contain a host string in a form that matters here, and
-// reading them as utf-8 is wasted work on every run.
-const TEXT_EXTENSIONS = new Set(['.html', '.js', '.mjs', '.json', '.css', '.txt', '.xml', '.webmanifest', '.svg'])
-
-function textFilesUnder(dir: string): string[] {
+function htmlFilesUnder(dir: string): string[] {
   return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {
-      return textFilesUnder(full)
+      return htmlFilesUnder(full)
     }
-    return TEXT_EXTENSIONS.has(path.extname(entry.name)) ? [full] : []
+    return path.extname(entry.name) === '.html' ? [full] : []
   })
 }
 
@@ -69,18 +61,32 @@ describe('Image Pipeline', () => {
   })
 
   describe('first-party image sources (atlas decision 0086)', () => {
-    it.each(THIRD_PARTY_IMAGE_HOSTS)('no emitted file references %s', (host) => {
-      const offenders = textFilesUnder(distDir).filter((file) => readFileSync(file, 'utf-8').includes(host)).map((file) => path.relative(distDir, file))
-      expect(offenders).toEqual([])
-    })
+    it('allowlists every emitted img/source src and srcset candidate', () => {
+      const offenders: Array<{file: string; element: string; attribute: string; url: string}> = []
+      let candidateCount = 0
 
-    it('every book cover resolves to CloudFront or a same-origin path', () => {
-      const html = readFileSync(path.join(distDir, 'index.html'), 'utf-8')
-      const covers = [...html.matchAll(/<img[^>]+src="([^"]+)"/g)].map((m) => m[1]).filter((src) => src.includes('/images/'))
-      expect(covers.length).toBeGreaterThan(0)
-      for (const src of covers) {
-        expect(src.startsWith('https://d1pfm520aduift.cloudfront.net/') || src.startsWith('/')).toBe(true)
+      for (const file of htmlFilesUnder(distDir)) {
+        const $ = load(readFileSync(file, 'utf-8'))
+        for (const element of ['img', 'source']) {
+          $(element).each((_index, node) => {
+            const src = $(node).attr('src')
+            const srcset = $(node).attr('srcset')
+            const candidates = [
+              ...(src ? [{attribute: 'src', url: src}] : []),
+              ...srcsetCandidates(srcset || '').map((url) => ({attribute: 'srcset', url}))
+            ]
+            candidateCount += candidates.length
+            for (const candidate of candidates) {
+              if (!isAllowedImageUrl(candidate.url)) {
+                offenders.push({file: path.relative(distDir, file), element, ...candidate})
+              }
+            }
+          })
+        }
       }
+
+      expect(candidateCount).toBeGreaterThan(0)
+      expect(offenders).toEqual([])
     })
 
     // The widget's fallback target is a bare path, so the consumer has to serve
