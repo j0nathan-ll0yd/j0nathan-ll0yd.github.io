@@ -57,18 +57,18 @@ async function interceptDashboardData(page: Page, theatreFixture: FixtureRespons
   })
 }
 
-/**
- * Fulfill the fixture's off-origin poster requests with real AVIF bytes.
- *
- * Must be registered AFTER interceptDashboardData: Playwright matches handlers
- * most-recently-registered first, so registering earlier would leave that
- * catch-all abort in charge. The bytes are a committed poster from
- * public/images/theatre/, so the browser decodes a genuine AVIF rather than a
- * stand-in that would error and send the widget down the placeholder path.
- */
-async function servePosterBytes(page: Page): Promise<void> {
-  const avif = readFileSync(new URL('../../public/images/theatre/just-in-time-card.avif', import.meta.url))
-  await page.route('**/*.avif', (route) => route.fulfill({body: avif, contentType: 'image/avif'}))
+// Use committed same-origin images to retain optimized-picture coverage while
+// the raw fixture's rejected off-origin candidates cover the sanitizer path.
+function allowedPosterFixture(): FixtureResponse {
+  const payload = JSON.parse(readFileSync(fixture('theatre-reviews', 'full'), 'utf8')) as Record<string, unknown>
+  payload.reviews = (payload.reviews as Array<Record<string, unknown>>).map((review) => ({
+    ...review,
+    imageUrl: '/images/theatre/just-in-time.webp',
+    imageUrlAvif: '/images/theatre/just-in-time.avif',
+    imageUrlCard: '/images/theatre/just-in-time-card.webp',
+    imageUrlCardAvif: '/images/theatre/just-in-time-card.avif'
+  }))
+  return {body: JSON.stringify(payload)}
 }
 
 async function loadTheatreFixture(page: Page, variation: string): Promise<void> {
@@ -108,6 +108,7 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews')).toContainText('The Glass Menagerie')
     await expect(page.locator('#cardTheatreReviews')).toContainText('Death of a Salesman')
     await expect(page.locator('#cardTheatreReviews')).toContainText('Waiting for Godot')
+    await expectSanitizedPlaceholderCovers(page, 3)
   })
 
   // covers: theatre-reviews-render#Grade variation renders the full letter-grade range
@@ -118,8 +119,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews .theatre-grade')).toHaveCount(8)
     await expect(page.locator('#cardTheatreReviews')).toContainText('A+')
     await expect(page.locator('#cardTheatreReviews')).toContainText('F')
+    await expectSanitizedPlaceholderCovers(page, 8)
   })
-
   // covers: theatre-reviews-render#Reviews without images retain titles and grades without broken image elements
   test('renders image-less reviews without image elements', async ({page}) => {
     await loadTheatreFixture(page, 'noImages')
@@ -142,16 +143,10 @@ test.describe('Theatre Reviews Render Conformance', () => {
 
   // covers: theatre-reviews-render#Full variation renders populated optimized-image review cards
   test('renders optimized poster picture sources and safe outbound links', async ({page}) => {
-    // The posters in this fixture are hosted on coasttocoastreviews.com, which
-    // interceptDashboardData aborts along with every other off-origin request.
-    // Serve them real AVIF bytes instead: a poster that never loads errors, and
-    // @j0nathan-ll0yd/web >= 3.0.1 then removes the <picture>'s <source>
-    // candidates on its way to the same-origin placeholder -- it has to, or the
-    // dead source keeps winning and paints a broken glyph (DS #229). Without
-    // this the assertions below would measure the torn-down state rather than
-    // the optimized-image path they exist to cover.
-    await interceptDashboardData(page, {path: fixture('theatre-reviews', 'full')})
-    await servePosterBytes(page)
+    // The raw fixture's off-origin posters are rejected by the image sanitizer.
+    // Substitute committed same-origin assets to exercise the allowed optimized
+    // picture path independently of the rejection behavior asserted above.
+    await interceptDashboardData(page, allowedPosterFixture())
     await page.goto('/')
     await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
 
@@ -165,3 +160,12 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews')).toContainText("A Midsummer Night's Dream")
   })
 })
+
+async function expectSanitizedPlaceholderCovers(page: Page, count: number): Promise<void> {
+  const posters = page.locator('#cardTheatreReviews .theatre-poster-wrap img')
+  await expect(posters).toHaveCount(count)
+  await expect(page.locator('#cardTheatreReviews .theatre-poster-wrap source')).toHaveCount(0)
+  await expect.poll(async () =>
+    posters.evaluateAll((images) => images.map((image) => ({src: image.getAttribute('src'), srcset: image.getAttribute('srcset')})))
+  ).toEqual(Array.from({length: count}, () => ({src: '/images/no-cover.svg', srcset: null})))
+}
