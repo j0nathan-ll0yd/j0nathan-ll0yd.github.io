@@ -79,8 +79,10 @@ and `Cloudflare-CDN-Cache-Control: no-store`. The CloudFront fetch cache (60 sec
 explicit Cache API last-known-good entry (3 hours) are separate origin-side caches behind the
 privacy check; the stored LKG representation SHALL NOT retain the public CDN no-store headers.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:59` (three-layer no-store policy on public responses,
-private LKG header separation, and a warm-visible → suppressed → visible privacy transition).
+Verified by `tests/unit/cloudfront-proxy.test.ts:59` (proxy response policy: three-layer no-store
+headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
+`tests/audit/cloudflare-llms-cache-rules.test.ts:36` (external rule audit: applicability,
+GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
 
 Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
 `CDN-Cache-Control` and `Cache-Control`, and treats `no-store` as BYPASS. An account-level Edge
@@ -88,6 +90,14 @@ Cache TTL or Cache Response Rule can override origin-set headers, so deployment 
 the canonical paths having no such override and on purging representations retained by the old
 rule. The weekly coherence audit makes that external state visible by requiring the returned
 browser/CDN policy and `CF-Cache-Status: BYPASS|DYNAMIC`.
+
+The non-deploying weekly audit also SHALL inspect active account- and zone-level Cache Rules,
+Cache Response Rules, and Page Rules through read-only Cloudflare API requests for exactly the
+three canonical URLs. An applicable origin-ignoring Edge/Browser TTL, cache-control override, or
+custom key that prevents the exact three-URL purge SHALL fail. Missing permissions, incomplete API
+responses, executed rulesets that cannot be expanded, and unsupported applicability expressions
+SHALL be indeterminate and nonzero rather than clean. The audit SHALL never call a mutation, Trace,
+or purge endpoint and SHALL emit an uploadable credential-free evidence file.
 
 #### Scenario: A focus transition cannot be bypassed by a public cache hit
 

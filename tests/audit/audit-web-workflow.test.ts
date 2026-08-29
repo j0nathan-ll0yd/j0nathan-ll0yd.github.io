@@ -75,6 +75,26 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(uploadStep).toContain('if-no-files-found: error')
   })
 
+  it('wires a fail-closed read-only Cloudflare rule audit with existing secret names', () => {
+    const auditStep =
+      executable.match(/      - name: B2 -- Cloudflare llms cache rules \(read-only\)\n[\s\S]*?(?=\n      - name: Upload Cloudflare)/)?.[0] ?? ''
+    expect(auditStep).toContain('id: llms_cache_rules')
+    expect(auditStep).toContain('continue-on-error: true')
+    expect(auditStep).toContain('CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}')
+    expect(auditStep).toContain('CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}')
+    expect(auditStep).toContain('CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}')
+    expect(auditStep).toContain('node scripts/audit/check-cloudflare-llms-cache-rules.mjs')
+    expect(auditStep).toContain('--evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json')
+
+    const uploadStep = executable.match(/      - name: Upload Cloudflare llms cache-rule evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
+    expect(uploadStep).toContain('if: always()')
+    expect(uploadStep).toContain('path: artifacts/llms-assurance/cloudflare-cache-rules.json')
+    expect(workflow).toContain(
+      "{id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: '${{ steps.llms_cache_rules.outputs.issue_outcome }}'}"
+    )
+    expect(workflow).not.toContain('steps.llms_cache_rules.outcome')
+  })
+
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
     expect(workflow).toContain('run: node scripts/audit/probe-suppression.mjs --github-output')
     expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(3)

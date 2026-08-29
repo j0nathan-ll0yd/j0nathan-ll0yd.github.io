@@ -258,6 +258,27 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: B2 -- Cloudflare llms cache rules (read-only)
+        id: llms_cache_rules
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: >-
+          node scripts/audit/check-cloudflare-llms-cache-rules.mjs
+          --evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json
+
+      - name: Upload Cloudflare llms cache-rule evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: llms-cloudflare-cache-rule-evidence
+          path: artifacts/llms-assurance/cloudflare-cache-rules.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: B2 -- sitemap XSD validator
         id: sitemap
         continue-on-error: true
@@ -429,6 +450,7 @@ jobs:
                 {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.llms_txt.outcome }}'},
                 {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'},
                 {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'},
+                {id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: '${{ steps.llms_cache_rules.outputs.issue_outcome }}'},
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: '${{ steps.sitemap.outcome }}'},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: '${{ steps.robots.outcome }}'},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'},
