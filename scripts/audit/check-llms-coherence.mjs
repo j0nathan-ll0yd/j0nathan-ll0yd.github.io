@@ -99,7 +99,7 @@ async function main() {
   console.log('\n=== llms CloudFront/portfolio coherence ===')
   console.log(
     `  thresholds: max-age=${LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs}ms ` +
-      `origin-site-skew=${LLMS_COHERENCE_THRESHOLDS.maxOriginToSiteSkewMs}ms ` +
+      `composition-skew=${LLMS_COHERENCE_THRESHOLDS.maxCompositionSkewMs}ms ` +
       `future-skew=${LLMS_COHERENCE_THRESHOLDS.maxFutureSkewMs}ms`
   )
   for (const {artifact, origin, site} of pairs) {
@@ -111,7 +111,7 @@ async function main() {
   const findings = evaluateLlmsCoherence(input, Date.now())
   console.log('')
   if (findings.length === 0) {
-    console.log('OK: all three origin/site pairs are fresh and coherent; full/index aliases are byte-identical.')
+    console.log('OK: all pairs are fresh and within the convergence window; same-generation full/index representations are byte-identical.')
     return
   }
 

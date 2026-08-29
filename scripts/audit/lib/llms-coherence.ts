@@ -1,4 +1,4 @@
-import {LLMS_ARTIFACTS, LLMS_MAX_COMPOSITION_AGE_MS, LLMS_MAX_FUTURE_SKEW_MS, LLMS_MAX_ORIGIN_TO_SITE_SKEW_MS} from '../../../functions/_lib/llms-artifacts'
+import {LLMS_ARTIFACTS, LLMS_MAX_COMPOSITION_AGE_MS, LLMS_MAX_COMPOSITION_SKEW_MS, LLMS_MAX_FUTURE_SKEW_MS} from '../../../functions/_lib/llms-artifacts'
 import type {LlmsArtifactId} from '../../../functions/_lib/llms-artifacts'
 
 export interface LlmsResponseSnapshot {
@@ -20,8 +20,8 @@ export type LlmsCoherenceInput = Record<LlmsArtifactId, LlmsResponsePair>
 
 export interface LlmsCoherenceThresholds {
   maxCompositionAgeMs: number
+  maxCompositionSkewMs: number
   maxFutureSkewMs: number
-  maxOriginToSiteSkewMs: number
 }
 
 export interface LlmsCoherenceFinding {
@@ -32,8 +32,8 @@ export interface LlmsCoherenceFinding {
 
 export const LLMS_COHERENCE_THRESHOLDS: Readonly<LlmsCoherenceThresholds> = Object.freeze({
   maxCompositionAgeMs: LLMS_MAX_COMPOSITION_AGE_MS,
-  maxFutureSkewMs: LLMS_MAX_FUTURE_SKEW_MS,
-  maxOriginToSiteSkewMs: LLMS_MAX_ORIGIN_TO_SITE_SKEW_MS
+  maxCompositionSkewMs: LLMS_MAX_COMPOSITION_SKEW_MS,
+  maxFutureSkewMs: LLMS_MAX_FUTURE_SKEW_MS
 })
 
 const decoder = new TextDecoder('utf-8', {fatal: true})
@@ -64,6 +64,33 @@ function sameBytes(left: Uint8Array, right: Uint8Array): boolean {
 
 function durationMinutes(milliseconds: number): string {
   return (milliseconds / 60_000).toFixed(1)
+}
+
+function validateCompositionSkew(
+  findings: LlmsCoherenceFinding[],
+  id: string,
+  artifact: LlmsCoherenceFinding['artifact'],
+  relationship: string,
+  leftComposedAt: number | null,
+  rightComposedAt: number | null,
+  thresholds: LlmsCoherenceThresholds
+): void {
+  if (leftComposedAt === null || rightComposedAt === null) {
+    return
+  }
+
+  const skewMs = Math.abs(leftComposedAt - rightComposedAt)
+  if (skewMs > thresholds.maxCompositionSkewMs) {
+    findings.push({
+      id,
+      artifact,
+      message: `${relationship} composition skew is ${durationMinutes(skewMs)}m; maximum is ${durationMinutes(thresholds.maxCompositionSkewMs)}m`
+    })
+  }
+}
+
+function representsSameComposition(leftComposedAt: number | null, rightComposedAt: number | null): boolean {
+  return leftComposedAt !== null && leftComposedAt === rightComposedAt
 }
 
 export function compositionTimestamp(body: Uint8Array): number | null {
@@ -168,42 +195,46 @@ export function evaluateLlmsCoherence(
   thresholds: LlmsCoherenceThresholds = LLMS_COHERENCE_THRESHOLDS
 ): LlmsCoherenceFinding[] {
   const findings: LlmsCoherenceFinding[] = []
+  const compositionTimes: Record<LlmsArtifactId, {origin: number | null; site: number | null}> = {
+    'llms.txt': {origin: null, site: null},
+    'llms-full.txt': {origin: null, site: null},
+    'index.md': {origin: null, site: null}
+  }
 
   for (const artifact of LLMS_ARTIFACTS) {
     const pair = input[artifact.id]
     const originComposedAt = validateSnapshot(findings, artifact, 'origin', pair.origin, artifact.originContentType, nowMs, thresholds)
     const siteComposedAt = validateSnapshot(findings, artifact, 'site', pair.site, artifact.siteContentType, nowMs, thresholds)
-
-    if (originComposedAt !== null && siteComposedAt !== null) {
-      const skewMs = Math.abs(originComposedAt - siteComposedAt)
-      if (skewMs > thresholds.maxOriginToSiteSkewMs) {
-        findings.push({
-          id: 'llms-origin-site-skew',
-          artifact: artifact.id,
-          message: `origin/site composition skew is ${durationMinutes(skewMs)}m; maximum is ${durationMinutes(thresholds.maxOriginToSiteSkewMs)}m`
-        })
-      }
-    }
+    compositionTimes[artifact.id] = {origin: originComposedAt, site: siteComposedAt}
+    validateCompositionSkew(findings, 'llms-origin-site-skew', artifact.id, 'origin/site', originComposedAt, siteComposedAt, thresholds)
   }
 
   for (const artifactId of ['llms-full.txt', 'index.md'] as const) {
     const pair = input[artifactId]
-    if (!sameBytes(pair.origin.body, pair.site.body)) {
+    const times = compositionTimes[artifactId]
+    if (representsSameComposition(times.origin, times.site) && !sameBytes(pair.origin.body, pair.site.body)) {
       findings.push({
         id: 'llms-origin-site-bytes',
         artifact: artifactId,
-        message: `origin and site bytes differ (${pair.origin.body.byteLength} vs ${pair.site.body.byteLength} bytes)`
+        message: `origin and site advertise the same composition but bytes differ (${pair.origin.body.byteLength} vs ${pair.site.body.byteLength} bytes)`
       })
     }
   }
 
   const full = input['llms-full.txt']
   const index = input['index.md']
-  if (!sameBytes(full.origin.body, index.origin.body)) {
-    findings.push({id: 'llms-full-index-bytes', artifact: 'llms-full.txt/index.md', message: 'origin llms-full.txt and index.md are not byte-identical'})
-  }
-  if (!sameBytes(full.site.body, index.site.body)) {
-    findings.push({id: 'llms-full-index-bytes', artifact: 'llms-full.txt/index.md', message: 'site llms-full.txt and index.md are not byte-identical'})
+  const fullTimes = compositionTimes['llms-full.txt']
+  const indexTimes = compositionTimes['index.md']
+  for (const side of ['origin', 'site'] as const) {
+    validateCompositionSkew(findings, 'llms-full-index-skew', 'llms-full.txt/index.md', `${side} llms-full.txt/index.md`, fullTimes[side], indexTimes[side],
+      thresholds)
+    if (representsSameComposition(fullTimes[side], indexTimes[side]) && !sameBytes(full[side].body, index[side].body)) {
+      findings.push({
+        id: 'llms-full-index-bytes',
+        artifact: 'llms-full.txt/index.md',
+        message: `${side} llms-full.txt and index.md advertise the same composition but are not byte-identical`
+      })
+    }
   }
 
   return findings

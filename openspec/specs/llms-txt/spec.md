@@ -99,19 +99,33 @@ browser/CDN policy and `CF-Cache-Status: BYPASS|DYNAMIC`.
 
 For all three artifacts, the raw CloudFront and canonical portfolio responses SHALL return HTTP
 200, the side-specific declared content-type, and a parseable composition timestamp. A canonical
-composition timestamp SHALL differ from its raw origin by no more than 10 minutes. Canonical
-`llms-full.txt` and `index.md` SHALL each be byte-identical to their raw counterpart, and the two
-aliases SHALL be byte-identical on both origins.
+composition timestamp SHALL differ from its raw origin by no more than 10 minutes. The full/index
+aliases on each side SHALL also differ by no more than 10 minutes. When two compared full-content
+responses advertise the same composition timestamp, their bytes SHALL be identical. Different
+fresh timestamps within that convergence window represent adjacent valid generations and SHALL
+NOT, by byte difference alone, be reported as corruption.
 
 Verified by `tests/audit/llms-coherence.test.ts:53` (pure response snapshots for status, content-type,
-both timestamp syntaxes, skew, cache policy, and byte equality) and operationally by
+both timestamp syntaxes, bounded convergence, same-generation byte equality, and cache policy) and operationally by
 `scripts/audit/check-llms-coherence.mjs` in the weekly B2 audit.
 
-#### Scenario: An outer cache holds an older composition
+#### Scenario: Same-generation bytes diverge
 
-- **GIVEN** CloudFront serves a newer composition than a retained canonical response
+- **GIVEN** two compared full-content responses advertise the same composition timestamp
 - **WHEN** the coherence evaluator compares the six responses
-- **THEN** it SHALL report timestamp skew and full/index byte differences with per-side evidence
+- **THEN** differing bytes SHALL be reported as a coherence failure with per-side evidence
+
+#### Scenario: Adjacent generations converge normally
+
+- **GIVEN** independently cached keys or POPs expose different fresh compositions no more than 10 minutes apart
+- **WHEN** their bytes differ during the convergence window
+- **THEN** the evaluator SHALL NOT report byte corruption, but SHALL continue to compare any pair that advertises the same composition timestamp
+
+#### Scenario: Compositions exceed the convergence window
+
+- **GIVEN** an origin/site pair or same-side full/index pair has composition timestamps more than 10 minutes apart
+- **WHEN** the coherence evaluator compares them
+- **THEN** it SHALL report excessive composition skew without needing to infer byte corruption
 
 ### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 

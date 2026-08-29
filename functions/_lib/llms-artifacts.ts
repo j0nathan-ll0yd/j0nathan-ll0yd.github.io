@@ -44,9 +44,9 @@ export const LLMS_MAX_COMPOSITION_AGE_MS = 4 * 60 * 60 * 1000
 
 /**
  * CloudFront advertises a five-minute origin TTL. Two intervals tolerate a
- * cross-PoP refresh boundary while still detecting an outer edge's longer hold.
+ * cross-key or cross-PoP refresh boundary while still detecting a longer hold.
  */
-export const LLMS_MAX_ORIGIN_TO_SITE_SKEW_MS = 10 * 60 * 1000
+export const LLMS_MAX_COMPOSITION_SKEW_MS = 10 * 60 * 1000
 
 /** Small clock-drift allowance; a composition time further ahead is invalid. */
 export const LLMS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000

@@ -55,8 +55,8 @@ describe('evaluateLlmsCoherence', () => {
     expect(evaluateLlmsCoherence(coherentInput(), NOW)).toEqual([])
     expect(LLMS_COHERENCE_THRESHOLDS).toEqual({
       maxCompositionAgeMs: 4 * 60 * 60 * 1000,
-      maxFutureSkewMs: 5 * 60 * 1000,
-      maxOriginToSiteSkewMs: 10 * 60 * 1000
+      maxCompositionSkewMs: 10 * 60 * 1000,
+      maxFutureSkewMs: 5 * 60 * 1000
     })
   })
 
@@ -93,14 +93,38 @@ describe('evaluateLlmsCoherence', () => {
     ]))
   })
 
-  it('reports origin/site drift and broken full/index aliases by exact bytes', () => {
+  it('reports same-timestamp origin/site and full/index byte mismatches', () => {
     const input = coherentInput()
     input['llms-full.txt'].site = snapshot(fullBody(RECENT, 'site drift'), 'text/markdown; charset=utf-8', 200, true)
     input['index.md'].origin = snapshot(fullBody(RECENT, 'origin alias drift'), 'text/markdown; charset=utf-8')
 
     const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toHaveLength(4)
     expect(findings.filter(({id}) => id === 'llms-origin-site-bytes')).toHaveLength(2)
     expect(findings.filter(({id}) => id === 'llms-full-index-bytes')).toHaveLength(2)
+  })
+
+  it('accepts adjacent fresh generations inside the convergence window without claiming byte corruption', () => {
+    const input = coherentInput()
+    const previous = '2026-08-29T17:45:00.000Z'
+    input['llms-full.txt'].site = snapshot(fullBody(previous, 'previous generation'), 'text/markdown; charset=utf-8', 200, true)
+    input['index.md'].origin = snapshot(fullBody(previous, 'previous generation'), 'text/markdown; charset=utf-8')
+    input['index.md'].site = snapshot(fullBody(previous, 'previous generation'), 'text/markdown; charset=utf-8', 200, true)
+
+    expect(evaluateLlmsCoherence(input, NOW)).toEqual([])
+  })
+
+  it('rejects excessive origin/site and full/index composition skew without byte findings across generations', () => {
+    const input = coherentInput()
+    input['llms-full.txt'].site = snapshot(fullBody('2026-08-29T17:44:00.000Z', 'previous generation'), 'text/markdown; charset=utf-8', 200, true)
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'llms-origin-site-skew', artifact: 'llms-full.txt'}),
+      expect.objectContaining({id: 'llms-full-index-skew', artifact: 'llms-full.txt/index.md'})
+    ]))
+    expect(findings).toHaveLength(2)
+    expect(findings.some(({id}) => id.endsWith('-bytes'))).toBe(false)
   })
 
   it('rejects composition times beyond the future clock allowance', () => {
