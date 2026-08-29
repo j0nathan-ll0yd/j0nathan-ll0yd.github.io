@@ -3,7 +3,7 @@
 import {createHash} from 'node:crypto'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {compositionTimestamp, evaluateLlmsCoherence, LLMS_COHERENCE_THRESHOLDS} from './lib/llms-coherence.ts'
-import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence, writeB2SpokeEvidence} from './lib/llms-spoke-evidence.ts'
+import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence, writeB2GithubOutput, writeB2SpokeEvidence} from './lib/llms-spoke-evidence.ts'
 import {fetchStable, isMain} from './lib/http.mjs'
 import {probeSuppression, suppressionDisposition} from './lib/suppression.mjs'
 
@@ -201,6 +201,7 @@ export async function runLlmsCoherenceCli({
   now = () => new Date(),
   auditRunner = runLlmsCoherenceAudit,
   evidenceWriter = writeB2SpokeEvidence,
+  githubOutputWriter = writeB2GithubOutput,
   logger = console
 } = {}) {
   let outputPath
@@ -224,13 +225,21 @@ export async function runLlmsCoherenceCli({
   }
 
   if (outputPath && source) {
+    let evidence
     try {
-      await evidenceWriter(outputPath, buildB2SpokeEvidence(observedAt, source, audit.evidenceOutcome))
-      logger.log(`Wrote B2 spoke evidence to ${outputPath}`)
+      evidence = buildB2SpokeEvidence(observedAt, source, audit.evidenceOutcome)
+      await evidenceWriter(outputPath, evidence)
     } catch (error) {
       logger.error(`B2 spoke evidence write failed: ${errorText(error)}`)
       return 1
     }
+    try {
+      await githubOutputWriter(environment.GITHUB_OUTPUT, evidence.status)
+    } catch (error) {
+      logger.error(`B2 managed-issue output write failed: ${errorText(error)}`)
+      return 1
+    }
+    logger.log(`Wrote B2 spoke evidence to ${outputPath}`)
   }
   return audit.exitCode
 }

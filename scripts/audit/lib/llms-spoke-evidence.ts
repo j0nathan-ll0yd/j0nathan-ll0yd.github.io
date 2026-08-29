@@ -1,8 +1,9 @@
-import {mkdir, writeFile} from 'node:fs/promises'
+import {appendFile, mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
 import type {LlmsCoherenceFinding} from './llms-coherence'
 
 export type SpokeEvidenceStatus = 'passed' | 'failed' | 'unknown'
+export type ManagedIssueOutcome = 'success' | 'failure' | 'indeterminate'
 
 export interface B2EvidenceSourceInput {
   revision: string
@@ -128,4 +129,22 @@ export function buildB2SpokeEvidence(observedAt: string, sourceInput: B2Evidence
 export async function writeB2SpokeEvidence(outputPath: string, evidence: B2SpokeEvidence): Promise<void> {
   await mkdir(dirname(outputPath), {recursive: true})
   await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
+}
+
+/** Map evidence status to the existing managed-issue reconciler vocabulary. */
+export function managedIssueOutcome(status: SpokeEvidenceStatus): ManagedIssueOutcome {
+  if (status === 'passed') {
+    return 'success'
+  }
+  if (status === 'failed') {
+    return 'failure'
+  }
+  return 'indeterminate'
+}
+
+export async function writeB2GithubOutput(outputPath: string | undefined, status: SpokeEvidenceStatus): Promise<void> {
+  if (!outputPath) {
+    return
+  }
+  await appendFile(outputPath, `issue_outcome=${managedIssueOutcome(status)}\n`, 'utf8')
 }

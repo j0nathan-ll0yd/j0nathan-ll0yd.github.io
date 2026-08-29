@@ -119,11 +119,16 @@ status SHALL be the exact result aggregate: any `failed` wins, otherwise any `un
 otherwise `passed`. Thus a true finding plus incomplete transport remains `failed`, while clean
 suppression is `unknown`. Confirmed suppression SHALL stop before any artifact fetch while still
 producing the unknown envelope. Evidence classification does not replace the audit's exit/finding
-semantics.
+semantics. After successfully writing the envelope, the CLI SHALL expose a managed-issue outcome
+derived only from its final status: `passed` → `success`, `failed` → `failure`, and `unknown` →
+`indeterminate`. The reconciler SHALL consume that explicit output, not the process step outcome;
+missing output SHALL remain indeterminate. Therefore suppressed, incomplete, and uncaught-unknown
+runs neither open nor close the managed issue, a definitive finding opens or reopens it, and only
+an all-passed run can close it.
 
-Verified by `tests/audit/llms-spoke-evidence.test.ts:62` (evidence builder and orchestration).
-Those tests cover the exact envelope, aggregation, file output, uncaught failure, and suppression
-short-circuit. `tests/audit/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
+Verified by `tests/audit/llms-spoke-evidence.test.ts:63` (evidence builder and orchestration).
+Those tests cover the exact envelope, aggregation, file/output mapping, issue lifecycle, uncaught
+failure, and suppression short-circuit. `tests/audit/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
 workflow-level suppression skip, the fixed path, report-only exit preservation, and `always()`
 upload.
 

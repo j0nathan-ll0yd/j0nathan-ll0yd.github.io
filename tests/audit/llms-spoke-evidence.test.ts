@@ -4,7 +4,8 @@ import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
 import {runLlmsCoherenceAudit, runLlmsCoherenceCli} from '../../scripts/audit/check-llms-coherence.mjs'
-import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence} from '../../scripts/audit/lib/llms-spoke-evidence'
+import {createDryRunClient, reconcileCheckIssues} from '../../scripts/audit/lib/file-check-issues.mjs'
+import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence, managedIssueOutcome} from '../../scripts/audit/lib/llms-spoke-evidence'
 
 const OBSERVED_AT = '2026-08-29T18:00:00.000Z'
 const REVISION = '5d9c1575686a283c34b8312201939fc45be99eb3'
@@ -134,11 +135,12 @@ describe('B2 coherence evidence orchestration', () => {
     const scratch = await mkdtemp(join(tmpdir(), 'b2-spoke-evidence-suppressed-'))
     scratchDirectories.push(scratch)
     const outputPath = join(scratch, 'artifacts', 'llms-assurance', 'spoke-b2.json')
+    const githubOutputPath = join(scratch, 'github-output')
     const fetchPairImpl = vi.fn()
 
     const exitCode = await runLlmsCoherenceCli({
       arguments_: ['--evidence-out', outputPath],
-      environment: ENVIRONMENT,
+      environment: {...ENVIRONMENT, GITHUB_OUTPUT: githubOutputPath},
       now: () => new Date(OBSERVED_AT),
       auditRunner: ({nowMs, logger: auditLogger}: {nowMs: number; logger: ReturnType<typeof logger>}) =>
         runLlmsCoherenceAudit({
@@ -156,6 +158,7 @@ describe('B2 coherence evidence orchestration', () => {
     expect(evidence.results).toEqual([
       {id: 'llms-suppression', status: 'unknown', evidence: 'focus suppression prevented measurement: focus mode active'}
     ])
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\n')
     expect(fetchPairImpl).not.toHaveBeenCalled()
   })
 
@@ -189,10 +192,11 @@ describe('B2 coherence evidence orchestration', () => {
     const scratch = await mkdtemp(join(tmpdir(), 'b2-spoke-evidence-'))
     scratchDirectories.push(scratch)
     const outputPath = join(scratch, 'nested', 'spoke-b2.json')
+    const githubOutputPath = join(scratch, 'github-output')
 
     const exitCode = await runLlmsCoherenceCli({
       arguments_: ['--evidence-out', outputPath],
-      environment: ENVIRONMENT,
+      environment: {...ENVIRONMENT, GITHUB_OUTPUT: githubOutputPath},
       now: () => new Date(OBSERVED_AT),
       auditRunner: async () => ({exitCode: 0, evidenceOutcome: {findings: [], unknowns: []}}),
       logger: logger()
@@ -200,16 +204,55 @@ describe('B2 coherence evidence orchestration', () => {
 
     expect(exitCode).toBe(0)
     expect(JSON.parse(await readFile(outputPath, 'utf8'))).toEqual(buildB2SpokeEvidence(OBSERVED_AT, SOURCE, {findings: [], unknowns: []}))
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\n')
+  })
+
+  it('writes failure issue output for a definitive finding independently of exit handling', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'b2-spoke-evidence-failed-'))
+    scratchDirectories.push(scratch)
+    const outputPath = join(scratch, 'spoke-b2.json')
+    const githubOutputPath = join(scratch, 'github-output')
+
+    const exitCode = await runLlmsCoherenceCli({
+      arguments_: ['--evidence-out', outputPath],
+      environment: {...ENVIRONMENT, GITHUB_OUTPUT: githubOutputPath},
+      now: () => new Date(OBSERVED_AT),
+      auditRunner: async () => ({exitCode: 1, evidenceOutcome: {findings: [CACHE_FINDING], unknowns: []}}),
+      logger: logger()
+    })
+
+    expect(exitCode).toBe(1)
+    expect(JSON.parse(await readFile(outputPath, 'utf8')).status).toBe('failed')
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=failure\n')
+  })
+
+  it('does not publish an issue outcome when evidence writing fails', async () => {
+    const githubOutputWriter = vi.fn()
+    const exitCode = await runLlmsCoherenceCli({
+      arguments_: ['--evidence-out', 'unused.json'],
+      environment: ENVIRONMENT,
+      now: () => new Date(OBSERVED_AT),
+      auditRunner: async () => ({exitCode: 0, evidenceOutcome: {findings: [], unknowns: []}}),
+      evidenceWriter: async () => {
+        throw new Error('disk unavailable')
+      },
+      githubOutputWriter,
+      logger: logger()
+    })
+
+    expect(exitCode).toBe(1)
+    expect(githubOutputWriter).not.toHaveBeenCalled()
   })
 
   it('writes unknown evidence when an uncaught audit error reaches the CLI boundary', async () => {
     const scratch = await mkdtemp(join(tmpdir(), 'b2-spoke-evidence-error-'))
     scratchDirectories.push(scratch)
     const outputPath = join(scratch, 'spoke-b2.json')
+    const githubOutputPath = join(scratch, 'github-output')
 
     const exitCode = await runLlmsCoherenceCli({
       arguments_: [`--evidence-out=${outputPath}`],
-      environment: ENVIRONMENT,
+      environment: {...ENVIRONMENT, GITHUB_OUTPUT: githubOutputPath},
       now: () => new Date(OBSERVED_AT),
       auditRunner: async () => {
         throw new Error('unexpected fetch orchestration failure')
@@ -221,5 +264,38 @@ describe('B2 coherence evidence orchestration', () => {
     expect(exitCode).toBe(1)
     expect(evidence.status).toBe('unknown')
     expect(evidence.results[0].evidence).toContain('unexpected fetch orchestration failure')
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\n')
+  })
+})
+
+describe('B2 managed-issue lifecycle', () => {
+  const check = {id: 'llms-coherence', title: 'B2 llms origin/site coherence'}
+  const repo = 'j0nathan-ll0yd/j0nathan-ll0yd.github.io'
+  const runUrl = `https://github.com/${repo}/actions/runs/567890`
+  const checks = (status: 'passed' | 'failed' | 'unknown') => [
+    {...check, outcome: 'success'},
+    {...check, outcome: managedIssueOutcome(status)}
+  ]
+
+  it('leaves suppression and uncaught unknowns unchanged, opens/reopens findings, and closes only all-passed runs', async () => {
+    const client = createDryRunClient()
+
+    await reconcileCheckIssues({checks: checks('unknown'), repo, runUrl, client})
+    expect(client.issues).toHaveLength(0)
+
+    await reconcileCheckIssues({checks: checks('failed'), repo, runUrl, client})
+    expect(client.issues[0].state).toBe('OPEN')
+
+    await reconcileCheckIssues({checks: checks('unknown'), repo, runUrl, client})
+    expect(client.issues[0].state).toBe('OPEN')
+
+    await reconcileCheckIssues({checks: checks('passed'), repo, runUrl, client})
+    expect(client.issues[0].state).toBe('CLOSED')
+
+    await reconcileCheckIssues({checks: checks('unknown'), repo, runUrl, client})
+    expect(client.issues[0].state).toBe('CLOSED')
+
+    await reconcileCheckIssues({checks: checks('failed'), repo, runUrl, client})
+    expect(client.issues[0].state).toBe('OPEN')
   })
 })

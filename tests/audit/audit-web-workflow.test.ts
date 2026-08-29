@@ -40,7 +40,7 @@ describe('audit-web issue reconciliation wiring', () => {
   it('passes every check outcome, including successes needed for recovery', () => {
     expect(workflow).toContain("outcome: '${{ steps.smoke.outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.llms_txt.outcome }}'")
-    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outcome }}'")
+    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
   })
 
@@ -51,7 +51,10 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(coherenceStep).toContain('pnpm exec tsx scripts/audit/check-llms-coherence.mjs')
     expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
     expect(executable).not.toMatch(/check-llms-coherence\.mjs[^\n]*(\|\| true|; true)/)
-    expect(workflow).toContain("{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outcome }}'}")
+    expect(workflow).toContain(
+      "{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'}"
+    )
+    expect(workflow).not.toContain('steps.llms_coherence.outcome')
   })
 
   it('runs the coherence classifier under suppression and always uploads its evidence path', () => {
@@ -61,6 +64,8 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(coherenceStep).toContain('B2_EVIDENCE_WORKFLOW_REF: ${{ github.workflow_ref }}')
     expect(coherenceStep).toContain('B2_EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}')
     expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
+    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'")
+    expect(workflow).not.toMatch(/steps\.llms_coherence\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
 
     const uploadStep = executable.match(/      - name: Upload B2 llms coherence evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
     expect(uploadStep).toContain('if: always()')

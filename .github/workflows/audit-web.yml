@@ -228,8 +228,9 @@ jobs:
 
       # Kept separate from B5/lychee: unrelated outbound-link failures must not
       # hide the origin-to-canonical freshness and privacy-cache signal. The
-      # report-only continuation preserves steps.llms_coherence.outcome for the
-      # managed-issue reconciler; the command's non-zero exit is not masked.
+      # report-only continuation preserves the command exit for Actions while
+      # the managed-issue reconciler consumes the evidence-derived output below.
+      # A missing output is deliberately indeterminate to the reconciler.
       # This step deliberately has no workflow-level focus skip: its own first
       # probe writes unknown evidence and returns before artifact fetches when
       # suppression is confirmed.
@@ -427,7 +428,7 @@ jobs:
                 {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'},
                 {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.llms_txt.outcome }}'},
                 {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'},
-                {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outcome }}'},
+                {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'},
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: '${{ steps.sitemap.outcome }}'},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: '${{ steps.robots.outcome }}'},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'},
