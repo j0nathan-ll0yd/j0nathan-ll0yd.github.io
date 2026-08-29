@@ -1,33 +1,29 @@
 # Web Audit Synthetics -- lp-audit Phase 2 (monorepo-LifegamesPortal
-# .omc/plans/monorepo-audit-system.md, catalog domain B). Scheduled, read-only
-# checks against the LIVE site (https://jonathanlloyd.me); this workflow never
-# touches site source, CSP, or build behavior.
+# .omc/plans/monorepo-audit-system.md, catalog domain B). Read-only checks
+# against the LIVE site (https://jonathanlloyd.me); this workflow never touches
+# site source, CSP, or build behavior. As of the Phase-4 single-clock cutover,
+# the external scheduler is the clock (Atlas decisions 0092/0093) and dispatches
+# this workflow with one exact tier.
 #
 # REPORT-ONLY (D4): every check step below runs `continue-on-error: true`, so
 # a failing check never fails the job or blocks anything -- it reconciles one
 # machine-owned GitHub issue per check id (D5), including closing it only after
-# that check's whole result bucket is green. Scheduled jobs and trusted external
-# scheduler dispatches still finish and ping their Healthchecks.io dead-man's-
-# switch (D6; Atlas decision 0092). Ordinary human workflow_dispatch runs do
-# neither. validate_reconciler dispatches exercise only the reconciler and never
-# ping, so they cannot mask a missed check-in (Atlas decision 0091).
+# that check's whole result bucket is green. Trusted external scheduler
+# dispatches finish and ping their Healthchecks.io dead-man's-switch (D6; Atlas
+# decision 0092). Ordinary human workflow_dispatch runs do neither.
+# validate_reconciler dispatches exercise only the reconciler and never ping, so
+# they cannot mask a missed check-in (Atlas decision 0091).
 # Promotion to blocking is a Phase 6 decision, not something this workflow does
 # on its own.
 #
 # MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to Cloudflare Pages
-# AND is the only branch GitHub will fire `schedule:`/`workflow_dispatch` from
-# -- registry fact web-main-autodeploys-prod) -- do not merge without explicit
-# user instruction (B5). The schedules below only start firing once merged.
+# AND is the branch the external scheduler dispatches -- registry fact
+# web-main-autodeploys-prod) -- do not merge without explicit user instruction
+# (B5).
 
 name: Web Audit Synthetics
 
 on:
-  schedule:
-    # Off-round minutes (D6: avoid the 22:00-02:00 UTC GitHub cron congestion
-    # window and exact-hour thundering herds).
-    - cron: '17 6 * * *' # daily
-    - cron: '23 5 * * 1' # weekly (Monday)
-    - cron: '41 4 2 * *' # monthly (day 2)
   workflow_dispatch:
     inputs:
       tier:
