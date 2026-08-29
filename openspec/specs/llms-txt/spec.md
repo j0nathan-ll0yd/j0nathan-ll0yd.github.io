@@ -105,9 +105,27 @@ responses advertise the same composition timestamp, their bytes SHALL be identic
 fresh timestamps within that convergence window represent adjacent valid generations and SHALL
 NOT, by byte difference alone, be reported as corruption.
 
-Verified by `tests/audit/llms-coherence.test.ts:53` (pure response snapshots for status, content-type,
-both timestamp syntaxes, bounded convergence, same-generation byte equality, and cache policy) and operationally by
-`scripts/audit/check-llms-coherence.mjs` in the weekly B2 audit.
+Verified by `tests/audit/llms-coherence.test.ts:53` (coherence evaluator).
+The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
+same-generation byte equality, and cache policy; `scripts/audit/check-llms-coherence.mjs` runs the
+same evaluator in weekly B2.
+
+Weekly B2 SHALL write an Atlas spoke-evidence v1 envelope before returning its audit exit code and
+SHALL always upload the fixed evidence path. Its `results` SHALL be nonempty: definitive
+coherence/cache contract findings contribute `failed` results, while confirmed suppression,
+an indeterminate suppression probe, incomplete response transport, and uncaught audit failures
+contribute `unknown` results. With neither, the builder contributes one `passed` result. Envelope
+status SHALL be the exact result aggregate: any `failed` wins, otherwise any `unknown` wins,
+otherwise `passed`. Thus a true finding plus incomplete transport remains `failed`, while clean
+suppression is `unknown`. Confirmed suppression SHALL stop before any artifact fetch while still
+producing the unknown envelope. Evidence classification does not replace the audit's exit/finding
+semantics.
+
+Verified by `tests/audit/llms-spoke-evidence.test.ts:62` (evidence builder and orchestration).
+Those tests cover the exact envelope, aggregation, file output, uncaught failure, and suppression
+short-circuit. `tests/audit/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
+workflow-level suppression skip, the fixed path, report-only exit preservation, and `always()`
+upload.
 
 #### Scenario: Same-generation bytes diverge
 
@@ -230,7 +248,7 @@ in the catalog checks its clause as quoted.
 | ------------------------ | ------------------------------------------- | ------------------------------------ | ------------------------------------ | ------------------- |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed)  | raw/canonical coherence evaluator    | weekly B2 coherence                  | portal contract     |
 | Privacy/cache transition | `cloudfront-proxy.test.ts`                  | response headers + `CF-Cache-Status` | weekly B2 coherence                  | Cloudflare docs     |
-| Origin/site coherence    | `llms-coherence.test.ts` (pure snapshots)   | six live responses                   | weekly B2 coherence + managed issue  | —                   |
+| Origin/site coherence    | pure snapshots + evidence builder           | six live responses + v1 envelope     | weekly B2 issue + evidence artifact  | Atlas d8341bd shape |
 | Structural profile       | spec-cases + property test                  | — (external consumer)                | weekly structural                    | —                   |
 | Shared-reference bytes   | `llms-structure.integrity.test.ts`          | producer consumes the same exact pin | —                                    | lockfile + sidecar  |
 | Freshness                | `llms-coherence.test.ts` (fixed clock)       | six live responses                   | weekly B2 coherence                  | maxAgeHours in rule |
@@ -245,6 +263,10 @@ in the catalog checks its clause as quoted.
 - The Cloudflare account's cache rules are external to this repository. A rule that ignores origin
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
+- Atlas revision d8341bd defines spoke evidence and ingestion, but the exact-pinned published
+  `@j0nathan-ll0yd/estate-contracts@0.1.0` does not expose that minor contract yet. This repository's
+  local v1 builder and uploaded artifact are pre-publication compatibility work; package consumption
+  and live central adoption await the minor publication plus an estate-atomic pin reconciliation.
 
 ## Enforcement note
 

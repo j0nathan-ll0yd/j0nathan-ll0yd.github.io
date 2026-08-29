@@ -45,16 +45,34 @@ describe('audit-web issue reconciliation wiring', () => {
   })
 
   it('preserves the llms coherence command failure for its managed issue bucket', () => {
-    expect(executable).toMatch(
-      /id: llms_coherence\n {8}if: steps\.focus_mode\.outputs\.suppressed != 'true'\n {8}continue-on-error: true\n {8}run: pnpm exec tsx scripts\/audit\/check-llms-coherence\.mjs/
-    )
+    const coherenceStep = executable.match(/      - name: B2 -- llms origin\/site coherence\n[\s\S]*?(?=\n      - name: Upload B2)/)?.[0] ?? ''
+    expect(coherenceStep).toContain('id: llms_coherence')
+    expect(coherenceStep).toContain('continue-on-error: true')
+    expect(coherenceStep).toContain('pnpm exec tsx scripts/audit/check-llms-coherence.mjs')
+    expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
     expect(executable).not.toMatch(/check-llms-coherence\.mjs[^\n]*(\|\| true|; true)/)
     expect(workflow).toContain("{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outcome }}'}")
   })
 
+  it('runs the coherence classifier under suppression and always uploads its evidence path', () => {
+    const coherenceStep = executable.match(/      - name: B2 -- llms origin\/site coherence\n[\s\S]*?(?=\n      - name: Upload B2)/)?.[0] ?? ''
+    expect(coherenceStep).not.toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
+    expect(coherenceStep).toContain('B2_EVIDENCE_REVISION: ${{ github.sha }}')
+    expect(coherenceStep).toContain('B2_EVIDENCE_WORKFLOW_REF: ${{ github.workflow_ref }}')
+    expect(coherenceStep).toContain('B2_EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}')
+    expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
+
+    const uploadStep = executable.match(/      - name: Upload B2 llms coherence evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
+    expect(uploadStep).toContain('if: always()')
+    expect(uploadStep).toContain('continue-on-error: true')
+    expect(uploadStep).toContain('uses: actions/upload-artifact@')
+    expect(uploadStep).toContain('path: artifacts/llms-assurance/spoke-b2.json')
+    expect(uploadStep).toContain('if-no-files-found: error')
+  })
+
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
     expect(workflow).toContain('run: node scripts/audit/probe-suppression.mjs --github-output')
-    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(4)
+    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(3)
     expect(workflow).toContain('Lighthouse result is focus-mode-conditioned')
     expect(workflow).toContain('pa11y / result is focus-mode-conditioned')
     expect(workflow).toContain("{id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'}")

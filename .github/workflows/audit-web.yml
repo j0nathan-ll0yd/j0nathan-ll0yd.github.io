@@ -230,11 +230,32 @@ jobs:
       # hide the origin-to-canonical freshness and privacy-cache signal. The
       # report-only continuation preserves steps.llms_coherence.outcome for the
       # managed-issue reconciler; the command's non-zero exit is not masked.
+      # This step deliberately has no workflow-level focus skip: its own first
+      # probe writes unknown evidence and returns before artifact fetches when
+      # suppression is confirmed.
       - name: B2 -- llms origin/site coherence
         id: llms_coherence
-        if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
-        run: pnpm exec tsx scripts/audit/check-llms-coherence.mjs
+        env:
+          B2_EVIDENCE_REVISION: ${{ github.sha }}
+          B2_EVIDENCE_WORKFLOW_REF: ${{ github.workflow_ref }}
+          B2_EVIDENCE_RUN_ID: ${{ github.run_id }}
+          B2_EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}
+          B2_EVIDENCE_JOB: ${{ github.job }}
+          B2_EVIDENCE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: >-
+          pnpm exec tsx scripts/audit/check-llms-coherence.mjs
+          --evidence-out artifacts/llms-assurance/spoke-b2.json
+
+      - name: Upload B2 llms coherence evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: llms-assurance-b2-spoke-evidence
+          path: artifacts/llms-assurance/spoke-b2.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: B2 -- sitemap XSD validator
         id: sitemap

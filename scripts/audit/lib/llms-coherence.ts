@@ -28,6 +28,12 @@ export interface LlmsCoherenceFinding {
   id: string
   artifact: LlmsArtifactId | 'llms-full.txt/index.md'
   message: string
+  participants: readonly LlmsCoherenceParticipant[]
+}
+
+export interface LlmsCoherenceParticipant {
+  artifact: LlmsArtifactId
+  side: 'origin' | 'site'
 }
 
 export const LLMS_COHERENCE_THRESHOLDS: Readonly<LlmsCoherenceThresholds> = Object.freeze({
@@ -73,6 +79,7 @@ function validateCompositionSkew(
   relationship: string,
   leftComposedAt: number | null,
   rightComposedAt: number | null,
+  participants: readonly LlmsCoherenceParticipant[],
   thresholds: LlmsCoherenceThresholds
 ): void {
   if (leftComposedAt === null || rightComposedAt === null) {
@@ -84,7 +91,8 @@ function validateCompositionSkew(
     findings.push({
       id,
       artifact,
-      message: `${relationship} composition skew is ${durationMinutes(skewMs)}m; maximum is ${durationMinutes(thresholds.maxCompositionSkewMs)}m`
+      message: `${relationship} composition skew is ${durationMinutes(skewMs)}m; maximum is ${durationMinutes(thresholds.maxCompositionSkewMs)}m`,
+      participants
     })
   }
 }
@@ -121,9 +129,15 @@ function validateSnapshot(
   nowMs: number,
   thresholds: LlmsCoherenceThresholds
 ): number | null {
+  const participants = [{artifact: artifact.id, side}]
   if (snapshot.status !== 200) {
     const detail = snapshot.error ? ` (${snapshot.error})` : ''
-    findings.push({id: `llms-${side}-status`, artifact: artifact.id, message: `${side} returned HTTP ${snapshot.status}${detail}; expected 200`})
+    findings.push({
+      id: `llms-${side}-status`,
+      artifact: artifact.id,
+      message: `${side} returned HTTP ${snapshot.status}${detail}; expected 200`,
+      participants
+    })
   }
 
   const actualContentType = mediaType(snapshot.contentType)
@@ -131,7 +145,8 @@ function validateSnapshot(
     findings.push({
       id: `llms-${side}-content-type`,
       artifact: artifact.id,
-      message: `${side} content-type is ${JSON.stringify(snapshot.contentType)}; expected ${expectedContentType}`
+      message: `${side} content-type is ${JSON.stringify(snapshot.contentType)}; expected ${expectedContentType}`,
+      participants
     })
   }
 
@@ -140,14 +155,16 @@ function validateSnapshot(
       findings.push({
         id: 'llms-site-browser-cache-policy',
         artifact: artifact.id,
-        message: `site Cache-Control is ${JSON.stringify(snapshot.cacheControl)}; expected no-store`
+        message: `site Cache-Control is ${JSON.stringify(snapshot.cacheControl)}; expected no-store`,
+        participants
       })
     }
     if (!hasNoStore(snapshot.cdnCacheControl)) {
       findings.push({
         id: 'llms-site-cdn-cache-policy',
         artifact: artifact.id,
-        message: `site CDN-Cache-Control is ${JSON.stringify(snapshot.cdnCacheControl)}; expected no-store`
+        message: `site CDN-Cache-Control is ${JSON.stringify(snapshot.cdnCacheControl)}; expected no-store`,
+        participants
       })
     }
     const edgeStatus = snapshot.cfCacheStatus?.toUpperCase() || null
@@ -155,14 +172,20 @@ function validateSnapshot(
       findings.push({
         id: 'llms-site-edge-cache-status',
         artifact: artifact.id,
-        message: `site CF-Cache-Status is ${JSON.stringify(snapshot.cfCacheStatus)}; expected BYPASS or DYNAMIC`
+        message: `site CF-Cache-Status is ${JSON.stringify(snapshot.cfCacheStatus)}; expected BYPASS or DYNAMIC`,
+        participants
       })
     }
   }
 
   const composedAt = compositionTimestamp(snapshot.body)
   if (composedAt === null) {
-    findings.push({id: `llms-${side}-composition-time`, artifact: artifact.id, message: `${side} body has no parseable composed-at/Generated timestamp`})
+    findings.push({
+      id: `llms-${side}-composition-time`,
+      artifact: artifact.id,
+      message: `${side} body has no parseable composed-at/Generated timestamp`,
+      participants
+    })
     return null
   }
 
@@ -171,13 +194,15 @@ function validateSnapshot(
     findings.push({
       id: `llms-${side}-stale`,
       artifact: artifact.id,
-      message: `${side} composition is ${durationMinutes(ageMs)}m old; maximum is ${durationMinutes(thresholds.maxCompositionAgeMs)}m`
+      message: `${side} composition is ${durationMinutes(ageMs)}m old; maximum is ${durationMinutes(thresholds.maxCompositionAgeMs)}m`,
+      participants
     })
   } else if (ageMs < -thresholds.maxFutureSkewMs) {
     findings.push({
       id: `llms-${side}-composition-future`,
       artifact: artifact.id,
-      message: `${side} composition is ${durationMinutes(-ageMs)}m in the future; allowance is ${durationMinutes(thresholds.maxFutureSkewMs)}m`
+      message: `${side} composition is ${durationMinutes(-ageMs)}m in the future; allowance is ${durationMinutes(thresholds.maxFutureSkewMs)}m`,
+      participants
     })
   }
 
@@ -206,7 +231,10 @@ export function evaluateLlmsCoherence(
     const originComposedAt = validateSnapshot(findings, artifact, 'origin', pair.origin, artifact.originContentType, nowMs, thresholds)
     const siteComposedAt = validateSnapshot(findings, artifact, 'site', pair.site, artifact.siteContentType, nowMs, thresholds)
     compositionTimes[artifact.id] = {origin: originComposedAt, site: siteComposedAt}
-    validateCompositionSkew(findings, 'llms-origin-site-skew', artifact.id, 'origin/site', originComposedAt, siteComposedAt, thresholds)
+    validateCompositionSkew(findings, 'llms-origin-site-skew', artifact.id, 'origin/site', originComposedAt, siteComposedAt, [
+      {artifact: artifact.id, side: 'origin'},
+      {artifact: artifact.id, side: 'site'}
+    ], thresholds)
   }
 
   for (const artifactId of ['llms-full.txt', 'index.md'] as const) {
@@ -216,7 +244,8 @@ export function evaluateLlmsCoherence(
       findings.push({
         id: 'llms-origin-site-bytes',
         artifact: artifactId,
-        message: `origin and site advertise the same composition but bytes differ (${pair.origin.body.byteLength} vs ${pair.site.body.byteLength} bytes)`
+        message: `origin and site advertise the same composition but bytes differ (${pair.origin.body.byteLength} vs ${pair.site.body.byteLength} bytes)`,
+        participants: [{artifact: artifactId, side: 'origin'}, {artifact: artifactId, side: 'site'}]
       })
     }
   }
@@ -226,13 +255,15 @@ export function evaluateLlmsCoherence(
   const fullTimes = compositionTimes['llms-full.txt']
   const indexTimes = compositionTimes['index.md']
   for (const side of ['origin', 'site'] as const) {
+    const participants = [{artifact: 'llms-full.txt' as const, side}, {artifact: 'index.md' as const, side}]
     validateCompositionSkew(findings, 'llms-full-index-skew', 'llms-full.txt/index.md', `${side} llms-full.txt/index.md`, fullTimes[side], indexTimes[side],
-      thresholds)
+      participants, thresholds)
     if (representsSameComposition(fullTimes[side], indexTimes[side]) && !sameBytes(full[side].body, index[side].body)) {
       findings.push({
         id: 'llms-full-index-bytes',
         artifact: 'llms-full.txt/index.md',
-        message: `${side} llms-full.txt and index.md advertise the same composition but are not byte-identical`
+        message: `${side} llms-full.txt and index.md advertise the same composition but are not byte-identical`,
+        participants
       })
     }
   }
