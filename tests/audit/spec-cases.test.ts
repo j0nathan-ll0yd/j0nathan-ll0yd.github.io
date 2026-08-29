@@ -121,7 +121,6 @@ describe('spec-cases harness: every specs/*/ directory is mapped and every case 
       // rules(artifact) exercises ajv validation + constraint (iii) for every
       // rule file in this directory, at import time.
       // covers: llms-txt#Served llms.txt conforms to the Lifegames llms.txt profile
-      // covers: llms-txt#Full-content artifacts stay fresh
       // covers: llms-txt#Conformance claims are anchored to the external convention
       const R = rules(artifact) as Record<string, RuleFile>
       const entry = ARTIFACT_VALIDATORS[artifact]

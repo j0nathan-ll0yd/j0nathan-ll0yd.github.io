@@ -130,9 +130,9 @@ async function main() {
 
   // llms-full.txt / index.md: the composer runs on a 30m EventBridge rate +
   // event trigger (§11.2 of the audit plan); a 3h warn window covers a couple
-  // of missed ticks without being noisy. +1h on top is conservative now that the
-  // prod-domain routes edge-cache the CloudFront upstream for at most 60s
-  // (functions/_lib/proxy.ts: cacheTtl / s-maxage=60). The window itself
+  // of missed ticks without being noisy. +1h bounds the three-hour LKG; public
+  // portfolio responses are no-store, while the 60s CloudFront fetch cache sits
+  // behind the per-request privacy check. The window itself
   // is params.maxAgeHours on each artifact's own -stale rule
   // (specs/llms-txt/llms-full-txt-stale.rule.json, index-md-stale.rule.json),
   // read here rather than restated as a literal (decisions/0011, R3).

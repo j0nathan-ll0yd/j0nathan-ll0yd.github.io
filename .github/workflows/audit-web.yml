@@ -226,6 +226,16 @@ jobs:
         continue-on-error: true
         run: node scripts/audit/validate-llms-txt.mjs
 
+      # Kept separate from B5/lychee: unrelated outbound-link failures must not
+      # hide the origin-to-canonical freshness and privacy-cache signal. The
+      # report-only continuation preserves steps.llms_coherence.outcome for the
+      # managed-issue reconciler; the command's non-zero exit is not masked.
+      - name: B2 -- llms origin/site coherence
+        id: llms_coherence
+        if: steps.focus_mode.outputs.suppressed != 'true'
+        continue-on-error: true
+        run: pnpm exec tsx scripts/audit/check-llms-coherence.mjs
+
       - name: B2 -- sitemap XSD validator
         id: sitemap
         continue-on-error: true
@@ -395,6 +405,8 @@ jobs:
               checks: [
                 {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'},
                 {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.llms_txt.outcome }}'},
+                {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outcome }}'},
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: '${{ steps.sitemap.outcome }}'},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: '${{ steps.robots.outcome }}'},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'},

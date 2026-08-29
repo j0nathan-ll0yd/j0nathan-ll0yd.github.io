@@ -13,10 +13,10 @@ only as true as its covering tests.
 
 ## Context boundary — served artifacts
 
-- `https://jonathanlloyd.me/llms.txt` — `text/plain; charset=utf-8` — proxy `functions/llms.txt.ts:11`
-- `https://jonathanlloyd.me/llms-full.txt` — `text/markdown; charset=utf-8` — proxy `functions/llms-full.txt.ts:9`
-- `https://jonathanlloyd.me/index.md` — byte-identical alias of llms-full.txt — proxy `functions/index.md.ts:9`
-- All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts:26`
+- `https://jonathanlloyd.me/llms.txt` — `text/plain; charset=utf-8` — proxy `functions/llms.txt.ts`
+- `https://jonathanlloyd.me/llms-full.txt` — `text/markdown; charset=utf-8` — proxy `functions/llms-full.txt.ts`
+- `https://jonathanlloyd.me/index.md` — byte-identical alias of llms-full.txt — proxy `functions/index.md.ts`
+- All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`
 - Upstream producer: mantle-LifegamesPortal `llm-content` capability, then CloudFront, then these proxies.
 
 ## Shape contract
@@ -24,9 +24,11 @@ only as true as its covering tests.
 A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule catalog
 `scripts/audit/specs/llms-txt/*.rule.json`, not by a TypeScript type. The typed contracts are:
 
-- Served paths: `LLM_CONTENT_PATHS` — `@j0nathan-ll0yd/portal-contract/constants`. It covers
-  `llmsFull`, `llmsSmall`, and `indexMarkdown`. `/llms.txt` has no constant; its route hardcodes
-  the path (`functions/llms.txt.ts:11`). See Gaps.
+- Served paths: `LLM_CONTENT_PATHS` and `DATASET_DISTRIBUTIONS` —
+  `@j0nathan-ll0yd/portal-contract/constants`. `LLM_CONTENT_PATHS` covers `llmsFull`,
+  `llmsSmall`, and `indexMarkdown`; `LLMS_TXT_PATH` derives the discovery path from the generated
+  `LLM discovery index` distribution in `functions/_lib/llms-artifacts.ts`. No proxy owns a second
+  hard-coded `/llms.txt` upstream path.
 - Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.
   A pure, framework-free module; atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME THE
   PACKAGE. The producer imports it in
@@ -56,16 +58,60 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 ### Requirement: Discovery index and full dump are served at the contract paths
 
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
-content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt has
-no such constant.
-Verified by `tests/unit/cloudfront-proxy.test.ts:252` (all five proxy routes: upstream URL, status,
-content-type).
+content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt SHALL
+resolve from the portal contract's generated discovery distribution.
+Verified by `tests/unit/cloudfront-proxy.test.ts:262` (all five proxy routes: upstream URL, status,
+content-type, including the registry-derived discovery path).
 
 #### Scenario: Advertised path resolves
 
 - **GIVEN** an agent fetches a path advertised in the llms.txt index
 - **WHEN** the proxy handles the request
 - **THEN** the system SHALL return the upstream content with the declared content-type
+
+### Requirement: Canonical llms responses always pass through the privacy gate
+
+The portfolio SHALL NOT permit a browser, a generic downstream CDN, or the Cloudflare edge cache
+to retain a canonical llms response and answer a later request without executing the Pages
+Function's focus-mode privacy transition check. Every public success, stale fallback, suppression,
+and error response SHALL therefore carry `Cache-Control: no-store`, `CDN-Cache-Control: no-store`,
+and `Cloudflare-CDN-Cache-Control: no-store`. The CloudFront fetch cache (60 seconds) and the
+explicit Cache API last-known-good entry (3 hours) are separate origin-side caches behind the
+privacy check; the stored LKG representation SHALL NOT retain the public CDN no-store headers.
+
+Verified by `tests/unit/cloudfront-proxy.test.ts:59` (three-layer no-store policy on public responses,
+private LKG header separation, and a warm-visible → suppressed → visible privacy transition).
+
+Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
+`CDN-Cache-Control` and `Cache-Control`, and treats `no-store` as BYPASS. An account-level Edge
+Cache TTL or Cache Response Rule can override origin-set headers, so deployment also depends on
+the canonical paths having no such override and on purging representations retained by the old
+rule. The weekly coherence audit makes that external state visible by requiring the returned
+browser/CDN policy and `CF-Cache-Status: BYPASS|DYNAMIC`.
+
+#### Scenario: A focus transition cannot be bypassed by a public cache hit
+
+- **GIVEN** a visible request has populated the origin fetch cache and internal LKG
+- **WHEN** the focus state changes to a hiding mode before the next canonical request
+- **THEN** the next request SHALL execute the privacy probe and return suppression, not retained content
+
+### Requirement: Raw and canonical llms artifacts stay coherent
+
+For all three artifacts, the raw CloudFront and canonical portfolio responses SHALL return HTTP
+200, the side-specific declared content-type, and a parseable composition timestamp. A canonical
+composition timestamp SHALL differ from its raw origin by no more than 10 minutes. Canonical
+`llms-full.txt` and `index.md` SHALL each be byte-identical to their raw counterpart, and the two
+aliases SHALL be byte-identical on both origins.
+
+Verified by `tests/audit/llms-coherence.test.ts:53` (pure response snapshots for status, content-type,
+both timestamp syntaxes, skew, cache policy, and byte equality) and operationally by
+`scripts/audit/check-llms-coherence.mjs` in the weekly B2 audit.
+
+#### Scenario: An outer cache holds an older composition
+
+- **GIVEN** CloudFront serves a newer composition than a retained canonical response
+- **WHEN** the coherence evaluator compares the six responses
+- **THEN** it SHALL report timestamp skew and full/index byte differences with per-side evidence
 
 ### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 
@@ -125,23 +171,22 @@ clause left intact beside them.
 
 ### Requirement: Full-content artifacts stay fresh
 
-llms-full.txt and index.md SHALL be no older than the rule's `params.maxAgeHours` (4 hours).
-Verified by `tests/audit/spec-cases.test.ts:123` (checkPresence freshness path).
+Every raw and canonical representation of llms.txt, llms-full.txt, and index.md SHALL carry a
+parseable composition timestamp no more than 4 hours old. The discovery index uses its
+`<!-- composed-at: ... -->` marker; the full artifacts use `**Generated:** ...`. The threshold is
+`LLMS_MAX_COMPOSITION_AGE_MS` and SHALL remain equal to both operational stale rules'
+`params.maxAgeHours`.
 
-#### Scenario: The staleness rules load as operational and are never case-run
+Verified by `tests/audit/llms-coherence.test.ts:75`, which injects a fixed clock and synthetic response
+snapshots to exercise the exact age boundary logic without network and asserts the rule-catalog
+parameters equal the evaluator configuration. The old `spec-cases.test.ts` covers claim was
+removed: that harness only proved operational rules had no cases and never exercised freshness.
 
-- **GIVEN** `llms-full-txt-stale` and `index-md-stale` each declare `params.maxAgeHours` 4 and
-  `rule_class: operational`
-- **WHEN** the spec-cases harness loads the llms-txt catalog through `rules('llms-txt')`
-- **THEN** both rules SHALL validate against the rule schema, which for an operational rule requires
-  an `untested_rationale` and forbids `cases`, and the harness SHALL assert each carries no `cases`
-  rather than case-running it
+#### Scenario: A composition exceeds the freshness window
 
-What that scenario does NOT prove: the 4-hour comparison itself. `checkPresence`
-(`scripts/audit/validate-llms-txt.mjs:207`) computes `ageHours` from a live HTTP response, so no
-pure-function case can exercise it and the covering test never calls it. That the production path
-reads `params.maxAgeHours` from these rule files rather than a literal is true
-(`scripts/audit/validate-llms-txt.mjs:130-131`) but is asserted by no test. See Gaps.
+- **GIVEN** an otherwise valid response composed more than 4 hours before a fixed evaluation time
+- **WHEN** the pure coherence evaluator runs
+- **THEN** it SHALL emit a stale finding for that response
 
 ### Requirement: Conformance claims are anchored to the external convention
 
@@ -167,22 +212,25 @@ in the catalog checks its clause as quoted.
 
 ## Validation matrix
 
-| Requirement              | Unit                                       | Integration                               | Audit (prod)                                       | Provenance          |
-| ------------------------ | ------------------------------------------ | ----------------------------------------- | -------------------------------------------------- | ------------------- |
-| Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | GAP (backend to proxy to served untested) | B5 lychee (the URL and its outbound links resolve) | —                   |
-| Structural profile       | spec-cases + property test                 | — (external consumer)                     | weekly structural                                  | —                   |
-| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin      | —                                                  | lockfile + sidecar  |
-| Freshness                | GAP                                        | —                                         | weekly                                             | maxAgeHours in rule |
-| External anchor          | spec-verification                          | —                                         | weekly drift                                       | pinned source       |
+| Requirement              | Unit                                        | Integration                          | Audit (prod)                         | Provenance          |
+| ------------------------ | ------------------------------------------- | ------------------------------------ | ------------------------------------ | ------------------- |
+| Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed)  | raw/canonical coherence evaluator    | weekly B2 coherence                  | portal contract     |
+| Privacy/cache transition | `cloudfront-proxy.test.ts`                  | response headers + `CF-Cache-Status` | weekly B2 coherence                  | Cloudflare docs     |
+| Origin/site coherence    | `llms-coherence.test.ts` (pure snapshots)   | six live responses                   | weekly B2 coherence + managed issue  | —                   |
+| Structural profile       | spec-cases + property test                  | — (external consumer)                | weekly structural                    | —                   |
+| Shared-reference bytes   | `llms-structure.integrity.test.ts`          | producer consumes the same exact pin | —                                    | lockfile + sidecar  |
+| Freshness                | `llms-coherence.test.ts` (fixed clock)       | six live responses                   | weekly B2 coherence                  | maxAgeHours in rule |
+| External anchor          | spec-verification                           | —                                    | weekly drift                         | pinned source       |
 
 ## Gaps
 
-- No test spans the backend-to-CloudFront-to-proxy-to-served pipeline (the real integration seam).
-  The proxy factory and its five routes are unit-tested against a stubbed `fetch`, so served
-  correctness against real upstream content rests on the weekly audit alone.
 - The upstream producer is out of this repo; nothing here asserts what it composes.
-- Operational rules (fetch, freshness) have no unit cases by schema.
-- llms.txt has no LLM_CONTENT_PATHS entry (llms-full and index.md do) — a contract asymmetry.
+- Operational rule files still have no catalog `cases` by schema. Freshness behavior is instead
+  exercised through the pure coherence evaluator, with an explicit equality assertion tethering its
+  4-hour configuration to both stale-rule parameters.
+- The Cloudflare account's cache rules are external to this repository. A rule that ignores origin
+  cache-control must be removed for the three canonical paths, and old retained objects must be
+  purged; the audit detects but cannot mutate that configuration.
 
 ## Enforcement note
 

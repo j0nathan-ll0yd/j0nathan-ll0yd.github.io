@@ -1,4 +1,4 @@
-// Pages Function: proxy /llms-full.txt from CloudFront with edge caching.
+// Pages Function: proxy /llms-full.txt from CloudFront.
 // The backend composes the full data dump on every source-data change; this
 // route ensures the path the llms.txt discovery index advertises resolves on
 // jonathanlloyd.me, not only on the raw CloudFront host.

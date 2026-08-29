@@ -40,15 +40,25 @@ describe('audit-web issue reconciliation wiring', () => {
   it('passes every check outcome, including successes needed for recovery', () => {
     expect(workflow).toContain("outcome: '${{ steps.smoke.outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.llms_txt.outcome }}'")
+    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
+  })
+
+  it('preserves the llms coherence command failure for its managed issue bucket', () => {
+    expect(executable).toMatch(
+      /id: llms_coherence\n {8}if: steps\.focus_mode\.outputs\.suppressed != 'true'\n {8}continue-on-error: true\n {8}run: pnpm exec tsx scripts\/audit\/check-llms-coherence\.mjs/
+    )
+    expect(executable).not.toMatch(/check-llms-coherence\.mjs[^\n]*(\|\| true|; true)/)
+    expect(workflow).toContain("{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outcome }}'}")
   })
 
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
     expect(workflow).toContain('run: node scripts/audit/probe-suppression.mjs --github-output')
-    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(3)
+    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(4)
     expect(workflow).toContain('Lighthouse result is focus-mode-conditioned')
     expect(workflow).toContain('pa11y / result is focus-mode-conditioned')
     expect(workflow).toContain("{id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).toContain("{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).toContain("{id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).toContain("{id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).not.toMatch(/id: sitemap[\s\S]{0,120}focus_mode/)

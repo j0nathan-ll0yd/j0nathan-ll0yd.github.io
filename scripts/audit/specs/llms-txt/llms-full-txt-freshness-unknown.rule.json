@@ -4,7 +4,7 @@
   "artifact": "llms.txt",
   "rule_class": "operational",
   "severity": "warn",
-  "untested_rationale": "checkPresence() (validate-llms-txt.mjs) emits this composed id when neither an embedded '**Generated:**' marker nor a Last-Modified header is present on a live HTTP response -- it requires a real HTTP round-trip, not a pure-function input. Covered instead by the production smoke suite and by this repo's own composer, which embeds the Generated marker in every build (so this warn firing at all is itself a signal to investigate).",
+  "untested_rationale": "checkPresence() emits this exact id only on its live HTTP path, so the operational rule has no catalog cases. The missing/invalid timestamp behavior itself is now exercised without network by compositionTimestamp() and evaluateLlmsCoherence() in tests/audit/llms-coherence.test.ts; the weekly coherence check applies it to the live origin and canonical response.",
   "spec": {
     "name": "llms.txt (llmstxt.org)",
     "clause": "n/a",

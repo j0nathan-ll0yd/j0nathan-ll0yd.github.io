@@ -1,4 +1,4 @@
-// Pages Function: proxy /index.md from CloudFront with edge caching.
+// Pages Function: proxy /index.md from CloudFront.
 // index.md is the byte-identical markdown alias of llms-full.txt (for agents
 // expecting .md extensions); this route ensures it resolves on jonathanlloyd.me,
 // not only on the raw CloudFront host.
