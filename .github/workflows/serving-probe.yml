@@ -1,0 +1,164 @@
+# Serving Probe -- tight-cadence subset of the live web audit checks.
+#
+# WHY THIS IS A SEPARATE WORKFLOW. audit-web.yml already runs these same
+# read-only checks against the LIVE site, but on daily/weekly/monthly tiers. A
+# TRANSIENT stale serve -- a CDN handing back stale composed-at metadata behind
+# an unchanged ETag, or a no-store cache-header regression -- can be live for
+# days before the weekly tier notices. Keeping the tight cadence in its own file
+# isolates it: this lane can be dispatched every 15 minutes without dragging
+# audit-web's heavyweight Lighthouse/pa11y/lychee jobs along with it.
+#
+# READ-ONLY, exactly like audit-web.yml: HTTP GETs against
+# https://jonathanlloyd.me and the CloudFront data plane, nothing else. This
+# workflow never touches site source, CSP, or build behavior.
+#
+# ADMISSION-LIGHT, BY DESIGN. This is a plain node job (undici `fetch`), NOT the
+# runner-playwright image, and it starts no Colima VM -- the 10-slot Colima
+# admission lane is scarce and a 15-minute cadence would monopolise it. The
+# `cfedge` label is the COLIMA-CFEDGE egress-lane marker (ci-runners-private
+# #130, stage C2) and is admission-neutral; it is present because this probe
+# fetches the CloudFront data plane directly for the public JSON exports, which
+# is exactly the egress that label's source-scoped rule allows.
+#
+# REPORT-ONLY (D4): the probe step runs `continue-on-error: true`, so a finding
+# never fails the job or blocks anything. Results reconcile ONE machine-owned
+# GitHub issue for the `serving-probe` bucket (D5). Trusted external scheduler
+# dispatches ping the Healthchecks.io dead-man's-switch (D6; Atlas decision
+# 0092). Ordinary human workflow_dispatch runs do neither, and
+# validate_reconciler dispatches exercise only the reconciler and never ping, so
+# they cannot mask a missed check-in (Atlas decision 0091).
+#
+# FAIL-CLOSED TRI-STATE. scripts/audit/serving-probe.mjs exits non-zero for BOTH
+# a failed and an indeterminate aggregate, so an unreachable endpoint or an
+# unverifiable header opens (or keeps open) the managed issue. Only an all-green
+# run exits 0 and lets the reconciler close it. See that script's header.
+#
+# CADENCE IS EXTERNAL, AND ITS ENABLEMENT IS A GATED FOLLOW-UP. There is
+# deliberately NO native `schedule:` trigger here -- the estate removed native
+# crons and the external scheduler is the single clock (Atlas decisions
+# 0092/0093). The 15-minute dispatch wiring lives in `ci-runners-private` and is
+# still in flight; this workflow is fully exercisable NOW via a manual
+# workflow_dispatch. The `HC_PING_SERVING_PROBE` secret is provisioned with that
+# same follow-up; until it exists, healthchecks-ping.sh logs and skips rather
+# than failing the job.
+#
+# MERGING TO main DEPLOYS PRODUCTION (main auto-deploys to Cloudflare Pages AND
+# is the branch the external scheduler dispatches -- registry fact
+# web-main-autodeploys-prod). Do not merge without explicit owner instruction.
+
+name: Serving Probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: 'Which tier to run'
+        type: choice
+        options: [all, serving]
+        default: all
+      scheduled_by_external:
+        description: 'Set only by the trusted external scheduler (decision 0092)'
+        type: boolean
+        default: false
+      validate_reconciler:
+        description: 'Exercise the managed-issue reconciler on this manual run (normally scheduler-only). Validates the Octokit reconciler without waiting for the external clock.'
+        type: boolean
+        default: false
+
+concurrency:
+  group: serving-probe
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+  packages: read # read @j0nathan-ll0yd/* from GitHub Packages during pnpm install
+
+jobs:
+  serving:
+    name: Serving probe (llms trio + public exports)
+    if: >-
+      github.event_name == 'workflow_dispatch' && (inputs.tier == 'serving' || inputs.tier == 'all')
+    # node label (NOT playwright): this probe needs undici `fetch`, not a browser.
+    # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) --
+    # routes this job onto the pinned subnet whose source-scoped rule allows CloudFront :443,
+    # which the public JSON exports are fetched from. Admission-neutral.
+    runs-on: [self-hosted, linux, arm64, node, cfedge]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Distinguish a self-hosted runner egress outage from a real site regression BEFORE
+      # the continue-on-error probe runs, so an egress outage reds the job with an
+      # actionable message instead of masking as a wall of indeterminate verdicts
+      # (2026-08-17 incident).
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash scripts/audit/preflight-egress.sh
+
+      # The llms trio is focus-gated at the edge (functions/_lib/proxy.ts serves the
+      # suppression path when a hiding focus mode is active). Probing through a
+      # suppression window would red this lane for correct behavior, so the probe is
+      # gated on the shared suppression probe -- the same convention audit-web.yml
+      # applies to its own llms.txt and feed checks.
+      - name: Probe focus suppression for conditioned checks
+        id: focus_mode
+        continue-on-error: true
+        run: node scripts/audit/probe-suppression.mjs --github-output
+
+      - name: Serving probe (llms trio + public JSON/feed exports)
+        id: serving_probe
+        if: steps.focus_mode.outputs.suppressed != 'true'
+        continue-on-error: true
+        run: node scripts/audit/serving-probe.mjs
+
+      - name: Reconcile managed audit issues
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
+          )
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'serving-probe', title: 'Serving probe (llms trio + public exports)', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'serving-probe', title: 'Serving probe (llms trio + public exports)', outcome: '${{ steps.serving_probe.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
+
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (the probe step is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
+      - name: Healthchecks.io ping
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
+        env:
+          HC_URL: ${{ secrets.HC_PING_SERVING_PROBE }}
+          JOB_STATUS: ${{ job.status }}
+        run: bash scripts/audit/healthchecks-ping.sh
