@@ -7,7 +7,7 @@
   "params": {
     "maxAgeHours": 4
   },
-  "untested_rationale": "checkPresence() (validate-llms-txt.mjs:215) computes ageHours from a live HTTP response and compares it to params.maxAgeHours -- there is no pure-function input, only a live time delta. params.maxAgeHours IS read on the production call path (validate-llms-txt.mjs:214-215), so the threshold has one home, but operational rules cannot carry cases, so there is no probe-C analogue and a regression here would go unnoticed by this pilot's gates (N3). Covered only by human review of this rule file's diff.",
+  "untested_rationale": "This exact id remains emitted by checkPresence() from a live HTTP response, so the operational rule has no catalog cases. The same 4-hour policy is now exercised without network by evaluateLlmsCoherence() against fixed response snapshots; tests/audit/llms-coherence.test.ts also asserts params.maxAgeHours equals LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs, so changing either side cannot pass silently.",
   "spec": {
     "name": "llms.txt (llmstxt.org)",
     "clause": "n/a",
@@ -15,8 +15,8 @@
     "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
     "conformance_testable": false,
     "retrieved": "2026-07-29",
-    "content_sha256": "273ffcb515db72cbb12ba1038039078914bf4775f6d981c3e250019517edf0a3",
-    "normative_quote": "index.md has no formal spec of its own. This threshold matches llms-full-txt-stale's rationale: a 30-minute composer cadence, a couple of missed ticks tolerated, plus the prod-domain proxy's 1-hour edge cache.",
+    "content_sha256": "37304e2942fdfffd7a7cbf2791913dec6ca1265c295b5d5e2b99d26ca48cf1ac",
+    "normative_quote": "index.md has no formal spec of its own. Its four-hour threshold matches llms-full-txt-stale: it bounds missed compositions and the three-hour last-known-good origin fallback, while the portfolio's public edge and browser responses are no-store.",
     "note": "conformance_testable is false; no external spec imposes this threshold.",
     "verified_against_source": false,
     "verification_note": "clause n/a -- rule_class: operational. normative_quote is a self-authored statement about the ABSENCE of external spec coverage for this transport/fetch/presence condition; there is no external normative clause to transcribe or verify against a source."

@@ -7,7 +7,7 @@
   "params": {
     "maxAgeHours": 4
   },
-  "untested_rationale": "checkPresence() (validate-llms-txt.mjs:214) computes ageHours from a live HTTP response's embedded marker or Last-Modified header and compares it to params.maxAgeHours -- there is no pure-function input, only a live time delta, so this id has rule_class: operational and no cases by schema. Unlike security-txt-expiring-soon, params.maxAgeHours IS read on the production call path (validate-llms-txt.mjs:214-215, replacing the literal 4), so the threshold has one home -- but because operational rules cannot carry cases, there is no probe-C analogue for it: a regression changing maxAgeHours from 4 to 400 would go unnoticed by this pilot's gates (recorded as N3 in decisions/0011, the 'derived but unverifiable' rung of the two-axis Specification scorecard). Covered only by human review of this rule file's diff.",
+  "untested_rationale": "This exact id remains emitted by checkPresence() from a live HTTP response, so the operational rule has no catalog cases. The same 4-hour policy is now exercised without network by evaluateLlmsCoherence() against fixed response snapshots; tests/audit/llms-coherence.test.ts also asserts params.maxAgeHours equals LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs, so changing either side cannot pass silently.",
   "spec": {
     "name": "llms.txt (llmstxt.org)",
     "clause": "n/a",
@@ -15,8 +15,8 @@
     "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
     "conformance_testable": false,
     "retrieved": "2026-07-29",
-    "content_sha256": "50d273e92553791f6d8de411fbc6a9d70c8f7de84da120258cada3e589d054b1",
-    "normative_quote": "llms-full.txt has no formal spec of its own. This threshold is a local operational buffer: the composer runs on a 30-minute EventBridge rate plus an event trigger, a 3-hour warn window covers a couple of missed ticks, and +1h accounts for the prod-domain proxy's 1-hour edge cache.",
+    "content_sha256": "524f8ec3a2b9ea25f39fa52ca2cec0ca66b30cbad296dbbd882c45b3347b231c",
+    "normative_quote": "llms-full.txt has no formal spec of its own. This threshold is a local operational buffer: the composer runs on a 30-minute EventBridge rate plus an event trigger, and four hours bounds both missed compositions and the three-hour last-known-good origin fallback. The portfolio's public edge and browser responses are no-store.",
     "note": "conformance_testable is false; no external spec imposes this threshold.",
     "verified_against_source": false,
     "verification_note": "clause n/a -- rule_class: operational. normative_quote is a self-authored statement about the ABSENCE of external spec coverage for this transport/fetch/presence condition; there is no external normative clause to transcribe or verify against a source."

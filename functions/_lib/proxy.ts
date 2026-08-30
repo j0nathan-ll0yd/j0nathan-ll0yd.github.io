@@ -15,8 +15,7 @@ const FRESH_CACHE_SECONDS = 60
 const LAST_KNOWN_GOOD_SECONDS = 3 * 60 * 60
 const MAX_ATTEMPTS = 3
 const RETRY_DELAYS_MS = [100, 300]
-const PUBLIC_CACHE_CONTROL = `public, max-age=0, s-maxage=${FRESH_CACHE_SECONDS}`
-const STALE_CACHE_CONTROL = `public, max-age=0, s-maxage=${FRESH_CACHE_SECONDS}`
+const PUBLIC_NO_STORE = 'no-store'
 const SUPPRESSION_RETRY_SECONDS = 60
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
@@ -117,6 +116,18 @@ function diagnosticFields(path: string, failure: UpstreamFailure, staleHit?: boo
   }
 }
 
+/**
+ * Keep every public cache layer outside this Function from storing an artifact.
+ * Cloudflare-CDN-Cache-Control is Cloudflare-specific, CDN-Cache-Control covers
+ * any other shared intermediary, and Cache-Control reaches the browser. The
+ * origin fetch cache and private LKG cache are configured separately below.
+ */
+function setPublicNoStore(headers: Headers): void {
+  headers.set('Cache-Control', PUBLIC_NO_STORE)
+  headers.set('CDN-Cache-Control', PUBLIC_NO_STORE)
+  headers.set('Cloudflare-CDN-Cache-Control', PUBLIC_NO_STORE)
+}
+
 function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500
 }
@@ -150,10 +161,10 @@ async function probeFocus(): Promise<FocusResult> {
 function suppressionResponse(method: string): Response {
   const headers = new Headers({
     'Content-Type': 'application/json; charset=utf-8',
-    'Cache-Control': 'no-store',
     'Retry-After': String(SUPPRESSION_RETRY_SECONDS),
     'X-Source': 'cloudfront-proxy-suppressed'
   })
+  setPublicNoStore(headers)
   const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
   return new Response(body, {status: 503, headers})
 }
@@ -164,10 +175,9 @@ function focusUnavailableResponse(path: string, result: FocusUnavailable): Respo
     upstream_status: result.upstreamStatus ?? null,
     error_class: result.errorName ?? null
   })
-  return new Response('focus state unavailable', {
-    status: 502,
-    headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Source': 'cloudfront-proxy-focus-error'}
-  })
+  const headers = new Headers({'Content-Type': 'text/plain; charset=utf-8', 'X-Source': 'cloudfront-proxy-focus-error'})
+  setPublicNoStore(headers)
+  return new Response('focus state unavailable', {status: 502, headers})
 }
 
 export async function focusPrivacyResponse(method: string, path: string): Promise<Response | null> {
@@ -221,7 +231,6 @@ async function fetchWithRetry(upstreamUrl: string, path: string): Promise<Upstre
 function publicResponse(upstream: Response, contentType: string, attempts: number): Response {
   const headers = new Headers({
     'Content-Type': contentType,
-    'Cache-Control': PUBLIC_CACHE_CONTROL,
     'X-Proxy-Attempts': String(attempts),
     'X-Proxy-Upstream-Status': String(upstream.status),
     'X-Source': 'cloudfront-proxy'
@@ -230,11 +239,14 @@ function publicResponse(upstream: Response, contentType: string, attempts: numbe
   if (requestId) {
     headers.set('X-Proxy-Upstream-Request-Id', requestId)
   }
+  setPublicNoStore(headers)
   return new Response(upstream.body, {status: 200, headers})
 }
 
 async function saveLastKnownGood(cache: CacheLike, cacheKey: Request, response: Response, path: string): Promise<void> {
   const headers = new Headers(response.headers)
+  headers.delete('CDN-Cache-Control')
+  headers.delete('Cloudflare-CDN-Cache-Control')
   headers.set('Cache-Control', `public, max-age=${LAST_KNOWN_GOOD_SECONDS}`)
   headers.set('X-Proxy-Lkg-Stored-At', new Date().toISOString())
   try {
@@ -270,7 +282,7 @@ async function staleResponse(
   const diagnostics = diagnosticHeaders(failure)
   diagnostics.forEach((value, name) => headers.set(name, value))
   headers.set('Content-Type', contentType)
-  headers.set('Cache-Control', STALE_CACHE_CONTROL)
+  setPublicNoStore(headers)
   headers.set('Warning', '110 - "Response is stale"')
   headers.set('X-Proxy-Stale', 'true')
   headers.set('X-Source', 'cloudfront-proxy-stale')
@@ -285,13 +297,14 @@ export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig):
 
   return async function onRequest(context: CloudfrontProxyContext): Promise<Response> {
     if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
-      return new Response('Method not allowed', {status: 405, headers: {Allow: 'GET, HEAD', 'Cache-Control': 'no-store'}})
+      const headers = new Headers({Allow: 'GET, HEAD'})
+      setPublicNoStore(headers)
+      return new Response('Method not allowed', {status: 405, headers})
     }
 
-    // Privacy gate first. The focus signal is never itself gated, and no-store forces every
-    // Function execution to observe the current state before an artifact fetch or LKG lookup.
-    // Public artifact responses have only a 60s edge TTL, so a response already cached ahead
-    // of a hiding transition has a bounded residual disclosure window and cannot enter SWR.
+    // Privacy gate first. Public responses are no-store at the browser, generic
+    // CDN, and Cloudflare-specific layers, so every request reaches this check.
+    // The 60s origin fetch cache and three-hour LKG remain behind the gate.
     const privacyResponse = await focusPrivacyResponse(context.request.method, path)
     if (privacyResponse) {
       return privacyResponse
@@ -317,8 +330,8 @@ export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig):
     logger.error('cloudfront_proxy_terminal_failure', diagnosticFields(path, upstream, false))
     const headers = diagnosticHeaders(upstream)
     headers.set('Content-Type', 'text/plain; charset=utf-8')
-    headers.set('Cache-Control', 'no-store')
     headers.set('X-Source', 'cloudfront-proxy-error')
+    setPublicNoStore(headers)
     return new Response(`${artifactName} unavailable`, {status: 502, headers})
   }
 }

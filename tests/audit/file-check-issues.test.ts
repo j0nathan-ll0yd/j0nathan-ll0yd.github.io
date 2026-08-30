@@ -136,6 +136,7 @@ describe('audit bucket outcomes', () => {
     expect(bucketOutcome([{outcome: 'success'}, {outcome: 'success'}])).toBe('success')
     expect(bucketOutcome([{outcome: 'success'}, {outcome: 'failure'}])).toBe('failure')
     expect(bucketOutcome([{outcome: 'success'}, {outcome: 'skipped'}])).toBe('indeterminate')
+    expect(bucketOutcome([{outcome: 'success'}, {outcome: ''}])).toBe('indeterminate')
     expect(bucketOutcome([{outcome: 'cancelled'}])).toBe('indeterminate')
   })
 })

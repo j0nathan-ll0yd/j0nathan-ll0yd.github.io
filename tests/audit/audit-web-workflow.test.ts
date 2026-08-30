@@ -40,7 +40,59 @@ describe('audit-web issue reconciliation wiring', () => {
   it('passes every check outcome, including successes needed for recovery', () => {
     expect(workflow).toContain("outcome: '${{ steps.smoke.outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.llms_txt.outcome }}'")
+    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
+  })
+
+  it('preserves the llms coherence command failure for its managed issue bucket', () => {
+    const coherenceStep = executable.match(/      - name: B2 -- llms origin\/site coherence\n[\s\S]*?(?=\n      - name: Upload B2)/)?.[0] ?? ''
+    expect(coherenceStep).toContain('id: llms_coherence')
+    expect(coherenceStep).toContain('continue-on-error: true')
+    expect(coherenceStep).toContain('pnpm exec tsx scripts/audit/check-llms-coherence.mjs')
+    expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
+    expect(executable).not.toMatch(/check-llms-coherence\.mjs[^\n]*(\|\| true|; true)/)
+    expect(workflow).toContain(
+      "{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'}"
+    )
+    expect(workflow).not.toContain('steps.llms_coherence.outcome')
+  })
+
+  it('runs the coherence classifier under suppression and always uploads its evidence path', () => {
+    const coherenceStep = executable.match(/      - name: B2 -- llms origin\/site coherence\n[\s\S]*?(?=\n      - name: Upload B2)/)?.[0] ?? ''
+    expect(coherenceStep).not.toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
+    expect(coherenceStep).toContain('B2_EVIDENCE_REVISION: ${{ github.sha }}')
+    expect(coherenceStep).toContain('B2_EVIDENCE_WORKFLOW_REF: ${{ github.workflow_ref }}')
+    expect(coherenceStep).toContain('B2_EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}')
+    expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
+    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'")
+    expect(workflow).not.toMatch(/steps\.llms_coherence\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+
+    const uploadStep = executable.match(/      - name: Upload B2 llms coherence evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
+    expect(uploadStep).toContain('if: always()')
+    expect(uploadStep).toContain('continue-on-error: true')
+    expect(uploadStep).toContain('uses: actions/upload-artifact@')
+    expect(uploadStep).toContain('path: artifacts/llms-assurance/spoke-b2.json')
+    expect(uploadStep).toContain('if-no-files-found: error')
+  })
+
+  it('wires a fail-closed read-only Cloudflare rule audit with existing secret names', () => {
+    const auditStep =
+      executable.match(/      - name: B2 -- Cloudflare llms cache rules \(read-only\)\n[\s\S]*?(?=\n      - name: Upload Cloudflare)/)?.[0] ?? ''
+    expect(auditStep).toContain('id: llms_cache_rules')
+    expect(auditStep).toContain('continue-on-error: true')
+    expect(auditStep).toContain('CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}')
+    expect(auditStep).toContain('CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}')
+    expect(auditStep).toContain('CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}')
+    expect(auditStep).toContain('node scripts/audit/check-cloudflare-llms-cache-rules.mjs')
+    expect(auditStep).toContain('--evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json')
+
+    const uploadStep = executable.match(/      - name: Upload Cloudflare llms cache-rule evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
+    expect(uploadStep).toContain('if: always()')
+    expect(uploadStep).toContain('path: artifacts/llms-assurance/cloudflare-cache-rules.json')
+    expect(workflow).toContain(
+      "{id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: '${{ steps.llms_cache_rules.outputs.issue_outcome }}'}"
+    )
+    expect(workflow).not.toContain('steps.llms_cache_rules.outcome')
   })
 
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
@@ -49,6 +101,7 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).toContain('Lighthouse result is focus-mode-conditioned')
     expect(workflow).toContain('pa11y / result is focus-mode-conditioned')
     expect(workflow).toContain("{id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).toContain("{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).toContain("{id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).toContain("{id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).not.toMatch(/id: sitemap[\s\S]{0,120}focus_mode/)

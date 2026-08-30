@@ -1,11 +1,7 @@
-// Pages Function: proxy /llms.txt from CloudFront with edge caching.
+// Pages Function: proxy /llms.txt from CloudFront.
 // The backend (mantle-LifegamesPortal) owns the canonical content.
-//
-// The /llms.txt discovery index has no dedicated contract path constant
-// (LLM_CONTENT_PATHS covers llms-full / index.md); the host is
-// sourced from the contract inside the factory so no CloudFront literal is
-// hardcoded here.
 
 import {makeCloudfrontProxy} from './_lib/proxy'
+import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
 
-export const onRequest = makeCloudfrontProxy({path: '/llms.txt', contentType: 'text/plain; charset=utf-8'})
+export const onRequest = makeCloudfrontProxy({path: LLMS_TXT_PATH, contentType: 'text/plain; charset=utf-8'})

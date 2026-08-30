@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {makeCloudfrontProxy} from '../../functions/_lib/proxy'
 import type {CloudfrontProxyContext} from '../../functions/_lib/proxy'
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
 import {onRequest as feedXmlRoute} from '../../functions/feed.xml.ts'
 import {onRequest as indexMdRoute} from '../../functions/index.md.ts'
@@ -42,6 +43,12 @@ function stubCache(cached?: Response) {
   return cache
 }
 
+function expectPublicNoStore(response: Response) {
+  expect(response.headers.get('Cache-Control')).toBe('no-store')
+  expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+  expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
+}
+
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -49,6 +56,7 @@ afterEach(() => {
 })
 
 describe('makeCloudfrontProxy', () => {
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
   it('serves success, caches only 2xx upstream statuses, and records last-known-good', async () => {
     const mock = stubFetch(new Response('# content', {headers: {'x-amz-cf-id': 'cloudfront-request-1'}}))
     const cache = stubCache()
@@ -62,7 +70,7 @@ describe('makeCloudfrontProxy', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
     expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
+    expectPublicNoStore(res)
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy')
     expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
     expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('200')
@@ -73,6 +81,8 @@ describe('makeCloudfrontProxy', () => {
     const [cacheKey, cachedResponse] = cache.put.mock.calls[0] as [Request, Response]
     expect(cacheKey.url).toBe('https://jonathanlloyd.me/thing.txt?__cloudfront_proxy_lkg=v1')
     expect(cachedResponse.headers.get('Cache-Control')).toBe('public, max-age=10800')
+    expect(cachedResponse.headers.get('CDN-Cache-Control')).toBeNull()
+    expect(cachedResponse.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
     expect(cachedResponse.headers.get('X-Proxy-Lkg-Stored-At')).toBeTruthy()
     expect(await cachedResponse.text()).toBe('# content')
   })
@@ -124,7 +134,7 @@ describe('makeCloudfrontProxy', () => {
     expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
+    expectPublicNoStore(res)
     expect(res.headers.get('Warning')).toBe('110 - "Response is stale"')
     expect(res.headers.get('X-Proxy-Stale')).toBe('true')
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
@@ -154,7 +164,7 @@ describe('makeCloudfrontProxy', () => {
     expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(502)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expectPublicNoStore(res)
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-error')
     expect(res.headers.get('X-Proxy-Attempts')).toBe('3')
     expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('503')
@@ -187,7 +197,7 @@ describe('makeCloudfrontProxy', () => {
     expect(mock).not.toHaveBeenCalled()
     expect(res.status).toBe(405)
     expect(res.headers.get('Allow')).toBe('GET, HEAD')
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expectPublicNoStore(res)
   })
 
   it('fails closed when the ungated focus state cannot be read', async () => {
@@ -204,7 +214,7 @@ describe('makeCloudfrontProxy', () => {
     expect(cache.match).not.toHaveBeenCalled()
     expect(cache.put).not.toHaveBeenCalled()
     expect(res.status).toBe(502)
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expectPublicNoStore(res)
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-focus-error')
   })
 
@@ -231,7 +241,7 @@ describe('makeCloudfrontProxy', () => {
     const firstSuppressed = await proxy(makeContext().context)
     expect(firstSuppressed.status).toBe(503)
     expect(firstSuppressed.headers.get('Retry-After')).toBe('60')
-    expect(firstSuppressed.headers.get('Cache-Control')).toBe('no-store')
+    expectPublicNoStore(firstSuppressed)
     expect(await firstSuppressed.json()).toEqual({suppressed: true, reason: 'focus mode active'})
 
     const sustained = await proxy(makeContext().context)
@@ -253,7 +263,7 @@ describe('proxy routes', () => {
   // Every artifact the site serves from its own domain: upstream CloudFront
   // path + the public Content-Type the route owns.
   const routes: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>, string, string]> = [
-    ['/llms.txt', llmsTxtRoute, '/llms.txt', 'text/plain; charset=utf-8'],
+    ['/llms.txt', llmsTxtRoute, LLMS_TXT_PATH, 'text/plain; charset=utf-8'],
     ['/llms-full.txt', llmsFullRoute, LLM_CONTENT_PATHS.llmsFull, 'text/markdown; charset=utf-8'],
     ['/index.md', indexMdRoute, LLM_CONTENT_PATHS.indexMarkdown, 'text/markdown; charset=utf-8'],
     ['/feed.xml', feedXmlRoute, '/feed.xml', 'application/rss+xml; charset=utf-8'],
@@ -285,7 +295,7 @@ describe('non-retryable upstream privacy responses', () => {
     expect(cache.match).not.toHaveBeenCalled()
     expect(cache.put).not.toHaveBeenCalled()
     expect(res.status).toBe(502)
-    expect(res.headers.get('Cache-Control')).toBe('no-store')
+    expectPublicNoStore(res)
     expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
     expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('403')
   })
