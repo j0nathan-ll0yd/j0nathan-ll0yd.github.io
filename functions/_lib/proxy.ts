@@ -40,11 +40,45 @@ export interface CloudfrontProxyContext {
   waitUntil(promise: Promise<unknown>): void
 }
 
+/**
+ * Cache directives for the two paths that serve ARTIFACT CONTENT: the success path and the stale
+ * last-known-good path. Everything else -- suppression, focus-error, terminal-error, 405 -- is
+ * unconditionally no-store via `setPublicNoStore` and is not configurable per route.
+ *
+ * `cdnCacheControl` is emitted on BOTH `CDN-Cache-Control` and `Cloudflare-CDN-Cache-Control`.
+ * Cloudflare always strips `Cloudflare-CDN-Cache-Control` before the client, so it is invisible
+ * in a curl; it is set anyway because it turns Origin Cache Control on and is what decides
+ * Cloudflare's own edge behavior. `CDN-Cache-Control` and `Cache-Control` reach the client.
+ * Omit it to leave both CDN headers unset.
+ */
+export interface CachePolicy {
+  cacheControl: string
+  cdnCacheControl?: string
+}
+
+/**
+ * Default: a browser revalidate plus a short shared-cache TTL. Carried by /feed.xml and
+ * /feed.json, which are the `rss-feed` surface and are deliberately edge-cacheable.
+ */
+const EDGE_CACHED_POLICY: CachePolicy = {cacheControl: `public, max-age=0, s-maxage=${FRESH_CACHE_SECONDS}`}
+
+/**
+ * The llm-outputs trio (/llms.txt, /llms-full.txt, /index.md). The llms-assurance contract
+ * requires no-store on all three cache headers for every response class of this surface, so the
+ * success and stale paths carry what the suppression and error paths already emit.
+ */
+export const LLM_OUTPUT_CACHE_POLICY: CachePolicy = {cacheControl: PUBLIC_NO_STORE, cdnCacheControl: PUBLIC_NO_STORE}
+
+/** Last-known-good entries are written to the edge Cache API, so they carry their own TTL. */
+const LKG_CACHE_POLICY: CachePolicy = {cacheControl: `public, max-age=${LAST_KNOWN_GOOD_SECONDS}`}
+
 export interface CloudfrontProxyConfig {
   /** Artifact path on the CloudFront data plane, e.g. '/llms-full.txt'. */
   path: string
   /** Content-Type served to the client (CloudFront serves its own; the route owns the public one). */
   contentType: string
+  /** Cache directives for the success and stale paths. Defaults to the shared 60s edge policy. */
+  cachePolicy?: CachePolicy
 }
 
 interface UpstreamSuccess {
@@ -117,15 +151,17 @@ function diagnosticFields(path: string, failure: UpstreamFailure, staleHit?: boo
 }
 
 /**
- * Keep every public cache layer outside this Function from storing an artifact.
+ * Keep every public cache layer outside this Function from storing a response.
  * Cloudflare-CDN-Cache-Control is Cloudflare-specific, CDN-Cache-Control covers
  * any other shared intermediary, and Cache-Control reaches the browser. The
  * origin fetch cache and private LKG cache are configured separately below.
+ *
+ * This is the UNCONDITIONAL form, for responses no route may ever have cached:
+ * suppression, focus-error, terminal-error and method-not-allowed. Artifact
+ * content goes through the route's own `CachePolicy` instead.
  */
 function setPublicNoStore(headers: Headers): void {
-  headers.set('Cache-Control', PUBLIC_NO_STORE)
-  headers.set('CDN-Cache-Control', PUBLIC_NO_STORE)
-  headers.set('Cloudflare-CDN-Cache-Control', PUBLIC_NO_STORE)
+  applyCachePolicy(headers, LLM_OUTPUT_CACHE_POLICY)
 }
 
 function isRetryableStatus(status: number): boolean {
@@ -228,26 +264,42 @@ async function fetchWithRetry(upstreamUrl: string, path: string): Promise<Upstre
   return {ok: false, attempts: MAX_ATTEMPTS, response: lastResponse, errorName}
 }
 
-function publicResponse(upstream: Response, contentType: string, attempts: number): Response {
+/**
+ * Writes one cache policy onto a header set, clearing the CDN headers first so a policy without
+ * `cdnCacheControl` can never inherit one from a copied response (the stale and last-known-good
+ * paths both start from headers they did not author).
+ */
+function applyCachePolicy(headers: Headers, policy: CachePolicy): void {
+  headers.set('Cache-Control', policy.cacheControl)
+  headers.delete('CDN-Cache-Control')
+  headers.delete('Cloudflare-CDN-Cache-Control')
+  if (policy.cdnCacheControl) {
+    headers.set('CDN-Cache-Control', policy.cdnCacheControl)
+    headers.set('Cloudflare-CDN-Cache-Control', policy.cdnCacheControl)
+  }
+}
+
+function publicResponse(upstream: Response, contentType: string, attempts: number, policy: CachePolicy): Response {
   const headers = new Headers({
     'Content-Type': contentType,
     'X-Proxy-Attempts': String(attempts),
     'X-Proxy-Upstream-Status': String(upstream.status),
     'X-Source': 'cloudfront-proxy'
   })
+  applyCachePolicy(headers, policy)
   const requestId = upstreamRequestId(upstream)
   if (requestId) {
     headers.set('X-Proxy-Upstream-Request-Id', requestId)
   }
-  setPublicNoStore(headers)
   return new Response(upstream.body, {status: 200, headers})
 }
 
 async function saveLastKnownGood(cache: CacheLike, cacheKey: Request, response: Response, path: string): Promise<void> {
   const headers = new Headers(response.headers)
-  headers.delete('CDN-Cache-Control')
-  headers.delete('Cloudflare-CDN-Cache-Control')
-  headers.set('Cache-Control', `public, max-age=${LAST_KNOWN_GOOD_SECONDS}`)
+  // The public policy may be no-store; the Cache API reads these headers to decide the entry's
+  // TTL, so the stored copy carries the LKG TTL and no CDN override instead. Storing a no-store
+  // copy would silently disable the stale fallback for the trio.
+  applyCachePolicy(headers, LKG_CACHE_POLICY)
   headers.set('X-Proxy-Lkg-Stored-At', new Date().toISOString())
   try {
     await cache.put(cacheKey, new Response(response.body, {status: 200, headers}))
@@ -261,7 +313,8 @@ async function staleResponse(
   cacheKey: Request,
   contentType: string,
   path: string,
-  failure: UpstreamFailure
+  failure: UpstreamFailure,
+  policy: CachePolicy
 ): Promise<Response | undefined> {
   if (!cache || (failure.response && !isRetryableStatus(failure.response.status))) {
     return undefined
@@ -282,7 +335,7 @@ async function staleResponse(
   const diagnostics = diagnosticHeaders(failure)
   diagnostics.forEach((value, name) => headers.set(name, value))
   headers.set('Content-Type', contentType)
-  setPublicNoStore(headers)
+  applyCachePolicy(headers, policy)
   headers.set('Warning', '110 - "Response is stale"')
   headers.set('X-Proxy-Stale', 'true')
   headers.set('X-Source', 'cloudfront-proxy-stale')
@@ -291,7 +344,9 @@ async function staleResponse(
 }
 
 /** Builds an onRequest handler that proxies one CloudFront artifact resiliently. */
-export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig): (context: CloudfrontProxyContext) => Promise<Response> {
+export function makeCloudfrontProxy(
+  {path, contentType, cachePolicy = EDGE_CACHED_POLICY}: CloudfrontProxyConfig
+): (context: CloudfrontProxyContext) => Promise<Response> {
   const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
 
@@ -302,9 +357,12 @@ export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig):
       return new Response('Method not allowed', {status: 405, headers})
     }
 
-    // Privacy gate first. Public responses are no-store at the browser, generic
-    // CDN, and Cloudflare-specific layers, so every request reaches this check.
-    // The 60s origin fetch cache and three-hour LKG remain behind the gate.
+    // Privacy gate first. The focus signal is never itself gated. The trio's responses are
+    // no-store at the browser, generic CDN, and Cloudflare-specific layers, so every request for
+    // them reaches this check. The residual disclosure window after a hiding transition is
+    // bounded by the route's own policy: zero for the no-store trio, 60s for the edge-cached
+    // feeds. No route can enter SWR. The 60s origin fetch cache and three-hour LKG remain
+    // behind the gate.
     const privacyResponse = await focusPrivacyResponse(context.request.method, path)
     if (privacyResponse) {
       return privacyResponse
@@ -315,14 +373,14 @@ export function makeCloudfrontProxy({path, contentType}: CloudfrontProxyConfig):
     const upstream = await fetchWithRetry(upstreamUrl, path)
 
     if (upstream.ok) {
-      const response = publicResponse(upstream.response, contentType, upstream.attempts)
+      const response = publicResponse(upstream.response, contentType, upstream.attempts, cachePolicy)
       if (cache) {
         context.waitUntil(saveLastKnownGood(cache, cacheKey, response.clone(), path))
       }
       return response
     }
 
-    const stale = await staleResponse(cache, cacheKey, contentType, path, upstream)
+    const stale = await staleResponse(cache, cacheKey, contentType, path, upstream, cachePolicy)
     if (stale) {
       return stale
     }
