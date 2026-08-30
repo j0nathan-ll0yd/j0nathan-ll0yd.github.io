@@ -9,6 +9,13 @@
 // tight-cadence (target 15-minute) SUBSET of those checks. It reuses the same
 // assertion logic and the same oracle; it invents no new thresholds.
 //
+// Each trio artifact is fetched from BOTH planes -- the site (via the Pages
+// Functions proxy) and the CloudFront origin behind it -- and the contract's
+// origin-site coherence pair is evaluated per artifact. That is the only way to
+// see a proxy serving a composed-at that LAGS its origin: a transient sub-4h
+// lag is internally consistent and well inside the 4h composition-age window,
+// so no site-only check can detect it. The cost is 3 extra GETs per tick.
+//
 // READ-ONLY. Issues HTTP GETs and inspects responses. Touches no site source,
 // no CSP, no build behavior, no served artifact -- the same guarantee
 // audit-web.yml makes.
@@ -24,7 +31,8 @@
 
 import freshnessConfig from '@j0nathan-ll0yd/estate-contracts/llms-assurance/freshness-config.json' with {type: 'json'}
 import {aggregateSpokeEvidenceStatus, assertFreshnessConfig, durationToMilliseconds} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
-import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from './lib/http.mjs'
 import {probeSuppression, suppressionDisposition} from './lib/suppression.mjs'
 import {validateFeedXml} from './check-feeds.mjs'
@@ -68,13 +76,32 @@ export const ACCEPTABLE_CACHE_STATES = Object.freeze(['dynamic', 'bypass'])
 // Values proving it WAS served from edge cache -- incompatible with no-store.
 export const CACHED_STATES = Object.freeze(['hit', 'revalidated', 'stale', 'updating'])
 
-// The composed llm-outputs family, served on the PROD DOMAIN via the
-// Pages Functions proxy (functions/llms.txt.ts, llms-full.txt.ts, index.md.ts).
-export const TRIO = Object.freeze([
-  {key: 'llms-txt', url: `${SITE_URL}/llms.txt`},
-  {key: 'llms-full-txt', url: `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`},
-  {key: 'index-md', url: `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`}
-])
+// Result-id fragment for each artifact. Explicit rather than derived from the
+// id so the emitted result ids stay greppable, and so an artifact added to the
+// shared registry fails loudly below instead of silently going unprobed.
+const TRIO_KEY_BY_ID = Object.freeze({'llms.txt': 'llms-txt', 'llms-full.txt': 'llms-full-txt', 'index.md': 'index-md'})
+
+// The composed llm-outputs family. Each artifact is served on TWO planes and
+// this probe observes BOTH:
+//   site   -- jonathanlloyd.me, via the Pages Functions proxy
+//             (functions/llms.txt.ts, llms-full.txt.ts, index.md.ts)
+//   origin -- the CloudFront data plane that proxy fetches from
+//
+// Both URLs come from functions/_lib/llms-artifacts.ts -- the same module the
+// proxy routes read for their `path` and the weekly B2 coherence audit
+// (check-llms-coherence.mjs) reads for its own pair. The proxy builds
+// `upstreamUrl = ${CLOUDFRONT_BASE}${path}` (functions/_lib/proxy.ts), and
+// llms-artifacts.ts derives `originUrl` by that identical rule, so the origin
+// URL probed here cannot drift from the one the proxy actually fetches. The
+// llms.txt path itself is not a literal anywhere: it is read off the portal
+// contract's generated distribution registry.
+export const TRIO = Object.freeze(LLMS_ARTIFACTS.map(({id, siteUrl, originUrl}) => {
+  const key = TRIO_KEY_BY_ID[id]
+  if (!key) {
+    throw new Error(`LLMS_ARTIFACTS carries "${id}", which serving-probe has no result-id fragment for -- add one to TRIO_KEY_BY_ID`)
+  }
+  return {key, url: siteUrl, originUrl}
+}))
 
 // feed.xml serves from the prod domain (functions/feed.xml.ts proxies it).
 export const FEED_XML_URL = `${SITE_URL}/feed.xml`
@@ -288,6 +315,30 @@ export function evaluateCoherence(left, right, maxSkewMs = MAX_COMPOSITION_SKEW_
 }
 
 /**
+ * Pure: (artifact key, site body, origin body) -> the contract's ORIGIN-SITE
+ * coherence verdict for ONE trio artifact.
+ *
+ * This is the pair that catches the PRIMARY bug class this probe exists for:
+ * the Pages Functions proxy serving a composed-at that LAGS the CloudFront
+ * origin it proxies. A site-only observation cannot see it, because a lagging
+ * copy is still internally consistent and still well inside the 4h composition
+ * age -- a transient sub-4h origin lag is invisible to every other check here.
+ *
+ * The rule is evaluateCoherence's, unchanged: same composition timestamp
+ * demands byte equality, a difference inside the 10m skew window is
+ * convergence, beyond it is a failure, and a body that never arrived (null on
+ * either side) is UNKNOWN. Fail-closed: an unreachable origin is never a pass.
+ */
+export function evaluateOriginSiteCoherence(key, siteBody, originBody) {
+  const side = (plane, body) => ({
+    key: `${key}@${plane}`,
+    timestamp: typeof body === 'string' ? extractCompositionTimestamp(body) : null,
+    body: typeof body === 'string' ? body : null
+  })
+  return evaluateCoherence(side('site', siteBody), side('origin', originBody))
+}
+
+/**
  * Pure: structural verdict for one trio artifact.
  *
  * llms.txt runs the SHARED structural rule
@@ -390,39 +441,53 @@ async function probeTrio(now) {
   const results = []
   const composed = []
 
-  for (const {key, url} of TRIO) {
+  for (const {key, url, originUrl} of TRIO) {
     const observation = await observe(url)
+    // The contract's origin-site pair for this artifact. This second GET is the
+    // ONLY way to see the PRIMARY bug class this probe exists for: the Pages
+    // Functions proxy serving a composed-at that LAGS the CloudFront origin. A
+    // transient sub-4h lag never trips the 4h composition-age check, so a
+    // site-only observation cannot distinguish "fresh" from "fresh but behind".
+    const originObservation = await observe(originUrl)
+
     results.push(transportResult(`trio-${key}-http`, url, observation))
-    if (!observation.ok) {
+    results.push(transportResult(`trio-${key}-origin-http`, originUrl, originObservation))
+
+    // A body only counts as observed when the response was OK. A non-OK or
+    // unreachable side stays null, which every evaluator below reports as
+    // UNKNOWN rather than a silent pass.
+    const siteBody = observation.ok ? observation.body : null
+    const originBody = originObservation.ok ? originObservation.body : null
+
+    if (siteBody === null) {
       // No body to reason about. Everything downstream is unverified, not passing.
       results.push(result(`trio-${key}-structure`, UNKNOWN, `${key}: not served, so structure could not be determined`))
       results.push(result(`trio-${key}-cache`, UNKNOWN, `${key}: not served, so the cache policy could not be determined`))
       results.push(result(`trio-${key}-cache-state`, UNKNOWN, `${key}: not served, so the cache state could not be determined`))
       results.push(result(`trio-${key}-composition-age`, UNKNOWN, `${key}: not served, so freshness could not be determined`))
-      composed.push({key, timestamp: null, body: null})
-      continue
+    } else {
+      const structure = evaluateTrioStructure(key, siteBody)
+      results.push(result(`trio-${key}-structure`, structure.status, structure.message))
+
+      const cache = evaluateCachePolicy(readCachePolicy(observation.headers))
+      results.push(result(`trio-${key}-cache`, cache.status, `${key}: ${cache.message}`))
+
+      const cacheState = evaluateCacheState(observation.headers?.get?.('cf-cache-status') ?? null)
+      results.push(result(`trio-${key}-cache-state`, cacheState.status, `${key}: ${cacheState.message}`))
+
+      const age = evaluateCompositionAge(extractCompositionTimestamp(siteBody), now)
+      results.push(result(`trio-${key}-composition-age`, age.status, `${key}: ${age.message}`))
     }
 
-    const structure = evaluateTrioStructure(key, observation.body)
-    results.push(result(`trio-${key}-structure`, structure.status, structure.message))
+    const originSite = evaluateOriginSiteCoherence(key, siteBody, originBody)
+    results.push(result(`trio-${key}-origin-site-coherence`, originSite.status, originSite.message))
 
-    const cache = evaluateCachePolicy(readCachePolicy(observation.headers))
-    results.push(result(`trio-${key}-cache`, cache.status, `${key}: ${cache.message}`))
-
-    const cacheState = evaluateCacheState(observation.headers?.get?.('cf-cache-status') ?? null)
-    results.push(result(`trio-${key}-cache-state`, cacheState.status, `${key}: ${cacheState.message}`))
-
-    const timestamp = extractCompositionTimestamp(observation.body)
-    const age = evaluateCompositionAge(timestamp, now)
-    results.push(result(`trio-${key}-composition-age`, age.status, `${key}: ${age.message}`))
-
-    composed.push({key, timestamp, body: observation.body})
+    composed.push({key, timestamp: extractCompositionTimestamp(siteBody), body: siteBody})
   }
 
-  // The contract's same-side pair. (Its other pair, origin-site per artifact,
-  // needs a second fetch of every artifact from the CloudFront origin; that
-  // stays with the weekly B2 coherence audit rather than doubling this probe's
-  // request volume every 15 minutes.)
+  // The contract's same-side pair: llms-full.txt and index.md are the same
+  // composition served under two names, so they are compared to each other on
+  // the site plane. The origin-site pair is checked per artifact above.
   const full = composed.find(({key}) => key === 'llms-full-txt')
   const indexMd = composed.find(({key}) => key === 'index-md')
   const coherence = evaluateCoherence(full, indexMd)

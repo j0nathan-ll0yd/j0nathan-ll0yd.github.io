@@ -12,13 +12,18 @@
 # https://jonathanlloyd.me and the CloudFront data plane, nothing else. This
 # workflow never touches site source, CSP, or build behavior.
 #
-# ADMISSION-LIGHT, BY DESIGN. This is a plain node job (undici `fetch`), NOT the
-# runner-playwright image, and it starts no Colima VM -- the 10-slot Colima
-# admission lane is scarce and a 15-minute cadence would monopolise it. The
-# `cfedge` label is the COLIMA-CFEDGE egress-lane marker (ci-runners-private
-# #130, stage C2) and is admission-neutral; it is present because this probe
-# fetches the CloudFront data plane directly for the public JSON exports, which
-# is exactly the egress that label's source-scoped rule allows.
+# THIS JOB HOLDS A FULL TRUSTED-COLIMA ADMISSION SLOT. It boots no VM of its own,
+# but `node` resolves to an ephemeral Docker container inside the always-on Colima
+# VM, and that container still occupies one trusted-Colima admission slot. So
+# `COLIMA_MAX_CONCURRENT_JOBS` stays the arbiter and this lane is NOT exempt from
+# the admission gate -- exempting a 96-dispatch-per-day lane is exactly the flood
+# Atlas decision 0093 exists to prevent. The trade is explicit: while Colima
+# admission is closed the probe defers and its quarter coalesces away, so the
+# effective cadence degrades gracefully to the next open quarter under fleet
+# pressure. Only the `cfedge` LABEL is admission-neutral (it is an egress-lane
+# marker, not a capacity marker, and reserves no capacity in either state); the
+# JOB is not. See ci-runners-private `docs/external-audit-scheduler.md`,
+# "Quarter-hour serving-probe lane" -> "Admission neutrality".
 #
 # REPORT-ONLY (D4): the probe step runs `continue-on-error: true`, so a finding
 # never fails the job or blocks anything. Results reconcile ONE machine-owned
@@ -79,10 +84,13 @@ jobs:
     name: Serving probe (llms trio + public exports)
     if: >-
       github.event_name == 'workflow_dispatch' && (inputs.tier == 'serving' || inputs.tier == 'all')
-    # node label (NOT playwright): this probe needs undici `fetch`, not a browser.
+    # node label (NOT playwright): this probe needs undici `fetch`, not a browser. It still
+    # resolves to a Colima runtime and occupies one trusted-Colima admission slot -- see the
+    # admission note in this file's header.
     # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) --
     # routes this job onto the pinned subnet whose source-scoped rule allows CloudFront :443,
-    # which the public JSON exports are fetched from. Admission-neutral.
+    # which the public JSON exports and the trio's origin side are fetched from. The label
+    # itself reserves no capacity, so the LABEL is admission-neutral; the job is not.
     runs-on: [self-hosted, linux, arm64, node, cfedge]
     steps:
       - name: Checkout

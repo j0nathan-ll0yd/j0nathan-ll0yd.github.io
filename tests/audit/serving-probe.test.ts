@@ -5,6 +5,7 @@
 // silent `passed`.
 
 import {describe, expect, it} from 'vitest'
+import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {
   ACCEPTABLE_CACHE_STATES,
   aggregate,
@@ -14,6 +15,7 @@ import {
   evaluateCoherence,
   evaluateCompositionAge,
   evaluateJsonExportFreshness,
+  evaluateOriginSiteCoherence,
   evaluateTrioStructure,
   extractCompositionTimestamp,
   JSON_EXPORT_MAX_AGE_DAYS,
@@ -21,7 +23,8 @@ import {
   MAX_COMPOSITION_SKEW_MS,
   readCachePolicy,
   report,
-  REQUIRED_CACHE_HEADERS
+  REQUIRED_CACHE_HEADERS,
+  TRIO
 } from '../../scripts/audit/serving-probe.mjs'
 
 const headers = (entries: Record<string, string>) => new Headers(entries)
@@ -182,6 +185,64 @@ describe('evaluateCoherence', () => {
 
   it('is indeterminate when either side has no composition timestamp', () => {
     expect(evaluateCoherence(at('2026-08-30T18:00:00.000Z', 'a', 'a'), {key: 'b', timestamp: null, body: null}).status).toBe('unknown')
+  })
+})
+
+// The origin-site pair. The site-only same-side check above cannot see a proxy
+// serving a composed-at that LAGS its CloudFront origin: the lagging copy is
+// internally consistent and, under 4h, passes the composition-age check too.
+describe('evaluateOriginSiteCoherence', () => {
+  const composed = (iso: string, tail = '') => `# Jonathan Lloyd\n\n**Generated:** ${iso}\n${tail}`
+
+  it('passes when the site and the origin advertise the same composition and serve identical bytes', () => {
+    const body = composed('2026-08-30T17:46:28.232Z')
+    const verdict = evaluateOriginSiteCoherence('llms-full-txt', body, body)
+    expect(verdict.status).toBe('passed')
+    expect(verdict.message).toContain('llms-full-txt@site vs llms-full-txt@origin')
+  })
+
+  // Same generation, different bytes: the proxy served something the origin did not.
+  it('fails identical composition timestamps with differing bytes', () => {
+    const stamp = '2026-08-30T17:46:28.232Z'
+    expect(evaluateOriginSiteCoherence('index-md', composed(stamp), composed(stamp, 'truncated')).status).toBe('failed')
+  })
+
+  // THE BUG CLASS THIS CHECK EXISTS FOR: a site copy composed 25 minutes behind
+  // the origin. Both are well inside the 4h age window, so nothing else catches it.
+  it('fails a site copy lagging the origin beyond the 10m skew window', () => {
+    const verdict = evaluateOriginSiteCoherence('llms-txt', composed('2026-08-30T17:21:00.000Z'), composed('2026-08-30T17:46:00.000Z'))
+    expect(verdict.status).toBe('failed')
+    expect(verdict.message).toContain('composition skew 25.00m')
+  })
+
+  it('treats a lag inside the skew window as convergence, not corruption', () => {
+    const verdict = evaluateOriginSiteCoherence('llms-txt', composed('2026-08-30T17:41:00.000Z'), composed('2026-08-30T17:46:00.000Z'))
+    expect(verdict.status).toBe('passed')
+    expect(verdict.message).toContain('convergence')
+  })
+
+  // Fail-closed: an unreachable origin is UNKNOWN, never a silent pass. probeTrio
+  // passes null for a non-OK or unreachable side, which is what this asserts.
+  it('is indeterminate when either side never arrived, or carries no composition marker', () => {
+    const body = composed('2026-08-30T17:46:28.232Z')
+    expect(evaluateOriginSiteCoherence('llms-txt', body, null).status).toBe('unknown')
+    expect(evaluateOriginSiteCoherence('llms-txt', null, body).status).toBe('unknown')
+    expect(evaluateOriginSiteCoherence('llms-txt', null, null).status).toBe('unknown')
+    expect(evaluateOriginSiteCoherence('llms-txt', body, '# no marker at all').status).toBe('unknown')
+  })
+})
+
+// The origin URL must be the one functions/_lib/proxy.ts actually fetches
+// (`${CLOUDFRONT_BASE}${path}`), not a guess. Both sides come from
+// functions/_lib/llms-artifacts.ts, so this asserts the mapping survived.
+describe('TRIO carries both serving planes for every artifact', () => {
+  it('pairs each site URL with the CloudFront origin URL the proxy fetches from', () => {
+    expect(TRIO.map(({key}) => key)).toEqual(['llms-txt', 'llms-full-txt', 'index-md'])
+    for (const {url, originUrl} of TRIO) {
+      const path = new URL(url).pathname
+      expect(url).toBe(`${SITE_URL}${path}`)
+      expect(originUrl).toBe(`${CLOUDFRONT_BASE}${path}`)
+    }
   })
 })
 
