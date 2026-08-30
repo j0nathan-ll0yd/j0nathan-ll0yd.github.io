@@ -6,15 +6,17 @@
 
 import {describe, expect, it} from 'vitest'
 import {
+  ACCEPTABLE_CACHE_STATES,
   aggregate,
+  CACHED_STATES,
   evaluateCachePolicy,
+  evaluateCacheState,
   evaluateCoherence,
   evaluateCompositionAge,
   evaluateJsonExportFreshness,
   evaluateTrioStructure,
   extractCompositionTimestamp,
   JSON_EXPORT_MAX_AGE_DAYS,
-  KNOWN_CACHE_DEVIATIONS,
   MAX_COMPOSITION_AGE_MS,
   MAX_COMPOSITION_SKEW_MS,
   readCachePolicy,
@@ -42,54 +44,82 @@ describe('serving-probe thresholds come from the shared contract', () => {
     expect(MAX_COMPOSITION_SKEW_MS).toBe(10 * 60_000)
   })
 
-  it('requires no-store on all three cache headers the contract names', () => {
-    expect(REQUIRED_CACHE_HEADERS).toEqual({'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store', 'Cloudflare-CDN-Cache-Control': 'no-store'})
+  // Cloudflare ALWAYS strips Cloudflare-CDN-Cache-Control before the client, so
+  // a probe hitting jonathanlloyd.me can never observe it and its absence proves
+  // nothing. Asserting it would manufacture a permanent, uninformative failure.
+  it('asserts only the two client-observable cache headers, not the stripped Cloudflare one', () => {
+    expect(REQUIRED_CACHE_HEADERS).toEqual({'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store'})
+    expect(Object.keys(REQUIRED_CACHE_HEADERS)).not.toContain('Cloudflare-CDN-Cache-Control')
   })
 })
 
 describe('evaluateCachePolicy', () => {
-  it('passes when every required header carries no-store', () => {
-    const observed = readCachePolicy(headers({'cache-control': 'no-store', 'cdn-cache-control': 'no-store', 'cloudflare-cdn-cache-control': 'no-store'}))
+  it('passes when both observable headers carry no-store', () => {
+    const observed = readCachePolicy(headers({'cache-control': 'no-store', 'cdn-cache-control': 'no-store'}))
+    expect(evaluateCachePolicy(observed).status).toBe('passed')
+  })
+
+  it('passes without Cloudflare-CDN-Cache-Control present, since it is never observable', () => {
+    const observed = readCachePolicy(headers({'cache-control': 'no-store', 'cdn-cache-control': 'no-store'}))
+    expect(observed).not.toHaveProperty('cloudflare-cdn-cache-control')
     expect(evaluateCachePolicy(observed).status).toBe('passed')
   })
 
   it('is case- and whitespace-insensitive on the directive', () => {
-    const observed = readCachePolicy(headers({'cache-control': '  No-Store ', 'cdn-cache-control': 'NO-STORE', 'cloudflare-cdn-cache-control': 'no-store'}))
+    const observed = readCachePolicy(headers({'cache-control': '  No-Store ', 'cdn-cache-control': 'NO-STORE'}))
     expect(evaluateCachePolicy(observed).status).toBe('passed')
   })
 
-  // The live condition observed 2026-08-30 on all three trio artifacts.
-  it('reports the named Cloudflare edge-TTL override as indeterminate, not a pass and not a fail', () => {
-    const observed = readCachePolicy(headers({'cache-control': 'public, max-age=600, s-maxage=60'}))
-    const verdict = evaluateCachePolicy(observed)
-    expect(verdict.status).toBe('unknown')
-    expect(verdict.message).toContain('cloudflare-edge-cache-ttl-override')
-    expect(verdict.message).toContain('required-unverified')
-  })
-
-  it('flipping the named deviation to strict reds the same condition -- a one-line promotion', () => {
-    const observed = readCachePolicy(headers({'cache-control': 'public, max-age=600, s-maxage=60'}))
-    const strict = KNOWN_CACHE_DEVIATIONS.map((deviation) => ({...deviation, strict: true}))
-    expect(evaluateCachePolicy(observed, strict).status).toBe('failed')
-  })
-
-  // The whole point of matching the deviation EXACTLY: any drift away from the
-  // known condition is a new regression and must red rather than inherit the
-  // known-deviation exemption.
-  it('fails when the override drifts to a different max-age', () => {
-    const observed = readCachePolicy(headers({'cache-control': 'public, max-age=3600, s-maxage=60'}))
-    const verdict = evaluateCachePolicy(observed)
+  // The retired deviation: this exact policy was classified indeterminate while
+  // an account-level Cloudflare Edge TTL rule forced it. That rule is fixed, so
+  // the same observation is now a plain failure.
+  it('fails the formerly-excused max-age=600 override rather than excusing it', () => {
+    const verdict = evaluateCachePolicy(readCachePolicy(headers({'cache-control': 'public, max-age=600, s-maxage=60'})))
     expect(verdict.status).toBe('failed')
-    expect(verdict.message).toContain('matches no known deviation')
+    expect(verdict.message).not.toContain('known deviation')
   })
 
-  it('fails when no-store is present on only some of the required headers', () => {
-    const observed = readCachePolicy(headers({'cache-control': 'no-store', 'cdn-cache-control': 'no-store'}))
-    expect(evaluateCachePolicy(observed).status).toBe('failed')
+  // The current live state, pending the companion worker PR: the edge override
+  // is gone but the worker still emits max-age=0 rather than no-store.
+  it('fails the current live max-age=0 policy -- honest until the worker emits no-store', () => {
+    expect(evaluateCachePolicy(readCachePolicy(headers({'cache-control': 'public, max-age=0, s-maxage=60'}))).status).toBe('failed')
+  })
+
+  it('fails when only one of the two observable headers carries no-store', () => {
+    expect(evaluateCachePolicy(readCachePolicy(headers({'cache-control': 'no-store'}))).status).toBe('failed')
+    expect(evaluateCachePolicy(readCachePolicy(headers({'cdn-cache-control': 'no-store'}))).status).toBe('failed')
   })
 
   it('fails when the cache headers are absent entirely', () => {
     expect(evaluateCachePolicy(readCachePolicy(headers({}))).status).toBe('failed')
+  })
+})
+
+describe('evaluateCacheState', () => {
+  it('passes the states proving the response came from the origin', () => {
+    for (const state of ACCEPTABLE_CACHE_STATES) {
+      expect(evaluateCacheState(state).status).toBe('passed')
+      expect(evaluateCacheState(state.toUpperCase()).status).toBe('passed')
+    }
+  })
+
+  it('fails every state proving the response was served from the edge cache', () => {
+    for (const state of CACHED_STATES) {
+      expect(evaluateCacheState(state).status).toBe('failed')
+      expect(evaluateCacheState(state.toUpperCase()).status).toBe('failed')
+    }
+  })
+
+  it('covers exactly the states the Cloudflare docs define for each outcome', () => {
+    expect([...ACCEPTABLE_CACHE_STATES]).toEqual(['dynamic', 'bypass'])
+    expect([...CACHED_STATES]).toEqual(['hit', 'revalidated', 'stale', 'updating'])
+  })
+
+  // Fail-closed: a state this probe cannot classify is not a pass.
+  it('is indeterminate when the header is absent or carries an unclassified state', () => {
+    expect(evaluateCacheState(null).status).toBe('unknown')
+    expect(evaluateCacheState('MISS').status).toBe('unknown')
+    expect(evaluateCacheState('EXPIRED').status).toBe('unknown')
   })
 })
 
@@ -238,6 +268,7 @@ describe('unreachable and unparseable observations never pass', () => {
       evaluateTrioStructure('llms-txt', null), // body never arrived
       evaluateCompositionAge(null, now), // nothing to read a timestamp from
       evaluateCoherence({key: 'a', timestamp: null, body: null}, {key: 'b', timestamp: null, body: null}),
+      evaluateCacheState(null), // no cf-cache-status header to classify
       evaluateJsonExportFreshness('books', null, now) // body did not parse as JSON
     ]
     for (const verdict of verdicts) {

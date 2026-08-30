@@ -42,8 +42,31 @@ export const MAX_COMPOSITION_AGE_MS = durationToMilliseconds(COHERENCE.maxCompos
 export const MAX_COMPOSITION_SKEW_MS = durationToMilliseconds(COHERENCE.maxCompositionSkew) // 10m
 // "inclusive" means a skew of exactly maxCompositionSkew is still convergence.
 const SKEW_INCLUSIVE = COHERENCE.skewBoundary === 'inclusive'
-// {Cache-Control: 'no-store', CDN-Cache-Control: 'no-store', Cloudflare-CDN-Cache-Control: 'no-store'}
-export const REQUIRED_CACHE_HEADERS = SERVING.publicResponseCachePolicy.headers
+
+// HEADERS THE CONTRACT REQUIRES BUT A CLIENT CAN NEVER SEE.
+//
+// Cloudflare ALWAYS strips `Cloudflare-CDN-Cache-Control` before the response
+// reaches the client -- it is a Cloudflare-only control directive, consumed and
+// removed at the edge by design. An external probe therefore cannot observe it,
+// and its absence is evidence of nothing at all. Asserting it would manufacture
+// a permanent, uninformative failure on every run.
+//
+// `Cache-Control` and `CDN-Cache-Control` DO pass through and are observable, so
+// those are the two the probe asserts. This is a restriction of the OBSERVATION
+// SURFACE, not of the oracle: the required directive is still read from the
+// contract below, and a new observable header added to the contract is picked
+// up here automatically.
+const UNOBSERVABLE_CACHE_HEADERS = new Set(['cloudflare-cdn-cache-control'])
+
+// {Cache-Control: 'no-store', CDN-Cache-Control: 'no-store'}
+export const REQUIRED_CACHE_HEADERS = Object.freeze(
+  Object.fromEntries(Object.entries(SERVING.publicResponseCachePolicy.headers).filter(([name]) => !UNOBSERVABLE_CACHE_HEADERS.has(name.toLowerCase())))
+)
+
+// `cf-cache-status` values proving the response was NOT served from edge cache.
+export const ACCEPTABLE_CACHE_STATES = Object.freeze(['dynamic', 'bypass'])
+// Values proving it WAS served from edge cache -- incompatible with no-store.
+export const CACHED_STATES = Object.freeze(['hit', 'revalidated', 'stale', 'updating'])
 
 // The composed llm-outputs family, served on the PROD DOMAIN via the
 // Pages Functions proxy (functions/llms.txt.ts, llms-full.txt.ts, index.md.ts).
@@ -86,42 +109,6 @@ export const JSON_EXPORTS = Object.freeze([
 // producer.
 export const JSON_EXPORT_MAX_AGE_DAYS = 7
 
-/**
- * NAMED KNOWN DEVIATIONS from the required cache policy.
- *
- * The llms-assurance contract itself records the cause: its
- * `externalDependencies` entry for "Cloudflare account-level Edge Cache TTL
- * rules" carries status `required-unverified` and states the rule "can override
- * response cache headers; this contract does not claim the account rule is
- * corrected". Observed live 2026-08-30 on all three trio artifacts:
- * `cache-control: public, max-age=600, s-maxage=60`, with both CDN-Cache-Control
- * headers absent. functions/_lib/proxy.ts sets `public, max-age=0, s-maxage=60`,
- * so the max-age=600 is demonstrably NOT ours -- it is the account-level
- * override the contract already flags as unverified.
- *
- * `unknown` (indeterminate) maps exactly onto `required-unverified`: the
- * condition is real and unresolved, but it is not a NEW regression this probe
- * discovered. It still opens and keeps the managed issue -- it is labeled, not
- * hidden.
- *
- * TO PROMOTE TO A HARD FAILURE once the account rule is corrected, flip
- * `strict` to true. That is the one-line change; nothing else moves.
- *
- * The match is EXACT on every required header. Any other served policy -- a
- * different max-age, a partial no-store, a directive that disappears -- does
- * not match this deviation and REDS as a genuine failure.
- *
- * @type {ReadonlyArray<{name: string, strict: boolean, reference: string, observed: Readonly<Record<string, string | null>>}>}
- */
-export const KNOWN_CACHE_DEVIATIONS = Object.freeze([
-  Object.freeze({
-    name: 'cloudflare-edge-cache-ttl-override',
-    strict: false,
-    reference: 'llms-assurance externalDependencies: Cloudflare account-level Edge Cache TTL rules (required-unverified)',
-    observed: Object.freeze({'cache-control': 'public, max-age=600, s-maxage=60', 'cdn-cache-control': null, 'cloudflare-cdn-cache-control': null})
-  })
-])
-
 const PASSED = 'passed'
 const FAILED = 'failed'
 const UNKNOWN = 'unknown'
@@ -148,19 +135,21 @@ export function readCachePolicy(headers) {
   return observed
 }
 
-function matchesDeviation(observed, deviation) {
-  const keys = Object.keys(REQUIRED_CACHE_HEADERS).map((name) => name.toLowerCase())
-  return keys.every((key) => observed[key] === normalizeHeaderValue(deviation.observed[key]))
-}
-
 /**
- * Pure: (observed cache policy) -> tri-state verdict.
+ * Pure: (observed cache policy) -> tri-state verdict, asserted STRICTLY against
+ * the contract.
  *
- * passed  -- every required header carries its required directive.
- * unknown -- the observed policy matches a NAMED non-strict known deviation.
- * failed  -- anything else, including any drift away from a known deviation.
+ * There is deliberately no known-deviation escape hatch. One existed while an
+ * account-level Cloudflare Edge Cache TTL rule was rewriting `max-age` on the
+ * way out (forcing `max-age=600` regardless of what the worker set). That rule
+ * has since been corrected out-of-band -- a Cache Rule now bypasses cache and
+ * respects the origin for the trio -- so the condition it excused is gone and
+ * the exemption with it. The contract is now asserted as written.
+ *
+ * passed -- every observable required header carries its required directive.
+ * failed -- any observable required header is absent or carries anything else.
  */
-export function evaluateCachePolicy(observed, deviations = KNOWN_CACHE_DEVIATIONS) {
+export function evaluateCachePolicy(observed) {
   const required = Object.entries(REQUIRED_CACHE_HEADERS).map(([name, directive]) => [name.toLowerCase(), normalizeHeaderValue(directive)])
 
   const missing = required.filter(([key, directive]) => observed[key] !== directive)
@@ -171,20 +160,42 @@ export function evaluateCachePolicy(observed, deviations = KNOWN_CACHE_DEVIATION
   const rendered = missing.map(([key, directive]) => `${key}: expected "${directive}", got ${observed[key] === null ? '(absent)' : `"${observed[key]}"`}`)
     .join('; ')
 
-  for (const deviation of deviations) {
-    if (!matchesDeviation(observed, deviation)) {
-      continue
-    }
-    if (deviation.strict) {
-      return {status: FAILED, message: `known deviation "${deviation.name}" is configured strict -- treating as a failure: ${rendered}`}
-    }
-    return {
-      status: UNKNOWN,
-      message: `matches named known deviation "${deviation.name}" (${deviation.reference}); unverified, not a new regression: ${rendered}`
-    }
-  }
+  return {status: FAILED, message: `served cache policy does not satisfy the contract: ${rendered}`}
+}
 
-  return {status: FAILED, message: `served cache policy does not satisfy the contract and matches no known deviation: ${rendered}`}
+/**
+ * Pure: (cf-cache-status header) -> tri-state verdict.
+ *
+ * A `no-store` artifact must not be served out of the edge cache. Cloudflare
+ * reports what it actually did in `cf-cache-status`, which is the only direct
+ * evidence of cache STATE -- the cache headers above state intent, this states
+ * outcome. The two together are what catch a stale serve: correct headers with
+ * a HIT means something upstream is still caching.
+ *
+ * passed  -- DYNAMIC or BYPASS: the response came from the origin, not the cache.
+ * failed  -- HIT / REVALIDATED / STALE / UPDATING: served from the edge cache.
+ * unknown -- absent, or any other value (MISS, EXPIRED, NONE, ...). Fail-closed:
+ *            a state this probe cannot classify is not a pass. These states mean
+ *            the response went to the origin but Cloudflare still ran it through
+ *            cache logic, which is worth a look; they are reported unverified
+ *            rather than assigned a verdict this probe has no basis to assign.
+ */
+export function evaluateCacheState(cacheStatus) {
+  const observed = normalizeHeaderValue(cacheStatus)
+  if (observed === null) {
+    return {status: UNKNOWN, message: 'no cf-cache-status header on the response -- cache state could not be determined'}
+  }
+  if (ACCEPTABLE_CACHE_STATES.includes(observed)) {
+    return {status: PASSED, message: `cf-cache-status is "${observed}" -- served from the origin, not the edge cache`}
+  }
+  if (CACHED_STATES.includes(observed)) {
+    return {status: FAILED, message: `cf-cache-status is "${observed}" -- served from the edge cache, which no-store forbids`}
+  }
+  return {
+    status: UNKNOWN,
+    message: `cf-cache-status is "${observed}", which is neither a known uncached state (${ACCEPTABLE_CACHE_STATES.join(', ')}) ` +
+      `nor a known cached state (${CACHED_STATES.join(', ')}) -- not verified`
+  }
 }
 
 /**
@@ -386,6 +397,7 @@ async function probeTrio(now) {
       // No body to reason about. Everything downstream is unverified, not passing.
       results.push(result(`trio-${key}-structure`, UNKNOWN, `${key}: not served, so structure could not be determined`))
       results.push(result(`trio-${key}-cache`, UNKNOWN, `${key}: not served, so the cache policy could not be determined`))
+      results.push(result(`trio-${key}-cache-state`, UNKNOWN, `${key}: not served, so the cache state could not be determined`))
       results.push(result(`trio-${key}-composition-age`, UNKNOWN, `${key}: not served, so freshness could not be determined`))
       composed.push({key, timestamp: null, body: null})
       continue
@@ -396,6 +408,9 @@ async function probeTrio(now) {
 
     const cache = evaluateCachePolicy(readCachePolicy(observation.headers))
     results.push(result(`trio-${key}-cache`, cache.status, `${key}: ${cache.message}`))
+
+    const cacheState = evaluateCacheState(observation.headers?.get?.('cf-cache-status') ?? null)
+    results.push(result(`trio-${key}-cache-state`, cacheState.status, `${key}: ${cacheState.message}`))
 
     const timestamp = extractCompositionTimestamp(observation.body)
     const age = evaluateCompositionAge(timestamp, now)
