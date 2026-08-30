@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {makeCloudfrontProxy} from '../../functions/_lib/proxy'
+import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from '../../functions/_lib/proxy'
 import type {CloudfrontProxyContext} from '../../functions/_lib/proxy'
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
@@ -49,6 +49,13 @@ function expectPublicNoStore(response: Response) {
   expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
 }
 
+/** The default CachePolicy: edge-cacheable for 60s, and NO CDN override of any kind. */
+function expectEdgeCached(response: Response) {
+  expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
+  expect(response.headers.get('CDN-Cache-Control')).toBeNull()
+  expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
+}
+
 afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
@@ -70,7 +77,8 @@ describe('makeCloudfrontProxy', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
     expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
-    expectPublicNoStore(res)
+    // No cachePolicy passed, so this exercises the DEFAULT (edge-cached) policy.
+    expectEdgeCached(res)
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy')
     expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
     expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('200')
@@ -134,7 +142,8 @@ describe('makeCloudfrontProxy', () => {
     expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    expectPublicNoStore(res)
+    // No cachePolicy passed, so the stale path also carries the DEFAULT policy.
+    expectEdgeCached(res)
     expect(res.headers.get('Warning')).toBe('110 - "Response is stale"')
     expect(res.headers.get('X-Proxy-Stale')).toBe('true')
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
@@ -280,6 +289,102 @@ describe('proxy routes', () => {
     expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}${upstreamPath}`, FETCH_CACHE_INIT)
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe(contentType)
+  })
+})
+
+describe('per-route cache policy', () => {
+  // covers: llms-txt#Cache policy is per route, and the feed routes stay edge-cached
+  // The llms-assurance contract requires no-store on all three cache headers for every
+  // llm-outputs response class. Two regression classes are under guard here, one per
+  // direction: the trio's success or stale path silently reverting to the edge policy, and
+  // the feed routes silently inheriting the trio's no-store. proxy.ts builds all five, so
+  // neither is visible from the factory tests alone -- they must be asserted per route.
+  const trio: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
+    ['/llms.txt', llmsTxtRoute],
+    ['/llms-full.txt', llmsFullRoute],
+    ['/index.md', indexMdRoute]
+  ]
+  const feeds: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
+    ['/feed.xml', feedXmlRoute],
+    ['/feed.json', feedJsonRoute]
+  ]
+
+  it.each(trio)('%s serves no-store on the success path', async (route, onRequest) => {
+    stubFetch(new Response('payload'))
+    vi.stubGlobal('caches', undefined)
+    const {context} = makeContext(route)
+
+    const res = await onRequest(context)
+
+    expect(res.status).toBe(200)
+    expectPublicNoStore(res)
+  })
+
+  it.each(trio)('%s serves no-store on the stale last-known-good path', async (route, onRequest) => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 503}))
+      ))
+    stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800'}}))
+    const {context} = makeContext(route)
+
+    const pending = onRequest(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expectPublicNoStore(res)
+  })
+
+  it.each(trio)('%s stores a cacheable last-known-good copy despite the no-store public policy', async (route, onRequest) => {
+    stubFetch(new Response('payload'))
+    const cache = stubCache()
+    const {context, background} = makeContext(route)
+
+    await onRequest(context)
+    await Promise.all(background)
+
+    const [, stored] = cache.put.mock.calls[0] as [Request, Response]
+    expect(stored.headers.get('Cache-Control')).toBe('public, max-age=10800')
+    expect(stored.headers.get('CDN-Cache-Control')).toBeNull()
+    expect(stored.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
+  })
+
+  it.each(feeds)('%s stays edge-cached on the success path and sets no CDN override', async (route, onRequest) => {
+    stubFetch(new Response('payload'))
+    vi.stubGlobal('caches', undefined)
+    const {context} = makeContext(route)
+
+    const res = await onRequest(context)
+
+    expect(res.status).toBe(200)
+    expectEdgeCached(res)
+  })
+
+  it.each(feeds)('%s stays edge-cached on the stale last-known-good path', async (route, onRequest) => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 503}))
+      ))
+    // The stored copy carries no-store here on purpose: the stale path must overwrite whatever
+    // it reads from the cache with the ROUTE's policy, not inherit the cached entry's headers.
+    stubCache(new Response('known good', {headers: {'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store'}}))
+    const {context} = makeContext(route)
+
+    const pending = onRequest(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expectEdgeCached(res)
+  })
+
+  it('exports the llm-outputs policy as no-store on every cache header', () => {
+    expect(LLM_OUTPUT_CACHE_POLICY).toEqual({cacheControl: 'no-store', cdnCacheControl: 'no-store'})
   })
 })
 

@@ -16,7 +16,9 @@ only as true as its covering tests.
 - `https://jonathanlloyd.me/llms.txt` — `text/plain; charset=utf-8` — proxy `functions/llms.txt.ts`
 - `https://jonathanlloyd.me/llms-full.txt` — `text/markdown; charset=utf-8` — proxy `functions/llms-full.txt.ts`
 - `https://jonathanlloyd.me/index.md` — byte-identical alias of llms-full.txt — proxy `functions/index.md.ts`
-- All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`
+- All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`. That factory
+  also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) and carry a
+  different cache policy; see "Cache policy is per route" below.
 - Upstream producer: mantle-LifegamesPortal `llm-content` capability, then CloudFront, then these proxies.
 
 ## Shape contract
@@ -60,7 +62,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
 content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt SHALL
 resolve from the portal contract's generated discovery distribution.
-Verified by `tests/unit/cloudfront-proxy.test.ts:262` (all five proxy routes: upstream URL, status,
+Verified by `tests/unit/cloudfront-proxy.test.ts:271` (all five proxy routes: upstream URL, status,
 content-type, including the registry-derived discovery path).
 
 #### Scenario: Advertised path resolves
@@ -79,7 +81,7 @@ and `Cloudflare-CDN-Cache-Control: no-store`. The CloudFront fetch cache (60 sec
 explicit Cache API last-known-good entry (3 hours) are separate origin-side caches behind the
 privacy check; the stored LKG representation SHALL NOT retain the public CDN no-store headers.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:59` (proxy response policy: three-layer no-store
+Verified by `tests/unit/cloudfront-proxy.test.ts:66` (proxy response policy: three-layer no-store
 headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
 `tests/audit/cloudflare-llms-cache-rules.test.ts:36` (external rule audit: applicability,
 GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
@@ -159,6 +161,37 @@ upload.
 - **GIVEN** an origin/site pair or same-side full/index pair has composition timestamps more than 10 minutes apart
 - **WHEN** the coherence evaluator compares them
 - **THEN** it SHALL report excessive composition skew without needing to infer byte corruption
+
+### Requirement: Cache policy is per route, and the feed routes stay edge-cached
+
+`makeCloudfrontProxy` builds FIVE routes, not three. The no-store policy the requirement above
+mandates SHALL be carried by the llm-outputs trio ONLY. /feed.xml and /feed.json are the `rss-feed`
+surface, and their success and stale responses SHALL carry `public, max-age=0, s-maxage=60` with NO
+`CDN-Cache-Control` and NO `Cloudflare-CDN-Cache-Control`. The policy SHALL therefore be a per-route
+`CachePolicy` on `CloudfrontProxyConfig`, never a constant shared by every route.
+
+Responses no route may ever have cached -- suppression, focus-error, terminal-error and
+method-not-allowed -- remain unconditionally no-store regardless of the route's artifact policy.
+
+Verified by `tests/unit/cloudfront-proxy.test.ts:296` (per route, both paths, both directions: the
+trio no-store, the feeds edge-cached, and the last-known-good copy).
+
+This requirement exists because a shared constant is exactly how the two surfaces got conflated
+once already: a factory-level change intended for the canonical llms responses silently retagged
+both feeds as no-store, and the factory-level tests could not see it because they exercise one
+synthetic path. The feed assertions are per route for that reason.
+
+#### Scenario: A feed route keeps its edge cache
+
+- **GIVEN** a client fetches /feed.xml or /feed.json
+- **WHEN** the proxy returns upstream content or a stale last-known-good copy
+- **THEN** the response SHALL carry `public, max-age=0, s-maxage=60` and no CDN cache header
+
+#### Scenario: A stale feed response does not inherit the cached entry's headers
+
+- **GIVEN** a last-known-good entry whose stored headers say `no-store`
+- **WHEN** the feed route serves it as a stale fallback
+- **THEN** the response SHALL carry the route's own edge-cached policy, not the stored headers
 
 ### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 
@@ -259,15 +292,15 @@ in the catalog checks its clause as quoted.
 
 ## Validation matrix
 
-| Requirement              | Unit                                        | Integration                          | Audit (prod)                         | Provenance          |
-| ------------------------ | ------------------------------------------- | ------------------------------------ | ------------------------------------ | ------------------- |
-| Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed)  | raw/canonical coherence evaluator    | weekly B2 coherence                  | portal contract     |
-| Privacy/cache transition | `cloudfront-proxy.test.ts`                  | response headers + `CF-Cache-Status` | weekly B2 coherence                  | Cloudflare docs     |
-| Origin/site coherence    | pure snapshots + evidence builder           | six live responses + v1 envelope     | weekly B2 issue + evidence artifact  | Atlas d8341bd shape |
-| Structural profile       | spec-cases + property test                  | — (external consumer)                | weekly structural                    | —                   |
-| Shared-reference bytes   | `llms-structure.integrity.test.ts`          | producer consumes the same exact pin | —                                    | lockfile + sidecar  |
-| Freshness                | `llms-coherence.test.ts` (fixed clock)       | six live responses                   | weekly B2 coherence                  | maxAgeHours in rule |
-| External anchor          | spec-verification                           | —                                    | weekly drift                         | pinned source       |
+| Requirement              | Unit                                       | Integration                          | Audit (prod)                        | Provenance          |
+| ------------------------ | ------------------------------------------ | ------------------------------------ | ----------------------------------- | ------------------- |
+| Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | raw/canonical coherence evaluator    | weekly B2 coherence                 | portal contract     |
+| Privacy/cache transition | `cloudfront-proxy.test.ts`                 | response headers + `CF-Cache-Status` | weekly B2 coherence                 | Cloudflare docs     |
+| Origin/site coherence    | pure snapshots + evidence builder          | six live responses + v1 envelope     | weekly B2 issue + evidence artifact | Atlas d8341bd shape |
+| Structural profile       | spec-cases + property test                 | — (external consumer)                | weekly structural                   | —                   |
+| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin | —                                   | lockfile + sidecar  |
+| Freshness                | `llms-coherence.test.ts` (fixed clock)     | six live responses                   | weekly B2 coherence                 | maxAgeHours in rule |
+| External anchor          | spec-verification                          | —                                    | weekly drift                        | pinned source       |
 
 ## Gaps
 
