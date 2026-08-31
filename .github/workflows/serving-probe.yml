@@ -89,7 +89,9 @@ jobs:
     # admission note in this file's header.
     # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) --
     # routes this job onto the pinned subnet whose source-scoped rule allows CloudFront :443,
-    # which the public JSON exports and the trio's origin side are fetched from. The label
+    # which the public JSON exports and the origin side of BOTH the trio and the two feeds
+    # (/feed.xml, /feed.json) are fetched from -- same host and port, so the existing
+    # source-scoped rule already covers the feed origin GETs. The label
     # itself reserves no capacity, so the LABEL is admission-neutral; the job is not.
     runs-on: [self-hosted, linux, arm64, node, cfedge]
     steps:

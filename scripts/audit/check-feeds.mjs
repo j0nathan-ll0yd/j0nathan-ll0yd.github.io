@@ -12,15 +12,17 @@
 
 import {XMLParser} from 'fast-xml-parser'
 import {SyntaxValidator} from 'fast-xml-validator'
-import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {feedArtifact} from '../../functions/_lib/feed-artifacts.ts'
 import {fetchStable, isMain, report} from './lib/http.mjs'
 import {probeSuppression, suppressionDisposition} from './lib/suppression.mjs'
 import {emit, rules} from './specs/load.mjs'
 
 // Stryker disable all -- fetch-target URLs, read only by main() (network-path
-// plumbing with no test coverage), never by the pure validators.
-const FEED_XML_URL = `${SITE_URL}/feed.xml`
-const FEED_JSON_URL = `${SITE_URL}/feed.json`
+// plumbing with no test coverage), never by the pure validators. Both come from
+// functions/_lib/feed-artifacts.ts, the same module the two route files and
+// serving-probe.mjs read, so no feed path is a literal in more than one place.
+const FEED_XML_URL = feedArtifact('feed.xml').siteUrl
+const FEED_JSON_URL = feedArtifact('feed.json').siteUrl
 // Stryker restore all
 const R_JSON = rules('feed-json')
 const R_XML = rules('feed-xml')
