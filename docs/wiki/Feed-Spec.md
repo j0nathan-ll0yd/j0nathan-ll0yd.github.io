@@ -18,9 +18,9 @@ output.
 
 Two formats are published, identical in content:
 
-| Format | Path | Content-Type |
-| --- | --- | --- |
-| RSS 2.0 | `/feed.xml` | `application/rss+xml; charset=utf-8` |
+| Format        | Path         | Content-Type                           |
+| ------------- | ------------ | -------------------------------------- |
+| RSS 2.0       | `/feed.xml`  | `application/rss+xml; charset=utf-8`   |
 | JSON Feed 1.1 | `/feed.json` | `application/feed+json; charset=utf-8` |
 
 **RSS 2.0** is the universal baseline — supported by every reader, every
@@ -37,8 +37,8 @@ The feed is composed by the `ComposeFeed` Lambda on every `BroadcastUpdate`
 EventBridge trigger (plus a 30-minute safety-net schedule), writing
 `feed.xml` and `feed.json` to CloudFront. The Cloudflare Pages Functions
 `functions/feed.xml.ts` and `functions/feed.json.ts` proxy those
-CloudFront artifacts with edge caching (`s-maxage=3600,
-stale-while-revalidate=86400`), exposing them at the canonical root paths.
+CloudFront artifacts with edge caching (`public, max-age=0, s-maxage=60`),
+exposing them at the canonical root paths.
 
 This mirrors the `llms.txt` composition pattern exactly. The alternative —
 build-time composition — was rejected because the feed's freshness
@@ -49,9 +49,30 @@ composition would make the feed stale by definition.
 **Freshness model:**
 
 - Backend composes on EventBridge trigger (any source update) + 30-minute schedule
-- CloudFront edge TTL: 5 minutes (`max-age=300`)
-- Pages Function edge TTL: 1 hour (`s-maxage=3600`) with `stale-while-revalidate=86400`
-- Expected staleness for a live event: 0–35 minutes
+- CloudFront origin object TTL: 5 minutes (`max-age=300, s-maxage=300`, stamped by `ComposeFeed`)
+- Pages Function origin fetch cache: 60 seconds (`FRESH_CACHE_SECONDS`, `functions/_lib/proxy.ts:14`)
+- Pages Function response policy: `public, max-age=0, s-maxage=60`
+  (`EDGE_CACHED_POLICY`, `functions/_lib/proxy.ts:63`). No route emits
+  `stale-while-revalidate`; see the comment at `functions/_lib/proxy.ts:364`.
+- Last-known-good fallback copy: `public, max-age=10800`, three hours
+  (`LKG_CACHE_POLICY`, `functions/_lib/proxy.ts:73`). Served only when the
+  upstream fetch fails, and stamped `X-Proxy-Stale: true`.
+- **Cloudflare account-level override.** A catch-all Edge Cache TTL rule
+  rewrites the browser-facing `max-age` to 600 on every non-trio path. The
+  header a client actually observes on `/feed.xml` and `/feed.json` is
+  therefore `public, max-age=600, s-maxage=60`. The 600 comes from
+  Cloudflare, not from the worker. Curl the URL to read the served policy;
+  do not infer it from `functions/_lib/proxy.ts`.
+- Expected staleness for a live event: the 30-minute compose cadence, plus
+  the 5-minute CloudFront TTL, plus the 60-second worker fetch cache, plus
+  however long the Cloudflare edge holds its copy. That last term is set by
+  the account-level rule above and is not visible from this repository, so
+  the total has no ceiling this document can state from source. Measured
+  2026-08-30: the edge served `/feed.xml` at `Age: 1775` (29.6 minutes) and
+  the site plane advertised a `<lastBuildDate>` 30.0 minutes behind the
+  origin's `x-amz-meta-composed-at`. The `feed-xml-origin-site-coherence`
+  check in `scripts/audit/serving-probe.mjs` measures this gap every run
+  rather than asserting a fixed number.
 
 ## Included Domains
 
@@ -80,6 +101,7 @@ the review was published, not when it was exported.
 event types.
 
 **Excluded:**
+
 - `commit` — too granular; a single feature generates dozens of commits
   that would dominate the feed. The merged PR is the meaningful unit.
 - `pr_opened` — a PR that isn't merged yet may never be. Reporting the
@@ -131,13 +153,13 @@ The following data categories are **structurally excluded** — they are not
 parameters to `buildFeedView` and therefore cannot appear in the feed by
 accident.
 
-| Domain | Rationale |
-| --- | --- |
-| Health metrics | Point-in-time biometric data (HR, HRV, steps, calories, sleep stages). Not a completion/production signal; the 7-day aggregate in `llms.txt` is the appropriate surface. |
-| Sleep | Same as health: continuous biometric stream, not a completion event. |
-| Workouts | Individual workout rows are too granular and too personal. Weekly aggregate in `llms.txt` is appropriate. |
-| Focus sessions | Granular time-tracking data; no meaningful completion signal per row. |
-| Location | Six-layer privacy framework on the backend; location data requires suppression, delay, and broadening before any public surface. A feed is the wrong surface for this data at any granularity. |
+| Domain         | Rationale                                                                                                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Health metrics | Point-in-time biometric data (HR, HRV, steps, calories, sleep stages). Not a completion/production signal; the 7-day aggregate in `llms.txt` is the appropriate surface.                       |
+| Sleep          | Same as health: continuous biometric stream, not a completion event.                                                                                                                           |
+| Workouts       | Individual workout rows are too granular and too personal. Weekly aggregate in `llms.txt` is appropriate.                                                                                      |
+| Focus sessions | Granular time-tracking data; no meaningful completion signal per row.                                                                                                                          |
+| Location       | Six-layer privacy framework on the backend; location data requires suppression, delay, and broadening before any public surface. A feed is the wrong surface for this data at any granularity. |
 
 The exclusion is **structural**: `buildFeedView(sources: FeedSources)` is
 typed to accept only the five allowed domains. Passing health, sleep,
@@ -167,10 +189,10 @@ metadata files:
 - **HTTP `Link` response header** (`functions/_middleware.ts`) — two
   entries in the `LINK_HEADER` array on the homepage (`/`).
 
-| Signal | RSS 2.0 | JSON Feed 1.1 |
-| --- | --- | --- |
-| `<link rel="alternate">` | `type="application/rss+xml" href="/feed.xml"` | `type="application/feed+json" href="/feed.json"` |
-| `Link` header | `</feed.xml>; rel="alternate"; type="application/rss+xml"` | `</feed.json>; rel="alternate"; type="application/feed+json"` |
+| Signal                   | RSS 2.0                                                    | JSON Feed 1.1                                                 |
+| ------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------- |
+| `<link rel="alternate">` | `type="application/rss+xml" href="/feed.xml"`              | `type="application/feed+json" href="/feed.json"`              |
+| `Link` header            | `</feed.xml>; rel="alternate"; type="application/rss+xml"` | `</feed.json>; rel="alternate"; type="application/feed+json"` |
 
 ## Honest Timestamps
 

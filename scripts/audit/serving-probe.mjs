@@ -16,6 +16,14 @@
 // lag is internally consistent and well inside the 4h composition-age window,
 // so no site-only check can detect it. The cost is 3 extra GETs per tick.
 //
+// The SAME two-plane treatment covers /feed.xml and /feed.json, under a
+// DIFFERENT budget. The trio is no-store end to end, so its two planes must
+// converge inside the contract's 10m composition skew. The feeds are
+// deliberately edge-cacheable (proxy.ts EDGE_CACHED_POLICY), so a site copy
+// legitimately trails the origin by the cache layers stacked between them.
+// evaluateFeedOriginSiteCoherence below derives that allowance instead of
+// asserting the trio's window; see its comment for the derivation.
+//
 // READ-ONLY. Issues HTTP GETs and inspects responses. Touches no site source,
 // no CSP, no build behavior, no served artifact -- the same guarantee
 // audit-web.yml makes.
@@ -31,11 +39,12 @@
 
 import freshnessConfig from '@j0nathan-ll0yd/estate-contracts/llms-assurance/freshness-config.json' with {type: 'json'}
 import {aggregateSpokeEvidenceStatus, assertFreshnessConfig, durationToMilliseconds} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
-import {CLOUDFRONT_BASE, ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {COMPOSED_AT_METADATA_HEADER, FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from './lib/http.mjs'
 import {probeSuppression, suppressionDisposition} from './lib/suppression.mjs'
-import {validateFeedXml} from './check-feeds.mjs'
+import {validateFeedJson, validateFeedXml} from './check-feeds.mjs'
 import {validateLlmsTxt} from './validate-llms-txt.mjs'
 
 // THE ORACLE. Thresholds are read from the shared contract, never restated as
@@ -50,6 +59,13 @@ export const MAX_COMPOSITION_AGE_MS = durationToMilliseconds(COHERENCE.maxCompos
 export const MAX_COMPOSITION_SKEW_MS = durationToMilliseconds(COHERENCE.maxCompositionSkew) // 10m
 // "inclusive" means a skew of exactly maxCompositionSkew is still convergence.
 const SKEW_INCLUSIVE = COHERENCE.skewBoundary === 'inclusive'
+
+// THE TWO CACHE LAYERS BETWEEN THE COMPOSER AND THE PAGES FUNCTION, both read
+// from the same contract rather than restated. They bound how far a site-plane
+// FEED copy may legitimately trail its origin; see
+// evaluateFeedOriginSiteCoherence for the full derivation.
+export const ORIGIN_CACHE_FRESHNESS_MS = durationToMilliseconds(CONFIG.layers.originComposition.cacheFreshness) // 300s
+export const SITE_FETCH_FRESHNESS_MS = durationToMilliseconds(SERVING.internalCaches.cloudFrontFetchFreshness) // 60s
 
 // HEADERS THE CONTRACT REQUIRES BUT A CLIENT CAN NEVER SEE.
 //
@@ -103,8 +119,31 @@ export const TRIO = Object.freeze(LLMS_ARTIFACTS.map(({id, siteUrl, originUrl}) 
   return {key, url: siteUrl, originUrl}
 }))
 
-// feed.xml serves from the prod domain (functions/feed.xml.ts proxies it).
-export const FEED_XML_URL = `${SITE_URL}/feed.xml`
+// Result-id fragment per feed artifact, explicit for the same reason as
+// TRIO_KEY_BY_ID: the emitted ids stay greppable, and a feed added to the
+// shared registry fails loudly instead of silently going unprobed.
+const FEED_KEY_BY_ID = Object.freeze({'feed.xml': 'feed-xml', 'feed.json': 'feed-json'})
+
+// The syndication feeds, on the SAME two planes the trio is observed on:
+//   site   -- jonathanlloyd.me, via the Pages Functions proxy
+//             (functions/feed.xml.ts, functions/feed.json.ts)
+//   origin -- the CloudFront data plane that proxy fetches from
+//
+// Both URLs come from functions/_lib/feed-artifacts.ts -- the same module the
+// two route files read their `path` from -- and `originUrl` is derived there by
+// the proxy's own `${CLOUDFRONT_BASE}${path}` rule, so the origin URL probed
+// here cannot drift from the one the proxy actually fetches.
+//
+// `format` selects the structural validator and the composition marker:
+//   rss  -- check-feeds.mjs validateFeedXml; composed-at in <lastBuildDate>
+//   json -- check-feeds.mjs validateFeedJson; NO in-body composition marker
+export const FEEDS = Object.freeze(FEED_ARTIFACTS.map(({id, siteUrl, originUrl}) => {
+  const key = FEED_KEY_BY_ID[id]
+  if (!key) {
+    throw new Error(`FEED_ARTIFACTS carries "${id}", which serving-probe has no result-id fragment for -- add one to FEED_KEY_BY_ID`)
+  }
+  return {key, id, url: siteUrl, originUrl, format: id.endsWith('.json') ? 'json' : 'rss'}
+}))
 
 // The public JSON exports are served from the CloudFront data plane, NOT from
 // jonathanlloyd.me -- the site origin 404s every one of them, because the
@@ -226,22 +265,41 @@ export function evaluateCacheState(cacheStatus) {
 }
 
 /**
- * Pure: (artifact body) -> ISO composition timestamp string, or null.
+ * Pure: (artifact body) -> composition timestamp string, or null. The returned
+ * string is whatever the artifact advertises; every consumer runs it through
+ * Date.parse, so an ISO 8601 and an RFC 822 marker are interchangeable here.
  *
- * Two markers are in live use and both are supported (observed 2026-08-30):
+ * Three markers are in live use and all are supported (observed 2026-08-30):
  *   llms.txt                  ->  <!-- composed-at: 2026-08-30T17:46:28.050Z -->
  *   llms-full.txt / index.md  ->  **Generated:** 2026-08-30T17:46:28.232Z
+ *   feed.xml                  ->  <lastBuildDate>Sun, 30 Aug 2026 23:38:43 GMT</lastBuildDate>
+ *
+ * feed.json is DELIBERATELY absent from that list and returns null: JSON Feed
+ * 1.1 defines no build-date field, so its served body carries no composition
+ * marker at all. Its origin plane advertises one out-of-band in the
+ * x-amz-meta-composed-at object metadata, which the Pages Functions proxy does
+ * not forward -- evaluateFeedOriginSiteCoherence handles that asymmetry rather
+ * than this function inventing a marker feed.json does not have.
+ *
+ * `lastBuildDate` is the RSS channel's compose timestamp, not an item date:
+ * docs/wiki/Feed-Spec.md "Honest Timestamps" records that the compose
+ * timestamp lands there and in the S3 object metadata, and is never imputed to
+ * an item.
  *
  * Last-Modified is deliberately NOT a fallback on these routes: the Pages
- * Functions proxy builds a fresh Response, so Last-Modified equals the moment
- * of the proxy hit and would report every stale serve as perfectly fresh --
- * the exact failure this probe exists to catch.
+ * Functions proxy builds a fresh Response, so Last-Modified reflects the edge
+ * cache entry rather than the composition and would report a stale serve as
+ * perfectly fresh -- the exact failure this probe exists to catch.
  */
 export function extractCompositionTimestamp(body) {
   if (typeof body !== 'string') {
     return null
   }
-  const patterns = [/<!--\s*composed-at:\s*([^\s>]+)\s*-->/i, /\*\*Generated:\*\*\s*([0-9T:.Z+-]+)/i]
+  const patterns = [
+    /<!--\s*composed-at:\s*([^\s>]+)\s*-->/i,
+    /\*\*Generated:\*\*\s*([0-9T:.Z+-]+)/i,
+    /<lastBuildDate>\s*([^<]+?)\s*<\/lastBuildDate>/i
+  ]
   for (const pattern of patterns) {
     const match = body.match(pattern)
     if (match && Number.isFinite(Date.parse(match[1]))) {
@@ -249,6 +307,42 @@ export function extractCompositionTimestamp(body) {
     }
   }
   return null
+}
+
+/**
+ * Pure: (Age header value) -> seconds the edge has held this copy, floored at 0.
+ *
+ * Absent, negative, or unparseable collapses to 0, which is the STRICTEST
+ * reading: it credits the response with no edge dwell at all and therefore
+ * grants the smallest coherence allowance below. Fail-closed by construction --
+ * a missing Age can only tighten a verdict, never loosen one.
+ */
+export function parseAgeSeconds(value) {
+  const seconds = Number.parseInt(typeof value === 'string' ? value.trim() : '', 10)
+  return Number.isFinite(seconds) && seconds > 0 ? seconds : 0
+}
+
+/**
+ * Pure: (site-plane Age in seconds) -> how far a site FEED copy may trail its
+ * origin before that lag stops being explainable by caching.
+ *
+ * Every term is read from the shared contract or observed on the response; no
+ * threshold is invented here.
+ *
+ *   Age                       the Cloudflare edge has held THIS copy for this
+ *                             long, so it was fetched from the worker Age
+ *                             seconds ago (observed; 0 when absent)
+ * + cloudFrontFetchFreshness  the worker's own origin fetch cache may have been
+ *                             this stale at that moment (contract, 60s)
+ * + cacheFreshness            CloudFront may have been this stale when the
+ *                             worker fetched it (contract, 300s)
+ *
+ * The sum is the oldest composition a correctly behaving stack can still be
+ * serving. Anything older is not explained by any cache layer in the path.
+ */
+export function feedLagBudgetMs(ageSeconds = 0) {
+  const dwellMs = Number.isFinite(ageSeconds) && ageSeconds > 0 ? ageSeconds * 1000 : 0
+  return dwellMs + SITE_FETCH_FRESHNESS_MS + ORIGIN_CACHE_FRESHNESS_MS
 }
 
 /** Pure: (timestamp, now) -> tri-state verdict against the contract's 4h maximum composition age. */
@@ -336,6 +430,166 @@ export function evaluateOriginSiteCoherence(key, siteBody, originBody) {
     body: typeof body === 'string' ? body : null
   })
   return evaluateCoherence(side('site', siteBody), side('origin', originBody))
+}
+
+/**
+ * Pure: (feed key, site observation, origin observation, now) -> the ORIGIN-SITE
+ * coherence verdict for ONE feed artifact.
+ *
+ * WHY THIS IS NOT evaluateOriginSiteCoherence. The trio is `no-store` on every
+ * cache header of every response class, so its two planes are expected to hold
+ * the SAME composition and the contract's 10m skew window is the right
+ * assertion. The feeds are the opposite by design: EDGE_CACHED_POLICY
+ * (functions/_lib/proxy.ts) makes them `s-maxage=60`, deliberately
+ * edge-cacheable, so a site copy that trails the origin is CORRECT behavior,
+ * not a regression. Asserting the trio's window here would red the lane for a
+ * feed doing exactly what it is configured to do.
+ *
+ * What replaces it is not a looser guess. It is the sum of the cache layers
+ * physically between the composer and the client, every term read from the
+ * contract or observed on the response -- see feedLagBudgetMs. A lag inside
+ * that sum is explained by caching; a lag beyond it is explained by nothing,
+ * which is the bug class worth catching.
+ *
+ * Both planes are handled by one rule, with the JSON asymmetry made explicit:
+ *
+ *   site.body / origin.body        served bytes, or null when the plane did not
+ *                                  answer OK
+ *   site.timestamp                 feed.xml: <lastBuildDate>. feed.json: null,
+ *                                  because JSON Feed 1.1 has no such field and
+ *                                  the proxy forwards no object metadata
+ *   origin.timestamp               feed.xml: <lastBuildDate>. feed.json: the
+ *                                  x-amz-meta-composed-at object metadata
+ *                                  CloudFront mirrors to the client
+ *   site.ageSeconds                the site response's own Age header
+ *
+ * passed  -- bytes match; or the lag is inside the budget.
+ * failed  -- both planes advertise the SAME composition but serve different
+ *            bytes; or the site advertises a composition NEWER than its own
+ *            origin (impossible under a proxy, so it means mixed origins); or
+ *            the lag exceeds the budget.
+ * unknown -- a plane never answered, or no composition marker exists on the
+ *            side needed to classify a byte difference. Fail-closed.
+ */
+export function evaluateFeedOriginSiteCoherence(key, site, origin, now = new Date()) {
+  const pair = `${key}@site vs ${key}@origin`
+  const siteBody = typeof site?.body === 'string' ? site.body : null
+  const originBody = typeof origin?.body === 'string' ? origin.body : null
+
+  if (siteBody === null || originBody === null) {
+    const which = [siteBody === null ? 'site' : null, originBody === null ? 'origin' : null].filter(Boolean).join(' and ')
+    return {status: UNKNOWN, message: `${pair}: the ${which} plane served no body -- coherence could not be determined`}
+  }
+
+  // Every failing message below shows its own arithmetic, so a red result names
+  // which term was too small rather than only that some budget was exceeded.
+  const ageSeconds = Number.isFinite(site?.ageSeconds) && site.ageSeconds > 0 ? site.ageSeconds : 0
+  const budgetMs = feedLagBudgetMs(ageSeconds)
+  const budgetMinutes = (budgetMs / 60_000).toFixed(2)
+  const dwell = `Age ${ageSeconds}s + ${SITE_FETCH_FRESHNESS_MS / 1000}s worker fetch cache ` + `+ ${ORIGIN_CACHE_FRESHNESS_MS / 1000}s CloudFront TTL`
+
+  // The strongest evidence there is: the site is serving the origin's current
+  // object verbatim. No timestamp is needed to conclude coherence from it, which
+  // is what makes feed.json checkable at all on its usual path.
+  if (siteBody === originBody) {
+    return {status: PASSED, message: `${pair}: byte-identical (${siteBody.length} bytes) -- the site serves the origin's current composition`}
+  }
+
+  const originMs = Date.parse(origin?.timestamp ?? '')
+  if (!Number.isFinite(originMs)) {
+    return {
+      status: UNKNOWN,
+      message: `${pair}: the served bytes differ and the origin advertises no parseable composition timestamp ` +
+        `(${COMPOSED_AT_METADATA_HEADER} / <lastBuildDate>) -- the difference could not be classified`
+    }
+  }
+
+  const siteMs = Date.parse(site?.timestamp ?? '')
+  if (!Number.isFinite(siteMs)) {
+    // feed.json's normal path once its content moves. The site plane advertises
+    // no composition at all, so the only answerable question is whether the
+    // origin recomposed recently enough for the caches to still be holding the
+    // previous object. A site copy older than that is stuck, not merely cached.
+    const originAgeMs = now.getTime() - originMs
+    const originAgeMinutes = (originAgeMs / 60_000).toFixed(2)
+    if (originAgeMs <= budgetMs) {
+      return {
+        status: PASSED,
+        message: `${pair}: bytes differ and the site plane advertises no composition marker, but the origin recomposed ` +
+          `${originAgeMinutes}m ago (${origin.timestamp}), inside the ${budgetMinutes}m cache budget (${dwell}) -- ` +
+          'the site is still serving the previous object, which the cache layers explain'
+      }
+    }
+    return {
+      status: FAILED,
+      message: `${pair}: bytes differ, yet the origin composition is ${originAgeMinutes}m old (${origin.timestamp}) -- ` +
+        `beyond the ${budgetMinutes}m cache budget (${dwell}), so no cache layer explains the site serving something else`
+    }
+  }
+
+  if (siteMs === originMs) {
+    return {
+      status: FAILED,
+      message: `${pair}: both advertise composition timestamp ${origin.timestamp} but the served bytes differ ` +
+        `(${siteBody.length} vs ${originBody.length}) -- byte equality is required at the same composition timestamp`
+    }
+  }
+
+  if (siteMs > originMs) {
+    return {
+      status: FAILED,
+      message: `${pair}: the site advertises composition ${site.timestamp}, NEWER than its own origin's ${origin.timestamp} -- ` +
+        'a proxy cannot serve a composition its origin has not published, so the two planes are reading different origins'
+    }
+  }
+
+  const lagMs = originMs - siteMs
+  const lagMinutes = (lagMs / 60_000).toFixed(2)
+  if (lagMs <= budgetMs) {
+    return {
+      status: PASSED,
+      message: `${pair}: the site trails the origin by ${lagMinutes}m (${site.timestamp} / ${origin.timestamp}), ` +
+        `inside the ${budgetMinutes}m cache budget (${dwell}) -- explained by caching, not a stale serve`
+    }
+  }
+  return {
+    status: FAILED,
+    message: `${pair}: the site trails the origin by ${lagMinutes}m (${site.timestamp} / ${origin.timestamp}), ` +
+      `beyond the ${budgetMinutes}m cache budget (${dwell}) -- no cache layer in the path explains a lag that large`
+  }
+}
+
+/**
+ * Pure: structural verdict for one feed artifact, delegating to check-feeds.mjs
+ * rather than restating either format's rules or their freshness windows.
+ *
+ * feed.json gets the same treatment feed.xml already had. Before this it was
+ * not probed at all on the tight cadence, so a feed.json that started serving
+ * an error page, an empty item list, or unparseable JSON was invisible until
+ * the weekly tier ran.
+ */
+export function evaluateFeedStructure(key, format, body, now = new Date()) {
+  if (typeof body !== 'string' || body.trim().length === 0) {
+    return {status: UNKNOWN, message: `${key}: served an empty body -- structure could not be determined`}
+  }
+
+  let findings
+  try {
+    if (format === 'json') {
+      findings = validateFeedJson(JSON.parse(body), now)
+    } else {
+      findings = validateFeedXml(body, now)
+    }
+  } catch (err) {
+    return {status: UNKNOWN, message: `${key}: validator could not evaluate the served body: ${err.message}`}
+  }
+
+  const fails = findings.filter((finding) => finding.severity === 'fail')
+  if (fails.length > 0) {
+    return {status: FAILED, message: `${key}: ${fails.map((finding) => `${finding.id}: ${finding.message}`).join('; ')}`}
+  }
+  const shape = format === 'json' ? 'JSON Feed 1.1' : 'RSS 2.0'
+  return {status: PASSED, message: `${key}: parses as ${shape} and satisfies check-feeds.mjs structural rules`}
 }
 
 /**
@@ -496,28 +750,40 @@ async function probeTrio(now) {
   return results
 }
 
-async function probeFeedXml() {
-  const observation = await observe(FEED_XML_URL)
-  const results = [transportResult('feed-xml-http', FEED_XML_URL, observation)]
-  if (!observation.ok) {
-    results.push(result('feed-xml-structure', UNKNOWN, 'feed.xml: not served, so structure could not be determined'))
-    return results
+async function probeFeeds(now) {
+  const results = []
+
+  for (const {key, url, originUrl, format} of FEEDS) {
+    const observation = await observe(url)
+    // The second GET, for the same reason probeTrio makes one: a site-only
+    // observation cannot see a proxy serving a composition that lags its
+    // CloudFront origin. It is the gap web PR #240 closed for the trio.
+    const originObservation = await observe(originUrl)
+
+    results.push(transportResult(`${key}-http`, url, observation))
+    results.push(transportResult(`${key}-origin-http`, originUrl, originObservation))
+
+    const siteBody = observation.ok ? observation.body : null
+    const originBody = originObservation.ok ? originObservation.body : null
+
+    if (siteBody === null) {
+      results.push(result(`${key}-structure`, UNKNOWN, `${key}: not served, so structure could not be determined`))
+    } else {
+      const structure = evaluateFeedStructure(key, format, siteBody, now)
+      results.push(result(`${key}-structure`, structure.status, structure.message))
+    }
+
+    // The site plane's composition marker is in-body for RSS and absent for
+    // JSON Feed. The origin plane always has the x-amz-meta-composed-at object
+    // metadata CloudFront mirrors through, so it is read there first and the
+    // in-body marker only backs it up.
+    const site = {body: siteBody, timestamp: extractCompositionTimestamp(siteBody), ageSeconds: parseAgeSeconds(observation.headers?.get?.('age') ?? null)}
+    const origin = {body: originBody, timestamp: originObservation.headers?.get?.(COMPOSED_AT_METADATA_HEADER) ?? extractCompositionTimestamp(originBody)}
+
+    const coherence = evaluateFeedOriginSiteCoherence(key, site, origin, now)
+    results.push(result(`${key}-origin-site-coherence`, coherence.status, coherence.message))
   }
 
-  // Reuses check-feeds.mjs's pure RSS validator (and its own freshness window)
-  // rather than restating either.
-  let findings
-  try {
-    findings = validateFeedXml(observation.body)
-  } catch (err) {
-    results.push(result('feed-xml-structure', UNKNOWN, `feed.xml: validator could not evaluate the served body: ${err.message}`))
-    return results
-  }
-
-  const fails = findings.filter((finding) => finding.severity === 'fail')
-  results.push(fails.length > 0
-    ? result('feed-xml-structure', FAILED, `feed.xml: ${fails.map((finding) => `${finding.id}: ${finding.message}`).join('; ')}`)
-    : result('feed-xml-structure', PASSED, 'feed.xml: parses as RSS 2.0 and satisfies check-feeds.mjs structural rules'))
   return results
 }
 
@@ -561,7 +827,7 @@ async function main() {
   }
 
   const now = new Date()
-  const results = [...(await probeTrio(now)), ...(await probeFeedXml()), ...(await probeJsonExports(now))]
+  const results = [...(await probeTrio(now)), ...(await probeFeeds(now)), ...(await probeJsonExports(now))]
   process.exit(report(results))
 }
 

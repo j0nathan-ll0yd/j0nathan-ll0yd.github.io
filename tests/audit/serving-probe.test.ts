@@ -14,16 +14,23 @@ import {
   evaluateCacheState,
   evaluateCoherence,
   evaluateCompositionAge,
+  evaluateFeedOriginSiteCoherence,
+  evaluateFeedStructure,
   evaluateJsonExportFreshness,
   evaluateOriginSiteCoherence,
   evaluateTrioStructure,
   extractCompositionTimestamp,
+  feedLagBudgetMs,
+  FEEDS,
   JSON_EXPORT_MAX_AGE_DAYS,
   MAX_COMPOSITION_AGE_MS,
   MAX_COMPOSITION_SKEW_MS,
+  ORIGIN_CACHE_FRESHNESS_MS,
+  parseAgeSeconds,
   readCachePolicy,
   report,
   REQUIRED_CACHE_HEADERS,
+  SITE_FETCH_FRESHNESS_MS,
   TRIO
 } from '../../scripts/audit/serving-probe.mjs'
 
@@ -135,9 +142,32 @@ describe('extractCompositionTimestamp', () => {
     expect(extractCompositionTimestamp('**Generated:** 2026-08-30T17:46:28.232Z')).toBe('2026-08-30T17:46:28.232Z')
   })
 
+  // feed.xml's compose timestamp lands in the RSS channel's <lastBuildDate>,
+  // never on an item (docs/wiki/Feed-Spec.md "Honest Timestamps"). It is RFC 822
+  // rather than ISO 8601; every consumer runs it through Date.parse, so the raw
+  // advertised string is what comes back.
+  it('reads the feed.xml lastBuildDate channel element', () => {
+    const rss = '<rss version="2.0"><channel><lastBuildDate>Sun, 30 Aug 2026 23:38:43 GMT</lastBuildDate></channel></rss>'
+    expect(extractCompositionTimestamp(rss)).toBe('Sun, 30 Aug 2026 23:38:43 GMT')
+    expect(Date.parse(extractCompositionTimestamp(rss) as string)).toBe(Date.parse('2026-08-30T23:38:43.000Z'))
+  })
+
+  // JSON Feed 1.1 defines no build-date field, so a feed.json body genuinely
+  // carries no composition marker. Inventing one would be worse than returning
+  // null: evaluateFeedOriginSiteCoherence branches on exactly this.
+  it('returns null for a feed.json body, which has no composition marker at all', () => {
+    const feedJson = JSON.stringify({
+      version: 'https://jsonfeed.org/version/1.1',
+      title: 'Feed',
+      items: [{id: 'a', date_published: '2026-08-30T12:00:00.000Z'}]
+    })
+    expect(extractCompositionTimestamp(feedJson)).toBeNull()
+  })
+
   it('returns null for a body with no marker, and for an unparseable one', () => {
     expect(extractCompositionTimestamp('# just a heading')).toBeNull()
     expect(extractCompositionTimestamp('<!-- composed-at: not-a-date -->')).toBeNull()
+    expect(extractCompositionTimestamp('<lastBuildDate>whenever</lastBuildDate>')).toBeNull()
     expect(extractCompositionTimestamp(null)).toBeNull()
   })
 })
@@ -246,6 +276,221 @@ describe('TRIO carries both serving planes for every artifact', () => {
   })
 })
 
+// Both feeds are observed on the SAME two planes as the trio. The origin URL
+// must be the one functions/_lib/proxy.ts actually fetches
+// (`${CLOUDFRONT_BASE}${path}`); both sides come from
+// functions/_lib/feed-artifacts.ts, which the two route files also read.
+describe('FEEDS carries both serving planes for every feed artifact', () => {
+  it('pairs each site URL with the CloudFront origin URL the proxy fetches from', () => {
+    expect(FEEDS.map(({key}) => key)).toEqual(['feed-xml', 'feed-json'])
+    for (const {url, originUrl} of FEEDS) {
+      const path = new URL(url).pathname
+      expect(url).toBe(`${SITE_URL}${path}`)
+      expect(originUrl).toBe(`${CLOUDFRONT_BASE}${path}`)
+    }
+  })
+
+  it('routes each artifact to the validator its format needs', () => {
+    expect(FEEDS.map(({id, format}) => [id, format])).toEqual([['feed.xml', 'rss'], ['feed.json', 'json']])
+  })
+})
+
+describe('parseAgeSeconds', () => {
+  it('reads a positive Age header', () => {
+    expect(parseAgeSeconds('1301')).toBe(1301)
+    expect(parseAgeSeconds('  42 ')).toBe(42)
+  })
+
+  // Fail-closed: a missing or nonsense Age credits the response with NO edge
+  // dwell, which yields the SMALLEST coherence allowance. It can only tighten a
+  // verdict, never loosen one.
+  it('collapses an absent, negative, or unparseable Age to zero', () => {
+    expect(parseAgeSeconds(null)).toBe(0)
+    expect(parseAgeSeconds('')).toBe(0)
+    expect(parseAgeSeconds('-5')).toBe(0)
+    expect(parseAgeSeconds('soon')).toBe(0)
+  })
+})
+
+// The feed lag allowance is a SUM OF CONTRACT VALUES plus one observed header,
+// never a literal. If either contract value moves, the budget moves with it.
+describe('feedLagBudgetMs is derived, not hardcoded', () => {
+  it('reads both cache layers from the shared llms-assurance contract', () => {
+    expect(ORIGIN_CACHE_FRESHNESS_MS).toBe(300_000)
+    expect(SITE_FETCH_FRESHNESS_MS).toBe(60_000)
+  })
+
+  it('is the two contract layers at Age zero, and grows one-for-one with edge dwell', () => {
+    expect(feedLagBudgetMs(0)).toBe(SITE_FETCH_FRESHNESS_MS + ORIGIN_CACHE_FRESHNESS_MS)
+    expect(feedLagBudgetMs(600)).toBe(600_000 + SITE_FETCH_FRESHNESS_MS + ORIGIN_CACHE_FRESHNESS_MS)
+  })
+
+  it('never credits a negative or absent Age with dwell', () => {
+    expect(feedLagBudgetMs(-100)).toBe(feedLagBudgetMs(0))
+    expect(feedLagBudgetMs()).toBe(feedLagBudgetMs(0))
+  })
+})
+
+const rssFeed = (lastBuildDate: string, pubDate: string) =>
+  [
+    '<?xml version="1.0" encoding="utf-8"?>',
+    '<rss version="2.0"><channel>',
+    '<title>Jonathan Lloyd</title><link>https://jonathanlloyd.me</link><description>Human Datastream</description>',
+    `<lastBuildDate>${lastBuildDate}</lastBuildDate>`,
+    `<item><title>Review</title><link>https://jonathanlloyd.me/a</link><guid>tag:jonathanlloyd.me,2026:a</guid><pubDate>${pubDate}</pubDate></item>`,
+    '</channel></rss>'
+  ].join('')
+
+const jsonFeed = (datePublished: string, id = 'tag:jonathanlloyd.me,2026:a') =>
+  JSON.stringify({version: 'https://jsonfeed.org/version/1.1', title: 'Jonathan Lloyd', items: [{id, content_text: 'body', date_published: datePublished}]})
+
+describe('evaluateFeedStructure', () => {
+  const now = new Date('2026-08-30T18:00:00.000Z')
+  const fresh = '2026-08-30T12:00:00.000Z'
+
+  it('runs the check-feeds RSS rules on feed.xml', () => {
+    expect(evaluateFeedStructure('feed-xml', 'rss', rssFeed('Sun, 30 Aug 2026 17:46:00 GMT', fresh), now).status).toBe('passed')
+    expect(evaluateFeedStructure('feed-xml', 'rss', '<rss version="2.0"><channel></channel></rss>', now).status).toBe('failed')
+  })
+
+  // feed.json was not probed AT ALL on the tight cadence before this. A
+  // feed.json serving a truncated document or an error page was invisible until
+  // the weekly tier ran.
+  it('runs the check-feeds JSON Feed rules on feed.json', () => {
+    expect(evaluateFeedStructure('feed-json', 'json', jsonFeed(fresh), now).status).toBe('passed')
+    const truncated = JSON.stringify({items: [{id: 'tag:a', content_text: 'x', date_published: fresh}]})
+    const verdict = evaluateFeedStructure('feed-json', 'json', truncated, now)
+    expect(verdict.status).toBe('failed')
+    expect(verdict.message).toContain('feed-json-field')
+  })
+
+  // The severity boundary check-feeds.mjs already draws, inherited rather than
+  // re-decided here: an empty item list is a WARN in the shared rule registry
+  // (feed-json-no-items / feed-xml-no-items), so it must not red this probe.
+  it('inherits the shared rule severities instead of promoting warnings to failures', () => {
+    const emptyJson = JSON.stringify({version: 'https://jsonfeed.org/version/1.1', title: 'x', items: []})
+    expect(evaluateFeedStructure('feed-json', 'json', emptyJson, now).status).toBe('passed')
+  })
+
+  // Fail-closed: a body the validator cannot even reach is unverified, not broken.
+  it('is indeterminate for an empty body or one that is not parseable JSON', () => {
+    expect(evaluateFeedStructure('feed-xml', 'rss', '   \n ', now).status).toBe('unknown')
+    expect(evaluateFeedStructure('feed-json', 'json', null, now).status).toBe('unknown')
+    expect(evaluateFeedStructure('feed-json', 'json', '<html>502 Bad Gateway</html>', now).status).toBe('unknown')
+  })
+})
+
+// THE F2 CHECK. The feeds are deliberately edge-cacheable, so the trio's 10m
+// skew window is the wrong oracle for them; the budget is the sum of the cache
+// layers between the composer and the client. Every case below pins one edge of
+// that rule, and the failing cases are what prove it is not vacuous.
+describe('evaluateFeedOriginSiteCoherence', () => {
+  const now = new Date('2026-08-30T18:00:00.000Z')
+  const minutesAgo = (minutes: number) => new Date(now.getTime() - (minutes * 60_000))
+  const rssAgo = (minutes: number) => rssFeed(minutesAgo(minutes).toUTCString(), '2026-08-30T12:00:00.000Z')
+  // Mirrors probeFeeds: the site timestamp is extracted from the served body,
+  // the origin timestamp comes off x-amz-meta-composed-at.
+  const rssSide = (minutes: number, ageSeconds = 0) => {
+    const body = rssAgo(minutes)
+    return {body, timestamp: extractCompositionTimestamp(body), ageSeconds}
+  }
+
+  it('passes byte-identical planes without needing any timestamp at all', () => {
+    const body = rssAgo(30)
+    const verdict = evaluateFeedOriginSiteCoherence('feed-xml', {body, timestamp: null, ageSeconds: 900}, {body, timestamp: null}, now)
+    expect(verdict.status).toBe('passed')
+    expect(verdict.message).toContain('byte-identical')
+  })
+
+  it('passes a site copy trailing the origin inside the cache budget', () => {
+    const verdict = evaluateFeedOriginSiteCoherence('feed-xml', rssSide(5), rssSide(0), now)
+    expect(verdict.status).toBe('passed')
+    expect(verdict.message).toContain('inside the 6.00m cache budget')
+  })
+
+  // NON-VACUITY, RSS: same shape as the passing case, 2 minutes further behind,
+  // and the verdict flips. Nothing in the cache path explains a 7-minute lag on
+  // a freshly fetched copy.
+  it('fails a site copy trailing the origin beyond the cache budget', () => {
+    const verdict = evaluateFeedOriginSiteCoherence('feed-xml', rssSide(7), rssSide(0), now)
+    expect(verdict.status).toBe('failed')
+    expect(verdict.message).toContain('trails the origin by 7.00m')
+    expect(verdict.message).toContain('beyond the 6.00m cache budget')
+  })
+
+  // The observed live case: the Cloudflare edge had held the copy for 25
+  // minutes, so a 7-minute lag is fully explained. Age is what separates the
+  // two verdicts, and it is read off the response, not assumed.
+  it('admits the same 7m lag once the edge Age accounts for it', () => {
+    const verdict = evaluateFeedOriginSiteCoherence('feed-xml', rssSide(7, 1500), rssSide(0), now)
+    expect(verdict.status).toBe('passed')
+    expect(verdict.message).toContain('Age 1500s + 60s worker fetch cache + 300s CloudFront TTL')
+  })
+
+  // Same composition on both planes but different bytes is corruption, not lag,
+  // and no budget excuses it. This is the trio's byte-equality rule, preserved.
+  it('fails identical composition timestamps with differing bytes', () => {
+    const site = rssSide(0)
+    const origin = {body: `${site.body}<!-- extra -->`, timestamp: site.timestamp}
+    const verdict = evaluateFeedOriginSiteCoherence('feed-xml', site, origin, now)
+    expect(verdict.status).toBe('failed')
+    expect(verdict.message).toContain('byte equality is required at the same composition timestamp')
+  })
+
+  it('fails a site plane advertising a composition NEWER than its own origin', () => {
+    const verdict = evaluateFeedOriginSiteCoherence('feed-xml', rssSide(0), rssSide(5), now)
+    expect(verdict.status).toBe('failed')
+    expect(verdict.message).toContain('reading different origins')
+  })
+
+  // feed.json's normal path once its content moves: the site plane advertises
+  // NO composition (JSON Feed 1.1 has no such field, and the proxy forwards no
+  // object metadata), so the answerable question is whether the origin
+  // recomposed recently enough for the caches to still hold the previous object.
+  it('passes differing feed.json bytes when the origin recomposed inside the budget', () => {
+    const site = {body: jsonFeed('2026-08-30T12:00:00.000Z'), timestamp: null, ageSeconds: 0}
+    const origin = {body: jsonFeed('2026-08-30T17:00:00.000Z', 'tag:b'), timestamp: minutesAgo(3).toISOString()}
+    const verdict = evaluateFeedOriginSiteCoherence('feed-json', site, origin, now)
+    expect(verdict.status).toBe('passed')
+    expect(verdict.message).toContain('the site is still serving the previous object')
+  })
+
+  // NON-VACUITY, JSON: the origin has been stable for 20 minutes and the site
+  // still serves something else. No cache layer holds a copy that long at Age 0,
+  // so the site plane is stuck.
+  it('fails differing feed.json bytes when the origin composition is older than the budget', () => {
+    const site = {body: jsonFeed('2026-08-30T12:00:00.000Z'), timestamp: null, ageSeconds: 0}
+    const origin = {body: jsonFeed('2026-08-30T17:00:00.000Z', 'tag:b'), timestamp: minutesAgo(20).toISOString()}
+    const verdict = evaluateFeedOriginSiteCoherence('feed-json', site, origin, now)
+    expect(verdict.status).toBe('failed')
+    expect(verdict.message).toContain('no cache layer explains the site serving something else')
+  })
+
+  it('admits that same 20m-old origin composition once the edge Age accounts for it', () => {
+    const site = {body: jsonFeed('2026-08-30T12:00:00.000Z'), timestamp: null, ageSeconds: 1500}
+    const origin = {body: jsonFeed('2026-08-30T17:00:00.000Z', 'tag:b'), timestamp: minutesAgo(20).toISOString()}
+    expect(evaluateFeedOriginSiteCoherence('feed-json', site, origin, now).status).toBe('passed')
+  })
+
+  // Fail-closed: an unreachable plane, or a byte difference with nothing to
+  // classify it by, is never a silent pass. probeFeeds passes null for a non-OK
+  // or unreachable side, which is what these assert.
+  it('is indeterminate when a plane never answered', () => {
+    const side = rssSide(0)
+    expect(evaluateFeedOriginSiteCoherence('feed-xml', {body: null, timestamp: null, ageSeconds: 0}, side, now).status).toBe('unknown')
+    expect(evaluateFeedOriginSiteCoherence('feed-xml', side, {body: null, timestamp: null}, now).status).toBe('unknown')
+  })
+
+  it('is indeterminate when the bytes differ and the origin advertises no parseable composition', () => {
+    const site = {body: jsonFeed('2026-08-30T12:00:00.000Z'), timestamp: null, ageSeconds: 0}
+    for (const timestamp of [null, 'whenever']) {
+      const verdict = evaluateFeedOriginSiteCoherence('feed-json', site, {body: jsonFeed('2026-08-30T17:00:00.000Z', 'tag:b'), timestamp}, now)
+      expect(verdict.status).toBe('unknown')
+      expect(verdict.message).toContain('x-amz-meta-composed-at')
+    }
+  })
+})
+
 describe('evaluateTrioStructure', () => {
   it('runs the shared llms-structure rule on llms.txt', () => {
     expect(evaluateTrioStructure('llms-txt', VALID_LLMS_TXT).status).toBe('passed')
@@ -330,7 +575,10 @@ describe('unreachable and unparseable observations never pass', () => {
       evaluateCompositionAge(null, now), // nothing to read a timestamp from
       evaluateCoherence({key: 'a', timestamp: null, body: null}, {key: 'b', timestamp: null, body: null}),
       evaluateCacheState(null), // no cf-cache-status header to classify
-      evaluateJsonExportFreshness('books', null, now) // body did not parse as JSON
+      evaluateJsonExportFreshness('books', null, now), // body did not parse as JSON
+      evaluateFeedStructure('feed-json', 'json', null, now), // feed body never arrived
+      // neither feed plane answered
+      evaluateFeedOriginSiteCoherence('feed-xml', {body: null, timestamp: null, ageSeconds: 0}, {body: null, timestamp: null}, now)
     ]
     for (const verdict of verdicts) {
       expect(verdict.status).toBe('unknown')
