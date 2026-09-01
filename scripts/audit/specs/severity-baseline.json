@@ -29,11 +29,16 @@
     "llms-txt-h2-no-file-list": "warn",
     "llms-txt-non-link-list-item": "fail",
     "llms-txt-second-h1": "fail",
+    "security-txt-canonical-mismatch": "fail",
+    "security-txt-canonical-missing": "warn",
     "security-txt-contact-missing": "fail",
     "security-txt-expired": "fail",
+    "security-txt-expires-duplicate": "fail",
     "security-txt-expires-missing": "fail",
     "security-txt-expires-unparseable": "fail",
     "security-txt-expiring-soon": "fail",
-    "security-txt-fetch": "fail"
+    "security-txt-fetch": "fail",
+    "security-txt-preferred-languages-duplicate": "fail",
+    "security-txt-preferred-languages-malformed": "fail"
   }
 }

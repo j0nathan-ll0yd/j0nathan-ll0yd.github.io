@@ -1,4 +1,7 @@
+Canonical: https://jonathanlloyd.me/.well-known/security.txt
+
 This security.txt body has no Expires field at all, and deliberately no
-Contact field either -- check-security-txt.mjs:19-23 returns immediately after
-emitting security-txt-expires-missing, before the Contact check at :47 ever
-runs, so this input must emit ONLY security-txt-expires-missing.
+Contact field either. validateSecurityTxt no longer returns early after
+emitting security-txt-expires-missing, so this input must emit BOTH
+security-txt-expires-missing AND security-txt-contact-missing -- that lifted
+early return is what this case pins.

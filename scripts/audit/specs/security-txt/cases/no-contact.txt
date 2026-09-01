@@ -1,1 +1,2 @@
 Expires: 2027-08-20T00:00:00.000Z
+Canonical: https://jonathanlloyd.me/.well-known/security.txt

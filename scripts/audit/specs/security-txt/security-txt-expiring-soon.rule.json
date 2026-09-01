@@ -63,7 +63,7 @@
       "expect": []
     },
     {
-      "name": "no Expires field -- this rule is inapplicable, security-txt-expires-missing fires instead",
+      "name": "no Expires field -- this rule is inapplicable, security-txt-expires-missing (and security-txt-contact-missing) fire instead",
       "outcome": "inapplicable",
       "input_file": "cases/no-expires.txt",
       "input_kind": "text",
@@ -71,6 +71,10 @@
       "expect": [
         {
           "id": "security-txt-expires-missing",
+          "severity": "fail"
+        },
+        {
+          "id": "security-txt-contact-missing",
           "severity": "fail"
         }
       ]
