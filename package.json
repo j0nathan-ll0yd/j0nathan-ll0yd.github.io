@@ -33,6 +33,7 @@
     "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots --workers=1",
     "test:smoke": "pnpm exec playwright test --config=playwright.smoke.config.ts",
     "test:behavioral": "./scripts/run-in-docker.sh playwright.behavioral.config.ts",
+    "a11y:update-baseline": "rm -f test-results/a11y-observed.jsonl && A11Y_UPDATE_BASELINE=1 ./scripts/run-in-docker.sh playwright.behavioral.config.ts && node scripts/update-a11y-baseline.mjs",
     "format": "dprint fmt",
     "format:check": "dprint check",
     "lint": "eslint .",
@@ -52,6 +53,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@astrojs/sitemap": "^3.7.3",
+    "@axe-core/playwright": "^4.13.0",
     "@j0nathan-ll0yd/config": "^1.1.0",
     "@j0nathan-ll0yd/estate-contracts": "0.6.0",
     "@lhci/cli": "^0.15.1",

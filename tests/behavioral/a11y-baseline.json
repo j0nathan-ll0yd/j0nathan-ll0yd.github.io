@@ -1,0 +1,6 @@
+{
+  "description": "Grandfathered baseline of pre-existing serious/critical axe-core violations, keyed by `<widget>/<state>` scan key (declared in tests/behavioral/a11y.ts A11Y_SCAN_TARGETS). The per-widget scan in the behavioral matrices FAILS on any serious/critical violation NOT listed for that exact key -- i.e. a NEW violation, or a regression in a state that was clean. A listed violation PASSES and is carried as recorded debt. Fixing a violation prunes its id in the SAME PR that fixes it; widget-level fixes land in design-system-Lifegames, never by narrowing the scan tags or excluding a node. A baseline key that names no declared scan target is a FAIL (see the stale-key test in a11y-baseline.test.ts) -- a grandfathering for a deleted state reads as covered. This file is generated -- never hand-edit a rule id in or out.",
+  "generatedBy": "pnpm run a11y:update-baseline",
+  "automationCeiling": "Automated scanning catches roughly 57% of accessibility issue volume and maps to about 32% of WCAG success criteria. Focus Order (WCAG 2.4.3) and Focus Visible (WCAG 2.4.7) are 100% manual and are not covered here. An empty entry is an automated FLOOR, not WCAG conformance.",
+  "grandfathered": {}
+}
