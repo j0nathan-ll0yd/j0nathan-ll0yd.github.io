@@ -7,10 +7,10 @@ package. Render proof is behavioral DOM assertion, never screenshot comparison: 
 screenshots in the visual suite are supplementary and are not this capability's proving oracle.
 
 Two independent caps stack on this widget and are easy to confuse, so each carries its own
-requirement below. The adapter keeps the thirty most recently saved articles; the updater then
-paginates whatever survives at ten rows per page. Relative dates are deliberately unspecified here:
-they are computed against the reader's clock, so pinning them would encode a wall-clock boundary as
-a conformance fact.
+requirement below. The adapter sorts by save time, newest first, and keeps the first thirty of that
+ordering; the updater then paginates whatever survives at ten rows per page. Relative dates are
+deliberately unspecified here: they are computed against the reader's clock, so pinning them would
+encode a wall-clock boundary as a conformance fact.
 
 ## Requirements
 
@@ -80,8 +80,8 @@ Verified by `tests/behavioral/articles-matrix.test.ts:83`.
 
 #### Scenario: A three-article annotated export renders one affordance per row
 
-- **GIVEN** an articles export of three articles, the first carrying two note comments and the
-  second carrying one
+- **GIVEN** an articles export of three articles that each carry reader notes -- two comments on
+  the first, one on the second, two on the third
 - **WHEN** the Reading Feed card finishes loading
 - **THEN** it SHALL render three rows with three note affordances, the first carrying both of its
   comments joined into a single title and the second carrying its one comment
@@ -103,13 +103,15 @@ Verified by `tests/behavioral/articles-matrix.test.ts:97`.
 
 ### Requirement: The feed caps the export at thirty articles
 
-When the export holds more than thirty articles, the system SHALL retain only the thirty most
-recently saved and SHALL drop the remainder before paginating.
+When the export holds more than thirty articles, the system SHALL sort them by save time, newest
+first, and SHALL retain only the first thirty of that ordering, dropping the remainder before
+paginating.
 Verified by `tests/behavioral/articles-matrix.test.ts:118`.
 
 #### Scenario: A forty-article export renders exactly three pages ending at the thirtieth
 
-- **GIVEN** an articles export of forty articles
+- **GIVEN** an articles export of forty articles that all share one save time, so the stable sort
+  preserves export order and the cap alone selects the survivors
 - **WHEN** the Reading Feed card finishes loading and the last page is selected
 - **THEN** the pager SHALL offer exactly three pages, the last SHALL render ten rows ending with
   the thirtieth article, and the thirty-first SHALL be absent from the card entirely
