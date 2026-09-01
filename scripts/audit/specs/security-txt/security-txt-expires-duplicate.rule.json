@@ -1,0 +1,64 @@
+{
+  "id": "security-txt-expires-duplicate",
+  "title": "Expires must not appear more than once",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.5",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": true,
+    "retrieved": "2026-08-31",
+    "content_sha256": "2dd4033c9a9857e1bb798f6d0f9f3369251a4116fe5f4cd346bf68b623028b2b",
+    "normative_quote": "It is RECOMMENDED that the value of this field be less than a year into the future to avoid staleness. This field MUST always be present and MUST NOT appear more than once.",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-08-31. The two sentences are adjacent in the source across a paragraph break, which normalizes to a single space; no words are altered and no passage is spliced. security-txt-expires-missing derives from the 'MUST always be present' half of the same sentence -- this rule derives from the 'MUST NOT appear more than once' half, which had no rule file and therefore could not be emitted at all.",
+    "verified_against_source": true,
+    "verified_at": "2026-08-31",
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
+  },
+  "policy_note": "The gap this closes was structural, not a threshold choice: the validator matched Expires with a single non-global regex and silently used the FIRST match, so a second Expires line -- the exact case §2.5.5 forbids, and the case where a stale and a fresh date disagree -- was invisible. The validator now collects every Expires line and still evaluates the first for the expiry rules, so a duplicate file reports both the duplication and whatever the first value's expiry state is.",
+  "applicability": "A security.txt body containing at least one Expires: field with a non-empty value.",
+  "expectation": "Exactly one line matches /^Expires:[ \\t]*\\S/ (case-insensitive, per-line). Two or more is a violation regardless of whether the values agree.",
+  "cases": [
+    {
+      "name": "two Expires fields",
+      "outcome": "failed",
+      "input_file": "cases/expires-duplicate.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-duplicate",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "exactly one Expires field -- this rule does not fire",
+      "outcome": "passed",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "no Expires field -- this rule is inapplicable, security-txt-expires-missing fires instead",
+      "outcome": "inapplicable",
+      "input_file": "cases/no-expires.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-missing",
+          "severity": "fail"
+        },
+        {
+          "id": "security-txt-contact-missing",
+          "severity": "fail"
+        }
+      ]
+    }
+  ]
+}

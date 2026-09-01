@@ -1,0 +1,54 @@
+{
+  "id": "security-txt-preferred-languages-duplicate",
+  "title": "Preferred-Languages must not appear more than once",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.8",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": true,
+    "retrieved": "2026-08-31",
+    "content_sha256": "ffc13961707ba3e74cc1a03b1671394965a9e89584289c45755a4a578eb7ae24",
+    "normative_quote": "The order in which they appear is not an indication of priority; the listed languages are intended to have equal priority. This field MUST NOT appear more than once.",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-08-31. The two sentences are adjacent in the source across a paragraph break, which normalizes to a single space; no words are altered and no passage is spliced. The preceding sentence is carried deliberately: 'This field MUST NOT appear more than once.' is also a substring of the §2.5.5 Expires sentence, so quoting it alone would not identify §2.5.8 uniquely in the source.",
+    "verified_against_source": true,
+    "verified_at": "2026-08-31",
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
+  },
+  "applicability": "A security.txt body containing at least one Preferred-Languages: field with a non-empty value. The field itself is optional (§2.5), so a body without it is not a violation.",
+  "expectation": "At most one line matches /^Preferred-Languages:[ \\t]*\\S/ (case-insensitive, per-line). Multiple language tags belong on ONE line, comma-separated -- repeating the field is the violation.",
+  "cases": [
+    {
+      "name": "two Preferred-Languages fields",
+      "outcome": "failed",
+      "input_file": "cases/preferred-languages-duplicate.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-preferred-languages-duplicate",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "one Preferred-Languages field listing three tags -- this rule does not fire",
+      "outcome": "passed",
+      "input_file": "cases/preferred-languages-valid.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "no Preferred-Languages field -- the field is optional, so this rule is inapplicable",
+      "outcome": "inapplicable",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

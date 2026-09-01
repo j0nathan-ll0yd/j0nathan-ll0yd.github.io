@@ -22,6 +22,16 @@ import {fetchStable, isMain, report} from './lib/http.mjs'
 // the upstream specs; bump only after that re-verification, not casually.
 export const PINNED_ARD_SPEC_VERSION = '1.0'
 
+// The agentskills.io discovery schema the served index declares, pinned the
+// same way and re-verified on the same monthly cadence. Asserting the exact
+// $schema URL is how a version bump becomes visible here: the shape check
+// below is written against 0.2.0, so a silent move to another version would
+// otherwise be validated by the wrong rules.
+export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
+
+// "sha256:" plus a lowercase hex digest, the form the served index uses.
+const SKILL_DIGEST = /^sha256:[a-f0-9]{64}$/
+
 function assertFields(obj, fields, id, label, findings) {
   for (const field of fields) {
     if (!(field in obj)) {
@@ -100,6 +110,53 @@ export function validateMcpServerCardShape(json) {
   return findings
 }
 
+/**
+ * .well-known/agent-skills/index.json (agentskills.io discovery index). Pure --
+ * testable without network. Shape only, matching this file's scope: the fields
+ * the served index actually carries, not full conformance against the upstream
+ * 0.2.0 JSON Schema. `digest` is optional in shape terms but is validated when
+ * present, because a malformed digest is worse than an absent one -- a consumer
+ * that cannot parse it may skip integrity checking silently.
+ */
+export function validateAgentSkillsIndexShape(json) {
+  const findings = []
+  assertFields(json, ['$schema', 'skills'], 'wellknown-agent-skills-shape', 'agent-skills/index.json', findings)
+
+  if (json.$schema !== undefined && json.$schema !== PINNED_AGENT_SKILLS_SCHEMA) {
+    findings.push({
+      severity: 'warn',
+      id: 'wellknown-agent-skills-schema-drift',
+      message: `agent-skills/index.json "$schema" is "${json.$schema}", pinned constant is ` +
+        `"${PINNED_AGENT_SKILLS_SCHEMA}" -- re-verify against schemas.agentskills.io`
+    })
+  }
+
+  if (Array.isArray(json.skills)) {
+    if (json.skills.length === 0) {
+      findings.push({severity: 'fail', id: 'wellknown-agent-skills-no-skills', message: 'agent-skills/index.json "skills" is empty'})
+    }
+    for (const skill of json.skills) {
+      assertFields(skill, ['name', 'description', 'type', 'url'], 'wellknown-agent-skills-skill-shape', 'agent-skills/index.json skills[] entry', findings)
+      const label = skill.name ?? '(no name)'
+      if (skill.url && !/^https:\/\//.test(skill.url)) {
+        findings.push({
+          severity: 'fail',
+          id: 'wellknown-agent-skills-skill-url',
+          message: `agent-skills/index.json skill "${label}" has a non-https url "${skill.url}"`
+        })
+      }
+      if ('digest' in skill && !SKILL_DIGEST.test(skill.digest)) {
+        findings.push({
+          severity: 'fail',
+          id: 'wellknown-agent-skills-skill-digest',
+          message: `agent-skills/index.json skill "${label}" has digest "${skill.digest}", not a "sha256:<64 hex>" value`
+        })
+      }
+    }
+  }
+  return findings
+}
+
 /** .well-known/api-catalog (RFC 9727 linkset). Pure -- testable without network. */
 export function validateApiCatalogShape(json, contentType) {
   const findings = []
@@ -159,6 +216,7 @@ async function main() {
     ),
     fetchAndValidate(`${SITE_URL}/.well-known/ai-catalog.json`, validateAiCatalogShape, 'wellknown-ai-catalog-fetch'),
     fetchAndValidate(`${SITE_URL}/.well-known/mcp/server-card.json`, validateMcpServerCardShape, 'wellknown-mcp-server-card-fetch'),
+    fetchAndValidate(`${SITE_URL}/.well-known/agent-skills/index.json`, validateAgentSkillsIndexShape, 'wellknown-agent-skills-fetch'),
     fetchAndValidate(`${SITE_URL}/.well-known/api-catalog`, validateApiCatalogShape, 'wellknown-api-catalog-fetch')
   ])
   const results = settled.map((result) => {

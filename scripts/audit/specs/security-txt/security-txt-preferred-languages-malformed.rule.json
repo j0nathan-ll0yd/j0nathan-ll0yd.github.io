@@ -1,0 +1,55 @@
+{
+  "id": "security-txt-preferred-languages-malformed",
+  "title": "Preferred-Languages, when present, must list comma-separated language tags",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "spec": {
+    "name": "RFC 9116",
+    "clause": "§2.5.8",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "conformance_testable": true,
+    "retrieved": "2026-08-31",
+    "content_sha256": "e410bc42c0a706d513e757b94863ca54680f265117844db4aba3a6b3a4f3db54",
+    "normative_quote": "The \"Preferred-Languages\" field can be used to indicate a set of natural languages that are preferred when submitting security reports. This set MAY list multiple values, separated by commas. If this field is included, then at least one value MUST be listed. The values within this set are language tags (as defined in [RFC5646]).",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-08-31. The MUST this rule enforces is conditional -- 'If this field is included' -- which is why the field stays optional and only its FORMAT is checked. The RFC5322 'unstructured' value grammar of §2 accepts any text, so an empty element or an underscore-separated locale is caught here, by §2.5.8, and nowhere else.",
+    "verified_against_source": true,
+    "verified_at": "2026-08-31",
+    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
+  },
+  "policy_note": "The tag test is SHAPE only: hyphen-separated subtags of 1-8 alphanumerics with an alphabetic first subtag, which accepts 'en', 'zh-Hans-CN' and the RFC 5646 private-use form 'x-private'. It deliberately does not consult the IANA Language Subtag Registry. §2.5.8 constrains the value's grammar, not its registration, so rejecting a well-formed but unregistered tag would be this validator inventing a requirement -- and a registry lookup would add a network dependency to a pure function. What it does catch is the real failure mode: an empty element from a trailing or doubled comma (the 'at least one value MUST be listed' half) and a locale written with an underscore or a space instead of a hyphen. Only the FIRST Preferred-Languages line is format-checked; a second line is already reported by security-txt-preferred-languages-duplicate, and the first is the value a consumer taking one field would read.",
+  "applicability": "A security.txt body containing at least one Preferred-Languages: field with a non-empty value. The field itself is optional (§2.5) and is never required by this catalog.",
+  "expectation": "Splitting the first Preferred-Languages value on commas and trimming each element yields only elements matching /^[A-Za-z]{1,8}(?:-[A-Za-z0-9]{1,8})*$/.",
+  "cases": [
+    {
+      "name": "an empty element and an underscore-separated locale",
+      "outcome": "failed",
+      "input_file": "cases/preferred-languages-malformed.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-preferred-languages-malformed",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "three well-formed tags -- this rule does not fire",
+      "outcome": "passed",
+      "input_file": "cases/preferred-languages-valid.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "no Preferred-Languages field -- the field is optional, so this rule is inapplicable",
+      "outcome": "inapplicable",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}
