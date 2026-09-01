@@ -53,7 +53,7 @@
     "@astrojs/check": "^0.9.9",
     "@astrojs/sitemap": "^3.7.3",
     "@j0nathan-ll0yd/config": "^1.1.0",
-    "@j0nathan-ll0yd/estate-contracts": "0.2.0",
+    "@j0nathan-ll0yd/estate-contracts": "0.6.0",
     "@lhci/cli": "^0.15.1",
     "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
