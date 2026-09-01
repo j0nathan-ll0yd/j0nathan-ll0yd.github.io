@@ -1,3 +1,5 @@
+import type {WebSocketOutboundMessage} from '@j0nathan-ll0yd/portal-contract/websocket'
+
 export type WSMessageHandler = (resource: string) => void
 
 export interface WSClientOptions {
@@ -91,7 +93,7 @@ export class WSClient {
 
     ws.onmessage = (event: MessageEvent) => {
       try {
-        const msg = JSON.parse(event.data as string) as {type?: string; resource?: string; build?: string; currentFocus?: string}
+        const msg = JSON.parse(event.data as string) as WebSocketOutboundMessage
         if (msg.type === 'update' && msg.resource) {
           // A focus push carries the new focus value → drive the overlay immediately, no
           // refetch (the focus signal is edge-cached ~30s). Older backends that omit

@@ -27,8 +27,8 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 `scripts/audit/specs/llms-txt/*.rule.json`, not by a TypeScript type. The typed contracts are:
 
 - Served paths: `LLM_CONTENT_PATHS` and `DATASET_DISTRIBUTIONS` —
-  `@j0nathan-ll0yd/portal-contract/constants`. `LLM_CONTENT_PATHS` covers `llmsFull`,
-  `llmsSmall`, and `indexMarkdown`; `LLMS_TXT_PATH` derives the discovery path from the generated
+  `@j0nathan-ll0yd/portal-contract/constants`. `LLM_CONTENT_PATHS` covers `llmsFull` and
+  `indexMarkdown`; `LLMS_TXT_PATH` derives the discovery path from the generated
   `LLM discovery index` distribution in `functions/_lib/llms-artifacts.ts`. No proxy owns a second
   hard-coded `/llms.txt` upstream path.
 - Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.

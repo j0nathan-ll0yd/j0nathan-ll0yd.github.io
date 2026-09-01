@@ -22,8 +22,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@j0nathan-ll0yd/portal-contract':
-        specifier: ^1.0.0
-        version: 1.0.2
+        specifier: 2.3.0
+        version: 2.3.0
       '@j0nathan-ll0yd/schemas':
         specifier: ^2.1.0
         version: 2.1.0
@@ -1849,6 +1849,9 @@ packages:
 
   '@j0nathan-ll0yd/portal-contract@1.0.2':
     resolution: {integrity: sha512-+Dv/8iQxp8OCv/lQmn6TvAhu7bmqgkKKDQvxs2kn6BFEf2ayJ6vHVSd7inIQ8yxIwZ10EN914cMzwBII6eX/RQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/1.0.2/0ed9363fb96ef1356a3176ca1e4642f8165492b5}
+
+  '@j0nathan-ll0yd/portal-contract@2.3.0':
+    resolution: {integrity: sha512-HVej1pHzRrEjv9oVeAeNmVLdTlAi+DWlsHrphr2Ci7Vfytlr5WL1xbcJjjLZbDKOSHfWZrP2fr0EWo1EKsOWng==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/2.3.0/ac1acc31b4ea852addcf92d1551e750506e99bea}
 
   '@j0nathan-ll0yd/schemas@2.1.0':
     resolution: {integrity: sha512-zjm7I6z5eaNpLga51KDXj2KRohAPyaNnkeRVMrZf6S0dg3Q9mTRSn9oDlBUE17u7xZkEDLZVGQBhOLkAo5JUPg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.1.0/e07694d47a5b442cdd05db37a3af142fdb8384b8}
@@ -7817,6 +7820,8 @@ snapshots:
       - '@middy/core'
 
   '@j0nathan-ll0yd/portal-contract@1.0.2': {}
+
+  '@j0nathan-ll0yd/portal-contract@2.3.0': {}
 
   '@j0nathan-ll0yd/schemas@2.1.0':
     dependencies:
