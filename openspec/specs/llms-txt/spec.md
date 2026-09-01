@@ -36,7 +36,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
   `scripts/audit/validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
-  exact-pinned at `0.5.0` (here `package.json:56`) and resolves it from its lockfile — atlas
+  exact-pinned at `0.6.0` (here `package.json:56`) and resolves it from its lockfile — atlas
   decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
@@ -46,19 +46,31 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `tests/audit/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `3e65dd2dbfd788c3986cf8764556d66ec596ba66fcc2c034ceab55d7ddeb1269` — and
+  beside them — sha256 `5e6eb981f1812b079910bb1e5c043f19b51fea78c514854611932d668ea7f465` — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
-  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.5.0` (atlas decision
-  0099). ADDITIVE: `checkLlmsStructure` is unchanged, so the RULE version stays **3** while the
-  shipped bytes, the sidecar, and the package minor all moved. `decodeLlmsTxt(text).findings` is
-  `checkLlmsStructure(text)`. This repo's evaluation layer now states its structural invariants over
+  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.6.0` (atlas decision
+  0099). `checkLlmsStructure` is unchanged by every codec release so far, so the RULE version stays
+  **3** while the shipped bytes, the sidecar, and the package minor all moved.
+  `decodeLlmsTxt(text).findings` is `checkLlmsStructure(text)`. `0.6.0` changed the codec's CANONICAL
+  ENCODE FORM: a run of consecutive bullet-shaped prose lines — the profile's legal descriptive item,
+  `- Framework: Astro` — now renders as one contiguous block rather than one paragraph each, while a
+  non-bullet paragraph still stands alone and `parseLlmsTxt` stays the exact inverse regardless of
+  blank runs. That is a byte-level change to what a producer emits, so it is covered here on its own
+  terms rather than assumed: `tests/audit/validate-llms-txt.property.test.ts` generates descriptive
+  sections and asserts the catalog accepts them, that adjacent bullets are contiguous AND adjacent
+  non-bullet prose is blank-line separated, and that the model round-trips.
+  This repo's evaluation layer states its structural invariants over
   the parsed model instead of over local regexes: `tests/audit/validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
   mutations with `encodeLlmsTxt`, and `tests/audit/llms-differential.test.ts` classifies the
   missing-H1 class by `title === null`. Both consumer-side assumptions — decode-equals-check, and
   parse's early return agreeing with the checker's — are verified against the resolved bytes by a
   zero-divergence differential over the full v3 pool rather than taken from the package README.
+  The `linkListItems` invariant in that suite is deliberately STRONGER than the rule (it rejects any
+  bullet surviving in prose, including the legal descriptive item) and is sound only because its
+  generator emits nothing but link items; the legal descriptive shape is covered by the descriptive
+  section suite above and by the v2 relaxation class in the differential suite.
 - Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:47`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
@@ -323,7 +335,7 @@ in the catalog checks its clause as quoted.
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
 - Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
-  `@j0nathan-ll0yd/estate-contracts@0.5.0` now exposes it as
+  `@j0nathan-ll0yd/estate-contracts@0.6.0` now exposes it as
   `./llms-assurance/spoke-evidence.schema.json`. `scripts/audit/serving-probe.mjs:40-41` consumes the
   freshness half of that tier, but the spoke-evidence half does not: `scripts/audit/lib/llms-spoke-evidence.ts`
   still builds and validates its artifact locally against no shipped schema. Adopting the published

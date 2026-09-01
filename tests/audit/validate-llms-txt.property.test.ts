@@ -21,10 +21,10 @@
 // LIST_ITEM_RE, MARKDOWN_LINK_RE, ANY_LINK_SHAPE_RE, WELL_FORMED_LINK_RE,
 // BARE_URL_RE -- plus its own line walkers. Those were a second, hand-kept copy
 // of the rule the shared contract already owns, and a copy is a thing that
-// drifts. `@j0nathan-ll0yd/estate-contracts@0.5.0` ships the decision-0099
-// codec, so the invariants are now stated over the PARSED MODEL that
-// `parseLlmsTxt` returns, and the mutations are built in model space and
-// rendered by `encodeLlmsTxt` wherever that is expressible.
+// drifts. `@j0nathan-ll0yd/estate-contracts` ships the decision-0099 codec (from
+// `0.4.0`; this repo consumes `0.6.0`), so the invariants are now stated over the
+// PARSED MODEL that `parseLlmsTxt` returns, and the mutations are built in model
+// space and rendered by `encodeLlmsTxt` wherever that is expressible.
 //
 // Independence survives the collapse, which is the point of the exercise: the
 // subject under test is `checkLlmsStructure` (through this repo's catalog
@@ -53,9 +53,16 @@ const encode = (doc: LlmsTxtDoc): string => encodeLlmsTxt(doc) as string
 // Markdown list TOKENIZATION, deliberately not a rule: it answers "is this line a
 // bullet at all", nothing more. Which bullets are acceptable is no longer decided
 // here -- `parseLlmsTxt` decides it, by putting a well-formed `[label](url)` item
-// in `section.links` and everything else in `section.prose`. So "a bullet line
-// survives in prose" IS "a list item that is not a well-formed link", read off
-// the model rather than re-derived from BARE_URL_RE and friends.
+// in `section.links` and everything else in `section.prose`.
+//
+// SCOPE, stated because it is easy to over-read: "a bullet survived in prose" is
+// STRONGER than the rule, not equal to it. The Lifegames profile legalized the
+// descriptive item -- `- Framework: Astro`, no URL at all, atlas decision 0040 --
+// and that item lands in prose too. The strengthening is sound HERE only because
+// `wellFormedLlmsTxtArb` emits nothing but link items, so the only way a bullet
+// reaches prose is the mutation that puts a bare URL there. The legal descriptive
+// shape is covered on its own terms by `descriptiveSectionArb` below, by the v2
+// relaxation class in llms-differential.test.ts, and by the rule catalog's cases.
 const LIST_ITEM_RE = /^[-*]\s+/
 
 // "Would the codec reparse this line as a heading?" answered by the contract's own
@@ -224,6 +231,80 @@ describe('the llms-structure codec agrees with the checker it ships beside', () 
 
       expect(findings).toEqual([])
       expect(doc).toEqual(parse(text))
+    }), PROPERTY_OPTIONS)
+  })
+})
+
+// The shape `wellFormedLlmsTxtArb` deliberately does not emit: a section carrying
+// DESCRIPTIVE prose. `- Framework: Astro` is a list item with no URL, which the
+// Lifegames profile legalized in v2 (atlas decision 0040), and the live index mixes
+// it with plain paragraphs. Built locally rather than added to
+// tests/audit/llms-txt-arbitraries.ts on purpose: the three pools there are frozen
+// and digest-pinned, and an exact divergence count only reproduces if its input
+// space does.
+const descriptiveWord = fc.stringMatching(/^[A-Za-z][A-Za-z0-9]{0,7}$/)
+const descriptivePhrase = fc.array(descriptiveWord, {minLength: 1, maxLength: 3}).map((parts) => parts.join(' '))
+// Two prose shapes, and the distinction is the whole subject of this suite: encode
+// runs the bullets together and stands the paragraphs alone.
+const proseLineArb = fc.oneof(fc.tuple(descriptiveWord, descriptivePhrase).map(([key, value]) => `- ${key}: ${value}`),
+  descriptivePhrase.map((sentence) => `${sentence}.`))
+const descriptiveSectionArb = fc.record({
+  name: descriptivePhrase,
+  prose: fc.array(proseLineArb, {minLength: 1, maxLength: 5}),
+  links: fc.array(fc.record({label: descriptivePhrase, url: descriptiveWord.map((slug) => `https://example.com/${slug}`)}), {minLength: 0, maxLength: 2})
+})
+const descriptiveDocArb: fc.Arbitrary<LlmsTxtDoc> = fc.record({
+  title: descriptivePhrase,
+  summary: descriptivePhrase,
+  body: fc.constant([] as string[]),
+  sections: fc.array(descriptiveSectionArb, {minLength: 1, maxLength: 3})
+})
+
+// covers: llms-txt#Served llms.txt conforms to the Lifegames llms.txt profile
+describe('the 0.6.0 canonical form for descriptive sections', () => {
+  // `@j0nathan-ll0yd/estate-contracts@0.6.0` changed exactly one thing in this
+  // contract: `encodeLlmsTxt` now renders a run of CONSECUTIVE bullet-shaped prose
+  // lines as one contiguous block instead of one paragraph each. `parseLlmsTxt`,
+  // `checkLlmsStructure`, and `LLMS_STRUCTURE_SPEC_VERSION` (3) are all unchanged,
+  // which is why this repo moves the pin alone. A byte-level change to a producer's
+  // canonical output is still a change this consumer should see fail if it regresses,
+  // and nothing above reaches it -- `wellFormedLlmsTxtArb` emits no prose at all.
+
+  it("renders a legal descriptive section that this repo's catalog accepts", () => {
+    fc.assert(fc.property(descriptiveDocArb, (doc) => {
+      // The profile's point: a descriptive item is NOT a finding (v2 relaxation).
+      expect(validateLlmsTxt(encode(doc))).toEqual([])
+    }), PROPERTY_OPTIONS)
+  })
+
+  it('runs consecutive bullet prose together and leaves paragraphs standalone', () => {
+    fc.assert(fc.property(descriptiveDocArb, (doc) => {
+      const text = encode(doc)
+
+      for (const section of doc.sections) {
+        section.prose.forEach((line, index) => {
+          const next = section.prose[index + 1]
+          if (next === undefined) {
+            return
+          }
+          const contiguous = LIST_ITEM_RE.test(line) && LIST_ITEM_RE.test(next)
+          // Contiguous for a bullet run, blank-line separated otherwise. Asserting
+          // BOTH directions, so a regression that runs everything together fails
+          // here just as loudly as one that separates everything.
+          expect(text.includes(contiguous ? `${line}\n${next}` : `${line}\n\n${next}`)).toBe(true)
+        })
+      }
+    }), PROPERTY_OPTIONS)
+  })
+
+  it('parses back to the same model regardless of how encode grouped the blocks', () => {
+    fc.assert(fc.property(descriptiveDocArb, (doc) => {
+      const text = encode(doc)
+
+      // The claim the grouping change must not break: parse collects every non-blank
+      // prose line in order, blind to blank runs, so it stays encode's exact inverse.
+      expect(parse(text)).toEqual(doc)
+      expect(encode(parse(text))).toBe(text)
     }), PROPERTY_OPTIONS)
   })
 })
