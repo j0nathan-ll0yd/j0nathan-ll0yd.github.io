@@ -4,8 +4,15 @@ The suites in this directory assert DOM and interaction behavior against the rea
 build. They take no screenshots. Run them with `pnpm run test:behavioral` (Docker, CI parity);
 CI runs them in the `behavioral` job of `.github/workflows/visual-tests.yml`.
 
-Since atlas phoenix-eval GAP 4 (widget check W16), every state the two conformance matrices render
-also gets a scoped `axe-core` scan of that widget's own card.
+Since atlas phoenix-eval GAP 4 (widget check W16), every state the conformance matrices render also
+gets a scoped `axe-core` scan of that widget's own card.
+
+The matrices are the render-conformance proof for their OpenSpec capability: each `test` carries a
+line-leading `// covers:` tether, and `openspec/specs/<capability>/spec.md` cites that tether back by
+`file:line`. Both directions are enforced by the blocking `covers-conformance` job, so a matrix and
+its specification cannot drift apart. New matrices must also be named in `testMatch`
+(`playwright.behavioral.config.ts`) -- a file missing from that list still parses as a tether but
+never runs, which would report a requirement as verified by a test nothing executes.
 
 ## What the scan does
 
@@ -72,7 +79,22 @@ evidence that the widget is accessible.
 
 ## Coverage today
 
-Two widgets have behavioral matrices, so two widgets are scanned: `bookshelf` (`#cardBooks`) and
-`theatre-reviews` (`#cardTheatreReviews`), seven states each. The other 31 widgets in the design
-system have no matrix and are therefore unscanned here — that gap is tracked as `behavioralGap` in
-the DS conformance baseline, and each widget gains this scan when it gains a matrix.
+Five matrices cover eight widget cards across 44 scan keys:
+
+| Matrix                   | Capability               | Cards scanned                                                                              |
+| ------------------------ | ------------------------ | ------------------------------------------------------------------------------------------ |
+| `bookshelf-matrix`       | `bookshelf-render`       | `#cardBooks`                                                                               |
+| `theatre-reviews-matrix` | `theatre-reviews-render` | `#cardTheatreReviews`                                                                      |
+| `health-matrix`          | `health-render`          | `#cardHR`, `#cardMovement`, `#cardHydration`, `#cardSleep`, `#cardWorkouts`, `#cardSystem` |
+| `articles-matrix`        | `articles-render`        | `#cardReading`                                                                             |
+| `devlog-matrix`          | `devlog-render`          | `#cardDevLog`                                                                              |
+
+The remaining design-system widgets have no matrix and are therefore unscanned here — that gap is
+tracked as `behavioralGap` in the DS conformance baseline, and each widget gains this scan when it
+gains a matrix.
+
+One violation is carried as recorded debt: `health/movementActive` trips `svg-img-alt` because the
+Movement rings `<svg role="img">` takes its `aria-label` from its parent wrapper rather than from
+the SVG element itself. The scan surfaced it the first time this card was ever scanned. The fix
+belongs to `design-system-Lifegames` (`src/widgets/health/MovementRings.astro`); this repo renders
+no widget source, so it is grandfathered here rather than patched here.
