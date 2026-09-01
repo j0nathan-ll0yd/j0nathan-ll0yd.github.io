@@ -8,7 +8,7 @@ import {readFileSync} from 'node:fs'
 import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {differential} from '../../scripts/audit/lib/differential.mjs'
-import {checkLlmsStructure as current} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
+import {checkLlmsStructure as current, decodeLlmsTxt, parseLlmsTxt} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {checkLlmsStructure as v1} from './fixtures/llms-structure.v1.mjs'
 import {checkLlmsStructure as v2} from './fixtures/llms-structure.v2.mjs'
 import {validateLlmsTxt as regenerated} from './fixtures/validate-llms-txt.regenerated.mjs'
@@ -16,7 +16,6 @@ import {LINE_POOLS, llmsTxtBodyArb, llmsTxtV2BodyArb, llmsTxtV3BodyArb} from './
 
 type Finding = {id: string}
 
-const H1_RE = /^#\s+\S/
 const SECOND_H1 = 'llms-txt-second-h1'
 const NON_LINK = 'llms-txt-non-link-list-item'
 const NO_FILE_LIST = 'llms-txt-h2-no-file-list'
@@ -65,10 +64,12 @@ const eqOn = (only?: string[]) => (a: Finding[], b: Finding[]) =>
 
 const sameBag = eqOn()
 
-const hasValidH1 = (input: string) => {
-  const firstNonBlank = input.split(/\r\n|\r|\n/).find((line) => line.trim() !== '')
-  return firstNonBlank !== undefined && H1_RE.test(firstNonBlank)
-}
+// Read off the shared codec's model rather than from a local H1_RE (atlas decision
+// 0099 phase 4). `parseLlmsTxt` returns a title ONLY when the first non-blank line
+// is a valid H1 -- it mirrors the checker's "structure is unrecoverable past this
+// point" behavior by construction -- so `title === null` is exactly the class this
+// classifier names, without this file keeping its own copy of the H1 rule.
+const hasValidH1 = (input: string) => (parseLlmsTxt(input) as {title: string | null}).title !== null
 
 const differingIds = (a: Finding[], b: Finding[]) => {
   const [left, right] = [bag(a), bag(b)]
@@ -247,5 +248,38 @@ describe('differential: the live reference against frozen v2 (the v3 tightening)
     expect(ids('# S\n\n> Sum\n\n# Two\n# Three\n')).toEqual([SECOND_H1, SECOND_H1])
     // 3. A bare trailing colon passes.
     expect(ids('# S\n\n> Sum\n\n## Links\n\n- [Name](https://example.com):\n')).toEqual([])
+  })
+})
+
+// covers: llms-txt#Served llms.txt conforms to the Lifegames llms.txt profile
+describe('differential: the decision-0099 codec against the checker it ships beside', () => {
+  // The package README states these as "zero by construction" -- `decodeLlmsTxt`
+  // literally calls `checkLlmsStructure`, and `parseLlmsTxt` mirrors its early
+  // return. Both claims are now load-bearing on this side of the seam: the property
+  // suite states its invariants over `parseLlmsTxt`'s model, and `hasValidH1` above
+  // reads `title === null` where it used to test a local H1_RE. A claim a consumer
+  // depends on is a claim that consumer should verify against the bytes it resolved,
+  // not one it should take from a README, so both run over the widest input pool.
+
+  it('decodes the same findings the checker emits, over the full v3 pool', () => {
+    const decoded = (input: string) => (decodeLlmsTxt(input) as {findings: Finding[]}).findings
+    // The DEFAULT eq here, not sameBag: the claim is byte-identical, so order and
+    // message text are part of it. Every other suite in this file compares multisets
+    // because it is comparing two IMPLEMENTATIONS, where emission order is not
+    // behaviour; this one compares a wrapper with what it wraps.
+    const result = differential(decoded, current, llmsTxtV3BodyArb, RUN_OPTIONS)
+
+    expect(result.runs).toBe(RUNS)
+    expect(result.divergent).toBe(0)
+  })
+
+  it('parses a title exactly when the checker accepts the H1, over the full v3 pool', () => {
+    // The assumption `hasValidH1` rests on since the mirror was deleted, stated
+    // outright: the codec's early return and the checker's early return agree.
+    const checkerAcceptedH1 = (input: string) => !current(input).some((finding: Finding) => finding.id === 'llms-txt-h1')
+    const result = differential(hasValidH1, checkerAcceptedH1, llmsTxtV3BodyArb, RUN_OPTIONS)
+
+    expect(result.runs).toBe(RUNS)
+    expect(result.divergent).toBe(0)
   })
 })

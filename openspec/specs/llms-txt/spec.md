@@ -36,7 +36,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
   `scripts/audit/validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
-  exact-pinned at `0.2.0` (here `package.json:56`) and resolves it from its lockfile — atlas
+  exact-pinned at `0.5.0` (here `package.json:56`) and resolves it from its lockfile — atlas
   decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
@@ -46,9 +46,20 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `tests/audit/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `50ac4620b1981486f92e285f497e6e8a90fbc8c8bb2bd2272698550f4d6662fc` — and
+  beside them — sha256 `3e65dd2dbfd788c3986cf8764556d66ec596ba66fcc2c034ceab55d7ddeb1269` — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
-- Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:44`. A catalog wrapper
+- Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
+  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.5.0` (atlas decision
+  0099). ADDITIVE: `checkLlmsStructure` is unchanged, so the RULE version stays **3** while the
+  shipped bytes, the sidecar, and the package minor all moved. `decodeLlmsTxt(text).findings` is
+  `checkLlmsStructure(text)`. This repo's evaluation layer now states its structural invariants over
+  the parsed model instead of over local regexes: `tests/audit/validate-llms-txt.property.test.ts`
+  reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
+  mutations with `encodeLlmsTxt`, and `tests/audit/llms-differential.test.ts` classifies the
+  missing-H1 class by `title === null`. Both consumer-side assumptions — decode-equals-check, and
+  parse's early return agreeing with the checker's — are verified against the resolved bytes by a
+  zero-divergence differential over the full v3 pool rather than taken from the package README.
+- Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:47`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
   declared in `scripts/audit/specs/rule.schema.json:126` and stamped by `emit()`, never chosen by the
@@ -311,10 +322,12 @@ in the catalog checks its clause as quoted.
 - The Cloudflare account's cache rules are external to this repository. A rule that ignores origin
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
-- Atlas revision d8341bd defines spoke evidence and ingestion, but the exact-pinned published
-  `@j0nathan-ll0yd/estate-contracts@0.1.0` does not expose that minor contract yet. This repository's
-  local v1 builder and uploaded artifact are pre-publication compatibility work; package consumption
-  and live central adoption await the minor publication plus an estate-atomic pin reconciliation.
+- Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
+  `@j0nathan-ll0yd/estate-contracts@0.5.0` now exposes it as
+  `./llms-assurance/spoke-evidence.schema.json`. `scripts/audit/serving-probe.mjs:40-41` consumes the
+  freshness half of that tier, but the spoke-evidence half does not: `scripts/audit/lib/llms-spoke-evidence.ts`
+  still builds and validates its artifact locally against no shipped schema. Adopting the published
+  schema there, and live central ingestion, remain open.
 
 ## Enforcement note
 
