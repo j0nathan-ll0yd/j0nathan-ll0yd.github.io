@@ -19,6 +19,76 @@
     {"key": "theatre-reviews/allGrades", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
     {"key": "theatre-reviews/noImages", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
     {"key": "theatre-reviews/exportWindow", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
-    {"key": "theatre-reviews/fullOptimizedPosters", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true}
+    {"key": "theatre-reviews/fullOptimizedPosters", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "health/loading", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/empty", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/baseline", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/bradycardia", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/peak", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/pausedHrGap", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/pausedCharging", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/movementActive", "selector": "#cardMovement", "expectsWcagApplicableNodes": true},
+    {
+      "key": "health/hydrationZero",
+      "selector": "#cardHydration",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): the card renders one h3.widget-label, two decorative vessels built from unlabelled divs, and two numeric text spans. It holds no link, no image, no form control and no landmark, so every WCAG-tagged rule is inapplicable -- color-contrast included (see the CONTRAST note in a11y.ts). Both hydration states evaluate zero nodes under the gate's tag set."
+    },
+    {
+      "key": "health/hydrationMax",
+      "selector": "#cardHydration",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): identical DOM to health/hydrationZero -- only the two numeric spans differ -- so it matches no WCAG-tagged rule for the same reason."
+    },
+    {
+      "key": "health/sleepBaseline",
+      "selector": "#cardSleep",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): the card renders one h3.widget-label, a decorative moon SVG carrying no img role, four text pills and a text insight line. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable. Contrast with health/movementActive, whose rings SVG DOES carry role=img and therefore does match svg-img-alt."
+    },
+    {
+      "key": "health/sleepDeepDominant",
+      "selector": "#cardSleep",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): identical DOM to health/sleepBaseline -- only the pill and caption text differ -- so it matches no WCAG-tagged rule for the same reason."
+    },
+    {
+      "key": "health/sleepEmpty",
+      "selector": "#cardSleep",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): the placeholder night renders the same node shape as health/sleepBaseline with every value replaced by a dash, so it matches no WCAG-tagged rule for the same reason."
+    },
+    {
+      "key": "health/workoutsMulti",
+      "selector": "#cardWorkouts",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): unlinked sessions render as divs of label/value text beside decorative activity SVGs that carry no img role, so every WCAG-tagged rule is inapplicable. health/workoutsBranded is NOT waived: a mapped session renders a real anchor, which makes link-name applicable -- so the guard still proves this card renders whenever it can."
+    },
+    {"key": "health/workoutsBranded", "selector": "#cardWorkouts", "expectsWcagApplicableNodes": true},
+    {"key": "health/systemStatus", "selector": "#cardSystem", "expectsWcagApplicableNodes": true},
+    {"key": "articles/loading", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {
+      "key": "articles/empty",
+      "selector": "#cardReading",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): the empty branch replaces the whole list with one h3.widget-label and a single text div, matching only the best-practice empty-heading and heading-order rules, neither of which is in AXE_TAGS. Every populated articles state IS guarded, because each renders real anchors."
+    },
+    {"key": "articles/baseline", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {"key": "articles/untitled", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {"key": "articles/withNotes", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {"key": "articles/pagination", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {"key": "articles/overThirty", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {"key": "devlog/loading", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true},
+    {
+      "key": "devlog/empty",
+      "selector": "#cardDevLog",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): the empty branch replaces the terminal with one h3.widget-label and a single text div, matching only the best-practice empty-heading and heading-order rules, neither of which is in AXE_TAGS. Every populated dev-log state IS guarded, because each renders real anchors."
+    },
+    {"key": "devlog/baseline", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true},
+    {"key": "devlog/repoNames", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true},
+    {"key": "devlog/commits", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true},
+    {"key": "devlog/pullRequests", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true},
+    {"key": "devlog/overTen", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true}
   ]
 }

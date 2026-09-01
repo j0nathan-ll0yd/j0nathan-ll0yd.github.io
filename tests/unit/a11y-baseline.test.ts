@@ -58,7 +58,22 @@ describe('a11y scan targets', () => {
   // reviewer sees rather than a default that spreads.
   it('waives the applicable-node guard only for states measured to be WCAG-sparse', () => {
     const waived = A11Y_SCAN_TARGETS.filter((target) => !target.expectsWcagApplicableNodes)
-    expect(waived.map((target) => target.key)).toEqual(['bookshelf/empty'])
+    // Every entry here was measured, not assumed: each of these cards renders only headings and
+    // text in the listed state -- no link, image, control or landmark -- so the WCAG-tagged rule
+    // set legitimately matches nothing. The populated sibling state of each widget is deliberately
+    // NOT waived (articles/baseline, devlog/baseline, health/workoutsBranded all render anchors),
+    // so every widget keeps at least one state where the "axe reached this card" guard is live.
+    expect(waived.map((target) => target.key)).toEqual([
+      'bookshelf/empty',
+      'health/hydrationZero',
+      'health/hydrationMax',
+      'health/sleepBaseline',
+      'health/sleepDeepDominant',
+      'health/sleepEmpty',
+      'health/workoutsMulti',
+      'articles/empty',
+      'devlog/empty'
+    ])
     for (const target of waived) {
       expect(target.sparseReason, `${target.key} must state a measured reason`).toMatch(/Measured/)
     }
