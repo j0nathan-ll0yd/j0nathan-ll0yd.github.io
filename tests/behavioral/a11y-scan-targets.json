@@ -1,0 +1,24 @@
+{
+  "description": "Every per-widget axe scan the behavioral matrices perform (atlas phoenix-eval GAP 4 / W16). One entry per <widget>/<state> the matrices render; `key` is also the key used in a11y-baseline.json. Declared as data, not as TypeScript, because scripts/update-a11y-baseline.mjs needs the same list and parsing a .ts source textually to get it was fragile enough to break on a single inline comment. Loaded and validated by tests/behavioral/a11y-scan-targets.ts. `expectsWcagApplicableNodes: false` waives the guard that says axe must have reached at least one node inside this card, and REQUIRES a measured `sparseReason` -- the waiver is the only thing between a card that stopped rendering and a clean-looking scan of nothing.",
+  "targets": [
+    {"key": "bookshelf/loading", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {
+      "key": "bookshelf/empty",
+      "selector": "#cardBooks",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-08-31 (playwright noble image, axe-core 4.13): the empty card renders one h3.widget-label and two text spans, and the ONLY axe rules matching it are empty-heading and heading-order -- both best-practice, neither in AXE_TAGS. Every WCAG-tagged rule is inapplicable, color-contrast included (see the CONTRAST note in a11y.ts). This state legitimately evaluates zero nodes under the gate's tag set."
+    },
+    {"key": "bookshelf/baseline", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {"key": "bookshelf/allCompleted", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {"key": "bookshelf/allReading", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {"key": "bookshelf/noCovers", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {"key": "bookshelf/full", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/loading", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/empty", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/baseline", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/allGrades", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/noImages", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/exportWindow", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {"key": "theatre-reviews/fullOptimizedPosters", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true}
+  ]
+}

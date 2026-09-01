@@ -2,6 +2,7 @@ import {createRequire} from 'node:module'
 import {readFileSync} from 'node:fs'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {expectNoNewAxeViolations} from './a11y'
 
 const require = createRequire(import.meta.url)
 const THEATRE_EMPTY_MESSAGE = 'No reviews yet'
@@ -88,6 +89,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews.is-loading')).toBeVisible()
     await expect(page.locator('#cardTheatreReviews .skeleton-bar')).toHaveCount(9)
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/loading')
   })
 
   // covers: theatre-reviews-render#Empty state presents the theatre empty message without cards
@@ -97,6 +100,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews .widget-empty')).toContainText(THEATRE_EMPTY_MESSAGE)
     await expect(page.locator('#theatreCount')).toHaveText('0 reviews')
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/empty')
   })
 
   // covers: theatre-reviews-render#Baseline reviews render every source title and count
@@ -109,6 +114,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews')).toContainText('Death of a Salesman')
     await expect(page.locator('#cardTheatreReviews')).toContainText('Waiting for Godot')
     await expectSanitizedPlaceholderCovers(page, 3)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/baseline')
   })
 
   // covers: theatre-reviews-render#Grade variation renders the full letter-grade range
@@ -120,6 +127,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews')).toContainText('A+')
     await expect(page.locator('#cardTheatreReviews')).toContainText('F')
     await expectSanitizedPlaceholderCovers(page, 8)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/allGrades')
   })
   // covers: theatre-reviews-render#Reviews without images retain titles and grades without broken image elements
   test('renders image-less reviews without image elements', async ({page}) => {
@@ -129,6 +138,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews .theatre-poster-wrap img')).toHaveCount(0)
     await expect(page.locator('#cardTheatreReviews .theatre-grade')).toHaveCount(3)
     await expect(page.locator('#cardTheatreReviews')).toContainText("Long Day's Journey Into Night")
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/noImages')
   })
 
   // covers: theatre-reviews-render#Export window preserves total source count
@@ -139,6 +150,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
 
     await expect(page.locator('#theatreCount')).toHaveText('18 reviews')
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(7)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/exportWindow')
   })
 
   // covers: theatre-reviews-render#Full variation renders populated optimized-image review cards
@@ -158,6 +171,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(cards.first()).toHaveAttribute('rel', 'noopener noreferrer')
     await expect(cards.first()).toHaveAttribute('href', 'https://coasttocoastreviews.com/reviews/a-midsummer-nights-dream')
     await expect(page.locator('#cardTheatreReviews')).toContainText("A Midsummer Night's Dream")
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/fullOptimizedPosters')
   })
 })
 

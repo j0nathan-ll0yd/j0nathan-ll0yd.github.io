@@ -30,6 +30,11 @@ VERSION=$(./scripts/playwright-version.sh)
 # Corepack follows package.json's exact pnpm pin. GITHUB_TOKEN is written to the container user
 # npmrc because pnpm does not expand it from the committed project config.
 #
+# A11Y_UPDATE_BASELINE is forwarded so `pnpm run a11y:update-baseline` regenerates the per-widget
+# a11y ratchet baseline (tests/behavioral/a11y-baseline.json) from a CI-parity run. Regenerating it
+# on the host would record whatever the host browser happened to compute, which is the same
+# parity trap the visual baselines have.
+#
 # dist/ gets its own shadow volume for the same reason node_modules does, but the
 # failure it prevents is louder. Rolldown creates its output-chunk directories
 # with a plain mkdir; on the macOS bind mount that call reports EEXIST for a
@@ -44,6 +49,7 @@ VERSION=$(./scripts/playwright-version.sh)
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
+  -e A11Y_UPDATE_BASELINE \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
