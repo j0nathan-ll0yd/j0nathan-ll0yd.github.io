@@ -93,8 +93,15 @@ The remaining design-system widgets have no matrix and are therefore unscanned h
 tracked as `behavioralGap` in the DS conformance baseline, and each widget gains this scan when it
 gains a matrix.
 
-One violation is carried as recorded debt: `health/movementActive` trips `svg-img-alt` because the
-Movement rings `<svg role="img">` takes its `aria-label` from its parent wrapper rather than from
-the SVG element itself. The scan surfaced it the first time this card was ever scanned. The fix
-belongs to `design-system-Lifegames` (`src/widgets/health/MovementRings.astro`); this repo renders
-no widget source, so it is grandfathered here rather than patched here.
+No violation is carried as recorded debt: the baseline's `grandfathered` map is empty, and all 44
+scan keys are clean.
+
+The one entry it used to hold was `health/movementActive`, which tripped `svg-img-alt` because the
+Movement rings `<svg role="img">` took its `aria-label` from its parent wrapper rather than from the
+SVG element itself. As predicted, the fix landed in `design-system-Lifegames`
+(`src/widgets/health/MovementRings.astro`, PRs #247 and #248) rather than here, and this repo
+retired the debt by CONSUMING it -- `@j0nathan-ll0yd/web@3.2.1` moves the `aria-label` onto the
+element carrying `role="img"`, and the `updaters-movement` runtime re-applies it on every poll so an
+`output: 'static'` build cannot announce a name frozen at build time over rings that repaint live.
+The baseline was regenerated from a CI-parity Docker run in the same PR that consumed the fix, per
+the prune-in-the-same-PR rule stated in `a11y-baseline.json`.
