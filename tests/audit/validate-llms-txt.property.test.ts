@@ -134,18 +134,20 @@ const mutations: Record<InvariantName, Mutation> = {
   // filtered lines by BLOCKQUOTE_RE, which is one of the mirrors this change
   // deletes, and left a stray blank line behind where the blockquote had been.
   blockquoteNext: {ruleId: 'llms-txt-blockquote', mutate: (text) => encode({...parse(text), summary: null})},
-  // Model space: demote the first section's first link to a bare-URL bullet. It
-  // renders as prose because it is not a well-formed link -- which is exactly the
-  // condition the rule names.
-  linkListItems: {
-    ruleId: 'llms-txt-non-link-list-item',
-    mutate: (text) => {
-      const doc = parse(text)
-      const [section, ...rest] = doc.sections
-      const [, ...remainingLinks] = section.links
-      return encode({...doc, sections: [{...section, prose: [...section.prose, BARE_URL_ITEM], links: remainingLinks}, ...rest]})
-    }
-  },
+  // Text level, deliberately, and it MOVED here from model space in estate-contracts
+  // 0.7.0. Demoting a link to a bare-URL bullet is still the mutation -- it renders as
+  // prose because it is not a well-formed link, which is exactly the condition the rule
+  // names -- but `encodeLlmsTxt` now REFUSES to render it: atlas decision 0099 item-6
+  // closed the gap where a bullet prose line carrying a bare URL encoded cleanly and then
+  // failed `checkLlmsStructure`. Encode is a construction-time boundary, so the only way
+  // to build a document that breaks this rule is to write the line the codec rejects --
+  // the same reason singleH1 and h2NoFileList are text-level.
+  //
+  // Replacing the first link LINE (rather than appending) reproduces the old model-space
+  // result exactly: `wellFormedLlmsTxtArb` emits sections of link items and no prose, so
+  // after the swap the section parses back to prose [BARE_URL_ITEM] with the remaining
+  // links -- and stays content-bearing, so h2NoFileList is untouched.
+  linkListItems: {ruleId: 'llms-txt-non-link-list-item', mutate: (text) => text.replace(/^[-*][ \t]+\[.*$/m, BARE_URL_ITEM)},
   // Text level, deliberately: `encodeLlmsTxt` REFUSES to render a second H1, so the
   // only way to build this document is to append the line the codec would reject.
   singleH1: {ruleId: 'llms-txt-second-h1', mutate: (text) => `${text}\n# Second Title\n`},
