@@ -6,6 +6,8 @@ import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
 import {runLlmsCoherenceAudit, runLlmsCoherenceCli} from '../../scripts/audit/check-llms-coherence.mjs'
 import {createDryRunClient, reconcileCheckIssues} from '../../scripts/audit/lib/file-check-issues.mjs'
 import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence, managedIssueOutcome} from '../../scripts/audit/lib/llms-spoke-evidence'
+import {validateSpokeEvidence} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
+import freshnessConfig from '@j0nathan-ll0yd/estate-contracts/llms-assurance/freshness-config.json' with {type: 'json'}
 
 const OBSERVED_AT = '2026-08-29T18:00:00.000Z'
 const REVISION = '5d9c1575686a283c34b8312201939fc45be99eb3'
@@ -67,7 +69,7 @@ describe('B2 spoke evidence v1', () => {
       checkId: 'B2',
       status: 'passed',
       observedAt: OBSERVED_AT,
-      source: {repository: 'web-Lifegames-Portal', ...SOURCE},
+      source: {repository: 'j0nathan-ll0yd.github.io', ...SOURCE},
       summary: 'All six raw/canonical responses satisfy the B2 coherence and cache contract.',
       results: [{
         id: 'llms-coherence',
@@ -75,6 +77,27 @@ describe('B2 spoke evidence v1', () => {
         evidence: 'complete response set; no coherence, freshness, content-type, byte, or public-cache findings'
       }]
     })
+  })
+
+  // covers: llms-txt#Raw and canonical llms artifacts stay coherent
+  //
+  // The drift gate. This producer's `source.repository` is a wire token the CONSUMER owns, and
+  // the two silently disagreed between 2026-08-31 and this change: Atlas renamed the expected
+  // value to the repo's registry name while this file still stamped the retired
+  // `web-Lifegames-Portal` alias, so every emitted B2 artifact failed ingest and B2 read as
+  // unmeasured. Asserting each built envelope against the contract's OWN validator -- and the
+  // token against the contract's declared B2 owner -- makes the next such rename fail in this
+  // repo's CI instead of going dark in another repo's collector.
+  it('emits envelopes the estate-contracts spoke-evidence validator accepts', () => {
+    const envelopes = [
+      buildB2SpokeEvidence(OBSERVED_AT, SOURCE, {findings: [], unknowns: []}),
+      buildB2SpokeEvidence(OBSERVED_AT, SOURCE, {findings: [CACHE_FINDING], unknowns: []}),
+      buildB2SpokeEvidence(OBSERVED_AT, SOURCE, {findings: [], unknowns: [{id: 'llms-suppression', evidence: 'focus suppression prevented measurement'}]})
+    ]
+    for (const envelope of envelopes) {
+      expect(validateSpokeEvidence(envelope)).toEqual([])
+    }
+    expect(envelopes[0].source.repository).toBe(freshnessConfig.layers.portfolioServing.owner.repository)
   })
 
   it('classifies complete findings as failed and clean suppression as unknown', () => {
