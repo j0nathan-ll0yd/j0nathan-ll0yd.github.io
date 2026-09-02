@@ -67,8 +67,9 @@ Verified by `tests/behavioral/devlog-matrix.test.ts:54`.
 - **GIVEN** the baseline export, whose every event names its repository as `j0nathan-ll0yd/<repo>`
 - **WHEN** the Dev Log card finishes loading
 - **THEN** the lines SHALL read "design-system-Lifegames" and "j0nathan-ll0yd.github.io" without
-  the owner prefix, the owner-qualified form SHALL appear nowhere in the card's text, and the first
-  line's href SHALL still carry the fully qualified repository
+  the owner prefix, the owner-qualified `j0nathan-ll0yd/design-system-Lifegames` SHALL appear
+  nowhere in the card's text, and the first line's href SHALL still carry the fully qualified
+  repository
 
 ### Requirement: Commit events render their additions and deletions and link to the commit
 
