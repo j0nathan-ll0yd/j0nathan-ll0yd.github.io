@@ -32,11 +32,12 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `LLM discovery index` distribution in `functions/_lib/llms-artifacts.ts`. No proxy owns a second
   hard-coded `/llms.txt` upstream path.
 - Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.
-  A pure, framework-free module; atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME THE
-  PACKAGE. The producer imports it in
+  A network-free module carrying exactly ONE dependency, `zod`, pinned and asserted (atlas decision
+  0103; see "the dependency" below). Atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME
+  THE PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
   `scripts/audit/validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
-  exact-pinned at `0.6.0` (here `package.json:56`) and resolves it from its lockfile — atlas
+  exact-pinned at `0.7.0` (here `package.json:58`) and resolves it from its lockfile — atlas
   decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
@@ -46,10 +47,21 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `tests/audit/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `5e6eb981f1812b079910bb1e5c043f19b51fea78c514854611932d668ea7f465` — and
+  beside them — sha256 `149ea49a0c98448687dc6b081ed154ea2d3462d339526fdd4794144953483eae` — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
+- The dependency (atlas decision 0103, new in `0.7.0`): the tier's invariant is no longer "imports
+  nothing" but "pinned, version-asserted dependencies" — the property `export-surface/extract.mjs`
+  has had since decision 0030, where importing `typescript` stays deterministic because the version
+  is pinned exactly and ASSERTED at conformance time. `VERIFIED_ZOD_VERSION` is that assertion for
+  `zod`, currently **4.4.3**. Bytes plus the pinned Zod version determine behavior; bytes alone no
+  longer do. The tier SPLITS by consumer: `llms-structure` may take the dependency because every
+  consumer resolves it through a lockfile, while `openspec-covers` MUST stay zero-import because
+  `ios-LifegamesPortal` vendors it as a FILE and runs it on bare node with no `node_modules`.
+  Atlas audit A12 item 7 aligns any DECLARED `zod` specifier across governed repos to
+  `VERIFIED_ZOD_VERSION`; it is an ALIGNMENT rule, not a mandate, so this repo — which declares no
+  `zod` of its own and resolves `4.4.3` transitively — owes it nothing.
 - Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
-  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.6.0` (atlas decision
+  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.7.0` (atlas decision
   0099). `checkLlmsStructure` is unchanged by every codec release so far, so the RULE version stays
   **3** while the shipped bytes, the sidecar, and the package minor all moved.
   `decodeLlmsTxt(text).findings` is `checkLlmsStructure(text)`. `0.6.0` changed the codec's CANONICAL
@@ -60,6 +72,13 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   terms rather than assumed: `tests/audit/validate-llms-txt.property.test.ts` generates descriptive
   sections and asserts the catalog accepts them, that adjacent bullets are contiguous AND adjacent
   non-bullet prose is blank-line separated, and that the model round-trips.
+  `0.7.0` (atlas decision 0103) then moved the codec's MODEL and encode-time guards onto Zod schemas
+  — `LlmsTxtLinkSchema`, `LlmsTxtSectionSchema`, `LlmsTxtDocSchema`, `EncodableLlmsTxtDocSchema`, and
+  the bidirectional `llmsTxtCodec` — while PRESERVING behavior: the Markdown grammar (the parse line
+  walk and the encode serialisation) is unchanged, `encodeLlmsTxt` still throws a `TypeError` whose
+  message begins `encodeLlmsTxt:`, and the schema's key order reproduces which failure the previous
+  sequential `assertEncodable` calls threw on. So the canonical encode form is unchanged from `0.6.0`
+  and the RULE version stays **3**; what moved is the shipped bytes and the sidecar.
   This repo's evaluation layer states its structural invariants over
   the parsed model instead of over local regexes: `tests/audit/validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
@@ -335,7 +354,7 @@ in the catalog checks its clause as quoted.
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
 - Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
-  `@j0nathan-ll0yd/estate-contracts@0.6.0` now exposes it as
+  `@j0nathan-ll0yd/estate-contracts@0.7.0` now exposes it as
   `./llms-assurance/spoke-evidence.schema.json`. `scripts/audit/serving-probe.mjs:40-41` consumes the
   freshness half of that tier, but the spoke-evidence half does not: `scripts/audit/lib/llms-spoke-evidence.ts`
   still builds and validates its artifact locally against no shipped schema. Adopting the published
