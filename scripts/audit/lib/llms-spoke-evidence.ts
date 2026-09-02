@@ -24,12 +24,21 @@ export interface B2EvidenceOutcome {
   unknowns: readonly B2EvidenceUnknown[]
 }
 
+/**
+ * `source.repository` is a WIRE TOKEN owned by the contract, not a free label: Atlas's
+ * `validateSpokeEvidence` rejects any B2 envelope whose value is not the repo's registry name
+ * (`@j0nathan-ll0yd/estate-contracts/llms-assurance`, `reference.mjs` `expectedRepository`).
+ * It read `web-Lifegames-Portal` until the estate-wide alias removal renamed it on 2026-08-31,
+ * which left this producer emitting envelopes Atlas could not ingest. `runLlmsCoherenceCli`
+ * now runs the contract's own `assertSpokeEvidence` before writing, so a future divergence
+ * fails HERE at emit rather than silently going unmeasured downstream.
+ */
 export interface B2SpokeEvidence {
   specVersion: 1
   checkId: 'B2'
   status: SpokeEvidenceStatus
   observedAt: string
-  source: {repository: 'web-Lifegames-Portal'; revision: string; workflow: string; runId: string; runAttempt: number; job: string; runUrl?: string}
+  source: {repository: 'j0nathan-ll0yd.github.io'; revision: string; workflow: string; runId: string; runAttempt: number; job: string; runUrl?: string}
   summary: string
   results: Array<{id: string; status: SpokeEvidenceStatus; evidence: string}>
 }
@@ -53,7 +62,7 @@ function checkedSource(input: B2EvidenceSourceInput): B2SpokeEvidence['source'] 
   }
 
   const source: B2SpokeEvidence['source'] = {
-    repository: 'web-Lifegames-Portal',
+    repository: 'j0nathan-ll0yd.github.io',
     revision: input.revision,
     workflow: nonempty(input.workflow, 'source.workflow'),
     runId: nonempty(input.runId, 'source.runId'),

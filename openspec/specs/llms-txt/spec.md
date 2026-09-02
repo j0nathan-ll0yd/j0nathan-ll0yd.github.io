@@ -180,7 +180,7 @@ missing output SHALL remain indeterminate. Therefore suppressed, incomplete, and
 runs neither open nor close the managed issue, a definitive finding opens or reopens it, and only
 an all-passed run can close it.
 
-Verified by `tests/audit/llms-spoke-evidence.test.ts:63` (evidence builder and orchestration).
+Verified by `tests/audit/llms-spoke-evidence.test.ts:65` (evidence builder and orchestration).
 Those tests cover the exact envelope, aggregation, file/output mapping, issue lifecycle, uncaught
 failure, and suppression short-circuit. `tests/audit/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
 workflow-level suppression skip, the fixed path, report-only exit preservation, and `always()`
@@ -355,10 +355,13 @@ in the catalog checks its clause as quoted.
   purged; the audit detects but cannot mutate that configuration.
 - Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
   `@j0nathan-ll0yd/estate-contracts@0.7.0` now exposes it as
-  `./llms-assurance/spoke-evidence.schema.json`. `scripts/audit/serving-probe.mjs:40-41` consumes the
-  freshness half of that tier, but the spoke-evidence half does not: `scripts/audit/lib/llms-spoke-evidence.ts`
-  still builds and validates its artifact locally against no shipped schema. Adopting the published
-  schema there, and live central ingestion, remain open.
+  `./llms-assurance/spoke-evidence.schema.json`. Both halves of that tier are now consumed:
+  `scripts/audit/serving-probe.mjs:40-41` takes the freshness half, and
+  `scripts/audit/check-llms-coherence.mjs` runs the published `assertSpokeEvidence` over the built
+  envelope before writing it, so this repo can no longer emit an artifact Atlas will reject. That
+  gap was not theoretical -- the producer stamped the retired `web-Lifegames-Portal` alias in
+  `source.repository` for two days after Atlas renamed the token, and every B2 artifact failed
+  ingest. Live central ingestion remains external to this repository.
 
 ## Enforcement note
 

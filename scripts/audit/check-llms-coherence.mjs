@@ -1,6 +1,7 @@
 #!/usr/bin/env -S pnpm exec tsx
 
 import {createHash} from 'node:crypto'
+import {assertSpokeEvidence} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {compositionTimestamp, evaluateLlmsCoherence, LLMS_COHERENCE_THRESHOLDS} from './lib/llms-coherence.ts'
 import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence, writeB2GithubOutput, writeB2SpokeEvidence} from './lib/llms-spoke-evidence.ts'
@@ -201,6 +202,7 @@ export async function runLlmsCoherenceCli({
   now = () => new Date(),
   auditRunner = runLlmsCoherenceAudit,
   evidenceWriter = writeB2SpokeEvidence,
+  evidenceValidator = assertSpokeEvidence,
   githubOutputWriter = writeB2GithubOutput,
   logger = console
 } = {}) {
@@ -228,6 +230,11 @@ export async function runLlmsCoherenceCli({
     let evidence
     try {
       evidence = buildB2SpokeEvidence(observedAt, source, audit.evidenceOutcome)
+      // Validate against the CONSUMER's own rule before writing. Atlas's collector rejects an
+      // envelope that violates the spoke-evidence contract, and a rejected artifact reads as
+      // "B2 unmeasured" days later in a different repo. Asserting here converts that silent hole
+      // into a red step in the run that produced it.
+      evidenceValidator(evidence)
       await evidenceWriter(outputPath, evidence)
     } catch (error) {
       logger.error(`B2 spoke evidence write failed: ${errorText(error)}`)
