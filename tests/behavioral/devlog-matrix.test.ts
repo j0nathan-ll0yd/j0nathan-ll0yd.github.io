@@ -58,10 +58,20 @@ test.describe('Dev Activity Log Render Conformance', () => {
     const repos = page.locator('#cardDevLog .gh-dal-repo')
     await expect(repos).toHaveCount(5)
     // The export ships `j0nathan-ll0yd/<repo>`; the owner is constant across the feed and would
-    // waste the narrow line, so only the repository segment is rendered.
-    await expect(repos.nth(0)).toHaveText('design-system-Lifegames')
-    await expect(repos.nth(1)).toHaveText('j0nathan-ll0yd.github.io')
-    await expect(page.locator('#cardDevLog')).not.toContainText('j0nathan-ll0yd/design-system-Lifegames')
+    // waste the narrow line, so only the repository segment is rendered. Every cell is pinned,
+    // not just the first two: the baseline mixes both repositories across commit and pull-request
+    // events, so a strip that misses one event type only shows up on a line further down.
+    await expect(repos).toHaveText([
+      'design-system-Lifegames',
+      'j0nathan-ll0yd.github.io',
+      'design-system-Lifegames',
+      'j0nathan-ll0yd.github.io',
+      'design-system-Lifegames'
+    ])
+    // The rule is general, so the absence guard names the owner rather than one repository slug.
+    // Naming a slug leaves every other repository free to keep its prefix, and goes vacuous the
+    // moment the Design System regenerates the baseline feed without that repository.
+    await expect(page.locator('#cardDevLog')).not.toContainText('j0nathan-ll0yd/')
     // The stripped owner must survive in the href, which needs the fully qualified repository.
     await expect(page.locator('#cardDevLog .gh-dal-line').nth(0)).toHaveAttribute('href',
       'https://github.com/j0nathan-ll0yd/design-system-Lifegames/commit/67fd9f2')

@@ -66,16 +66,16 @@ Verified by `tests/behavioral/devlog-matrix.test.ts:54`.
 
 - **GIVEN** the baseline export, whose every event names its repository as `j0nathan-ll0yd/<repo>`
 - **WHEN** the Dev Log card finishes loading
-- **THEN** the lines SHALL read "design-system-Lifegames" and "j0nathan-ll0yd.github.io" without
-  the owner prefix, the owner-qualified `j0nathan-ll0yd/design-system-Lifegames` SHALL appear
-  nowhere in the card's text, and the first line's href SHALL still carry the fully qualified
-  repository
+- **THEN** all five lines SHALL read their bare repository segment -- "design-system-Lifegames",
+  "j0nathan-ll0yd.github.io", "design-system-Lifegames", "j0nathan-ll0yd.github.io" and
+  "design-system-Lifegames" in that order -- the owner-qualified form SHALL appear nowhere in the
+  card's text, and the first line's href SHALL still carry the fully qualified repository
 
 ### Requirement: Commit events render their additions and deletions and link to the commit
 
 When an event is a commit carrying a hash, the system SHALL render its additions and deletions as
 the line detail, including a zero count, and SHALL link to that commit.
-Verified by `tests/behavioral/devlog-matrix.test.ts:72`.
+Verified by `tests/behavioral/devlog-matrix.test.ts:82`.
 
 #### Scenario: A commits-only export renders a diffstat on every line
 
@@ -88,7 +88,7 @@ Verified by `tests/behavioral/devlog-matrix.test.ts:72`.
 
 When an event is a pull request carrying a number, the system SHALL render that number as the line
 detail and SHALL link to the pull request.
-Verified by `tests/behavioral/devlog-matrix.test.ts:87`.
+Verified by `tests/behavioral/devlog-matrix.test.ts:97`.
 
 #### Scenario: A pull-request-only export renders numbered lines linking to each pull request
 
@@ -102,7 +102,7 @@ Verified by `tests/behavioral/devlog-matrix.test.ts:87`.
 
 When the export holds more than ten events, the system SHALL render only the first ten and SHALL
 drop the remainder before rendering.
-Verified by `tests/behavioral/devlog-matrix.test.ts:101`.
+Verified by `tests/behavioral/devlog-matrix.test.ts:111`.
 
 #### Scenario: A fifteen-event export renders exactly ten lines
 
