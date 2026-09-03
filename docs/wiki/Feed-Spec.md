@@ -70,9 +70,11 @@ composition would make the feed stale by definition.
   the total has no ceiling this document can state from source. Measured
   2026-08-30: the edge served `/feed.xml` at `Age: 1775` (29.6 minutes) and
   the site plane advertised a `<lastBuildDate>` 30.0 minutes behind the
-  origin's `x-amz-meta-composed-at`. The `feed-xml-origin-site-coherence`
-  check in `scripts/audit/serving-probe.mjs` measures this gap every run
-  rather than asserting a fixed number.
+  origin's `x-amz-meta-composed-at`. That figure is a single measurement, not
+  a bound. No check measures the origin/site feed gap today: the
+  `feed-xml-origin-site-coherence` check lived in `scripts/audit/serving-probe.mjs`,
+  which never ran and was deleted under atlas decision 0110. Re-measure with
+  curl before citing a number here.
 
 ## Included Domains
 
