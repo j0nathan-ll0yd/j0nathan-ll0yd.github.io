@@ -2,7 +2,7 @@
 
 import {appendFile, mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
-import {isMain} from '../lib/http.mjs'
+import {fetchStable, isMain} from '../lib/http.mjs'
 
 export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
   'https://jonathanlloyd.me/llms.txt',
@@ -538,7 +538,7 @@ async function activePageRules(zoneId, token, sensitiveValues, fetchImpl) {
   }
 }
 
-export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken, fetchImpl = fetch, observedAt = new Date().toISOString()}) {
+export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken, fetchImpl = fetchStable, observedAt = new Date().toISOString()}) {
   const sensitiveValues = [apiToken, accountId, zoneId]
   const requests = [
     ['accountRequestRules', () => rulesetRules('accounts', accountId, 'http_request_cache_settings', apiToken, sensitiveValues, fetchImpl)],
@@ -599,7 +599,7 @@ async function writeGithubOutput(outputPath, status) {
 }
 
 export async function runCloudflareLlmsCacheRuleCli(
-  {arguments_ = process.argv.slice(2), environment = process.env, fetchImpl = fetch, now = () => new Date(), logger = console} = {}
+  {arguments_ = process.argv.slice(2), environment = process.env, fetchImpl = fetchStable, now = () => new Date(), logger = console} = {}
 ) {
   let outputPath
   let evidence
