@@ -1,0 +1,114 @@
+{
+  "id": "llms-txt-non-link-list-item",
+  "title": "Lifegames llms.txt profile: an H2 list item may not carry an unwrapped or malformed URL",
+  "artifact": "llms.txt",
+  "rule_class": "convention",
+  "severity": "fail",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "Format section, item 5",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-30",
+    "content_sha256": "688e06ba20eefb59048e0af19acfb4af9a601b575d2d521fa85c4168139afcd3",
+    "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available... Each \"file list\" is a markdown list, containing a required markdown hyperlink [name](url), then optionally a : and notes about the file.",
+    "note": "conformance_testable is false -- llmstxt.org itself is descriptive/indexing, not conformance-tested. Verified against the pinned source (AnswerDotAI/llms-txt @c7178b9, nbs/index.qmd) on 2026-07-30. The quote joins two SEPARATE Format list items -- the parent H2 bullet (source line 45) and its nested child (line 46) -- with an ellipsis; neither is reworded. Source line 45 ends \"...is available\" with no period; backticks around [name](url) and : are de-marked. Corrects two defects: an earlier version invented a SHOULD and dropped the term \"file lists\"; this review pass removed a fabricated period that had spliced the two items into continuous prose (the same splice defect security-txt-expires-missing's note describes).",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
+  },
+  "applicability": "An H2 section's list item (a line matching /^[-*]\\s+/) once at least one H2 has been seen -- AND ONLY IN A BODY WITH A VALID H1. The shared reference returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-h2-no-file-list; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
+  "expectation": "SPEC VERSION 3 (llms-structure.mjs LLMS_STRUCTURE_SPEC_VERSION = 3). The item carries no BARE URL and no MALFORMED link. Bare: strip every WELL-FORMED /\\[[^\\]]+\\]\\([^)]+\\)/ markdown link from the line, and no /https?:\\/\\// may remain. Malformed: no /\\[[^\\]]*\\]\\([^)]*\\)/ shape on the line may have an empty label or an empty destination. Five consequences, each pinned by a case below. (a) A descriptive item with no URL at all -- '- Framework: Astro (...)' -- is LEGAL, where v1 flagged it. (b) An unlinked URL is still a finding wherever it sits, so '- Site: https://example.com' fails. (c) An unlinked URL in the notes tail fires, where v1's /(:\\s*.*)?$/ tail swallowed it. (d) v3: an empty-label link '- [](https://x.com)' fails -- it hides a URL the reader cannot see as a link, which v2's optional-label regex stripped as if it were one. (e) v3: an empty-destination link '- [name]()' fails -- a broken link with nowhere to go, which v2's optional-destination regex also stripped. An unclosed destination '- [Docs](https://example.com/docs' fails through (b): it matches no link shape at all, so the URL survives the strip. A well-formed '- [ok](https://ok.com)' still passes. The ADR 0036 bare-colon behaviour survives unchanged: '- [Name](url):' strips to '- :', which holds no URL and no link shape, so it passes for the same reason and the same result.",
+  "policy_note": "PROFILE, NOT STRICT CONFORMANCE (atlas decision 0040). This rule states the LIFEGAMES llms.txt PROFILE: llmstxt.org-derived, with one documented relaxation of the clause quoted above. It does not claim the served file conforms strictly to that clause, and a green run must not be read as claiming it. llmstxt.org says a file-list item contains 'a required markdown hyperlink [name](url)'; the profile requires that only of items that carry a URL. The reason is content, not convenience: the live index at https://jonathanlloyd.me/llms.txt mixes file-list sections with descriptive ones ('## Technology' lists '- Framework: Astro (...)'), and the producer contract test in mantle-LifegamesPortal surfaced v1 flagging four such items as broken links. Flagging prose trains readers to ignore the rule, which costs more than the convention gains. The failure the profile still catches is the one that costs an agent a fetch: a URL the author meant to link and did not. Measured against the live index on 2026-08-13: v1 emitted 8 findings, v2 emits 3, and all 3 are genuine unlinked URLs in the '## About' section. v3 TIGHTENING, 2026-08-13: v2's link regex allowed an empty label and an empty destination, so '- [](https://x.com)' and '- [name]()' were stripped as if they were real links and passed. Both now fire. This is the profile moving BACK TOWARD the cited clause, not further from it -- the relaxation above is unchanged, and the ADR 0036 behaviours are untouched. The v2->v3 delta is pinned as evidence by the differential suite in audits/__tests__/llms-differential.test.ts against the frozen audits/__tests__/fixtures/llms-structure.v2.mjs.",
+  "cases": [
+    {
+      "name": "a link item with a bare trailing colon and no notes is legal (ADR 0036: pins the permissive tail)",
+      "outcome": "passed",
+      "input_file": "cases/link-item-bare-colon.txt",
+      "input_kind": "text",
+      "expect": []
+    },
+    {
+      "name": "a descriptive item with no URL at all is legal (the profile relaxation)",
+      "outcome": "passed",
+      "input_file": "cases/descriptive-list-item.txt",
+      "input_kind": "text",
+      "expect": []
+    },
+    {
+      "name": "a well-formed link item is legal (v3: the control the tightening must not break)",
+      "outcome": "passed",
+      "input_file": "cases/well-formed-link.txt",
+      "input_kind": "text",
+      "expect": []
+    },
+    {
+      "name": "a bare-URL list item, not a markdown link",
+      "outcome": "failed",
+      "input_file": "cases/non-link-item.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an unlinked URL in the notes tail of an otherwise valid link item (v2: pins the one place v2 is stricter than v1)",
+      "outcome": "failed",
+      "input_file": "cases/link-item-notes-url.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an empty-label link hides an unlinked URL (v3: pins the tightening)",
+      "outcome": "failed",
+      "input_file": "cases/empty-label-link.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an empty-destination link is a broken link (v3: pins the tightening)",
+      "outcome": "failed",
+      "input_file": "cases/empty-destination-link.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an unclosed destination parenthesis matches no link shape, so the URL survives the strip",
+      "outcome": "failed",
+      "input_file": "cases/malformed-parens-link.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a fully spec-conformant file",
+      "outcome": "passed",
+      "input_file": "../../__tests__/fixtures/llms-valid.txt",
+      "input_kind": "text",
+      "expect": []
+    }
+  ]
+}

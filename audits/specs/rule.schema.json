@@ -1,0 +1,183 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://j0nathan-ll0yd.github.io/audits/specs/rule.schema.json",
+  "title": "B2 spec/eval rule file",
+  "description": "One finding-id's specification: the spec clause it derives from (or the declared absence of one), the severity the validator must emit, and the case inputs that make the rule discriminate. See decisions/0011 for the design rationale.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "artifact", "rule_class", "severity", "spec", "applicability", "expectation"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "The finding id this rule specifies. Must match the id string emit() is called with."
+    },
+    "title": {"type": "string", "minLength": 1},
+    "artifact": {"type": "string", "minLength": 1},
+    "rule_class": {
+      "enum": ["conformance", "local-policy", "convention", "operational"],
+      "description": "conformance: a MUST in a spec that has a real conformance concept. local-policy: the spec sets a weaker/no threshold and we impose a stricter operational one. convention: the artifact's spec has no conformance concept at all (spec.conformance_testable must be false). operational: no external spec clause and no pure-function input can produce the condition (transport/fetch failures) -- cases are omitted and untested_rationale is required instead."
+    },
+    "severity": {
+      "enum": ["fail", "warn"],
+      "description": "No default. A rule file that omits this is invalid -- an implicit default would silently re-open the historical severity hole (SEV1)."
+    },
+    "params": {
+      "type": "object",
+      "description": "Thresholds this rule contributes to the PRODUCTION call path (not merely to a test). Absence for a rule that genuinely has a threshold must be declared via params_pending instead of silently omitted."
+    },
+    "params_pending": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Declares that this rule has an operative threshold that is NOT yet derived from params, and why (e.g. the constant is shared with an out-of-scope validator). Tracked by the params_pending ratchet in check-spec-severity.mjs -- the count may not increase."
+    },
+    "untested_rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required for rule_class: operational. States why no pure-function case can exercise this id and what does cover it instead (e.g. a smoke-suite route assertion)."
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "clause", "url", "version", "conformance_testable", "retrieved", "content_sha256", "normative_quote", "verified_against_source"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "clause": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "pattern": "^https://"},
+        "version": {"type": "string", "minLength": 1},
+        "conformance_testable": {
+          "type": "boolean",
+          "description": "Whether the cited spec has a real pass/fail conformance concept for this clause. rule_class: conformance requires this to be true -- forbids dressing local opinion as a standard (0010's lesson)."
+        },
+        "retrieved": {"type": "string", "minLength": 1},
+        "content_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "sha256 of this file's own normative_quote, computed at authoring time (see audits/specs/hash-normative-quotes.mjs). The external drift probe that re-fetches spec.url and compares is deferred to a follow-up PR (ADR 0011 follow-up (h)); until it lands this field is recorded but not verified."
+        },
+        "normative_quote": {"type": "string", "minLength": 1},
+        "note": {"type": "string"},
+        "verified_against_source": {
+          "type": "boolean",
+          "description": "Whether normative_quote has been transcribed and checked against the primary source at verification_url. 'Checked' means faithful to the source's rendered text: whitespace across line wraps is normalized and markdown formatting is de-marked (code-span backticks around `version`/`[name](url)`/`:` and hyperlink syntax like [RFC 3339](url) are reduced to the text they render), but no word, clause, section, or sentence boundary is altered, and separate source passages joined into one quote are separated by an ellipsis rather than spliced. This is the checkable promotion of the prose disclosure ADR 0011's citation sweep found in 13 of 24 rule files but could not enforce ('recalled from training-data familiarity' vs 'verified against a live fetch') -- the defect rate tracked exactly the claims that skipped verification (7 of 7 conformance rules defective on first authoring). The gate keys on spec.clause, NOT the author-chosen rule_class (see the clause branch in the top-level allOf): a rule that cites ANY external clause (spec.clause != 'n/a') MUST set this true -- so downgrading rule_class can no longer buy an exemption. A rule that cites no external clause (spec.clause 'n/a' -- operational transport ids, or a purely local threshold whose quote is a self-authored statement about the ABSENCE of external coverage) MUST set this false with a verification_note saying so; false honestly means 'no external-source claim was verified', which is exactly correct when there is no external clause to verify."
+        },
+        "verified_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "ISO-8601 calendar date (YYYY-MM-DD) normative_quote was checked against verification_url. Required when verified_against_source is true (see the spec-level allOf); omitted otherwise."
+        },
+        "verification_url": {
+          "type": "string",
+          "anyOf": [
+            {"pattern": "^https://www\\.rfc-editor\\.org/rfc/rfc[0-9]+\\.txt$"},
+            {"pattern": "^https://raw\\.githubusercontent\\.com/[^/]+/[^/]+/[0-9a-f]{40}/.+"},
+            {"pattern": "^https://www\\.rssboard\\.org/rss-2-0-[0-9]+$"}
+          ],
+          "description": "The immutable or commit-pinned source fetched and transcribed when verified_against_source is true: an RFC's canonical plaintext, a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA, or a numbered RSS Advisory Board archive. Distinct from spec.url, which may be a living page. ADR 0011 follow-up (b): a drift probe requires an immutable target. The anyOf patterns above bind this shape at load time; check-spec-verification.mjs re-asserts it for a clean message. Required when verified_against_source is true."
+        },
+        "verification_note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required when verified_against_source is false (see the spec-level allOf): states why there is no external-source claim to verify. Because the clause branch of the top-level allOf forces verified_against_source true for every rule that cites an external clause, a false rule is always a spec.clause 'n/a' rule -- its normative_quote is a self-authored statement about the ABSENCE of external coverage (operational transport-failure ids, or a purely local threshold), and this note records that."
+        }
+      },
+      "allOf": [
+        {
+          "if": {"required": ["verified_against_source"], "properties": {"verified_against_source": {"const": true}}},
+          "then": {"required": ["verified_at", "verification_url"]}
+        },
+        {
+          "if": {"required": ["verified_against_source"], "properties": {"verified_against_source": {"const": false}}},
+          "then": {"required": ["verification_note"]}
+        }
+      ]
+    },
+    "applicability": {"type": "string", "minLength": 1},
+    "expectation": {"type": "string", "minLength": 1},
+    "policy_note": {"type": "string"},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "outcome", "input_file", "input_kind", "expect"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "outcome": {"enum": ["passed", "failed", "inapplicable", "cantTell"]},
+          "input_file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the case input, resolved relative to this rule file's own directory (not the repo root, and not process.cwd())."
+          },
+          "input_kind": {"enum": ["text", "json"]},
+          "now": {
+            "type": "string",
+            "description": "ISO-8601 instant passed to the validator as `now`, for time-sensitive rules. Omitted for validators with no time dependency."
+          },
+          "expect": {
+            "type": "array",
+            "description": "The FULL set of {id, severity} pairs the validator emits for this input -- order-insensitive multiset equality, not a subset assertion. An id may repeat if the validator legitimately emits it more than once for this input.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "severity"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "severity": {"enum": ["fail", "warn"]}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"required": ["rule_class"], "properties": {"rule_class": {"const": "conformance"}}},
+      "then": {
+        "properties": {
+          "severity": {"const": "fail"},
+          "spec": {"properties": {"conformance_testable": {"const": true}}}
+        }
+      }
+    },
+    {
+      "_comment": "The source-verification gate keys on spec.clause, NOT the author-chosen rule_class (ADR 0011 follow-up (a), review fix): a rule that cites ANY external clause (clause != 'n/a') MUST be verified against its source, so a rule cannot dodge verification by downgrading its rule_class from conformance to local-policy/convention. A clause 'n/a' rule (its quote a self-authored statement about the absence of external coverage) MUST be false and carry a verification_note. This subsumes the old rule_class: conformance -> true rule, since every conformance rule cites a real clause.",
+      "if": {"required": ["spec"], "properties": {"spec": {"required": ["clause"], "properties": {"clause": {"const": "n/a"}}}}},
+      "then": {"properties": {"spec": {"properties": {"verified_against_source": {"const": false}}}}},
+      "else": {"properties": {"spec": {"properties": {"verified_against_source": {"const": true}}}}}
+    },
+    {
+      "if": {"required": ["rule_class"], "properties": {"rule_class": {"const": "operational"}}},
+      "then": {
+        "required": ["untested_rationale"],
+        "not": {"required": ["cases"]}
+      }
+    },
+    {
+      "if": {
+        "required": ["rule_class"],
+        "properties": {"rule_class": {"enum": ["conformance", "local-policy", "convention"]}}
+      },
+      "then": {
+        "required": ["cases"],
+        "properties": {
+          "cases": {
+            "type": "array",
+            "allOf": [
+              {
+                "contains": {"type": "object", "properties": {"outcome": {"const": "failed"}}},
+                "description": "(i) at least one case demonstrates this rule can fail"
+              },
+              {
+                "contains": {"type": "object", "properties": {"outcome": {"enum": ["passed", "inapplicable"]}}},
+                "description": "(ii) at least one case demonstrates this rule can pass or not apply"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

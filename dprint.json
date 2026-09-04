@@ -6,7 +6,9 @@
   "includes": [
     "src/**/*.{ts,tsx}",
     "tests/**/*.{ts,tsx}",
+    "audits/**/*.{ts,tsx}",
     "scripts/**/*.{mjs,cjs,js}",
+    "audits/**/*.{mjs,cjs,js}",
     "*.mjs",
     "*.cjs",
     "*.ts"
@@ -22,7 +24,7 @@
     "src/env.d.ts",
 
     // Frozen byte-identical snapshots of the llms-structure reference at v1 and v2. Their sha256 is
-    // measured by the differential suite in tests/audit/llms-differential.test.ts, which differences
+    // measured by the differential suite in audits/__tests__/llms-differential.test.ts, which differences
     // the live reference against them over a fixed seed and input pool, so a formatter pass would
     // re-record history rather than tidy a file.
     //
@@ -31,7 +33,7 @@
     // wave 2b replaced both with @j0nathan-ll0yd/estate-contracts, which resolves under
     // node_modules -- already excluded above, and no formatter walks it -- so those two exclusions
     // are retired by construction rather than restated.
-    "tests/audit/fixtures/llms-structure.v1.mjs",
-    "tests/audit/fixtures/llms-structure.v2.mjs"
+    "audits/__tests__/fixtures/llms-structure.v1.mjs",
+    "audits/__tests__/fixtures/llms-structure.v2.mjs"
   ]
 }

@@ -10,8 +10,8 @@ import {focusPrivacyResponse} from './_lib/proxy'
 // the live addressing without hardcoded literals.
 const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin
 
-// Exported so tests/audit/csp-golden.test.ts can diff it against
-// tests/audit/golden/csp.txt. check-headers.mjs only catches that drift against
+// Exported so audits/__tests__/csp-golden.test.ts can diff it against
+// audits/fixtures/golden/csp.txt. check-headers.mjs only catches that drift against
 // the LIVE site, which is after a deploy; the two must move in lockstep here.
 export const CSP = [
   "default-src 'self'",

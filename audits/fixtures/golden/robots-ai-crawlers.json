@@ -1,0 +1,22 @@
+{
+  "_comment": "Drift guard for audits/checks/b2-validate-robots.mjs. Lists the AI-crawler User-agent sections that src/pages/robots.txt.ts must preserve: training crawlers are blocked from the dashboard except /llms.txt, while search/answer agents are allowed to read the full site. Captured from the live robots.txt on 2026-07-16. A MISSING entry or effective-policy change is a fail. An EXTRA entry in the live file that isn't listed here is a warn (update this snapshot to intentionally acknowledge the addition).",
+  "aiTrainingBotsBlockedExceptLlmsTxt": [
+    "GPTBot",
+    "ClaudeBot",
+    "CCBot",
+    "Google-Extended",
+    "Google-CloudVertexBot",
+    "Bytespider",
+    "Meta-ExternalAgent",
+    "Meta-ExternalFetcher",
+    "Applebot-Extended",
+    "Amazonbot"
+  ],
+  "aiSearchAgentsAllowedFullSite": [
+    "OAI-SearchBot",
+    "ChatGPT-User",
+    "Claude-SearchBot",
+    "Claude-User",
+    "Perplexity-User"
+  ]
+}

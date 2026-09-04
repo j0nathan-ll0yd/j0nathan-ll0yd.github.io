@@ -1,0 +1,64 @@
+{
+  "id": "llms-txt-h2-no-file-list",
+  "title": "Lifegames llms.txt profile: an H2 heading may not be left dangling",
+  "artifact": "llms.txt",
+  "rule_class": "convention",
+  "severity": "warn",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "Format section, item 5",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-30",
+    "content_sha256": "20f950d4231821c26e53317dc319338bf1e9a430f97dfd45173d2f008ea25ed9",
+    "normative_quote": "Zero or more markdown sections delimited by H2 headers, containing \"file lists\" of URLs where further detail is available",
+    "note": "conformance_testable is false. This id is a warn, not a fail, on disk today (check-security-txt.mjs precedent for the analogous decision does not apply here -- llmstxt.org genuinely has no conformance concept for an empty H2 section, so warn stays warn; rule_class: convention permits either severity). Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: the original quote was a close paraphrase, not the spec's own sentence.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
+  },
+  "applicability": "An H2 section whose body is entirely empty -- AND ONLY IN A BODY WITH A VALID H1. The shared reference returns immediately when the first non-blank line is not an H1 ('structure is unrecoverable past this point'), so this rule never runs on an H1-less body however many empty H2 sections it contains. Added by the ADR 0036 Posture-3 rehearsal, which found this precondition unstated here and in llms-txt-non-link-list-item; it is the same omission ADR 0011's security.txt rehearsal found and fixed on that one rule only (cases/h2-under-missing-h1.txt below pins it).",
+  "expectation": "SPEC VERSION 3 (llms-structure.mjs LLMS_STRUCTURE_SPEC_VERSION = 3; this rule's behaviour is unchanged from v2 -- v3 touched only llms-txt-non-link-list-item). Every H2 section has at least one non-blank line under it, up to the next H2 or end of file. The line may be a list item, prose, or a sub-heading -- the profile asks only that the section is not DANGLING. A prose section ('## Expertise' followed by a paragraph) is legal, where v1 required a list item and flagged it. The id is unchanged and still reads true of what fires: an empty section has no file list, and nothing else either. Emission is per empty section: a body with three dangling H2 headings emits this finding three times.",
+  "policy_note": "PROFILE, NOT STRICT CONFORMANCE (atlas decision 0040). This rule states the LIFEGAMES llms.txt PROFILE: llmstxt.org-derived, with one documented relaxation of the clause quoted above. It does not claim the served file conforms strictly to that clause, and a green run must not be read as claiming it. llmstxt.org describes H2 sections as containing 'file lists' of URLs; the profile permits a section that carries prose instead. The reason is content: the live index at https://jonathanlloyd.me/llms.txt has a '## Expertise' section that is one descriptive paragraph, and v1 reported it as a defect on every weekly run. The residual defect the profile still catches is the unambiguous one -- a heading an author left with nothing under it. Paired with the same-dated relaxation in llms-txt-non-link-list-item; both were prompted by the mantle-LifegamesPortal producer contract test. v3 did not change this rule.",
+  "cases": [
+    {
+      "name": "an H2 section under a missing H1 is NOT reported -- the validator returns early (ADR 0036: pins the unstated precondition)",
+      "outcome": "inapplicable",
+      "input_file": "cases/h2-under-missing-h1.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-h1",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an H2 section with prose but no list is legal (pins the profile relaxation)",
+      "outcome": "passed",
+      "input_file": "cases/empty-section.txt",
+      "input_kind": "text",
+      "expect": []
+    },
+    {
+      "name": "a dangling H2 heading with nothing at all under it",
+      "outcome": "failed",
+      "input_file": "cases/dangling-h2.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-h2-no-file-list",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "a fully spec-conformant file",
+      "outcome": "passed",
+      "input_file": "../../__tests__/fixtures/llms-valid.txt",
+      "input_kind": "text",
+      "expect": []
+    }
+  ]
+}

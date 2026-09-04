@@ -24,7 +24,7 @@ only as true as its covering tests.
 ## Shape contract
 
 A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule catalog
-`scripts/audit/specs/llms-txt/*.rule.json`, not by a TypeScript type. The typed contracts are:
+`audits/specs/llms-txt/*.rule.json`, not by a TypeScript type. The typed contracts are:
 
 - Served paths: `LLM_CONTENT_PATHS` and `DATASET_DISTRIBUTIONS` —
   `@j0nathan-ll0yd/portal-contract/constants`. `LLM_CONTENT_PATHS` covers `llmsFull` and
@@ -36,7 +36,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   0103; see "the dependency" below). Atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME
   THE PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
-  `scripts/audit/validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
+  `audits/checks/b2-validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
   exact-pinned at `0.8.0` (here `package.json:58`) and resolves it from its lockfile — atlas
   decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
@@ -46,7 +46,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   every consumer's declared specifier is EXACT and IDENTICAL across consumers. A range specifier is a
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
-  `tests/audit/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
+  `audits/__tests__/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
   beside them — sha256 `149ea49a0c98448687dc6b081ed154ea2d3462d339526fdd4794144953483eae` — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - The dependency (atlas decision 0103, new in `0.7.0`): the tier's invariant is no longer "imports
@@ -69,7 +69,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `- Framework: Astro` — now renders as one contiguous block rather than one paragraph each, while a
   non-bullet paragraph still stands alone and `parseLlmsTxt` stays the exact inverse regardless of
   blank runs. That is a byte-level change to what a producer emits, so it is covered here on its own
-  terms rather than assumed: `tests/audit/validate-llms-txt.property.test.ts` generates descriptive
+  terms rather than assumed: `audits/__tests__/b2-validate-llms-txt.property.test.ts` generates descriptive
   sections and asserts the catalog accepts them, that adjacent bullets are contiguous AND adjacent
   non-bullet prose is blank-line separated, and that the model round-trips.
   `0.7.0` (atlas decision 0103) then moved the codec's MODEL and encode-time guards onto Zod schemas
@@ -94,9 +94,9 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   byte-identical to `0.7.0`, and the expected B2 `source.repository` is still
   `j0nathan-ll0yd.github.io`.
   This repo's evaluation layer states its structural invariants over
-  the parsed model instead of over local regexes: `tests/audit/validate-llms-txt.property.test.ts`
+  the parsed model instead of over local regexes: `audits/__tests__/b2-validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
-  mutations with `encodeLlmsTxt`, and `tests/audit/llms-differential.test.ts` classifies the
+  mutations with `encodeLlmsTxt`, and `audits/__tests__/llms-differential.test.ts` classifies the
   missing-H1 class by `title === null`. Both consumer-side assumptions — decode-equals-check, and
   parse's early return agreeing with the checker's — are verified against the resolved bytes by a
   zero-divergence differential over the full v3 pool rather than taken from the package README.
@@ -104,10 +104,10 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   bullet surviving in prose, including the legal descriptive item) and is sound only because its
   generator emits nothing but link items; the legal descriptive shape is covered by the descriptive
   section suite above and by the v2 relaxation class in the differential suite.
-- Checker: `validateLlmsTxt(rawText)` — `scripts/audit/validate-llms-txt.mjs:47`. A catalog wrapper
+- Checker: `validateLlmsTxt(rawText)` — `audits/checks/b2-validate-llms-txt.mjs:47`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
-  declared in `scripts/audit/specs/rule.schema.json:126` and stamped by `emit()`, never chosen by the
+  declared in `audits/specs/rule.schema.json:126` and stamped by `emit()`, never chosen by the
   validator. Proposed follow-up: a named `LlmsFinding` typedef so the output shape is specified,
   not implied.
 
@@ -139,7 +139,7 @@ privacy check; the stored LKG representation SHALL NOT retain the public CDN no-
 
 Verified by `tests/unit/cloudfront-proxy.test.ts:66` (proxy response policy: three-layer no-store
 headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
-`tests/audit/cloudflare-llms-cache-rules.test.ts:36` (external rule audit: applicability,
+`audits/__tests__/cloudflare-llms-cache-rules.test.ts:36` (external rule audit: applicability,
 GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
 
 Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
@@ -173,9 +173,9 @@ responses advertise the same composition timestamp, their bytes SHALL be identic
 fresh timestamps within that convergence window represent adjacent valid generations and SHALL
 NOT, by byte difference alone, be reported as corruption.
 
-Verified by `tests/audit/llms-coherence.test.ts:53` (coherence evaluator).
+Verified by `audits/__tests__/llms-coherence.test.ts:53` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
-same-generation byte equality, and cache policy; `scripts/audit/check-llms-coherence.mjs` runs the
+same-generation byte equality, and cache policy; `audits/checks/b2-check-llms-coherence.mjs` runs the
 same evaluator in weekly B2.
 
 Weekly B2 SHALL write an Atlas spoke-evidence v1 envelope before returning its audit exit code and
@@ -194,9 +194,9 @@ missing output SHALL remain indeterminate. Therefore suppressed, incomplete, and
 runs neither open nor close the managed issue, a definitive finding opens or reopens it, and only
 an all-passed run can close it.
 
-Verified by `tests/audit/llms-spoke-evidence.test.ts:65` (evidence builder and orchestration).
+Verified by `audits/__tests__/llms-spoke-evidence.test.ts:65` (evidence builder and orchestration).
 Those tests cover the exact envelope, aggregation, file/output mapping, issue lifecycle, uncaught
-failure, and suppression short-circuit. `tests/audit/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
+failure, and suppression short-circuit. `audits/__tests__/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
 workflow-level suppression skip, the fixed path, report-only exit preservation, and `always()`
 upload.
 
@@ -255,8 +255,8 @@ The served llms.txt SHALL begin with an H1, SHALL follow it with a summary block
 contain exactly one H1. Every H2 section list item that carries an http(s) URL SHALL wrap it as a
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
-Verified by `tests/audit/spec-cases.test.ts:122` (the five convention rules, derived cases) and
-`tests/audit/validate-llms-txt.property.test.ts:131` (the five structural invariants as properties,
+Verified by `audits/__tests__/spec-cases.test.ts:122` (the five convention rules, derived cases) and
+`audits/__tests__/b2-validate-llms-txt.property.test.ts:131` (the five structural invariants as properties,
 tethered by the `covers:` comment at `:131`).
 
 SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
@@ -268,7 +268,7 @@ were real links. v2 was also stricter than v1 in exactly one place: an unlinked 
 item's notes tail fires, where v1's permissive tail swallowed it.
 
 The v1→v2 and v2→v3 deltas are pinned as evidence, not described in prose:
-`tests/audit/llms-differential.test.ts:113` differences the live reference against frozen copies of
+`audits/__tests__/llms-differential.test.ts:113` differences the live reference against frozen copies of
 each earlier version over a fixed seed, run count, and input pool, and asserts the exact
 divergence classes and counts.
 
@@ -313,7 +313,7 @@ parseable composition timestamp no more than 4 hours old. The discovery index us
 `LLMS_MAX_COMPOSITION_AGE_MS` and SHALL remain equal to both operational stale rules'
 `params.maxAgeHours`.
 
-Verified by `tests/audit/llms-coherence.test.ts:75`, which injects a fixed clock and synthetic response
+Verified by `audits/__tests__/llms-coherence.test.ts:75`, which injects a fixed clock and synthetic response
 snapshots to exercise the exact age boundary logic without network and asserts the rule-catalog
 parameters equal the evaluator configuration. The old `spec-cases.test.ts` covers claim was
 removed: that harness only proved operational rules had no cases and never exercised freshness.
@@ -328,7 +328,7 @@ removed: that harness only proved operational rules had no cases and never exerc
 
 Every conformance rule SHALL carry `spec.verified_against_source` true against a SHA-pinned source,
 and each normative quote SHALL still occur in that source.
-Verified by `tests/audit/spec-cases.test.ts:124` (blocking).
+Verified by `audits/__tests__/spec-cases.test.ts:124` (blocking).
 
 The anchor is a PROVENANCE claim, not a conformance claim. What these two gates prove is that the
 quoted clause is really what the pinned source says — nothing more. Where a rule departs from the
@@ -370,9 +370,9 @@ in the catalog checks its clause as quoted.
 - Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
   `@j0nathan-ll0yd/estate-contracts@0.8.0` now exposes it as
   `./llms-assurance/spoke-evidence.schema.json`. The evidence half is consumed on the audit path:
-  `scripts/audit/check-llms-coherence.mjs` runs the published `assertSpokeEvidence` over the built
+  `audits/checks/b2-check-llms-coherence.mjs` runs the published `assertSpokeEvidence` over the built
   envelope before writing it, so this repo can no longer emit an artifact Atlas will reject. The
-  freshness half is now consumed only by `tests/audit/llms-spoke-evidence.test.ts:100`, which pins
+  freshness half is now consumed only by `audits/__tests__/llms-spoke-evidence.test.ts:100`, which pins
   the stamped `source.repository` to `freshness-config.json`; its former runtime reader,
   `scripts/audit/serving-probe.mjs`, never ran and was deleted under atlas decision 0110. That
   gap was not theoretical -- the producer stamped the retired `web-Lifegames-Portal` alias in

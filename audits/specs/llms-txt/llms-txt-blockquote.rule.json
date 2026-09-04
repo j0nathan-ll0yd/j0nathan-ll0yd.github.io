@@ -1,0 +1,77 @@
+{
+  "id": "llms-txt-blockquote",
+  "title": "The H1 must be followed by a summary blockquote",
+  "artifact": "llms.txt",
+  "rule_class": "convention",
+  "severity": "fail",
+  "spec": {
+    "name": "llms.txt (llmstxt.org)",
+    "clause": "Format section, item 3",
+    "url": "https://llmstxt.org/",
+    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "conformance_testable": false,
+    "retrieved": "2026-07-30",
+    "content_sha256": "037c197814e5e884a6780b309e032f65d007eebd6893c8abdb6c75c0b42f3ae3",
+    "normative_quote": "A blockquote with a short summary of the project, containing key information necessary for understanding the rest of the file",
+    "note": "conformance_testable is false, per the divergence recorded in policy_note: the spec's own prose marks only the H1 as strictly required. Verified against a live fetch of https://llmstxt.org/ on 2026-07-30. Corrects a prior defect: 'as would be immediately useful to an LLM' was fabricated and does not appear on the page; the real item 3 also reads 'the project', not 'the project or site'.",
+    "verified_against_source": true,
+    "verified_at": "2026-07-30",
+    "verification_url": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd"
+  },
+  "policy_note": "Migrated verbatim from validate-llms-txt.mjs:69-72 (pre-pilot): 'required by this validator; the spec's own prose marks only the H1 as strictly required, but every real-world llms.txt -- including this site's -- includes it, and the team's validator contract treats it as required.' This is a declared, reviewable local convention, not a claim about llmstxt.org conformance.",
+  "applicability": "An llms.txt body whose first non-blank line is a valid H1.",
+  "expectation": "The next non-blank line after the H1 matches /^>\\s+\\S/.",
+  "cases": [
+    {
+      "name": "H1 present, no blockquote follows",
+      "outcome": "failed",
+      "input_file": "cases/no-blockquote.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-blockquote",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "H1 present, nothing at all follows (bqLine is null, not merely non-matching)",
+      "outcome": "failed",
+      "input_file": "cases/h1-then-nothing.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-blockquote",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "known-answer fixture: an unlinked URL, a dangling section, and no blockquote all flag together (REVERSAL 2 -- a shared multi-violation input is a legal failed case; its expect lists every id the input emits). The fixture moved to v2 violations in the same commit as the v2 relaxation: under v1 it used a bare bullet with no URL and a prose-only section, both legal now, which would have quietly reduced this case to a single-violation input.",
+      "outcome": "failed",
+      "input_file": "../../__tests__/fixtures/llms-invalid.txt",
+      "input_kind": "text",
+      "expect": [
+        {
+          "id": "llms-txt-blockquote",
+          "severity": "fail"
+        },
+        {
+          "id": "llms-txt-non-link-list-item",
+          "severity": "fail"
+        },
+        {
+          "id": "llms-txt-h2-no-file-list",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "a fully spec-conformant file",
+      "outcome": "passed",
+      "input_file": "../../__tests__/fixtures/llms-valid.txt",
+      "input_kind": "text",
+      "expect": []
+    }
+  ]
+}

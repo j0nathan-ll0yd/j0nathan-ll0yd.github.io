@@ -14,7 +14,7 @@ import {access, mkdir, readdir, stat, writeFile} from 'node:fs/promises'
 import {dirname, join, relative, resolve, sep} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
-import {probeSuppression, suppressionBody, suppressionDisposition} from './audit/lib/suppression.mjs'
+import {probeSuppression, suppressionBody, suppressionDisposition} from '../audits/lib/suppression.mjs'
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const PUBLIC_DIR = join(scriptDir, '..', 'public')

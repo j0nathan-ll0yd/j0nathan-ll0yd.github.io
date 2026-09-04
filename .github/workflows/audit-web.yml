@@ -90,7 +90,7 @@ jobs:
       # the continue-on-error checks run, so an egress outage reds the job with an
       # actionable message instead of masking as a smoke no-op (2026-08-17 incident).
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash scripts/audit/preflight-egress.sh
+        run: bash audits/preflight-egress.sh
 
       # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add `playwright install`.
       - name: B1 -- production smoke suite (scheduled, not just post-deploy)
@@ -111,7 +111,7 @@ jobs:
         continue-on-error: true
         env:
           SA_API_KEY: ${{ secrets.SA_API_KEY }}
-        run: node scripts/audit/check-analytics.mjs
+        run: node audits/checks/b6-check-analytics.mjs
 
       - name: Reconcile managed audit issues
         if: >-
@@ -123,7 +123,7 @@ jobs:
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
-            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
             await reconciler.reconcileCheckIssues({
               checks: [
                 {id: 'smoke', title: 'B1 production smoke suite (scheduled)', outcome: '${{ steps.smoke.outcome }}'},
@@ -137,13 +137,13 @@ jobs:
       # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
       # first. Findings never move job.status (every check is
       # continue-on-error), so they keep pinging success and stay the
-      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
+      # reconciler's job. See audits/healthchecks-ping.sh.
       - name: Healthchecks.io ping
         if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
-        run: bash scripts/audit/healthchecks-ping.sh
+        run: bash audits/healthchecks-ping.sh
 
   weekly:
     name: Weekly (B2 artifacts, B3 LHCI, B4 pa11y, B5 lychee, B7 headers, B8 cache)
@@ -184,7 +184,7 @@ jobs:
       # Distinguish a self-hosted runner egress outage from a real site regression before
       # the continue-on-error checks run (2026-08-17 incident).
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash scripts/audit/preflight-egress.sh
+        run: bash audits/preflight-egress.sh
 
       # NO PACKAGE INSTALL STEP HERE, BY DESIGN. This job used to `apt-get
       # install libxml2-utils` for the xmllint that validate-sitemap.mjs shelled
@@ -195,7 +195,7 @@ jobs:
       # on every attempt and killed the whole report-only job before a single
       # check ran (31999694781, 32600311656, 32695529989 -- 15 days dark).
       # validate-sitemap.mjs now validates in-process via
-      # scripts/audit/lib/sitemap-schema.mjs (fast-xml-parser +
+      # audits/lib/sitemap-schema.mjs (fast-xml-parser +
       # fast-xml-validator, already in the lockfile), so nothing here needs the
       # network beyond the site under test. Do not reintroduce a per-run install.
 
@@ -218,13 +218,13 @@ jobs:
       - name: Probe focus suppression for conditioned checks
         id: focus_mode
         continue-on-error: true
-        run: node scripts/audit/probe-suppression.mjs --github-output
+        run: node audits/probe-suppression.mjs --github-output
 
       - name: B2 -- llms.txt structural validator
         id: llms_txt
         if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
-        run: node scripts/audit/validate-llms-txt.mjs
+        run: node audits/checks/b2-validate-llms-txt.mjs
 
       # Kept separate from B5/lychee: unrelated outbound-link failures must not
       # hide the origin-to-canonical freshness and privacy-cache signal. The
@@ -245,7 +245,7 @@ jobs:
           B2_EVIDENCE_JOB: ${{ github.job }}
           B2_EVIDENCE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: >-
-          pnpm exec tsx scripts/audit/check-llms-coherence.mjs
+          pnpm exec tsx audits/checks/b2-check-llms-coherence.mjs
           --evidence-out artifacts/llms-assurance/spoke-b2.json
 
       - name: Upload B2 llms coherence evidence
@@ -266,7 +266,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: >-
-          node scripts/audit/check-cloudflare-llms-cache-rules.mjs
+          node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs
           --evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json
 
       - name: Upload Cloudflare llms cache-rule evidence
@@ -282,18 +282,18 @@ jobs:
       - name: B2 -- sitemap XSD validator
         id: sitemap
         continue-on-error: true
-        run: node scripts/audit/validate-sitemap.mjs
+        run: node audits/checks/b2-validate-sitemap.mjs
 
       - name: B2 -- robots.txt validator
         id: robots
         continue-on-error: true
-        run: node scripts/audit/validate-robots.mjs
+        run: node audits/checks/b2-validate-robots.mjs
 
       - name: B2 -- feed.xml / feed.json validator
         id: feeds
         if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
-        run: node scripts/audit/check-feeds.mjs
+        run: node audits/checks/b2-check-feeds.mjs
 
       # ADR 0011 follow-up (b). Re-fetches each rule's PINNED primary source
       # (an immutable RFC .txt or a 40-hex-SHA-pinned raw.githubusercontent
@@ -308,12 +308,12 @@ jobs:
       - name: B2 -- external spec drift (pinned sources vs normative quotes)
         id: spec_drift
         continue-on-error: true
-        run: node scripts/audit/check-spec-drift.mjs
+        run: node audits/checks/b2-check-spec-drift.mjs
 
       - name: B7/B8 -- security headers, TLS/cert expiry, CSP drift
         id: headers
         continue-on-error: true
-        run: node scripts/audit/check-headers.mjs
+        run: node audits/checks/b7-check-headers.mjs
 
       - name: B3 -- Lighthouse CI (filesystem target)
         id: lhci
@@ -443,7 +443,7 @@ jobs:
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
-            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
             await reconciler.reconcileCheckIssues({
               checks: [
                 {id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'},
@@ -470,13 +470,13 @@ jobs:
       # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
       # first. Findings never move job.status (every check is
       # continue-on-error), so they keep pinging success and stay the
-      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
+      # reconciler's job. See audits/healthchecks-ping.sh.
       - name: Healthchecks.io ping
         if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
-        run: bash scripts/audit/healthchecks-ping.sh
+        run: bash audits/healthchecks-ping.sh
 
   monthly:
     name: Monthly (B2 security.txt + agent-discovery re-verification)
@@ -511,17 +511,17 @@ jobs:
       # Distinguish a self-hosted runner egress outage from a real site regression before
       # the continue-on-error checks run (2026-08-17 incident).
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash scripts/audit/preflight-egress.sh
+        run: bash audits/preflight-egress.sh
 
       - name: B2 -- security.txt RFC 9116 expiry
         id: security_txt
         continue-on-error: true
-        run: node scripts/audit/check-security-txt.mjs
+        run: node audits/checks/b2-check-security-txt.mjs
 
       - name: B2 -- .well-known agent-discovery structural checks
         id: wellknown
         continue-on-error: true
-        run: node scripts/audit/check-wellknown.mjs
+        run: node audits/checks/b2-check-wellknown.mjs
 
       - name: Reconcile managed audit issues
         if: >-
@@ -533,7 +533,7 @@ jobs:
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
-            const reconciler = await import(pathToFileURL(`${process.cwd()}/scripts/audit/lib/file-check-issues.mjs`).href);
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
             await reconciler.reconcileCheckIssues({
               checks: [
                 {id: 'security-txt', title: 'B2 security.txt RFC 9116 expiry', outcome: '${{ steps.security_txt.outcome }}'},
@@ -547,10 +547,10 @@ jobs:
       # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
       # first. Findings never move job.status (every check is
       # continue-on-error), so they keep pinging success and stay the
-      # reconciler's job. See scripts/audit/healthchecks-ping.sh.
+      # reconciler's job. See audits/healthchecks-ping.sh.
       - name: Healthchecks.io ping
         if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           JOB_STATUS: ${{ job.status }}
-        run: bash scripts/audit/healthchecks-ping.sh
+        run: bash audits/healthchecks-ping.sh
