@@ -37,7 +37,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   THE PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
   `scripts/audit/validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
-  exact-pinned at `0.7.0` (here `package.json:58`) and resolves it from its lockfile — atlas
+  exact-pinned at `0.8.0` (here `package.json:58`) and resolves it from its lockfile — atlas
   decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
@@ -61,7 +61,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `VERIFIED_ZOD_VERSION`; it is an ALIGNMENT rule, not a mandate, so this repo — which declares no
   `zod` of its own and resolves `4.4.3` transitively — owes it nothing.
 - Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
-  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.7.0` (atlas decision
+  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.8.0` (atlas decision
   0099). `checkLlmsStructure` is unchanged by every codec release so far, so the RULE version stays
   **3** while the shipped bytes, the sidecar, and the package minor all moved.
   `decodeLlmsTxt(text).findings` is `checkLlmsStructure(text)`. `0.6.0` changed the codec's CANONICAL
@@ -79,6 +79,20 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   message begins `encodeLlmsTxt:`, and the schema's key order reproduces which failure the previous
   sequential `assertEncodable` calls threw on. So the canonical encode form is unchanged from `0.6.0`
   and the RULE version stays **3**; what moved is the shipped bytes and the sidecar.
+  `0.8.0` (atlas decision 0110) is the first release that moved NEITHER rule tier's bytes:
+  `llms-structure/reference.mjs` and `openspec-covers/reference.mjs` are byte-identical to `0.7.0`,
+  so the sha256 cited above and `COVERS_SPEC_VERSION` **4** both stand unedited on that bump. It
+  changed the `llms-assurance` tier only — it dropped `PROVENANCE_KINDS`, `validateProvenance`,
+  `assertProvenance`, and the `./llms-assurance/provenance.schema.json` subpath for
+  `validateServedVerification` / `assertServedVerification` (Atlas check A20 is that record's only
+  writer and reader), and it lifted the GitHub Actions run block out of `validateSpokeEvidence`'s
+  `$.source` into a shared `runSource` helper so a served verification's `$.verifiedBy` asks the
+  same rule (atlas PR #268). Both are inert here: this repo imported none of the removed names, and
+  `runSource` is a module-private `const` reachable through no `exports` subpath, so there is no
+  builder to adopt — a shared run-source BUILDER is atlas decision 0111 phase 3 and needs the
+  contract to export one first. `spoke-evidence.schema.json` and `freshness-config.v1.json` are
+  byte-identical to `0.7.0`, and the expected B2 `source.repository` is still
+  `j0nathan-ll0yd.github.io`.
   This repo's evaluation layer states its structural invariants over
   the parsed model instead of over local regexes: `tests/audit/validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
@@ -354,7 +368,7 @@ in the catalog checks its clause as quoted.
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
 - Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
-  `@j0nathan-ll0yd/estate-contracts@0.7.0` now exposes it as
+  `@j0nathan-ll0yd/estate-contracts@0.8.0` now exposes it as
   `./llms-assurance/spoke-evidence.schema.json`. The evidence half is consumed on the audit path:
   `scripts/audit/check-llms-coherence.mjs` runs the published `assertSpokeEvidence` over the built
   envelope before writing it, so this repo can no longer emit an artifact Atlas will reject. The
