@@ -133,20 +133,52 @@ describe('audit-web runner isolation', () => {
   })
 })
 
+describe('audit-web tier gating', () => {
+  // The external scheduler is the only clock (atlas decisions 0092/0093) and
+  // this workflow has no `schedule:` trigger, so a `github.event.schedule`
+  // comparison can never be true -- dead code whose only possible effect is to
+  // silently disable a job if a trigger shape ever changes. Ruling R9a (atlas
+  // decision 0116) deleted the three dead arms; this pins the deletion.
+  it('gates each tier on the dispatch input alone, with no dead cron-equality arms', () => {
+    expect(workflow).not.toContain('github.event.schedule')
+    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')")
+    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')")
+    expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')")
+  })
+})
+
 describe('audit-web dead-man switch', () => {
   // The switch answers "did the lane run to measurement". A crashed job used to
   // ping plain success while every bucket reported "skipped", so neither the
   // reconciler nor Healthchecks.io raised anything.
+  const pings = executable.match(/- name: Healthchecks\.io ping[\s\S]*?run: bash audits\/healthchecks-ping\.sh/g) || []
+
   it('routes all three pings through the shared script with the job status', () => {
-    const pings = executable.match(/- name: Healthchecks\.io ping[\s\S]*?run: bash audits\/healthchecks-ping\.sh/g) || []
     expect(pings).toHaveLength(3)
     for (const ping of pings) {
       // Atlas decision 0092: only schedules and trusted external dispatches ping.
       // Reconciler-validation and ordinary human dispatches do not.
       expect(ping).toContain(pingCondition)
       expect(ping).toContain('JOB_STATUS: ${{ job.status }}')
-      expect(ping).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}')
     }
+  })
+
+  // Ruling R9a (atlas decision 0116): all three tiers used to ping the SAME
+  // tile, so a dead weekly or monthly dispatch refreshed nothing distinct and
+  // the daily ping masked it. One tile per tier makes that undeclarable, and
+  // HC_SECRET_NAME makes an unarmed tier's skip message name the right secret.
+  it('pings one distinct tile per tier, so a dead weekly or monthly lane cannot hide behind the daily ping', () => {
+    const [daily, weekly, monthly] = pings
+    expect(daily).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}')
+    expect(daily).toContain('HC_SECRET_NAME: HC_PING_AUDIT_WEB\n')
+    expect(weekly).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_WEEKLY }}')
+    expect(weekly).toContain('HC_SECRET_NAME: HC_PING_AUDIT_WEB_WEEKLY')
+    expect(monthly).toContain('HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_MONTHLY }}')
+    expect(monthly).toContain('HC_SECRET_NAME: HC_PING_AUDIT_WEB_MONTHLY')
+    // Exactly one ping per secret: the masking defect was one secret used three times.
+    expect(countOccurrences(workflow, 'HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}')).toBe(1)
+    expect(countOccurrences(workflow, 'HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_WEEKLY }}')).toBe(1)
+    expect(countOccurrences(workflow, 'HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_MONTHLY }}')).toBe(1)
   })
 
   it('no longer curls the ping URL inline, which could not distinguish a wedged lane', () => {

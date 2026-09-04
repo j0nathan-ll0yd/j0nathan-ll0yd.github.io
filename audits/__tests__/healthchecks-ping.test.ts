@@ -84,6 +84,21 @@ describe('healthchecks-ping.sh endpoint selection', () => {
     expect(status).toBe(0)
     expect(pingedUrls()).toEqual([])
     expect(stdout).toContain('skipping')
+    // Names the daily secret when the workflow passes no HC_SECRET_NAME.
+    expect(stdout).toContain('HC_PING_AUDIT_WEB secret not set')
+  })
+
+  it('names the per-tier secret in the skip, and an unarmed tier never pings any tile', () => {
+    // Ruling R9a (atlas decision 0116): weekly/monthly ping their own tiles via
+    // HC_PING_AUDIT_WEB_WEEKLY / _MONTHLY. Until the owner creates those
+    // secrets the lane must skip loudly -- naming the RIGHT secret to create --
+    // without redding the lane and without checking in against another tier's
+    // tile, even when the job itself failed.
+    stubCurl()
+    const {status, stdout} = runPing({HC_URL: '', JOB_STATUS: 'failure', HC_SECRET_NAME: 'HC_PING_AUDIT_WEB_WEEKLY'})
+    expect(status).toBe(0)
+    expect(pingedUrls()).toEqual([])
+    expect(stdout).toContain('HC_PING_AUDIT_WEB_WEEKLY secret not set')
   })
 })
 

@@ -34,11 +34,19 @@
 set -uo pipefail
 
 HC_URL="${HC_URL:-}"
+# The repo secret that should have filled HC_URL. Each tier pings its OWN tile
+# (atlas decision 0116, ruling R9a -- a shared tile let a dead weekly/monthly
+# cron hide behind the daily ping), so the skip message must name the exact
+# secret to create. Defaults to the daily name for callers that pass none.
+HC_SECRET_NAME="${HC_SECRET_NAME:-HC_PING_AUDIT_WEB}"
 # GitHub sets this from `job.status`: success | failure | cancelled.
 JOB_STATUS="${JOB_STATUS:-success}"
 
+# An unset secret is a LOUD skip, never a red and never a ping: exit 0 keeps
+# the report-only lane green, and skipping before any curl means an unarmed
+# tier can never check in against another tier's tile.
 if [ -z "$HC_URL" ]; then
-  echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
+  echo "::notice title=Dead-man's-switch ping skipped::${HC_SECRET_NAME} secret not set -- skipping dead-man's-switch ping. Create this tier's Healthchecks.io tile and set the secret to arm it."
   exit 0
 fi
 
