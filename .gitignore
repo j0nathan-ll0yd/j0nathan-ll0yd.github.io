@@ -50,3 +50,8 @@ missing-images.txt
 # volume. Kept ignored as a backstop -- a stray store is ~700MB of binary blobs and
 # GitHub rejects the push (single files exceed the 100MB limit).
 .pnpm-store/
+
+# Local git worktrees. A worktree is a second checkout of this repo, never repo
+# content. Untracked-but-not-ignored until atlas decision 0111 phase 2b, which
+# adds this line in both spokes' migration PRs.
+.worktrees/

@@ -5,8 +5,10 @@ import tseslint from 'typescript-eslint'
 // Estate-standard flat config (@j0nathan-ll0yd/config). Formatting is owned by
 // dprint; this only enforces lint rules. Type-aware rules are enabled via
 // `tsconfigRootDir`, so every type-aware-linted file must be in tsconfig.json's
-// project graph. tests/** is excluded there, so it is ignored here too (bringing
-// tests under type-aware lint needs a dedicated tests tsconfig -- a separate change).
+// project graph. tests/** and audits/__tests__/** are excluded there, so they are
+// ignored here too (bringing tests under type-aware lint needs a dedicated tests
+// tsconfig -- a separate change). audits/__tests__/ is the audit-suite root moved
+// out of tests/audit/ by atlas decision 0111 phase 2b; the exclusion moved with it.
 export default [
   {
     ignores: [
@@ -20,6 +22,7 @@ export default [
       'docs/**',
       'public/**',
       'tests/**',
+      'audits/__tests__/**',
       '.stryker-tmp/**',
       'reports/**',
       '**/*.d.ts'

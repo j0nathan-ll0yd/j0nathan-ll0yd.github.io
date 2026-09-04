@@ -108,8 +108,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Includes tests/audit/spec-cases.test.ts (decisions/0011): every case
-      # declared in scripts/audit/specs/**/*.rule.json is read out of the
+      # Includes audits/__tests__/spec-cases.test.ts (decisions/0011): every case
+      # declared in audits/specs/**/*.rule.json is read out of the
       # catalog and asserted against its validator here, on every PR and on
       # push: main -- not only on the self-hosted visual-tests.yml PR lane.
       - name: Unit + spec-cases tests (vitest)
@@ -150,7 +150,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # check-spec-severity.mjs diffs scripts/audit/specs/severity-baseline.json
+          # check-spec-severity.mjs diffs audits/specs/severity-baseline.json
           # against `git show origin/main:...` -- a shallow (fetch-depth: 1)
           # checkout would not have origin/main reachable on a pull_request
           # event. Full history is cheap for a repo this size.
@@ -177,11 +177,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Monotonic severity ratchet + deletion assertion (REVERSAL 1) +
-      # params_pending ratchet (N6) over scripts/audit/specs/**/*.rule.json
+      # params_pending ratchet (N6) over audits/specs/**/*.rule.json
       # (decisions/0011). No `tee`, no `|| true` -- a non-zero exit here MUST
       # fail the job (S3 no-op-gate hazard).
       - name: Spec severity ratchet
-        run: node scripts/audit/check-spec-severity.mjs
+        run: node audits/checks/b2-check-spec-severity.mjs
 
   spec-verification:
     runs-on: [self-hosted, linux, arm64, node]
@@ -217,7 +217,7 @@ jobs:
       # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
       - name: spec-verification
-        run: node scripts/audit/check-spec-verification.mjs
+        run: node audits/checks/b2-check-spec-verification.mjs
 
   spec-quote-integrity:
     runs-on: [self-hosted, linux, arm64, node]
@@ -256,7 +256,7 @@ jobs:
       # audit-web.yml, so their uptime never gates a merge here. No `|| true`
       # -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       - name: Spec quote-integrity gate
-        run: node scripts/audit/check-spec-drift.mjs --integrity-only
+        run: node audits/checks/b2-check-spec-drift.mjs --integrity-only
 
   spec-mutation-score:
     runs-on: [self-hosted, linux, arm64, node]

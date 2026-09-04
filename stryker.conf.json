@@ -10,11 +10,11 @@
   },
   "coverageAnalysis": "perTest",
   "reporters": ["clear-text", "progress", "json"],
-  "_comment_llms_structure": "scripts/audit/lib/llms-structure.mjs was the fourth entry here (143 mutants: 110 killed, 2 timeout, 31 survived, 78.32% on its own) until atlas decision 0079 item 4 wave 2b replaced the vendored copy with @j0nathan-ll0yd/estate-contracts. It is dropped rather than repointed: Stryker mutates a sandbox copy of the project and symlinks node_modules, so a mutate glob into a dependency is not supported and would write into the real install. THIS IS A REAL LOSS OF LOCAL SIGNAL AND IS NAMED, NOT HIDDEN -- the rule's mutation coverage is now atlas's to own. The rule is still behaviorally gated here by tests/audit/spec-cases.test.ts, validate-llms-txt.property.test.ts and llms-differential.test.ts, and by the spec-version assertion in llms-structure.integrity.test.ts; it is simply no longer mutation-scored here. Measured effect on the gate: 78.80% over four files becomes 79.11% over three, so thresholds.break stays at its historical 70 floor and is NOT lowered.",
+  "_comment_llms_structure": "scripts/audit/lib/llms-structure.mjs was the fourth entry here (143 mutants: 110 killed, 2 timeout, 31 survived, 78.32% on its own) until atlas decision 0079 item 4 wave 2b replaced the vendored copy with @j0nathan-ll0yd/estate-contracts. It is dropped rather than repointed: Stryker mutates a sandbox copy of the project and symlinks node_modules, so a mutate glob into a dependency is not supported and would write into the real install. THIS IS A REAL LOSS OF LOCAL SIGNAL AND IS NAMED, NOT HIDDEN -- the rule's mutation coverage is now atlas's to own. The rule is still behaviorally gated here by audits/__tests__/spec-cases.test.ts, b2-validate-llms-txt.property.test.ts and llms-differential.test.ts, and by the spec-version assertion in llms-structure.integrity.test.ts; it is simply no longer mutation-scored here. Measured effect on the gate: 78.80% over four files becomes 79.11% over three, so thresholds.break stays at its historical 70 floor and is NOT lowered.",
   "mutate": [
-    "scripts/audit/check-security-txt.mjs",
-    "scripts/audit/validate-llms-txt.mjs",
-    "scripts/audit/check-feeds.mjs"
+    "audits/checks/b2-check-security-txt.mjs",
+    "audits/checks/b2-validate-llms-txt.mjs",
+    "audits/checks/b2-check-feeds.mjs"
   ],
   "thresholds": {
     "high": 85,

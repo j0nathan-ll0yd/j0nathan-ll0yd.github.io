@@ -25,7 +25,7 @@
  */
 import {expect, test} from './fixtures'
 import type {APIRequestContext, APIResponse} from '@playwright/test'
-import {probeSuppression, suppressionMessage} from '../../scripts/audit/lib/suppression.mjs'
+import {probeSuppression, suppressionMessage} from '../../audits/lib/suppression.mjs'
 import {isAllowedImageUrl} from '../image-url-allowlist'
 
 // All navigations use page.goto('/'), resolved against `baseURL` in
