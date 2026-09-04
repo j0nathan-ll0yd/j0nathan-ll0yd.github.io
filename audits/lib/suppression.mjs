@@ -1,5 +1,6 @@
 import {appendFile} from 'node:fs/promises'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
+import {fetchStable} from './http.mjs'
 
 export const SUPPRESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000
 export const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
@@ -64,7 +65,7 @@ export function evaluateFocusState(focus, now = new Date()) {
   }
 }
 
-export async function probeSuppression({fetchImpl = fetch, focusUrl = FOCUS_URL, now = new Date()} = {}) {
+export async function probeSuppression({fetchImpl = fetchStable, focusUrl = FOCUS_URL, now = new Date()} = {}) {
   let response
   try {
     response = await fetchImpl(focusUrl, {cache: 'no-store'})

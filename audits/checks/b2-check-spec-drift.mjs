@@ -10,6 +10,7 @@ import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import * as cheerio from 'cheerio'
+import {DEFAULT_BUDGET_MS} from '../lib/http.mjs'
 import {artifacts} from '../specs/load.mjs'
 
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'specs')
@@ -34,8 +35,6 @@ const SPLICE = /\s*(?:\.{3,}|…)\s*/
 // words, which would keep the gate green while destroying the thing it
 // guards. The shortest segment in the live catalog is 35 characters.
 export const MIN_SEGMENT_CHARS = 24
-
-const FETCH_TIMEOUT_MS = 20_000
 
 /**
  * Normalize text for comparison. Deliberately conservative: it collapses
@@ -153,7 +152,7 @@ export function checkQuoteIntegrity(rules) {
 
 /** Default fetcher: plain text, with a timeout. Injectable for tests. */
 export async function fetchText(url) {
-  const res = await fetch(url, {signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: {accept: 'text/plain, text/markdown, */*'}})
+  const res = await fetch(url, {signal: AbortSignal.timeout(DEFAULT_BUDGET_MS), headers: {accept: 'text/plain, text/markdown, */*'}})
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`)
   }

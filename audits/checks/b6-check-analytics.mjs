@@ -5,7 +5,7 @@
 
 import {chromium} from '@playwright/test'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {fetchStable, isMain, report} from '../lib/http.mjs'
+import {DEFAULT_BUDGET_MS, fetchStable, isMain, report} from '../lib/http.mjs'
 
 const NAV_TIMEOUT_MS = 30_000
 const BEACON_WAIT_MS = 15_000
@@ -187,10 +187,13 @@ async function checkSaIngestion(apiKey) {
 
   const startedAt = Date.now()
   try {
+    // Bounded but deliberately NOT routed through fetchStable: retrying this POST
+    // could ingest the synthetic event twice and skew the before/after count.
     await fetch(eventsUrl, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'User-Agent': SYNTHETIC_UA},
-      body: JSON.stringify(syntheticEventPayload(hostname, INGESTION_EVENT_NAME, SYNTHETIC_UA))
+      body: JSON.stringify(syntheticEventPayload(hostname, INGESTION_EVENT_NAME, SYNTHETIC_UA)),
+      signal: AbortSignal.timeout(DEFAULT_BUDGET_MS)
     })
   } catch (err) {
     return evaluateIngestion({
