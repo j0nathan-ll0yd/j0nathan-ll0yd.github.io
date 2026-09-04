@@ -37,7 +37,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   THE PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
   `audits/checks/b2-validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
-  exact-pinned at `0.8.0` (here `package.json:58`) and resolves it from its lockfile — atlas
+  exact-pinned at `0.8.1` (here `package.json:58`) and resolves it from its lockfile — atlas
   decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
@@ -61,7 +61,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `VERIFIED_ZOD_VERSION`; it is an ALIGNMENT rule, not a mandate, so this repo — which declares no
   `zod` of its own and resolves `4.4.3` transitively — owes it nothing.
 - Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
-  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.8.0` (atlas decision
+  `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.8.1` (atlas decision
   0099). `checkLlmsStructure` is unchanged by every codec release so far, so the RULE version stays
   **3** while the shipped bytes, the sidecar, and the package minor all moved.
   `decodeLlmsTxt(text).findings` is `checkLlmsStructure(text)`. `0.6.0` changed the codec's CANONICAL

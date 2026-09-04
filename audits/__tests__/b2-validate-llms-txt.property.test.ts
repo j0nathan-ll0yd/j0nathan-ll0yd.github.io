@@ -22,7 +22,7 @@
 // BARE_URL_RE -- plus its own line walkers. Those were a second, hand-kept copy
 // of the rule the shared contract already owns, and a copy is a thing that
 // drifts. `@j0nathan-ll0yd/estate-contracts` ships the decision-0099 codec (from
-// `0.4.0`; this repo consumes `0.8.0`), so the invariants are now stated over the
+// `0.4.0`; this repo consumes `0.8.1`), so the invariants are now stated over the
 // PARSED MODEL that `parseLlmsTxt` returns, and the mutations are built in model
 // space and rendered by `encodeLlmsTxt` wherever that is expressible.
 //
