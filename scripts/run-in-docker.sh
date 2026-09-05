@@ -22,6 +22,23 @@ shift
 
 VERSION=$(./scripts/playwright-version.sh)
 
+# The container writes $GITHUB_TOKEN into its npmrc as the npm.pkg.github.com
+# authToken (below). `-e GITHUB_TOKEN` forwards whatever the host has -- and in
+# gh-credential-helper setups that is EMPTY, so the container config carried an
+# empty token and every @j0nathan-ll0yd/* install died with "config present, no
+# auth header" (the FT4 push blocker, PR #272). Resolve a real token up front:
+# use the exported GITHUB_TOKEN when present, fall back to the gh CLI keyring,
+# and otherwise fail fast while the message can still name the fix.
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "ERROR: no GitHub token available for GitHub Packages auth inside the container." >&2
+  echo "Supply one of:" >&2
+  echo "  * export GITHUB_TOKEN=<token with read:packages>" >&2
+  echo "  * gh auth login   (this script falls back to 'gh auth token')" >&2
+  exit 1
+fi
+export GITHUB_TOKEN
+
 # Pin arm64 to avoid cached amd64/QEMU browser crashes, and set CI so retries and workers match
 # the hosted run. The node_modules shadow volume prevents Linux native packages from overwriting
 # the host's macOS install; keep it after the /work bind. Put pnpm's store inside that volume too,

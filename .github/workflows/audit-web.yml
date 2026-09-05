@@ -52,9 +52,7 @@ permissions:
 jobs:
   daily:
     name: Daily (B1 smoke, B6 analytics)
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '17 6 * * *')
+    if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')
     # playwright label: Chromium is preinstalled in the runner-playwright image; the node
     # label cannot `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
     # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) — routes
@@ -142,14 +140,13 @@ jobs:
         if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
+          HC_SECRET_NAME: HC_PING_AUDIT_WEB
           JOB_STATUS: ${{ job.status }}
         run: bash audits/healthchecks-ping.sh
 
   weekly:
     name: Weekly (B2 artifacts, B3 LHCI, B4 pa11y, B5 lychee, B7 headers, B8 cache)
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '23 5 * * 1')
+    if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')
     # playwright label: Chromium is preinstalled in the runner-playwright image (shared by
     # B3 LHCI / B4 pa11y via the resolved executablePath below); the node label cannot
     # `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
@@ -474,15 +471,14 @@ jobs:
       - name: Healthchecks.io ping
         if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
-          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
+          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_WEEKLY }}
+          HC_SECRET_NAME: HC_PING_AUDIT_WEB_WEEKLY
           JOB_STATUS: ${{ job.status }}
         run: bash audits/healthchecks-ping.sh
 
   monthly:
     name: Monthly (B2 security.txt + agent-discovery re-verification)
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '41 4 2 * *')
+    if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')
     runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
@@ -551,6 +547,7 @@ jobs:
       - name: Healthchecks.io ping
         if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
-          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
+          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_MONTHLY }}
+          HC_SECRET_NAME: HC_PING_AUDIT_WEB_MONTHLY
           JOB_STATUS: ${{ job.status }}
         run: bash audits/healthchecks-ping.sh
