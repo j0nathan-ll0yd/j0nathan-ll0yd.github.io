@@ -6,8 +6,7 @@ import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
 import {runLlmsCoherenceAudit, runLlmsCoherenceCli} from '../checks/b2-check-llms-coherence.mjs'
 import {createDryRunClient, reconcileCheckIssues} from '../lib/file-check-issues.mjs'
 import {b2EvidenceSourceFromEnvironment, buildB2SpokeEvidence, managedIssueOutcome} from '../lib/llms-spoke-evidence'
-import {validateSpokeEvidence} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
-import freshnessConfig from '@j0nathan-ll0yd/estate-contracts/llms-assurance/freshness-config.json' with {type: 'json'}
+import {LLM_FRESHNESS_CONFIG, validateSpokeEvidence} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 
 const OBSERVED_AT = '2026-08-29T18:00:00.000Z'
 const REVISION = '5d9c1575686a283c34b8312201939fc45be99eb3'
@@ -97,7 +96,7 @@ describe('B2 spoke evidence v1', () => {
     for (const envelope of envelopes) {
       expect(validateSpokeEvidence(envelope)).toEqual([])
     }
-    expect(envelopes[0].source.repository).toBe(freshnessConfig.layers.portfolioServing.owner.repository)
+    expect(envelopes[0].source.repository).toBe(LLM_FRESHNESS_CONFIG.layers.portfolioServing.owner.repository)
   })
 
   it('classifies complete findings as failed and clean suppression as unknown', () => {

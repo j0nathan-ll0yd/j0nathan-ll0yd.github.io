@@ -87,12 +87,24 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `validateServedVerification` / `assertServedVerification` (Atlas check A20 is that record's only
   writer and reader), and it lifted the GitHub Actions run block out of `validateSpokeEvidence`'s
   `$.source` into a shared `runSource` helper so a served verification's `$.verifiedBy` asks the
-  same rule (atlas PR #268). Both are inert here: this repo imported none of the removed names, and
-  `runSource` is a module-private `const` reachable through no `exports` subpath, so there is no
-  builder to adopt — a shared run-source BUILDER is atlas decision 0111 phase 3 and needs the
-  contract to export one first. `spoke-evidence.schema.json` and `freshness-config.v1.json` are
-  byte-identical to `0.7.0`, and the expected B2 `source.repository` is still
-  `j0nathan-ll0yd.github.io`.
+  same rule (atlas PR #268). Both were inert here: this repo imported none of the removed names,
+  and at `0.8.0` `runSource` was a module-private `const` reachable through no `exports` subpath,
+  so there was no builder to adopt yet.
+  `0.9.0` (the consolidated 0110/0111/0113/0117 release, atlas PR #284) again moved neither rule
+  tier's bytes — both sidecars stand unedited — and again changed only `llms-assurance` plus
+  packaging. It exported the run-source builders `workflowPath(value)` and `buildRunSource(fields)`
+  (decision 0111 phase 3a, the promotion the previous sentence waited on; this repo's
+  `checkedSource` builder in `audits/lib/llms-spoke-evidence.ts` deliberately stays local, and the
+  validation half stays delegated to the published `assertSpokeEvidence`). It collapsed the
+  freshness config into the deep-frozen `LLM_FRESHNESS_CONFIG` export with byte-identical values
+  (decision 0110 action 3): the `./llms-assurance/freshness-config.json` and
+  `./llms-assurance/freshness-config.schema.json` subpaths are gone, and
+  `audits/__tests__/llms-spoke-evidence.test.ts` pins the stamped `source.repository` to the
+  constant instead. It also dropped the `./openspec-covers/runner` and
+  `./openspec-covers/fixture.json` subpaths (decision 0113 R4; this repo consumes only the tier's
+  `reference.mjs` and its sidecar, which survive) and stopped shipping tier READMEs in the tarball
+  (decision 0113 R2b). `spoke-evidence.schema.json` is byte-identical to `0.7.0`, and the expected
+  B2 `source.repository` is still `j0nathan-ll0yd.github.io`.
   This repo's evaluation layer states its structural invariants over
   the parsed model instead of over local regexes: `audits/__tests__/b2-validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
@@ -368,12 +380,13 @@ in the catalog checks its clause as quoted.
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
 - Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
-  `@j0nathan-ll0yd/estate-contracts@0.8.0` now exposes it as
+  `@j0nathan-ll0yd/estate-contracts@0.9.0` now exposes it as
   `./llms-assurance/spoke-evidence.schema.json`. The evidence half is consumed on the audit path:
   `audits/checks/b2-check-llms-coherence.mjs` runs the published `assertSpokeEvidence` over the built
   envelope before writing it, so this repo can no longer emit an artifact Atlas will reject. The
-  freshness half is now consumed only by `audits/__tests__/llms-spoke-evidence.test.ts:100`, which pins
-  the stamped `source.repository` to `freshness-config.json`; its former runtime reader,
+  freshness half is now consumed only by `audits/__tests__/llms-spoke-evidence.test.ts:99`, which pins
+  the stamped `source.repository` to the exported `LLM_FRESHNESS_CONFIG` constant (the
+  `freshness-config.json` subpath left the package at `0.9.0`); its former runtime reader,
   `scripts/audit/serving-probe.mjs`, never ran and was deleted under atlas decision 0110. That
   gap was not theoretical -- the producer stamped the retired `web-Lifegames-Portal` alias in
   `source.repository` for two days after Atlas renamed the token, and every B2 artifact failed
