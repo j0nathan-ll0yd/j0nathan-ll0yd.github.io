@@ -26,21 +26,25 @@ describe('Content-Usage response header', () => {
   })
 
   it('is added to normal site responses', async () => {
-    const response = await onRequest({request: new Request('https://jonathanlloyd.me/privacy/'), next: async () => new Response('privacy')})
+    const response = await onRequest({
+      request: new Request('https://jonathanlloyd.me/privacy/'),
+      next: async () => new Response('privacy'),
+      waitUntil: () => {}
+    })
 
     expect(response.headers.get('Content-Usage')).toBe(CONTENT_USAGE)
     expect(CONTENT_USAGE).toBe('train-ai=n, search=y')
   })
 
-  it('is retained on the markdown-negotiation early return', async () => {
+  it('is retained on the negotiated homepage markdown representation', async () => {
     vi.stubGlobal('fetch',
       vi.fn(async (url: string) => url.endsWith('/focus.json') ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('# full profile')))
     const next = vi.fn(async () => new Response('html'))
 
-    const response = await onRequest({request: new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/markdown'}}), next})
+    const response = await onRequest({request: new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/markdown'}}), next, waitUntil: () => {}})
 
     expect(response.headers.get('Content-Usage')).toBe(CONTENT_USAGE)
-    expect(response.headers.get('Content-Type')).toBe('text/markdown')
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
     expect(next).not.toHaveBeenCalled()
   })
 
@@ -49,7 +53,7 @@ describe('Content-Usage response header', () => {
     vi.stubGlobal('fetch', fetchMock)
     const next = vi.fn(async () => new Response('html'))
 
-    const response = await onRequest({request: new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/markdown'}}), next})
+    const response = await onRequest({request: new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/markdown'}}), next, waitUntil: () => {}})
 
     expect(response.status).toBe(503)
     expect(await response.json()).toEqual({suppressed: true, reason: 'focus mode active'})
