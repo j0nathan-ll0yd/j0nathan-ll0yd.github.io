@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import path from 'node:path'
-import {validateLlmsTxt} from '../checks/b2-validate-llms-txt.mjs'
+import {validateLlmsTxt} from '../checks/b2-llms.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixture = (name: string) => readFileSync(path.join(__dirname, 'fixtures', name), 'utf-8')

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
+import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {compositionTimestamp, evaluateLlmsCoherence, LLMS_COHERENCE_THRESHOLDS} from '../lib/llms-coherence'
 import type {LlmsCoherenceInput, LlmsResponseSnapshot} from '../lib/llms-coherence'
-import {rules} from '../specs/load.mjs'
 
 const encoder = new TextEncoder()
 const NOW = Date.parse('2026-08-29T18:00:00.000Z')
@@ -74,9 +74,13 @@ describe('evaluateLlmsCoherence', () => {
 
   // covers: llms-txt#Full-content artifacts stay fresh
   it('enforces composition age and bounded origin-to-site skew as pure time comparisons', () => {
-    const llmsRules = rules('llms-txt')
-    expect(llmsRules['llms-full-txt-stale'].params.maxAgeHours * 3_600_000).toBe(LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs)
-    expect(llmsRules['index-md-stale'].params.maxAgeHours * 3_600_000).toBe(LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs)
+    // The threshold authority is the packaged contract (atlas decision 0119 D2):
+    // the evaluator's configuration must equal the coherencePolicy the contract
+    // owns, so a revert to drifting local literals fails here. The literal
+    // 4h/10min/5min values themselves are pinned by the first test above.
+    const {coherencePolicy} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
+    expect(LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionAge))
+    expect(LLMS_COHERENCE_THRESHOLDS.maxCompositionSkewMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionSkew))
 
     expect(evaluateLlmsCoherence(coherentInput('2026-08-29T14:00:00.000Z'), NOW)).toEqual([])
     expect(evaluateLlmsCoherence(coherentInput('2026-08-29T13:59:59.999Z'), NOW)).toEqual(

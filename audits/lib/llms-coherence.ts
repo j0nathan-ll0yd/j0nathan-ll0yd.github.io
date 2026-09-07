@@ -1,4 +1,5 @@
-import {LLMS_ARTIFACTS, LLMS_MAX_COMPOSITION_AGE_MS, LLMS_MAX_COMPOSITION_SKEW_MS, LLMS_MAX_FUTURE_SKEW_MS} from '../../functions/_lib/llms-artifacts'
+import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
+import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts'
 import type {LlmsArtifactId} from '../../functions/_lib/llms-artifacts'
 
 export interface LlmsResponseSnapshot {
@@ -36,9 +37,28 @@ export interface LlmsCoherenceParticipant {
   side: 'origin' | 'site'
 }
 
+/**
+ * Freshness/skew authority: the packaged estate contract, read in the AUDIT layer
+ * only so the Pages Functions runtime bundle stays free of the package (atlas
+ * decision 0119 D2). The contract owns `maxCompositionAge` (4 hours: the composer
+ * runs on a 30-minute EventBridge rate plus an event trigger, bounding missed
+ * compositions and the three-hour last-known-good origin fallback) and
+ * `maxCompositionSkew` (10 minutes: CloudFront advertises a five-minute origin
+ * TTL; two intervals tolerate a cross-key or cross-PoP refresh boundary while
+ * still detecting a longer hold).
+ */
+const {coherencePolicy} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
+
+/**
+ * Small clock-drift allowance; a composition time further ahead is invalid.
+ * Local until it joins the contract's coherencePolicy at estate-contracts 0.10.0
+ * (atlas decision 0119 D2).
+ */
+const LLMS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+
 export const LLMS_COHERENCE_THRESHOLDS: Readonly<LlmsCoherenceThresholds> = Object.freeze({
-  maxCompositionAgeMs: LLMS_MAX_COMPOSITION_AGE_MS,
-  maxCompositionSkewMs: LLMS_MAX_COMPOSITION_SKEW_MS,
+  maxCompositionAgeMs: durationToMilliseconds(coherencePolicy.maxCompositionAge),
+  maxCompositionSkewMs: durationToMilliseconds(coherencePolicy.maxCompositionSkew),
   maxFutureSkewMs: LLMS_MAX_FUTURE_SKEW_MS
 })
 

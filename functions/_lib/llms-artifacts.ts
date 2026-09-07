@@ -39,14 +39,7 @@ export const LLMS_ARTIFACTS = [
 export type LlmsArtifact = (typeof LLMS_ARTIFACTS)[number]
 export type LlmsArtifactId = LlmsArtifact['id']
 
-/** Composer freshness contract from openspec/specs/llms-txt/spec.md. */
-export const LLMS_MAX_COMPOSITION_AGE_MS = 4 * 60 * 60 * 1000
-
-/**
- * CloudFront advertises a five-minute origin TTL. Two intervals tolerate a
- * cross-key or cross-PoP refresh boundary while still detecting a longer hold.
- */
-export const LLMS_MAX_COMPOSITION_SKEW_MS = 10 * 60 * 1000
-
-/** Small clock-drift allowance; a composition time further ahead is invalid. */
-export const LLMS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+// The freshness/skew thresholds that lived here are gone (atlas decision 0119 D2):
+// audits/lib/llms-coherence.ts derives them from the packaged
+// @j0nathan-ll0yd/estate-contracts LLM_FRESHNESS_CONFIG. They are audit-layer
+// policy, and this module stays runtime-bundle-safe (no package import).
