@@ -49,17 +49,10 @@ export interface LlmsCoherenceParticipant {
  */
 const {coherencePolicy} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
 
-/**
- * Small clock-drift allowance; a composition time further ahead is invalid.
- * Local until it joins the contract's coherencePolicy at estate-contracts 0.10.0
- * (atlas decision 0119 D2).
- */
-const LLMS_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
-
 export const LLMS_COHERENCE_THRESHOLDS: Readonly<LlmsCoherenceThresholds> = Object.freeze({
   maxCompositionAgeMs: durationToMilliseconds(coherencePolicy.maxCompositionAge),
   maxCompositionSkewMs: durationToMilliseconds(coherencePolicy.maxCompositionSkew),
-  maxFutureSkewMs: LLMS_MAX_FUTURE_SKEW_MS
+  maxFutureSkewMs: durationToMilliseconds(coherencePolicy.maxFutureSkew)
 })
 
 const decoder = new TextDecoder('utf-8', {fatal: true})

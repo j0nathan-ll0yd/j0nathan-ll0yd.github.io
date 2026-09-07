@@ -18,6 +18,7 @@ declare module '@j0nathan-ll0yd/estate-contracts/llms-assurance' {
         readonly coherencePolicy: {
           readonly maxCompositionAge: ContractDuration
           readonly maxCompositionSkew: ContractDuration
+        readonly maxFutureSkew: ContractDuration
         }
       }
     }
