@@ -17,8 +17,8 @@ function isAttemptTimeout(err) {
 }
 
 /** Abort signal for one attempt: min(per-attempt cap, remaining budget), composed with the caller's own signal when present. */
-function attemptSignal(callerSignal, deadline, perAttemptCapMs) {
-  const timeoutSignal = AbortSignal.timeout(Math.min(perAttemptCapMs, Math.max(1, deadline - Date.now())))
+function attemptSignal(callerSignal, remainingMs, perAttemptCapMs) {
+  const timeoutSignal = AbortSignal.timeout(Math.min(perAttemptCapMs, remainingMs))
   return callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal
 }
 
@@ -41,11 +41,17 @@ export async function fetchStable(url, init = {}, budgetMs = DEFAULT_BUDGET_MS, 
   const deadline = Date.now() + budgetMs
   let backoffs = 0
   while (true) {
+    // When the remaining budget (not the per-attempt cap) bounds this attempt, a timeout IS the
+    // budget expiring -- retrying with the ~1ms left is useless, and deciding by re-reading the
+    // clock raced millisecond truncation (the abort can land with Date.now() one tick short of
+    // the deadline, minting a phantom second attempt).
+    const remainingMs = Math.max(1, deadline - Date.now())
+    const budgetBound = remainingMs <= perAttemptCapMs
     let res
     try {
-      res = await fetch(url, {...init, signal: attemptSignal(init.signal, deadline, perAttemptCapMs)})
+      res = await fetch(url, {...init, signal: attemptSignal(init.signal, remainingMs, perAttemptCapMs)})
     } catch (err) {
-      if (init.signal?.aborted || !isAttemptTimeout(err) || Date.now() >= deadline) {
+      if (init.signal?.aborted || !isAttemptTimeout(err) || budgetBound || Date.now() >= deadline) {
         throw err
       }
       continue
