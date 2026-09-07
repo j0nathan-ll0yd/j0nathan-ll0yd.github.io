@@ -264,7 +264,7 @@ describe('b2-llms CLI issue-outcome channel', () => {
     const exitCode = await runB2LlmsCli({
       arguments_: [],
       environment: {GITHUB_OUTPUT: githubOutputPath},
-      auditRunner: ({nowMs, logger: auditLogger}: {nowMs: number; logger: ReturnType<typeof logger>}) =>
+      auditRunner: ({nowMs, logger: auditLogger}) =>
         runB2Llms({probeSuppressionImpl: async () => ({status: 'suppressed', reason: 'focus mode active'}), fetchPairImpl, nowMs, logger: auditLogger}),
       logger: logger()
     })
