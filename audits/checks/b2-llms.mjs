@@ -203,11 +203,22 @@ function presenceFindings(pair) {
  * retired spoke-evidence outcome did, so "could not measure" stays indeterminate
  * to the reconciler while site-side presence failures stay definitive.
  */
+/**
+ * The three console methods the check actually uses -- typed structurally so a
+ * test can hand in a minimal mock instead of a full Console.
+ * @typedef {{log: (...args: unknown[]) => void, warn: (...args: unknown[]) => void, error: (...args: unknown[]) => void}} LlmsAuditLogger
+ */
+/**
+ * What the CLI wrapper depends on from the audit run: the exit code and the
+ * tri-state status, nothing else.
+ * @typedef {(options: {nowMs: number, logger: LlmsAuditLogger}) => Promise<{exitCode: number, status: string}>} LlmsAuditRunner
+ */
+
 export async function runB2Llms({
   probeSuppressionImpl = probeSuppression,
   fetchPairImpl = fetchPair,
   nowMs = Date.now(),
-  logger = console
+  logger = /** @type {LlmsAuditLogger} */ (console)
 } = {}) {
   let focus
   try {
@@ -300,9 +311,9 @@ export async function runB2Llms({
 export async function runB2LlmsCli({
   arguments_ = process.argv.slice(2),
   environment = process.env,
-  auditRunner = runB2Llms,
+  auditRunner = /** @type {LlmsAuditRunner} */ (runB2Llms),
   issueOutcomeWriter = writeIssueOutcome,
-  logger = console
+  logger = /** @type {LlmsAuditLogger} */ (console)
 } = {}) {
   if (arguments_.length > 0) {
     logger.error(
