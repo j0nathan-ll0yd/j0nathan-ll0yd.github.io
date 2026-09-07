@@ -36,7 +36,7 @@
 import {describe, expect, it} from 'vitest'
 import fc from 'fast-check'
 import {decodeLlmsTxt, encodeLlmsTxt, parseLlmsTxt} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
-import {validateLlmsTxt} from '../checks/b2-validate-llms-txt.mjs'
+import {validateLlmsTxt} from '../checks/b2-llms.mjs'
 import {wellFormedLlmsTxtArb} from './llms-txt-arbitraries'
 
 // The contract ships JSDoc types, not a .d.ts, and tests/** is outside the

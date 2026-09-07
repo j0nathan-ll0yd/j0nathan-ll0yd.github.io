@@ -2,12 +2,19 @@
 
 import {appendFile, mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
+import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 
+// The three canonical URLs, derived from the portal contract rather than
+// restated (atlas decision 0119 D2): the site origin plus the same paths the
+// serving proxies register. The discovery path comes through
+// functions/_lib/llms-artifacts.ts, which reads the contract's generated
+// distribution registry.
 export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
-  'https://jonathanlloyd.me/llms.txt',
-  'https://jonathanlloyd.me/llms-full.txt',
-  'https://jonathanlloyd.me/index.md'
+  `${SITE_URL}${LLMS_TXT_PATH}`,
+  `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`,
+  `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
 ])
 
 const API_BASE = 'https://api.cloudflare.com/client/v4'

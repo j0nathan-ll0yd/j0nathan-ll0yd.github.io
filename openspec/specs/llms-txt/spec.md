@@ -36,9 +36,9 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   0103; see "the dependency" below). Atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME
   THE PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
-  `audits/checks/b2-validate-llms-txt.mjs:14`. Each declares `@j0nathan-ll0yd/estate-contracts`
-  exact-pinned at `0.8.1` (here `package.json:58`) and resolves it from its lockfile — atlas
-  decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
+  `audits/checks/b2-llms.mjs:26`. Each declares `@j0nathan-ll0yd/estate-contracts` exact-pinned (the
+  version literal lives in `package.json`, deliberately not restated here) and resolves it from its
+  lockfile — atlas decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
   a sha256 sidecar, until the 2026-08 migration deleted both.
@@ -93,18 +93,18 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `0.9.0` (the consolidated 0110/0111/0113/0117 release, atlas PR #284) again moved neither rule
   tier's bytes — both sidecars stand unedited — and again changed only `llms-assurance` plus
   packaging. It exported the run-source builders `workflowPath(value)` and `buildRunSource(fields)`
-  (decision 0111 phase 3a, the promotion the previous sentence waited on; this repo's
-  `checkedSource` builder in `audits/lib/llms-spoke-evidence.ts` deliberately stays local, and the
-  validation half stays delegated to the published `assertSpokeEvidence`). It collapsed the
+  (decision 0111 phase 3a) — moot for this repo since atlas decision 0119 D1 retired the B2
+  spoke-evidence envelope this repo used to build and validate. It collapsed the
   freshness config into the deep-frozen `LLM_FRESHNESS_CONFIG` export with byte-identical values
   (decision 0110 action 3): the `./llms-assurance/freshness-config.json` and
-  `./llms-assurance/freshness-config.schema.json` subpaths are gone, and
-  `audits/__tests__/llms-spoke-evidence.test.ts` pins the stamped `source.repository` to the
-  constant instead. It also dropped the `./openspec-covers/runner` and
+  `./llms-assurance/freshness-config.schema.json` subpaths are gone. That constant's
+  `coherencePolicy` is now this repo's freshness/skew authority: `audits/lib/llms-coherence.ts`
+  derives its thresholds from it via the published `durationToMilliseconds` (decision 0119 D2),
+  and `audits/__tests__/llms-coherence.test.ts:76` tethers the evaluator configuration to it.
+  It also dropped the `./openspec-covers/runner` and
   `./openspec-covers/fixture.json` subpaths (decision 0113 R4; this repo consumes only the tier's
   `reference.mjs` and its sidecar, which survive) and stopped shipping tier READMEs in the tarball
-  (decision 0113 R2b). `spoke-evidence.schema.json` is byte-identical to `0.7.0`, and the expected
-  B2 `source.repository` is still `j0nathan-ll0yd.github.io`.
+  (decision 0113 R2b).
   This repo's evaluation layer states its structural invariants over
   the parsed model instead of over local regexes: `audits/__tests__/b2-validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
@@ -116,7 +116,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   bullet surviving in prose, including the legal descriptive item) and is sound only because its
   generator emits nothing but link items; the legal descriptive shape is covered by the descriptive
   section suite above and by the v2 relaxation class in the differential suite.
-- Checker: `validateLlmsTxt(rawText)` — `audits/checks/b2-validate-llms-txt.mjs:47`. A catalog wrapper
+- Checker: `validateLlmsTxt(rawText)` — `audits/checks/b2-llms.mjs:49`. A catalog wrapper
   that stamps severity onto the shared reference's findings.
 - Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
   declared in `audits/specs/rule.schema.json:126` and stamped by `emit()`, never chosen by the
@@ -187,30 +187,34 @@ NOT, by byte difference alone, be reported as corruption.
 
 Verified by `audits/__tests__/llms-coherence.test.ts:53` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
-same-generation byte equality, and cache policy; `audits/checks/b2-check-llms-coherence.mjs` runs the
-same evaluator in weekly B2.
+same-generation byte equality, and cache policy; `audits/checks/b2-llms.mjs` (the one merged weekly
+llms check, atlas decision 0119 D2) runs the same evaluator as its coherence arm beside the
+structural catalog arm.
 
-Weekly B2 SHALL write an Atlas spoke-evidence v1 envelope before returning its audit exit code and
-SHALL always upload the fixed evidence path. Its `results` SHALL be nonempty: definitive
-coherence/cache contract findings contribute `failed` results, while confirmed suppression,
-an indeterminate suppression probe, incomplete response transport, and uncaught audit failures
-contribute `unknown` results. With neither, the builder contributes one `passed` result. Envelope
-status SHALL be the exact result aggregate: any `failed` wins, otherwise any `unknown` wins,
-otherwise `passed`. Thus a true finding plus incomplete transport remains `failed`, while clean
-suppression is `unknown`. Confirmed suppression SHALL stop before any artifact fetch while still
-producing the unknown envelope. Evidence classification does not replace the audit's exit/finding
-semantics. After successfully writing the envelope, the CLI SHALL expose a managed-issue outcome
-derived only from its final status: `passed` → `success`, `failed` → `failure`, and `unknown` →
-`indeterminate`. The reconciler SHALL consume that explicit output, not the process step outcome;
-missing output SHALL remain indeterminate. Therefore suppressed, incomplete, and uncaught-unknown
-runs neither open nor close the managed issue, a definitive finding opens or reopens it, and only
-an all-passed run can close it.
+Weekly B2 SHALL derive a tri-state status from the run and expose it as the `issue_outcome`
+GITHUB_OUTPUT before returning its audit exit code (`audits/lib/llms-issue-outcome.ts`; the Atlas
+spoke-evidence v1 envelope this repo used to write and upload was retired by atlas decision 0119
+D1 — lane liveness belongs to decision 0116's per-tier tiles now). The fold: any definitive
+failure wins, otherwise any observation gap wins, otherwise `passed`. Definitive failures are
+fail-severity catalog findings and coherence findings whose participant responses were all
+observed; confirmed suppression, an indeterminate suppression probe, incomplete response
+transport, and uncaught audit failures are observation gaps. A coherence finding whose every
+participant response is transport-incomplete SHALL NOT count as definitive — it restates the
+transport gap. Thus a true finding plus incomplete transport remains `failed`, while clean
+suppression is `unknown`; a warn-severity catalog finding alone SHALL leave the status `passed`
+and the exit 0. Confirmed suppression SHALL stop before any artifact fetch while still producing
+the unknown outcome. Status classification does not replace the audit's exit/finding semantics.
+The CLI SHALL write the managed-issue outcome derived only from that status: `passed` →
+`success`, `failed` → `failure`, and `unknown` → `indeterminate`. The reconciler SHALL consume
+that explicit output, not the process step outcome; missing output SHALL remain indeterminate.
+Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
+issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/llms-spoke-evidence.test.ts:65` (evidence builder and orchestration).
-Those tests cover the exact envelope, aggregation, file/output mapping, issue lifecycle, uncaught
-failure, and suppression short-circuit. `audits/__tests__/audit-web-workflow.test.ts` asserts immutable GitHub source context, no
-workflow-level suppression skip, the fixed path, report-only exit preservation, and `always()`
-upload.
+Verified by `audits/__tests__/b2-llms.test.ts:107` (orchestration and issue-outcome channel).
+Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
+output mapping, uncaught failure, and the issue lifecycle. `audits/__tests__/audit-web-workflow.test.ts`
+asserts no workflow-level suppression skip, report-only exit preservation, the reconciler
+consuming `steps.llms.outputs.issue_outcome`, and that no evidence envelope step survives.
 
 #### Scenario: Same-generation bytes diverge
 
@@ -267,9 +271,9 @@ The served llms.txt SHALL begin with an H1, SHALL follow it with a summary block
 contain exactly one H1. Every H2 section list item that carries an http(s) URL SHALL wrap it as a
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
-Verified by `audits/__tests__/spec-cases.test.ts:122` (the five convention rules, derived cases) and
-`audits/__tests__/b2-validate-llms-txt.property.test.ts:131` (the five structural invariants as properties,
-tethered by the `covers:` comment at `:131`).
+Verified by `audits/__tests__/spec-cases.test.ts:123` (the five convention rules, derived cases) and
+`audits/__tests__/b2-validate-llms-txt.property.test.ts` (the five structural invariants as
+properties, tethered by its three `covers:` comments at `:169`, `:203`, and `:265`).
 
 SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
 section to hold a list. The producer contract test found the live index legitimately mixing file
@@ -321,13 +325,21 @@ clause left intact beside them.
 
 Every raw and canonical representation of llms.txt, llms-full.txt, and index.md SHALL carry a
 parseable composition timestamp no more than 4 hours old. The discovery index uses its
-`<!-- composed-at: ... -->` marker; the full artifacts use `**Generated:** ...`. The threshold is
-`LLMS_MAX_COMPOSITION_AGE_MS` and SHALL remain equal to both operational stale rules'
-`params.maxAgeHours`.
+`<!-- composed-at: ... -->` marker; the full artifacts use `**Generated:** ...`. The threshold
+authority is the packaged estate contract: `audits/lib/llms-coherence.ts` SHALL derive
+`maxCompositionAgeMs` and `maxCompositionSkewMs` from
+`LLM_FRESHNESS_CONFIG.layers.portfolioServing.coherencePolicy` via `durationToMilliseconds`
+(atlas decision 0119 D2 — the retired stale rules' `params.maxAgeHours` restatements and the
+local `LLMS_MAX_COMPOSITION_AGE_MS` constant are gone; `maxFutureSkew` stays a local 5-minute
+constant until it joins the contract at estate-contracts `0.10.0`). The merged weekly check's
+coherence arm applies the thresholds to all six live responses; its presence arm keeps the
+site-side existence/non-emptiness of llms-full.txt and index.md definitive through the
+operational catalog rules `llms-full-txt` and `index-md`.
 
 Verified by `audits/__tests__/llms-coherence.test.ts:75`, which injects a fixed clock and synthetic response
-snapshots to exercise the exact age boundary logic without network and asserts the rule-catalog
-parameters equal the evaluator configuration. The old `spec-cases.test.ts` covers claim was
+snapshots to exercise the exact age boundary logic without network and asserts the evaluator
+configuration equals the contract's `coherencePolicy`, and by `audits/__tests__/b2-llms.test.ts:206`
+(the presence arm). The old `spec-cases.test.ts` covers claim was
 removed: that harness only proved operational rules had no cases and never exercised freshness.
 
 #### Scenario: A composition exceeds the freshness window
@@ -360,37 +372,35 @@ in the catalog checks its clause as quoted.
 
 ## Validation matrix
 
-| Requirement              | Unit                                       | Integration                          | Audit (prod)                        | Provenance          |
-| ------------------------ | ------------------------------------------ | ------------------------------------ | ----------------------------------- | ------------------- |
-| Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | raw/canonical coherence evaluator    | weekly B2 coherence                 | portal contract     |
-| Privacy/cache transition | `cloudfront-proxy.test.ts`                 | response headers + `CF-Cache-Status` | weekly B2 coherence                 | Cloudflare docs     |
-| Origin/site coherence    | pure snapshots + evidence builder          | six live responses + v1 envelope     | weekly B2 issue + evidence artifact | Atlas d8341bd shape |
-| Structural profile       | spec-cases + property test                 | — (external consumer)                | weekly structural                   | —                   |
-| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin | —                                   | lockfile + sidecar  |
-| Freshness                | `llms-coherence.test.ts` (fixed clock)     | six live responses                   | weekly B2 coherence                 | maxAgeHours in rule |
-| External anchor          | spec-verification                          | —                                    | weekly drift                        | pinned source       |
+| Requirement              | Unit                                       | Integration                          | Audit (prod)                   | Provenance               |
+| ------------------------ | ------------------------------------------ | ------------------------------------ | ------------------------------ | ------------------------ |
+| Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | raw/canonical coherence evaluator    | weekly B2 llms (coherence arm) | portal contract          |
+| Privacy/cache transition | `cloudfront-proxy.test.ts`                 | response headers + `CF-Cache-Status` | weekly B2 llms (coherence arm) | Cloudflare docs          |
+| Origin/site coherence    | pure snapshots + issue-outcome fold        | six live responses                   | weekly B2 llms issue_outcome   | contract coherence       |
+| Structural profile       | spec-cases + property test                 | — (external consumer)                | weekly B2 llms (structure arm) | —                        |
+| Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin | —                              | lockfile + sidecar       |
+| Freshness                | `llms-coherence.test.ts` (fixed clock)     | six live responses                   | weekly B2 llms (coherence arm) | contract coherencePolicy |
+| External anchor          | spec-verification                          | —                                    | weekly drift                   | pinned source            |
 
 ## Gaps
 
 - The upstream producer is out of this repo; nothing here asserts what it composes.
 - Operational rule files still have no catalog `cases` by schema. Freshness behavior is instead
-  exercised through the pure coherence evaluator, with an explicit equality assertion tethering its
-  4-hour configuration to both stale-rule parameters.
+  exercised through the pure coherence evaluator, whose configuration is tethered to the packaged
+  contract's `coherencePolicy` (the stale rules that restated the 4-hour parameter were retired by
+  atlas decision 0119 D2); the surviving operational presence rules are exercised through the merged
+  check's presence arm in `audits/__tests__/b2-llms.test.ts`.
 - The Cloudflare account's cache rules are external to this repository. A rule that ignores origin
   cache-control must be removed for the three canonical paths, and old retained objects must be
   purged; the audit detects but cannot mutate that configuration.
-- Atlas revision d8341bd defines spoke evidence and ingestion, and the exact-pinned
-  `@j0nathan-ll0yd/estate-contracts@0.9.0` now exposes it as
-  `./llms-assurance/spoke-evidence.schema.json`. The evidence half is consumed on the audit path:
-  `audits/checks/b2-check-llms-coherence.mjs` runs the published `assertSpokeEvidence` over the built
-  envelope before writing it, so this repo can no longer emit an artifact Atlas will reject. The
-  freshness half is now consumed only by `audits/__tests__/llms-spoke-evidence.test.ts:99`, which pins
-  the stamped `source.repository` to the exported `LLM_FRESHNESS_CONFIG` constant (the
-  `freshness-config.json` subpath left the package at `0.9.0`); its former runtime reader,
-  `scripts/audit/serving-probe.mjs`, never ran and was deleted under atlas decision 0110. That
-  gap was not theoretical -- the producer stamped the retired `web-Lifegames-Portal` alias in
-  `source.repository` for two days after Atlas renamed the token, and every B2 artifact failed
-  ingest. Live central ingestion remains external to this repository.
+- This repo no longer emits Atlas spoke evidence: atlas decision 0119 D1 retired the B2 envelope,
+  its upload, and the emit-time `assertSpokeEvidence` instance (the wire-token drift class that
+  assertion caught — the producer once stamped the retired `web-Lifegames-Portal` alias in
+  `source.repository` for two days and every B2 artifact failed ingest — retires with the wire).
+  A weekly-lane failure stays visible where it always was: the check reds its step, the managed
+  issue opens on the `llms` bucket, and the lane's own liveness tile (atlas decision 0116) catches
+  a dark lane. The package's `./llms-assurance/spoke-evidence.schema.json` subpath still exists;
+  nothing here consumes it.
 
 ## Enforcement note
 

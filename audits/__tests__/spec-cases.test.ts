@@ -27,7 +27,7 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {artifacts, rules} from '../specs/load.mjs'
 import {validateSecurityTxt} from '../checks/b2-check-security-txt.mjs'
-import {validateLlmsTxt} from '../checks/b2-validate-llms-txt.mjs'
+import {validateLlmsTxt} from '../checks/b2-llms.mjs'
 import {validateFeedJson, validateFeedXml} from '../checks/b2-check-feeds.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -47,9 +47,10 @@ interface RuleFile {
   // params is what makes R3 (decisions/0011) real rather than aspirational:
   // check-security-txt.mjs's production call reads
   // R['security-txt-expiring-soon'].params.minDaysRemaining directly (no
-  // default literal survives it -- MIN_DAYS_REMAINING was deleted in Step 3.7),
-  // and validate-llms-txt.mjs's production call reads
-  // R['llms-full-txt-stale'/'index-md-stale'].params.maxAgeHours the same way.
+  // default literal survives it -- MIN_DAYS_REMAINING was deleted in Step 3.7).
+  // The llms stale rules that read params.maxAgeHours the same way were retired
+  // by atlas decision 0119 D2; the freshness threshold now comes from the
+  // packaged estate contract via audits/lib/llms-coherence.ts.
   // Can-fail probe C changes this value in the rule file and observes the
   // expires-40d/expires-30d cases flip -- the only check that params is the
   // real comparison operand rather than a coincidental literal.

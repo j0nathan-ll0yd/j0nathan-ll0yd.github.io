@@ -39,40 +39,34 @@ describe('audit-web issue reconciliation wiring', () => {
 
   it('passes every check outcome, including successes needed for recovery', () => {
     expect(workflow).toContain("outcome: '${{ steps.smoke.outcome }}'")
-    expect(workflow).toContain("outcome: '${{ steps.llms_txt.outcome }}'")
-    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'")
+    expect(workflow).toContain("outcome: '${{ steps.llms.outputs.issue_outcome }}'")
     expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
   })
 
-  it('preserves the llms coherence command failure for its managed issue bucket', () => {
-    const coherenceStep = executable.match(/      - name: B2 -- llms origin\/site coherence\n[\s\S]*?(?=\n      - name: Upload B2)/)?.[0] ?? ''
-    expect(coherenceStep).toContain('id: llms_coherence')
-    expect(coherenceStep).toContain('continue-on-error: true')
-    expect(coherenceStep).toContain('pnpm exec tsx audits/checks/b2-check-llms-coherence.mjs')
-    expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
-    expect(executable).not.toMatch(/check-llms-coherence\.mjs[^\n]*(\|\| true|; true)/)
-    expect(workflow).toContain(
-      "{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'}"
-    )
-    expect(workflow).not.toContain('steps.llms_coherence.outcome')
+  it('preserves the merged llms command failure for its managed issue bucket', () => {
+    const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- Cloudflare)/)?.[0] ??
+      ''
+    expect(llmsStep).toContain('id: llms')
+    expect(llmsStep).toContain('continue-on-error: true')
+    expect(llmsStep).toContain('pnpm exec tsx audits/checks/b2-llms.mjs')
+    expect(executable).not.toMatch(/b2-llms\.mjs[^\n]*(\|\| true|; true)/)
+    expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.llms.outputs.issue_outcome }}'}")
+    expect(workflow).not.toContain('steps.llms.outcome')
   })
 
-  it('runs the coherence classifier under suppression and always uploads its evidence path', () => {
-    const coherenceStep = executable.match(/      - name: B2 -- llms origin\/site coherence\n[\s\S]*?(?=\n      - name: Upload B2)/)?.[0] ?? ''
-    expect(coherenceStep).not.toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
-    expect(coherenceStep).toContain('B2_EVIDENCE_REVISION: ${{ github.sha }}')
-    expect(coherenceStep).toContain('B2_EVIDENCE_WORKFLOW_REF: ${{ github.workflow_ref }}')
-    expect(coherenceStep).toContain('B2_EVIDENCE_RUN_ATTEMPT: ${{ github.run_attempt }}')
-    expect(coherenceStep).toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
-    expect(workflow).toContain("outcome: '${{ steps.llms_coherence.outputs.issue_outcome }}'")
-    expect(workflow).not.toMatch(/steps\.llms_coherence\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+  it('runs the merged llms check under suppression with no evidence envelope left behind (decision 0119 D1)', () => {
+    const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- Cloudflare)/)?.[0] ??
+      ''
+    expect(llmsStep).not.toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
+    expect(workflow).not.toMatch(/steps\.llms\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
 
-    const uploadStep = executable.match(/      - name: Upload B2 llms coherence evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
-    expect(uploadStep).toContain('if: always()')
-    expect(uploadStep).toContain('continue-on-error: true')
-    expect(uploadStep).toContain('uses: actions/upload-artifact@')
-    expect(uploadStep).toContain('path: artifacts/llms-assurance/spoke-b2.json')
-    expect(uploadStep).toContain('if-no-files-found: error')
+    // The retired spoke-evidence relay: no --evidence-out flag, no B2_EVIDENCE_*
+    // transport env, no envelope upload step. The tri-state issue_outcome output
+    // is the surviving channel.
+    expect(executable).not.toContain('--evidence-out artifacts/llms-assurance/spoke-b2.json')
+    expect(workflow).not.toContain('B2_EVIDENCE_')
+    expect(workflow).not.toContain('Upload B2 llms coherence evidence')
+    expect(workflow).not.toContain('llms-assurance-b2-spoke-evidence')
   })
 
   it('wires a fail-closed read-only Cloudflare rule audit with existing secret names', () => {
@@ -97,11 +91,12 @@ describe('audit-web issue reconciliation wiring', () => {
 
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
     expect(workflow).toContain('run: node audits/probe-suppression.mjs --github-output')
-    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(3)
+    // Two workflow-level skips remain (feeds, lychee); the merged llms check
+    // self-probes instead of skipping at the workflow level (decision 0119 D2).
+    expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(2)
     expect(workflow).toContain('Lighthouse result is focus-mode-conditioned')
     expect(workflow).toContain('pa11y / result is focus-mode-conditioned')
-    expect(workflow).toContain("{id: 'llms-txt', title: 'B2 llms.txt structural validator', outcome: '${{ steps.focus_mode.outcome }}'}")
-    expect(workflow).toContain("{id: 'llms-coherence', title: 'B2 llms origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).toContain("{id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).toContain("{id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'}")
     expect(workflow).not.toMatch(/id: sitemap[\s\S]{0,120}focus_mode/)
