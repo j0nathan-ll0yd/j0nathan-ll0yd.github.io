@@ -26,9 +26,11 @@ Then verify these additional invariants (batch into one Bash call):
 curl -sI https://jonathanlloyd.me/ | grep -i '^link:' | tee /tmp/vp-link.txt
 # Expect substrings: rel="describedby", rel="api-catalog", rel="sitemap"
 
-# Markdown negotiation -- middleware serves CloudFront llms-full.txt
-curl -sI -H 'Accept: text/markdown' https://jonathanlloyd.me/ | grep -iE '^(content-type|cache-control|x-markdown-tokens):' | tee /tmp/vp-md.txt
-# Expect: Content-Type: text/markdown, Cache-Control: no-store
+# Markdown negotiation -- homepage only; the middleware serves the llms-full.txt
+# representation through the shared CloudFront proxy machinery (explicit artifact
+# paths never negotiate, and x-markdown-tokens is gone)
+curl -sI -H 'Accept: text/markdown' https://jonathanlloyd.me/ | grep -iE '^(content-type|cache-control|vary):' | tee /tmp/vp-md.txt
+# Expect: Content-Type: text/markdown; charset=utf-8, Cache-Control: no-store, Vary: Accept
 
 # api-catalog Content-Type must include RFC 9727 profile
 curl -sI https://jonathanlloyd.me/.well-known/api-catalog | grep -i '^content-type:' | tee /tmp/vp-catalog-ct.txt
@@ -226,15 +228,15 @@ fi
 
 Targets:
 
-| Metric | Mobile | Desktop |
-|---|---|---|
-| Performance | >= 90 | >= 95 |
-| Accessibility | >= 95 | >= 95 |
-| Best Practices | >= 95 | >= 95 |
-| SEO | >= 95 | >= 95 |
-| LCP | <= 2.5s | <= 2.5s |
-| CLS | <= 0.1 | <= 0.1 |
-| TBT | <= 200ms | <= 200ms |
+| Metric         | Mobile   | Desktop  |
+| -------------- | -------- | -------- |
+| Performance    | >= 90    | >= 95    |
+| Accessibility  | >= 95    | >= 95    |
+| Best Practices | >= 95    | >= 95    |
+| SEO            | >= 95    | >= 95    |
+| LCP            | <= 2.5s  | <= 2.5s  |
+| CLS            | <= 0.1   | <= 0.1   |
+| TBT            | <= 200ms | <= 200ms |
 
 The python parser above emits the **top 8 failing audits per strategy** ranked by category-weighted impact (`weight * (1 - score)`) with `displayValue`, estimated time savings (`overallSavingsMs`), and estimated byte savings (`overallSavingsBytes`) when present. Include every audit listed under `top failing audits` in the Step 7 Recommendations -- each one is a concrete reason the score is not 100. Common offenders: `unused-javascript`, `render-blocking-resources`, `modern-image-formats`, `unminified-javascript`, `uses-text-compression`, `color-contrast`, `tap-targets`.
 
@@ -328,12 +330,12 @@ Drive the live site via BrowserOS MCP. The discovery protocol is **take_snapshot
 
    ```javascript
    ({
-     triCards: document.querySelectorAll('.tri-card').length,
-     hasHeartRate: !!document.querySelector('#cardHR'),
-     heartRateHydrated: !document.querySelector('#cardHR')?.classList.contains('is-loading'),
-     responseEnd: performance.getEntriesByType('navigation')[0]?.responseEnd,
-     cspViolations: 'see console logs',
-   })
+     triCards: document.querySelectorAll(".tri-card").length,
+     hasHeartRate: !!document.querySelector("#cardHR"),
+     heartRateHydrated: !document.querySelector("#cardHR")?.classList.contains("is-loading"),
+     responseEnd: performance.getEntriesByType("navigation")[0]?.responseEnd,
+     cspViolations: "see console logs",
+   });
    ```
 
    Wait ~10s before re-evaluating `heartRateHydrated` so the poll engine has a chance to fetch data.
@@ -362,33 +364,38 @@ Write `/tmp/prod-verification-$(date -u +%Y-%m-%d).md` AND echo it inline. Use t
 
 ## Surface results
 
-| Surface | Status | Notes |
-|---|---|---|
-| 1. Discovery (well-known) | PASS/DEGRADED/FAIL/SKIP | <agent-readiness PASS count, plus any additional probe failures> |
-| 2. CloudFront JSON | ... | <stale endpoints, parse failures> |
-| 3. Security/caching headers | ... | <CSP/CDN-CC/404/_astro state> |
-| 4. PageSpeed mobile/desktop | ... | <perf scores, key vitals> |
-| 5. Smoke check | ... | <PASS or FAIL + failing assertion> |
-| 6a. Mobile probe (Playwright iPhone 13) | ... | <pageScrolls, reading-feed item opacity> |
-| 6b. Live UX (BrowserOS) | ... | <widget count, console errors, navigation timing> |
+| Surface                                 | Status                  | Notes                                                            |
+| --------------------------------------- | ----------------------- | ---------------------------------------------------------------- |
+| 1. Discovery (well-known)               | PASS/DEGRADED/FAIL/SKIP | <agent-readiness PASS count, plus any additional probe failures> |
+| 2. CloudFront JSON                      | ...                     | <stale endpoints, parse failures>                                |
+| 3. Security/caching headers             | ...                     | <CSP/CDN-CC/404/\_astro state>                                   |
+| 4. PageSpeed mobile/desktop             | ...                     | <perf scores, key vitals>                                        |
+| 5. Smoke check                          | ...                     | <PASS or FAIL + failing assertion>                               |
+| 6a. Mobile probe (Playwright iPhone 13) | ...                     | <pageScrolls, reading-feed item opacity>                         |
+| 6b. Live UX (BrowserOS)                 | ...                     | <widget count, console errors, navigation timing>                |
 
 ## Findings (severity-ranked)
 
 ### CRITICAL
+
 - ...
 
 ### HIGH
+
 - ...
 
 ### MEDIUM
+
 - ...
 
 ### INFORMATIONAL
+
 - ...
 
 ## Recommendations
 
 For each finding above, give: file:line of the likely fix, the specific change, and the classification:
+
 - **config** -- Cloudflare dashboard, CDN settings, DNS
 - **code** -- `functions/_middleware.ts`, `astro.config.mjs`, `src/`, etc.
 - **content** -- `data/*.json`, `public/.well-known/`

@@ -388,6 +388,35 @@ describe('per-route cache policy', () => {
   })
 })
 
+describe('routes ignore Accept', () => {
+  // covers: llms-txt#Markdown negotiation applies only to the homepage and honors Accept q-values
+  // Negotiation is the middleware's homepage-only decision. The explicit artifact
+  // and feed routes read nothing off Accept: each keeps its own bytes and content
+  // type for every Accept value, including an explicit text/markdown.
+  const routes: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>, string]> = [
+    ['/llms.txt', llmsTxtRoute, 'text/plain; charset=utf-8'],
+    ['/llms-full.txt', llmsFullRoute, 'text/markdown; charset=utf-8'],
+    ['/index.md', indexMdRoute, 'text/markdown; charset=utf-8'],
+    ['/feed.xml', feedXmlRoute, 'application/rss+xml; charset=utf-8'],
+    ['/feed.json', feedJsonRoute, 'application/feed+json; charset=utf-8']
+  ]
+
+  it.each(routes)('%s serves its own artifact under Accept: text/markdown', async (route, onRequest, contentType) => {
+    stubFetch(new Response('own artifact'))
+    vi.stubGlobal('caches', undefined)
+    const context: CloudfrontProxyContext = {
+      request: new Request(`https://jonathanlloyd.me${route}`, {headers: {Accept: 'text/markdown'}}),
+      waitUntil: () => {}
+    }
+
+    const res = await onRequest(context)
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe(contentType)
+    expect(await res.text()).toBe('own artifact')
+  })
+})
+
 describe('non-retryable upstream privacy responses', () => {
   it('never retries or serves last-known-good content for an upstream 403', async () => {
     const mock = stubFetch(new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403}))

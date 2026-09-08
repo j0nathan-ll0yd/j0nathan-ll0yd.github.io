@@ -16,6 +16,9 @@ only as true as its covering tests.
 - `https://jonathanlloyd.me/llms.txt` — `text/plain; charset=utf-8` — proxy `functions/llms.txt.ts`
 - `https://jonathanlloyd.me/llms-full.txt` — `text/markdown; charset=utf-8` — proxy `functions/llms-full.txt.ts`
 - `https://jonathanlloyd.me/index.md` — byte-identical alias of llms-full.txt — proxy `functions/index.md.ts`
+- `https://jonathanlloyd.me/` under an `Accept` that negotiates markdown (GET/HEAD only) — the same
+  llms-full.txt representation, served by `functions/_middleware.ts` through the same factory; see
+  "Markdown negotiation applies only to the homepage and honors Accept q-values" below.
 - All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`. That factory
   also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) and carry a
   different cache policy; see "Cache policy is per route" below.
@@ -265,6 +268,57 @@ synthetic path. The feed assertions are per route for that reason.
 - **WHEN** the feed route serves it as a stale fallback
 - **THEN** the response SHALL carry the route's own edge-cached policy, not the stored headers
 
+### Requirement: Markdown negotiation applies only to the homepage and honors Accept q-values
+
+Markdown content negotiation SHALL apply only to `GET`/`HEAD` requests for `/`, decided in
+`functions/_middleware.ts`. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
+pages, API routes, and feeds SHALL NOT negotiate: each keeps its own bytes and content type for
+every `Accept` value. This requirement replaced a middleware that negotiated on every path and
+method via an `Accept` substring test, which served llms-full bytes for an explicit GET /llms.txt
+and treated `text/markdown;q=0` as a request.
+
+A homepage request SHALL negotiate markdown only when `Accept` names `text/markdown` explicitly
+with q greater than zero AND that q is strictly greater than the effective q of `text/html`
+(matched with standard precedence: exact `text/html`, then `text/*`, then the full wildcard).
+A wildcard SHALL never select markdown. `text/markdown;q=0` SHALL serve HTML. A bare
+`Accept: text/markdown` SHALL serve the full markdown document — the agent-readiness case.
+TIE RULE: when `text/markdown` and `text/html` carry EQUAL q, the homepage SHALL serve HTML.
+Markdown requires a strictly higher preference, for the same reason a wildcard never selects it:
+the markdown representation is opt-in and needs an unambiguous signal, and HTML is the canonical
+homepage representation.
+
+The negotiated representation IS /llms-full.txt's. The middleware SHALL serve it through the same
+`makeCloudfrontProxy` machinery as the explicit route — privacy gate, bounded retry,
+last-known-good under the shared cache key, and the llm-outputs no-store policy — with no
+independent fetch path, and SHALL finalize it through the same response-header pipeline as every
+other response (security headers, Content-Usage, discovery Link header). Every homepage
+representation SHALL carry `Vary: Accept`, merged into any existing `Vary`. A negotiated HEAD
+response SHALL carry no body.
+
+Verified by `tests/unit/middleware-negotiation.test.ts:53` (decision table, scope, response classes),
+and verified by `tests/unit/cloudfront-proxy.test.ts:392` (explicit routes ignore Accept).
+
+#### Scenario: An agent asks the homepage for markdown
+
+- **GIVEN** a GET / request with `Accept: text/markdown`
+- **WHEN** the middleware negotiates
+- **THEN** it SHALL serve the /llms-full.txt representation through the shared proxy machinery,
+  with the three no-store cache headers, the pipeline's security headers, and `Vary: Accept`
+
+#### Scenario: An explicit artifact path never negotiates
+
+- **GIVEN** a GET /llms.txt request with `Accept: text/markdown`
+- **WHEN** the middleware handles it
+- **THEN** it SHALL pass the request through to the route, preserving the discovery document's
+  bytes and content type
+
+#### Scenario: Markdown is rejected or not named
+
+- **GIVEN** a GET / request whose `Accept` is `text/markdown;q=0`, a bare wildcard, or a
+  browser-typical value that does not name `text/markdown`
+- **WHEN** the middleware decides the representation
+- **THEN** it SHALL serve HTML
+
 ### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 
 The served llms.txt SHALL begin with an H1, SHALL follow it with a summary blockquote, and SHALL
@@ -376,6 +430,7 @@ in the catalog checks its clause as quoted.
 | ------------------------ | ------------------------------------------ | ------------------------------------ | ------------------------------ | ------------------------ |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | raw/canonical coherence evaluator    | weekly B2 llms (coherence arm) | portal contract          |
 | Privacy/cache transition | `cloudfront-proxy.test.ts`                 | response headers + `CF-Cache-Status` | weekly B2 llms (coherence arm) | Cloudflare docs          |
+| Homepage negotiation     | `middleware-negotiation.test.ts`           | — (middleware unit-only)             | —                              | RFC 9110 Accept          |
 | Origin/site coherence    | pure snapshots + issue-outcome fold        | six live responses                   | weekly B2 llms issue_outcome   | contract coherence       |
 | Structural profile       | spec-cases + property test                 | — (external consumer)                | weekly B2 llms (structure arm) | —                        |
 | Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin | —                              | lockfile + sidecar       |
