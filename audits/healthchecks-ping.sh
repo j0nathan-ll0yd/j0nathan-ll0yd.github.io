@@ -41,12 +41,45 @@ HC_URL="${HC_URL:-}"
 HC_SECRET_NAME="${HC_SECRET_NAME:-HC_PING_AUDIT_WEB}"
 # GitHub sets this from `job.status`: success | failure | cancelled.
 JOB_STATUS="${JOB_STATUS:-success}"
+# The MEASUREMENT CHANNEL (atlas decisions 0107, 0122). A count of the artifacts the lane's check
+# held bytes for and judged; `0` means it executed and measured nothing.
+#
+# WHY JOB STATUS ALONE WAS NEVER ENOUGH, and why this repo needed it most. The header above is
+# right that a failed job status can only mean an infrastructure step died, because every check
+# step is `continue-on-error: true`. The inverse is the hole: a check that runs, reaches nothing,
+# and is swallowed by `continue-on-error` leaves the job at `success` and pings a GREEN tile.
+# Decision 0083 asked "did the lane run"; 0107 refined it to "did it run TO MEASUREMENT", and this
+# script was never updated to the refinement. Measured receipt: weekly run 34086625518 concluded
+# success while its Cloudflare arm recorded `status: unknown` with five 403s.
+#
+# EMPTY IS "NOT CLAIMED", NEVER A PASS. A lane that publishes no count is not asserting it
+# measured something -- it is silent, and this script leaves it to the status rungs below. Only a
+# literal `0` is a wedge. Atlas A19 arm 2 is what reds on a lane that should claim and does not.
+MEASURED="${MEASURED:-}"
 
 # An unset secret is a LOUD skip, never a red and never a ping: exit 0 keeps
 # the report-only lane green, and skipping before any curl means an unarmed
 # tier can never check in against another tier's tile.
 if [ -z "$HC_URL" ]; then
   echo "::notice title=Dead-man's-switch ping skipped::${HC_SECRET_NAME} secret not set -- skipping dead-man's-switch ping. Create this tier's Healthchecks.io tile and set the secret to arm it."
+  exit 0
+fi
+
+# ORDER IS LOAD-BEARING (atlas decision 0107, mirrored from mantle-LifegamesPortal's
+# audits/healthchecks-ping.sh). This rung MUST precede the `case "$JOB_STATUS"` below. An
+# unmeasured lane whose check exits nonzero has its failure swallowed by `continue-on-error`, so
+# its job status reads `success` -- the exact shape of a healthy run. Test the status first and a
+# transport-dark run matches the success arm, the switch pings a green tile, and the wedge is never
+# reported. That is the 0104 bug class, and the reason the exit code alone was never allowed to
+# carry this meaning.
+if [ "$MEASURED" = '0' ]; then
+  endpoint="${HC_URL%/}/fail"
+  echo "Measured 0 artifacts -- the lane ran and measured nothing (job status: ${JOB_STATUS}). Pinging /fail."
+  if curl -fsS -m 10 --retry 5 --retry-connrefused -o /dev/null "$endpoint"; then
+    echo 'Pinged Healthchecks.io.'
+    exit 0
+  fi
+  echo "::warning title=Healthchecks.io ping failed::Could not report the unmeasured lane. Not failing the job: a missed check-in is itself the alert this switch exists to raise."
   exit 0
 fi
 

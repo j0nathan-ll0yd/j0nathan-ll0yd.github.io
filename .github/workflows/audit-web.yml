@@ -154,6 +154,11 @@ jobs:
     # CloudFront asset egress for B3/B4 once the shared-bridge rule is source-scoped. Inert until
     # stage C3 flips COLIMA_CFEDGE_LABELS.
     runs-on: [self-hosted, linux, arm64, playwright, cfedge]
+    # `measured` is the dead-man measurement channel (atlas decision 0122). It is published by the
+    # llms step and consumed by the ping step below; without the job-level output the value cannot
+    # cross from a step to the step that reports it.
+    outputs:
+      measured: ${{ steps.llms.outputs.measured }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -451,6 +456,9 @@ jobs:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_WEEKLY }}
           HC_SECRET_NAME: HC_PING_AUDIT_WEB_WEEKLY
           JOB_STATUS: ${{ job.status }}
+          # Atlas decision 0122. Read from the step, not the job output, because `job.status` is
+          # the very signal that cannot see a swallowed check.
+          MEASURED: ${{ steps.llms.outputs.measured }}
         run: bash audits/healthchecks-ping.sh
 
   monthly:

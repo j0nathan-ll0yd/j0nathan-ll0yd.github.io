@@ -26,7 +26,7 @@ import {createHash} from 'node:crypto'
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {compositionTimestamp, evaluateLlmsCoherence, LLMS_COHERENCE_THRESHOLDS} from '../lib/llms-coherence.ts'
-import {llmsCheckStatus, writeIssueOutcome} from '../lib/llms-issue-outcome.ts'
+import {llmsCheckStatus, writeIssueOutcome, writeMeasurement} from '../lib/llms-issue-outcome.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
 import {emit, rules} from '../specs/load.mjs'
@@ -146,8 +146,29 @@ function transportObservation(pairs) {
   return {incomplete, unknowns}
 }
 
+/**
+ * An early return where the lane reached NO verdict about any artifact.
+ *
+ * `measured: 0` is the dead-man's-switch channel (atlas decisions 0083, 0107, 0122): it counts the
+ * artifacts this run held bytes for and judged. Zero means the lane executed and measured nothing,
+ * which `audits/healthchecks-ping.sh` pings `/fail` on. Reserve this for genuine darkness — see
+ * `standDown` for the case that looks similar and is not.
+ */
 function unmeasured(exitCode, id, evidence) {
-  return {exitCode, status: 'unknown', catalogFindings: [], coherenceFindings: [], unknowns: [{id, evidence}]}
+  return {exitCode, status: 'unknown', measured: 0, catalogFindings: [], coherenceFindings: [], unknowns: [{id, evidence}]}
+}
+
+/**
+ * An early return where the lane reached a DETERMINATE verdict and declined to fetch.
+ *
+ * SUPPRESSED COUNTS AS MEASURED, and that is not an oversight — the same rule
+ * mantle-LifegamesPortal states at `audits/lib/served-artifact-check.mts:181-186`. The suppression
+ * probe answered, the lane stood down on purpose, and the transport worked. Counting it as
+ * unmeasured would ping `/fail` through every focus-privacy window, turning intentional privacy
+ * into a wedge alert. An OVERDUE suppression is a finding, and a finding is measured too.
+ */
+function standDown(exitCode, id, evidence) {
+  return {exitCode, status: 'unknown', measured: LLMS_ARTIFACTS.length, catalogFindings: [], coherenceFindings: [], unknowns: [{id, evidence}]}
 }
 
 // Lossy UTF-8 decode, mirroring Response.text() -- structural validation should
@@ -231,10 +252,10 @@ export async function runB2Llms({
 
   const suppression = suppressionDisposition(focus, 'llms structure + CloudFront/portfolio coherence', logger)
   if (suppression === 'skip') {
-    return unmeasured(0, 'llms-suppression', `focus suppression prevented measurement: ${focus.reason}`)
+    return standDown(0, 'llms-suppression', `focus suppression prevented measurement: ${focus.reason}`)
   }
   if (suppression === 'fail') {
-    return unmeasured(1, 'llms-suppression', `overdue focus suppression prevented measurement: ${focus.reason}`)
+    return standDown(1, 'llms-suppression', `overdue focus suppression prevented measurement: ${focus.reason}`)
   }
 
   const settled = await Promise.allSettled(LLMS_ARTIFACTS.map(fetchPairImpl))
@@ -305,7 +326,15 @@ export async function runB2Llms({
   )
   const exitCode = coherenceFindings.length > 0 || catalogFailures.length > 0 ? 1 : 0
   const status = llmsCheckStatus(catalogFailures.length + countedCoherence.length, unknowns.length)
-  return {exitCode, status, catalogFindings, coherenceFindings, unknowns}
+  // An artifact is MEASURED when this run held bytes for both of its sides, so every judgment the
+  // coherence arm makes about it rests on responses this run actually saw. A finding counts as
+  // measured; darkness does not. `measured=0` is what the dead-man reads (atlas decision 0122).
+  const measured =
+    pairs.filter(({artifact}) =>
+      !transport.incomplete.has(responseKey(artifact.id, 'origin')) && !transport.incomplete.has(responseKey(artifact.id, 'site'))
+    ).length
+  logger.log(`\nmeasured=${measured} of ${pairs.length} artifact(s) — both sides held.`)
+  return {exitCode, status, measured, catalogFindings, coherenceFindings, unknowns}
 }
 
 export async function runB2LlmsCli({
@@ -313,6 +342,7 @@ export async function runB2LlmsCli({
   environment = process.env,
   auditRunner = /** @type {LlmsAuditRunner} */ (runB2Llms),
   issueOutcomeWriter = writeIssueOutcome,
+  measurementWriter = writeMeasurement,
   logger = /** @type {LlmsAuditLogger} */ (console)
 } = {}) {
   if (arguments_.length > 0) {
@@ -328,11 +358,14 @@ export async function runB2LlmsCli({
   } catch (error) {
     const reason = `b2-llms audit terminated unexpectedly: ${errorText(error)}`
     logger.error(reason)
-    audit = {exitCode: 1, status: 'unknown'}
+    // A throw before any verdict is the darkest case there is: measured 0, so the dead-man reports
+    // the wedge rather than pinging a green tile off a swallowed exit (atlas decision 0122).
+    audit = {exitCode: 1, status: 'unknown', measured: 0}
   }
 
   try {
     await issueOutcomeWriter(environment.GITHUB_OUTPUT, audit.status)
+    await measurementWriter(environment.GITHUB_OUTPUT, audit.measured ?? 0)
   } catch (error) {
     logger.error(`b2-llms issue outcome write failed: ${errorText(error)}`)
     return 1
