@@ -118,3 +118,48 @@ describe('healthchecks-ping.sh failure handling', () => {
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
   })
 })
+
+// The MEASUREMENT CHANNEL (atlas decision 0122). Before this rung existed, a check that ran,
+// reached nothing, and was swallowed by `continue-on-error` left the job at `success` and pinged a
+// GREEN tile. Weekly run 34086625518 is the measured receipt: it concluded success while its
+// Cloudflare arm recorded `status: unknown` with five 403s.
+describe('healthchecks-ping.sh measurement channel', () => {
+  it('pings /fail when the lane measured nothing, even though the job succeeded', () => {
+    stubCurl()
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED: '0'})
+    expect(status).toBe(0)
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('measured nothing')
+  })
+
+  // ORDER IS LOAD-BEARING. The measured rung must be evaluated BEFORE the status rungs; if the
+  // status arm ran first, `success` would match and the wedge would never be reported.
+  it('pings /fail on measured=0 regardless of job status', () => {
+    stubCurl()
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'failure', MEASURED: '0'}).status).toBe(0)
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+  })
+
+  it('pings the success endpoint when the lane measured something', () => {
+    stubCurl()
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED: '3'}).status).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  // An EMPTY field is "not claimed", never a pass and never a wedge: a lane that publishes no
+  // count is silent, and the status rungs decide. Atlas A19 arm 2 reds on a lane that should
+  // claim and does not — that is a different gate, in a different repo.
+  it('falls through to job status when no count is published', () => {
+    stubCurl()
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success'}).status).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  it('still reports a wedged lane when the /fail ping itself cannot be delivered', () => {
+    stubCurl(28)
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED: '0'})
+    expect(status).toBe(0)
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('::warning title=Healthchecks.io ping failed::')
+  })
+})

@@ -213,7 +213,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:107` (orchestration and issue-outcome channel).
+Verified by `audits/__tests__/b2-llms.test.ts:110` (orchestration and issue-outcome channel).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. `audits/__tests__/audit-web-workflow.test.ts`
 asserts no workflow-level suppression skip, report-only exit preservation, the reconciler

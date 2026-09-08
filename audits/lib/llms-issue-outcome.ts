@@ -40,3 +40,23 @@ export async function writeIssueOutcome(outputPath: string | undefined, status: 
   }
   await appendFile(outputPath, `issue_outcome=${managedIssueOutcome(status)}\n`, 'utf8')
 }
+
+/**
+ * Append `measured=` to GITHUB_OUTPUT — the dead-man's-switch channel.
+ *
+ * SEPARATE FROM `issue_outcome` ON PURPOSE, because the two answer different questions.
+ * `issue_outcome` asks "was the artifact healthy" and drives managed-issue lifecycle.
+ * `measured` asks "did the transport work at all", and it is the only one the dead-man reads:
+ * a lane that ran, reached nothing, and exited cleanly is byte-identical to a healthy one without
+ * it (atlas decisions 0083, 0107, 0122).
+ *
+ * BOTH HALVES SHIP TOGETHER. Publishing this count without the `measured=0` rung in
+ * `audits/healthchecks-ping.sh` changes nothing, and adding the rung without this count makes the
+ * field empty — which the script treats as "not claimed", never as a pass.
+ */
+export async function writeMeasurement(outputPath: string | undefined, measured: number): Promise<void> {
+  if (!outputPath) {
+    return
+  }
+  await appendFile(outputPath, `measured=${measured}\n`, 'utf8')
+}

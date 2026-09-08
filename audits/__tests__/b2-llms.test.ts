@@ -65,6 +65,9 @@ describe('b2-llms audit orchestration', () => {
     expect(result).toEqual({
       exitCode: 0,
       status: 'unknown',
+      // Suppression stands down determinately over all three artifacts, so it is MEASURED
+      // (atlas decision 0122). Zero here would wedge the dead-man on every privacy window.
+      measured: 3,
       catalogFindings: [],
       coherenceFindings: [],
       unknowns: [{id: 'llms-suppression', evidence: 'focus suppression prevented measurement: focus mode active'}]
@@ -249,6 +252,74 @@ describe('b2-llms audit orchestration', () => {
 })
 
 describe('b2-llms CLI issue-outcome channel', () => {
+  // THE MEASUREMENT CHANNEL (atlas decision 0122). `measured` is what the dead-man reads, and the
+  // distinction it turns on is not obvious: darkness publishes 0, while a determinate stand-down
+  // and a real finding both publish a count. Get it backwards and either every focus-privacy
+  // window pings /fail, or a genuinely blind lane pings a green tile.
+  it('publishes measured=0 when the suppression probe throws before any verdict', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: async () => {
+        throw new Error('focus endpoint unreachable')
+      },
+      fetchPairImpl: vi.fn(),
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.measured).toBe(0)
+  })
+
+  it('publishes a full count for an overdue suppression: a finding is measured, not dark', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: async () => ({status: 'overdue', reason: 'hidden for 25h'}),
+      fetchPairImpl: vi.fn(),
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.exitCode).toBe(1)
+    expect(result.measured).toBe(3)
+  })
+
+  it('publishes a full count for a clean run', async () => {
+    const result = await runB2Llms({probeSuppressionImpl: visibleProbe, fetchPairImpl: coherentFetchPair, nowMs: Date.parse(OBSERVED_AT), logger: logger()})
+
+    expect(result.measured).toBe(3)
+  })
+
+  it('excludes an artifact from the count when either side of its pair is dark', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => ({
+        artifact,
+        origin: artifact.id === 'llms-full.txt'
+          ? {...snapshot(artifact, 'origin'), status: 0, body: new Uint8Array(), error: 'TypeError: network unavailable'}
+          : snapshot(artifact, 'origin'),
+        site: snapshot(artifact, 'site')
+      }),
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.measured).toBe(2)
+  })
+
+  it('publishes measured=0 when every artifact is dark on both sides', async () => {
+    const dark = 'TypeError: network unavailable'
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => ({
+        artifact,
+        origin: {...snapshot(artifact, 'origin'), status: 0, body: new Uint8Array(), error: dark},
+        site: {...snapshot(artifact, 'site'), status: 0, body: new Uint8Array(), error: dark}
+      }),
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.measured).toBe(0)
+  })
+
   it('rejects any argument: the retired --evidence-out flag must not silently no-op', async () => {
     const cliLogger = logger()
     const exitCode = await runB2LlmsCli({arguments_: ['--evidence-out', 'spoke-b2.json'], environment: {}, auditRunner: vi.fn(), logger: cliLogger})
@@ -270,7 +341,10 @@ describe('b2-llms CLI issue-outcome channel', () => {
     })
 
     expect(exitCode).toBe(0)
-    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\n')
+    // SUPPRESSED IS MEASURED (atlas decision 0122): the probe answered and the lane stood down on
+    // purpose, so the transport worked. Publishing 0 here would ping the dead-man's /fail through
+    // every focus-privacy window.
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\nmeasured=3\n')
     expect(fetchPairImpl).not.toHaveBeenCalled()
   })
 
@@ -280,12 +354,12 @@ describe('b2-llms CLI issue-outcome channel', () => {
     const exitCode = await runB2LlmsCli({
       arguments_: [],
       environment: {GITHUB_OUTPUT: githubOutputPath},
-      auditRunner: async () => ({exitCode: 0, status: 'passed'}),
+      auditRunner: async () => ({exitCode: 0, status: 'passed', measured: 3}),
       logger: logger()
     })
 
     expect(exitCode).toBe(0)
-    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\n')
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\nmeasured=3\n')
   })
 
   it('writes issue_outcome=failure for a definitive finding independently of exit handling', async () => {
@@ -294,12 +368,14 @@ describe('b2-llms CLI issue-outcome channel', () => {
     const exitCode = await runB2LlmsCli({
       arguments_: [],
       environment: {GITHUB_OUTPUT: githubOutputPath},
-      auditRunner: async () => ({exitCode: 1, status: 'failed'}),
+      auditRunner: async () => ({exitCode: 1, status: 'failed', measured: 3}),
       logger: logger()
     })
 
     expect(exitCode).toBe(1)
-    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=failure\n')
+    // A FINDING IS MEASURED. The lane held the bytes and judged them; the dead-man reports lane
+    // health, not artifact health.
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=failure\nmeasured=3\n')
   })
 
   it('classifies an uncaught audit error as indeterminate at the CLI boundary', async () => {
@@ -315,7 +391,9 @@ describe('b2-llms CLI issue-outcome channel', () => {
     })
 
     expect(exitCode).toBe(1)
-    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\n')
+    // A throw before any verdict is the darkest case: measured=0 so the dead-man reports the wedge
+    // instead of pinging a green tile off a swallowed exit.
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\nmeasured=0\n')
   })
 
   it('reds the step when the issue outcome cannot be written', async () => {
