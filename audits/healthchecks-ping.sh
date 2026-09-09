@@ -41,8 +41,9 @@ HC_URL="${HC_URL:-}"
 HC_SECRET_NAME="${HC_SECRET_NAME:-HC_PING_AUDIT_WEB}"
 # GitHub sets this from `job.status`: success | failure | cancelled.
 JOB_STATUS="${JOB_STATUS:-success}"
-# The MEASUREMENT CHANNEL (atlas decisions 0107, 0122). A count of the artifacts the lane's check
-# held bytes for and judged; `0` means it executed and measured nothing.
+# The MEASUREMENT CHANNEL (atlas decisions 0107, 0122), as ONE RECORD PER CHECK STEP:
+#
+#   <step-id>|<step outcome>|<measured>[|<reason>]
 #
 # WHY JOB STATUS ALONE WAS NEVER ENOUGH, and why this repo needed it most. The header above is
 # right that a failed job status can only mean an infrastructure step died, because every check
@@ -52,10 +53,36 @@ JOB_STATUS="${JOB_STATUS:-success}"
 # script was never updated to the refinement. Measured receipt: weekly run 34086625518 concluded
 # success while its Cloudflare arm recorded `status: unknown` with five 403s.
 #
-# EMPTY IS "NOT CLAIMED", NEVER A PASS. A lane that publishes no count is not asserting it
-# measured something -- it is silent, and this script leaves it to the status rungs below. Only a
-# literal `0` is a wedge. Atlas A19 arm 2 is what reds on a lane that should claim and does not.
-MEASURED="${MEASURED:-}"
+# WHY RECORDS AND NOT A SINGLE NUMBER. One tile covers a whole tier, and a tier is many steps. A
+# SUM IS WRONG: 2 + 3 + 0 + 4 exceeds zero, so one dark check hides behind healthy siblings. The
+# rule is ANY STEP THAT CLAIMS ZERO WEDGES THE TIER, which needs each step's claim kept apart. The
+# record shape is mirrored from mantle-LifegamesPortal's audits/healthchecks-ping.sh, whose lanes
+# are separate JOBS (`name|result|check|report|measured`); here they are steps of one job, so the
+# per-step outcome replaces the per-job result.
+#
+# THE FIELDS.
+#   outcome   `steps.<id>.outcome`, which is the result BEFORE `continue-on-error` masks it.
+#             `steps.<id>.conclusion` is always `success` here and would carry no information.
+#   measured  a non-negative integer count of the artifacts that step held bytes for and judged,
+#             or one of two DECLARATIONS, each of which requires a reason (atlas decision 0107's
+#             not-applicable versus indeterminate split):
+#               n/a       the step cannot produce a count by construction -- a third-party tool
+#                         run whose verdict is its own exit code, not a set of artifacts it held.
+#               deferred  the step COULD claim, but the channel is blocked on an external action.
+#             A declaration WITHOUT a reason is not a declaration: it wedges, so the opt-out
+#             cannot become a quiet escape hatch. This mirrors atlas A19's
+#             `lane-unmeasured-scope-unreasoned` rung.
+#
+# EMPTY IS "NOT CLAIMED", NEVER A PASS. A step that published no count is silent, not healthy. If
+# its outcome is `failure` it died before writing one, which is the darkest case and wedges. If it
+# succeeded or was skipped, this script leaves it to the status rungs and atlas A19 arm 2 is what
+# reds on a step that should claim and does not -- a static gate in another repo, which is why the
+# producer and the reconciler ship as one change.
+#
+# NO RECORDS AT ALL WEDGES, fail-safe and deliberately. An unwired tier is exactly the pre-0122
+# state this channel exists to end, and it must not read as health. A false /fail costs one
+# investigated alert; a false plain ping cost 15 dark days once already.
+MEASURED_STEPS="${MEASURED_STEPS:-}"
 
 # An unset secret is a LOUD skip, never a red and never a ping: exit 0 keeps
 # the report-only lane green, and skipping before any curl means an unarmed
@@ -66,15 +93,56 @@ if [ -z "$HC_URL" ]; then
 fi
 
 # ORDER IS LOAD-BEARING (atlas decision 0107, mirrored from mantle-LifegamesPortal's
-# audits/healthchecks-ping.sh). This rung MUST precede the `case "$JOB_STATUS"` below. An
+# audits/healthchecks-ping.sh). This whole block MUST precede the `case "$JOB_STATUS"` below. An
 # unmeasured lane whose check exits nonzero has its failure swallowed by `continue-on-error`, so
 # its job status reads `success` -- the exact shape of a healthy run. Test the status first and a
 # transport-dark run matches the success arm, the switch pings a green tile, and the wedge is never
 # reported. That is the 0104 bug class, and the reason the exit code alone was never allowed to
-# carry this meaning.
-if [ "$MEASURED" = '0' ]; then
+# carry this meaning. Both orders are pinned in audits/__tests__/healthchecks-ping.test.ts.
+seen=0
+wedged=''
+summary=''
+
+while IFS='|' read -r step outcome measured reason; do
+  [ -n "${step:-}" ] || continue
+  seen=$((seen + 1))
+  summary="${summary}${step}=${measured:-none} "
+  case "${measured:-}" in
+    '')
+      # Nothing claimed. A step that CONCLUDED failure without writing a count died before it
+      # could -- the crashed-before-measuring shape. A step that succeeded or stood itself down
+      # (a focus-mode `if:`) is merely silent, and atlas A19 arm 2 is the gate for that.
+      if [ "${outcome:-}" = 'failure' ]; then
+        wedged="${wedged}${step}(crashed-before-measuring) "
+      fi
+      ;;
+    0)
+      wedged="${wedged}${step}(measured-nothing) "
+      ;;
+    n/a | deferred)
+      if [ -z "${reason:-}" ]; then
+        wedged="${wedged}${step}(unreasoned-${measured}) "
+      fi
+      ;;
+    *[!0-9]*)
+      # Fail-safe: a value this script cannot classify is treated as a wedge, never as a claim.
+      wedged="${wedged}${step}(unrecognized-measured:${measured}) "
+      ;;
+    *)
+      : # A positive integer. The step measured; whether it FOUND anything is the reconciler's job.
+      ;;
+  esac
+done <<EOF
+${MEASURED_STEPS}
+EOF
+
+if [ "$seen" -eq 0 ]; then
+  wedged='no-step-measurements-reported '
+fi
+
+if [ -n "$wedged" ]; then
   endpoint="${HC_URL%/}/fail"
-  echo "Measured 0 artifacts -- the lane ran and measured nothing (job status: ${JOB_STATUS}). Pinging /fail."
+  echo "${summary}-- the lane measured nothing on: ${wedged}(job status: ${JOB_STATUS}). Pinging /fail."
   if curl -fsS -m 10 --retry 5 --retry-connrefused -o /dev/null "$endpoint"; then
     echo 'Pinged Healthchecks.io.'
     exit 0
@@ -82,6 +150,8 @@ if [ "$MEASURED" = '0' ]; then
   echo "::warning title=Healthchecks.io ping failed::Could not report the unmeasured lane. Not failing the job: a missed check-in is itself the alert this switch exists to raise."
   exit 0
 fi
+
+echo "${summary}-- every step that claims a count measured something."
 
 case "$JOB_STATUS" in
   success)

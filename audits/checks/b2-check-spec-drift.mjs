@@ -11,6 +11,7 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import * as cheerio from 'cheerio'
 import {DEFAULT_BUDGET_MS} from '../lib/http.mjs'
+import {publishMeasured} from '../lib/measurement.mjs'
 import {artifacts} from '../specs/load.mjs'
 
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'specs')
@@ -170,10 +171,23 @@ export async function fetchText(url) {
  * fetch failure is reported as a violation for every rule that depended on it,
  * never skipped.
  */
-export async function checkSourceDrift(rules, {fetchText: fetchImpl = fetchText} = {}) {
-  const violations = []
-  const probed = rules.filter(({rule}) => rule.spec?.verified_against_source === true)
+export async function checkSourceDrift(rules, opts = {}) {
+  return compareQuotesAgainstSources(rules, await fetchPinnedSources(rules, opts))
+}
 
+/**
+ * Fetch each probed rule's pinned source ONCE, deduplicated per URL.
+ *
+ * Split out of `checkSourceDrift` so the measurement channel can count what this run
+ * actually HELD (atlas decision 0122): the returned map distinguishes a source whose
+ * bytes arrived from one that could not be reached, which the violation list alone
+ * cannot -- an unreachable source produces one violation per dependent rule, so
+ * counting violations would answer a different question.
+ *
+ * @returns {Promise<Map<string, {ok: boolean, text?: string, error?: string}>>}
+ */
+export async function fetchPinnedSources(rules, {fetchText: fetchImpl = fetchText} = {}) {
+  const probed = rules.filter(({rule}) => rule.spec?.verified_against_source === true)
   const bodies = new Map()
   for (const url of new Set(probed.map(({rule}) => rule.spec.verification_url))) {
     try {
@@ -182,6 +196,13 @@ export async function checkSourceDrift(rules, {fetchText: fetchImpl = fetchText}
       bodies.set(url, {ok: false, error: err instanceof Error ? err.message : String(err)})
     }
   }
+  return bodies
+}
+
+/** The comparison half: pure, over already-fetched bodies. No network. */
+export function compareQuotesAgainstSources(rules, bodies) {
+  const violations = []
+  const probed = rules.filter(({rule}) => rule.spec?.verified_against_source === true)
 
   for (const {rel, rule} of probed) {
     const spec = rule.spec
@@ -221,17 +242,44 @@ export function checkIntegrityOnly() {
   return violations.concat(checkQuoteIntegrity(rules))
 }
 
-/** Both halves -- the weekly, report-only audit. */
+/**
+ * Both halves -- the weekly, report-only audit.
+ *
+ * Returns `{violations, measured}` rather than a bare list because the two answer
+ * different questions (atlas decision 0122). `violations` is the finding channel;
+ * `measured` is the number of PINNED SOURCES whose bytes this run held, and it is the
+ * only one the dead-man reads. Counting violations cannot substitute: one unreachable
+ * source raises one violation per dependent rule, so a total outage and a single
+ * drifted quote can produce the same number.
+ */
 export async function checkSpecDrift(opts = {}) {
   const violations = []
   const rules = readRawRules(violations)
-  return violations.concat(checkQuoteIntegrity(rules), await checkSourceDrift(rules, opts))
+  violations.push(...checkQuoteIntegrity(rules))
+  const bodies = await fetchPinnedSources(rules, opts)
+  violations.push(...compareQuotesAgainstSources(rules, bodies))
+  return {violations, measured: [...bodies.values()].filter((b) => b.ok).length, ruleCount: rules.length}
 }
 
 async function main() {
   const integrityOnly = process.argv.includes('--integrity-only')
   const label = integrityOnly ? 'check-spec-drift --integrity-only' : 'check-spec-drift'
-  const violations = integrityOnly ? checkIntegrityOnly() : await checkSpecDrift()
+
+  // `measured` is the number of PINNED SOURCES whose bytes this run held (atlas
+  // decision 0122). Reaching none of them is exactly the "an unreachable source
+  // reports INDETERMINATE, which is a finding, never a pass" case this check's header
+  // states -- and without the count, that state is byte-identical to a clean run once
+  // `continue-on-error: true` swallows the exit.
+  //
+  // OFFLINE MODE HOLDS NO SOURCE, so it counts the committed rule files it did read.
+  // It is the blocking PR gate (`audit:spec-integrity`), never a lane step, so nothing
+  // consumes the count there; publishing it keeps one code path instead of two.
+  const drift = integrityOnly ? null : await checkSpecDrift()
+  const offline = integrityOnly ? checkIntegrityOnly() : null
+  const violations = drift ? drift.violations : offline
+  const ruleCount = drift ? drift.ruleCount : readRawRules([]).length
+  const measured = publishMeasured(drift ? drift.measured : ruleCount)
+  const measuredUnit = integrityOnly ? 'rule file(s)' : 'pinned source(s)'
 
   console.log(`\n=== ${label} ===`)
   if (violations.length === 0) {
@@ -242,12 +290,14 @@ async function main() {
     console.log(integrityOnly
       ? `  ${rules.length} rule(s) checked: every content_sha256 matches its own normative_quote, 0 violation(s)`
       : `  ${rules.length} rule(s) checked: ${probed.length} verified rule(s) re-checked against ${sources.size} pinned source(s), 0 violation(s)`)
+    console.log(`  measured=${measured} ${measuredUnit} held and judged`)
     process.exit(0)
   }
   for (const v of violations) {
     console.log(`  [fail] ${v}`)
   }
   console.log(`  ${violations.length} violation(s)`)
+  console.log(`  measured=${measured} ${measuredUnit} held and judged`)
   process.exit(1)
 }
 

@@ -220,7 +220,24 @@ async function checkSaIngestion(apiKey) {
 async function main() {
   const findings = []
 
-  const seen = await collectBeaconEvents(SITE_URL)
+  // The measurement channel (atlas decision 0122): one per EXPECTATION the browser
+  // observed a response for. Each is a live transport probe, so observing three of
+  // four is a finding about the missing beacon, while observing none means the page
+  // never loaded or nothing left the browser -- the transport-dark shape.
+  //
+  // The launch/navigation failure is caught rather than left to reject. An unhandled
+  // rejection exits nonzero having written no count, and `continue-on-error: true`
+  // then swallows it into a green daily tile: the exact defect this channel closes.
+  let seen = new Map()
+  try {
+    seen = await collectBeaconEvents(SITE_URL)
+  } catch (err) {
+    findings.push({
+      severity: 'fail',
+      id: 'analytics-page-load-failed',
+      message: `could not load ${SITE_URL} in a headless browser, so no beacon could be observed: ${err.message}`
+    })
+  }
   findings.push(...evaluateBeacons(seen))
 
   const saApiKey = process.env.SA_API_KEY
@@ -236,7 +253,7 @@ async function main() {
     })
   }
 
-  process.exit(report('check-analytics', findings))
+  process.exit(report('check-analytics', findings, seen.size))
 }
 
 if (isMain(import.meta.url)) {

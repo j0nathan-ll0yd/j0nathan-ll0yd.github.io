@@ -53,6 +53,11 @@ export function validateAgainstSchema(id, xml, profile, sourceUrl) {
 
 async function main() {
   const findings = []
+  // The measurement channel (atlas decision 0122): one per sitemap DOCUMENT whose
+  // bytes this run held and validated -- the index plus every child urlset it could
+  // fetch. Both early bail-outs below held nothing, so they publish 0 and the
+  // dead-man reports the wedge instead of pinging a green tile.
+  let measured = 0
 
   let indexRes
   try {
@@ -60,14 +65,15 @@ async function main() {
   } catch (err) {
     process.exit(report('validate-sitemap', [
       {severity: 'fail', id: 'sitemap-index-fetch', message: `fetch failed: ${err.message}`}
-    ]))
+    ], measured))
   }
   if (!indexRes.ok) {
     process.exit(report('validate-sitemap', [
       {severity: 'fail', id: 'sitemap-index-fetch', message: `HTTP ${indexRes.status} fetching ${SITEMAP_INDEX_URL}`}
-    ]))
+    ], measured))
   }
   const indexXml = await indexRes.text()
+  measured++
   findings.push(...validateAgainstSchema('sitemap-index-xsd', indexXml, 'sitemapindex', SITEMAP_INDEX_URL))
 
   const childSitemapUrls = extractLocs(indexXml)
@@ -91,6 +97,7 @@ async function main() {
       continue
     }
     const childXml = await childRes.text()
+    measured++
     findings.push(...validateAgainstSchema('sitemap-child-xsd', childXml, 'urlset', childUrl))
     allPageLocs.push(...extractLocs(childXml))
   }
@@ -119,7 +126,7 @@ async function main() {
     }
   }
 
-  process.exit(report('validate-sitemap', findings))
+  process.exit(report('validate-sitemap', findings, measured))
 }
 
 if (isMain(import.meta.url)) {

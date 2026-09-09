@@ -48,7 +48,15 @@ export function validateHeaders(headers, goldenCsp) {
   return findings
 }
 
-/** Connects via TLS, reads the peer certificate's expiry, and returns findings. */
+/**
+ * Connects via TLS, reads the peer certificate's expiry, and returns
+ * `{measured, findings}`.
+ *
+ * `measured` is 1 only when a certificate was actually READ -- a refused connection,
+ * a timeout, or an unreadable peer certificate all mean this probe never held the
+ * bytes it judges, which is darkness rather than a finding about the certificate.
+ * The distinction is the whole measurement channel (atlas decision 0122).
+ */
 function checkCertExpiry(host, minDaysRemaining = MIN_CERT_DAYS_REMAINING) {
   return new Promise((resolve) => {
     const findings = []
@@ -57,7 +65,7 @@ function checkCertExpiry(host, minDaysRemaining = MIN_CERT_DAYS_REMAINING) {
       socket.end()
       if (!cert || !cert.valid_to) {
         findings.push({severity: 'fail', id: 'headers-cert-unreadable', message: `could not read a peer certificate for ${host}`})
-        resolve(findings)
+        resolve({measured: 0, findings})
         return
       }
       const validTo = new Date(cert.valid_to)
@@ -72,16 +80,16 @@ function checkCertExpiry(host, minDaysRemaining = MIN_CERT_DAYS_REMAINING) {
             `below the ${minDaysRemaining}-day warn threshold`
         })
       }
-      resolve(findings)
+      resolve({measured: 1, findings})
     })
     socket.on('error', (err) => {
       findings.push({severity: 'fail', id: 'headers-cert-connect-failed', message: `TLS connection to ${host}:443 failed: ${err.message}`})
-      resolve(findings)
+      resolve({measured: 0, findings})
     })
     socket.on('timeout', () => {
       findings.push({severity: 'fail', id: 'headers-cert-connect-timeout', message: `TLS connection to ${host}:443 timed out after ${TLS_TIMEOUT_MS}ms`})
       socket.destroy()
-      resolve(findings)
+      resolve({measured: 0, findings})
     })
   })
 }
@@ -89,12 +97,17 @@ function checkCertExpiry(host, minDaysRemaining = MIN_CERT_DAYS_REMAINING) {
 async function main() {
   const findings = []
   const goldenCsp = readFileSync(GOLDEN_CSP_PATH, 'utf-8')
+  // Two independent transports, counted independently: the HTTPS response whose
+  // headers carry the CSP, and the raw TLS handshake that carries the certificate.
+  // Losing one is a finding; losing both is darkness, and only the latter publishes 0.
+  let measured = 0
 
   try {
     const res = await fetchStable(SITE_URL)
     if (!res.ok) {
       findings.push({severity: 'fail', id: 'headers-fetch', message: `HTTP ${res.status} fetching ${SITE_URL}`})
     } else {
+      measured++
       findings.push(...validateHeaders(res.headers, goldenCsp))
     }
   } catch (err) {
@@ -102,9 +115,11 @@ async function main() {
   }
 
   const host = new URL(SITE_URL).hostname
-  findings.push(...(await checkCertExpiry(host)))
+  const cert = await checkCertExpiry(host)
+  measured += cert.measured
+  findings.push(...cert.findings)
 
-  process.exit(report('check-headers', findings))
+  process.exit(report('check-headers', findings, measured))
 }
 
 if (isMain(import.meta.url)) {

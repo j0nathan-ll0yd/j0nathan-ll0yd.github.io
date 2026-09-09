@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
+import {checkSteps, measuredStepRecords, parseJobs} from './audit-web-steps.ts'
 
 const workflowPath = resolve('.github/workflows/audit-web.yml')
 const workflow = readFileSync(workflowPath, 'utf8')
@@ -11,6 +12,17 @@ const workflow = readFileSync(workflowPath, 'utf8')
 // workflow EXECUTES, not at what it explains.
 const executable = workflow.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n')
 const countOccurrences = (text: string, snippet: string) => text.split(snippet).length - 1
+
+// The three managed-issue reconciler steps, concatenated. Assertions about what the
+// RECONCILER may read belong here rather than against the whole file: since the
+// measurement channel landed, the dead-man ping step reads `steps.<id>.outcome`
+// deliberately, and a workflow-wide ban on that string would forbid the correct
+// wiring of a different consumer. The two answer different questions -- the
+// reconciler asks "was the artifact healthy", the dead-man asks "did the transport
+// work at all" -- and only the first must never see a raw report-only outcome.
+const reconcilerScript = parseJobs(workflow).flatMap((job) => job.steps).filter((s) => s.name === 'Reconcile managed audit issues').map((s) => s.body).join(
+  '\n'
+)
 
 const reconcileCondition = `if: >-
           always() && (
@@ -51,7 +63,11 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(llmsStep).toContain('pnpm exec tsx audits/checks/b2-llms.mjs')
     expect(executable).not.toMatch(/b2-llms\.mjs[^\n]*(\|\| true|; true)/)
     expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.llms.outputs.issue_outcome }}'}")
-    expect(workflow).not.toContain('steps.llms.outcome')
+    // Scoped to the reconciler: a report-only step's process outcome cannot separate
+    // "measured and failed" from "could not measure", so the ISSUE lifecycle must read
+    // the tri-state output. The dead-man ping step reads `steps.llms.outcome` on
+    // purpose, and that is a different consumer answering a different question.
+    expect(reconcilerScript).not.toContain('steps.llms.outcome')
   })
 
   it('runs the merged llms check under suppression with no evidence envelope left behind (decision 0119 D1)', () => {
@@ -86,7 +102,7 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).toContain(
       "{id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: '${{ steps.llms_cache_rules.outputs.issue_outcome }}'}"
     )
-    expect(workflow).not.toContain('steps.llms_cache_rules.outcome')
+    expect(reconcilerScript).not.toContain('steps.llms_cache_rules.outcome')
   })
 
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
@@ -178,5 +194,85 @@ describe('audit-web dead-man switch', () => {
 
   it('no longer curls the ping URL inline, which could not distinguish a wedged lane', () => {
     expect(executable).not.toMatch(/curl .*\$HC_URL/)
+  })
+})
+
+// THE MEASUREMENT CHANNEL, tier by tier (atlas decision 0122). PR #290 gave the weekly
+// `llms` step a `measured` channel; one step of fourteen had it, and a tile is per
+// TIER. These assertions are the static half of "any step that claims zero wedges the
+// tier": the shell rung can only act on records the workflow actually forwards, so an
+// unforwarded step is silently outside the rule.
+describe('audit-web measurement channel', () => {
+  const tiers = parseJobs(workflow).filter((job) => ['daily', 'weekly', 'monthly'].includes(job.key))
+
+  it('finds all three tiers, so the per-tier assertions below cover the whole workflow', () => {
+    expect(tiers.map((t) => t.key)).toEqual(['daily', 'weekly', 'monthly'])
+  })
+
+  it.each(tiers)('$key forwards one record per check step, in declaration order', (tier) => {
+    // ORDER as well as membership: a record list that drifts out of step order is the
+    // shape in which a copy-paste binds one step's id to another step's outcome.
+    expect(measuredStepRecords(tier).map((r) => r.step)).toEqual(checkSteps(tier).map((s) => s.id))
+  })
+
+  it.each(tiers)('$key binds every record to its OWN step outcome and count', (tier) => {
+    for (const record of measuredStepRecords(tier)) {
+      expect(record.outcome).toBe(`\${{ steps.${record.step}.outcome }}`)
+      // `.outcome`, never `.conclusion`: with `continue-on-error: true`, conclusion is
+      // always `success` and would carry no information about the check.
+      expect(record.outcome).not.toContain('.conclusion')
+      if (record.measured.startsWith('${{')) {
+        expect(record.measured).toBe(`\${{ steps.${record.step}.outputs.measured }}`)
+      }
+    }
+  })
+
+  it.each(tiers)('$key never lets a setup step claim a measurement', (tier) => {
+    // `chrome` resolves a binary path and `focus_mode` probes suppression for the
+    // checks that consume it. Neither judges an artifact, so neither may assert the
+    // tier measured something.
+    const claimed = measuredStepRecords(tier).map((r) => r.step)
+    expect(claimed).not.toContain('chrome')
+    expect(claimed).not.toContain('focus_mode')
+  })
+
+  it.each(tiers)('$key gives every non-numeric declaration a stated reason', (tier) => {
+    // Atlas decision 0107's not-applicable versus indeterminate split, mirrored from
+    // atlas A19's `lane-unmeasured-scope-unreasoned` rung: a declaration without a
+    // reason exempts a step forever and silently, which is the hole the declaration
+    // exists to close. The shell wedges on it; this reds before it ever runs.
+    for (const record of measuredStepRecords(tier).filter((r) => ['n/a', 'deferred'].includes(r.measured))) {
+      expect({step: record.step, reason: record.reason.length > 0}).toEqual({step: record.step, reason: true})
+    }
+  })
+
+  it('declares exactly the four tool runs as not-applicable, and one step as deferred', () => {
+    const all = tiers.flatMap((tier) => measuredStepRecords(tier))
+    // The four are third-party tool runs whose verdict IS their own exit code; they
+    // hold no artifact set to count, so a number under this field would mean something
+    // different from what it means everywhere else (atlas decision 0122 D1).
+    expect(all.filter((r) => r.measured === 'n/a').map((r) => r.step).sort()).toEqual(['lhci', 'lychee', 'pa11y', 'smoke'])
+    // `llms_cache_rules` COULD claim; it is blocked on atlas 0120 D2's owner action.
+    // `deferred` rather than `n/a` keeps that distinction readable.
+    expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual(['llms_cache_rules'])
+    expect(all.find((r) => r.step === 'llms_cache_rules')?.reason).toContain('0120 D2')
+  })
+
+  it('carries no scalar MEASURED left over from the single-step channel', () => {
+    // One channel, one shape. A stale `MEASURED:` would be read by nothing and would
+    // look wired -- exactly the dead-wiring class this change removes from the weekly
+    // job's `outputs:` block.
+    expect(workflow).not.toMatch(/^ +MEASURED: /m)
+    expect(workflow).not.toMatch(/^ {4}outputs:$/m)
+  })
+
+  it('routes every tier ping through the shared script that acts on the records', () => {
+    // BOTH HALVES SHIP TOGETHER. Records without the rung change nothing, and the rung
+    // without records leaves every field empty, which is "not claimed", never a pass.
+    for (const tier of tiers) {
+      const ping = tier.steps.find((s) => s.name === 'Healthchecks.io ping')
+      expect(ping?.body).toContain('MEASURED_STEPS: |')
+      expect(ping?.body).toContain('run: bash audits/healthchecks-ping.sh')
+    }
   })
 })

@@ -142,6 +142,14 @@ jobs:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
           HC_SECRET_NAME: HC_PING_AUDIT_WEB
           JOB_STATUS: ${{ job.status }}
+          # The measurement channel, one record per CHECK step (atlas decision 0122).
+          # `job.status` is the very signal that cannot see a swallowed check, so each
+          # step's own claim is forwarded instead. Any step claiming 0 wedges the tier;
+          # a sum would let one dark check hide behind healthy siblings.
+          # Setup steps (chrome, focus_mode) are not checks and never appear here.
+          MEASURED_STEPS: |
+            smoke|${{ steps.smoke.outcome }}|n/a|third-party tool run (Playwright); the suite exit code is its verdict, it holds no artifact set to count
+            analytics|${{ steps.analytics.outcome }}|${{ steps.analytics.outputs.measured }}
         run: bash audits/healthchecks-ping.sh
 
   weekly:
@@ -154,11 +162,12 @@ jobs:
     # CloudFront asset egress for B3/B4 once the shared-bridge rule is source-scoped. Inert until
     # stage C3 flips COLIMA_CFEDGE_LABELS.
     runs-on: [self-hosted, linux, arm64, playwright, cfedge]
-    # `measured` is the dead-man measurement channel (atlas decision 0122). It is published by the
-    # llms step and consumed by the ping step below; without the job-level output the value cannot
-    # cross from a step to the step that reports it.
-    outputs:
-      measured: ${{ steps.llms.outputs.measured }}
+    # NO JOB-LEVEL `outputs:` HERE, DELIBERATELY. It carried `measured` from the llms step when
+    # only that step had a channel. A job output is readable only by a job that `needs:` this one,
+    # and audit-web.yml's three tiers are independent -- nothing consumed it. The ping step is
+    # inside this same job and reads `steps.<id>.outputs.measured` directly, which is what the
+    # value's own comment already said it did. Dead wiring that looks load-bearing is worse than
+    # no wiring; the live channel is MEASURED_STEPS on the ping step below.
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -456,9 +465,31 @@ jobs:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_WEEKLY }}
           HC_SECRET_NAME: HC_PING_AUDIT_WEB_WEEKLY
           JOB_STATUS: ${{ job.status }}
-          # Atlas decision 0122. Read from the step, not the job output, because `job.status` is
-          # the very signal that cannot see a swallowed check.
-          MEASURED: ${{ steps.llms.outputs.measured }}
+          # The measurement channel, one record per CHECK step (atlas decision 0122). Read from
+          # each step, not from `job.status`, because that is the very signal that cannot see a
+          # swallowed check. Any step claiming 0 wedges the tier; a sum would let one dark check
+          # hide behind healthy siblings. Setup steps (chrome, focus_mode) are not checks and
+          # never appear here.
+          #
+          # `llms_cache_rules` is DEFERRED, not exempt. It could publish a count, but it has
+          # recorded `status: unknown` with all five Cloudflare reads returning 403 for its whole
+          # observable life (run 34086625518), and atlas decision 0120 D2 rules that the read
+          # permissions are corrected BEFORE the channel lands -- otherwise the tile goes
+          # permanently red on a known-open owner action. Until then this step is outside the
+          # aggregation rule: it claims nothing, so it cannot claim zero, so it cannot wedge the
+          # tier. The record is written rather than omitted so the gap is visible here and to
+          # atlas A19, not implied by silence.
+          MEASURED_STEPS: |
+            llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
+            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|deferred|atlas 0120 D2 owner action -- five Cloudflare reads return 403; the channel lands with the permissions fix
+            sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
+            robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
+            feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}
+            spec_drift|${{ steps.spec_drift.outcome }}|${{ steps.spec_drift.outputs.measured }}
+            headers|${{ steps.headers.outcome }}|${{ steps.headers.outputs.measured }}
+            lhci|${{ steps.lhci.outcome }}|n/a|third-party tool run (Lighthouse); the budget assertion is its verdict, it holds no artifact set to count
+            pa11y|${{ steps.pa11y.outcome }}|n/a|third-party tool run (pa11y-ci); the axe/htmlcs verdict is its own, it holds no artifact set to count
+            lychee|${{ steps.lychee.outcome }}|n/a|third-party action exposing only exit_code; its own failIfEmpty already reds an empty run
         run: bash audits/healthchecks-ping.sh
 
   monthly:
@@ -535,4 +566,9 @@ jobs:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_MONTHLY }}
           HC_SECRET_NAME: HC_PING_AUDIT_WEB_MONTHLY
           JOB_STATUS: ${{ job.status }}
+          # The measurement channel, one record per CHECK step (atlas decision 0122).
+          # Both monthly checks are artifact probes, so both claim a real count.
+          MEASURED_STEPS: |
+            security_txt|${{ steps.security_txt.outcome }}|${{ steps.security_txt.outputs.measured }}
+            wellknown|${{ steps.wellknown.outcome }}|${{ steps.wellknown.outputs.measured }}
         run: bash audits/healthchecks-ping.sh

@@ -138,6 +138,8 @@ export function validateRobots(body, golden, contentUsageHeader) {
 }
 
 async function main() {
+  // The measurement channel (atlas decision 0122). One artifact: robots.txt. Either
+  // this run held its bytes and judged them, or it reached nothing and publishes 0.
   let body
   let contentUsageHeader
   try {
@@ -145,19 +147,19 @@ async function main() {
     if (!res.ok) {
       process.exit(report('validate-robots', [
         {severity: 'fail', id: 'robots-fetch', message: `HTTP ${res.status} fetching ${ROBOTS_URL}`}
-      ]))
+      ], 0))
     }
     contentUsageHeader = res.headers.get('content-usage')
     body = await res.text()
   } catch (err) {
     process.exit(report('validate-robots', [
       {severity: 'fail', id: 'robots-fetch', message: `fetch failed: ${err.message}`}
-    ]))
+    ], 0))
   }
 
   const golden = JSON.parse(readFileSync(GOLDEN_PATH, 'utf-8'))
   const findings = validateRobots(body, golden, contentUsageHeader)
-  process.exit(report('validate-robots', findings))
+  process.exit(report('validate-robots', findings, 1))
 }
 
 if (isMain(import.meta.url)) {

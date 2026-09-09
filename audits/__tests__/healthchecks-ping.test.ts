@@ -16,6 +16,11 @@ import {beforeEach, describe, expect, it} from 'vitest'
 const SCRIPT = path.resolve('audits/healthchecks-ping.sh')
 const PING_URL = 'https://hc-ping.com/00000000-0000-0000-0000-000000000000'
 
+// A healthy tier: two steps, both claiming a real count. Every endpoint-selection
+// case below supplies this so it exercises the STATUS rungs rather than tripping the
+// no-records wedge, which is its own test.
+const HEALTHY_STEPS = 'sitemap|success|2\nrobots|success|1\n'
+
 let scratch: string
 let curlLog: string
 
@@ -48,31 +53,31 @@ function pingedUrls(): string[] {
 describe('healthchecks-ping.sh endpoint selection', () => {
   it('pings the plain URL when the job succeeded', () => {
     stubCurl()
-    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success'}).status).toBe(0)
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: HEALTHY_STEPS}).status).toBe(0)
     expect(pingedUrls()).toEqual([PING_URL])
   })
 
   it('pings /fail when the job failed, so a wedged lane marks the check down', () => {
     stubCurl()
-    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'failure'}).status).toBe(0)
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'failure', MEASURED_STEPS: HEALTHY_STEPS}).status).toBe(0)
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
   })
 
   it('does not emit a double slash when the secret carries a trailing slash', () => {
     stubCurl()
-    runPing({HC_URL: `${PING_URL}/`, JOB_STATUS: 'failure'})
+    runPing({HC_URL: `${PING_URL}/`, JOB_STATUS: 'failure', MEASURED_STEPS: HEALTHY_STEPS})
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
   })
 
   it('defaults to the success endpoint when JOB_STATUS is unset', () => {
     stubCurl()
-    runPing({HC_URL: PING_URL, JOB_STATUS: ''})
+    runPing({HC_URL: PING_URL, JOB_STATUS: '', MEASURED_STEPS: HEALTHY_STEPS})
     expect(pingedUrls()).toEqual([PING_URL])
   })
 
   it('stays silent on a cancelled job rather than asserting success or failure', () => {
     stubCurl()
-    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'cancelled'})
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'cancelled', MEASURED_STEPS: HEALTHY_STEPS})
     expect(status).toBe(0)
     expect(pingedUrls()).toEqual([])
     expect(stdout).toContain('not pinging')
@@ -80,7 +85,7 @@ describe('healthchecks-ping.sh endpoint selection', () => {
 
   it('skips the ping when the secret is not configured', () => {
     stubCurl()
-    const {status, stdout} = runPing({HC_URL: '', JOB_STATUS: 'success'})
+    const {status, stdout} = runPing({HC_URL: '', JOB_STATUS: 'success', MEASURED_STEPS: HEALTHY_STEPS})
     expect(status).toBe(0)
     expect(pingedUrls()).toEqual([])
     expect(stdout).toContain('skipping')
@@ -95,7 +100,7 @@ describe('healthchecks-ping.sh endpoint selection', () => {
     // without redding the lane and without checking in against another tier's
     // tile, even when the job itself failed.
     stubCurl()
-    const {status, stdout} = runPing({HC_URL: '', JOB_STATUS: 'failure', HC_SECRET_NAME: 'HC_PING_AUDIT_WEB_WEEKLY'})
+    const {status, stdout} = runPing({HC_URL: '', JOB_STATUS: 'failure', HC_SECRET_NAME: 'HC_PING_AUDIT_WEB_WEEKLY', MEASURED_STEPS: HEALTHY_STEPS})
     expect(status).toBe(0)
     expect(pingedUrls()).toEqual([])
     expect(stdout).toContain('HC_PING_AUDIT_WEB_WEEKLY secret not set')
@@ -107,59 +112,151 @@ describe('healthchecks-ping.sh failure handling', () => {
   // runner-egress outage. An unreachable collector must not red a good lane.
   it('warns but exits 0 when the collector is unreachable', () => {
     stubCurl(28)
-    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success'})
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: HEALTHY_STEPS})
     expect(status).toBe(0)
     expect(stdout).toContain('::warning title=Healthchecks.io ping failed::')
   })
 
   it('still exits 0 when the /fail ping itself cannot be delivered', () => {
     stubCurl(28)
-    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'failure'}).status).toBe(0)
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'failure', MEASURED_STEPS: HEALTHY_STEPS}).status).toBe(0)
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
   })
 })
 
-// The MEASUREMENT CHANNEL (atlas decision 0122). Before this rung existed, a check that ran,
-// reached nothing, and was swallowed by `continue-on-error` left the job at `success` and pinged a
-// GREEN tile. Weekly run 34086625518 is the measured receipt: it concluded success while its
-// Cloudflare arm recorded `status: unknown` with five 403s.
+// THE MEASUREMENT CHANNEL (atlas decision 0122), as one record per CHECK STEP. Before
+// this rung existed, a check that ran, reached nothing, and was swallowed by
+// `continue-on-error` left the job at `success` and pinged a GREEN tile. Weekly run
+// 34086625518 is the measured receipt: it concluded success while its Cloudflare arm
+// recorded `status: unknown` with five 403s.
 describe('healthchecks-ping.sh measurement channel', () => {
-  it('pings /fail when the lane measured nothing, even though the job succeeded', () => {
+  it('pings /fail when a step measured nothing, even though the job succeeded', () => {
     stubCurl()
-    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED: '0'})
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'sitemap|success|0\n'})
     expect(status).toBe(0)
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain('measured nothing')
+    expect(stdout).toContain('sitemap(measured-nothing)')
   })
 
-  // ORDER IS LOAD-BEARING. The measured rung must be evaluated BEFORE the status rungs; if the
+  // ORDER IS LOAD-BEARING. The measured rungs must be evaluated BEFORE the status rungs; if the
   // status arm ran first, `success` would match and the wedge would never be reported.
-  it('pings /fail on measured=0 regardless of job status', () => {
+  //
+  // A failed job pings /fail down EITHER path, so the endpoint alone cannot prove the
+  // order here -- the assertion that discriminates is the REPORTED CAUSE. A status-first
+  // script reaches /fail without ever naming the unmeasured step, and a reader chasing a
+  // wedged infrastructure step would never learn the lane also measured nothing.
+  it('pings /fail on measured=0 regardless of job status, and names the measurement as the cause', () => {
     stubCurl()
-    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'failure', MEASURED: '0'}).status).toBe(0)
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'failure', MEASURED_STEPS: 'sitemap|failure|0\n'})
+    expect(status).toBe(0)
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('sitemap(measured-nothing)')
   })
 
-  it('pings the success endpoint when the lane measured something', () => {
+  it('pings the success endpoint when every claiming step measured something', () => {
     stubCurl()
-    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED: '3'}).status).toBe(0)
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms|success|3\nheaders|success|2\n'}).status).toBe(0)
     expect(pingedUrls()).toEqual([PING_URL])
   })
 
-  // An EMPTY field is "not claimed", never a pass and never a wedge: a lane that publishes no
-  // count is silent, and the status rungs decide. Atlas A19 arm 2 reds on a lane that should
-  // claim and does not — that is a different gate, in a different repo.
-  it('falls through to job status when no count is published', () => {
+  // THE AGGREGATION RULE, and the reason a single number was never enough. One tile
+  // covers a whole tier of steps. A SUM hides the dark one: 3 + 0 + 2 exceeds zero.
+  it('wedges the tier when ONE step of many measured nothing', () => {
     stubCurl()
-    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success'}).status).toBe(0)
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms|success|3\nsitemap|success|0\nheaders|success|2\n'})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('sitemap(measured-nothing)')
+    // Named, so the operator does not have to diff three tiers to find the dark step.
+    expect(stdout).not.toContain('llms(measured-nothing)')
+  })
+
+  // An EMPTY field is "not claimed": the step published no count. When it SUCCEEDED
+  // that is merely silence, and atlas A19 arm 2 is the static gate that reds a step
+  // which should claim and does not -- a different gate, in a different repo.
+  it('falls through to job status when a successful step publishes no count', () => {
+    stubCurl()
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'sitemap|success|\n'}).status).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  // ...but a step that CONCLUDED FAILURE with no count died before writing one. That
+  // is the crashed-before-measuring shape, and `continue-on-error: true` would
+  // otherwise launder it into a green tile.
+  it('wedges when a step concluded failure without publishing a count', () => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'sitemap|failure|\n'})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('sitemap(crashed-before-measuring)')
+  })
+
+  // A focus-mode `if:` stands a step down. It never ran, so it cannot have measured,
+  // and a deliberate stand-down is not a wedge.
+  it('does not wedge on a skipped step with no count', () => {
+    stubCurl()
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'feeds|skipped|\nrobots|success|1\n'}).status).toBe(0)
     expect(pingedUrls()).toEqual([PING_URL])
   })
 
   it('still reports a wedged lane when the /fail ping itself cannot be delivered', () => {
     stubCurl(28)
-    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED: '0'})
+    const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'sitemap|success|0\n'})
     expect(status).toBe(0)
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
     expect(stdout).toContain('::warning title=Healthchecks.io ping failed::')
+  })
+})
+
+// DECLARING SCOPE WITHOUT LAUNDERING A PASS (atlas decision 0107's not-applicable
+// versus indeterminate split, and atlas A19's `lane-unmeasured-scope-unreasoned`
+// rung). A step that cannot count says so, with a reason a reviewer reads.
+describe('healthchecks-ping.sh measurement declarations', () => {
+  it('accepts n/a with a reason: a tool run holds no artifact set to count', () => {
+    stubCurl()
+    expect(
+      runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'lychee|success|n/a|third-party action exposing only exit_code\nrobots|success|1\n'})
+        .status
+    ).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  it('accepts deferred with a reason: the channel is blocked on an external action', () => {
+    stubCurl()
+    expect(
+      runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms_cache_rules|failure|deferred|atlas 0120 D2 owner action\nrobots|success|1\n'})
+        .status
+    ).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  it('wedges on an UNREASONED declaration, so the opt-out cannot become a quiet escape hatch', () => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'lychee|success|n/a\n'})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('lychee(unreasoned-n/a)')
+  })
+
+  it('wedges on an unreasoned deferral for the same reason', () => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms_cache_rules|failure|deferred\n'})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('llms_cache_rules(unreasoned-deferred)')
+  })
+
+  // Fail-safe: a value the script cannot classify is a wedge, never a claim. A false
+  // /fail costs one investigated alert; a false plain ping cost 15 dark days once.
+  it('wedges on a measured value it cannot classify', () => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'sitemap|success|maybe\n'})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('sitemap(unrecognized-measured:maybe)')
+  })
+
+  // An UNWIRED TIER is exactly the pre-0122 state this channel exists to end, and it
+  // must not read as health.
+  it('wedges when the tier forwards no records at all', () => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: ''})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('no-step-measurements-reported')
   })
 })
