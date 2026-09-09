@@ -18,7 +18,15 @@
 
 import {createHash} from 'node:crypto'
 import {describe, expect, it, vi} from 'vitest'
-import {checkIntegrityOnly, checkQuoteIntegrity, checkSourceDrift, comparable, MIN_SEGMENT_CHARS, quoteSegments} from '../checks/b2-check-spec-drift.mjs'
+import {
+  checkIntegrityOnly,
+  checkQuoteIntegrity,
+  checkSourceDrift,
+  checkSpecDrift,
+  comparable,
+  MIN_SEGMENT_CHARS,
+  quoteSegments
+} from '../checks/b2-check-spec-drift.mjs'
 
 const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
 
@@ -135,6 +143,24 @@ describe('check-spec-drift: checkSourceDrift can fail', () => {
     expect(violations).toHaveLength(1)
     expect(violations[0]).toContain('INDETERMINATE')
     expect(violations[0]).toContain('HTTP 503')
+  })
+
+  // THE MEASUREMENT CHANNEL (atlas decision 0122). The violation list alone cannot
+  // carry this: one unreachable source raises one INDETERMINATE per dependent rule, so
+  // a total outage and a single drifted quote can produce the same violation count.
+  // `measured` counts the pinned sources whose BYTES this run held, and `0` is what
+  // audits/healthchecks-ping.sh wedges the weekly tier on.
+  it('measures the pinned sources it held, so a partial outage is a finding not darkness', async () => {
+    const held = await checkSpecDrift({fetchText: fetchReturning(source)})
+    expect(held.measured).toBeGreaterThan(0)
+  })
+
+  it('measures ZERO when every pinned source is unreachable -- the transport-dark shape', async () => {
+    const dark = await checkSpecDrift({fetchText: vi.fn().mockRejectedValue(new Error('HTTP 503'))})
+    expect(dark.measured).toBe(0)
+    // Still a finding per rule, and still exit 1: darkness is reported on BOTH
+    // channels, because they answer different questions.
+    expect(dark.violations.length).toBeGreaterThan(0)
   })
 
   it('deduplicates fetches -- many rules citing one source fetch it once', async () => {

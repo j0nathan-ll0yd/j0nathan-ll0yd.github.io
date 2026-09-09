@@ -196,12 +196,18 @@ async function fetchJson(url, headers) {
   return {json, contentType}
 }
 
+/**
+ * `{measured, findings}` for one discovery artifact. `measured` is 1 only when this
+ * run held the artifact's bytes and parsed them -- a network error, a non-2xx, or
+ * unparseable JSON all mean nothing was judged, which is darkness rather than a
+ * finding about the artifact's shape (atlas decision 0122).
+ */
 async function fetchAndValidate(url, validate, fetchErrorId, headers) {
   const {json, contentType, error} = await fetchJson(url, headers)
   if (error) {
-    return [{severity: 'fail', id: fetchErrorId, message: error}]
+    return {measured: 0, findings: [{severity: 'fail', id: fetchErrorId, message: error}]}
   }
-  return validate(json, contentType)
+  return {measured: 1, findings: validate(json, contentType)}
 }
 
 async function main() {
@@ -224,9 +230,13 @@ async function main() {
       return result.value
     }
     const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
-    return [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]
+    return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
-  process.exit(report('check-wellknown', results.flat()))
+  // One per .well-known artifact held and judged, out of the five probed above. A
+  // partial sweep is a finding; reaching none of them is the darkness the dead-man
+  // reports.
+  const measured = results.reduce((total, r) => total + r.measured, 0)
+  process.exit(report('check-wellknown', results.flatMap((r) => r.findings), measured))
 }
 
 if (isMain(import.meta.url)) {

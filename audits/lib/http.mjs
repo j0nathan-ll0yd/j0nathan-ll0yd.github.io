@@ -5,6 +5,8 @@
 // is not an outage (see web's tests/smoke/home.smoke.ts getStable(), issue #106)
 // but a steady-state 5xx still fails once the retry budget is spent.
 
+import {publishMeasured} from './measurement.mjs'
+
 /** Wall-clock budget for one stable fetch. Exported so every bounded fetch in audits/ shares one number. */
 export const DEFAULT_BUDGET_MS = 20_000
 
@@ -80,12 +82,19 @@ export async function headStable(url, budgetMs = DEFAULT_BUDGET_MS) {
 
 /**
  * Print a findings list (each `{ severity: 'fail'|'warn'|'info', id, message }`)
- * under a check header, then return the process exit code: 0 if there are no
- * `fail`-severity findings, 1 otherwise. `warn` is reported but does not fail
- * the check -- promotion to blocking is a Phase 1/6 catalog decision, not
- * something an individual script decides.
+ * under a check header, publish the measurement channel, then return the process
+ * exit code: 0 if there are no `fail`-severity findings, 1 otherwise. `warn` is
+ * reported but does not fail the check -- promotion to blocking is a Phase 1/6
+ * catalog decision, not something an individual script decides.
+ *
+ * `measured` IS REQUIRED, and that is the whole point of routing it through here.
+ * It is the count of artifacts this run held bytes for and judged (see
+ * lib/measurement.mjs). Every check exits through this one seam, so a check cannot
+ * publish findings without also stating what it measured -- forgetting is a TypeError
+ * at the exit, never a silently empty channel that pings a green tile. An early
+ * bail-out path passes the count it actually reached, which is usually 0.
  */
-export function report(checkId, findings) {
+export function report(checkId, findings, measured) {
   const fails = findings.filter((f) => f.severity === 'fail')
   const warns = findings.filter((f) => f.severity === 'warn')
   console.log(`\n=== ${checkId} ===`)
@@ -96,6 +105,7 @@ export function report(checkId, findings) {
     console.log(`  [${f.severity}] ${f.id}: ${f.message}`)
   }
   console.log(`  ${fails.length} fail, ${warns.length} warn, ${findings.length} total`)
+  console.log(`  measured=${publishMeasured(measured)} artifact(s) held and judged`)
   return fails.length > 0 ? 1 : 0
 }
 

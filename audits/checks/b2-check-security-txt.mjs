@@ -124,18 +124,21 @@ export function validateSecurityTxt(
 // with no test coverage; Stryker targets only the pure validateSecurityTxt above
 // (decisions/0011, UD1: the mutation gate scopes to the three pure pilot functions).
 async function main() {
+  // The measurement channel (atlas decision 0122). One artifact: security.txt. A
+  // fetch that never held bytes publishes 0, so the monthly tier's dead-man reports
+  // the wedge rather than pinging a green tile off a swallowed `continue-on-error`.
   let body
   try {
     const res = await fetchStable(SECURITY_TXT_URL)
     if (!res.ok) {
-      process.exit(report('check-security-txt', [emit(R, 'security-txt-fetch', `HTTP ${res.status} fetching ${SECURITY_TXT_URL}`)]))
+      process.exit(report('check-security-txt', [emit(R, 'security-txt-fetch', `HTTP ${res.status} fetching ${SECURITY_TXT_URL}`)], 0))
     }
     body = await res.text()
   } catch (err) {
-    process.exit(report('check-security-txt', [emit(R, 'security-txt-fetch', `fetch failed: ${err.message}`)]))
+    process.exit(report('check-security-txt', [emit(R, 'security-txt-fetch', `fetch failed: ${err.message}`)], 0))
   }
 
-  process.exit(report('check-security-txt', validateSecurityTxt(body)))
+  process.exit(report('check-security-txt', validateSecurityTxt(body), 1))
 }
 
 if (isMain(import.meta.url)) {

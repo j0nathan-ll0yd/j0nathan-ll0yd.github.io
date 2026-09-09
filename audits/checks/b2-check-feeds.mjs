@@ -14,6 +14,7 @@ import {XMLParser} from 'fast-xml-parser'
 import {SyntaxValidator} from 'fast-xml-validator'
 import {feedArtifact} from '../../functions/_lib/feed-artifacts.ts'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
+import {publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
 import {emit, rules} from '../specs/load.mjs'
 
@@ -149,23 +150,37 @@ export function validateFeedJson(json, now = new Date()) {
 
 // Stryker disable all -- main() is network-path plumbing with no test coverage
 // (decisions/0011, UD1: the mutation gate scopes to the three pure pilot functions).
+// The two artifacts this check measures. Named so the suppression arms below can
+// publish a full count without restating the number.
+const FEED_ARTIFACT_COUNT = 2
+
 async function main() {
   const suppression = suppressionDisposition(await probeSuppression(), 'feed.xml / feed.json validation')
+  // SUPPRESSED COUNTS AS MEASURED (atlas decision 0122). The probe answered and the
+  // lane stood down deliberately, so the transport worked; publishing 0 here would
+  // ping /fail through every focus-privacy window. An OVERDUE suppression is a
+  // finding, and a finding is measured too. Only genuine darkness publishes 0.
   if (suppression === 'skip') {
+    publishMeasured(FEED_ARTIFACT_COUNT)
     process.exit(0)
   }
   if (suppression === 'fail') {
+    publishMeasured(FEED_ARTIFACT_COUNT)
     process.exit(1)
   }
 
   const findings = []
+  // One per feed artifact whose bytes this run held and judged: feed.xml, feed.json.
+  let measured = 0
 
   try {
     const res = await fetchStable(FEED_XML_URL)
     if (!res.ok) {
       findings.push(emit(R_XML, 'feed-xml-fetch', `HTTP ${res.status} fetching ${FEED_XML_URL}`))
     } else {
-      findings.push(...validateFeedXml(await res.text()))
+      const xml = await res.text()
+      measured++
+      findings.push(...validateFeedXml(xml))
     }
   } catch (err) {
     findings.push(emit(R_XML, 'feed-xml-fetch', `fetch failed: ${err.message}`))
@@ -194,10 +209,11 @@ async function main() {
     findings.push({severity: 'fail', id: 'feed-json-fetch', message: `fetch failed: ${err.message}`})
   }
   if (json) {
+    measured++
     findings.push(...validateFeedJson(json))
   }
 
-  process.exit(report('check-feeds', findings))
+  process.exit(report('check-feeds', findings, measured))
 }
 
 if (isMain(import.meta.url)) {
