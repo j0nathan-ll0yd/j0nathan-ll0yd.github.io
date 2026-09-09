@@ -34,10 +34,17 @@ import {appendFileSync} from 'node:fs'
  * @param {number} measured non-negative integer count of artifacts held and judged
  * @returns {number} `measured`, so callers can pass it straight through
  */
-export function publishMeasured(measured, {outputPath = process.env.GITHUB_OUTPUT, append = appendFileSync} = {}) {
+export function publishMeasured(measured, deps = {}) {
   if (!Number.isInteger(measured) || measured < 0) {
     throw new TypeError(`measured must be a non-negative integer, got ${JSON.stringify(measured)}`)
   }
+  const append = deps.append ?? appendFileSync
+  // The environment is read ONLY when the caller did not speak. A destructuring default
+  // (`{outputPath = process.env.GITHUB_OUTPUT}`) cannot tell "I passed nothing" from "I passed
+  // undefined deliberately", so an explicit `outputPath: undefined` fell through to the env — a
+  // no-op on a workstation and a real write under Actions, where GITHUB_OUTPUT is always set.
+  // Caught by CI on a test that passed locally for the wrong reason.
+  const outputPath = Object.hasOwn(deps, 'outputPath') ? deps.outputPath : process.env.GITHUB_OUTPUT
   if (!outputPath) {
     return measured
   }

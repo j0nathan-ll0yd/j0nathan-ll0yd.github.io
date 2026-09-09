@@ -11,10 +11,31 @@
 import {existsSync, globSync, mkdtempSync, readFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {describe, expect, it} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {checkSteps, parseJobs} from './audit-web-steps.ts'
 import {publishMeasured} from '../lib/measurement.mjs'
 import {report} from '../lib/http.mjs'
+
+// $GITHUB_OUTPUT IS SET WHEN THIS SUITE RUNS UNDER ACTIONS, and unset on a workstation. Any
+// assertion that reads it implicitly therefore measures a different thing in the two places. The
+// original "no-op outside Actions" case passed locally for exactly that wrong reason and failed in
+// CI, which also surfaced a real defect: an explicitly passed `outputPath: undefined` used to fall
+// through a destructuring default to the environment. Each test now states the environment it
+// means.
+let savedGithubOutput: string | undefined
+
+beforeEach(() => {
+  savedGithubOutput = process.env.GITHUB_OUTPUT
+  delete process.env.GITHUB_OUTPUT
+})
+
+afterEach(() => {
+  if (savedGithubOutput === undefined) {
+    delete process.env.GITHUB_OUTPUT
+  } else {
+    process.env.GITHUB_OUTPUT = savedGithubOutput
+  }
+})
 
 describe('publishMeasured', () => {
   it('appends measured=<n> to the supplied output path', () => {
@@ -31,8 +52,27 @@ describe('publishMeasured', () => {
 
   it('is a no-op outside Actions, where there is no $GITHUB_OUTPUT to write', () => {
     const written: string[] = []
+    // No `outputPath` key at all: the caller has not spoken, so the environment decides -- and the
+    // beforeEach above has made this the genuine outside-Actions environment.
+    expect(publishMeasured(2, {append: (_p: string, line: string) => written.push(line)})).toBe(2)
+    expect(written).toEqual([])
+  })
+
+  it('treats an EXPLICIT outputPath: undefined as "no path", never as "use $GITHUB_OUTPUT"', () => {
+    // The defect CI caught. Under Actions GITHUB_OUTPUT is always set, so a destructuring default
+    // turned a caller's explicit "do not write" into a write. Pinned in the environment where it
+    // actually differs.
+    const written: string[] = []
+    process.env.GITHUB_OUTPUT = '/tmp/should-not-be-written'
     expect(publishMeasured(2, {outputPath: undefined, append: (_p: string, line: string) => written.push(line)})).toBe(2)
     expect(written).toEqual([])
+  })
+
+  it('falls back to $GITHUB_OUTPUT when the caller supplies no key -- the production path', () => {
+    const written: Array<[string, string]> = []
+    process.env.GITHUB_OUTPUT = '/tmp/github-output'
+    publishMeasured(4, {append: (p: string, line: string) => written.push([p, line])})
+    expect(written).toEqual([['/tmp/github-output', 'measured=4\n']])
   })
 
   it('returns the count so callers can pass it straight through', () => {
