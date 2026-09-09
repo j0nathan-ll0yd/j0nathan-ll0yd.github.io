@@ -1,4 +1,4 @@
-import {fetchAllEndpoints, fetchWithTimeout} from './api'
+import {fetchAllEndpoints, fetchArtifact, isResourceKey} from './api'
 import type {EndpointResult, EndpointSuppressed} from './api'
 import {updateFocusOverlay} from '@j0nathan-ll0yd/web/runtime/updaters-focus'
 import {updateTheatreReviews} from '@j0nathan-ll0yd/web/runtime/updaters-theatre'
@@ -15,7 +15,7 @@ import type {
   TheatreReviewsExport,
   WorkoutsExport
 } from '@j0nathan-ll0yd/portal-contract/schemas'
-import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@j0nathan-ll0yd/web/runtime/adapters'
 import {WSClient} from './ws-client'
 import {
@@ -251,8 +251,7 @@ const startFetch = async () => {
   // Focus overlay (page-level concern). applyFocus drives the overlay immediately and, if
   // focus is already a hiding mode at load, sets suppression intent (engine is still null;
   // it is propagated via engine.setSuppressed(suppressed) below once created).
-  const focusBase = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE
-  const focusResult = await fetchWithTimeout<FocusExport>(focusBase + ENDPOINTS.focus)
+  const focusResult = await fetchArtifact('focus')
   applyFocus(focusResult.status === 'ok' ? focusResult.data.currentFocus : null)
 
   const data = await fetchAllEndpoints()
@@ -392,10 +391,12 @@ const startFetch = async () => {
   // ── WebSocket push notifications (additive — polling continues if WS fails) ──
   ws = new WSClient({
     url: WEBSOCKET_URL,
+    // `resource` is an untrusted string off the socket. The admission test is own-property only:
+    // `resource in ENDPOINTS` was prototype-inclusive, so a frame naming `constructor` or
+    // `toString` passed the check and refetched a key that has no endpoint path at all.
     onUpdate: (resource) => {
-      const key = resource as ResourceKey
-      if (key in ENDPOINTS) {
-        engine!.pollResource(key).catch(() => {})
+      if (isResourceKey(resource)) {
+        engine!.pollResource(resource).catch(() => {})
       }
     },
     // Focus push carries the new value → drive the overlay + suppression immediately,

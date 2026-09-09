@@ -253,4 +253,45 @@ test.describe('Health Render Conformance', () => {
 
     await expectNoNewAxeViolations(page, 'health/systemStatus')
   })
+
+  // covers: health-render#A health export that violates its published contract is refused rather than rendered
+  test('refuses a health export that violates its published contract', async ({page}) => {
+    await interceptDashboard(page)
+    // Well-formed JSON, every expected field present and well typed, plus one unmapped property.
+    // The export schema is `additionalProperties: false`, so this is a body the producer could not
+    // have published. 199 is a heart rate no fixture in this suite uses, which makes its absence
+    // from the DOM a positive result rather than a coincidence.
+    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            date: '2026-09-08',
+            generatedAt: '2026-09-08T12:00:00Z',
+            quantities: {heartRate: {value: 199, unit: 'count/min'}},
+            unexpectedField: true
+          })
+        }))
+
+    await page.goto('/')
+    await expect(page.locator('#cardHR')).not.toHaveClass(/is-loading/)
+
+    // 72 is the server-rendered value the runtime leaves untouched. It comes from the build-time
+    // post-adapter fixture, which is a different fixture from the raw baseline this suite serves
+    // over the network (63) -- so reading 72 here proves the live update never ran at all. 199 with
+    // its "Peak Zone" badge is what the page displayed while arriving JSON was taken on trust.
+    await expect(page.locator('#pulseBpm')).toHaveText('72')
+    await expect(page.locator('#hrZoneBadge')).toHaveText('Normal Zone')
+    await expect(page.locator('#cardHR')).not.toHaveClass(/tri-card-accent-red/)
+
+    // The refusal is legible where it matters operationally: a rejected export contributes no
+    // timestamp, so health reports OFFLINE rather than dating the dashboard from data the contract
+    // refused, while every other source stays ACTIVE.
+    const healthLine = page.locator('#systemStatus .sys-line[data-source="health"]')
+    await expect(healthLine.locator('.sys-val-red')).toHaveText('OFFLINE')
+    await expect(page.locator('#systemStatus .sys-val-green')).toHaveCount(6)
+
+    await expectNoNewAxeViolations(page, 'health/contractViolation')
+  })
 })

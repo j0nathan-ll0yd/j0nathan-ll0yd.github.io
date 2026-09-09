@@ -1,5 +1,5 @@
-import {CLOUDFRONT_BASE, ENDPOINTS, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
-import {fetchWithTimeout} from './api'
+import type {ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
+import {fetchArtifact} from './api'
 import type {EndpointSuppressed} from './api'
 
 /** Connection/poll status the engine emits via `onStatusChange`; rendered by `updaters-status`. */
@@ -36,8 +36,6 @@ const FAST_INTERVAL_MS = 30_000
 const SLOW_INTERVAL_MS = 120_000
 const PASSIVE_FAST_INTERVAL_MS = 120_000
 const PASSIVE_SLOW_INTERVAL_MS = 300_000
-
-const BASE = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE
 
 export class PollEngine {
   private fingerprints = new Map<ResourceKey, string>()
@@ -185,9 +183,10 @@ export class PollEngine {
       return
     }
 
-    // Append ?_poll=1 to bypass Workbox service worker
-    const url = BASE + ENDPOINTS[key] + '?_poll=1'
-    const result = await fetchWithTimeout<unknown>(url)
+    // Append ?_poll=1 to bypass Workbox service worker. The key selects the URL and the contract
+    // decoder together, so a poll response that violates its schema arrives as `failed` and is
+    // recorded as a poll error -- it can never be dispatched to an updater as fresh data.
+    const result = await fetchArtifact(key, {query: '?_poll=1'})
     if (result.status === 'suppressed') {
       this.suppressed = true
       this.errorCounts.delete(key)
