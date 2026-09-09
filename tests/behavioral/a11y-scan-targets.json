@@ -66,6 +66,7 @@
     },
     {"key": "health/workoutsBranded", "selector": "#cardWorkouts", "expectsWcagApplicableNodes": true},
     {"key": "health/systemStatus", "selector": "#cardSystem", "expectsWcagApplicableNodes": true},
+    {"key": "health/contractViolation", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
     {"key": "articles/loading", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
     {
       "key": "articles/empty",
