@@ -12,6 +12,7 @@ interface CapturedWsOpts {
   onAppUpdate?: (build?: string) => void
   onStateChange?: (connected: boolean) => void
   onFocusChange?: (currentFocus: string) => void
+  onUpdate?: (resource: string) => void
 }
 let wsOpts: CapturedWsOpts | null = null
 
@@ -49,13 +50,16 @@ vi.mock('../../src/lib/runtime/poll-engine', () => ({
   }
 }))
 
-// fetchWithTimeout is the focus-signal fetch at startup; a hoisted spy (default null)
+// fetchArtifact is the focus-signal fetch at startup; a hoisted spy (default null)
 // lets a test resolve a hiding focus to exercise the load-during-hiding path.
 const fetchSpy = vi.hoisted(() => vi.fn<() => Promise<unknown>>(() => Promise.resolve({status: 'failed', reason: 'fixture unavailable'})))
 
+// The real module is spread in so `isResourceKey` stays the shipped implementation: the
+// WebSocket admission test below must exercise the actual predicate, not a double of it.
 vi.mock('../../src/lib/runtime/api',
-  () => ({
-    fetchWithTimeout: fetchSpy,
+  async (importActual) => ({
+    ...await importActual<typeof import('../../src/lib/runtime/api')>(),
+    fetchArtifact: fetchSpy,
     fetchAllEndpoints: () =>
       Promise.resolve({
         health: {status: 'failed', reason: 'fixture unavailable'},
@@ -148,6 +152,47 @@ describe('live-data → service-worker nudge wiring', () => {
   it('is a no-op when the service-worker hook is absent', async () => {
     await bootLiveData()
     expect(() => wsOpts?.onAppUpdate?.()).not.toThrow()
+  })
+})
+
+describe('live-data → WebSocket resource-update admission', () => {
+  beforeEach(() => {
+    wsOpts = null
+    vi.resetModules()
+    vi.useFakeTimers()
+    document.body.innerHTML = ''
+    clearSpies()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('refetches the resource named by a published-key push', async () => {
+    await bootLiveData()
+
+    wsOpts?.onUpdate?.('books')
+
+    expect(engineSpies.pollResource).toHaveBeenCalledWith('books')
+  })
+
+  // The socket is an untrusted input. `resource in ENDPOINTS` was prototype-inclusive, so a frame
+  // naming an inherited property passed the admission check and reached the fetch path with a key
+  // that has no endpoint. Own-property narrowing must drop these frames silently and completely.
+  it.each(['constructor', 'toString', 'valueOf', '__proto__', 'hasOwnProperty'])('ignores a push naming the inherited property %s', async (resource) => {
+    await bootLiveData()
+
+    wsOpts?.onUpdate?.(resource)
+
+    expect(engineSpies.pollResource).not.toHaveBeenCalled()
+  })
+
+  it('ignores a push naming a resource that does not exist', async () => {
+    await bootLiveData()
+
+    wsOpts?.onUpdate?.('not-a-resource')
+
+    expect(engineSpies.pollResource).not.toHaveBeenCalled()
   })
 })
 

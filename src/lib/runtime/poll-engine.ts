@@ -1,5 +1,6 @@
-import {CLOUDFRONT_BASE, ENDPOINTS, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
-import {fetchWithTimeout} from './api'
+import type {ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
+import type {ArtifactValues} from '@j0nathan-ll0yd/portal-contract/decoders'
+import {fetchArtifact} from './api'
 import type {EndpointSuppressed} from './api'
 
 /** Connection/poll status the engine emits via `onStatusChange`; rendered by `updaters-status`. */
@@ -10,7 +11,14 @@ export interface PollStatus {
   wsConnected?: boolean
 }
 
-type ResourceCallback = (key: ResourceKey, data: unknown) => void
+/**
+ * Receives a decoded artifact together with the key that selected its contract.
+ *
+ * The generic parameter is what keeps the pair correlated: the consumer gets `ArtifactValues[K]`
+ * for the same K it was handed, so it needs no cast and no structural re-check of its own. Widening
+ * this to `data: unknown` is what previously forced the consumer to re-narrow by hand.
+ */
+type ResourceCallback = <K extends ResourceKey>(key: K, data: ArtifactValues[K]) => void
 type ErrorCallback = (key: ResourceKey, error: Error) => void
 type StatusCallback = (status: PollStatus) => void
 
@@ -36,8 +44,6 @@ const FAST_INTERVAL_MS = 30_000
 const SLOW_INTERVAL_MS = 120_000
 const PASSIVE_FAST_INTERVAL_MS = 120_000
 const PASSIVE_SLOW_INTERVAL_MS = 300_000
-
-const BASE = import.meta.env.DEV ? '/api/live' : CLOUDFRONT_BASE
 
 export class PollEngine {
   private fingerprints = new Map<ResourceKey, string>()
@@ -178,16 +184,17 @@ export class PollEngine {
     this.emitStatus()
   }
 
-  private async fetchResource(key: ResourceKey): Promise<void> {
+  private async fetchResource<K extends ResourceKey>(key: K): Promise<void> {
     // While suppressed, every gated resource returns 403 — don't hammer the edge gate.
     // `focus` is exempt from the gate and stays polled (overlay fallback).
     if (this.suppressed && key !== 'focus') {
       return
     }
 
-    // Append ?_poll=1 to bypass Workbox service worker
-    const url = BASE + ENDPOINTS[key] + '?_poll=1'
-    const result = await fetchWithTimeout<unknown>(url)
+    // Append ?_poll=1 to bypass Workbox service worker. The key selects the URL and the contract
+    // decoder together, so a poll response that violates its schema arrives as `failed` and is
+    // recorded as a poll error -- it can never be dispatched to an updater as fresh data.
+    const result = await fetchArtifact(key, {query: '?_poll=1'})
     if (result.status === 'suppressed') {
       this.suppressed = true
       this.errorCounts.delete(key)
@@ -202,8 +209,10 @@ export class PollEngine {
     try {
       const data = result.data
 
-      // Compare generatedAt fingerprint — skip update if unchanged
-      const generatedAt = (data as {generatedAt?: string}).generatedAt
+      // Compare generatedAt fingerprint — skip update if unchanged. Every export schema requires
+      // `generatedAt`, and the value is decoded before it gets here, so this reads the field
+      // directly rather than asserting a shape onto an unvalidated body.
+      const generatedAt = data.generatedAt
       const prev = this.fingerprints.get(key)
 
       if (generatedAt && generatedAt === prev) {

@@ -211,3 +211,21 @@ Verified by `tests/behavioral/health-matrix.test.ts:241`.
 - **WHEN** the dashboard finishes loading
 - **THEN** the health status line SHALL read "ACTIVE" in its active styling, the panel SHALL hold
   exactly seven status lines all marked active, and SHALL render no location line
+
+### Requirement: A health export that violates its published contract is refused rather than rendered
+
+When a health response violates the published export schema, the system SHALL decode it before any
+value reaches the DOM and SHALL refuse it, leaving the server-rendered presentation in place. It
+SHALL NOT record a timestamp for a refused export, so the system-status panel reports that source
+offline rather than dating the dashboard from data the contract rejected. A well-formed HTTP 200
+response is not by itself grounds to display its contents.
+Verified by `tests/behavioral/health-matrix.test.ts:257`.
+
+#### Scenario: A health export carrying an unmapped property renders none of its values
+
+- **GIVEN** a health response that is valid JSON and carries a heart rate of 199 alongside a
+  property the export schema does not map, which the schema's closed property set forbids
+- **WHEN** the dashboard finishes loading
+- **THEN** the Heart Rate card SHALL still read the server-rendered "72" in its "Normal Zone"
+  presentation, SHALL NOT take the elevated-zone accent, and the health status line SHALL read
+  "OFFLINE" while the remaining six sources stay active
