@@ -144,12 +144,15 @@ export async function fetchArtifact<K extends ResourceKey>(key: K, options: Fetc
   }
 }
 
-function generatedAt<T>(result: EndpointResult<T>): string | null {
-  if (result.status !== 'ok' || typeof result.data !== 'object' || result.data === null) {
-    return null
-  }
-  const value = (result.data as {generatedAt?: unknown}).generatedAt
-  return typeof value === 'string' ? value : null
+/**
+ * The composition stamp of a successfully decoded artifact, or null when there is nothing to date.
+ *
+ * Every export schema requires `generatedAt`, and only decoded values reach here, so the field is
+ * read directly. The previous shape-assertion plus `typeof` re-check existed because the result
+ * could hold anything the cast let through.
+ */
+function generatedAt(result: EndpointResult<{generatedAt: string}>): string | null {
+  return result.status === 'ok' ? result.data.generatedAt : null
 }
 
 function suppressed(reason: string, currentFocus?: string): EndpointSuppressed {
