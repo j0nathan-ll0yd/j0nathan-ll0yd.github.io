@@ -15,16 +15,16 @@ by the mechanism best suited to that audience's freshness requirements.
 
 ## Inventory
 
-| Path                        | Audience                  | Generation                                                           | Spec / reference |
-| --------------------------- | ------------------------- | -------------------------------------------------------------------- | ---------------- |
-| `/robots.txt`               | Machines (crawlers)       | Build-time endpoint (`src/pages/robots.txt.ts`)                      | robotstxt.org    |
-| `/sitemap-index.xml`        | Machines (search engines) | `@astrojs/sitemap` integration                                       | sitemaps.org     |
-| `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `functions/llms.txt.ts`) | llmstxt.org      |
-| `/humans.txt`               | Humans                    | Build-time endpoint (`src/pages/humans.txt.ts`)                      | humanstxt.org    |
-| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `functions/feed.xml.ts`) | RSS 2.0          |
-| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `functions/feed.json.ts`)| JSON Feed 1.1    |
-| `/.well-known/api-catalog`  | Machines (API clients)    | Static file (`public/.well-known/api-catalog`)                       | RFC 9727         |
-| `/.well-known/security.txt` | Machines + humans         | (Future) Static file at `/.well-known/security.txt`                  | RFC 9116         |
+| Path                        | Audience                  | Generation                                                            | Spec / reference |
+| --------------------------- | ------------------------- | --------------------------------------------------------------------- | ---------------- |
+| `/robots.txt`               | Machines (crawlers)       | Build-time endpoint (`src/pages/robots.txt.ts`)                       | robotstxt.org    |
+| `/sitemap-index.xml`        | Machines (search engines) | `@astrojs/sitemap` integration                                        | sitemaps.org     |
+| `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `functions/llms.txt.ts`)  | llmstxt.org      |
+| `/humans.txt`               | Humans                    | Build-time endpoint (`src/pages/humans.txt.ts`)                       | humanstxt.org    |
+| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `functions/feed.xml.ts`)  | RSS 2.0          |
+| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `functions/feed.json.ts`) | JSON Feed 1.1    |
+| `/.well-known/api-catalog`  | Machines (API clients)    | Static file (`public/.well-known/api-catalog`)                        | RFC 9727         |
+| `/.well-known/security.txt` | Machines + humans         | (Future) Static file at `/.well-known/security.txt`                   | RFC 9116         |
 
 `/llms.txt` is the only backend-composed file because its value proposition is
 **live data** — it reflects the current health, reading, and activity state and
@@ -80,15 +80,15 @@ responses. Cross-cutting headers must be kept in sync across both paths.
 
 Discovery `<link>` relations in use:
 
-| Relation                                          | File                 | Standard             |
-| ------------------------------------------------- | -------------------- | -------------------- |
-| `rel="describedby" type="text/plain"`          | `/llms.txt`          | RFC 8288             |
-| `rel="api-catalog"`                              | `/.well-known/api-catalog` | RFC 9727       |
-| `rel="ai-catalog"`                               | `/.well-known/ai-catalog.json` | ARD        |
-| `rel="sitemap"`                                   | `/sitemap-index.xml` | HTML Living Standard |
-| `rel="author"`                                    | `/humans.txt`        | HTML Living Standard |
-| `rel="alternate" type="application/rss+xml"`      | `/feed.xml`          | RSS 2.0 / HTML5      |
-| `rel="alternate" type="application/feed+json"`    | `/feed.json`         | JSON Feed 1.1        |
+| Relation                                       | File                           | Standard             |
+| ---------------------------------------------- | ------------------------------ | -------------------- |
+| `rel="describedby" type="text/plain"`          | `/llms.txt`                    | RFC 8288             |
+| `rel="api-catalog"`                            | `/.well-known/api-catalog`     | RFC 9727             |
+| `rel="ai-catalog"`                             | `/.well-known/ai-catalog.json` | ARD                  |
+| `rel="sitemap"`                                | `/sitemap-index.xml`           | HTML Living Standard |
+| `rel="author"`                                 | `/humans.txt`                  | HTML Living Standard |
+| `rel="alternate" type="application/rss+xml"`   | `/feed.xml`                    | RSS 2.0 / HTML5      |
+| `rel="alternate" type="application/feed+json"` | `/feed.json`                   | JSON Feed 1.1        |
 
 ### Honest metadata
 
@@ -160,9 +160,13 @@ at this scale.
 The only runtime-composed metadata file. The `ComposeLlmContent` Lambda writes
 it to CloudFront on each EventBridge data-change trigger (30-minute safety-net
 schedule). `functions/llms.txt.ts` is a Cloudflare Pages Function that proxies
-the CloudFront-hosted canonical with edge caching (`s-maxage=3600,
-stale-while-revalidate=86400`). See [LLM-Content-Spec.md](LLM-Content-Spec.md)
-for the full inventory, content-granularity rules, and freshness expectations.
+the CloudFront-hosted canonical. Its cache policy is not restated here: the
+owning authority is
+`LLM_FRESHNESS_CONFIG.layers.portfolioServing.publicResponseCachePolicy` in
+`@j0nathan-ll0yd/estate-contracts/llms-assurance`, and the serving obligation is
+`openspec/specs/llms-txt/spec.md`. See
+[LLM-Content-Spec.md](LLM-Content-Spec.md) for the full inventory, the authority
+map, and the freshness model.
 
 ### `/feed.xml` and `/feed.json` — backend-composed live
 
@@ -172,8 +176,12 @@ and completes — and carry identical items with the same guids and pubDates.
 Backend-composed by the `ComposeFeed` Lambda on EventBridge triggers (plus
 a 30-minute safety-net schedule); the Cloudflare Pages Functions
 `functions/feed.xml.ts` and `functions/feed.json.ts` proxy the
-CloudFront-hosted canonicals with edge caching (`s-maxage=3600,
-stale-while-revalidate=86400`).
+CloudFront-hosted canonicals with edge caching. The directives are not restated
+here: the feeds are the `rss-feed` surface and carry the shared
+`EDGE_CACHED_POLICY`, documented with its account-level override in
+[Feed-Spec.md](Feed-Spec.md) and stated normatively in
+`openspec/specs/llms-txt/spec.md`, requirement "Cache policy is per route, and
+the feed routes stay edge-cached". No route emits `stale-while-revalidate`.
 
 Five included domains: theatre reviews (first-party, cap 10), meaningful
 GitHub activity (merged PRs + issues, cap 12), starred repositories (cap
