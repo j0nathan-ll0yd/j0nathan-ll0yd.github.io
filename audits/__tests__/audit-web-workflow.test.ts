@@ -221,9 +221,19 @@ describe('audit-web measurement channel', () => {
       // `.outcome`, never `.conclusion`: with `continue-on-error: true`, conclusion is
       // always `success` and would carry no information about the check.
       expect(record.outcome).not.toContain('.conclusion')
-      if (record.measured.startsWith('${{')) {
-        expect(record.measured).toBe(`\${{ steps.${record.step}.outputs.measured }}`)
-      }
+      // UNCONDITIONAL, and that is the whole assertion. This rung used to run only
+      // `if (record.measured.startsWith('${{'))`, which read a falsified record as an
+      // opt-out: replace a step's interpolation with a positive integer literal
+      // (`analytics|${{ ... }}|1`) and the step's real count is never read, the constant
+      // can never be `0`, and the step goes permanently dark while the tier pings green.
+      // Measured: mutants `analytics|failure|1` and `headers|failure|7` both survived the
+      // full suite, and driving the real ping script with the first printed "every step
+      // that claims a count measured something".
+      //
+      // Atlas A19 does catch it (`step-measurement-misbound`), but A19 is a report-only hub
+      // check on a daily cadence in another repo, and merging here IS a production deploy.
+      // The gate has to be the one that blocks the PR carrying the mutant.
+      expect([`\${{ steps.${record.step}.outputs.measured }}`, 'n/a', 'deferred']).toContain(record.measured)
     }
   })
 
@@ -256,6 +266,23 @@ describe('audit-web measurement channel', () => {
     // `deferred` rather than `n/a` keeps that distinction readable.
     expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual(['llms_cache_rules'])
     expect(all.find((r) => r.step === 'llms_cache_rules')?.reason).toContain('0120 D2')
+  })
+
+  it.each(tiers)('$key dates every deferral and leaves every not-applicable undated', (tier) => {
+    // A DEFERRAL IS TEMPORAL AND A NOT-APPLICABLE IS STRUCTURAL. Without a deadline the
+    // two behave identically and a disclosed gap becomes an indefinite one: the
+    // `llms_cache_rules` deferral produced a green job, no issue and no wedge on run
+    // 34164468115 while all five Cloudflare reads returned 403 -- the same shape as run
+    // 34086625518, the receipt decision 0122 opened with. `audits/healthchecks-ping.sh`
+    // wedges past the date; this reds before the lane ever runs.
+    for (const record of measuredStepRecords(tier)) {
+      if (record.measured === 'deferred') {
+        expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)})
+      } else {
+        // Nowhere else, so `until=` cannot drift into a field that grants nothing.
+        expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: ''})
+      }
+    }
   })
 
   it('carries no scalar MEASURED left over from the single-step channel', () => {

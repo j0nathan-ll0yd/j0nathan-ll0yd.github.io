@@ -87,8 +87,9 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   so the sha256 cited above and `COVERS_SPEC_VERSION` **4** both stand unedited on that bump. It
   changed the `llms-assurance` tier only — it dropped `PROVENANCE_KINDS`, `validateProvenance`,
   `assertProvenance`, and the `./llms-assurance/provenance.schema.json` subpath for
-  `validateServedVerification` / `assertServedVerification` (Atlas check A20 is that record's only
-  writer and reader), and it lifted the GitHub Actions run block out of `validateSpokeEvidence`'s
+  `validateServedVerification` / `assertServedVerification` (then written and read by atlas check
+  A20 alone; BOTH the check and those exports are since retired — see `0.11.0` below), and it
+  lifted the GitHub Actions run block out of `validateSpokeEvidence`'s
   `$.source` into a shared `runSource` helper so a served verification's `$.verifiedBy` asks the
   same rule (atlas PR #268). Both were inert here: this repo imported none of the removed names,
   and at `0.8.0` `runSource` was a module-private `const` reachable through no `exports` subpath,
@@ -97,7 +98,8 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   tier's bytes — both sidecars stand unedited — and again changed only `llms-assurance` plus
   packaging. It exported the run-source builders `workflowPath(value)` and `buildRunSource(fields)`
   (decision 0111 phase 3a) — moot for this repo since atlas decision 0119 D1 retired the B2
-  spoke-evidence envelope this repo used to build and validate. It collapsed the
+  spoke-evidence envelope this repo used to build and validate, and removed outright at `0.11.0`.
+  It collapsed the
   freshness config into the deep-frozen `LLM_FRESHNESS_CONFIG` export with byte-identical values
   (decision 0110 action 3): the `./llms-assurance/freshness-config.json` and
   `./llms-assurance/freshness-config.schema.json` subpaths are gone. That constant's
@@ -108,6 +110,21 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `./openspec-covers/fixture.json` subpaths (decision 0113 R4; this repo consumes only the tier's
   `reference.mjs` and its sidecar, which survive) and stopped shipping tier READMEs in the tarball
   (decision 0113 R2b).
+  `0.10.0` (atlas decision 0119) and `0.11.0` (atlas decision 0124 step 4, the version pinned here)
+  again moved neither rule tier's bytes and again changed only `llms-assurance`. `0.10.0` retired
+  the spoke-evidence envelope — `validateSpokeEvidence`, `assertSpokeEvidence`,
+  `aggregateSpokeEvidenceStatus`, `EVIDENCE_STATUSES` and the
+  `./llms-assurance/spoke-evidence.schema.json` subpath are gone — and ADDED
+  `coherencePolicy.maxFutureSkew` (5 minutes), which is why every threshold below reads from the
+  constant. `0.11.0` retired the served-artifact verification surface with it:
+  `SERVED_VERIFICATION_SPEC_VERSION`, `SERVED_VERIFICATION_KIND`, `SERVED_VERIFICATION_VERDICTS`,
+  `validateServedVerification`, `assertServedVerification`, `workflowPath`, `buildRunSource`, and
+  the `served-artifact-verification.json` payload. The rule described the ledger line atlas check
+  A20 wrote about its own answers; A20 AND that ledger are retired, and the served-byte comparison
+  is now the integrity arm of the producer's own daily check, mantle-LifegamesPortal C1. Nothing
+  here imported any removed name on either bump, so both were pin moves with no code change, and
+  `LLMS_ASSURANCE_SPEC_VERSION`, `LLM_FRESHNESS_CONFIG` and `durationToMilliseconds` are unchanged
+  across both — the consumers below read the same values.
   This repo's evaluation layer states its structural invariants over
   the parsed model instead of over local regexes: `audits/__tests__/b2-validate-llms-txt.property.test.ts`
   reads `title`, `summary`, `prose`, and `links` off `parseLlmsTxt` and builds two of its five
@@ -384,8 +401,9 @@ authority is the packaged estate contract: `audits/lib/llms-coherence.ts` SHALL 
 `maxCompositionAgeMs` and `maxCompositionSkewMs` from
 `LLM_FRESHNESS_CONFIG.layers.portfolioServing.coherencePolicy` via `durationToMilliseconds`
 (atlas decision 0119 D2 — the retired stale rules' `params.maxAgeHours` restatements and the
-local `LLMS_MAX_COMPOSITION_AGE_MS` constant are gone; `maxFutureSkew` stays a local 5-minute
-constant until it joins the contract at estate-contracts `0.10.0`). The merged weekly check's
+local `LLMS_MAX_COMPOSITION_AGE_MS` constant are gone; `maxFutureSkew` joined the contract at
+estate-contracts `0.10.0` and is read from it too, so no threshold is stated locally any more).
+The merged weekly check's
 coherence arm applies the thresholds to all six live responses; its presence arm keeps the
 site-side existence/non-emptiness of llms-full.txt and index.md definitive through the
 operational catalog rules `llms-full-txt` and `index-md`.

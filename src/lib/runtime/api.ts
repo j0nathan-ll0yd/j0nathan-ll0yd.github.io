@@ -69,6 +69,10 @@ export function isResourceKey(value: unknown): value is ResourceKey {
 }
 
 async function focusFallback(timeoutMs: number): Promise<EndpointSuppressed | null> {
+  // A SECOND, INDEPENDENT budget: this re-entry mints its own controller and timer, so a caller
+  // whose first request 403s can wait up to 2x `timeoutMs` overall. `FetchArtifactOptions.timeoutMs`
+  // documents that; the duration is passed through rather than decremented because the pair is
+  // sequential and each half must stay individually bounded.
   const focus = await fetchArtifact('focus', {timeoutMs})
   if (focus.status === 'ok' && HIDING_FOCUS_MODE_SET.has(focus.data.currentFocus)) {
     return {status: 'suppressed', reason: 'focus mode active', currentFocus: focus.data.currentFocus}
@@ -77,7 +81,16 @@ async function focusFallback(timeoutMs: number): Promise<EndpointSuppressed | nu
 }
 
 export interface FetchArtifactOptions {
-  /** Whole-request budget: the response body and its decode are consumed inside it. */
+  /**
+   * Per-request budget: ONE `fetch` plus its body read and decode are consumed inside it.
+   *
+   * NOT a whole-call deadline, and the difference is one doubling. A 403 on any key but `focus`
+   * consults `focusFallback`, which re-enters `fetchArtifact('focus', {timeoutMs})` and mints a
+   * fresh `AbortController` and timer -- so the worst case a caller can observe is 2x this value,
+   * 10s at the default. The two requests are sequential and each is individually bounded, which is
+   * what the value promises; a caller needing a hard ceiling for the pair must halve it or thread
+   * an absolute deadline instead of a duration.
+   */
   timeoutMs?: number
   /** Query string appended to the endpoint URL -- the poll engine's `?_poll=1` service-worker bypass. */
   query?: string
