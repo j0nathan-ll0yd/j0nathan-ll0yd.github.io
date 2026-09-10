@@ -1,20 +1,39 @@
-// audits/__tests__/b2-llms.test.ts -- orchestration and managed-issue semantics of
-// the merged weekly llms check (atlas decision 0119 D2). The Atlas spoke-evidence
-// envelope tests that lived in llms-spoke-evidence.test.ts died with the envelope
-// (0119 D1); what survives here is the half that was never hub evidence -- the
-// suppression short-circuit, transport observation, tri-state issue_outcome fold,
-// and the managed-issue lifecycle it drives.
+// audits/__tests__/b2-llms.test.ts -- the whole merged weekly llms check (atlas
+// decision 0119 D2): the pure coherence evaluator, the tri-state managed-issue
+// fold, the orchestration around them, and the managed-issue lifecycle they drive.
+//
+// ONE SUITE, because there is now one module (atlas decision 0122 phase 4,
+// executed by 0128). The evaluator cases arrived here from llms-coherence.test.ts
+// and the fold cases from the half of llms-spoke-evidence.test.ts that was never
+// hub evidence; both source libs folded into audits/checks/b2-llms.mjs and their
+// test files folded with them. Every case is preserved, none merged or weakened.
+//
+// The Atlas spoke-evidence envelope tests died with the envelope (0119 D1).
 
 import {mkdtemp, readFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
+import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
-import {runB2Llms, runB2LlmsCli} from '../checks/b2-llms.mjs'
+import {
+  compositionTimestamp,
+  detectionLatencyLine,
+  evaluateLlmsCoherence,
+  LLMS_COHERENCE_THRESHOLDS,
+  LLMS_DETECTION_LATENCY,
+  llmsCheckStatus,
+  managedIssueOutcome,
+  runB2Llms,
+  runB2LlmsCli
+} from '../checks/b2-llms.mjs'
+import type {LlmsCoherenceInput, LlmsResponseSnapshot} from '../checks/b2-llms.mjs'
 import {createDryRunClient, reconcileCheckIssues} from '../lib/file-check-issues.mjs'
-import {llmsCheckStatus, managedIssueOutcome} from '../lib/llms-issue-outcome'
 
 const OBSERVED_AT = '2026-08-29T18:00:00.000Z'
+const NOW = Date.parse(OBSERVED_AT)
+const RECENT = '2026-08-29T17:55:00.000Z'
+const encoder = new TextEncoder()
 
 const scratchDirectories: string[] = []
 const logger = () => ({log: vi.fn(), warn: vi.fn(), error: vi.fn()})
@@ -23,10 +42,198 @@ afterEach(async () => {
   await Promise.all(scratchDirectories.splice(0).map((path) => rm(path, {recursive: true, force: true})))
 })
 
+// ---------------------------------------------------------------------------
+// Bodies. Shared by both halves of the suite: the orchestration fixtures used
+// to restate these two literals, which is the drift the fold removes.
+// ---------------------------------------------------------------------------
+
+function discoveryBody(timestamp: string): string {
+  return `# Site\n\n> Summary\n\n<!-- composed-at: ${timestamp} -->\n`
+}
+
+function fullBody(timestamp: string, payload = 'same payload'): string {
+  return `# Complete profile\n\n**Generated:** ${timestamp}\n\n${payload}\n`
+}
+
+/**
+ * A snapshot for the PURE evaluator: content-type and cache state are the
+ * subjects under test, so they are supplied directly rather than derived from an
+ * artifact descriptor.
+ */
+function pureSnapshot(body: string, contentType: string, status = 200, site = false): LlmsResponseSnapshot {
+  return {
+    status,
+    contentType,
+    body: encoder.encode(body),
+    cacheControl: site ? 'no-store' : 'public, max-age=300',
+    cdnCacheControl: site ? 'no-store' : null,
+    cfCacheStatus: site ? 'BYPASS' : null
+  }
+}
+
+function coherentInput(timestamp = RECENT): LlmsCoherenceInput {
+  const discovery = discoveryBody(timestamp)
+  const full = fullBody(timestamp)
+  return {
+    'llms.txt': {origin: pureSnapshot(discovery, 'text/markdown; charset=utf-8'), site: pureSnapshot(discovery, 'text/plain; charset=utf-8', 200, true)},
+    'llms-full.txt': {origin: pureSnapshot(full, 'text/markdown; charset=utf-8'), site: pureSnapshot(full, 'text/markdown; charset=utf-8', 200, true)},
+    'index.md': {origin: pureSnapshot(full, 'text/markdown; charset=utf-8'), site: pureSnapshot(full, 'text/markdown; charset=utf-8', 200, true)}
+  }
+}
+
+describe('compositionTimestamp', () => {
+  it('reads both composer timestamp formats', () => {
+    expect(compositionTimestamp(encoder.encode(discoveryBody(RECENT)))).toBe(Date.parse(RECENT))
+    expect(compositionTimestamp(encoder.encode(fullBody(RECENT)))).toBe(Date.parse(RECENT))
+  })
+
+  it('rejects absent, invalid, and non-UTF-8 timestamps', () => {
+    expect(compositionTimestamp(encoder.encode('# no timestamp'))).toBeNull()
+    expect(compositionTimestamp(encoder.encode('**Generated:** invalid'))).toBeNull()
+    expect(compositionTimestamp(Uint8Array.of(0xff))).toBeNull()
+  })
+})
+
+describe('evaluateLlmsCoherence', () => {
+  // covers: llms-txt#Raw and canonical llms artifacts stay coherent
+  it('accepts fresh, typed, synchronized, byte-identical artifacts', () => {
+    expect(evaluateLlmsCoherence(coherentInput(), NOW)).toEqual([])
+    expect(LLMS_COHERENCE_THRESHOLDS).toEqual({
+      maxCompositionAgeMs: 4 * 60 * 60 * 1000,
+      maxCompositionSkewMs: 10 * 60 * 1000,
+      maxFutureSkewMs: 5 * 60 * 1000
+    })
+  })
+
+  it('reports status, content-type, and composition timestamp failures with artifact evidence', () => {
+    const input = coherentInput()
+    input['llms.txt'].origin = pureSnapshot('# missing timestamp', 'text/plain', 503)
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'llms-origin-status', artifact: 'llms.txt', message: expect.stringContaining('HTTP 503')}),
+      expect.objectContaining({id: 'llms-origin-content-type', artifact: 'llms.txt'}),
+      expect.objectContaining({id: 'llms-origin-composition-time', artifact: 'llms.txt'})
+    ]))
+  })
+
+  // covers: llms-txt#Full-content artifacts stay fresh
+  it('enforces composition age and bounded origin-to-site skew as pure time comparisons', () => {
+    // The threshold authority is the packaged contract (atlas decision 0119 D2):
+    // the evaluator's configuration must equal the coherencePolicy the contract
+    // owns, so a revert to drifting local literals fails here. The literal
+    // 4h/10min/5min values themselves are pinned by the first test above.
+    const {coherencePolicy} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
+    expect(LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionAge))
+    expect(LLMS_COHERENCE_THRESHOLDS.maxCompositionSkewMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionSkew))
+
+    expect(evaluateLlmsCoherence(coherentInput('2026-08-29T14:00:00.000Z'), NOW)).toEqual([])
+    expect(evaluateLlmsCoherence(coherentInput('2026-08-29T13:59:59.999Z'), NOW)).toEqual(
+      expect.arrayContaining([expect.objectContaining({id: 'llms-origin-stale'})])
+    )
+
+    const input = coherentInput()
+    input['llms-full.txt'].site = pureSnapshot(fullBody('2026-08-29T13:00:00.000Z'), 'text/markdown; charset=utf-8', 200, true)
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'llms-site-stale', artifact: 'llms-full.txt'}),
+      expect.objectContaining({id: 'llms-origin-site-skew', artifact: 'llms-full.txt'})
+    ]))
+  })
+
+  it('reports same-timestamp origin/site and full/index byte mismatches', () => {
+    const input = coherentInput()
+    input['llms-full.txt'].site = pureSnapshot(fullBody(RECENT, 'site drift'), 'text/markdown; charset=utf-8', 200, true)
+    input['index.md'].origin = pureSnapshot(fullBody(RECENT, 'origin alias drift'), 'text/markdown; charset=utf-8')
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toHaveLength(4)
+    expect(findings.filter(({id}) => id === 'llms-origin-site-bytes')).toHaveLength(2)
+    expect(findings.filter(({id}) => id === 'llms-full-index-bytes')).toHaveLength(2)
+  })
+
+  it('accepts adjacent fresh generations inside the convergence window without claiming byte corruption', () => {
+    const input = coherentInput()
+    const previous = '2026-08-29T17:45:00.000Z'
+    input['llms-full.txt'].site = pureSnapshot(fullBody(previous, 'previous generation'), 'text/markdown; charset=utf-8', 200, true)
+    input['index.md'].origin = pureSnapshot(fullBody(previous, 'previous generation'), 'text/markdown; charset=utf-8')
+    input['index.md'].site = pureSnapshot(fullBody(previous, 'previous generation'), 'text/markdown; charset=utf-8', 200, true)
+
+    expect(evaluateLlmsCoherence(input, NOW)).toEqual([])
+  })
+
+  it('rejects excessive origin/site and full/index composition skew without byte findings across generations', () => {
+    const input = coherentInput()
+    input['llms-full.txt'].site = pureSnapshot(fullBody('2026-08-29T17:44:00.000Z', 'previous generation'), 'text/markdown; charset=utf-8', 200, true)
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'llms-origin-site-skew', artifact: 'llms-full.txt'}),
+      expect.objectContaining({id: 'llms-full-index-skew', artifact: 'llms-full.txt/index.md'})
+    ]))
+    expect(findings).toHaveLength(2)
+    expect(findings.some(({id}) => id.endsWith('-bytes'))).toBe(false)
+  })
+
+  it('rejects composition times beyond the future clock allowance', () => {
+    const input = coherentInput('2026-08-29T18:06:00.000Z')
+    expect(evaluateLlmsCoherence(input, NOW)).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'llms-origin-composition-future'}),
+      expect.objectContaining({id: 'llms-site-composition-future'})
+    ]))
+  })
+
+  it('rejects canonical responses retained by an outer cache', () => {
+    const input = coherentInput()
+    input['llms.txt'].site.cacheControl = 'public, max-age=600'
+    input['llms.txt'].site.cdnCacheControl = null
+    input['llms.txt'].site.cfCacheStatus = 'HIT'
+
+    expect(evaluateLlmsCoherence(input, NOW)).toEqual(expect.arrayContaining([
+      expect.objectContaining({id: 'llms-site-browser-cache-policy', artifact: 'llms.txt'}),
+      expect.objectContaining({id: 'llms-site-cdn-cache-policy', artifact: 'llms.txt'}),
+      expect.objectContaining({id: 'llms-site-edge-cache-status', artifact: 'llms.txt'})
+    ]))
+  })
+})
+
+describe('detection latency', () => {
+  // covers: llms-txt#Full-content artifacts stay fresh
+  it('derives the worst case from the two contract fields rather than restating it', () => {
+    const {coherencePolicy, auditCadence} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
+    expect(LLMS_DETECTION_LATENCY.thresholdMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionAge))
+    expect(LLMS_DETECTION_LATENCY.auditCadenceMs).toBe(durationToMilliseconds(auditCadence))
+    expect(LLMS_DETECTION_LATENCY.worstCaseMs).toBe(LLMS_DETECTION_LATENCY.thresholdMs + LLMS_DETECTION_LATENCY.auditCadenceMs)
+  })
+
+  it('pins the figures the contract currently yields', () => {
+    // Threshold 4h, weekly cadence 168h, so a persistent public-path violation
+    // can stand 172h while every check reports green. These literals make a
+    // contract change to either field visible here instead of silent.
+    expect(LLMS_DETECTION_LATENCY).toEqual({thresholdMs: 4 * 60 * 60 * 1000, auditCadenceMs: 7 * 24 * 60 * 60 * 1000, worstCaseMs: 172 * 60 * 60 * 1000})
+  })
+
+  it('renders one line naming the worst case and both of its terms', () => {
+    expect(detectionLatencyLine()).toBe(
+      '  detection: worst-case public-path latency is 172.0h = composition-age threshold 4.0h + audit cadence 168.0h; ' +
+        'a persistent violation can stand that long with every check green.'
+    )
+  })
+
+  it('renders whatever fields it is handed, so the line cannot hold a stale constant', () => {
+    expect(detectionLatencyLine({thresholdMs: 90 * 60_000, auditCadenceMs: 30 * 60_000, worstCaseMs: 120 * 60_000})).toContain(
+      'is 2.0h = composition-age threshold 1.5h + audit cadence 0.5h'
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Orchestration: the same two bodies, reached through an artifact descriptor.
+// ---------------------------------------------------------------------------
+
 function validBody(artifact: LlmsArtifact): string {
-  return artifact.id === 'llms.txt'
-    ? '# Site\n\n> Summary\n\n<!-- composed-at: 2026-08-29T17:55:00.000Z -->\n'
-    : '# Complete profile\n\n**Generated:** 2026-08-29T17:55:00.000Z\n\nsame payload\n'
+  return artifact.id === 'llms.txt' ? discoveryBody(RECENT) : fullBody(RECENT)
 }
 
 function snapshot(artifact: LlmsArtifact, side: 'origin' | 'site', body = validBody(artifact)) {
@@ -116,6 +323,21 @@ describe('b2-llms audit orchestration', () => {
     expect(result.catalogFindings).toEqual([])
     expect(result.coherenceFindings).toEqual([])
     expect(result.unknowns).toEqual([])
+  })
+
+  it('prints the detection interval beside the thresholds, and printing it changes no verdict', async () => {
+    const auditLogger = logger()
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: coherentFetchPair,
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: auditLogger
+    })
+
+    // Additive output only (atlas decision 0128 P4): the line is stated, and the
+    // exit code, findings and measured count are what the clean-run cases assert.
+    expect(auditLogger.log.mock.calls.flat()).toContain(detectionLatencyLine())
+    expect(result).toMatchObject({exitCode: 0, status: 'passed', measured: 3, catalogFindings: [], coherenceFindings: [], unknowns: []})
   })
 
   // covers: llms-txt#Raw and canonical llms artifacts stay coherent
