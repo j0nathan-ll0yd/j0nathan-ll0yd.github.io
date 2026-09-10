@@ -72,6 +72,33 @@ JOB_STATUS="${JOB_STATUS:-success}"
 #             A declaration WITHOUT a reason is not a declaration: it wedges, so the opt-out
 #             cannot become a quiet escape hatch. This mirrors atlas A19's
 #             `lane-unmeasured-scope-unreasoned` rung.
+#   until=    `until=YYYY-MM-DD`, one of the trailing fields. REQUIRED on `deferred`, refused
+#             nowhere else. See "WHY A DEFERRAL EXPIRES" below.
+#
+# WHY A DEFERRAL EXPIRES, and why `n/a` does not. The two declarations are not the same kind of
+# fact. `n/a` is STRUCTURAL: a third-party tool run holds no artifact set, and no owner action will
+# ever change that, so a permanent exemption states the truth. `deferred` is TEMPORAL by its own
+# definition -- the step COULD claim, and something outside this repo is in the way. Without a
+# deadline the two behave identically, and the declaration written to make a gap VISIBLE becomes
+# the mechanism that makes it INDEFINITE.
+#
+# That is not hypothetical. `llms_cache_rules` declared `deferred` for atlas 0120 D2 while all five
+# Cloudflare API reads returned HTTP 403 (weekly run 34164468115, 2026-09-07). The check exits 1,
+# `continue-on-error: true` swallows it, `job.status` reads success, the reconciler reads the
+# check's own `indeterminate` and leaves its issue unchanged, and this arm accepted the deferral --
+# green job, no issue, no wedge, byte-identical to run 34086625518, the receipt decision 0122
+# opened with.
+#
+# So a deferral carries the date it stops being accepted, and past that date it wedges exactly like
+# an unreasoned one. Moving the date is a reviewed edit to this workflow; letting it lapse is not.
+#
+# THE MARKER IS SELF-DESCRIBING AND POSITION-INDEPENDENT, on purpose. The reason is prose and may
+# itself contain `|`, so "the last field is the date" would be a guess. `until=` cannot be
+# mistaken for prose, and a record carrying no marker parses exactly as it did before the field
+# existed. That backward compatibility is what lets the format ship here first: atlas A19 folds
+# every trailing field into one `reason` string (`parseMeasuredStepRecords`), so it reads
+# `until=...` as reason text, keeps seeing a REASONED declaration, and stays green while the hub
+# adopts the same expiry rung on its own cadence.
 #
 # EMPTY IS "NOT CLAIMED", NEVER A PASS. A step that published no count is silent, not healthy. If
 # its outcome is `failure` it died before writing one, which is the darkest case and wedges. If it
@@ -83,6 +110,9 @@ JOB_STATUS="${JOB_STATUS:-success}"
 # state this channel exists to end, and it must not read as health. A false /fail costs one
 # investigated alert; a false plain ping cost 15 dark days once already.
 MEASURED_STEPS="${MEASURED_STEPS:-}"
+# Today in UTC, as the expiry rung's clock. Overridable so the suite can drive both sides of a
+# deadline without waiting for one; nothing in the workflow sets it.
+TODAY_UTC="${TODAY_UTC:-$(date -u +%Y-%m-%d)}"
 
 # An unset secret is a LOUD skip, never a red and never a ping: exit 0 keeps
 # the report-only lane green, and skipping before any curl means an unarmed
@@ -103,10 +133,61 @@ seen=0
 wedged=''
 summary=''
 
-while IFS='|' read -r step outcome measured reason; do
+# Is `$1` a real calendar day in `YYYY-MM-DD` form?
+#
+# SHAPE IS NOT ENOUGH, and the difference is silent. `2026-13-08` matches the pattern and, under
+# the YYYYMMDD integer comparison below, sorts between 2026-12-31 and 2027-01-01 -- so an
+# impossible month still expires, just a month later than the reader who wrote it believes. A
+# deadline nobody can resolve to a day is not a deadline. Rejecting it here makes the slip loud.
+#
+# Arithmetic rather than `date`: GNU `date -d` and BSD `date -j -f` disagree, and this script runs
+# on the self-hosted Linux runners and on macOS under the suite. `10#` forces decimal, because
+# `08` and `09` are invalid OCTAL and would otherwise abort the whole script.
+valid_date() {
+  local text="$1" year month day last
+  year=$((10#${text:0:4}))
+  month=$((10#${text:5:2}))
+  day=$((10#${text:8:2}))
+  [ "$month" -ge 1 ] && [ "$month" -le 12 ] || return 1
+  case "$month" in
+    1 | 3 | 5 | 7 | 8 | 10 | 12) last=31 ;;
+    4 | 6 | 9 | 11) last=30 ;;
+    *)
+      if [ $((year % 4)) -eq 0 ] && { [ $((year % 100)) -ne 0 ] || [ $((year % 400)) -eq 0 ]; }; then
+        last=29
+      else
+        last=28
+      fi
+      ;;
+  esac
+  [ "$day" -ge 1 ] && [ "$day" -le "$last" ]
+}
+
+# `trailing` deliberately absorbs every field past `measured`, delimiters included, because the
+# reason is prose and may contain `|`. Splitting it is the loop below, not `read`.
+while IFS='|' read -r step outcome measured trailing; do
   [ -n "${step:-}" ] || continue
   seen=$((seen + 1))
   summary="${summary}${step}=${measured:-none} "
+
+  # Pull the `until=YYYY-MM-DD` marker out of the trailing fields wherever it sits; everything
+  # else is the prose reason, rejoined in order. Pure parameter expansion: a nested `read` here
+  # would consume the here-doc feeding the outer loop.
+  expiry=''
+  reason=''
+  remainder="${trailing:-}"
+  while [ -n "$remainder" ]; do
+    field="${remainder%%|*}"
+    case "$field" in
+      until=*) expiry="${field#until=}" ;;
+      ?*) reason="${reason}${reason:+|}${field}" ;;
+    esac
+    case "$remainder" in
+      *'|'*) remainder="${remainder#*|}" ;;
+      *) remainder='' ;;
+    esac
+  done
+
   case "${measured:-}" in
     '')
       # Nothing claimed. A step that CONCLUDED failure without writing a count died before it
@@ -119,9 +200,24 @@ while IFS='|' read -r step outcome measured reason; do
     0)
       wedged="${wedged}${step}(measured-nothing) "
       ;;
-    n/a | deferred)
-      if [ -z "${reason:-}" ]; then
-        wedged="${wedged}${step}(unreasoned-${measured}) "
+    n/a)
+      # Structural and therefore permanent: no deadline, because no owner action changes it.
+      if [ -z "$reason" ]; then
+        wedged="${wedged}${step}(unreasoned-n/a) "
+      fi
+      ;;
+    deferred)
+      # Temporal, and therefore dated. Every rung below is fail-safe: an unreadable deferral is a
+      # wedge, never a claim.
+      if [ -z "$reason" ]; then
+        wedged="${wedged}${step}(unreasoned-deferred) "
+      elif [ -z "$expiry" ]; then
+        wedged="${wedged}${step}(undated-deferred) "
+      elif ! [[ "$expiry" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! valid_date "$expiry"; then
+        wedged="${wedged}${step}(malformed-deferral-date:${expiry}) "
+      elif [ "${expiry//-/}" -lt "${TODAY_UTC//-/}" ]; then
+        # PAST the date, not ON it: the deadline day is still a working deferral.
+        wedged="${wedged}${step}(expired-deferral:${expiry}) "
       fi
       ;;
     *[!0-9]*)

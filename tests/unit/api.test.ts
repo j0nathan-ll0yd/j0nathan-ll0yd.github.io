@@ -1,3 +1,4 @@
+import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {fetchAllEndpoints, fetchArtifact, isResourceKey} from '../../src/lib/runtime/api'
 
@@ -194,6 +195,26 @@ describe('resource key admission', () => {
     expect(isResourceKey(null)).toBe(false)
     expect(isResourceKey(0)).toBe(false)
     expect(isResourceKey({})).toBe(false)
+  })
+
+  // THE SAME REFUSAL, ONE LAYER DOWN. `decodeArtifact` runs its own `Object.hasOwn` gate over the
+  // validator table before it selects a validator, and until now nothing in this repo covered it
+  // -- `fetchArtifact`'s `isResourceKey` guard sits above it, so the consumer path never reaches
+  // the decoder with a bad key. That makes the producer's gate load-bearing and untested from the
+  // side that ships it: the moment a second call site appears, `Object(payload)` becomes the
+  // "validator" and returns truthy for every input.
+  //
+  // WHAT THIS TEST CANNOT SEE, stated rather than implied. Under vitest the decoder loads as
+  // native ESM, where a module namespace has a NULL prototype, so `key in validators` and
+  // `Object.hasOwn(validators, key)` agree and this assertion passes under either. It pins the
+  // CONTRACT (an unknown key throws), not the guard's form. The guard's form only matters once the
+  // namespace is bundled into a plain object rooted at `Object.prototype`, which is what this repo
+  // actually ships -- so the mutation gate for it lives in tests/build/decoder-guard.test.ts,
+  // against the built chunk. Measured: replacing `Object.hasOwn` with `in` in the published
+  // package leaves this test green and reds that one.
+  it('refuses an inherited property name at the decoder, not just at the fetch boundary', () => {
+    expect(() => decodeArtifact('constructor' as never, {evil: 1})).toThrow(/Unknown artifact resource/)
+    expect(() => decodeArtifact('toString' as never, {evil: 1})).toThrow(/Unknown artifact resource/)
   })
 
   it('issues no request at all for an inherited property name', async () => {

@@ -473,15 +473,25 @@ jobs:
           #
           # `llms_cache_rules` is DEFERRED, not exempt. It could publish a count, but it has
           # recorded `status: unknown` with all five Cloudflare reads returning 403 for its whole
-          # observable life (run 34086625518), and atlas decision 0120 D2 rules that the read
-          # permissions are corrected BEFORE the channel lands -- otherwise the tile goes
-          # permanently red on a known-open owner action. Until then this step is outside the
+          # observable life (runs 34086625518 and 34164468115), and atlas decision 0120 D2 rules
+          # that the read permissions are corrected BEFORE the channel lands -- otherwise the tile
+          # goes permanently red on a known-open owner action. Until then this step is outside the
           # aggregation rule: it claims nothing, so it cannot claim zero, so it cannot wedge the
           # tier. The record is written rather than omitted so the gap is visible here and to
           # atlas A19, not implied by silence.
+          #
+          # AND IT EXPIRES. `until=2026-12-08` is the date the deferral stops being accepted;
+          # past it the ping script wedges this tier exactly as it would on an unreasoned
+          # declaration. Without the date, "visible" and "indefinite" are the same state -- the
+          # green job / no issue / no wedge shape here was byte-identical to run 34086625518, the
+          # receipt decision 0122 opened with. 90 days from the channel landing (2026-09-09) is
+          # the budget for one owner action: correct five Cloudflare read permissions. Moving the
+          # date is a reviewed edit to this file; letting it lapse is not a decision anyone makes.
+          # `n/a` carries no date on purpose -- a tool run holding no artifact set is structural,
+          # and no owner action will change it.
           MEASURED_STEPS: |
             llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
-            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|deferred|atlas 0120 D2 owner action -- five Cloudflare reads return 403; the channel lands with the permissions fix
+            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|deferred|atlas 0120 D2 owner action -- five Cloudflare reads return 403; the channel lands with the permissions fix|until=2026-12-08
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}

@@ -219,11 +219,15 @@ describe('healthchecks-ping.sh measurement declarations', () => {
     expect(pingedUrls()).toEqual([PING_URL])
   })
 
-  it('accepts deferred with a reason: the channel is blocked on an external action', () => {
+  it('accepts deferred with a reason and a live deadline: the channel is blocked on an external action', () => {
     stubCurl()
     expect(
-      runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms_cache_rules|failure|deferred|atlas 0120 D2 owner action\nrobots|success|1\n'})
-        .status
+      runPing({
+        HC_URL: PING_URL,
+        JOB_STATUS: 'success',
+        TODAY_UTC: '2026-09-09',
+        MEASURED_STEPS: 'llms_cache_rules|failure|deferred|atlas 0120 D2 owner action|until=2026-12-08\nrobots|success|1\n'
+      }).status
     ).toBe(0)
     expect(pingedUrls()).toEqual([PING_URL])
   })
@@ -240,6 +244,103 @@ describe('healthchecks-ping.sh measurement declarations', () => {
     const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms_cache_rules|failure|deferred\n'})
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
     expect(stdout).toContain('llms_cache_rules(unreasoned-deferred)')
+  })
+})
+
+// A DEFERRAL EXPIRES; A NOT-APPLICABLE DOES NOT (atlas decisions 0107, 0120 D2, 0122). `n/a` is a
+// structural fact -- a third-party tool run holds no artifact set, and no owner action changes
+// that. `deferred` says the step COULD claim and something outside this repo is in the way, which
+// is temporal by its own definition. Undated, the two behave identically and the declaration
+// written to make a gap VISIBLE is what makes it INDEFINITE: `llms_cache_rules` produced a green
+// job, no managed issue and no wedge on run 34164468115 while all five Cloudflare API reads
+// returned 403 -- the same shape as run 34086625518, the receipt decision 0122 opened with.
+describe('healthchecks-ping.sh deferral expiry', () => {
+  const DEFERRAL = 'llms_cache_rules|failure|deferred|atlas 0120 D2 owner action'
+
+  it('wedges on a reasoned deferral that carries no deadline', () => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', TODAY_UTC: '2026-09-09', MEASURED_STEPS: `${DEFERRAL}\nrobots|success|1\n`})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('llms_cache_rules(undated-deferred)')
+  })
+
+  it('wedges once the deadline has passed, even though the job succeeded', () => {
+    stubCurl()
+    const {stdout} = runPing({
+      HC_URL: PING_URL,
+      JOB_STATUS: 'success',
+      TODAY_UTC: '2026-12-09',
+      MEASURED_STEPS: `${DEFERRAL}|until=2026-12-08\nrobots|success|1\n`
+    })
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('llms_cache_rules(expired-deferral:2026-12-08)')
+  })
+
+  // PAST the date, not ON it. A deadline that fires a day early would train the reader to move
+  // the date rather than close the gap.
+  it('still accepts the deferral on the deadline day itself', () => {
+    stubCurl()
+    expect(
+      runPing({HC_URL: PING_URL, JOB_STATUS: 'success', TODAY_UTC: '2026-12-08', MEASURED_STEPS: `${DEFERRAL}|until=2026-12-08\nrobots|success|1\n`}).status
+    ).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  // Fail-safe, like the unclassifiable `measured` rung: an unreadable deadline is a wedge, never
+  // an accepted deferral. A silently-ignored malformed date is an undated deferral wearing a date.
+  //
+  // `2026-13-08` and `2026-02-30` are the cases shape-matching alone lets through: both parse to
+  // a YYYYMMDD integer that still arrives, just later than whoever wrote it believes. That is a
+  // silent slip, so the rung checks the calendar, not the pattern.
+  it.each(['soon', '2026-13-08', '2026-02-30', '2026-00-08', '2026-12-32', '20261208'])('wedges on the malformed deadline %s', (value) => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', TODAY_UTC: '2026-09-09', MEASURED_STEPS: `${DEFERRAL}|until=${value}\n`})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain(`llms_cache_rules(malformed-deferral-date:${value})`)
+  })
+
+  // The marker is self-describing so it can sit anywhere in the trailing fields, which is what
+  // lets a prose reason contain `|` without being mistaken for a date.
+  it('reads the deadline wherever it sits among the trailing fields', () => {
+    stubCurl()
+    expect(
+      runPing({
+        HC_URL: PING_URL,
+        JOB_STATUS: 'success',
+        TODAY_UTC: '2026-09-09',
+        MEASURED_STEPS: 'llms_cache_rules|failure|deferred|until=2026-12-08|atlas 0120 D2|five reads return 403\nrobots|success|1\n'
+      }).status
+    ).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  // A date with no prose is still an unreasoned declaration: the reader learns when it lapses and
+  // never learns what is blocked.
+  it('wedges on a dated deferral that states no reason', () => {
+    stubCurl()
+    const {stdout} = runPing({
+      HC_URL: PING_URL,
+      JOB_STATUS: 'success',
+      TODAY_UTC: '2026-09-09',
+      MEASURED_STEPS: 'llms_cache_rules|failure|deferred|until=2026-12-08\n'
+    })
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('llms_cache_rules(unreasoned-deferred)')
+  })
+
+  // `n/a` is exempt from the expiry rung by design, not by omission. A structural fact given a
+  // deadline would wedge a healthy tier on a date nobody can act on.
+  it('never demands a deadline from a not-applicable declaration', () => {
+    stubCurl()
+    expect(
+      runPing({
+        HC_URL: PING_URL,
+        JOB_STATUS: 'success',
+        TODAY_UTC: '2099-01-01',
+        MEASURED_STEPS: 'lychee|success|n/a|third-party action exposing only exit_code\nrobots|success|1\n'
+      }).status
+    ).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
   })
 
   // Fail-safe: a value the script cannot classify is a wedge, never a claim. A false

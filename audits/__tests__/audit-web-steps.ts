@@ -87,8 +87,25 @@ export function checkSteps(job: WorkflowJob): WorkflowStep[] {
   return job.steps.filter((s) => s.id !== null && s.reportOnly && !NON_CHECK_STEP_IDS.has(s.id))
 }
 
-/** The `MEASURED_STEPS` records forwarded by a job's Healthchecks.io ping step. */
-export function measuredStepRecords(job: WorkflowJob): {step: string; outcome: string; measured: string; reason: string}[] {
+export interface MeasuredStepRecord {
+  step: string
+  outcome: string
+  measured: string
+  /** The trailing fields minus the `until=` marker, rejoined in order. */
+  reason: string
+  /** The `until=YYYY-MM-DD` value, or `''` when the record carries no marker. */
+  deadline: string
+}
+
+/**
+ * The `MEASURED_STEPS` records forwarded by a job's Healthchecks.io ping step.
+ *
+ * Splits the trailing fields exactly as `audits/healthchecks-ping.sh` does: `until=YYYY-MM-DD` is
+ * lifted out wherever it sits, and everything else is the prose reason. Position-independent
+ * because the reason is prose and may contain `|`, so "the last field is the date" would be a
+ * guess -- and backward compatible, because a record with no marker parses as it always did.
+ */
+export function measuredStepRecords(job: WorkflowJob): MeasuredStepRecord[] {
   const ping = job.steps.find((s) => s.name === 'Healthchecks.io ping')
   const block = ping ? /^ {10}MEASURED_STEPS: \|\n((?: {12}.+\n)+)/m.exec(ping.body)?.[1] : undefined
   if (!block) {
@@ -96,6 +113,13 @@ export function measuredStepRecords(job: WorkflowJob): {step: string; outcome: s
   }
   return block.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
     const [step, outcome, measured, ...rest] = line.split('|')
-    return {step, outcome, measured: measured ?? '', reason: rest.join('|')}
+    const marker = rest.find((field) => field.startsWith('until='))
+    return {
+      step,
+      outcome,
+      measured: measured ?? '',
+      reason: rest.filter((field) => field !== marker).join('|'),
+      deadline: marker ? marker.slice('until='.length) : ''
+    }
   })
 }
