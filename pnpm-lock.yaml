@@ -53,8 +53,8 @@ importers:
         specifier: ^1.1.0
         version: 1.2.1(eslint@10.7.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@5.9.3)
       '@j0nathan-ll0yd/estate-contracts':
-        specifier: 0.11.0
-        version: 0.11.0(typescript@5.9.3)
+        specifier: 0.12.0
+        version: 0.12.0(typescript@5.9.3)
       '@lhci/cli':
         specifier: ^0.15.1
         version: 0.15.1(supports-color@10.2.2)
@@ -2001,8 +2001,8 @@ packages:
   '@j0nathan-ll0yd/env@1.0.0':
     resolution: {integrity: sha512-thYcCx5oYJ0ReIfSSTdVM7FsUNJBnmkTkoq5/YywA7ly19nuSwzcJh/U+TRtGpMRtrbmvtkiZl2W/+nr1JMMHA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/env/1.0.0/abd9389d100f1263395c1a1ae3e85b9be9b625ad}
 
-  '@j0nathan-ll0yd/estate-contracts@0.11.0':
-    resolution: {integrity: sha512-DP/iUVYT4vLQBfXH/14i22AEaDMVjvXF9lv6NsCNmNWNslZ089oc3UgesrhscMBxdBJbLvWrLWN+rthQaHxCjQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/estate-contracts/0.11.0/26fb6c060d302a795c2731dfcae852cca5e3aee9}
+  '@j0nathan-ll0yd/estate-contracts@0.12.0':
+    resolution: {integrity: sha512-i8n8iYhwJzMpKCTgPrKXiL1FjHv+DwtaAIEX7fTvgwjhCQEn57j+XE6QjPD3cIkTXG1Ni2aHUINWbETom47SLg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/estate-contracts/0.12.0/837db27e7279b2e9af4389c5ab5203ce631f3df4}
     peerDependencies:
       typescript: 5.9.2 || 5.9.3 || 6.0.3
 
@@ -8088,7 +8088,7 @@ snapshots:
 
   '@j0nathan-ll0yd/env@1.0.0': {}
 
-  '@j0nathan-ll0yd/estate-contracts@0.11.0(typescript@5.9.3)':
+  '@j0nathan-ll0yd/estate-contracts@0.12.0(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
       zod: 4.4.3
@@ -8385,7 +8385,7 @@ snapshots:
     dependencies:
       '@emnapi/core': 1.11.1
       '@emnapi/runtime': 1.11.1
-      '@napi-rs/wasm-runtime': 1.1.6(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
+      '@napi-rs/wasm-runtime': 1.2.3(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.1)
     optional: true
 
   '@rolldown/binding-win32-arm64-msvc@1.1.5':
