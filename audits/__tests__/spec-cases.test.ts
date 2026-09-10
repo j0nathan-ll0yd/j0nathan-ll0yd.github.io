@@ -50,7 +50,7 @@ interface RuleFile {
   // default literal survives it -- MIN_DAYS_REMAINING was deleted in Step 3.7).
   // The llms stale rules that read params.maxAgeHours the same way were retired
   // by atlas decision 0119 D2; the freshness threshold now comes from the
-  // packaged estate contract via audits/lib/llms-coherence.ts.
+  // packaged estate contract via audits/checks/b2-llms.mjs.
   // Can-fail probe C changes this value in the rule file and observes the
   // expires-40d/expires-30d cases flip -- the only check that params is the
   // real comparison operand rather than a coincidental literal.

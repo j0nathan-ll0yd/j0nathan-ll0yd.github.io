@@ -103,9 +103,11 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   freshness config into the deep-frozen `LLM_FRESHNESS_CONFIG` export with byte-identical values
   (decision 0110 action 3): the `./llms-assurance/freshness-config.json` and
   `./llms-assurance/freshness-config.schema.json` subpaths are gone. That constant's
-  `coherencePolicy` is now this repo's freshness/skew authority: `audits/lib/llms-coherence.ts`
+  `coherencePolicy` is now this repo's freshness/skew authority: `audits/checks/b2-llms.mjs`
   derives its thresholds from it via the published `durationToMilliseconds` (decision 0119 D2),
-  and `audits/__tests__/llms-coherence.test.ts:76` tethers the evaluator configuration to it.
+  and `audits/__tests__/b2-llms.test.ts:119` tethers the evaluator configuration to it.
+  (The evaluator lived in `audits/lib/llms-coherence.ts` until atlas decision 0122 phase 4, executed
+  by 0128, folded it into its single caller; the derivation is unchanged.)
   It also dropped the `./openspec-covers/runner` and
   `./openspec-covers/fixture.json` subpaths (decision 0113 R4; this repo consumes only the tier's
   `reference.mjs` and its sidecar, which survive) and stopped shipping tier READMEs in the tarball
@@ -205,14 +207,15 @@ responses advertise the same composition timestamp, their bytes SHALL be identic
 fresh timestamps within that convergence window represent adjacent valid generations and SHALL
 NOT, by byte difference alone, be reported as corruption.
 
-Verified by `audits/__tests__/llms-coherence.test.ts:53` (coherence evaluator).
+Verified by `audits/__tests__/b2-llms.test.ts:96` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
 same-generation byte equality, and cache policy; `audits/checks/b2-llms.mjs` (the one merged weekly
-llms check, atlas decision 0119 D2) runs the same evaluator as its coherence arm beside the
-structural catalog arm.
+llms check, atlas decision 0119 D2) holds that evaluator and runs it as its coherence arm beside
+the structural catalog arm.
 
 Weekly B2 SHALL derive a tri-state status from the run and expose it as the `issue_outcome`
-GITHUB_OUTPUT before returning its audit exit code (`audits/lib/llms-issue-outcome.ts`; the Atlas
+GITHUB_OUTPUT before returning its audit exit code (`audits/checks/b2-llms.mjs`, which also holds
+the fold since atlas decision 0122 phase 4 retired `audits/lib/llms-issue-outcome.ts`; the Atlas
 spoke-evidence v1 envelope this repo used to write and upload was retired by atlas decision 0119
 D1 — lane liveness belongs to decision 0116's per-tier tiles now). The fold: any definitive
 failure wins, otherwise any observation gap wins, otherwise `passed`. Definitive failures are
@@ -230,7 +233,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:110` (orchestration and issue-outcome channel).
+Verified by `audits/__tests__/b2-llms.test.ts:285` (orchestration and issue-outcome channel).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. `audits/__tests__/audit-web-workflow.test.ts`
 asserts no workflow-level suppression skip, report-only exit preservation, the reconciler
@@ -397,7 +400,7 @@ clause left intact beside them.
 Every raw and canonical representation of llms.txt, llms-full.txt, and index.md SHALL carry a
 parseable composition timestamp no more than 4 hours old. The discovery index uses its
 `<!-- composed-at: ... -->` marker; the full artifacts use `**Generated:** ...`. The threshold
-authority is the packaged estate contract: `audits/lib/llms-coherence.ts` SHALL derive
+authority is the packaged estate contract: `audits/checks/b2-llms.mjs` SHALL derive
 `maxCompositionAgeMs` and `maxCompositionSkewMs` from
 `LLM_FRESHNESS_CONFIG.layers.portfolioServing.coherencePolicy` via `durationToMilliseconds`
 (atlas decision 0119 D2 — the retired stale rules' `params.maxAgeHours` restatements and the
@@ -408,10 +411,10 @@ coherence arm applies the thresholds to all six live responses; its presence arm
 site-side existence/non-emptiness of llms-full.txt and index.md definitive through the
 operational catalog rules `llms-full-txt` and `index-md`.
 
-Verified by `audits/__tests__/llms-coherence.test.ts:75`, which injects a fixed clock and synthetic response
-snapshots to exercise the exact age boundary logic without network and asserts the evaluator
-configuration equals the contract's `coherencePolicy`, and by `audits/__tests__/b2-llms.test.ts:206`
-(the presence arm). The old `spec-cases.test.ts` covers claim was
+Verified by `audits/__tests__/b2-llms.test.ts:118` (the pure evaluator), which injects a fixed clock
+and synthetic response snapshots to exercise the exact age boundary logic without network and
+asserts the evaluator configuration equals the contract's `coherencePolicy`, and by
+`audits/__tests__/b2-llms.test.ts:384` (the presence arm). The old `spec-cases.test.ts` covers claim was
 removed: that harness only proved operational rules had no cases and never exercised freshness.
 
 #### Scenario: A composition exceeds the freshness window
@@ -452,7 +455,7 @@ in the catalog checks its clause as quoted.
 | Origin/site coherence    | pure snapshots + issue-outcome fold        | six live responses                   | weekly B2 llms issue_outcome   | contract coherence       |
 | Structural profile       | spec-cases + property test                 | — (external consumer)                | weekly B2 llms (structure arm) | —                        |
 | Shared-reference bytes   | `llms-structure.integrity.test.ts`         | producer consumes the same exact pin | —                              | lockfile + sidecar       |
-| Freshness                | `llms-coherence.test.ts` (fixed clock)     | six live responses                   | weekly B2 llms (coherence arm) | contract coherencePolicy |
+| Freshness                | `b2-llms.test.ts` (fixed clock)            | six live responses                   | weekly B2 llms (coherence arm) | contract coherencePolicy |
 | External anchor          | spec-verification                          | —                                    | weekly drift                   | pinned source            |
 
 ## Gaps
