@@ -18,8 +18,10 @@ import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/esta
 import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
 import {
   compositionTimestamp,
+  detectionLatencyLine,
   evaluateLlmsCoherence,
   LLMS_COHERENCE_THRESHOLDS,
+  LLMS_DETECTION_LATENCY,
   llmsCheckStatus,
   managedIssueOutcome,
   runB2Llms,
@@ -196,6 +198,36 @@ describe('evaluateLlmsCoherence', () => {
   })
 })
 
+describe('detection latency', () => {
+  // covers: llms-txt#Full-content artifacts stay fresh
+  it('derives the worst case from the two contract fields rather than restating it', () => {
+    const {coherencePolicy, auditCadence} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
+    expect(LLMS_DETECTION_LATENCY.thresholdMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionAge))
+    expect(LLMS_DETECTION_LATENCY.auditCadenceMs).toBe(durationToMilliseconds(auditCadence))
+    expect(LLMS_DETECTION_LATENCY.worstCaseMs).toBe(LLMS_DETECTION_LATENCY.thresholdMs + LLMS_DETECTION_LATENCY.auditCadenceMs)
+  })
+
+  it('pins the figures the contract currently yields', () => {
+    // Threshold 4h, weekly cadence 168h, so a persistent public-path violation
+    // can stand 172h while every check reports green. These literals make a
+    // contract change to either field visible here instead of silent.
+    expect(LLMS_DETECTION_LATENCY).toEqual({thresholdMs: 4 * 60 * 60 * 1000, auditCadenceMs: 7 * 24 * 60 * 60 * 1000, worstCaseMs: 172 * 60 * 60 * 1000})
+  })
+
+  it('renders one line naming the worst case and both of its terms', () => {
+    expect(detectionLatencyLine()).toBe(
+      '  detection: worst-case public-path latency is 172.0h = composition-age threshold 4.0h + audit cadence 168.0h; ' +
+        'a persistent violation can stand that long with every check green.'
+    )
+  })
+
+  it('renders whatever fields it is handed, so the line cannot hold a stale constant', () => {
+    expect(detectionLatencyLine({thresholdMs: 90 * 60_000, auditCadenceMs: 30 * 60_000, worstCaseMs: 120 * 60_000})).toContain(
+      'is 2.0h = composition-age threshold 1.5h + audit cadence 0.5h'
+    )
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Orchestration: the same two bodies, reached through an artifact descriptor.
 // ---------------------------------------------------------------------------
@@ -291,6 +323,21 @@ describe('b2-llms audit orchestration', () => {
     expect(result.catalogFindings).toEqual([])
     expect(result.coherenceFindings).toEqual([])
     expect(result.unknowns).toEqual([])
+  })
+
+  it('prints the detection interval beside the thresholds, and printing it changes no verdict', async () => {
+    const auditLogger = logger()
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: coherentFetchPair,
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: auditLogger
+    })
+
+    // Additive output only (atlas decision 0128 P4): the line is stated, and the
+    // exit code, findings and measured count are what the clean-run cases assert.
+    expect(auditLogger.log.mock.calls.flat()).toContain(detectionLatencyLine())
+    expect(result).toMatchObject({exitCode: 0, status: 'passed', measured: 3, catalogFindings: [], coherenceFindings: [], unknowns: []})
   })
 
   // covers: llms-txt#Raw and canonical llms artifacts stay coherent

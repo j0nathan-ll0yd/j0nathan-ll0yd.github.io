@@ -107,6 +107,28 @@ export const LLMS_COHERENCE_THRESHOLDS = Object.freeze({
   maxFutureSkewMs: durationToMilliseconds(coherencePolicy.maxFutureSkew)
 })
 
+/**
+ * Worst-case detection latency for the PUBLIC path (atlas decision 0128 P4).
+ *
+ * The contract already declares both halves; what no artifact stated was their
+ * consequence. A violation has to exist before a sample can see it, and this lane
+ * samples on `portfolioServing.auditCadence`, so the longest a persistent
+ * violation can stand while every check reports green is the threshold PLUS the
+ * sampling interval. Stating the interval the check actually provides is the
+ * point: the age threshold on its own establishes no detection guarantee.
+ *
+ * DERIVED, NEVER AUTHORED. Both fields are read off the same pinned contract the
+ * thresholds come from, so a cadence or threshold change moves this figure with
+ * no edit here. A second local copy of either number is the defect this replaces.
+ *
+ * @type {Readonly<{thresholdMs: number, auditCadenceMs: number, worstCaseMs: number}>}
+ */
+export const LLMS_DETECTION_LATENCY = (() => {
+  const thresholdMs = durationToMilliseconds(coherencePolicy.maxCompositionAge)
+  const auditCadenceMs = durationToMilliseconds(LLM_FRESHNESS_CONFIG.layers.portfolioServing.auditCadence)
+  return Object.freeze({thresholdMs, auditCadenceMs, worstCaseMs: thresholdMs + auditCadenceMs})
+})()
+
 const decoder = new TextDecoder('utf-8', {fatal: true})
 const COMPOSITION_PATTERNS = [
   /<!--\s*composed-at:\s*([^\s]+)\s*-->/i,
@@ -135,6 +157,17 @@ function sameBytes(left, right) {
 
 function durationMinutes(milliseconds) {
   return (milliseconds / 60_000).toFixed(1)
+}
+
+function durationHours(milliseconds) {
+  return (milliseconds / 3_600_000).toFixed(1)
+}
+
+/** The one line the check prints about the interval it provides (atlas decision 0128 P4). */
+export function detectionLatencyLine(latency = LLMS_DETECTION_LATENCY) {
+  return `  detection: worst-case public-path latency is ${durationHours(latency.worstCaseMs)}h ` +
+    `= composition-age threshold ${durationHours(latency.thresholdMs)}h + audit cadence ${durationHours(latency.auditCadenceMs)}h; ` +
+    'a persistent violation can stand that long with every check green.'
 }
 
 /**
@@ -631,6 +664,7 @@ export async function runB2Llms({
       `composition-skew=${LLMS_COHERENCE_THRESHOLDS.maxCompositionSkewMs}ms ` +
       `future-skew=${LLMS_COHERENCE_THRESHOLDS.maxFutureSkewMs}ms`
   )
+  logger.log(detectionLatencyLine())
   for (const {artifact, origin, site} of pairs) {
     logger.log(`\n  ${artifact.id}`)
     printSnapshot('origin', origin, logger)

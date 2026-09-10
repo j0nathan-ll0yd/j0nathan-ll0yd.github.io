@@ -207,7 +207,7 @@ responses advertise the same composition timestamp, their bytes SHALL be identic
 fresh timestamps within that convergence window represent adjacent valid generations and SHALL
 NOT, by byte difference alone, be reported as corruption.
 
-Verified by `audits/__tests__/b2-llms.test.ts:96` (coherence evaluator).
+Verified by `audits/__tests__/b2-llms.test.ts:98` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
 same-generation byte equality, and cache policy; `audits/checks/b2-llms.mjs` (the one merged weekly
 llms check, atlas decision 0119 D2) holds that evaluator and runs it as its coherence arm beside
@@ -233,7 +233,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:285` (orchestration and issue-outcome channel).
+Verified by `audits/__tests__/b2-llms.test.ts:317` (orchestration and issue-outcome channel).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. `audits/__tests__/audit-web-workflow.test.ts`
 asserts no workflow-level suppression skip, report-only exit preservation, the reconciler
@@ -411,11 +411,23 @@ coherence arm applies the thresholds to all six live responses; its presence arm
 site-side existence/non-emptiness of llms-full.txt and index.md definitive through the
 operational catalog rules `llms-full-txt` and `index-md`.
 
-Verified by `audits/__tests__/b2-llms.test.ts:118` (the pure evaluator), which injects a fixed clock
+THE AGE THRESHOLD ESTABLISHES NO DETECTION GUARANTEE ON ITS OWN. A violation must exist before a
+sample can see it, and this lane samples on `portfolioServing.auditCadence`, so the longest a
+persistent public-path violation can stand while every check reports green is the threshold PLUS
+that cadence. The check SHALL state that figure in its human output, DERIVED from the same two
+contract fields through `durationToMilliseconds` and never restated as a local constant (atlas
+decision 0128 P4). At the pinned contract that is 4h plus a weekly cadence, so 172h. The statement
+is additive: it changes no finding, no exit code, and neither GITHUB_OUTPUT field. Raising the
+cadence is the owner call that would shorten it; keep source freshness distinct from
+recomposition freshness.
+
+Verified by `audits/__tests__/b2-llms.test.ts:120` (the pure evaluator), which injects a fixed clock
 and synthetic response snapshots to exercise the exact age boundary logic without network and
-asserts the evaluator configuration equals the contract's `coherencePolicy`, and by
-`audits/__tests__/b2-llms.test.ts:384` (the presence arm). The old `spec-cases.test.ts` covers claim was
-removed: that harness only proved operational rules had no cases and never exercised freshness.
+asserts the evaluator configuration equals the contract's `coherencePolicy`, by
+`audits/__tests__/b2-llms.test.ts:202` (the derived detection interval and the line the run prints),
+and by `audits/__tests__/b2-llms.test.ts:431` (the presence arm). The old `spec-cases.test.ts` covers
+claim was removed: that harness only proved operational rules had no cases and never exercised
+freshness.
 
 #### Scenario: A composition exceeds the freshness window
 
