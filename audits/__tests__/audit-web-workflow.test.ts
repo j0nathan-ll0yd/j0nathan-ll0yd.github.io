@@ -55,6 +55,7 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
   })
 
+  // covers: llms-txt#Raw and canonical llms artifacts stay coherent
   it('preserves the merged llms command failure for its managed issue bucket', () => {
     const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- Cloudflare)/)?.[0] ??
       ''

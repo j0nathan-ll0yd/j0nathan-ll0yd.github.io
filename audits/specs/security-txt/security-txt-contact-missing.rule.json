@@ -4,19 +4,19 @@
   "artifact": "security.txt",
   "rule_class": "conformance",
   "severity": "fail",
-  "spec": {
-    "name": "RFC 9116",
+  "cites": {
+    "source": "RFC 9116",
     "clause": "§2.5.3",
+    "quote": "The \"Contact\" field indicates a method that researchers should use for reporting security vulnerabilities such as an email address, a phone number, and/or a web page with contact information. This field MUST always be present in a \"security.txt\" file.",
     "url": "https://www.rfc-editor.org/rfc/rfc9116",
     "version": "RFC 9116 (April 2022)",
-    "conformance_testable": true,
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
     "retrieved": "2026-07-30",
     "content_sha256": "138340e92882ce60ae153b9cb1423823c76b87f422ad0aad2eeadd20a1654bdb",
-    "normative_quote": "The \"Contact\" field indicates a method that researchers should use for reporting security vulnerabilities such as an email address, a phone number, and/or a web page with contact information. This field MUST always be present in a \"security.txt\" file.",
-    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects two prior defects: the clause was misattributed to §2.5.1 (Acknowledgments) when Contact is actually §2.5.3, and the quote had fabricated an 'At least one instance of' preamble not present in the RFC text. Raised from severity: warn to severity: fail in this change (decisions/0011) -- the live file (public/.well-known/security.txt) already has a Contact: line, so this is green today and carries no rollout risk; see policy_note.",
+    "conformance_testable": true,
     "verified_against_source": true,
     "verified_at": "2026-07-30",
-    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
+    "note": "Verified against a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-07-30. Corrects two prior defects: the clause was misattributed to §2.5.1 (Acknowledgments) when Contact is actually §2.5.3, and the quote had fabricated an 'At least one instance of' preamble not present in the RFC text. Raised from severity: warn to severity: fail in this change (decisions/0011) -- the live file (public/.well-known/security.txt) already has a Contact: line, so this is green today and carries no rollout risk; see policy_note."
   },
   "policy_note": "Two defects have been corrected on this id. First (decisions/0011): the validator emitted it at severity: warn while its own message cited '(required by RFC 9116 §2.5.1)' -- a genuine MUST mislabelled at a severity lib/http.mjs:44 never fails the check on. rule_class: conformance forces severity: fail (this schema's own constraint), which surfaced the mislabel and corrected it rather than relabelling the rule_class down to match the old severity. Second: the severity was raised but the emitted MESSAGE kept citing §2.5.1 (Acknowledgments) after this file's spec.clause had already been corrected to §2.5.3 (Contact); the validator now cites §2.5.3, matching the verified clause above.",
   "applicability": "A security.txt body of any length, with no exceptions. This previously read 'EXCEPT one whose Expires field is missing or unparseable', because validateSecurityTxt returned early after emitting security-txt-expires-missing / security-txt-expires-unparseable and never reached the Contact check -- so the bodies most likely to be broken were the ones whose mandatory Contact field went unvalidated. The Deletion-Test rehearsal (decisions/0011, Step 4 AC) recorded that gap as observed behavior: a reimplementation guided only by the unqualified sentence independently derived an unconditional Contact check and produced an extra finding on cases/no-expires.txt. The early return has now been lifted, so the reimplementation was right and the qualification is gone; cases/no-expires.txt pins the corrected behavior by expecting BOTH ids.",

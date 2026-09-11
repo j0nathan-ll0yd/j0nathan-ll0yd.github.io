@@ -32,28 +32,33 @@ const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
 
 const QUOTE = 'This field MUST always be present in a "security.txt" file.'
 
+// The citation shape since the atlas decision 0129 consumer round. The probe reads a
+// pinned source through `citation()`, which accepts `cites` (conformance) or
+// `derivedFrom` (local) alike -- so these synthetics exercise BOTH arms, and the
+// `derivedFrom` cases below are what would have regressed silently had the probed set
+// been keyed on rule_class.
 interface SpecFields {
-  normative_quote?: string
+  quote?: string
   content_sha256?: string
-  verified_against_source?: boolean
-  verification_url?: string
+  pinnedAt?: string
+  retrieved?: string
 }
 interface SyntheticRule {
   rel: string
-  rule: {id: string; spec: SpecFields}
+  rule: {id: string; cites?: SpecFields; derivedFrom?: SpecFields}
 }
 
 function sha256(s: string): string {
   return createHash('sha256').update(s, 'utf-8').digest('hex')
 }
 
-function ruleWith(spec: SpecFields): SyntheticRule {
-  return {rel: 'security-txt/example.rule.json', rule: {id: 'example', spec}}
+function ruleWith(spec: SpecFields, arm: 'cites' | 'derivedFrom' = 'cites'): SyntheticRule {
+  return {rel: 'security-txt/example.rule.json', rule: {id: 'example', [arm]: spec}}
 }
 
-/** An integrity-clean, verified rule pointing at a pinned source. */
-function verifiedRule(quote = QUOTE): SyntheticRule {
-  return ruleWith({normative_quote: quote, content_sha256: sha256(quote), verified_against_source: true, verification_url: RFC_URL})
+/** An integrity-clean rule pointing at a pinned source. */
+function verifiedRule(quote = QUOTE, arm: 'cites' | 'derivedFrom' = 'cites'): SyntheticRule {
+  return ruleWith({quote, content_sha256: sha256(quote), pinnedAt: RFC_URL, retrieved: '2026-07-30'}, arm)
 }
 
 describe('check-spec-drift: the live catalog', () => {
@@ -86,19 +91,32 @@ describe('check-spec-drift: checkQuoteIntegrity can fail', () => {
 
   it('flags a quote edited after authoring (hash no longer matches)', () => {
     const r = verifiedRule()
-    r.rule.spec.normative_quote = QUOTE.replace('MUST', 'SHOULD')
+    r.rule.cites!.quote = QUOTE.replace('MUST', 'SHOULD')
     const violations = checkQuoteIntegrity([r])
     expect(violations).toHaveLength(1)
-    expect(violations[0]).toContain('does not match sha256(spec.normative_quote)')
+    expect(violations[0]).toContain('does not match sha256(quote)')
   })
 
-  it('flags a missing normative_quote rather than skipping the rule', () => {
-    expect(checkQuoteIntegrity([ruleWith({content_sha256: sha256(QUOTE)})])[0]).toContain('spec.normative_quote is required')
+  it('flags a missing quote rather than skipping the rule', () => {
+    expect(checkQuoteIntegrity([ruleWith({content_sha256: sha256(QUOTE)})])[0]).toContain('citation quote is required')
+  })
+
+  it('checks a derivedFrom quote exactly as it checks a cites quote', () => {
+    // The regression guard for the citation split: a local rule's transcription is as
+    // worth protecting as a conformance rule's, so integrity must not key on the arm.
+    expect(checkQuoteIntegrity([verifiedRule(QUOTE, 'derivedFrom')])).toEqual([])
+    const r = verifiedRule(QUOTE, 'derivedFrom')
+    r.rule.derivedFrom!.quote = QUOTE.replace('MUST', 'SHOULD')
+    expect(checkQuoteIntegrity([r])[0]).toContain('does not match sha256(quote)')
+  })
+
+  it('skips a rule that records no external source at all', () => {
+    expect(checkQuoteIntegrity([{rel: 'x/y.rule.json', rule: {id: 'y'}}])).toEqual([])
   })
 
   it('flags a spliced segment truncated below the anti-truncation floor', () => {
     const quote = `${QUOTE}... short bit`
-    const violations = checkQuoteIntegrity([ruleWith({normative_quote: quote, content_sha256: sha256(quote)})])
+    const violations = checkQuoteIntegrity([ruleWith({quote, content_sha256: sha256(quote)})])
     expect(violations).toHaveLength(1)
     expect(violations[0]).toContain(`shorter than the ${MIN_SEGMENT_CHARS}-character floor`)
   })
@@ -169,11 +187,19 @@ describe('check-spec-drift: checkSourceDrift can fail', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
-  it('does not probe a rule that is not verified_against_source', async () => {
+  it('does not probe a rule that records no pinned source', async () => {
     const spy = fetchReturning(source)
-    const unverified = ruleWith({normative_quote: QUOTE, content_sha256: sha256(QUOTE), verified_against_source: false})
-    expect(await checkSourceDrift([unverified], {fetchText: spy})).toEqual([])
+    const unpinned = ruleWith({quote: QUOTE, content_sha256: sha256(QUOTE), pinnedAt: undefined})
+    expect(await checkSourceDrift([unpinned], {fetchText: spy})).toEqual([])
     expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('probes a derivedFrom rule, so the pinned set is not keyed on rule class', async () => {
+    // Had this been keyed on rule_class, the five llms-txt convention rules -- and with
+    // them the AnswerDotAI/llms-txt blob -- would have left the probe in silence.
+    const spy = fetchReturning(source)
+    expect(await checkSourceDrift([verifiedRule(QUOTE, 'derivedFrom')], {fetchText: spy})).toEqual([])
+    expect(spy).toHaveBeenCalledTimes(1)
   })
 
   it('de-marks markdown so a quote from a rendered page matches a raw blob', async () => {

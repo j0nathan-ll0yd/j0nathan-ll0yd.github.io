@@ -4,19 +4,16 @@
   "artifact": "security.txt",
   "rule_class": "local-policy",
   "severity": "fail",
-  "spec": {
-    "name": "RFC 9116",
+  "rationale": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-08-31. conformance_testable is false because the clause is a SHOULD NOT addressed to CONSUMERS ('the contents of the file SHOULD NOT be trusted'), not a MUST addressed to publishers -- RFC 9116 states no producer obligation here, so this is not a conformance rule despite citing a real clause. Severity fail is local judgment; see policy_note.",
+  "derivedFrom": {
+    "source": "RFC 9116",
     "clause": "§2.5.2",
     "url": "https://www.rfc-editor.org/rfc/rfc9116",
     "version": "RFC 9116 (April 2022)",
-    "conformance_testable": false,
+    "quote": "If this field appears within a \"security.txt\" file and the URI used to retrieve that file is not listed within any canonical fields, then the contents of the file SHOULD NOT be trusted.",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
     "retrieved": "2026-08-31",
-    "content_sha256": "b5bcfaa3641ecc7cd297ce1afb845838da8c780fc774fdb663626da2dbeecd8a",
-    "normative_quote": "If this field appears within a \"security.txt\" file and the URI used to retrieve that file is not listed within any canonical fields, then the contents of the file SHOULD NOT be trusted.",
-    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-08-31. conformance_testable is false because the clause is a SHOULD NOT addressed to CONSUMERS ('the contents of the file SHOULD NOT be trusted'), not a MUST addressed to publishers -- RFC 9116 states no producer obligation here, so this is not a conformance rule despite citing a real clause. Severity fail is local judgment; see policy_note.",
-    "verified_against_source": true,
-    "verified_at": "2026-08-31",
-    "verification_url": "https://www.rfc-editor.org/rfc/rfc9116.txt"
+    "content_sha256": "b5bcfaa3641ecc7cd297ce1afb845838da8c780fc774fdb663626da2dbeecd8a"
   },
   "policy_note": "The RFC's remedy for a mismatched Canonical is that a researcher SHOULD NOT trust the file. An untrusted security.txt is operationally equivalent to no security.txt: the Contact address a researcher would use is exactly the thing they are told not to rely on. That is why this rule fails rather than warns, while security-txt-canonical-missing only warns. The comparison operand is the URI this repo actually serves the file from (SECURITY_TXT_URL in check-security-txt.mjs, derived from portal-contract's SITE_URL), so a Canonical field that drifts from the deployed origin is caught rather than assumed correct. §2.5.2 permits several Canonical fields, so the test is membership, not equality against a single value.",
   "applicability": "A security.txt body containing at least one Canonical: field with a non-empty value.",

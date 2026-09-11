@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// External-source verification gate (ADR 0011).
-// Any rule citing an external clause must carry a verified quote and immutable primary-source URL;
-// a clause marked n/a must disclose why it is unverified. The schema enforces the same branch at
-// load time; this raw-file pass provides focused diagnostics and defense in depth.
+// External-source verification gate (ADR 0011, reshaped by atlas decision 0129's consumer round).
+// Two questions, deliberately separate. THE ARM: only a conformance rule may carry `cites`, which
+// asserts verified conformance evidence; a local rule carries a `rationale` and an optional
+// `derivedFrom`. THE LOCATABILITY: any rule quoting a source -- on EITHER arm -- must pin that
+// quote to an immutable URL and date it, because whether a source was rewritten under a
+// transcription is not a fact about conformance. The schema enforces the same branches at load
+// time; this raw-file pass provides focused diagnostics and defense in depth.
 
 import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
@@ -49,8 +52,8 @@ function readRawRules(violations) {
 
 /**
  * The pure gate: given [{rel, rule}], return the list of violation strings.
- * Separated from disk I/O so the failure paths (a conformance rule flipped to
- * false, a living verification_url, a false rule with no note) are exercised
+ * Separated from disk I/O so the failure paths (a local rule claiming conformance
+ * evidence, a living pinnedAt, a local rule with no rationale) are exercised
  * by audits/__tests__/spec-verification.test.ts without mutating on-disk fixtures --
  * the known-answer property (ADR 0011's acceptance criterion) encoded as a
  * standing regression, not only demonstrated once by hand.
@@ -59,54 +62,73 @@ export function verifyRules(rules) {
   const violations = []
 
   for (const {rel, rule} of rules) {
-    const spec = rule.spec ?? {}
-    const v = spec.verified_against_source
+    const isConformance = rule.rule_class === 'conformance'
 
-    if (typeof v !== 'boolean') {
-      violations.push(`${rel}: spec.verified_against_source is required and must be a boolean (found ${JSON.stringify(v)})`)
+    // THE ARM GATE. Before the atlas decision 0129 consumer round this keyed on
+    // spec.clause rather than rule_class, because one shared `spec` block made a
+    // citation and a derivation indistinguishable -- so the only way to stop a
+    // rule_class downgrade buying an exemption was to force verification onto
+    // anything that named a clause. The union makes the two different SHAPES, so
+    // the bypass is closed structurally and this gate now asserts the shapes.
+    if (isConformance && rule.cites === undefined) {
+      violations.push(`${rel}: rule_class is "conformance" but there is no cites block -- a conformance rule asserts an external standard and must cite it`)
       continue
     }
-
-    // The gate keys on spec.clause, not the author-chosen rule_class: a rule
-    // citing ANY external clause must be verified, closing the rule_class
-    // downgrade bypass (ADR 0011 follow-up (a) review fix). This is the
-    // assertion the known-answer probe flips.
-    const citesExternalClause = typeof spec.clause === 'string' && spec.clause !== 'n/a'
-    if (citesExternalClause && v !== true) {
+    if (!isConformance && rule.cites !== undefined) {
       violations.push(
-        `${rel}: spec.clause "${spec.clause}" cites an external clause, so spec.verified_against_source must be true, but it is false -- ` +
-          'a rule asserting an external standard may not ship unverified against its cited source, regardless of rule_class (ADR 0011 follow-up (a), the 7-of-7 defect class)'
+        `${rel}: rule_class is ${JSON.stringify(rule.rule_class)} but it carries a cites block -- ` +
+          'cites asserts VERIFIED CONFORMANCE EVIDENCE, which only a conformance rule may claim. ' +
+          'Use derivedFrom for an informative derivation, or move the rule to rule_class: conformance and cite properly'
       )
+      continue
     }
-    if (!citesExternalClause && v === true) {
-      violations.push(
-        `${rel}: spec.clause is "n/a" (no external clause), so spec.verified_against_source must be false, but it claims true -- ` +
-          'a rule with no external clause has no source to verify against; its normative_quote is a self-authored statement about the absence of external coverage'
-      )
+    if (!isConformance && (typeof rule.rationale !== 'string' || rule.rationale.trim() === '')) {
+      violations.push(`${rel}: a local rule must carry a rationale saying why it exists, given that no conformance claim backs it`)
     }
 
-    if (v === true) {
-      if (!spec.verified_at || typeof spec.verified_at !== 'string') {
-        violations.push(`${rel}: spec.verified_against_source is true but spec.verified_at is missing`)
+    const spec = rule.cites ?? rule.derivedFrom
+    if (spec === undefined) {
+      continue // a local rule with no external source at all: its rationale is self-authored
+    }
+
+    // THE CONFORMANCE CEREMONY, on the conformance arm alone. These three fields
+    // assert that the quote is verified conformance evidence; a local rule does
+    // not carry them, and the schema forbids it from doing so.
+    if (isConformance) {
+      if (spec.verified_against_source !== true) {
+        violations.push(
+          `${rel}: cites.verified_against_source must be true -- ` +
+            'a rule asserting an external standard may not ship unverified against its cited source (ADR 0011 follow-up (a), the 7-of-7 defect class)'
+        )
       }
-      const url = spec.verification_url
+      if (spec.conformance_testable !== true) {
+        violations.push(
+          `${rel}: cites.conformance_testable must be true -- a conformance rule may not be built on a clause its source does not pass/fail test (0010's lesson)`
+        )
+      }
+      if (!spec.verified_at || typeof spec.verified_at !== 'string') {
+        violations.push(`${rel}: cites.verified_at is missing -- a verification claim needs the date it was made`)
+      }
+    }
+
+    // THE LOCATABILITY GATE, on BOTH arms. A quote that cannot be re-read is a claim
+    // that cannot be checked, and whether a source has been rewritten under a
+    // transcription is not a fact about conformance -- so a derivedFrom quote is held
+    // to the same immutable-source requirement a cites quote is.
+    if (typeof spec.quote === 'string' && spec.quote.length > 0) {
+      const url = spec.pinnedAt
       if (!url || typeof url !== 'string') {
-        violations.push(`${rel}: spec.verified_against_source is true but spec.verification_url is missing`)
+        violations.push(`${rel}: the citation carries a quote but no pinnedAt -- there is nothing for the drift or currency probe to fetch`)
       } else if (!isImmutableSource(url)) {
         violations.push(
-          `${rel}: spec.verification_url "${url}" is not an immutable/pinned source -- ` +
+          `${rel}: pinnedAt "${url}" is not an immutable/pinned source -- ` +
             'must be an RFC .txt, a raw.githubusercontent.com blob pinned to a 40-hex commit SHA, ' +
             'or a numbered rssboard.org RSS archive ' +
             '(ADR 0011 follow-up (b): a living page cannot be re-verified byte-for-byte)'
         )
       }
-    } else {
-      // false: the honest complement -- it must say WHY it is unverified.
-      if (!spec.verification_note || typeof spec.verification_note !== 'string') {
-        violations.push(
-          `${rel}: spec.verified_against_source is false but spec.verification_note is missing -- ` +
-            'an unverified rule must disclose why (no external clause to verify, or an honest not-yet-checked note)'
-        )
+      if (!spec.retrieved || typeof spec.retrieved !== 'string') {
+        violations.push(`${rel}: the citation carries a quote but no retrieved date`)
       }
     }
   }
@@ -125,12 +147,12 @@ function main() {
   console.log('\n=== check-spec-verification ===')
   if (violations.length === 0) {
     const rules = readRawRules([])
-    const verified = rules.filter((r) => r.rule.spec?.verified_against_source === true).length
-    const clauseCiting = rules.filter((r) => typeof r.rule.spec?.clause === 'string' && r.rule.spec.clause !== 'n/a').length
+    const conformance = rules.filter((r) => r.rule.rule_class === 'conformance').length
+    const derived = rules.filter((r) => r.rule.derivedFrom !== undefined).length
     console.log('  (no violations)')
     console.log(
-      `  ${rules.length} rule(s) checked: ${clauseCiting} cite an external clause and are all verified against an immutable/pinned source ` +
-        `(${verified} verified_against_source total), 0 violation(s)`
+      `  ${rules.length} rule(s) checked: ${conformance} cite a verified conformance clause, ${derived} record an informative derivation, ` +
+        `all ${conformance + derived} quoting rules pinned to an immutable source, 0 violation(s)`
     )
     process.exit(0)
   }

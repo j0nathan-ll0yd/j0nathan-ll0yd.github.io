@@ -36,6 +36,7 @@ import {createHash} from 'node:crypto'
 import {appendFile} from 'node:fs/promises'
 import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
+import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
@@ -79,13 +80,29 @@ const R = rules('llms-txt')
  * @j0nathan-ll0yd/estate-contracts/llms-structure, the shared reference atlas
  * owns and publishes. The backend producer consumes the same package at the
  * same exact pin, so neither side holds a copy to drift. This function is the
- * CATALOG WRAPPER over it: the
- * reference decides WHAT is wrong, the rule files decide how bad it is.
- * emit() stamps severity from the rule and throws on an id no rule file
- * declares, so surjectivity survives the extraction unchanged.
+ * CATALOG WRAPPER over it: the reference decides WHAT is wrong, the catalog
+ * decides how bad it is.
+ *
+ * SEVERITY COMES FROM THE SHARED CATALOG (atlas decision 0129 consumer round).
+ * It used to come from `emit(R, ...)` over this repo's own rule files. Both
+ * repos that consume `checkLlmsStructure` had re-derived the same split by
+ * hand -- here in `audits/specs/llms-txt/*.rule.json`, and in
+ * mantle-LifegamesPortal as a hand-copied `ADVISORY_STRUCTURE_FINDINGS` list --
+ * so `LLMS_TXT_CATALOG` now states it once in the package both already pin.
+ * The two were proved to agree before the switch: same five ids, same five
+ * severities, and identical `{id, message, severity}` output over all 22
+ * declared cases.
+ *
+ * `stamp` keeps the surjectivity property `emit` established -- it THROWS on an
+ * id no rule declares, so a checker that starts emitting a new id is met by a
+ * deliberate severity decision rather than scoring as harmless. The local rule
+ * files remain the source of the CASES and of the verification record, and
+ * `emit`/`R` still own the three OPERATIONAL ids the shared catalog does not
+ * carry (`llms-txt-fetch`, `index-md`, `llms-full-txt`), which are transport
+ * conditions no pure-function input can produce.
  */
 export function validateLlmsTxt(rawText) {
-  return checkLlmsStructure(rawText).map((finding) => emit(R, finding.id, finding.message))
+  return LLMS_TXT_CATALOG.stamp(checkLlmsStructure(rawText))
 }
 
 /**

@@ -4,7 +4,7 @@
 // THE NAMED DOUBT: "the pinned clause is still what the specification says today."
 //
 // WHY THIS IS NOT b2-check-spec-drift.mjs. That check re-fetches each rule's
-// `spec.verification_url` and asserts the normative_quote still occurs in it. But
+// pinned source and asserts the citation quote still occurs in it. But
 // rule.schema.json constrains that field to three IMMUTABLE forms -- an RFC's
 // canonical plaintext, a 40-hex commit-pinned raw.githubusercontent blob, or a
 // numbered RSS Advisory Board archive -- and immutability is the property the drift
@@ -14,7 +14,7 @@
 // different questions of the same corpus, and nothing else in the estate asks this one.
 //
 // MEASURED RECEIPT. The llms.txt rules pin AnswerDotAI/llms-txt at c7178b9d with
-// spec.retrieved 2026-07-30. Upstream main now serves a v2 of that document dated
+// retrieved 2026-07-30. Upstream main now serves a v2 of that document dated
 // 2026-08-10: path-scope semantics, the "Optional" section rewritten, a new
 // rel="alternate"/rel="describedby" recommendation, an RFC 8615 rationale. The five
 // normative Format bullets are byte-identical, so no rule is wrong and no rule change
@@ -32,10 +32,24 @@
 // A FETCH FAILURE IS INDETERMINATE, NEVER CLEAN -- the convention b2-check-spec-drift.mjs
 // establishes in its own header. Judging currency needs BOTH blobs; if either is
 // unreachable the probe could not look, so it reports rather than assumes.
+//
+// SCOPE IS "HAS A PINNED SOURCE", NOT "CLAIMS CONFORMANCE" (atlas decision 0129 consumer
+// round). This probe reads `cites` and `derivedFrom` alike -- see `citation` in
+// b2-check-spec-drift.mjs -- so the citation split left its denominator at 27 rules over 4
+// sources, of which 2 are commit-pinned GitHub blobs and therefore measurable here.
+//
+// THAT IS LOAD-BEARING, AND IT WAS NEARLY LOST. The first cut of the split keyed the probed
+// set on rule_class, which would have dropped it to 14 rules over 3 sources with just 1
+// measurable -- because all five llms-txt rules are `rule_class: convention`, so the
+// AnswerDotAI/llms-txt blob in the receipt above would have left this check's reach
+// entirely, one day after the check was built to watch it. The lesson is recorded in
+// rule.schema.json: a quote's currency is at stake whenever a rule quotes a source, and
+// `conformance_testable: false` says the upstream has no pass/fail concept, not that the
+// citation cannot rot.
 
 import {createHash} from 'node:crypto'
 import {DEFAULT_BUDGET_MS, isMain, report} from '../lib/http.mjs'
-import {comparable, quoteSegments, readRawRules} from './b2-check-spec-drift.mjs'
+import {citation, comparable, quoteSegments, readRawRules} from './b2-check-spec-drift.mjs'
 
 export const CHECK_ID = 'check-spec-currency'
 
@@ -86,12 +100,12 @@ export function classifySource(url) {
         'the RSS Advisory Board publishes each specification revision as its own numbered archive page, so this URL names one frozen revision rather than a moving document'
     }
   }
-  // rule.schema.json's verification_url anyOf admits exactly the three shapes above,
+  // rule.schema.json's immutableUrl anyOf admits exactly the three shapes above,
   // so reaching here means the schema widened without this classifier following. That
   // is an unexamined source, not an out-of-scope one, and it must not read as clean.
   return {
     kind: 'unclassified',
-    reason: `no currency rule is defined for this URL shape -- rule.schema.json's verification_url patterns and ${CHECK_ID}'s classifier have diverged`
+    reason: `no currency rule is defined for this URL shape -- rule.schema.json's immutableUrl patterns and ${CHECK_ID}'s classifier have diverged`
   }
 }
 
@@ -145,23 +159,34 @@ function sha256(s) {
   return createHash('sha256').update(s, 'utf-8').digest('hex')
 }
 
-/** The rules this probe considers: exactly those the drift probe probes. */
+/**
+ * The rules this probe considers: exactly those the drift probe probes -- the rules
+ * carrying a `cites` Citation, which the discriminated union in rule.schema.json
+ * admits only on `rule_class: conformance`.
+ *
+ * The set went from 27 to 14 in the atlas decision 0129 consumer round, when the
+ * citation duties split. The 13 that left are local rules that cited a clause without
+ * claiming it was conformance-tested; they keep the derivation in `derivedFrom` and no
+ * longer record a pinned source, so there is nothing here to ask a currency question
+ * about. Stated rather than left to be noticed: a probe whose denominator shrinks in
+ * silence reports the same green while watching less.
+ */
 export function probedRules(rules) {
-  return rules.filter(({rule}) => rule.spec?.verified_against_source === true)
+  return rules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string')
 }
 
 /**
  * Fetch, per distinct pinned source, the bytes needed to judge currency.
  *
- * Deduplicated per verification_url -- today's 27 verified rules resolve to 4 sources.
+ * Deduplicated per pinned source -- today's 27 pinned rules resolve to 4 sources.
  * BOTH blobs are required: comparing bytes is the verdict, so holding only one of them
  * is not a partial answer, it is no answer.
  *
- * @returns {Promise<Map<string, object>>} keyed by the rule's pinned verification_url
+ * @returns {Promise<Map<string, object>>} keyed by the rule's pinnedAt
  */
 export async function fetchCurrencySources(rules, {fetchText: fetchImpl = fetchText, fetchCommit = fetchCurrentCommit} = {}) {
   const sources = new Map()
-  for (const url of new Set(probedRules(rules).map(({rule}) => rule.spec.verification_url))) {
+  for (const url of new Set(probedRules(rules).map(({rule}) => citation(rule).pinnedAt))) {
     const source = classifySource(url)
     if (source.kind !== 'github-raw') {
       sources.set(url, {...source, held: false})
@@ -190,7 +215,7 @@ export function judgeCurrency(rules, sources) {
   const probed = probedRules(rules)
 
   for (const [url, source] of sources) {
-    const dependents = probed.filter(({rule}) => rule.spec.verification_url === url)
+    const dependents = probed.filter(({rule}) => citation(rule).pinnedAt === url)
     const dependentList = dependents.map(({rel}) => rel).sort().join(', ')
 
     if (source.kind !== 'github-raw') {
@@ -233,7 +258,7 @@ export function judgeCurrency(rules, sources) {
     // Re-running the drift comparison against the CURRENT blob answers exactly that,
     // and it is what separates "re-read the surrounding prose" from "the cited clause
     // is gone".
-    const stale = dependents.filter(({rule}) => !quoteOccursIn(rule.spec.normative_quote, source.currentText))
+    const stale = dependents.filter(({rule}) => !quoteOccursIn(citation(rule).quote, source.currentText))
     const currentCommit = source.currentCommit ?? 'unresolved (commit lookup degraded; the byte comparison above stands on its own)'
     const provenance =
       `pinned commit ${source.pinnedCommit} (sha256 ${pinnedDigest}) vs current ${currentCommit} (sha256 ${currentDigest}) at ${source.currentUrl}`
@@ -243,7 +268,7 @@ export function judgeCurrency(rules, sources) {
         severity: 'warn',
         id: 'spec-source-moved',
         message:
-          `${url} has been revised upstream -- ${provenance}. Every dependent normative_quote STILL OCCURS in the current blob, so no rule is falsified and no rule change is due; the surrounding prose is what changed. Re-read it and, if nothing normative moved, re-pin spec.verification_url and spec.retrieved to record that the check was made. ${dependents.length} rule(s): ${dependentList}`
+          `${url} has been revised upstream -- ${provenance}. Every dependent quote STILL OCCURS in the current blob, so no rule is falsified and no rule change is due; the surrounding prose is what changed. Re-read it and, if nothing normative moved, re-pin the citation's pinnedAt and retrieved to record that the check was made. ${dependents.length} rule(s): ${dependentList}`
       })
       continue
     }

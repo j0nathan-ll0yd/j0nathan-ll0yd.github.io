@@ -14,7 +14,7 @@
 import {createHash} from 'node:crypto'
 import {describe, expect, it, vi} from 'vitest'
 import {checkSpecCurrency, classifySource, fetchCurrencySources, judgeCurrency, probedRules} from '../checks/b2-check-spec-currency.mjs'
-import {readRawRules} from '../checks/b2-check-spec-drift.mjs'
+import {citation, readRawRules} from '../checks/b2-check-spec-drift.mjs'
 
 const PINNED_SHA = 'c7178b9dcdbf696517f52b2d3126e417eb95fd59'
 const GITHUB_URL = `https://raw.githubusercontent.com/AnswerDotAI/llms-txt/${PINNED_SHA}/nbs/index.qmd`
@@ -30,10 +30,17 @@ interface Finding {
   message: string
 }
 
+interface CitationFields {
+  quote: string
+  content_sha256?: string
+  pinnedAt?: string
+  retrieved?: string
+}
+
 /** The raw shape readRawRules yields: parsed JSON, deliberately unvalidated. */
 interface RawRule {
   rel: string
-  rule: {id: string; spec: {normative_quote: string; content_sha256?: string; verified_against_source: boolean; verification_url?: string}}
+  rule: {id: string; cites?: CitationFields; derivedFrom?: CitationFields}
 }
 
 type FetchText = (url: string) => Promise<string>
@@ -43,8 +50,11 @@ function sha256(s: string): string {
   return createHash('sha256').update(s, 'utf-8').digest('hex')
 }
 
-function ruleWith(url: string, quote = QUOTE, rel = 'llms-txt/example.rule.json'): RawRule {
-  return {rel, rule: {id: 'example', spec: {normative_quote: quote, content_sha256: sha256(quote), verified_against_source: true, verification_url: url}}}
+function ruleWith(url: string, quote = QUOTE, rel = 'llms-txt/example.rule.json', arm: 'cites' | 'derivedFrom' = 'derivedFrom'): RawRule {
+  // `derivedFrom` by DEFAULT, deliberately: the llms-txt rules this check was built to
+  // watch are all rule_class: convention, so the local arm is the realistic case and the
+  // one an arm-keyed probed set would have dropped.
+  return {rel, rule: {id: 'example', [arm]: {quote, content_sha256: sha256(quote), pinnedAt: url, retrieved: '2026-07-30'}}}
 }
 
 /** Serve the pinned URL one body and the HEAD URL another. */
@@ -181,11 +191,21 @@ describe('check-spec-currency: the judged verdicts', () => {
     }
   })
 
-  it('does not probe a rule that is not verified_against_source', async () => {
+  it('does not probe a rule that records no pinned source', async () => {
     const spy = fetchServing(PINNED_BODY, PINNED_BODY)
-    const unverified: RawRule = {rel: 'llms-txt/x.rule.json', rule: {id: 'x', spec: {normative_quote: QUOTE, verified_against_source: false}}}
-    expect(await judge([unverified], spy)).toEqual([])
+    const unpinned: RawRule = {rel: 'llms-txt/x.rule.json', rule: {id: 'x'}}
+    expect(await judge([unpinned], spy)).toEqual([])
     expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('probes a cites rule and a derivedFrom rule identically', async () => {
+    // Scope is "has a pinned source", not "claims conformance". Both arms fetch.
+    const spy = fetchServing(PINNED_BODY, PINNED_BODY)
+    await judge([ruleWith(GITHUB_URL, QUOTE, 'llms-txt/a.rule.json', 'cites')], spy)
+    expect(spy).toHaveBeenCalled()
+    const spy2 = fetchServing(PINNED_BODY, PINNED_BODY)
+    await judge([ruleWith(GITHUB_URL, QUOTE, 'llms-txt/b.rule.json', 'derivedFrom')], spy2)
+    expect(spy2).toHaveBeenCalled()
   })
 })
 
@@ -221,13 +241,28 @@ describe('check-spec-currency: the measurement channel', () => {
   })
 
   it('considers exactly the rules the drift probe probes, so the two cannot drift apart on scope', () => {
-    expect(probedRules(liveRules).map(({rel}) => rel)).toEqual(liveRules.filter(({rule}) => rule.spec?.verified_against_source === true).map(({rel}) => rel))
+    expect(probedRules(liveRules).map(({rel}) => rel)).toEqual(
+      liveRules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string').map(({rel}) => rel)
+    )
   })
 
   // The live catalog's shape, pinned so the check cannot silently lose its subject.
   // If this ever reds because the applicable set emptied, the probe reports
   // `spec-currency-no-applicable-source` rather than measuring 0 unexplained.
   it('has at least one commit-pinned GitHub source to ask the currency question of', () => {
-    expect(probedRules(liveRules).filter(({rule}) => classifySource(rule.spec.verification_url).kind === 'github-raw').length).toBeGreaterThan(0)
+    expect(probedRules(liveRules).filter(({rule}) => classifySource(citation(rule)!.pinnedAt).kind === 'github-raw').length).toBeGreaterThan(0)
+  })
+
+  // THE NEAR-MISS GUARD (atlas decision 0129 consumer round). The llms.txt source is this
+  // check's own motivating receipt -- a v2 shipped on 2026-08-10 against a pin from
+  // 2026-07-30 and nothing in the estate noticed for a month. All five llms-txt rules are
+  // rule_class: convention, so the first cut of the citation split, which keyed the probed
+  // set on rule_class, would have dropped this source entirely one day after the check was
+  // built to watch it. Named explicitly rather than counted, so re-introducing that bug
+  // reds here with the reason attached instead of merely lowering a number.
+  it('keeps the llms.txt source in scope, whatever class its rules carry', () => {
+    const sources = probedRules(liveRules).map(({rule}) => citation(rule)!.pinnedAt)
+    expect(sources.some((url) => url.includes('AnswerDotAI/llms-txt'))).toBe(true)
+    expect(liveRules.filter(({rel}) => rel.startsWith('llms-txt/')).every(({rule}) => rule.rule_class !== 'conformance')).toBe(true)
   })
 })

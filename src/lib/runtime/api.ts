@@ -111,6 +111,23 @@ export interface FetchArtifactOptions {
  * existing catch, so a contract violation surfaces exactly like a network failure
  * (`{status: 'failed'}`) and the retained/server-rendered presentation stays in place.
  */
+/**
+ * The human-readable `reason` for a caught failure.
+ *
+ * `DOMException` is special-cased because Node made it EXTEND `Error`, and that silently changed
+ * this string. The plain `error instanceof Error ? error.message : String(error)` this replaces
+ * sent an abort down the `String(error)` arm and produced `"AbortError: aborted"`; once
+ * `DOMException` became an `Error` the same abort took the `.message` arm and produced a bare
+ * `"aborted"`, dropping the one token that identifies a timeout. Naming the class restores the
+ * previous string for exactly the class that moved, and leaves every other error on `.message`.
+ */
+function failureReason(error: unknown): string {
+  if (typeof DOMException !== 'undefined' && error instanceof DOMException) {
+    return `${error.name}: ${error.message}`
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
 export async function fetchArtifact<K extends ResourceKey>(key: K, options: FetchArtifactOptions = {}): Promise<EndpointResult<ArtifactValues[K]>> {
   const {timeoutMs = 5000, query = ''} = options
   // The compiler constrains K, but the WebSocket push path reaches this function with a value that
@@ -151,7 +168,7 @@ export async function fetchArtifact<K extends ResourceKey>(key: K, options: Fetc
 
     return {status: 'failed', reason: `HTTP ${res.status}`, httpStatus: res.status}
   } catch (error) {
-    return {status: 'failed', reason: error instanceof Error ? error.message : String(error)}
+    return {status: 'failed', reason: failureReason(error)}
   } finally {
     clearTimeout(timer)
   }

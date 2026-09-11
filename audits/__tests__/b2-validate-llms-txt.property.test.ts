@@ -35,7 +35,7 @@
 
 import {describe, expect, it} from 'vitest'
 import fc from 'fast-check'
-import {decodeLlmsTxt, encodeLlmsTxt, parseLlmsTxt} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
+import {decodeLlmsTxt, encodeLlmsTxt, parseLlmsTxt, stripLines} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {validateLlmsTxt} from '../checks/b2-llms.mjs'
 import {wellFormedLlmsTxtArb} from './llms-txt-arbitraries'
 
@@ -45,10 +45,19 @@ import {wellFormedLlmsTxtArb} from './llms-txt-arbitraries'
 // definition of it -- nothing here decides what is structurally valid.
 type LlmsTxtLink = {label: string; url: string; notes?: string}
 type LlmsTxtSection = {name: string; prose: string[]; links: LlmsTxtLink[]}
-type LlmsTxtDoc = {title: string | null; summary: string | null; body: string[]; sections: LlmsTxtSection[]}
+// The source-line shadow tree `parseLlmsTxt` began returning in estate-contracts 0.13.0
+// (atlas decision 0129, AST follow-on). Index-parallel with the semantic tree: `doc.body[i]`
+// came from `doc.lines.body[i]`. Optional, because a HAND-BUILT document never carries one.
+type LlmsTxtLines = {title: number | null; summary: number | null; body: number[]; sections: {name: number; prose: number[]; links: number[]}[]}
+type LlmsTxtDoc = {title: string | null; summary: string | null; body: string[]; sections: LlmsTxtSection[]; lines?: LlmsTxtLines}
 
 const parse = (text: string): LlmsTxtDoc => parseLlmsTxt(text) as LlmsTxtDoc
 const encode = (doc: LlmsTxtDoc): string => encodeLlmsTxt(doc) as string
+// The contract's own "modulo" operator: `encodeLlmsTxt` ignores provenance, so a parsed
+// document can only equal a hand-built one once its `lines` key is dropped. Used ONLY where
+// the comparison is about fields; where both sides are parsed, the positional agreement is
+// real information and the equality stays whole.
+const fields = (doc: LlmsTxtDoc): Omit<LlmsTxtDoc, 'lines'> => stripLines(doc) as Omit<LlmsTxtDoc, 'lines'>
 
 // Markdown list TOKENIZATION, deliberately not a rule: it answers "is this line a
 // bullet at all", nothing more. Which bullets are acceptable is no longer decided
@@ -130,10 +139,37 @@ const mutations: Record<InvariantName, Mutation> = {
   // Not expressible in model space: `encodeLlmsTxt` always emits the title first,
   // which is the whole reason a document CAN fail this rule only at the text level.
   h1First: {ruleId: 'llms-txt-h1', mutate: (text) => `${PREPENDED_PROSE}\n\n${text}`, restore: (mutated) => mutated.slice(`${PREPENDED_PROSE}\n\n`.length)},
-  // Model space: drop the summary and re-encode. The old text-level version
-  // filtered lines by BLOCKQUOTE_RE, which is one of the mirrors this change
-  // deletes, and left a stray blank line behind where the blockquote had been.
-  blockquoteNext: {ruleId: 'llms-txt-blockquote', mutate: (text) => encode({...parse(text), summary: null})},
+  // Text level, and it MOVED here from model space in estate-contracts 0.13.0, for the
+  // IDENTICAL cause linkListItems moved in 0.7.0 and for the same reason singleH1 and
+  // h2NoFileList are text-level. The old form was `encode({...parse(text), summary: null})`,
+  // which only ever worked because the encode boundary admitted a document its own checker
+  // rejected -- the one measured self-inconsistency atlas decision 0129 C1 closed by making
+  // `summary` required in EncodableLlmsTxtDocSchema. Encode is a construction-time boundary,
+  // so the only way to build a document that breaks this rule is to write the text the codec
+  // refuses to render.
+  //
+  // It deletes the summary LINE, located by the source-line shadow tree `parseLlmsTxt` began
+  // returning in 0.13.0 (decision 0129, AST follow-on). Locating it that way is the point: the
+  // text-level version this replaces filtered lines by a local BLOCKQUOTE_RE, and a local regex
+  // is a second copy of the rule the contract already owns -- the mirror class decision 0099
+  // phase 4 deleted from this file. The contract now says WHERE its own summary came from, so
+  // the mutation asks it instead of re-deriving it.
+  //
+  // Surgical by construction: deleting one line leaves the H1, the body, and every section
+  // byte-identical, so h1First, linkListItems, singleH1 and h2NoFileList all read exactly what
+  // they read before. Only `summary` goes null, which is precisely blockquoteNext.
+  blockquoteNext: {
+    ruleId: 'llms-txt-blockquote',
+    mutate: (text) => {
+      const summaryLine = parse(text).lines?.summary
+      if (summaryLine === undefined || summaryLine === null) {
+        throw new Error('blockquoteNext mutation: the generated document carries no summary line to delete')
+      }
+      const lines = text.split('\n')
+      lines.splice(summaryLine - 1, 1)
+      return lines.join('\n')
+    }
+  },
   // Text level, deliberately, and it MOVED here from model space in estate-contracts
   // 0.7.0. Demoting a link to a bare-URL bullet is still the mutation -- it renders as
   // prose because it is not a well-formed link, which is exactly the condition the rule
@@ -305,8 +341,34 @@ describe('the 0.6.0 canonical form for descriptive sections', () => {
 
       // The claim the grouping change must not break: parse collects every non-blank
       // prose line in order, blind to blank runs, so it stays encode's exact inverse.
-      expect(parse(text)).toEqual(doc)
-      expect(encode(parse(text))).toBe(text)
+      //
+      // `fields` and not a loosened matcher: `doc` is HAND-BUILT here, so it carries no
+      // `lines` key, and dropping provenance is how the contract itself states the law
+      // (`stripLines(parseLlmsTxt(encodeLlmsTxt(doc)))` deep-equals `doc`). The equality
+      // stays exact on every semantic field.
+      const parsed = parse(text)
+      expect(fields(parsed)).toEqual(doc)
+      expect(encode(parsed)).toBe(text)
+
+      // What `fields` set aside is asserted on its own terms rather than dropped: the
+      // shadow tree is present, index-parallel with the semantic tree, and every position
+      // names the line whose text it claims. Stripping provenance must not become a way
+      // to stop checking it.
+      const lines = parsed.lines
+      expect(lines).toBeDefined()
+      const sourceLines = text.split('\n')
+      expect(sourceLines[lines!.title! - 1]).toBe(`# ${doc.title}`)
+      expect(sourceLines[lines!.summary! - 1]).toBe(`> ${doc.summary}`)
+      expect(lines!.sections).toHaveLength(doc.sections.length)
+      doc.sections.forEach((section, index) => {
+        const shadow = lines!.sections[index]
+        expect(sourceLines[shadow.name - 1]).toBe(`## ${section.name}`)
+        expect(shadow.prose).toHaveLength(section.prose.length)
+        section.prose.forEach((line, proseIndex) => {
+          expect(sourceLines[shadow.prose[proseIndex] - 1]).toBe(line)
+        })
+        expect(shadow.links).toHaveLength(section.links.length)
+      })
     }), PROPERTY_OPTIONS)
   })
 })

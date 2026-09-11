@@ -4,19 +4,19 @@
   "artifact": "feed.xml",
   "rule_class": "conformance",
   "severity": "fail",
-  "spec": {
-    "name": "RSS 2.0",
+  "cites": {
+    "source": "RSS 2.0",
     "clause": "What is RSS?",
+    "quote": "At the top level, a RSS document is a <rss> element, with a mandatory attribute called version, that specifies the version of RSS that the document conforms to.... Subordinate to the <rss> element is a single <channel> element, which contains information about the channel (metadata) and its contents.",
     "url": "https://www.rssboard.org/rss-specification",
     "version": "RSS 2.0.11 (March 30, 2009)",
-    "conformance_testable": true,
+    "pinnedAt": "https://www.rssboard.org/rss-2-0-11",
     "retrieved": "2026-08-22",
     "content_sha256": "7756f04f314a8253d6880bc7c5dfe3eb25275e2ec5ae4392603e799ca6e8485f",
-    "normative_quote": "At the top level, a RSS document is a <rss> element, with a mandatory attribute called version, that specifies the version of RSS that the document conforms to.... Subordinate to the <rss> element is a single <channel> element, which contains information about the channel (metadata) and its contents.",
-    "note": "The validator checks the rss/channel structure here and the version value in feed-xml-version.",
+    "conformance_testable": true,
     "verified_against_source": true,
     "verified_at": "2026-08-22",
-    "verification_url": "https://www.rssboard.org/rss-2-0-11"
+    "note": "The validator checks the rss/channel structure here and the version value in feed-xml-version."
   },
   "applicability": "A well-formed XML document served as feed.xml.",
   "expectation": "The parsed document has an <rss> root with a <channel> child.",

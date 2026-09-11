@@ -24,9 +24,13 @@ import {COVERS_SPEC_VERSION} from '@j0nathan-ll0yd/estate-contracts/openspec-cov
  * Kept in lockstep with EXPECTED_SPEC_VERSION in scripts/openspec-covers.mjs, which is the blocking
  * CI gate. This is the assertion with real teeth: bytes agreeing with their own sidecar is a
  * corrupted-install check, but a version bump means the RULE moved and openspec/ has to move with
- * it. v4 added `requirement-without-scenario`.
+ * it. v4 added `requirement-without-scenario`. v5 (atlas decision 0127) widened the `verified by`
+ * scan from the keyword LINE to the whole Markdown paragraph, so a citation wrapped onto a
+ * continuation line now resolves against the covers index; it surfaced four citations in
+ * `openspec/specs/llms-txt/spec.md` that v4 structurally could not see, reconciled in the same
+ * change that moved this constant.
  */
-const EXPECTED_SPEC_VERSION = 4
+const EXPECTED_SPEC_VERSION = 5
 
 const REFERENCE_URL = new URL(import.meta.resolve('@j0nathan-ll0yd/estate-contracts/openspec-covers'))
 const SIDECAR_URL = new URL('reference.mjs.sha256', REFERENCE_URL)
