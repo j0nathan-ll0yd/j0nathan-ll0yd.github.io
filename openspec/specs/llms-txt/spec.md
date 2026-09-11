@@ -442,8 +442,12 @@ freshness.
 
 ### Requirement: Conformance claims are anchored to the external convention
 
-Every conformance rule SHALL carry `spec.verified_against_source` true against a SHA-pinned source,
-and each normative quote SHALL still occur in that source.
+Every conformance rule SHALL carry `cites.verified_against_source` true against a SHA-pinned source,
+and each quoted clause SHALL still occur in that source. A local rule — `convention`, `local-policy`
+or `operational` — SHALL NOT carry a `cites` block at all, and therefore SHALL NOT make that claim;
+it records an optional `derivedFrom` instead, which SHALL still pin, date and digest any quote it
+carries. There is no `spec` block and no `verification_url`: the two arms replaced that single
+shared object in atlas decision 0129's consumer round.
 Verified by `audits/__tests__/spec-cases.test.ts:124` (blocking).
 
 The anchor is a PROVENANCE claim, not a conformance claim. What these two gates prove is that the
@@ -454,13 +458,22 @@ the rule's `policy_note` beside the intact citation. Two rules are in that posit
 neither asserts strict structural conformance to the llmstxt.org clause it cites. Every other rule
 in the catalog checks its clause as quoted.
 
-#### Scenario: A clause-citing rule cannot load unverified
+#### Scenario: A quoting rule cannot load unpinned
 
-- **GIVEN** the five llms-txt convention rules each cite an llmstxt.org Format-section clause
+- **GIVEN** the five llms-txt rules are `rule_class: convention` and each carries a `derivedFrom`
+  quote of an llmstxt.org Format-section clause
 - **WHEN** the spec-cases harness loads the llms-txt catalog through `rules('llms-txt')`
-- **THEN** the rule schema SHALL require `spec.verified_against_source` true with a `verified_at`
-  date and an immutable or commit-pinned `verification_url` on every one of them, and SHALL reject
-  the load otherwise
+- **THEN** the rule schema SHALL require a `rationale` on each of them, SHALL forbid a `cites` block
+  on every one of them, and SHALL require `derivedFrom.pinnedAt` in one of the three immutable
+  shapes together with a `derivedFrom.retrieved` date and a `derivedFrom.content_sha256`, and SHALL
+  reject the load otherwise
+
+#### Scenario: A local rule cannot claim verified conformance evidence
+
+- **GIVEN** a `convention`, `local-policy` or `operational` rule
+- **WHEN** it declares `verified_against_source`, `verified_at` or `conformance_testable`
+- **THEN** the load SHALL be rejected, because those three fields live on `cites` alone and assert
+  verified conformance evidence that only a conformance rule may claim
 
 ## Validation matrix
 
