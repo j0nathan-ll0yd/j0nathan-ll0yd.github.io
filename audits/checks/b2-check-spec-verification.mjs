@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// External-source verification gate (ADR 0011).
-// Any rule citing an external clause must carry a verified quote and immutable primary-source URL;
-// a clause marked n/a must disclose why it is unverified. The schema enforces the same branch at
-// load time; this raw-file pass provides focused diagnostics and defense in depth.
+// External-source verification gate (ADR 0011, reshaped by atlas decision 0129's consumer round).
+// Two questions, deliberately separate. THE ARM: only a conformance rule may carry `cites`, which
+// asserts verified conformance evidence; a local rule carries a `rationale` and an optional
+// `derivedFrom`. THE LOCATABILITY: any rule quoting a source -- on EITHER arm -- must pin that
+// quote to an immutable URL and date it, because whether a source was rewritten under a
+// transcription is not a fact about conformance. The schema enforces the same branches at load
+// time; this raw-file pass provides focused diagnostics and defense in depth.
 
 import {readdirSync, readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
@@ -49,8 +52,8 @@ function readRawRules(violations) {
 
 /**
  * The pure gate: given [{rel, rule}], return the list of violation strings.
- * Separated from disk I/O so the failure paths (a conformance rule flipped to
- * false, a living verification_url, a false rule with no note) are exercised
+ * Separated from disk I/O so the failure paths (a local rule claiming conformance
+ * evidence, a living pinnedAt, a local rule with no rationale) are exercised
  * by audits/__tests__/spec-verification.test.ts without mutating on-disk fixtures --
  * the known-answer property (ADR 0011's acceptance criterion) encoded as a
  * standing regression, not only demonstrated once by hand.
