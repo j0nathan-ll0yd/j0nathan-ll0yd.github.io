@@ -53,6 +53,7 @@ const R = rules('llms-txt')
  *   cacheControl: string | null,
  *   cdnCacheControl: string | null,
  *   cfCacheStatus: string | null,
+ *   composedAtHeader: string | null,
  *   error?: string
  * }} LlmsResponseSnapshot
  */
@@ -152,6 +153,15 @@ const COMPOSITION_PATTERNS = [
   /\*\*Generated:\*\*\s*([^\s]+)/i
 ]
 
+/**
+ * The S3 user-metadata key the producer stamps the composition instant on, echoed
+ * through CloudFront on a GET. `exportToS3` writes it unconditionally
+ * (mantle-LifegamesPortal CLAUDE.md, decision 0109), and the key name is a WIRE TOKEN
+ * under decision 0105 -- renaming it is a producer migration, gated there by
+ * `test/provenance/wire-key-parity.test.ts`.
+ */
+const COMPOSED_AT_HEADER = 'x-amz-meta-composed-at'
+
 function mediaType(contentType) {
   return contentType?.split(';', 1)[0]?.trim().toLowerCase() || null
 }
@@ -239,6 +249,57 @@ export function compositionTimestamp(body) {
     return Number.isFinite(value) ? value : null
   }
   return null
+}
+
+/**
+ * Do the two wires carrying ONE composition instant agree for ONE response?
+ *
+ * THE PRODUCER STAMPS ONE INSTANT ON TWO WIRES, AND THEY AGREE AT THE WRITE.
+ * `mantle-LifegamesPortal/src/lambdas/eventbridge/ComposeLlmContent/index.ts:46`
+ * computes `composedAt` once, feeds it to `assembleInputs` at `:56` (which reaches the
+ * BODY trailer, `<!-- composed-at: ... -->`) and passes the same value to all three
+ * `publishArtifact` calls at `:82`, `:87` and `:88` (which reaches the S3 metadata
+ * HEADER, `x-amz-meta-composed-at`). A disagreement is therefore NEVER a producer
+ * defect. It is DELIVERY SKEW: a cached body served beside fresher metadata, or the
+ * reverse.
+ *
+ * NOTHING HELD BOTH WIRES FOR ONE RESPONSE. mantle-LifegamesPortal's C1 reads only the
+ * header (`audits/checks/c1-freshness.mjs:402`); this lane reads only the body
+ * (`COMPOSITION_PATTERNS` above). `fetchSnapshot` already fetched the whole response and
+ * discarded the header, so the observation costs one `headers.get` and no extra request.
+ *
+ * WHY IT IS A WARN AND NOT A FAIL. CloudFront may legitimately serve a cached body
+ * mid-invalidation, so a skew observed inside a normal composition window is expected
+ * rather than defective -- atlas decision 0124 recorded exactly this shape on `feed.json`
+ * ("some feed.json responses carry an older composition stamp over identical valid
+ * bytes"). Ratcheting to `fail` needs an observed false-positive rate that does not exist
+ * yet; see `llms-composed-at-wire-skew.rule.json`.
+ *
+ * Both absence cases return null on purpose. A missing BODY stamp is already reported by
+ * `validateSnapshot`'s `llms-{side}-composition-time` arm, and a missing HEADER means the
+ * hop did not forward the metadata -- an absent wire, not a disagreeing one, and this
+ * function must not invent a finding out of it.
+ *
+ * @param {LlmsResponseSnapshot} snapshot
+ * @returns {{header: string, body: number} | null}
+ */
+export function compositionWireSkew(snapshot) {
+  const header = snapshot.composedAtHeader
+  const body = compositionTimestamp(snapshot.body)
+  if (!header || body === null) {
+    return null
+  }
+  // COMPARE INSTANT TO INSTANT. `body` is ALREADY epoch milliseconds -- compositionTimestamp
+  // returns a number, not a string. `Date.parse(body)` would coerce that number to a decimal
+  // string, fail to parse it, and yield NaN, and `NaN === NaN` is false, so the arm would
+  // report a skew on every response whose wires agree perfectly. Caught by the fixtures in
+  // audits/__tests__/b2-llms.test.ts, which derive the header from the body and therefore
+  // agree by construction: eight cases red at once.
+  const headerMs = Date.parse(header)
+  if (!Number.isFinite(headerMs)) {
+    return null // an unparseable header is a malformed wire, not a disagreeing one
+  }
+  return headerMs === body ? null : {header, body}
 }
 
 /**
@@ -469,6 +530,7 @@ function failedSnapshot(error) {
     cacheControl: null,
     cdnCacheControl: null,
     cfCacheStatus: null,
+    composedAtHeader: null,
     error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
     age: null,
     xCache: null,
@@ -486,6 +548,7 @@ async function fetchSnapshot(url) {
       cacheControl: response.headers.get('cache-control'),
       cdnCacheControl: response.headers.get('cdn-cache-control'),
       cfCacheStatus: response.headers.get('cf-cache-status'),
+      composedAtHeader: response.headers.get(COMPOSED_AT_HEADER),
       age: response.headers.get('age'),
       xCache: response.headers.get('x-cache'),
       source: response.headers.get('x-source')
@@ -516,7 +579,8 @@ function timestampLabel(body) {
 function printSnapshot(side, snapshot, logger) {
   logger.log(
     `  ${side}: status=${snapshot.status} type=${JSON.stringify(snapshot.contentType)} ` +
-      `composed=${timestampLabel(snapshot.body)} bytes=${snapshot.body.byteLength} sha256=${sha256(snapshot.body)} ` +
+      `composed=${timestampLabel(snapshot.body)} composed-at-header=${JSON.stringify(snapshot.composedAtHeader ?? null)} ` +
+      `bytes=${snapshot.body.byteLength} sha256=${sha256(snapshot.body)} ` +
       `cache-control=${JSON.stringify(snapshot.cacheControl)} cdn-cache-control=${JSON.stringify(snapshot.cdnCacheControl)} ` +
       `cf-cache-status=${JSON.stringify(snapshot.cfCacheStatus)} age=${JSON.stringify(snapshot.age)} ` +
       `x-cache=${JSON.stringify(snapshot.xCache)} x-source=${JSON.stringify(snapshot.source)}`
@@ -605,6 +669,40 @@ function structureFindings(pair) {
   return validateLlmsTxt(lossyDecoder.decode(pair.site.body))
 }
 
+/**
+ * Wire-skew arm: for every artifact, on BOTH sides, do the header and body wires agree?
+ *
+ * IT IS A CATALOG FINDING, NOT A COHERENCE FINDING, AND THAT IS THE WHOLE REASON IT SITS
+ * HERE. The per-side path in the coherence arm is `validateSnapshot`, which is the natural
+ * home for it, but a `LlmsCoherenceFinding` carries no severity and `runB2Llms` reds the
+ * step on `coherenceFindings.length > 0` unconditionally. A `warn` is not expressible
+ * there. The catalog path already has the severity ladder this needs: `catalogFailures`
+ * filters on `severity === 'fail'`, so a warn-severity finding prints, reaches the log,
+ * and moves neither the exit code nor the tri-state `issue_outcome`.
+ *
+ * A transport-dark side contributes nothing: `failedSnapshot` sets `composedAtHeader` to
+ * null and carries an empty body, so `compositionWireSkew` returns null for it. The
+ * darkness is already an unknown via `transportObservation`.
+ */
+function wireSkewFindings(pairs) {
+  const findings = []
+  for (const {artifact, origin, site} of pairs) {
+    for (const [side, snapshot] of [['origin', origin], ['site', site]]) {
+      const skew = compositionWireSkew(snapshot)
+      if (skew === null) {
+        continue
+      }
+      findings.push(
+        emit(R, 'llms-composed-at-wire-skew',
+          `${artifact.id} ${side}: x-amz-meta-composed-at is ${JSON.stringify(skew.header)} but the body trailer says ` +
+            `${JSON.stringify(new Date(skew.body).toISOString())} -- one composition instant, two wires, ` +
+            `${durationMinutes(Math.abs(Date.parse(skew.header) - skew.body))}m apart on this response`)
+      )
+    }
+  }
+  return findings
+}
+
 /** Presence arm: site-side existence/non-emptiness for an artifact with no formal spec of its own. */
 function presenceFindings(pair) {
   const id = PRESENCE_IDS[pair.artifact.id]
@@ -690,7 +788,8 @@ export async function runB2Llms({
 
   const catalogFindings = [
     ...structureFindings(pairs.find(({artifact}) => artifact.id === 'llms.txt')),
-    ...pairs.filter(({artifact}) => artifact.id !== 'llms.txt').flatMap((pair) => presenceFindings(pair))
+    ...pairs.filter(({artifact}) => artifact.id !== 'llms.txt').flatMap((pair) => presenceFindings(pair)),
+    ...wireSkewFindings(pairs)
   ]
   const catalogFailures = catalogFindings.filter((finding) => finding.severity === 'fail')
   logger.log('')
