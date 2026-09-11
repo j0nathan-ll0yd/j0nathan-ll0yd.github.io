@@ -106,7 +106,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `./llms-assurance/freshness-config.schema.json` subpaths are gone. That constant's
   `coherencePolicy` is now this repo's freshness/skew authority: `audits/checks/b2-llms.mjs`
   derives its thresholds from it via the published `durationToMilliseconds` (decision 0119 D2),
-  and `audits/__tests__/b2-llms.test.ts:119` tethers the evaluator configuration to it.
+  and `audits/__tests__/b2-llms.test.ts:125` tethers the evaluator configuration to it.
   (The evaluator lived in `audits/lib/llms-coherence.ts` until atlas decision 0122 phase 4, executed
   by 0128, folded it into its single caller; the derivation is unchanged.)
   It also dropped the `./openspec-covers/runner` and
@@ -208,7 +208,7 @@ responses advertise the same composition timestamp, their bytes SHALL be identic
 fresh timestamps within that convergence window represent adjacent valid generations and SHALL
 NOT, by byte difference alone, be reported as corruption.
 
-Verified by `audits/__tests__/b2-llms.test.ts:98` (coherence evaluator).
+Verified by `audits/__tests__/b2-llms.test.ts:104` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
 same-generation byte equality, and cache policy.
 
@@ -237,7 +237,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:317` (orchestration and issue-outcome channel) and
+Verified by `audits/__tests__/b2-llms.test.ts:390` (orchestration and issue-outcome channel) and
 `audits/__tests__/audit-web-workflow.test.ts:58` (workflow wiring).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. The workflow suite
@@ -261,6 +261,53 @@ consuming `steps.llms.outputs.issue_outcome`, and that no evidence envelope step
 - **GIVEN** an origin/site pair or same-side full/index pair has composition timestamps more than 10 minutes apart
 - **WHEN** the coherence evaluator compares them
 - **THEN** it SHALL report excessive composition skew without needing to infer byte corruption
+
+### Requirement: One composition instant, carried on two wires, agrees on one response
+
+The producer computes `composedAt` ONCE and stamps it on two independent wires: the body trailer
+(`<!-- composed-at: ... -->` or `**Generated:**`) and the S3 user-metadata header
+(`x-amz-meta-composed-at`). They agree by construction at the write, so a disagreement observed at
+a reader SHALL NOT be attributed to the producer. It is delivery skew — a cached body served beside
+fresher metadata, or the reverse.
+
+Weekly B2 SHALL hold BOTH wires for each of the six responses it already fetches and report a
+disagreement as the catalog finding `llms-composed-at-wire-skew`, once per side per artifact. The
+comparison SHALL be instant-to-instant with no tolerance window: unlike the convergence window
+above, which compares two DIFFERENT responses that may legitimately refresh at different moments,
+this compares two fields of ONE response stamped from one variable, so equality is the only correct
+answer.
+
+The finding SHALL be `warn` severity and SHALL therefore move neither the audit exit code, the
+tri-state `issue_outcome`, nor the `measured` count. CloudFront may legitimately serve a cached body
+mid-invalidation, and atlas decision 0124 recorded that shape on a sibling artifact ("some
+feed.json responses carry an older composition stamp over identical valid bytes"). Promoting the id
+to `fail` requires an observed false-positive rate that does not yet exist, and this rule is what
+would produce it.
+
+A response missing EITHER wire SHALL produce no finding. An absent body stamp is already reported
+by `llms-{side}-composition-time`; an absent or unparseable header means the hop did not forward
+usable metadata, and an absent wire is not a disagreeing one.
+
+Verified by `audits/__tests__/b2-llms.test.ts:241` (the pure `compositionWireSkew` evaluator over
+agreement, equivalent ISO spellings, both skew directions, both trailer syntaxes, and every absence
+case) and `audits/__tests__/b2-llms.test.ts:504` (the orchestration arm: per-side emission, a
+fleet-wide skew as six findings, and exit 0 throughout).
+
+This requirement exists because nothing in the estate held both wires for one response.
+mantle-LifegamesPortal's C1 reads only the header (`audits/checks/c1-freshness.mjs`), and this lane
+read only the body. Each is internally consistent, and neither can see the other disagreeing.
+
+#### Scenario: A cached body is served beside fresher metadata
+
+- **GIVEN** a response whose `x-amz-meta-composed-at` and body trailer name different instants
+- **WHEN** weekly B2 examines that side of that artifact
+- **THEN** it SHALL emit `llms-composed-at-wire-skew` at `warn` naming both values and their separation, and the run SHALL still exit 0
+
+#### Scenario: A hop forwards no composition metadata
+
+- **GIVEN** a response carrying a valid body trailer but no `x-amz-meta-composed-at` header
+- **WHEN** weekly B2 examines that side of that artifact
+- **THEN** it SHALL emit no wire-skew finding, because an absent wire is not a disagreeing one
 
 ### Requirement: Cache policy is per route, and the feed routes stay edge-cached
 
@@ -426,11 +473,11 @@ is additive: it changes no finding, no exit code, and neither GITHUB_OUTPUT fiel
 cadence is the owner call that would shorten it; keep source freshness distinct from
 recomposition freshness.
 
-Verified by `audits/__tests__/b2-llms.test.ts:120` (the pure evaluator), which injects a fixed clock
+Verified by `audits/__tests__/b2-llms.test.ts:126` (the pure evaluator), which injects a fixed clock
 and synthetic response snapshots to exercise the exact age boundary logic without network and
 asserts the evaluator configuration equals the contract's `coherencePolicy`, by
-`audits/__tests__/b2-llms.test.ts:202` (the derived detection interval and the line the run prints),
-and by `audits/__tests__/b2-llms.test.ts:431` (the presence arm). The old `spec-cases.test.ts` covers
+`audits/__tests__/b2-llms.test.ts:208` (the derived detection interval and the line the run prints),
+and by `audits/__tests__/b2-llms.test.ts:564` (the presence arm). The old `spec-cases.test.ts` covers
 claim was removed: that harness only proved operational rules had no cases and never exercised
 freshness.
 

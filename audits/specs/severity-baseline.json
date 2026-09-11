@@ -18,6 +18,7 @@
     "feed-xml-stale": "fail",
     "feed-xml-version": "fail",
     "index-md": "fail",
+    "llms-composed-at-wire-skew": "warn",
     "llms-full-txt": "fail",
     "llms-txt-blockquote": "fail",
     "llms-txt-fetch": "fail",

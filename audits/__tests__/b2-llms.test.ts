@@ -18,6 +18,7 @@ import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/esta
 import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
 import {
   compositionTimestamp,
+  compositionWireSkew,
   detectionLatencyLine,
   evaluateLlmsCoherence,
   LLMS_COHERENCE_THRESHOLDS,
@@ -67,7 +68,12 @@ function pureSnapshot(body: string, contentType: string, status = 200, site = fa
     body: encoder.encode(body),
     cacheControl: site ? 'no-store' : 'public, max-age=300',
     cdnCacheControl: site ? 'no-store' : null,
-    cfCacheStatus: site ? 'BYPASS' : null
+    cfCacheStatus: site ? 'BYPASS' : null,
+    // The coherence evaluator never reads this wire -- it compares two different
+    // responses, and the wire-skew arm compares two fields of one. Stated as null so
+    // the fixture matches the declared LlmsResponseSnapshot rather than leaning on an
+    // absent property.
+    composedAtHeader: null
   }
 }
 
@@ -229,6 +235,65 @@ describe('detection latency', () => {
 })
 
 // ---------------------------------------------------------------------------
+// compositionWireSkew: two fields of ONE response, not two responses.
+// ---------------------------------------------------------------------------
+
+// covers: llms-txt#One composition instant, carried on two wires, agrees on one response
+describe('compositionWireSkew: the header wire against the body wire, on one response', () => {
+  const withHeader = (body: string, header: string | null): LlmsResponseSnapshot => ({
+    ...pureSnapshot(body, 'text/markdown; charset=utf-8'),
+    composedAtHeader: header
+  })
+
+  it("agrees when the producer's one instant reached both wires intact", () => {
+    expect(compositionWireSkew(withHeader(discoveryBody(RECENT), RECENT))).toBeNull()
+  })
+
+  it('agrees across equivalent ISO spellings -- the comparison is on the instant, not the string', () => {
+    expect(compositionWireSkew(withHeader(discoveryBody('2026-08-29T17:55:00.000Z'), '2026-08-29T17:55:00Z'))).toBeNull()
+    expect(compositionWireSkew(withHeader(discoveryBody('2026-08-29T17:55:00.000Z'), '2026-08-29T18:55:00.000+01:00'))).toBeNull()
+  })
+
+  it('reports the pair when a cached body is served beside fresher metadata', () => {
+    const skew = compositionWireSkew(withHeader(discoveryBody('2026-08-29T17:25:00.000Z'), '2026-08-29T17:55:00.000Z'))
+    expect(skew).toEqual({header: '2026-08-29T17:55:00.000Z', body: Date.parse('2026-08-29T17:25:00.000Z')})
+  })
+
+  it('reports the reverse direction too -- fresher body, stale metadata', () => {
+    const skew = compositionWireSkew(withHeader(discoveryBody('2026-08-29T17:55:00.000Z'), '2026-08-29T17:25:00.000Z'))
+    expect(skew).toEqual({header: '2026-08-29T17:25:00.000Z', body: Date.parse('2026-08-29T17:55:00.000Z')})
+  })
+
+  it('reads the **Generated:** trailer as well as the composed-at comment', () => {
+    expect(compositionWireSkew(withHeader(fullBody(RECENT), RECENT))).toBeNull()
+    expect(compositionWireSkew(withHeader(fullBody('2026-08-29T17:25:00.000Z'), RECENT))).not.toBeNull()
+  })
+
+  // ABSENCE IS NOT DISAGREEMENT. Each missing wire is already reported by another arm, or
+  // means the hop did not forward the metadata at all; inventing a finding from either
+  // would fire on every response a Cloudflare Pages Function strips `x-amz-meta-*` from.
+  it('says nothing when the header wire is absent', () => {
+    expect(compositionWireSkew(withHeader(discoveryBody(RECENT), null))).toBeNull()
+  })
+
+  it('says nothing when the header wire is present but empty', () => {
+    expect(compositionWireSkew(withHeader(discoveryBody(RECENT), ''))).toBeNull()
+  })
+
+  it('says nothing when the body wire is absent -- llms-{side}-composition-time owns that', () => {
+    expect(compositionWireSkew(withHeader('# Site\n\n> Summary\n', RECENT))).toBeNull()
+  })
+
+  it('says nothing about a transport-dark snapshot: no header, no body, no claim', () => {
+    expect(compositionWireSkew({...withHeader('', null), status: 0, body: new Uint8Array()})).toBeNull()
+  })
+
+  it('says nothing when the header wire is present but unparseable -- malformed is not disagreeing', () => {
+    expect(compositionWireSkew(withHeader(discoveryBody(RECENT), 'not-a-date'))).toBeNull()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Orchestration: the same two bodies, reached through an artifact descriptor.
 // ---------------------------------------------------------------------------
 
@@ -237,13 +302,21 @@ function validBody(artifact: LlmsArtifact): string {
 }
 
 function snapshot(artifact: LlmsArtifact, side: 'origin' | 'site', body = validBody(artifact)) {
+  const bytes = new TextEncoder().encode(body)
+  const stamped = compositionTimestamp(bytes)
   return {
     status: 200,
     contentType: `${side === 'site' ? artifact.siteContentType : artifact.originContentType}; charset=utf-8`,
-    body: new TextEncoder().encode(body),
+    body: bytes,
     cacheControl: side === 'site' ? 'no-store' : 'public, max-age=300',
     cdnCacheControl: side === 'site' ? 'no-store' : null,
     cfCacheStatus: side === 'site' ? 'BYPASS' : null,
+    // DERIVED FROM THE BODY, NOT RESTATED. The producer computes `composedAt` once and
+    // stamps it on both wires (ComposeLlmContent/index.ts:46, :56, :82-:88), so a healthy
+    // response agrees by construction -- and so does this fixture. A test that wants skew
+    // overrides the field explicitly, which is what makes the override legible as the
+    // subject under test rather than as fixture drift.
+    composedAtHeader: stamped === null ? null : new Date(stamped).toISOString(),
     age: null,
     xCache: null,
     source: null
@@ -426,6 +499,66 @@ describe('b2-llms audit orchestration', () => {
     expect(result.catalogFindings).toEqual([expect.objectContaining({id: 'llms-txt-h2-no-file-list', severity: 'warn'})])
     expect(result.exitCode).toBe(0)
     expect(result.status).toBe('passed')
+  })
+
+  // covers: llms-txt#One composition instant, carried on two wires, agrees on one response
+  it('names a composed-at wire skew per side per artifact without reddening the step', async () => {
+    const stale = '2026-08-29T17:25:00.000Z'
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        // The body is untouched and still valid: only the metadata wire moved, which is
+        // exactly the delivery skew this arm exists to see. The producer cannot cause it.
+        return artifact.id === 'llms.txt' ? {...pair, site: {...pair.site, composedAtHeader: stale}} : pair
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.catalogFindings).toEqual([
+      expect.objectContaining({id: 'llms-composed-at-wire-skew', severity: 'warn', message: expect.stringContaining('llms.txt site')})
+    ])
+    expect(result.catalogFindings[0].message).toContain(stale)
+    expect(result.catalogFindings[0].message).toContain('30.0m apart')
+    // A warn moves neither the exit code, the tri-state, nor the measured count: the
+    // response was held and judged, and the observation is expected edge behaviour.
+    expect(result.exitCode).toBe(0)
+    expect(result.status).toBe('passed')
+    expect(result.measured).toBe(3)
+    expect(result.coherenceFindings).toEqual([])
+  })
+
+  it('emits once per skewed side, so a fleet-wide skew is six findings and still exit 0', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        const drift = (side: typeof pair.origin) => ({...side, composedAtHeader: '2026-08-29T17:25:00.000Z'})
+        return {...pair, origin: drift(pair.origin), site: drift(pair.site)}
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.catalogFindings.filter((f: {id: string}) => f.id === 'llms-composed-at-wire-skew')).toHaveLength(6)
+    expect(result.exitCode).toBe(0)
+    expect(result.status).toBe('passed')
+  })
+
+  it('stays silent when the hop forwards no x-amz-meta-composed-at at all', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        return {...pair, origin: {...pair.origin, composedAtHeader: null}, site: {...pair.site, composedAtHeader: null}}
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.catalogFindings).toEqual([])
+    expect(result.exitCode).toBe(0)
   })
 
   // covers: llms-txt#Full-content artifacts stay fresh
