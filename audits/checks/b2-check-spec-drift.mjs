@@ -17,7 +17,7 @@ import {artifacts} from '../specs/load.mjs'
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'specs')
 
 // A quote may splice separate passages of one source. The convention (stated
-// in rule.schema.json's verified_against_source description) is that they are
+// in rule.schema.json's cites.quote description) is that they are
 // joined by an ellipsis rather than run together, so a spliced quote is
 // checked segment-by-segment, IN ORDER -- reordering passages must not pass.
 //
@@ -43,7 +43,7 @@ export const MIN_SEGMENT_CHARS = 24
  * line break cannot match byte-for-byte) and folds typographic variants of
  * quotes and dashes that differ between a source and its transcription. It
  * alters no word, no clause, and no sentence boundary -- matching exactly the
- * latitude rule.schema.json's verified_against_source description allows.
+ * latitude rule.schema.json's cites.quote description allows.
  */
 export function normalizeText(s) {
   return String(s).replace(/\r\n?/g, '\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-') // \s already covers NBSP, thin/en/em spaces and U+FEFF in JS, so the
@@ -87,7 +87,7 @@ export function comparable(s) {
   return demarkMarkdown(normalizeText(dehtml(s)))
 }
 
-/** Split a normative_quote into its spliced passages, in order. */
+/** Split a citation quote into its spliced passages, in order. */
 export function quoteSegments(quote) {
   return String(quote).split(SPLICE).map((s) => s.trim()).filter(Boolean)
 }
@@ -114,25 +114,68 @@ export function readRawRules(violations = []) {
 }
 
 /**
- * Half 1 -- INTEGRITY, offline. content_sha256 must still equal
- * sha256(normative_quote), and every spliced segment must clear the
- * anti-truncation floor. Pure: takes [{rel, rule}], returns violation strings.
+ * A rule's citation block, whichever arm declares it, or null for a rule that
+ * records no external source at all.
+ *
+ * THE PROBE READS A PINNED SOURCE WHEREVER IT APPEARS, NOT BY RULE CLASS, and that
+ * is the correct shape rather than a convenience: whether a quote has gone stale was
+ * never a fact about conformance. A `convention` rule quoting llmstxt.org has exactly
+ * as much at stake in that sentence as a `conformance` rule quoting RFC 9116 -- if
+ * the source is rewritten, the rule's stated rationale is stale either way.
+ * `conformance_testable: false` says the upstream has no pass/fail concept; it does
+ * NOT say the citation cannot rot.
+ *
+ * So `cites` and `derivedFrom` differ in the CLAIM they make -- verified conformance
+ * evidence versus an informative derivation -- and not in whether they can be located
+ * and re-read. Both carry `pinnedAt`, `retrieved` and `content_sha256`; only `cites`
+ * carries `conformance_testable`, `verified_against_source` and `verified_at`.
+ */
+export function citation(rule) {
+  return rule.cites ?? rule.derivedFrom ?? null
+}
+
+/**
+ * THE PINNED SET -- the rules this probe can hold to a source, and the ONLY
+ * definition of it in this file. A rule is in it when its citation block records a
+ * `pinnedAt`: 27 of the 34 rules, being the 14 `conformance` rules plus the 13 local
+ * rules that cite an external clause. The 7 left out record no external source (the
+ * old `clause: 'n/a'`), so there is nothing to fetch.
+ *
+ * THE COUNT IS UNCHANGED BY THE CITATION SPLIT, DELIBERATELY. An earlier cut of that
+ * split keyed this set on rule_class and would have taken it from 27 to 14, silently
+ * dropping the AnswerDotAI/llms-txt blob that is decision 0129 C6's own motivating
+ * receipt -- all five llms-txt rules are `convention`. A denominator that shrinks in
+ * silence reports the same green while watching less, which is the failure mode this
+ * estate keeps naming.
+ */
+const pinned = (rules) => rules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string')
+
+/**
+ * Half 1 -- INTEGRITY, offline. content_sha256 must still equal sha256(quote),
+ * and every spliced segment must clear the anti-truncation floor. Pure: takes
+ * [{rel, rule}], returns violation strings.
+ *
+ * Runs over every rule carrying a QUOTE, on BOTH arms. A local rule's transcription
+ * is as worth protecting from an unreviewed edit as a conformance rule's.
  */
 export function checkQuoteIntegrity(rules) {
   const violations = []
 
   for (const {rel, rule} of rules) {
-    const spec = rule.spec ?? {}
-    const quote = spec.normative_quote
+    const spec = citation(rule)
+    if (spec === null) {
+      continue // no external source: the rationale is self-authored, so there is no transcription to protect
+    }
+    const quote = spec.quote
     if (typeof quote !== 'string' || quote.length === 0) {
-      violations.push(`${rel}: spec.normative_quote is required and must be a non-empty string`)
+      violations.push(`${rel}: the citation quote is required and must be a non-empty string`)
       continue
     }
 
     const expected = createHash('sha256').update(quote, 'utf-8').digest('hex')
     if (spec.content_sha256 !== expected) {
       violations.push(
-        `${rel}: spec.content_sha256 ${JSON.stringify(spec.content_sha256)} does not match sha256(spec.normative_quote) ${expected} -- ` +
+        `${rel}: content_sha256 ${JSON.stringify(spec.content_sha256)} does not match sha256(quote) ${expected} -- ` +
           'the quote was edited after authoring without re-running audits/specs/hash-normative-quotes.mjs. ' +
           'Re-run it ONLY if the edit was a faithful correction re-checked against the primary source; the hash is not the authority, the source is'
       )
@@ -161,11 +204,11 @@ export async function fetchText(url) {
 }
 
 /**
- * Half 2 -- DRIFT, network. For every rule verified against a pinned source,
- * re-fetch that source and assert the quote's segments still occur in it, in
- * order. Only rules with verified_against_source: true are probed; a rule with
- * clause 'n/a' has no external source to drift against (check-spec-verification
- * already enforces that complement).
+ * Half 2 -- DRIFT, network. For every rule carrying a pinned citation, re-fetch
+ * that source and assert the quote's segments still occur in it, in order. Only
+ * rules carrying `cites` are probed -- see `pinned` above. A LOCAL rule records
+ * no pinned source to drift against, which the discriminated union in
+ * rule.schema.json now makes structural rather than separately enforced.
  *
  * Fetches are deduplicated per URL -- 15 rules resolve to 3 sources -- and a
  * fetch failure is reported as a violation for every rule that depended on it,
@@ -187,9 +230,9 @@ export async function checkSourceDrift(rules, opts = {}) {
  * @returns {Promise<Map<string, {ok: boolean, text?: string, error?: string}>>}
  */
 export async function fetchPinnedSources(rules, {fetchText: fetchImpl = fetchText} = {}) {
-  const probed = rules.filter(({rule}) => rule.spec?.verified_against_source === true)
+  const probed = pinned(rules)
   const bodies = new Map()
-  for (const url of new Set(probed.map(({rule}) => rule.spec.verification_url))) {
+  for (const url of new Set(probed.map(({rule}) => citation(rule).pinnedAt))) {
     try {
       bodies.set(url, {ok: true, text: await fetchImpl(url)})
     } catch (err) {
@@ -202,15 +245,15 @@ export async function fetchPinnedSources(rules, {fetchText: fetchImpl = fetchTex
 /** The comparison half: pure, over already-fetched bodies. No network. */
 export function compareQuotesAgainstSources(rules, bodies) {
   const violations = []
-  const probed = rules.filter(({rule}) => rule.spec?.verified_against_source === true)
+  const probed = pinned(rules)
 
   for (const {rel, rule} of probed) {
-    const spec = rule.spec
-    const body = bodies.get(spec.verification_url)
+    const spec = citation(rule)
+    const body = bodies.get(spec.pinnedAt)
 
     if (!body.ok) {
       violations.push(
-        `${rel}: INDETERMINATE -- could not re-fetch spec.verification_url ${spec.verification_url} (${body.error}). ` +
+        `${rel}: INDETERMINATE -- could not re-fetch spec.pinnedAt ${spec.pinnedAt} (${body.error}). ` +
           'An unreachable source is not a pass: the probe could not look, so it reports rather than assumes'
       )
       continue
@@ -218,12 +261,12 @@ export function compareQuotesAgainstSources(rules, bodies) {
 
     const haystack = comparable(body.text)
     let cursor = 0
-    for (const seg of quoteSegments(spec.normative_quote)) {
+    for (const seg of quoteSegments(spec.quote)) {
       const needle = comparable(seg)
       const at = haystack.indexOf(needle, cursor)
       if (at === -1) {
         const reordered = haystack.includes(needle)
-        violations.push(`${rel}: spec.normative_quote no longer occurs in its pinned source ${spec.verification_url} -- ` + (reordered
+        violations.push(`${rel}: spec.quote no longer occurs in its pinned source ${spec.pinnedAt} -- ` + (reordered
           ? 'the passage is present but OUT OF ORDER relative to the rest of the quote (spliced passages must appear in the order the quote joins them). '
           : '') + `Missing segment: ${JSON.stringify(seg.slice(0, 120))}${seg.length > 120 ? '…' : ''}`)
         break
@@ -277,19 +320,23 @@ async function main() {
   const drift = integrityOnly ? null : await checkSpecDrift()
   const offline = integrityOnly ? checkIntegrityOnly() : null
   const violations = drift ? drift.violations : offline
-  const ruleCount = drift ? drift.ruleCount : readRawRules([]).length
-  const measured = publishMeasured(drift ? drift.measured : ruleCount)
-  const measuredUnit = integrityOnly ? 'rule file(s)' : 'pinned source(s)'
+  const allRules = readRawRules([])
+  // The integrity half measures the rules it actually HELD AND JUDGED, which since the atlas
+  // decision 0129 consumer round is the PINNED set and not every rule file. Publishing the
+  // whole-catalog count here would be a falsified record in the exact shape AGENTS.md names: a
+  // number that can never reach 0 and never reflects what the step read.
+  const measured = publishMeasured(drift ? drift.measured : pinned(allRules).length)
+  const measuredUnit = integrityOnly ? 'pinned rule file(s)' : 'pinned source(s)'
 
   console.log(`\n=== ${label} ===`)
   if (violations.length === 0) {
     const rules = readRawRules([])
-    const probed = rules.filter(({rule}) => rule.spec?.verified_against_source === true)
-    const sources = new Set(probed.map(({rule}) => rule.spec.verification_url))
+    const probed = pinned(rules)
+    const sources = new Set(probed.map(({rule}) => citation(rule).pinnedAt))
     console.log('  (no violations)')
     console.log(integrityOnly
-      ? `  ${rules.length} rule(s) checked: every content_sha256 matches its own normative_quote, 0 violation(s)`
-      : `  ${rules.length} rule(s) checked: ${probed.length} verified rule(s) re-checked against ${sources.size} pinned source(s), 0 violation(s)`)
+      ? `  ${probed.length} quoting rule(s) of ${rules.length} checked: every content_sha256 matches its own quote, 0 violation(s)`
+      : `  ${rules.length} rule(s) checked: ${probed.length} pinned rule(s) re-checked against ${sources.size} pinned source(s), 0 violation(s)`)
     console.log(`  measured=${measured} ${measuredUnit} held and judged`)
     process.exit(0)
   }

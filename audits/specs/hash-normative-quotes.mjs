@@ -27,9 +27,16 @@ for (const artifact of artifacts()) {
   for (const fileName of readdirSync(dir).filter((n) => n.endsWith('.rule.json'))) {
     const filePath = join(dir, fileName)
     const rule = JSON.parse(readFileSync(filePath, 'utf-8'))
-    const hash = createHash('sha256').update(rule.spec.normative_quote, 'utf-8').digest('hex')
-    if (rule.spec.content_sha256 !== hash) {
-      rule.spec.content_sha256 = hash
+    // Either arm may carry a quote: `cites` on a conformance rule, `derivedFrom` on a local
+    // rule that descends from a published clause. A rule with no external source has no
+    // transcription to hash.
+    const spec = rule.cites ?? rule.derivedFrom
+    if (spec === undefined || typeof spec.quote !== 'string') {
+      continue
+    }
+    const hash = createHash('sha256').update(spec.quote, 'utf-8').digest('hex')
+    if (spec.content_sha256 !== hash) {
+      spec.content_sha256 = hash
       writeFileSync(filePath, JSON.stringify(rule, null, 2) + '\n')
       changed++
       console.log(`updated ${artifact}/${fileName} -> ${hash}`)

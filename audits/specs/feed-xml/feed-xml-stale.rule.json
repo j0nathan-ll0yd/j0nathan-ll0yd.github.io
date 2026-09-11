@@ -7,19 +7,7 @@
   "params": {
     "maxAgeDays": 7
   },
-  "spec": {
-    "name": "RSS 2.0",
-    "clause": "n/a",
-    "url": "https://www.rssboard.org/rss-specification",
-    "version": "RSS 2.0.11 (March 30, 2009)",
-    "conformance_testable": false,
-    "retrieved": "2026-08-22",
-    "content_sha256": "70c1b1fb8ed56acf84270b2a135403f7185b31102d3997ce1d8fd8205f6f4c47",
-    "normative_quote": "RSS 2.0 does not define a freshness window for the newest item. This seven-day limit is local policy.",
-    "note": "No external specification imposes the threshold.",
-    "verified_against_source": false,
-    "verification_note": "Clause n/a. The quote states the absence of an external freshness rule and records this repo's local policy."
-  },
+  "rationale": "RSS 2.0 does not define a freshness window for the newest item. This seven-day limit is local policy.",
   "applicability": "A parsed RSS channel with at least one parseable item pubDate.",
   "expectation": "The newest pubDate is not more than maxAgeDays before evaluation. Exactly seven days old passes.",
   "cases": [

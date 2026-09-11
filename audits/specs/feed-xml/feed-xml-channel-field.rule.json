@@ -4,19 +4,19 @@
   "artifact": "feed.xml",
   "rule_class": "conformance",
   "severity": "fail",
-  "spec": {
-    "name": "RSS 2.0",
+  "cites": {
+    "source": "RSS 2.0",
     "clause": "Required channel elements",
+    "quote": "Here's a list of the required channel elements, each with a brief description, an example, and where available, a pointer to a more complete description.... title The name of the channel.... link The URL to the HTML website corresponding to the channel.... description Phrase or sentence describing the channel.",
     "url": "https://www.rssboard.org/rss-specification",
     "version": "RSS 2.0.11 (March 30, 2009)",
-    "conformance_testable": true,
+    "pinnedAt": "https://www.rssboard.org/rss-2-0-11",
     "retrieved": "2026-08-22",
     "content_sha256": "7f4126a5c8144b955197322443805adb7d9195dfc0fbd37bd2ced77d40d54ade",
-    "normative_quote": "Here's a list of the required channel elements, each with a brief description, an example, and where available, a pointer to a more complete description.... title The name of the channel.... link The URL to the HTML website corresponding to the channel.... description Phrase or sentence describing the channel.",
-    "note": "Separate table passages are joined with ellipses and checked in source order.",
+    "conformance_testable": true,
     "verified_against_source": true,
     "verified_at": "2026-08-22",
-    "verification_url": "https://www.rssboard.org/rss-2-0-11"
+    "note": "Separate table passages are joined with ellipses and checked in source order."
   },
   "applicability": "The <channel> element of a parsed RSS 2.0 document.",
   "expectation": "The channel contains non-empty title, link, and description elements.",

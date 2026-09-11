@@ -4,19 +4,16 @@
   "artifact": "feed.xml",
   "rule_class": "local-policy",
   "severity": "warn",
-  "spec": {
-    "name": "RSS 2.0",
+  "rationale": "RSS makes pubDate optional. This warning is local policy because freshness cannot be evaluated without one parseable item date.",
+  "derivedFrom": {
+    "source": "RSS 2.0",
     "clause": "<pubDate> sub-element of <item>",
     "url": "https://www.rssboard.org/rss-specification",
     "version": "RSS 2.0.11 (March 30, 2009)",
-    "conformance_testable": false,
+    "quote": "<pubDate> is an optional sub-element of <item>.... Its value is a date, indicating when the item was published.",
+    "pinnedAt": "https://www.rssboard.org/rss-2-0-11",
     "retrieved": "2026-08-22",
-    "content_sha256": "4d88675408f3961d98f2f3f3287db7bed88a4bb3ef9d1c2d02be5e034875df90",
-    "normative_quote": "<pubDate> is an optional sub-element of <item>.... Its value is a date, indicating when the item was published.",
-    "note": "RSS makes pubDate optional. This warning is local policy because freshness cannot be evaluated without one parseable item date.",
-    "verified_against_source": true,
-    "verified_at": "2026-08-22",
-    "verification_url": "https://www.rssboard.org/rss-2-0-11"
+    "content_sha256": "4d88675408f3961d98f2f3f3287db7bed88a4bb3ef9d1c2d02be5e034875df90"
   },
   "applicability": "A parsed RSS channel with at least one item.",
   "expectation": "At least one item's pubDate parses as a valid date.",

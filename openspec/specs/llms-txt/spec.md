@@ -50,7 +50,8 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `audits/__tests__/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `149ea49a0c98448687dc6b081ed154ea2d3462d339526fdd4794144953483eae` — and
+  beside them — sha256 `6a979501dd2dd14b591158c0b503b153ddc024a57304209d9dbaa12caae6e770`, re-read
+  from the installed package at the `0.13.0` bump — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - The dependency (atlas decision 0103, new in `0.7.0`): the tier's invariant is no longer "imports
   nothing" but "pinned, version-asserted dependencies" — the property `export-surface/extract.mjs`
@@ -209,9 +210,12 @@ NOT, by byte difference alone, be reported as corruption.
 
 Verified by `audits/__tests__/b2-llms.test.ts:98` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
-same-generation byte equality, and cache policy; `audits/checks/b2-llms.mjs` (the one merged weekly
-llms check, atlas decision 0119 D2) holds that evaluator and runs it as its coherence arm beside
-the structural catalog arm.
+same-generation byte equality, and cache policy.
+
+The implementation, named here and deliberately outside the citation block above because it is the
+subject under test rather than a tether: `audits/checks/b2-llms.mjs` (the one merged weekly llms
+check, atlas decision 0119 D2) holds that evaluator and runs it as its coherence arm beside the
+structural catalog arm.
 
 Weekly B2 SHALL derive a tri-state status from the run and expose it as the `issue_outcome`
 GITHUB_OUTPUT before returning its audit exit code (`audits/checks/b2-llms.mjs`, which also holds
@@ -233,9 +237,10 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:317` (orchestration and issue-outcome channel).
+Verified by `audits/__tests__/b2-llms.test.ts:317` (orchestration and issue-outcome channel) and
+`audits/__tests__/audit-web-workflow.test.ts:58` (workflow wiring).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
-output mapping, uncaught failure, and the issue lifecycle. `audits/__tests__/audit-web-workflow.test.ts`
+output mapping, uncaught failure, and the issue lifecycle. The workflow suite
 asserts no workflow-level suppression skip, report-only exit preservation, the reconciler
 consuming `steps.llms.outputs.issue_outcome`, and that no evidence envelope step survives.
 
@@ -346,8 +351,8 @@ contain exactly one H1. Every H2 section list item that carries an http(s) URL S
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
 Verified by `audits/__tests__/spec-cases.test.ts:123` (the five convention rules, derived cases) and
-`audits/__tests__/b2-validate-llms-txt.property.test.ts` (the five structural invariants as
-properties, tethered by its three `covers:` comments at `:169`, `:203`, and `:265`).
+`audits/__tests__/b2-validate-llms-txt.property.test.ts:205` (the five structural invariants as
+properties, tethered by its three `covers:` comments at `:205`, `:239`, and `:301`).
 
 SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
 section to hold a list. The producer contract test found the live index legitimately mixing file
@@ -494,8 +499,9 @@ in the catalog checks its clause as quoted.
 
 This repo has no `mantle check openspec` tooling. The `covers:` tethers in the covering test files
 are instead enforced by the openspec-covers contract, consumed from
-`@j0nathan-ll0yd/estate-contracts/openspec-covers` at `COVERS_SPEC_VERSION` 4 (atlas decisions 0079
-item 4 wave 2b, 0080). It was vendored at `scripts/vendor/openspec-covers.mjs` until that migration;
+`@j0nathan-ll0yd/estate-contracts/openspec-covers` at `COVERS_SPEC_VERSION` 5 (atlas decisions 0079
+item 4 wave 2b, 0080; the rule moved 4 to 5 in atlas decision 0127, adopted here on the `0.13.0`
+bump). It was vendored at `scripts/vendor/openspec-covers.mjs` until that migration;
 the copy is gone and must not come back. `scripts/openspec-covers.mjs` wraps the package and runs
 blocking via `pnpm run check:covers` and the `covers-conformance` job in
 `.github/workflows/static-checks.yml`, on every pull request and every push to main.

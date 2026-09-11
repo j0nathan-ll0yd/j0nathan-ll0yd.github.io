@@ -34,10 +34,14 @@ const REPO_ROOT = resolve(__dirname, '..')
  * The covers spec version this repo's openspec/ tree was written against.
  *
  * v4 added `requirement-without-scenario`: every `### Requirement:` must carry at least one
- * `#### Scenario:`. Moving this number means the rule changed under us -- read the tier README,
- * bring openspec/ into line with the new rule, and move the constant in the same change.
+ * `#### Scenario:`. v5 (atlas decision 0127) widened the `verified by` scan from the keyword LINE to
+ * the whole Markdown paragraph, so a citation wrapped onto a continuation line is now resolved
+ * against the covers index instead of being silently skipped. Opening-line behaviour is
+ * byte-identical, so the change can only ADD findings. Moving this number means the rule changed
+ * under us -- read the tier GUIDE, bring openspec/ into line with the new rule, and move the
+ * constant in the same change.
  */
-const EXPECTED_SPEC_VERSION = 4
+const EXPECTED_SPEC_VERSION = 5
 
 /** The tier's reference module URL. Sidecars sit beside it; the layout is flat and stable. */
 const REFERENCE_URL = new URL(import.meta.resolve('@j0nathan-ll0yd/estate-contracts/openspec-covers'))
