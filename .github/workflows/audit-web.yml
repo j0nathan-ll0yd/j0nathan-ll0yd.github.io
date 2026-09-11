@@ -300,6 +300,28 @@ jobs:
         continue-on-error: true
         run: node audits/checks/b2-check-spec-drift.mjs
 
+      # Atlas decision 0129 C6. The SIBLING question to spec_drift above, and it needs
+      # its own step for two reasons. (1) spec_drift's verification_url is immutable BY
+      # SCHEMA -- that is the property its comparison depends on -- so it structurally
+      # cannot see that the upstream document was revised. (2) The measurement channel is
+      # per step and counts artifacts held: spec_drift counts pinned sources, this counts
+      # CURRENT blobs, and one counter carrying both would publish a healthy number for a
+      # run that reached every pinned source and no current one.
+      #
+      # Advisory by construction: it is wired into no PR gate, and a revision whose
+      # normative quotes survive is `warn` (exit 0). Only a quote that has GONE from the
+      # current document, or a blob it could not hold, reaches `fail` -- because `fail` is
+      # the only severity the reconciler below can see.
+      - name: B2 -- external spec currency (pinned sources vs upstream today)
+        id: spec_currency
+        continue-on-error: true
+        env:
+          # Raises the unauthenticated 60/hr per-IP ceiling this self-hosted runner shares
+          # with every other job on the host. Used ONLY to name the commit a reader would
+          # re-pin to; the verdict is a byte comparison and needs no credential.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node audits/checks/b2-check-spec-currency.mjs
+
       - name: B7/B8 -- security headers, TLS/cert expiry, CSP drift
         id: headers
         continue-on-error: true
@@ -444,6 +466,7 @@ jobs:
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.feeds.outcome }}'},
                 {id: 'spec-drift', title: 'B2 external spec drift (pinned sources vs normative quotes)', outcome: '${{ steps.spec_drift.outcome }}'},
+                {id: 'spec-currency', title: 'B2 external spec currency (pinned sources vs upstream today)', outcome: '${{ steps.spec_currency.outcome }}'},
                 {id: 'headers', title: 'B7/B8 headers, TLS, CSP drift', outcome: '${{ steps.headers.outcome }}'},
                 {id: 'lhci', title: 'B3 Lighthouse CI budgets', outcome: '${{ steps.lhci.outcome }}'},
                 {id: 'pa11y', title: 'B4 pa11y-ci accessibility', outcome: '${{ steps.pa11y.outcome }}'},
@@ -496,6 +519,7 @@ jobs:
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}
             spec_drift|${{ steps.spec_drift.outcome }}|${{ steps.spec_drift.outputs.measured }}
+            spec_currency|${{ steps.spec_currency.outcome }}|${{ steps.spec_currency.outputs.measured }}
             headers|${{ steps.headers.outcome }}|${{ steps.headers.outputs.measured }}
             lhci|${{ steps.lhci.outcome }}|n/a|third-party tool run (Lighthouse); the budget assertion is its verdict, it holds no artifact set to count
             pa11y|${{ steps.pa11y.outcome }}|n/a|third-party tool run (pa11y-ci); the axe/htmlcs verdict is its own, it holds no artifact set to count
