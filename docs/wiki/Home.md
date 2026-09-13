@@ -22,7 +22,7 @@ Deployment is automatic via GitHub Actions on push to `main`.
 - **[Brand Guide](Brand-Guide.md)** -- Colors, typography, glass-morphism, widget structure, responsive breakpoints
 - **[Widget Specification](Widget-Specification.md)** -- Requirements, testing, and compliance for all widgets
 - **[Why Astro](Why-Astro.md)** -- Framework evaluation and decision rationale
-- **[LLM Content Spec](LLM-Content-Spec.md)** -- LLM-optimized content surface, file inventory, freshness expectations, Level 2 health granularity constraint
+- **[LLM Content Spec](LLM-Content-Spec.md)** -- LLM-optimized content surface: file inventory, the authority map naming who owns each normative fact, serving policy, freshness model, and agent-readiness files
 - **[Sources and Acknowledgments](Sources-and-Acknowledgments.md)** -- Running log of external authors and references that shaped how this site is built
 
 ## Technology Stack

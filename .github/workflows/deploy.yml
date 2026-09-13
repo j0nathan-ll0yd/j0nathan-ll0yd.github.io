@@ -55,6 +55,33 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy dist --project-name=human-datastream
 
+      - name: Purge stale production cache metadata
+        # Cloudflare's custom-domain cache can retain an unchanged Pages asset's
+        # old response headers across deploys and 304 revalidation. Purging after
+        # the new deployment makes cross-cutting _headers changes atomic with the
+        # release instead of waiting for per-PoP eviction.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          curl --silent --show-error --fail-with-body \
+            --connect-timeout 5 --max-time 30 \
+            --request POST \
+            --url "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data '{"purge_everything":true}' \
+            | node --input-type=module -e '
+                let body = ""
+                for await (const chunk of process.stdin) body += chunk
+                const result = JSON.parse(body)
+                if (!result.success) {
+                  console.error("Cloudflare cache purge failed:", JSON.stringify(result.errors))
+                  process.exit(1)
+                }
+                console.log("Cloudflare production zone cache purged.")
+              '
+
       - name: Notify backend of new deploy
         # Lets already-open dashboard tabs pick up the new build in real time via
         # the WebSocket push (backend POST /deploy/notify -> broadcast app-update).
@@ -119,26 +146,38 @@ jobs:
 
       - name: Create issue for new images
         if: steps.check.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          MISSING=$(cat missing-images.txt)
-          gh issue create \
-            --title "New images detected on CloudFront" \
-            --body "$(cat <<EOF
-          The deploy detected new images on CloudFront that are not yet committed to the repo.
-
-          **Missing images:**
-          \`\`\`
-          ${MISSING}
-          \`\`\`
-
-          **To fix:**
-          \`\`\`bash
-          pnpm run fetch:images
-          git add public/images/
-          git commit -m "Add new optimized images from CloudFront"
-          git push
-          \`\`\`
-          EOF
-          )"
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const fs = await import('node:fs');
+            const readEvidence = (path, fallback) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8').trim() : fallback;
+            const missing = readEvidence('missing-images.txt', '(no manifest-minus-local list was produced; inspect the audit report)');
+            const report = readEvidence('image-audit-report.txt', '(image audit report missing; inspect the workflow log)');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: 'Image mirror audit failed',
+              body: [
+                'The deploy image-mirror check found missing, stale, invalid, or unreachable image artifacts.',
+                '',
+                '**Missing images:**',
+                '```',
+                missing,
+                '```',
+                '',
+                '**Full audit report:**',
+                '```',
+                report,
+                '```',
+                '',
+                '**To update the mirror:**',
+                '```bash',
+                'pnpm run fetch:images',
+                'git add public/images/',
+                'git commit -m "Add optimized images from CloudFront"',
+                'git push',
+                '```',
+                '',
+                'Review local-minus-manifest entries before deleting them; the script never prunes automatically.',
+              ].join('\n'),
+            });

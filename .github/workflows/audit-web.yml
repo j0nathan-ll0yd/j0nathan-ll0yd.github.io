@@ -1,28 +1,29 @@
 # Web Audit Synthetics -- lp-audit Phase 2 (monorepo-LifegamesPortal
-# .omc/plans/monorepo-audit-system.md, catalog domain B). Scheduled, read-only
-# checks against the LIVE site (https://jonathanlloyd.me); this workflow never
-# touches site source, CSP, or build behavior.
+# .omc/plans/monorepo-audit-system.md, catalog domain B). Read-only checks
+# against the LIVE site (https://jonathanlloyd.me); this workflow never touches
+# site source, CSP, or build behavior. As of the Phase-4 single-clock cutover,
+# the external scheduler is the clock (Atlas decisions 0092/0093) and dispatches
+# this workflow with one exact tier.
 #
 # REPORT-ONLY (D4): every check step below runs `continue-on-error: true`, so
-# a failing check never fails the job or blocks anything -- it files/updates
-# one GitHub issue per check id (D5) and the job still finishes and pings its
-# Healthchecks.io dead-man's-switch (D6). Promotion to blocking is a Phase 6
-# decision, not something this workflow does on its own.
+# a failing check never fails the job or blocks anything -- it reconciles one
+# machine-owned GitHub issue per check id (D5), including closing it only after
+# that check's whole result bucket is green. Trusted external scheduler
+# dispatches finish and ping their Healthchecks.io dead-man's-switch (D6; Atlas
+# decision 0092). Ordinary human workflow_dispatch runs do neither.
+# validate_reconciler dispatches exercise only the reconciler and never ping, so
+# they cannot mask a missed check-in (Atlas decision 0091).
+# Promotion to blocking is a Phase 6 decision, not something this workflow does
+# on its own.
 #
 # MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to Cloudflare Pages
-# AND is the only branch GitHub will fire `schedule:`/`workflow_dispatch` from
-# -- registry fact web-main-autodeploys-prod) -- do not merge without explicit
-# user instruction (B5). The schedules below only start firing once merged.
+# AND is the branch the external scheduler dispatches -- registry fact
+# web-main-autodeploys-prod) -- do not merge without explicit user instruction
+# (B5).
 
 name: Web Audit Synthetics
 
 on:
-  schedule:
-    # Off-round minutes (D6: avoid the 22:00-02:00 UTC GitHub cron congestion
-    # window and exact-hour thundering herds).
-    - cron: '17 6 * * *' # daily
-    - cron: '23 5 * * 1' # weekly (Monday)
-    - cron: '41 4 2 * *' # monthly (day 2)
   workflow_dispatch:
     inputs:
       tier:
@@ -30,6 +31,14 @@ on:
         type: choice
         options: [all, daily, weekly, monthly]
         default: all
+      scheduled_by_external:
+        description: 'Set only by the trusted external scheduler (decision 0092)'
+        type: boolean
+        default: false
+      validate_reconciler:
+        description: 'Exercise the managed-issue reconciler on this manual run (normally schedule-only). Validates the Octokit reconciler without waiting for cron.'
+        type: boolean
+        default: false
 
 concurrency:
   group: audit-web
@@ -43,12 +52,14 @@ permissions:
 jobs:
   daily:
     name: Daily (B1 smoke, B6 analytics)
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '17 6 * * *')
+    if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')
     # playwright label: Chromium is preinstalled in the runner-playwright image; the node
     # label cannot `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
-    runs-on: [self-hosted, linux, arm64, playwright]
+    # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) — routes
+    # this job onto the pinned subnet whose source-scoped rule allows CloudFront :443, so page
+    # assets keep loading once the shared-bridge CloudFront rule is removed. Admission-neutral;
+    # inert until the host flips COLIMA_CFEDGE_LABELS (stage C3).
+    runs-on: [self-hosted, linux, arm64, playwright, cfedge]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -77,7 +88,7 @@ jobs:
       # the continue-on-error checks run, so an egress outage reds the job with an
       # actionable message instead of masking as a smoke no-op (2026-08-17 incident).
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash scripts/audit/preflight-egress.sh
+        run: bash audits/preflight-egress.sh
 
       # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add `playwright install`.
       - name: B1 -- production smoke suite (scheduled, not just post-deploy)
@@ -98,41 +109,65 @@ jobs:
         continue-on-error: true
         env:
           SA_API_KEY: ${{ secrets.SA_API_KEY }}
-        run: node scripts/audit/check-analytics.mjs
+        run: node audits/checks/b6-check-analytics.mjs
 
-      - name: File/update issues for failing checks
-        if: always() && github.event_name != 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CHECK_RESULTS_JSON: >-
-            [
-              {"id":"smoke","title":"B1 production smoke suite (scheduled)","outcome":"${{ steps.smoke.outcome }}"},
-              {"id":"analytics","title":"B6 analytics beacons (CF + SA)","outcome":"${{ steps.analytics.outcome }}"}
-            ]
-        run: node scripts/audit/lib/file-check-issues.mjs
+      - name: Reconcile managed audit issues
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
+          )
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'smoke', title: 'B1 production smoke suite (scheduled)', outcome: '${{ steps.smoke.outcome }}'},
+                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: '${{ steps.analytics.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
 
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (every check is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See audits/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always()
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
           HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
-        run: |
-          if [ -z "$HC_URL" ]; then
-            echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 5 "$HC_URL"
+          HC_SECRET_NAME: HC_PING_AUDIT_WEB
+          JOB_STATUS: ${{ job.status }}
+          # The measurement channel, one record per CHECK step (atlas decision 0122).
+          # `job.status` is the very signal that cannot see a swallowed check, so each
+          # step's own claim is forwarded instead. Any step claiming 0 wedges the tier;
+          # a sum would let one dark check hide behind healthy siblings.
+          # Setup steps (chrome, focus_mode) are not checks and never appear here.
+          MEASURED_STEPS: |
+            smoke|${{ steps.smoke.outcome }}|n/a|third-party tool run (Playwright); the suite exit code is its verdict, it holds no artifact set to count
+            analytics|${{ steps.analytics.outcome }}|${{ steps.analytics.outputs.measured }}
+        run: bash audits/healthchecks-ping.sh
 
   weekly:
     name: Weekly (B2 artifacts, B3 LHCI, B4 pa11y, B5 lychee, B7 headers, B8 cache)
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '23 5 * * 1')
+    if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')
     # playwright label: Chromium is preinstalled in the runner-playwright image (shared by
     # B3 LHCI / B4 pa11y via the resolved executablePath below); the node label cannot
     # `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
-    runs-on: [self-hosted, linux, arm64, playwright]
+    # cfedge label: COLIMA-CFEDGE egress-lane marker (ci-runners-private #130, stage C2) — keeps
+    # CloudFront asset egress for B3/B4 once the shared-bridge rule is source-scoped. Inert until
+    # stage C3 flips COLIMA_CFEDGE_LABELS.
+    runs-on: [self-hosted, linux, arm64, playwright, cfedge]
+    # NO JOB-LEVEL `outputs:` HERE, DELIBERATELY. It carried `measured` from the llms step when
+    # only that step had a channel. A job output is readable only by a job that `needs:` this one,
+    # and audit-web.yml's three tiers are independent -- nothing consumed it. The ping step is
+    # inside this same job and reads `steps.<id>.outputs.measured` directly, which is what the
+    # value's own comment already said it did. Dead wiring that looks load-bearing is worse than
+    # no wiring; the live channel is MEASURED_STEPS on the ping step below.
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -160,14 +195,20 @@ jobs:
       # Distinguish a self-hosted runner egress outage from a real site regression before
       # the continue-on-error checks run (2026-08-17 incident).
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash scripts/audit/preflight-egress.sh
+        run: bash audits/preflight-egress.sh
 
-      # validate-sitemap.mjs shells out to xmllint (scripts/audit/vendor/*.xsd
-      # schema validation) -- present by default on macOS but NOT preinstalled
-      # on the ubuntu-latest image (verified: a bare `xmllint` step 404s with
-      # ENOENT). libxml2-utils is a small, fast apt package.
-      - name: Install xmllint (libxml2-utils, for B2 sitemap XSD validation)
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+      # NO PACKAGE INSTALL STEP HERE, BY DESIGN. This job used to `apt-get
+      # install libxml2-utils` for the xmllint that validate-sitemap.mjs shelled
+      # out to. These runners sit behind a default-deny egress allowlist
+      # (ci-runners-private) that does not include ports.ubuntu.com or
+      # deb.nodesource.com -- the same isolation the two `runs-on` comments above
+      # already call out for `playwright install --with-deps`. apt-get exited 100
+      # on every attempt and killed the whole report-only job before a single
+      # check ran (31999694781, 32600311656, 32695529989 -- 15 days dark).
+      # validate-sitemap.mjs now validates in-process via
+      # audits/lib/sitemap-schema.mjs (fast-xml-parser +
+      # fast-xml-validator, already in the lockfile), so nothing here needs the
+      # network beyond the site under test. Do not reintroduce a per-run install.
 
       # pa11y-ci (Puppeteer) and @lhci/cli (chrome-launcher) each otherwise
       # download their own Chrome-for-Testing copy. Installing Playwright's
@@ -185,25 +226,64 @@ jobs:
           PATH_OUT=$(node --input-type=module -e "import { chromium } from '@playwright/test'; console.log(chromium.executablePath());")
           echo "path=$PATH_OUT" >> "$GITHUB_OUTPUT"
 
-      - name: B2 -- llms.txt structural validator
-        id: llms_txt
+      - name: Probe focus suppression for conditioned checks
+        id: focus_mode
         continue-on-error: true
-        run: node scripts/audit/validate-llms-txt.mjs
+        run: node audits/probe-suppression.mjs --github-output
+
+      # The one llms content-plane check (atlas decision 0119 D2): the llmstxt.org
+      # structural catalog, site-side presence, and origin/site coherence in one
+      # runner. Kept separate from B5/lychee: unrelated outbound-link failures
+      # must not hide the structure and origin-to-canonical freshness/privacy-cache
+      # signal. The report-only continuation preserves the command exit for
+      # Actions while the managed-issue reconciler consumes the tri-state
+      # issue_outcome output below. A missing output is deliberately
+      # indeterminate to the reconciler. This step deliberately has no
+      # workflow-level focus skip: its own first probe writes an indeterminate
+      # outcome and returns before artifact fetches when suppression is
+      # confirmed. The retired Atlas spoke-evidence upload does not come back
+      # (0119 D1 -- lane liveness is decision 0116's tile, not an envelope).
+      - name: B2 -- llms structure + origin/site coherence
+        id: llms
+        continue-on-error: true
+        run: pnpm exec tsx audits/checks/b2-llms.mjs
+
+      - name: B2 -- Cloudflare llms cache rules (read-only)
+        id: llms_cache_rules
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: >-
+          node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs
+          --evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json
+
+      - name: Upload Cloudflare llms cache-rule evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: llms-cloudflare-cache-rule-evidence
+          path: artifacts/llms-assurance/cloudflare-cache-rules.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: B2 -- sitemap XSD validator
         id: sitemap
         continue-on-error: true
-        run: node scripts/audit/validate-sitemap.mjs
+        run: node audits/checks/b2-validate-sitemap.mjs
 
       - name: B2 -- robots.txt validator
         id: robots
         continue-on-error: true
-        run: node scripts/audit/validate-robots.mjs
+        run: node audits/checks/b2-validate-robots.mjs
 
       - name: B2 -- feed.xml / feed.json validator
         id: feeds
+        if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
-        run: node scripts/audit/check-feeds.mjs
+        run: node audits/checks/b2-check-feeds.mjs
 
       # ADR 0011 follow-up (b). Re-fetches each rule's PINNED primary source
       # (an immutable RFC .txt or a 40-hex-SHA-pinned raw.githubusercontent
@@ -218,22 +298,105 @@ jobs:
       - name: B2 -- external spec drift (pinned sources vs normative quotes)
         id: spec_drift
         continue-on-error: true
-        run: node scripts/audit/check-spec-drift.mjs
+        run: node audits/checks/b2-check-spec-drift.mjs
+
+      # Atlas decision 0129 C6. The SIBLING question to spec_drift above, and it needs
+      # its own step for two reasons. (1) spec_drift's verification_url is immutable BY
+      # SCHEMA -- that is the property its comparison depends on -- so it structurally
+      # cannot see that the upstream document was revised. (2) The measurement channel is
+      # per step and counts artifacts held: spec_drift counts pinned sources, this counts
+      # CURRENT blobs, and one counter carrying both would publish a healthy number for a
+      # run that reached every pinned source and no current one.
+      #
+      # Advisory by construction: it is wired into no PR gate, and a revision whose
+      # normative quotes survive is `warn` (exit 0). Only a quote that has GONE from the
+      # current document, or a blob it could not hold, reaches `fail` -- because `fail` is
+      # the only severity the reconciler below can see.
+      - name: B2 -- external spec currency (pinned sources vs upstream today)
+        id: spec_currency
+        continue-on-error: true
+        env:
+          # Raises the unauthenticated 60/hr per-IP ceiling this self-hosted runner shares
+          # with every other job on the host. Used ONLY to name the commit a reader would
+          # re-pin to; the verdict is a byte comparison and needs no credential.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node audits/checks/b2-check-spec-currency.mjs
 
       - name: B7/B8 -- security headers, TLS/cert expiry, CSP drift
         id: headers
         continue-on-error: true
-        run: node scripts/audit/check-headers.mjs
+        run: node audits/checks/b7-check-headers.mjs
 
       - name: B3 -- Lighthouse CI (filesystem target)
         id: lhci
         continue-on-error: true
         env:
           CHROME_PATH: ${{ steps.chrome.outputs.path }}
-        # Budgets (perf>=0.90, a11y/best-practices/seo>=0.95) are v1 starting
-        # values (D4 report-only), NOT yet verified as met by the live site --
-        # ratchet or ship-fix per Phase 6 bake-in, don't silently loosen them.
-        run: pnpm exec lhci autorun --config=.lighthouserc.json
+        # Budgets (perf>=0.90, a11y/seo>=0.95) are v1 starting values (D4
+        # report-only) -- ratchet or ship-fix per Phase 6 bake-in, don't silently
+        # loosen them.
+        #
+        # best-practices is the ONE exception, held at 0.90 with an expiry:
+        #
+        # Measured ceiling. Once B3 could complete at all (#212), best-practices
+        # came in at a dead-flat 0.93/0.93/0.93 -- run 32899112390 -- because
+        # errors-in-console and inspector-issues each zero out (weight 1 each) on
+        # console errors the SITE does not cause. They are ERR_CONNECTION_REFUSED
+        # against hosts this runner's egress allowlist denies. A budget above the
+        # measured ceiling reds on network policy, which trains readers to ignore
+        # the check. 0.90 sits below the ceiling and still catches a real
+        # regression.
+        #
+        # The Amazon half of that ceiling is now CLOSED (atlas decision 0086, W3).
+        # It used to read: after the runner-side CloudFront allowlist, the last ~4
+        # requests went to m.media-amazon.com for book covers, on a host that
+        # sampled onto CloudFront, Akamai AND Fastly, so no address-prefix
+        # allowlist could hold it; ci.collect.settings.blockedUrlPatterns blocked
+        # them instead. The site no longer requests that host at all -- the backend
+        # serves first-party CloudFront image URLs and @j0nathan-ll0yd/web >=3.0.0
+        # falls back to the same-origin /images/no-cover.svg, never a third-party
+        # host. The blocklist entry has been deleted; it had no purpose left.
+        #
+        # What still holds the ceiling, measured after the blocklist landed (run
+        # 32900059618): errors-in-console was already down to 3 entries with the
+        # Amazon requests silenced, all the same WebSocket --
+        # wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com/live,
+        # ERR_CONNECTION_REFUSED. That is API Gateway, which the CloudFront
+        # allowlist does not cover. inspector-issues (CSP) is the other zero.
+        # Neither is affected by the image work, so the budget STAYS at 0.90 here.
+        #
+        # REVISIT TRIGGER, reduced to its remaining half: 0.95 needs the wss host
+        # reachable from the runner (or otherwise silenced) AND inspector-issues
+        # resolved. Both are network-policy items tracked separately, not site
+        # defects. Re-measure a real B3 run before ratcheting; do not infer the
+        # score from this note.
+        #
+        # Chrome flags live in .lighthouserc.json, not here:
+        # `lhci autorun` takes no chrome-flags argument and the rc file is strict
+        # JSON that takes no comments, so this step is the only place the reasoning
+        # fits. Two container defects preceded the budget work, in this order:
+        #
+        # --no-sandbox: these runners are containers whose distro disables
+        # unprivileged user namespaces under AppArmor, so Chrome aborted at launch
+        # with "No usable sandbox!" and lhci reported the downstream symptom
+        # (ECONNREFUSED on the DevTools port) -- run 32890887108. B4 below never hit
+        # this because .pa11yci has carried the same flag from the start.
+        #
+        # --disable-dev-shm-usage: with the launch fixed, Chrome started and
+        # navigated, then the page died mid-trace and Lighthouse timed out at 30s
+        # with NO_FCP -- run 32891570773. Docker's default /dev/shm is 64MB and
+        # Lighthouse's tracing is far heavier on shared memory than pa11y's axe run,
+        # which is why B4 loads the same URL in 1.5s on the same binary in the same
+        # container. The flag moves shared memory to /tmp.
+        #
+        # The two configs must keep agreeing; a flag added to one belongs in the
+        # other unless the reason is tool-specific, as --disable-dev-shm-usage is.
+        run: |
+          if [ "${{ steps.focus_mode.outputs.suppressed }}" = "true" ]; then
+            echo "CONDITIONED: Lighthouse measured the focus-mode overlay, not the normal dashboard."
+            echo "> Lighthouse result is focus-mode-conditioned: ${{ steps.focus_mode.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          pnpm exec lhci autorun --config=.lighthouserc.json
 
       - name: Upload Lighthouse reports
         if: always()
@@ -248,7 +411,12 @@ jobs:
         continue-on-error: true
         env:
           PUPPETEER_EXECUTABLE_PATH: ${{ steps.chrome.outputs.path }}
-        run: pnpm exec pa11y-ci
+        run: |
+          if [ "${{ steps.focus_mode.outputs.suppressed }}" = "true" ]; then
+            echo "CONDITIONED: pa11y measured the focus-mode overlay on /; /privacy remains unconditioned."
+            echo "> pa11y / result is focus-mode-conditioned: ${{ steps.focus_mode.outputs.reason }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          pnpm exec pa11y-ci
 
       - name: Restore lychee link cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -259,6 +427,7 @@ jobs:
 
       - name: B5 -- lychee link check (live HTML + llms.txt + feed.xml)
         id: lychee
+        if: steps.focus_mode.outputs.suppressed != 'true'
         continue-on-error: true
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
@@ -276,42 +445,90 @@ jobs:
           fail: true
           jobSummary: true
 
-      - name: File/update issues for failing checks
-        if: always() && github.event_name != 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CHECK_RESULTS_JSON: >-
-            [
-              {"id":"llms-txt","title":"B2 llms.txt structural validator","outcome":"${{ steps.llms_txt.outcome }}"},
-              {"id":"sitemap","title":"B2 sitemap XSD validator","outcome":"${{ steps.sitemap.outcome }}"},
-              {"id":"robots","title":"B2 robots.txt validator","outcome":"${{ steps.robots.outcome }}"},
-              {"id":"feeds","title":"B2 feed.xml/feed.json validator","outcome":"${{ steps.feeds.outcome }}"},
-              {"id":"spec-drift","title":"B2 external spec drift (pinned sources vs normative quotes)","outcome":"${{ steps.spec_drift.outcome }}"},
-              {"id":"headers","title":"B7/B8 headers, TLS, CSP drift","outcome":"${{ steps.headers.outcome }}"},
-              {"id":"lhci","title":"B3 Lighthouse CI budgets","outcome":"${{ steps.lhci.outcome }}"},
-              {"id":"pa11y","title":"B4 pa11y-ci accessibility","outcome":"${{ steps.pa11y.outcome }}"},
-              {"id":"lychee","title":"B5 lychee link check","outcome":"${{ steps.lychee.outcome }}"}
-            ]
-        run: node scripts/audit/lib/file-check-issues.mjs
+      - name: Reconcile managed audit issues
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
+          )
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.llms.outputs.issue_outcome }}'},
+                {id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: '${{ steps.llms_cache_rules.outputs.issue_outcome }}'},
+                {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: '${{ steps.sitemap.outcome }}'},
+                {id: 'robots', title: 'B2 robots.txt validator', outcome: '${{ steps.robots.outcome }}'},
+                {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.feeds.outcome }}'},
+                {id: 'spec-drift', title: 'B2 external spec drift (pinned sources vs normative quotes)', outcome: '${{ steps.spec_drift.outcome }}'},
+                {id: 'spec-currency', title: 'B2 external spec currency (pinned sources vs upstream today)', outcome: '${{ steps.spec_currency.outcome }}'},
+                {id: 'headers', title: 'B7/B8 headers, TLS, CSP drift', outcome: '${{ steps.headers.outcome }}'},
+                {id: 'lhci', title: 'B3 Lighthouse CI budgets', outcome: '${{ steps.lhci.outcome }}'},
+                {id: 'pa11y', title: 'B4 pa11y-ci accessibility', outcome: '${{ steps.pa11y.outcome }}'},
+                {id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'},
+                {id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.lychee.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
 
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (every check is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See audits/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always()
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
-          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
-        run: |
-          if [ -z "$HC_URL" ]; then
-            echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 5 "$HC_URL"
+          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_WEEKLY }}
+          HC_SECRET_NAME: HC_PING_AUDIT_WEB_WEEKLY
+          JOB_STATUS: ${{ job.status }}
+          # The measurement channel, one record per CHECK step (atlas decision 0122). Read from
+          # each step, not from `job.status`, because that is the very signal that cannot see a
+          # swallowed check. Any step claiming 0 wedges the tier; a sum would let one dark check
+          # hide behind healthy siblings. Setup steps (chrome, focus_mode) are not checks and
+          # never appear here.
+          #
+          # `llms_cache_rules` is DEFERRED, not exempt. It could publish a count, but it has
+          # recorded `status: unknown` with all five Cloudflare reads returning 403 for its whole
+          # observable life (runs 34086625518 and 34164468115), and atlas decision 0120 D2 rules
+          # that the read permissions are corrected BEFORE the channel lands -- otherwise the tile
+          # goes permanently red on a known-open owner action. Until then this step is outside the
+          # aggregation rule: it claims nothing, so it cannot claim zero, so it cannot wedge the
+          # tier. The record is written rather than omitted so the gap is visible here and to
+          # atlas A19, not implied by silence.
+          #
+          # AND IT EXPIRES. `until=2026-12-08` is the date the deferral stops being accepted;
+          # past it the ping script wedges this tier exactly as it would on an unreasoned
+          # declaration. Without the date, "visible" and "indefinite" are the same state -- the
+          # green job / no issue / no wedge shape here was byte-identical to run 34086625518, the
+          # receipt decision 0122 opened with. 90 days from the channel landing (2026-09-09) is
+          # the budget for one owner action: correct five Cloudflare read permissions. Moving the
+          # date is a reviewed edit to this file; letting it lapse is not a decision anyone makes.
+          # `n/a` carries no date on purpose -- a tool run holding no artifact set is structural,
+          # and no owner action will change it.
+          MEASURED_STEPS: |
+            llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
+            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|deferred|atlas 0120 D2 owner action -- five Cloudflare reads return 403; the channel lands with the permissions fix|until=2026-12-08
+            sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
+            robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
+            feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}
+            spec_drift|${{ steps.spec_drift.outcome }}|${{ steps.spec_drift.outputs.measured }}
+            spec_currency|${{ steps.spec_currency.outcome }}|${{ steps.spec_currency.outputs.measured }}
+            headers|${{ steps.headers.outcome }}|${{ steps.headers.outputs.measured }}
+            lhci|${{ steps.lhci.outcome }}|n/a|third-party tool run (Lighthouse); the budget assertion is its verdict, it holds no artifact set to count
+            pa11y|${{ steps.pa11y.outcome }}|n/a|third-party tool run (pa11y-ci); the axe/htmlcs verdict is its own, it holds no artifact set to count
+            lychee|${{ steps.lychee.outcome }}|n/a|third-party action exposing only exit_code; its own failIfEmpty already reds an empty run
+        run: bash audits/healthchecks-ping.sh
 
   monthly:
     name: Monthly (B2 security.txt + agent-discovery re-verification)
-    if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')) ||
-      (github.event_name == 'schedule' && github.event.schedule == '41 4 2 * *')
+    if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')
     runs-on: [self-hosted, linux, arm64, node]
     steps:
       - name: Checkout
@@ -340,38 +557,52 @@ jobs:
       # Distinguish a self-hosted runner egress outage from a real site regression before
       # the continue-on-error checks run (2026-08-17 incident).
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash scripts/audit/preflight-egress.sh
+        run: bash audits/preflight-egress.sh
 
       - name: B2 -- security.txt RFC 9116 expiry
         id: security_txt
         continue-on-error: true
-        run: node scripts/audit/check-security-txt.mjs
+        run: node audits/checks/b2-check-security-txt.mjs
 
       - name: B2 -- .well-known agent-discovery structural checks
         id: wellknown
         continue-on-error: true
-        run: node scripts/audit/check-wellknown.mjs
+        run: node audits/checks/b2-check-wellknown.mjs
 
-      - name: File/update issues for failing checks
-        if: always() && github.event_name != 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          GH_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CHECK_RESULTS_JSON: >-
-            [
-              {"id":"security-txt","title":"B2 security.txt RFC 9116 expiry","outcome":"${{ steps.security_txt.outcome }}"},
-              {"id":"wellknown","title":"B2 .well-known agent-discovery checks","outcome":"${{ steps.wellknown.outcome }}"}
-            ]
-        run: node scripts/audit/lib/file-check-issues.mjs
+      - name: Reconcile managed audit issues
+        if: >-
+          always() && (
+            github.event_name == 'schedule' ||
+            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
+          )
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'security-txt', title: 'B2 security.txt RFC 9116 expiry', outcome: '${{ steps.security_txt.outcome }}'},
+                {id: 'wellknown', title: 'B2 .well-known agent-discovery checks', outcome: '${{ steps.wellknown.outcome }}'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
+            });
 
+      # Plain ping = the lane ran to measurement; $HC_URL/fail = it wedged
+      # first. Findings never move job.status (every check is
+      # continue-on-error), so they keep pinging success and stay the
+      # reconciler's job. See audits/healthchecks-ping.sh.
       - name: Healthchecks.io ping
-        if: always()
+        if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))
         env:
-          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB }}
-        run: |
-          if [ -z "$HC_URL" ]; then
-            echo "HC_PING_AUDIT_WEB secret not set -- skipping dead-man's-switch ping."
-            exit 0
-          fi
-          curl -fsS -m 10 --retry 5 "$HC_URL"
+          HC_URL: ${{ secrets.HC_PING_AUDIT_WEB_MONTHLY }}
+          HC_SECRET_NAME: HC_PING_AUDIT_WEB_MONTHLY
+          JOB_STATUS: ${{ job.status }}
+          # The measurement channel, one record per CHECK step (atlas decision 0122).
+          # Both monthly checks are artifact probes, so both claim a real count.
+          MEASURED_STEPS: |
+            security_txt|${{ steps.security_txt.outcome }}|${{ steps.security_txt.outputs.measured }}
+            wellknown|${{ steps.wellknown.outcome }}|${{ steps.wellknown.outputs.measured }}
+        run: bash audits/healthchecks-ping.sh

@@ -11,7 +11,7 @@ import {writeFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
-import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 // Copy flat JSON — prose sourced from @j0nathan-ll0yd/copy so wording is never duplicated.
 const req = createRequire(import.meta.url)
@@ -36,6 +36,7 @@ const dataSources = [
 ]
 
 const booksUrl = cf(ENDPOINTS.books)
+const focusUrl = cf(ENDPOINTS.focus)
 // llms-full.txt is advertised at its prod-domain path (proxied by
 // functions/llms-full.txt.ts), keeping agents on jonathanlloyd.me; the raw
 // JSON dataSources above stay on CloudFront (no prod-domain proxy exists for them).
@@ -54,6 +55,7 @@ const dataSourceLines = dataSources.map((s) => `      { name: ${sq(s.name)}, url
 const expertiseLines = copyIdentity.seo.expertise.map((e) => sq(e)).join(', ')
 
 const interestsLines = copyIdentity.person.interests.map((i) => sq(i)).join(', ')
+const hidingFocusModeLines = HIDING_FOCUS_MODES.map((mode) => sq(mode)).join(', ')
 
 const output = `(function() {
   if (typeof navigator !== 'undefined' && navigator.modelContext && navigator.modelContext.provideContext) {
@@ -99,8 +101,21 @@ ${dataSourceLines}
           description: ${sq(copyLlm.mcp.toolGetCurrentReading)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async function() {
-            const res = await fetch(${sq(booksUrl)});
-            const data = await res.json();
+            var focusRes = await fetch(${sq(focusUrl)}, { cache: 'no-store' });
+            if (focusRes.ok) {
+              var focusData = await focusRes.json();
+              if ([${hidingFocusModeLines}].includes(focusData.currentFocus)) {
+                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
+              }
+            }
+            var res = await fetch(${sq(booksUrl)}, { cache: 'no-store' });
+            var data = await res.json().catch(function() { return null; });
+            if (!res.ok) {
+              if (data && data.suppressed === true && typeof data.reason === 'string') {
+                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: data.reason }) }] };
+              }
+              return { content: [{ type: 'text', text: JSON.stringify({ failed: true, reason: 'bookshelf unavailable', status: res.status }) }] };
+            }
             const books = data.books || [];
             const reading = books.filter((b) => b.status === 'reading');
             const upNext = books.filter((b) => b.status === 'up-next');
@@ -188,44 +203,13 @@ const agentSkillsPath = join(publicDir, '.well-known', 'agent-skills', 'index.js
 writeFileSync(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n')
 console.log(`Generated ${agentSkillsPath}`)
 
-// Generate agent-card.json — A2A v1.0 AgentCard (normative source: a2aproject/A2A
-// specification/a2a.proto). Prose from @j0nathan-ll0yd/copy; structure/URLs from portal-contract.
-// REQUIRED per the proto: name, description, supportedInterfaces, version, capabilities,
-// defaultInputModes, defaultOutputModes, skills. NB: this is a discovery-only card for a
-// READ-ONLY data source — there is no live A2A JSON-RPC endpoint, so the single interface
-// points at the machine-readable MCP server-card. Pinned to A2A v1.0, verified 2026-07-07.
-// See docs/discovery-surface.md.
-const agentCard = {
-  name: copyIdentity.site.name,
-  description: copyLlm.agentDiscovery.agentCardDescription,
-  version: '1.0.0',
-  supportedInterfaces: [
-    {url: `${SITE_URL}/.well-known/mcp/server-card.json`, protocolBinding: 'HTTP+JSON', protocolVersion: '1.0'}
-  ],
-  capabilities: {streaming: false, pushNotifications: false},
-  defaultInputModes: ['text/plain', 'application/json'],
-  defaultOutputModes: ['application/json', 'text/markdown'],
-  skills: [
-    {
-      id: 'personal-profile',
-      name: copyLlm.agentDiscovery.agentCardSkillName,
-      description: copyLlm.agentDiscovery.agentCardSkillDescription,
-      tags: ['personal', 'health', 'github', 'reading', 'biometrics'],
-      examples: copyLlm.agentDiscovery.agentCardSkillExamples
-    }
-  ]
-}
-
-const agentCardPath = join(publicDir, '.well-known', 'agent-card.json')
-writeFileSync(agentCardPath, JSON.stringify(agentCard, null, 2) + '\n')
-console.log(`Generated ${agentCardPath}`)
-
-// Generate ai-catalog.json — ARD AI Catalog v1.0 (normative source: agenticresourcediscovery/
-// ard-spec spec/schemas/ai-catalog.schema.json). Prose from @j0nathan-ll0yd/copy; URLs/identifiers
-// from portal-contract. REQUIRED: top-level specVersion + entries; each entry needs identifier
-// (RFC 8141 urn:air:<publisher>:<namespace>:<name>), displayName, type (IANA media type), and
-// exactly one of url/data. host + entries are additionalProperties:false — no stray fields.
-// Pinned to ARD specVersion 1.0, verified 2026-07-07. See docs/discovery-surface.md.
+// Generate ai-catalog.json — ARD AI Catalog specVersion 1.0 (normative source:
+// ards-project/ard-spec spec/schemas/ai-catalog.schema.json). Prose comes from
+// @j0nathan-ll0yd/copy; URLs/identifiers come from portal-contract. REQUIRED:
+// top-level specVersion + entries; each entry needs identifier (RFC 8141
+// urn:air:<publisher>:<namespace>:<name>), displayName, type (IANA media type),
+// and exactly one of url/data. host is additionalProperties:false. Verified
+// 2026-08-22; see docs/discovery-surface.md.
 const air = (namespace, name) => `urn:air:jonathanlloyd.me:${namespace}:${name}`
 const aiCatalog = {
   specVersion: '1.0',
@@ -251,14 +235,6 @@ const aiCatalog = {
       url: `${SITE_URL}/.well-known/agent-skills/index.json`,
       description: copyLlm.agentDiscovery.aiCatalogSkillsDescription,
       representativeQueries: copyLlm.agentDiscovery.aiCatalogSkillsQueries
-    },
-    {
-      identifier: air('agent', 'human-datastream'),
-      displayName: copyLlm.agentDiscovery.aiCatalogA2aName,
-      type: 'application/a2a-agent-card+json',
-      url: `${SITE_URL}/.well-known/agent-card.json`,
-      description: copyLlm.agentDiscovery.aiCatalogA2aDescription,
-      representativeQueries: copyLlm.agentDiscovery.aiCatalogA2aQueries
     }
   ]
 }

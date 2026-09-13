@@ -1,7 +1,7 @@
 // Puppeteer configuration (cosmiconfig-discovered: puppeteer/getConfiguration.js
 // looks up `.puppeteerrc.cjs` in the repo root automatically -- no wiring needed).
 //
-// pa11y-ci (scripts/audit/check-analytics.mjs's sibling B4 check, invoked from
+// pa11y-ci (audits/checks/b6-check-analytics.mjs's sibling B4 check, invoked from
 // .github/workflows/audit-web.yml) depends on full `puppeteer`, which normally
 // downloads its own Chrome + chrome-headless-shell via a postinstall script.
 // This repo never uses that bundled browser: audit-web.yml always installs

@@ -12,6 +12,7 @@ interface CapturedWsOpts {
   onAppUpdate?: (build?: string) => void
   onStateChange?: (connected: boolean) => void
   onFocusChange?: (currentFocus: string) => void
+  onUpdate?: (resource: string) => void
 }
 let wsOpts: CapturedWsOpts | null = null
 
@@ -49,24 +50,27 @@ vi.mock('../../src/lib/runtime/poll-engine', () => ({
   }
 }))
 
-// fetchWithTimeout is the focus-signal fetch at startup; a hoisted spy (default null)
+// fetchArtifact is the focus-signal fetch at startup; a hoisted spy (default null)
 // lets a test resolve a hiding focus to exercise the load-during-hiding path.
-const fetchSpy = vi.hoisted(() => vi.fn<() => Promise<unknown>>(() => Promise.resolve(null)))
+const fetchSpy = vi.hoisted(() => vi.fn<() => Promise<unknown>>(() => Promise.resolve({status: 'failed', reason: 'fixture unavailable'})))
 
+// The real module is spread in so `isResourceKey` stays the shipped implementation: the
+// WebSocket admission test below must exercise the actual predicate, not a double of it.
 vi.mock('../../src/lib/runtime/api',
-  () => ({
-    fetchWithTimeout: fetchSpy,
+  async (importActual) => ({
+    ...await importActual<typeof import('../../src/lib/runtime/api')>(),
+    fetchArtifact: fetchSpy,
     fetchAllEndpoints: () =>
       Promise.resolve({
-        health: null,
-        sleep: null,
-        workouts: null,
-        books: null,
-        githubEvents: null,
-        starredRepos: null,
-        articles: null,
-        focus: null,
-        theatreReviews: null,
+        health: {status: 'failed', reason: 'fixture unavailable'},
+        sleep: {status: 'failed', reason: 'fixture unavailable'},
+        workouts: {status: 'failed', reason: 'fixture unavailable'},
+        books: {status: 'failed', reason: 'fixture unavailable'},
+        githubEvents: {status: 'failed', reason: 'fixture unavailable'},
+        starredRepos: {status: 'failed', reason: 'fixture unavailable'},
+        articles: {status: 'failed', reason: 'fixture unavailable'},
+        focus: {status: 'failed', reason: 'fixture unavailable'},
+        theatreReviews: {status: 'failed', reason: 'fixture unavailable'},
         timestamps: {}
       })
   }))
@@ -151,6 +155,47 @@ describe('live-data → service-worker nudge wiring', () => {
   })
 })
 
+describe('live-data → WebSocket resource-update admission', () => {
+  beforeEach(() => {
+    wsOpts = null
+    vi.resetModules()
+    vi.useFakeTimers()
+    document.body.innerHTML = ''
+    clearSpies()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('refetches the resource named by a published-key push', async () => {
+    await bootLiveData()
+
+    wsOpts?.onUpdate?.('books')
+
+    expect(engineSpies.pollResource).toHaveBeenCalledWith('books')
+  })
+
+  // The socket is an untrusted input. `resource in ENDPOINTS` was prototype-inclusive, so a frame
+  // naming an inherited property passed the admission check and reached the fetch path with a key
+  // that has no endpoint. Own-property narrowing must drop these frames silently and completely.
+  it.each(['constructor', 'toString', 'valueOf', '__proto__', 'hasOwnProperty'])('ignores a push naming the inherited property %s', async (resource) => {
+    await bootLiveData()
+
+    wsOpts?.onUpdate?.(resource)
+
+    expect(engineSpies.pollResource).not.toHaveBeenCalled()
+  })
+
+  it('ignores a push naming a resource that does not exist', async () => {
+    await bootLiveData()
+
+    wsOpts?.onUpdate?.('not-a-resource')
+
+    expect(engineSpies.pollResource).not.toHaveBeenCalled()
+  })
+})
+
 describe('live-data → focus overlay + suppression wiring', () => {
   beforeEach(() => {
     wsOpts = null
@@ -206,17 +251,16 @@ describe('live-data → focus overlay + suppression wiring', () => {
 
   // Load-during-hiding: opening the dashboard while focus is ALREADY a hiding mode. applyFocus
   // runs before the engine exists, so suppression must be propagated via the post-seed
-  // engine.setSuppressed(suppressed), and the skeletons must be retained (endpoints 403).
+  // engine.setSuppressed(suppressed), while the SSR shell is exposed under the opaque overlay.
   it('loads directly into suppression when focus is already a hiding mode at startup', async () => {
     document.body.innerHTML += '<div id="cardHR" class="is-loading"></div>'
-    fetchSpy.mockResolvedValueOnce({generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'Do Not Disturb'})
+    fetchSpy.mockResolvedValueOnce({status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'Do Not Disturb'}})
 
     await bootLiveData()
 
     expect(engineSpies.setSuppressed).toHaveBeenCalledWith(true)
     expect(document.getElementById('dndOverlay')?.style.display).toBe('flex')
-    // Skeletons stay while suppressed — the 403'd endpoints have no real data to reveal.
-    expect(document.getElementById('cardHR')?.classList.contains('is-loading')).toBe(true)
+    expect(document.getElementById('cardHR')?.classList.contains('is-loading')).toBe(false)
   })
 
   it('ignores a stale focus poll that contradicts the latest push while the WS is connected', async () => {

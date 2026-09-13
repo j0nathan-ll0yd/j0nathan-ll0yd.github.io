@@ -1,0 +1,13 @@
+[
+  {
+    "number": 21,
+    "title": "[audit] B2 feed.xml/feed.json validator",
+    "state": "OPEN",
+    "body": "<!-- audit-check-issue:v1 check-id=feeds -->\n\nCheck `feeds` failed.\n\nRun: https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/runs/100\n\nThis is a **report-only** finding (lp-audit Phase 2, D4) -- it does not block CI or deploys. See the run's job log for this check's own findings output.",
+    "labels": [
+      {"name": "audit"},
+      {"name": "audit:report-only"},
+      {"name": "audit:managed"}
+    ]
+  }
+]

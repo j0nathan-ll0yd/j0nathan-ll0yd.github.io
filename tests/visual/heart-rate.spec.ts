@@ -1,39 +1,8 @@
 /**
- * Deterministic ECG visual regression tests (Plan #06).
- *
- * The ECG canvas (#hrEcgCanvas) animates via requestAnimationFrame + RNG
- * jitter, which defeats Playwright's animations:'disabled'. Previously the
- * canvas was hidden in screenshot.css (the "paper over flake" anti-pattern).
- * That carve-out is now removed; instead the canvas exposes a deterministic
- * test seam, window.__hrEcg, defined in @j0nathan-ll0yd/web/runtime/heart-rate-init:
- *
- *   window.__hrEcg = {
- *     ready: boolean,                 // true after the first step()
- *     seed(n: number): void,          // pin the mulberry32 jitter stream
- *     freezeAt(ms: number|null): void,// freeze the clock (null = real time)
- *     step(frames = 1): void,         // advance N frames deterministically
- *     state(): { bpm, hrv, currentX, lastBeatAt },
- *   };
- *
- * Canonical usage: seed(42) -> freezeAt(0) -> step(N) -> screenshot.
- *
- * ACTIVATION REQUIREMENT (intentional production-safety gate):
- * The seam installs ONLY when BOTH gates pass (defense in depth, per the plan's
- * hard constraint that the seam must never ship to production users):
- *   1. import.meta.env.MODE === 'test'  (a vite/astro `--mode test` build), AND
- *   2. the canvas has a `data-test="1"` ancestor.
- * Playwright's webServer currently runs a *production* `astro build` (MODE =
- * 'production'), so gate 1 is false and window.__hrEcg is undefined in the
- * served site. Until the visual webServer builds with `--mode test`, the seam
- * cannot drive these screenshots, so this suite is skipped at runtime.
- *
- * The seam's determinism itself IS verified today, in the design system's
- * Vitest suite (which runs in MODE === 'test'):
- *   design-system-Lifegames/packages/web/tests/runtime/heart-rate-init.test.ts
- *
- * To enable this suite (a separate, deferred change owned by the visual-refresh
- * session): build the visual preview with `astro build --mode test`, then run
- * `pnpm run test:visual:update` to mint the baselines below.
+ * ECG animation uses requestAnimationFrame and random jitter, so screenshots need deterministic
+ * seed, time, and step controls. The seam installs only in test mode under a data-test ancestor.
+ * Production-mode previews skip these cases; design-system Vitest still verifies determinism.
+ * Enable screenshots when visual previews build with `astro build --mode test`.
  */
 import {expect, type Page, test} from './pw-fixtures'
 import {setupPage, stylePath, WIDGET_SELECTORS} from './helpers'

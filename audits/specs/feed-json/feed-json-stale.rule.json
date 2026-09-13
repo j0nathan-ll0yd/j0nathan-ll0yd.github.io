@@ -1,0 +1,52 @@
+{
+  "id": "feed-json-stale",
+  "title": "the newest item must be within the freshness window",
+  "artifact": "feed.json",
+  "rule_class": "local-policy",
+  "severity": "fail",
+  "params": {
+    "maxAgeDays": 7
+  },
+  "rationale": "JSON Feed 1.1 does not define a freshness requirement on the newest item's date_published. This is entirely a local operational policy.",
+  "applicability": "A parsed feed.json document with at least one parseable date_published.",
+  "expectation": "The newest item's date_published is not more than FRESHNESS_WINDOW_DAYS days before the evaluation instant. The comparison is strict (>), not (>=): exactly 7 days old passes.",
+  "cases": [
+    {
+      "name": "newest item is 200 days old",
+      "outcome": "failed",
+      "input_file": "cases/stale.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-json-stale",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "newest item is exactly 7 days old -- the comparison is strict (>), so this passes",
+      "outcome": "passed",
+      "input_file": "cases/exactly-7-days.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "a conformant, fresh document",
+      "outcome": "passed",
+      "input_file": "cases/valid.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "multiple items out of chronological order -- the newest (by date, not array position) is fresh",
+      "outcome": "passed",
+      "input_file": "cases/multi-item-unordered.json",
+      "input_kind": "json",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

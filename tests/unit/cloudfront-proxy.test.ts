@@ -1,53 +1,269 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {makeCloudfrontProxy} from '../../functions/_lib/proxy'
+import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from '../../functions/_lib/proxy'
+import type {CloudfrontProxyContext} from '../../functions/_lib/proxy'
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
 import {onRequest as feedXmlRoute} from '../../functions/feed.xml.ts'
 import {onRequest as indexMdRoute} from '../../functions/index.md.ts'
 import {onRequest as llmsFullRoute} from '../../functions/llms-full.txt.ts'
 import {onRequest as llmsTxtRoute} from '../../functions/llms.txt.ts'
 
-// Unit tests for the shared CloudFront proxy factory and the five routes built
-// from it. The regression class under guard: an artifact advertised by the
-// llms.txt discovery index (llms-full.txt, index.md) having NO route on the
-// prod domain — /llms-full.txt 404'd on jonathanlloyd.me until 2026-07-17.
+const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
+vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
 
-const stubFetch = (response: Response) => {
-  const mock = vi.fn().mockResolvedValue(response)
+// Unit tests for the shared CloudFront proxy factory and the five routes built
+// from it. The regression class under guard: a transient upstream failure being
+// cached for an hour, or a multi-route CloudFront outage having no safe fallback.
+
+const FETCH_CACHE_INIT = {cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}}}
+const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
+const FOCUS_FETCH_INIT = {cache: 'no-store'}
+
+function makeContext(path = '/thing.txt', method = 'GET') {
+  const background: Promise<unknown>[] = []
+  const context: CloudfrontProxyContext = {
+    request: new Request(`https://jonathanlloyd.me${path}`, {method}),
+    waitUntil: (promise) => background.push(promise)
+  }
+  return {context, background}
+}
+
+function stubFetch(response: Response) {
+  const mock = vi.fn().mockImplementation((url: string) =>
+    Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : response)
+  )
   vi.stubGlobal('fetch', mock)
   return mock
 }
 
+function stubCache(cached?: Response) {
+  const cache = {match: vi.fn().mockResolvedValue(cached), put: vi.fn().mockResolvedValue(undefined)}
+  vi.stubGlobal('caches', {default: cache})
+  return cache
+}
+
+function expectPublicNoStore(response: Response) {
+  expect(response.headers.get('Cache-Control')).toBe('no-store')
+  expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+  expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
+}
+
+/** The default CachePolicy: edge-cacheable for 60s, and NO CDN override of any kind. */
+function expectEdgeCached(response: Response) {
+  expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
+  expect(response.headers.get('CDN-Cache-Control')).toBeNull()
+  expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
+}
+
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
+  vi.clearAllMocks()
 })
 
 describe('makeCloudfrontProxy', () => {
-  it('fetches the CloudFront artifact with the edge-cache options', async () => {
-    const mock = stubFetch(new Response('body'))
-    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
-    await proxy()
-    expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}/thing.txt`, {cf: {cacheTtl: 3600, cacheEverything: true}})
-  })
-
-  it('passes the upstream body through with proxy headers on success', async () => {
-    stubFetch(new Response('# content'))
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
+  it('serves success, caches only 2xx upstream statuses, and records last-known-good', async () => {
+    const mock = stubFetch(new Response('# content', {headers: {'x-amz-cf-id': 'cloudfront-request-1'}}))
+    const cache = stubCache()
+    const {context, background} = makeContext()
     const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/markdown; charset=utf-8'})
-    const res = await proxy()
+
+    const res = await proxy(context)
+    await Promise.all(background)
+
+    expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}/thing.txt`, FETCH_CACHE_INIT)
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
-    expect(res.headers.get('Cache-Control')).toBe('public, max-age=300, s-maxage=3600, stale-while-revalidate=86400')
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
+    // No cachePolicy passed, so this exercises the DEFAULT (edge-cached) policy.
+    expectEdgeCached(res)
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy')
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('200')
+    expect(res.headers.get('X-Proxy-Upstream-Request-Id')).toBe('cloudfront-request-1')
     expect(await res.text()).toBe('# content')
+
+    expect(cache.put).toHaveBeenCalledOnce()
+    const [cacheKey, cachedResponse] = cache.put.mock.calls[0] as [Request, Response]
+    expect(cacheKey.url).toBe('https://jonathanlloyd.me/thing.txt?__cloudfront_proxy_lkg=v1')
+    expect(cachedResponse.headers.get('Cache-Control')).toBe('public, max-age=10800')
+    expect(cachedResponse.headers.get('CDN-Cache-Control')).toBeNull()
+    expect(cachedResponse.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
+    expect(cachedResponse.headers.get('X-Proxy-Lkg-Stored-At')).toBeTruthy()
+    expect(await cachedResponse.text()).toBe('# content')
   })
 
-  it('returns a 502 with a plain-text notice when upstream fails', async () => {
-    stubFetch(new Response('nope', {status: 500}))
+  it('retries a bounded transient failure and returns the recovered response', async () => {
+    vi.useFakeTimers()
+    const artifacts = [new Response('temporary', {status: 503, headers: {'x-amz-cf-id': 'failed-request'}}), new Response('recovered')]
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : artifacts.shift()!)
+    )
+    vi.stubGlobal('fetch', mock)
+    vi.stubGlobal('caches', undefined)
+    const {context} = makeContext()
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const pending = proxy(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(mock).toHaveBeenCalledTimes(3)
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('2')
+    expect(await res.text()).toBe('recovered')
+    expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_retry',
+      expect.objectContaining({artifact: '/thing.txt', attempts: 1, upstream_status: 503, upstream_request_id: 'failed-request'}))
+  })
+
+  it('serves an explicit stale last-known-good response after retries are exhausted', async () => {
+    vi.useFakeTimers()
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL
+        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
+        : new Response('upstream down', {status: 503, headers: {'x-amz-cf-id': 'terminal-request'}}))
+    )
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(
+      new Response('known good', {
+        headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=10800', 'X-Proxy-Lkg-Stored-At': '2026-08-22T20:00:00.000Z'}
+      })
+    )
+    const {context} = makeContext()
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const pending = proxy(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(mock).toHaveBeenCalledTimes(4)
+    expect(cache.match).toHaveBeenCalledOnce()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
+    // No cachePolicy passed, so the stale path also carries the DEFAULT policy.
+    expectEdgeCached(res)
+    expect(res.headers.get('Warning')).toBe('110 - "Response is stale"')
+    expect(res.headers.get('X-Proxy-Stale')).toBe('true')
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('3')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('503')
+    expect(res.headers.get('X-Proxy-Upstream-Request-Id')).toBe('terminal-request')
+    expect(await res.text()).toBe('known good')
+  })
+
+  it('fails visibly and without caching when no safe representation exists', async () => {
+    vi.useFakeTimers()
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL
+        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
+        : new Response('upstream down', {status: 503, headers: {'x-amz-cf-id': 'terminal-request'}}))
+    )
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache()
+    const {context} = makeContext()
     const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/markdown; charset=utf-8'})
-    const res = await proxy()
+
+    const pending = proxy(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(mock).toHaveBeenCalledTimes(4)
+    expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(502)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
+    expectPublicNoStore(res)
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-error')
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('3')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('503')
+    expect(res.headers.get('X-Proxy-Upstream-Request-Id')).toBe('terminal-request')
     expect(await res.text()).toBe('thing.txt unavailable')
+  })
+
+  it('does not retry or mask a persistent non-transient upstream status', async () => {
+    const mock = stubFetch(new Response('missing', {status: 404, headers: {'x-amz-cf-id': 'missing-request'}}))
+    const cache = stubCache(new Response('old content'))
+    const {context} = makeContext()
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const res = await proxy(context)
+
+    expect(mock).toHaveBeenCalledTimes(2)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(res.status).toBe(502)
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('404')
+  })
+
+  it('rejects unsafe client methods without contacting the upstream', async () => {
+    const mock = stubFetch(new Response('unexpected'))
+    const {context} = makeContext('/thing.txt', 'POST')
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const res = await proxy(context)
+
+    expect(mock).not.toHaveBeenCalled()
+    expect(res.status).toBe(405)
+    expect(res.headers.get('Allow')).toBe('GET, HEAD')
+    expectPublicNoStore(res)
+  })
+
+  it('fails closed when the ungated focus state cannot be read', async () => {
+    const mock = vi.fn().mockResolvedValue(new Response('focus unavailable', {status: 503}))
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('old content'))
+    const {context} = makeContext()
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const res = await proxy(context)
+
+    expect(mock).toHaveBeenCalledOnce()
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(res.status).toBe(502)
+    expectPublicNoStore(res)
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-focus-error')
+  })
+
+  it('prevents a warm response and LKG from leaking across a focus transition, then recovers immediately', async () => {
+    let currentFocus = 'Personal'
+    let artifactCalls = 0
+    const mock = vi.fn().mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus})))
+      }
+      artifactCalls++
+      return Promise.resolve(new Response(`content-${artifactCalls}`))
+    })
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('pre-focus LKG'))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const warm = makeContext()
+    expect(await (await proxy(warm.context)).text()).toBe('content-1')
+    await Promise.all(warm.background)
+    expect(cache.put).toHaveBeenCalledOnce()
+
+    currentFocus = 'Work'
+    const firstSuppressed = await proxy(makeContext().context)
+    expect(firstSuppressed.status).toBe(503)
+    expect(firstSuppressed.headers.get('Retry-After')).toBe('60')
+    expectPublicNoStore(firstSuppressed)
+    expect(await firstSuppressed.json()).toEqual({suppressed: true, reason: 'focus mode active'})
+
+    const sustained = await proxy(makeContext().context)
+    expect(sustained.status).toBe(503)
+    expect(artifactCalls).toBe(1)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).toHaveBeenCalledOnce()
+
+    currentFocus = 'Personal'
+    const recovered = await proxy(makeContext().context)
+    expect(recovered.status).toBe(200)
+    expect(await recovered.text()).toBe('content-2')
+    expect(artifactCalls).toBe(2)
   })
 })
 
@@ -55,19 +271,166 @@ describe('proxy routes', () => {
   // covers: llms-txt#Discovery index and full dump are served at the contract paths
   // Every artifact the site serves from its own domain: upstream CloudFront
   // path + the public Content-Type the route owns.
-  const routes: Array<[string, () => Promise<Response>, string, string]> = [
-    ['/llms.txt', llmsTxtRoute, '/llms.txt', 'text/plain; charset=utf-8'],
+  const routes: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>, string, string]> = [
+    ['/llms.txt', llmsTxtRoute, LLMS_TXT_PATH, 'text/plain; charset=utf-8'],
     ['/llms-full.txt', llmsFullRoute, LLM_CONTENT_PATHS.llmsFull, 'text/markdown; charset=utf-8'],
     ['/index.md', indexMdRoute, LLM_CONTENT_PATHS.indexMarkdown, 'text/markdown; charset=utf-8'],
     ['/feed.xml', feedXmlRoute, '/feed.xml', 'application/rss+xml; charset=utf-8'],
     ['/feed.json', feedJsonRoute, '/feed.json', 'application/feed+json; charset=utf-8']
   ]
 
-  it.each(routes)('%s proxies its CloudFront artifact', async (_route, onRequest, upstreamPath, contentType) => {
+  it.each(routes)('%s proxies its CloudFront artifact', async (route, onRequest, upstreamPath, contentType) => {
     const mock = stubFetch(new Response('payload'))
-    const res = await onRequest()
-    expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}${upstreamPath}`, {cf: {cacheTtl: 3600, cacheEverything: true}})
+    vi.stubGlobal('caches', undefined)
+    const {context} = makeContext(route)
+    const res = await onRequest(context)
+
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
+    expect(mock).toHaveBeenCalledWith(`${CLOUDFRONT_BASE}${upstreamPath}`, FETCH_CACHE_INIT)
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe(contentType)
+  })
+})
+
+describe('per-route cache policy', () => {
+  // covers: llms-txt#Cache policy is per route, and the feed routes stay edge-cached
+  // The llms-assurance contract requires no-store on all three cache headers for every
+  // llm-outputs response class. Two regression classes are under guard here, one per
+  // direction: the trio's success or stale path silently reverting to the edge policy, and
+  // the feed routes silently inheriting the trio's no-store. proxy.ts builds all five, so
+  // neither is visible from the factory tests alone -- they must be asserted per route.
+  const trio: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
+    ['/llms.txt', llmsTxtRoute],
+    ['/llms-full.txt', llmsFullRoute],
+    ['/index.md', indexMdRoute]
+  ]
+  const feeds: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
+    ['/feed.xml', feedXmlRoute],
+    ['/feed.json', feedJsonRoute]
+  ]
+
+  it.each(trio)('%s serves no-store on the success path', async (route, onRequest) => {
+    stubFetch(new Response('payload'))
+    vi.stubGlobal('caches', undefined)
+    const {context} = makeContext(route)
+
+    const res = await onRequest(context)
+
+    expect(res.status).toBe(200)
+    expectPublicNoStore(res)
+  })
+
+  it.each(trio)('%s serves no-store on the stale last-known-good path', async (route, onRequest) => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 503}))
+      ))
+    stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800'}}))
+    const {context} = makeContext(route)
+
+    const pending = onRequest(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expectPublicNoStore(res)
+  })
+
+  it.each(trio)('%s stores a cacheable last-known-good copy despite the no-store public policy', async (route, onRequest) => {
+    stubFetch(new Response('payload'))
+    const cache = stubCache()
+    const {context, background} = makeContext(route)
+
+    await onRequest(context)
+    await Promise.all(background)
+
+    const [, stored] = cache.put.mock.calls[0] as [Request, Response]
+    expect(stored.headers.get('Cache-Control')).toBe('public, max-age=10800')
+    expect(stored.headers.get('CDN-Cache-Control')).toBeNull()
+    expect(stored.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
+  })
+
+  it.each(feeds)('%s stays edge-cached on the success path and sets no CDN override', async (route, onRequest) => {
+    stubFetch(new Response('payload'))
+    vi.stubGlobal('caches', undefined)
+    const {context} = makeContext(route)
+
+    const res = await onRequest(context)
+
+    expect(res.status).toBe(200)
+    expectEdgeCached(res)
+  })
+
+  it.each(feeds)('%s stays edge-cached on the stale last-known-good path', async (route, onRequest) => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 503}))
+      ))
+    // The stored copy carries no-store here on purpose: the stale path must overwrite whatever
+    // it reads from the cache with the ROUTE's policy, not inherit the cached entry's headers.
+    stubCache(new Response('known good', {headers: {'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store'}}))
+    const {context} = makeContext(route)
+
+    const pending = onRequest(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expectEdgeCached(res)
+  })
+
+  it('exports the llm-outputs policy as no-store on every cache header', () => {
+    expect(LLM_OUTPUT_CACHE_POLICY).toEqual({cacheControl: 'no-store', cdnCacheControl: 'no-store'})
+  })
+})
+
+describe('routes ignore Accept', () => {
+  // covers: llms-txt#Markdown negotiation applies only to the homepage and honors Accept q-values
+  // Negotiation is the middleware's homepage-only decision. The explicit artifact
+  // and feed routes read nothing off Accept: each keeps its own bytes and content
+  // type for every Accept value, including an explicit text/markdown.
+  const routes: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>, string]> = [
+    ['/llms.txt', llmsTxtRoute, 'text/plain; charset=utf-8'],
+    ['/llms-full.txt', llmsFullRoute, 'text/markdown; charset=utf-8'],
+    ['/index.md', indexMdRoute, 'text/markdown; charset=utf-8'],
+    ['/feed.xml', feedXmlRoute, 'application/rss+xml; charset=utf-8'],
+    ['/feed.json', feedJsonRoute, 'application/feed+json; charset=utf-8']
+  ]
+
+  it.each(routes)('%s serves its own artifact under Accept: text/markdown', async (route, onRequest, contentType) => {
+    stubFetch(new Response('own artifact'))
+    vi.stubGlobal('caches', undefined)
+    const context: CloudfrontProxyContext = {
+      request: new Request(`https://jonathanlloyd.me${route}`, {headers: {Accept: 'text/markdown'}}),
+      waitUntil: () => {}
+    }
+
+    const res = await onRequest(context)
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get('Content-Type')).toBe(contentType)
+    expect(await res.text()).toBe('own artifact')
+  })
+})
+
+describe('non-retryable upstream privacy responses', () => {
+  it('never retries or serves last-known-good content for an upstream 403', async () => {
+    const mock = stubFetch(new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403}))
+    const cache = stubCache(new Response('pre-focus LKG'))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const res = await proxy(makeContext().context)
+
+    expect(mock).toHaveBeenCalledTimes(2)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(res.status).toBe(502)
+    expectPublicNoStore(res)
+    expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('403')
   })
 })

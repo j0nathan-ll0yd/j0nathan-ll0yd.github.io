@@ -1,0 +1,11 @@
+{
+  "id": "feed-xml-fetch",
+  "title": "feed.xml must be fetchable over HTTP",
+  "artifact": "feed.xml",
+  "rule_class": "operational",
+  "severity": "fail",
+  "untested_rationale": "check-feeds.mjs emits this id when the live feed returns a non-2xx response or transport fails. A body fixture cannot create that condition. The production smoke test checks the route, and the scheduled B2 audit exercises fetchStable against the live origin.",
+  "rationale": "RSS 2.0 specifies a document format. It does not define this repository's handling of transport failures while fetching feed.xml.",
+  "applicability": "A live HTTP request for feed.xml.",
+  "expectation": "The request succeeds with a 2xx response before body validation begins."
+}

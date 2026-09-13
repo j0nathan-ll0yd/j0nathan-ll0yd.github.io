@@ -22,65 +22,55 @@ shift
 
 VERSION=$(./scripts/playwright-version.sh)
 
-# --platform linux/arm64 is explicit (not redundant). The upstream Playwright
-# image is a multi-arch manifest list; without an explicit platform, Docker
-# Desktop on Apple Silicon may still pick the amd64 entry (depending on
-# DOCKER_DEFAULT_PLATFORM, buildx settings, or a previously-pulled tag cached
-# under amd64), which would re-introduce the QEMU SwiftShader SIGSEGV that
-# this whole migration is here to eliminate.
-# CI=true makes the in-container run mirror CI exactly (playwright.config.ts gates
-# retries/workers/forbidOnly/reporter/reuseExistingServer on `process.env.CI`).
-# Without it the local gate ran with retries:0 while CI uses retries:1, so a
-# transient Chromium worker-launch crash under fullyParallel load (seen on the
-# tall full-page dashboard captures) fails the pre-push hook where CI would retry
-# and pass. Real pixel diffs still fail every retry, so this never masks them.
+# The container writes $GITHUB_TOKEN into its npmrc as the npm.pkg.github.com
+# authToken (below). `-e GITHUB_TOKEN` forwards whatever the host has -- and in
+# gh-credential-helper setups that is EMPTY, so the container config carried an
+# empty token and every @j0nathan-ll0yd/* install died with "config present, no
+# auth header" (the FT4 push blocker, PR #272). Resolve a real token up front:
+# use the exported GITHUB_TOKEN when present, fall back to the gh CLI keyring,
+# and otherwise fail fast while the message can still name the fix.
+GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}"
+if [ -z "$GITHUB_TOKEN" ]; then
+  echo "ERROR: no GitHub token available for GitHub Packages auth inside the container." >&2
+  echo "Supply one of:" >&2
+  echo "  * export GITHUB_TOKEN=<token with read:packages>" >&2
+  echo "  * gh auth login   (this script falls back to 'gh auth token')" >&2
+  exit 1
+fi
+export GITHUB_TOKEN
+
+# Pin arm64 to avoid cached amd64/QEMU browser crashes, and set CI so retries and workers match
+# the hosted run. The node_modules shadow volume prevents Linux native packages from overwriting
+# the host's macOS install; keep it after the /work bind. Put pnpm's store inside that volume too,
+# or hundreds of megabytes land in the bind-mounted repository.
 #
-# `-v /work/node_modules` shadows the repo's node_modules with a container-private
-# ANONYMOUS volume. Without it, the container's install writes Linux-platform
-# native packages (@rollup/rollup-linux-*, dprint, esbuild, sharp) straight into
-# the bind-mounted HOST node_modules, clobbering the macOS arm64 darwin binaries.
-# The host then fails `pnpm build` / dprint / git commit until a manual
-# `pnpm install`. The anonymous volume gives the container its own node_modules
-# layer, so the install never touches the host. The `@j0nathan-ll0yd/*` packages
-# resolve from GitHub Packages (the forwarded GITHUB_TOKEN authenticates the
-# registry read) into the container-private node_modules -- no host state is
-# involved. `--rm` disposes the anonymous volume on exit, so each run does a fresh
-# clean install exactly as before -- only the host is now spared.
-# NOTE: the shadow volume mount MUST come AFTER the `/work` bind mount so it
-# layers on top of it.
+# Corepack follows package.json's exact pnpm pin. GITHUB_TOKEN is written to the container user
+# npmrc because pnpm does not expand it from the committed project config.
 #
-# `--store-dir /work/node_modules/.pnpm-store` is load-bearing for the SAME reason.
-# pnpm puts its content-addressed store on the same filesystem as the project so it
-# can hardlink into node_modules; left to itself it picks `<project>/.pnpm-store`,
-# i.e. straight into the bind-mounted HOST repo -- ~700MB of blobs, some over
-# GitHub's 100MB per-file limit, which a later `git add -A` will happily stage and
-# the push will then be rejected for (observed 2026-08-12). Pointing it INSIDE the
-# shadowed node_modules volume keeps it container-private and disposed by `--rm`,
-# and keeps store and node_modules on one filesystem so hardlinking still works.
-# .gitignore lists `.pnpm-store/` as the backstop.
+# A11Y_UPDATE_BASELINE is forwarded so `pnpm run a11y:update-baseline` regenerates the per-widget
+# a11y ratchet baseline (tests/behavioral/a11y-baseline.json) from a CI-parity run. Regenerating it
+# on the host would record whatever the host browser happened to compute, which is the same
+# parity trap the visual baselines have.
 #
-# pnpm is provisioned in-container with `corepack` (bundled with the image's Node),
-# which reads the exact `packageManager` pin from package.json -- so the container
-# runs the same pnpm the host and CI do. COREPACK_ENABLE_DOWNLOAD_PROMPT=0 makes
-# that first-run download non-interactive (it otherwise blocks on a y/N prompt
-# with no TTY).
-#
-# Forward GITHUB_TOKEN so the container's install can authenticate to GitHub
-# Packages for the @j0nathan-ll0yd/* scope (the six DS/LP packages + config).
-# GitHub Packages requires a token even to read public packages. Unlike npm, pnpm
-# does NOT expand ${GITHUB_TOKEN} from a committed project .npmrc (atlas decision
-# 0032 removed that line), so the token is written to the container's USER-level
-# npmrc with `pnpm config set` before installing -- the same wiring every workflow
-# uses. Export it before running
-# (e.g. `GITHUB_TOKEN=$(gh auth token) pnpm run test:visual`).
-# Unset -> `pnpm config set` writes an empty value and the install 401s, exactly
-# as it did before under npm.
+# dist/ gets its own shadow volume for the same reason node_modules does, but the
+# failure it prevents is louder. Rolldown creates its output-chunk directories
+# with a plain mkdir; on the macOS bind mount that call reports EEXIST for a
+# directory the same build just made, and `astro build` dies with
+#   Could not create directory for output chunks: /work/dist/.prerender
+#   Caused by: File exists (os error 17)
+# before a single test runs. Native Linux CI never sees it (no bind mount), so
+# the breakage is local-only -- which is worse, because it takes out the only
+# sanctioned path for regenerating baselines. Keeping dist off the bind mount
+# fixes it outright. The host does not need the container's dist: baselines and
+# test-results are written under tests/, which stays bind-mounted.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
+  -e A11Y_UPDATE_BASELINE \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
+  -v /work/dist \
   -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "corepack enable pnpm \

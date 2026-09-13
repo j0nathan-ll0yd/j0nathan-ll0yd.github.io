@@ -11,9 +11,11 @@
 set -euo pipefail
 
 # --- Configuration ---
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 TARGET_URL="${1:-https://jonathanlloyd.me}"
 BUILD_DIR="${2:-}"
 BASE_URL="$TARGET_URL"
+EXPECTED_CONTENT_USAGE='train-ai=n, search=y'
 PASS=0
 FAIL=0
 SKIP=0
@@ -173,38 +175,82 @@ else
   content=$(fetch_body "${BASE_URL}/robots.txt")
 fi
 
-ai_bots=("GPTBot" "ClaudeBot" "CCBot" "Google-Extended" "anthropic-ai" "Bytespider" "Meta-ExternalAgent" "Applebot-Extended" "Amazonbot")
-found_bots=0
-for bot in "${ai_bots[@]}"; do
-  if echo "$content" | grep -q "User-agent: $bot"; then
-    found_bots=$((found_bots + 1))
+training_bots=("GPTBot" "ClaudeBot" "CCBot" "Google-Extended" "Google-CloudVertexBot" "Bytespider" "Meta-ExternalAgent" "Meta-ExternalFetcher" "Applebot-Extended" "Amazonbot")
+search_agents=("OAI-SearchBot" "ChatGPT-User" "Claude-SearchBot" "Claude-User" "Perplexity-User")
+missing_agents=()
+for bot in "${training_bots[@]}" "${search_agents[@]}"; do
+  if ! echo "$content" | tr -d '\r' | grep -Eqi "^User-agent:[[:space:]]*${bot}[[:space:]]*$"; then
+    missing_agents+=("$bot")
   fi
 done
 
-if [ "$found_bots" -ge 3 ]; then
-  log_pass "AI bot rules found ($found_bots/${#ai_bots[@]} bots configured)"
+if [ "${#missing_agents[@]}" -eq 0 ]; then
+  log_pass "All ${#training_bots[@]} training and ${#search_agents[@]} search-agent rules found"
 else
-  log_fail "Few AI bot rules found ($found_bots/${#ai_bots[@]} bots, need 3+)"
+  log_fail "Missing expected AI crawler rules: ${missing_agents[*]}"
 fi
 
-# --- Check 6: Content Signals in robots.txt ---
-log_section "Check 6: Content Signals in robots.txt"
-if echo "$content" | grep -qi 'Content-Signal:'; then
-  signal_line=$(echo "$content" | grep -i 'Content-Signal:' | head -1 | tr -d '\r')
-  log_pass "Content-Signal directive found: $signal_line"
-  # Verify signals
-  if echo "$signal_line" | grep -qi 'ai-train=no'; then
-    log_info "  ai-train=no (training blocked)"
-  fi
-  if echo "$signal_line" | grep -qi 'ai-input=yes'; then
-    log_info "  ai-input=yes (RAG/grounding allowed)"
-  fi
-  if echo "$signal_line" | grep -qi 'search=yes'; then
-    log_info "  search=yes (search indexing allowed)"
+unsupported_directives=$(printf '%s\n' "$content" | awk '
+  {
+    line = $0
+    sub(/^[[:space:]]+/, "", line)
+    if (line == "" || substr(line, 1, 1) == "#") next
+    colon = index(line, ":")
+    if (colon == 0) {
+      print NR ": " line
+      next
+    }
+    directive = tolower(substr(line, 1, colon - 1))
+    gsub(/[[:space:]]/, "", directive)
+    if (directive != "user-agent" && directive != "allow" && directive != "disallow" && directive != "sitemap") {
+      print NR ": " line
+    }
+  }
+')
+if [ -z "$unsupported_directives" ]; then
+  log_pass "robots.txt contains only the site-approved Lighthouse-safe directives"
+else
+  log_fail "robots.txt contains unsupported directives"
+  log_info "$unsupported_directives"
+fi
+
+# --- Check 6: Content-Usage HTTP response header ---
+log_section "Check 6: Content-Usage HTTP response header"
+if [ -n "$BUILD_DIR" ]; then
+  middleware_path="${SCRIPT_DIR}/../functions/_middleware.ts"
+  static_headers_path="${SCRIPT_DIR}/../public/_headers"
+  middleware_usage=$(sed -nE "s/^[[:space:]]*export const CONTENT_USAGE = ['\"]([^'\"]+)['\"][[:space:]]*$/\1/p" "$middleware_path" | head -1)
+  static_usage=$(awk '
+    $0 == "/*" { in_wildcard = 1; next }
+    in_wildcard && $0 ~ /^\// { exit }
+    in_wildcard && tolower($1) == "content-usage:" {
+      sub(/^[^:]+:[[:space:]]*/, "")
+      sub(/[[:space:]]*$/, "")
+      print
+      exit
+    }
+  ' "$static_headers_path")
+
+  if [ "$middleware_usage" = "$EXPECTED_CONTENT_USAGE" ] && [ "$static_usage" = "$EXPECTED_CONTENT_USAGE" ]; then
+    log_pass "Content-Usage is '$EXPECTED_CONTENT_USAGE' in middleware and the static wildcard"
+  else
+    log_fail "Content-Usage config mismatch (middleware='$middleware_usage', static wildcard='$static_usage')"
   fi
 else
-  log_fail "No Content-Signal directive in robots.txt"
-  log_info "  Fix: Add 'Content-Signal: search=yes, ai-train=no, ai-input=yes' under User-agent: *"
+  usage_failures=()
+  for usage_path in "/" "/privacy/" "/robots.txt"; do
+    headers=$(fetch_headers "${BASE_URL}${usage_path}")
+    usage_value=$(echo "$headers" | grep -i '^content-usage:' | head -1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true)
+    if [ "$usage_value" != "$EXPECTED_CONTENT_USAGE" ]; then
+      usage_failures+=("${usage_path}='$usage_value'")
+    fi
+  done
+
+  if [ "${#usage_failures[@]}" -eq 0 ]; then
+    log_pass "Content-Usage is '$EXPECTED_CONTENT_USAGE' on live dynamic and static routes"
+  else
+    log_fail "Content-Usage live mismatch: ${usage_failures[*]}"
+  fi
 fi
 
 # --- Check 7: API Catalog ---
@@ -379,33 +425,40 @@ fi
 # --- Check 12: WebMCP ---
 log_section "Check 12: WebMCP (navigator.modelContext)"
 if [ -n "$BUILD_DIR" ]; then
-  # Check if the inline script contains modelContext
   index_html=$(local_file_content "/index.html")
-  if echo "$index_html" | grep -q 'navigator.modelContext'; then
-    log_pass "WebMCP script found in index.html (navigator.modelContext)"
-    if echo "$index_html" | grep -q 'provideContext'; then
+  webmcp_source="$index_html"
+  if echo "$index_html" | grep -q '/js/webmcp.js' && local_file_exists "/js/webmcp.js"; then
+    webmcp_source=$(local_file_content "/js/webmcp.js")
+  fi
+  if echo "$webmcp_source" | grep -q 'navigator.modelContext'; then
+    log_pass "WebMCP script found (navigator.modelContext)"
+    if echo "$webmcp_source" | grep -q 'provideContext'; then
       log_pass "  Uses provideContext() API"
     fi
-    if echo "$index_html" | grep -q 'get_profile\|get_data_sources\|get_current_reading\|get_tech_stack'; then
-      tool_count=$(echo "$index_html" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
+    if echo "$webmcp_source" | grep -q 'get_profile\|get_data_sources\|get_current_reading\|get_tech_stack'; then
+      tool_count=$(echo "$webmcp_source" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
       log_pass "  $tool_count tools registered"
     fi
   else
-    log_fail "WebMCP script not found in index.html"
+    log_fail "WebMCP script not found in index.html or /js/webmcp.js"
   fi
 else
   body=$(fetch_body "${BASE_URL}/")
-  if echo "$body" | grep -q 'navigator.modelContext'; then
-    log_pass "WebMCP script found in page source (navigator.modelContext)"
-    if echo "$body" | grep -q 'provideContext'; then
+  webmcp_source="$body"
+  if echo "$body" | grep -q '/js/webmcp.js'; then
+    webmcp_source=$(fetch_body "${BASE_URL}/js/webmcp.js")
+  fi
+  if echo "$webmcp_source" | grep -q 'navigator.modelContext'; then
+    log_pass "WebMCP script found (navigator.modelContext)"
+    if echo "$webmcp_source" | grep -q 'provideContext'; then
       log_pass "  Uses provideContext() API"
     fi
-    tool_count=$(echo "$body" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
+    tool_count=$(echo "$webmcp_source" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
     if [ "$tool_count" -gt 0 ]; then
       log_pass "  $tool_count tools registered"
     fi
   else
-    log_fail "WebMCP script not found in page source"
+    log_fail "WebMCP script not found in page source or /js/webmcp.js"
     log_info "  Fix: Deploy latest code to Cloudflare Pages"
   fi
 fi

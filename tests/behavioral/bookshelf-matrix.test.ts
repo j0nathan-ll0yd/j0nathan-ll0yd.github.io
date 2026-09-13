@@ -1,6 +1,7 @@
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {expectNoNewAxeViolations} from './a11y'
 
 const require = createRequire(import.meta.url)
 
@@ -55,6 +56,8 @@ test.describe('Bookshelf Render Conformance', () => {
     await page.goto('/', {waitUntil: 'domcontentloaded'})
 
     await expect(page.locator('#cardBooks.is-loading')).toBeVisible()
+
+    await expectNoNewAxeViolations(page, 'bookshelf/loading')
   })
 
   // covers: bookshelf-render#Empty state renders empty state message without book cards
@@ -63,6 +66,8 @@ test.describe('Bookshelf Render Conformance', () => {
 
     await expect(page.locator('#cardBooks .widget-empty')).toBeVisible()
     await expect(page.locator('#cardBooks .shelf-book')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'bookshelf/empty')
   })
 
   // covers: bookshelf-render#Default populated arrangement renders expected book cards
@@ -75,6 +80,8 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks .shelf-status-finished')).toHaveCount(3)
     await expect(page.locator('#cardBooks')).toContainText('The Tainted Cup')
     await expect(page.locator('#cardBooks')).toContainText('Crafting Engineering Strategy')
+
+    await expectNoNewAxeViolations(page, 'bookshelf/baseline')
   })
 
   // covers: bookshelf-render#All completed grouping renders completed section without active groups
@@ -85,6 +92,8 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks .shelf-status-finished')).toHaveCount(5)
     await expect(page.locator('#cardBooks .shelf-book-active')).toHaveCount(0)
     await expect(page.locator('#cardBooks .shelf-book-progress')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'bookshelf/allCompleted')
   })
 
   // covers: bookshelf-render#All in progress grouping renders active section without completed groups
@@ -95,6 +104,8 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks .shelf-book-active')).toHaveCount(3)
     await expect(page.locator('#cardBooks .shelf-book-progress')).toHaveCount(3)
     await expect(page.locator('#cardBooks .shelf-status-finished')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'bookshelf/allReading')
   })
 
   // covers: bookshelf-render#Sparse data renders sparse state without phantom cards
@@ -104,6 +115,8 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks .shelf-book')).toHaveCount(5)
     await expect(page.locator('#cardBooks .shelf-cover-wrapper img')).toHaveCount(5)
     await expect(page.locator('#cardBooks')).toContainText('Foundryside')
+
+    await expectNoNewAxeViolations(page, 'bookshelf/noCovers')
   })
 
   // covers: bookshelf-render#Shelf capacity limits the visible book cards
@@ -113,5 +126,7 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks .shelf-book')).toHaveCount(5)
     await expect(page.locator('#cardBooks')).toContainText('The Tainted Cup')
     await expect(page.locator('#cardBooks')).not.toContainText('JavaScript: The Good Parts')
+
+    await expectNoNewAxeViolations(page, 'bookshelf/full')
   })
 })

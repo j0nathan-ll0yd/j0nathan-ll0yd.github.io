@@ -1,2 +1,0 @@
-Contact: mailto:security@example.com
-Expires: not-a-date

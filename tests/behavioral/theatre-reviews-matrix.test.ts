@@ -2,6 +2,7 @@ import {createRequire} from 'node:module'
 import {readFileSync} from 'node:fs'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {expectNoNewAxeViolations} from './a11y'
 
 const require = createRequire(import.meta.url)
 const THEATRE_EMPTY_MESSAGE = 'No reviews yet'
@@ -57,6 +58,20 @@ async function interceptDashboardData(page: Page, theatreFixture: FixtureRespons
   })
 }
 
+// Use committed same-origin images to retain optimized-picture coverage while
+// the raw fixture's rejected off-origin candidates cover the sanitizer path.
+function allowedPosterFixture(): FixtureResponse {
+  const payload = JSON.parse(readFileSync(fixture('theatre-reviews', 'full'), 'utf8')) as Record<string, unknown>
+  payload.reviews = (payload.reviews as Array<Record<string, unknown>>).map((review) => ({
+    ...review,
+    imageUrl: '/images/theatre/just-in-time.webp',
+    imageUrlAvif: '/images/theatre/just-in-time.avif',
+    imageUrlCard: '/images/theatre/just-in-time-card.webp',
+    imageUrlCardAvif: '/images/theatre/just-in-time-card.avif'
+  }))
+  return {body: JSON.stringify(payload)}
+}
+
 async function loadTheatreFixture(page: Page, variation: string): Promise<void> {
   await interceptDashboardData(page, {path: fixture('theatre-reviews', variation)})
   await page.goto('/')
@@ -74,6 +89,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews.is-loading')).toBeVisible()
     await expect(page.locator('#cardTheatreReviews .skeleton-bar')).toHaveCount(9)
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/loading')
   })
 
   // covers: theatre-reviews-render#Empty state presents the theatre empty message without cards
@@ -83,6 +100,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews .widget-empty')).toContainText(THEATRE_EMPTY_MESSAGE)
     await expect(page.locator('#theatreCount')).toHaveText('0 reviews')
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/empty')
   })
 
   // covers: theatre-reviews-render#Baseline reviews render every source title and count
@@ -94,6 +113,9 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews')).toContainText('The Glass Menagerie')
     await expect(page.locator('#cardTheatreReviews')).toContainText('Death of a Salesman')
     await expect(page.locator('#cardTheatreReviews')).toContainText('Waiting for Godot')
+    await expectSanitizedPlaceholderCovers(page, 3)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/baseline')
   })
 
   // covers: theatre-reviews-render#Grade variation renders the full letter-grade range
@@ -104,8 +126,10 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews .theatre-grade')).toHaveCount(8)
     await expect(page.locator('#cardTheatreReviews')).toContainText('A+')
     await expect(page.locator('#cardTheatreReviews')).toContainText('F')
-  })
+    await expectSanitizedPlaceholderCovers(page, 8)
 
+    await expectNoNewAxeViolations(page, 'theatre-reviews/allGrades')
+  })
   // covers: theatre-reviews-render#Reviews without images retain titles and grades without broken image elements
   test('renders image-less reviews without image elements', async ({page}) => {
     await loadTheatreFixture(page, 'noImages')
@@ -114,6 +138,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(page.locator('#cardTheatreReviews .theatre-poster-wrap img')).toHaveCount(0)
     await expect(page.locator('#cardTheatreReviews .theatre-grade')).toHaveCount(3)
     await expect(page.locator('#cardTheatreReviews')).toContainText("Long Day's Journey Into Night")
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/noImages')
   })
 
   // covers: theatre-reviews-render#Export window preserves total source count
@@ -124,11 +150,18 @@ test.describe('Theatre Reviews Render Conformance', () => {
 
     await expect(page.locator('#theatreCount')).toHaveText('18 reviews')
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(7)
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/exportWindow')
   })
 
   // covers: theatre-reviews-render#Full variation renders populated optimized-image review cards
   test('renders optimized poster picture sources and safe outbound links', async ({page}) => {
-    await loadTheatreFixture(page, 'full')
+    // The raw fixture's off-origin posters are rejected by the image sanitizer.
+    // Substitute committed same-origin assets to exercise the allowed optimized
+    // picture path independently of the rejection behavior asserted above.
+    await interceptDashboardData(page, allowedPosterFixture())
+    await page.goto('/')
+    await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
 
     const cards = page.locator('#cardTheatreReviews .theatre-card')
     await expect(cards).toHaveCount(8)
@@ -138,5 +171,16 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await expect(cards.first()).toHaveAttribute('rel', 'noopener noreferrer')
     await expect(cards.first()).toHaveAttribute('href', 'https://coasttocoastreviews.com/reviews/a-midsummer-nights-dream')
     await expect(page.locator('#cardTheatreReviews')).toContainText("A Midsummer Night's Dream")
+
+    await expectNoNewAxeViolations(page, 'theatre-reviews/fullOptimizedPosters')
   })
 })
+
+async function expectSanitizedPlaceholderCovers(page: Page, count: number): Promise<void> {
+  const posters = page.locator('#cardTheatreReviews .theatre-poster-wrap img')
+  await expect(posters).toHaveCount(count)
+  await expect(page.locator('#cardTheatreReviews .theatre-poster-wrap source')).toHaveCount(0)
+  await expect.poll(async () =>
+    posters.evaluateAll((images) => images.map((image) => ({src: image.getAttribute('src'), srcset: image.getAttribute('srcset')})))
+  ).toEqual(Array.from({length: count}, () => ({src: '/images/no-cover.svg', srcset: null})))
+}
