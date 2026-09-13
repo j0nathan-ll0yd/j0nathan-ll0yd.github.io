@@ -4,40 +4,11 @@ import path from 'path'
 import type {FullConfig} from '@playwright/test'
 
 /**
- * Front-loaded lossless PNG optimization for the committed visual baselines.
+ * Optimizes committed PNG baselines only during snapshot regeneration. Local and CI regeneration
+ * use the same native linux/arm64 container, so output stays byte-identical.
  *
- * Runs ONLY on a snapshot-regeneration pass (`--update-snapshots`), never on a
- * compare pass, so it optimizes the exact bytes that get committed while never
- * rewriting baselines during a validation run. Both invocation paths that
- * regenerate baselines execute this teardown inside the identical native
- * linux/arm64 Playwright-noble container (locally via scripts/run-in-docker.sh,
- * in CI on the self-hosted arm64 runner built FROM the same image), so the
- * optimization is byte-for-byte identical across them — the load-bearing
- * property the whole suite depends on.
- *
- * Optimizer: oxipng via @napi-rs/image's `losslessCompressPngSync`.
- *   - The plain `oxipng` npm package is NOT usable here: it branches only on
- *     process.platform (never process.arch) and blindly execs a bundled
- *     x86_64-unknown-linux-musl binary on any Linux. In this container that is
- *     an aarch64 host with no QEMU/Rosetta, so the x86_64 ELF fails with
- *     `Exec format error`. It ships no aarch64 binary at all.
- *   - @napi-rs/image ships a real linux-arm64-gnu prebuilt (resolved from
- *     node_modules by npm's platform-optional-dependency mechanism, no
- *     postinstall network fetch) and is verified deterministic + idempotent on
- *     arm64: opt(x) == opt(x) and opt(opt(x)) == opt(x).
- *
- * Options rationale:
- *   - filter: [0..4] tries all five canonical PNG row filters (None, Sub, Up,
- *     Average, Paeth) — maximal filter search for the smallest lossless result.
- *   - strip: false — keep every ancillary chunk. This is stricter than the
- *     plan's `--strip safe`; @napi-rs exposes only all-or-nothing stripping,
- *     and dropping colour-management chunks (gAMA/sRGB/iCCP) could shift how a
- *     reviewer's colour-managed viewer renders the PNG. Chromium screenshots
- *     carry negligible metadata, so keeping it costs ~nothing in size.
- *
- * The optimization is lossless (decoded RGBA is unchanged), which the very next
- * `pnpm run test:visual` compare proves by staying green against the optimized
- * baselines.
+ * `@napi-rs/image` supplies the required arm64 oxipng binary. Trying every PNG filter minimizes
+ * losslessly; metadata remains because stripping color profiles can change review-tool rendering.
  */
 
 const require = createRequire(import.meta.url)

@@ -3,6 +3,7 @@ import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {PNG} from 'pngjs'
 
 const distDir = path.resolve(process.cwd(), 'dist')
 
@@ -51,6 +52,22 @@ describe('SEO Meta Tags', () => {
     const ogImage = $('meta[property="og:image"]').attr('content')
     expect(ogImage).toBeTruthy()
     expect(ogImage!.length).toBeGreaterThan(0)
+  })
+
+  it('og:image is the exact same-origin 1200x630 decodable PNG', () => {
+    const expected = new URL('/assets/og-image.png', SITE_URL)
+    const raw = $('meta[property="og:image"]').attr('content')
+    expect(raw).toBe(expected.href)
+
+    const url = new URL(raw!)
+    expect(url.origin).toBe(new URL(SITE_URL).origin)
+    expect(url.search).toBe('')
+    expect(url.hash).toBe('')
+
+    const file = path.join(distDir, url.pathname.replace(/^\//, ''))
+    const decoded = PNG.sync.read(readFileSync(file))
+    expect(decoded.width).toBe(1200)
+    expect(decoded.height).toBe(630)
   })
 
   it('profile:first_name is "Jonathan"', () => {

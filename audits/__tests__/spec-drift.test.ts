@@ -1,0 +1,215 @@
+// audits/__tests__/spec-drift.test.ts -- B2 spec/eval pilot, ADR 0011 follow-up
+// (b). Three halves:
+//   1. The live catalog's INTEGRITY is green (offline, no network).
+//   2. checkQuoteIntegrity CAN FAIL -- a quote edited after authoring, and the
+//      anti-truncation floor that stops a drift red being "fixed" by cutting
+//      the citation down to a fragment.
+//   3. checkSourceDrift CAN FAIL, with an INJECTED fetch so this suite never
+//      touches the network. ADR 0010/0011's core lesson is that a gate never
+//      observed to fail is indistinguishable from no gate, and the headline
+//      case here is the one every EXISTING gate misses: a normative MUST
+//      silently downgraded to SHOULD, with content_sha256 dutifully re-run so
+//      integrity and check-spec-verification both go green.
+//
+// The live DRIFT half is deliberately NOT asserted here. It depends on two
+// third-party hosts, and this suite runs on every pull request; that check is
+// the weekly report-only audit-web.yml job's business (the tier split in
+// check-spec-drift.mjs's header).
+
+import {createHash} from 'node:crypto'
+import {describe, expect, it, vi} from 'vitest'
+import {
+  checkIntegrityOnly,
+  checkQuoteIntegrity,
+  checkSourceDrift,
+  checkSpecDrift,
+  comparable,
+  MIN_SEGMENT_CHARS,
+  quoteSegments
+} from '../checks/b2-check-spec-drift.mjs'
+
+const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
+
+const QUOTE = 'This field MUST always be present in a "security.txt" file.'
+
+// The citation shape since the atlas decision 0129 consumer round. The probe reads a
+// pinned source through `citation()`, which accepts `cites` (conformance) or
+// `derivedFrom` (local) alike -- so these synthetics exercise BOTH arms, and the
+// `derivedFrom` cases below are what would have regressed silently had the probed set
+// been keyed on rule_class.
+interface SpecFields {
+  quote?: string
+  content_sha256?: string
+  pinnedAt?: string
+  retrieved?: string
+}
+interface SyntheticRule {
+  rel: string
+  rule: {id: string; cites?: SpecFields; derivedFrom?: SpecFields}
+}
+
+function sha256(s: string): string {
+  return createHash('sha256').update(s, 'utf-8').digest('hex')
+}
+
+function ruleWith(spec: SpecFields, arm: 'cites' | 'derivedFrom' = 'cites'): SyntheticRule {
+  return {rel: 'security-txt/example.rule.json', rule: {id: 'example', [arm]: spec}}
+}
+
+/** An integrity-clean rule pointing at a pinned source. */
+function verifiedRule(quote = QUOTE, arm: 'cites' | 'derivedFrom' = 'cites'): SyntheticRule {
+  return ruleWith({quote, content_sha256: sha256(quote), pinnedAt: RFC_URL, retrieved: '2026-07-30'}, arm)
+}
+
+describe('check-spec-drift: the live catalog', () => {
+  it('has zero integrity violations (every content_sha256 matches its own quote)', () => {
+    expect(checkIntegrityOnly()).toEqual([])
+  })
+})
+
+describe('check-spec-drift: quoteSegments', () => {
+  it('splits a spliced quote on an ellipsis, preserving order', () => {
+    expect(quoteSegments('first passage... second passage')).toEqual(['first passage', 'second passage'])
+  })
+
+  it('treats a unicode ellipsis identically', () => {
+    expect(quoteSegments('first passage… second passage')).toEqual(['first passage', 'second passage'])
+  })
+
+  // Splicing after a sentence yields FOUR dots. Consuming only three would
+  // leave a stray '.' leading the next segment, which occurs nowhere in the
+  // source -- misreporting an ordering problem as a missing passage.
+  it('absorbs the full dot run when a splice follows a sentence-ending period', () => {
+    expect(quoteSegments('ends a sentence.... starts the next')).toEqual(['ends a sentence', 'starts the next'])
+  })
+})
+
+describe('check-spec-drift: checkQuoteIntegrity can fail', () => {
+  it('accepts a rule whose hash matches its quote', () => {
+    expect(checkQuoteIntegrity([verifiedRule()])).toEqual([])
+  })
+
+  it('flags a quote edited after authoring (hash no longer matches)', () => {
+    const r = verifiedRule()
+    r.rule.cites!.quote = QUOTE.replace('MUST', 'SHOULD')
+    const violations = checkQuoteIntegrity([r])
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('does not match sha256(quote)')
+  })
+
+  it('flags a missing quote rather than skipping the rule', () => {
+    expect(checkQuoteIntegrity([ruleWith({content_sha256: sha256(QUOTE)})])[0]).toContain('citation quote is required')
+  })
+
+  it('checks a derivedFrom quote exactly as it checks a cites quote', () => {
+    // The regression guard for the citation split: a local rule's transcription is as
+    // worth protecting as a conformance rule's, so integrity must not key on the arm.
+    expect(checkQuoteIntegrity([verifiedRule(QUOTE, 'derivedFrom')])).toEqual([])
+    const r = verifiedRule(QUOTE, 'derivedFrom')
+    r.rule.derivedFrom!.quote = QUOTE.replace('MUST', 'SHOULD')
+    expect(checkQuoteIntegrity([r])[0]).toContain('does not match sha256(quote)')
+  })
+
+  it('skips a rule that records no external source at all', () => {
+    expect(checkQuoteIntegrity([{rel: 'x/y.rule.json', rule: {id: 'y'}}])).toEqual([])
+  })
+
+  it('flags a spliced segment truncated below the anti-truncation floor', () => {
+    const quote = `${QUOTE}... short bit`
+    const violations = checkQuoteIntegrity([ruleWith({quote, content_sha256: sha256(quote)})])
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain(`shorter than the ${MIN_SEGMENT_CHARS}-character floor`)
+  })
+})
+
+describe('check-spec-drift: checkSourceDrift can fail', () => {
+  const source = `2.5.3.  Contact\n\n   The "Contact" field indicates a method that researchers should use.\n   ${QUOTE}\n`
+
+  function fetchReturning(text: string) {
+    return vi.fn().mockResolvedValue(text)
+  }
+
+  it('passes when the quote still occurs in the pinned source', async () => {
+    expect(await checkSourceDrift([verifiedRule()], {fetchText: fetchReturning(source)})).toEqual([])
+  })
+
+  it('matches across a hard-wrapped line break in the source', async () => {
+    const wrapped = '   This field MUST always be present in a\n   "security.txt" file.\n'
+    expect(await checkSourceDrift([verifiedRule()], {fetchText: fetchReturning(wrapped)})).toEqual([])
+  })
+
+  // THE HEADLINE CASE. Integrity and check-spec-verification both go green
+  // here (the hash was dutifully re-run); only the drift probe catches that
+  // the source never said SHOULD.
+  it('catches a normative MUST silently downgraded to SHOULD', async () => {
+    const weakened = QUOTE.replace('MUST', 'SHOULD')
+    const violations = await checkSourceDrift([verifiedRule(weakened)], {fetchText: fetchReturning(source)})
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('no longer occurs in its pinned source')
+  })
+
+  it('catches spliced passages that appear OUT OF ORDER in the source', async () => {
+    const quote = `${QUOTE}... The "Contact" field indicates a method that researchers should use.`
+    const violations = await checkSourceDrift([verifiedRule(quote)], {fetchText: fetchReturning(source)})
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('OUT OF ORDER')
+  })
+
+  it('reports an unreachable source as INDETERMINATE rather than passing', async () => {
+    const failing = vi.fn().mockRejectedValue(new Error('HTTP 503'))
+    const violations = await checkSourceDrift([verifiedRule()], {fetchText: failing})
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain('INDETERMINATE')
+    expect(violations[0]).toContain('HTTP 503')
+  })
+
+  // THE MEASUREMENT CHANNEL (atlas decision 0122). The violation list alone cannot
+  // carry this: one unreachable source raises one INDETERMINATE per dependent rule, so
+  // a total outage and a single drifted quote can produce the same violation count.
+  // `measured` counts the pinned sources whose BYTES this run held, and `0` is what
+  // audits/healthchecks-ping.sh wedges the weekly tier on.
+  it('measures the pinned sources it held, so a partial outage is a finding not darkness', async () => {
+    const held = await checkSpecDrift({fetchText: fetchReturning(source)})
+    expect(held.measured).toBeGreaterThan(0)
+  })
+
+  it('measures ZERO when every pinned source is unreachable -- the transport-dark shape', async () => {
+    const dark = await checkSpecDrift({fetchText: vi.fn().mockRejectedValue(new Error('HTTP 503'))})
+    expect(dark.measured).toBe(0)
+    // Still a finding per rule, and still exit 1: darkness is reported on BOTH
+    // channels, because they answer different questions.
+    expect(dark.violations.length).toBeGreaterThan(0)
+  })
+
+  it('deduplicates fetches -- many rules citing one source fetch it once', async () => {
+    const spy = fetchReturning(source)
+    await checkSourceDrift([verifiedRule(), verifiedRule(), verifiedRule()], {fetchText: spy})
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not probe a rule that records no pinned source', async () => {
+    const spy = fetchReturning(source)
+    const unpinned = ruleWith({quote: QUOTE, content_sha256: sha256(QUOTE), pinnedAt: undefined})
+    expect(await checkSourceDrift([unpinned], {fetchText: spy})).toEqual([])
+    expect(spy).not.toHaveBeenCalled()
+  })
+
+  it('probes a derivedFrom rule, so the pinned set is not keyed on rule class', async () => {
+    // Had this been keyed on rule_class, the five llms-txt convention rules -- and with
+    // them the AnswerDotAI/llms-txt blob -- would have left the probe in silence.
+    const spy = fetchReturning(source)
+    expect(await checkSourceDrift([verifiedRule(QUOTE, 'derivedFrom')], {fetchText: spy})).toEqual([])
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('de-marks markdown so a quote from a rendered page matches a raw blob', async () => {
+    const quote = 'a required markdown hyperlink name, then optionally a : and notes'
+    const raw = 'containing `a required markdown hyperlink [name](url), then optionally a : and notes` about the file.'
+    expect(await checkSourceDrift([verifiedRule(quote)], {fetchText: fetchReturning(raw)})).toEqual([])
+  })
+
+  it('reduces archived HTML specs to rendered text with separated table cells', () => {
+    const html = '<!doctype html><html><body><table><tr><td>title</td><td>The name of the channel.</td></tr></table></body></html>'
+    expect(comparable(html)).toContain('title The name of the channel.')
+  })
+})

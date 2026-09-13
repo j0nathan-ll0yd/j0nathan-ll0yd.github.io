@@ -1,0 +1,44 @@
+{
+  "id": "feed-xml-stale",
+  "title": "the newest RSS item must be within the freshness window",
+  "artifact": "feed.xml",
+  "rule_class": "local-policy",
+  "severity": "fail",
+  "params": {
+    "maxAgeDays": 7
+  },
+  "rationale": "RSS 2.0 does not define a freshness window for the newest item. This seven-day limit is local policy.",
+  "applicability": "A parsed RSS channel with at least one parseable item pubDate.",
+  "expectation": "The newest pubDate is not more than maxAgeDays before evaluation. Exactly seven days old passes.",
+  "cases": [
+    {
+      "name": "the newest item is more than seven days old",
+      "outcome": "failed",
+      "input_file": "cases/stale.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "feed-xml-stale",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "newest item is exactly 7 days old and the strict comparison passes",
+      "outcome": "passed",
+      "input_file": "cases/exactly-7-days.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "a conformant, fresh RSS document",
+      "outcome": "passed",
+      "input_file": "cases/valid.xml",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

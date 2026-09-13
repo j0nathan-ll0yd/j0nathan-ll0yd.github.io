@@ -95,6 +95,53 @@ for (const required of REQUIRED_URLS) {
   }
 }
 
+if (!sw.includes('self.skipWaiting()')) {
+  problems.push('generated service worker does not call self.skipWaiting()')
+}
+if (!/\bclientsClaim\(\)/.test(sw)) {
+  problems.push('generated service worker does not call Workbox clientsClaim()')
+}
+
+function runtimeRoute(cacheName) {
+  const cacheMatch = new RegExp(`["']?cacheName["']?\\s*:\\s*["']${cacheName}["']`).exec(sw)
+  if (!cacheMatch) {
+    return null
+  }
+  const start = sw.lastIndexOf('registerRoute(', cacheMatch.index)
+  const next = sw.indexOf('registerRoute(', cacheMatch.index + cacheMatch[0].length)
+  return start >= 0 ? sw.slice(start, next >= 0 ? next : sw.length) : null
+}
+
+const localImagesRoute = runtimeRoute('local-images')
+if (!localImagesRoute) {
+  problems.push('missing local-images runtime route')
+} else {
+  if (!localImagesRoute.includes('/\\/images\\/(books|theatre)\\//')) {
+    problems.push('local-images runtime route no longer matches /images/(books|theatre)/')
+  }
+  if (!localImagesRoute.includes('CacheFirst')) {
+    problems.push('local-images runtime route is not CacheFirst')
+  }
+  if (!/["']?maxEntries["']?\s*:\s*200/.test(localImagesRoute) || !/["']?maxAgeSeconds["']?\s*:\s*(2592000|2592e3)/.test(localImagesRoute)) {
+    problems.push('local-images runtime route lost maxEntries=200 or maxAgeSeconds=2592000')
+  }
+}
+
+const cloudfrontImagesRoute = runtimeRoute('optimized-images-fallback')
+if (!cloudfrontImagesRoute) {
+  problems.push('missing optimized-images-fallback runtime route')
+} else {
+  if (!cloudfrontImagesRoute.includes('cloudfront\\.net\\/images\\/')) {
+    problems.push('optimized-images-fallback route no longer targets the CloudFront /images/ path')
+  }
+  if (!cloudfrontImagesRoute.includes('CacheFirst')) {
+    problems.push('optimized-images-fallback runtime route is not CacheFirst')
+  }
+  if (!/["']?maxEntries["']?\s*:\s*50/.test(cloudfrontImagesRoute) || !/["']?maxAgeSeconds["']?\s*:\s*604800/.test(cloudfrontImagesRoute)) {
+    problems.push('optimized-images-fallback route lost maxEntries=50 or maxAgeSeconds=604800')
+  }
+}
+
 if (problems.length > 0) {
   console.error('[check-sw-precache] FAIL:')
   for (const p of problems) {
@@ -107,4 +154,4 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');', 'app shell present.')
+console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');', 'app shell, activation, and image runtime routes present.')

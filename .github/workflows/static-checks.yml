@@ -1,48 +1,11 @@
 name: Static Checks
 
-# Type-safety + lint gates (Wave 2: adopt @j0nathan-ll0yd/config), plus the B2
-# spec/eval pilot's derived-eval gates (decisions/0011, DR3):
-#   - typecheck: `astro check` against the estate tsconfig floor
-#     (astro/tsconfigs/strict + @j0nathan-ll0yd/config/tsconfig-base.json).
-#   - lint: `eslint .` with the estate flat-config standard (type-aware).
-#   - spec-cases: `pnpm run test:unit` -- the same suite that already ran on
-#     the self-hosted `visual-tests.yml:172` PR-only lane, now ALSO on this
-#     GitHub-hosted lane covering both `pull_request` and `push: main`
-#     (independent of the self-hosted fleet's liveness -- B15, decision 0009).
-#   - spec-severity-ratchet: `node scripts/audit/check-spec-severity.mjs` --
-#     the monotonic severity ratchet + deletion assertion + params_pending
-#     ratchet over scripts/audit/specs/**/*.rule.json.
-#   - spec-verification: `node scripts/audit/check-spec-verification.mjs` --
-#     ADR 0011 follow-up (a): every rule_class: conformance rule must carry
-#     spec.verified_against_source: true against an immutable/pinned source, the
-#     mechanism that stops the 7-of-7 citation-defect class from recurring.
-#   - spec-quote-integrity: `node scripts/audit/check-spec-drift.mjs
-#     --integrity-only` -- ADR 0011 follow-up (b), offline half: every
-#     spec.content_sha256 must still equal sha256(spec.normative_quote), so a
-#     quote edited after authoring cannot ship green. Deliberately offline; the
-#     network half (re-fetching each pinned primary source) runs weekly and
-#     report-only in audit-web.yml so third-party uptime never gates a merge.
-#   - spec-mutation-score: `pnpm exec stryker run` -- the sufficiency claim (§2 DR2)
-#     over the three pure pilot functions (validateSecurityTxt, validateLlmsTxt,
-#     validateFeedJson).
-#   - covers-conformance: `node scripts/openspec-covers.mjs --blocking`
-#     (= `pnpm run check:covers`) -- the openspec-covers gate (atlas decision
-#     0072, finding M6): every requirement in openspec/specs/**/spec.md must
-#     have a resolving `covers:` tether in tests/, and every tether must name a
-#     real requirement. The rule is the vendored contract
-#     (scripts/vendor/openspec-covers.mjs, COVERS_SPEC_VERSION 3), byte-pinned
-#     by tests/unit/openspec-covers.integrity.test.ts and re-checked by the
-#     wrapper itself. Zero external deps (node builtins only), so this job
-#     skips pnpm install and GitHub Packages auth on purpose -- registry
-#     liveness never gates it.
-#
-# All six need the @j0nathan-ll0yd/* packages resolved (src and
-# scripts/audit/**/*.mjs both import them). Those packages are published to
-# GitHub Packages, so `pnpm install --frozen-lockfile` resolves them once the
-# registry read is authenticated: `packages: read` + the built-in Actions token,
-# written to the runner's user-level npmrc by each job's "Authenticate to GitHub
-# Packages" step (pnpm does not expand ${GITHUB_TOKEN} from the committed .npmrc
-# -- atlas decision 0032).
+# Hosted static gates for type/lint, rule cases and ratchets, source verification and quote
+# integrity, mutation score, and OpenSpec covers. The network half of source drift remains weekly
+# so third-party uptime cannot block merges. Every job here installs, covers included since atlas
+# decision 0079 item 4 wave 2b moved the covers rule into @j0nathan-ll0yd/estate-contracts; jobs
+# authenticate GitHub Packages through the runner's user npmrc because pnpm does not expand
+# GITHUB_TOKEN from the committed project config.
 on:
   pull_request:
   push:
@@ -114,11 +77,13 @@ jobs:
       - name: Astro sync
         run: pnpm exec astro sync
 
-      - name: Lint (eslint)
+      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
+      - name: lint
         run: pnpm run lint
 
   spec-cases:
     runs-on: [self-hosted, linux, arm64, node]
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -143,12 +108,41 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Includes tests/audit/spec-cases.test.ts (decisions/0011): every case
-      # declared in scripts/audit/specs/**/*.rule.json is read out of the
+      # Includes audits/__tests__/spec-cases.test.ts (decisions/0011): every case
+      # declared in audits/specs/**/*.rule.json is read out of the
       # catalog and asserted against its validator here, on every PR and on
       # push: main -- not only on the self-hosted visual-tests.yml PR lane.
       - name: Unit + spec-cases tests (vitest)
         run: pnpm run test:unit
+
+  build-output:
+    runs-on: [self-hosted, linux, arm64, node]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # vitest.build.config.ts globalSetup runs the production build first; these
+      # assertions are meaningless without the emitted dist/ tree.
+      - name: build-output
+        run: pnpm run test:build
 
   spec-severity-ratchet:
     runs-on: [self-hosted, linux, arm64, node]
@@ -156,7 +150,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # check-spec-severity.mjs diffs scripts/audit/specs/severity-baseline.json
+          # check-spec-severity.mjs diffs audits/specs/severity-baseline.json
           # against `git show origin/main:...` -- a shallow (fetch-depth: 1)
           # checkout would not have origin/main reachable on a pull_request
           # event. Full history is cheap for a repo this size.
@@ -183,11 +177,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       # Monotonic severity ratchet + deletion assertion (REVERSAL 1) +
-      # params_pending ratchet (N6) over scripts/audit/specs/**/*.rule.json
+      # params_pending ratchet (N6) over audits/specs/**/*.rule.json
       # (decisions/0011). No `tee`, no `|| true` -- a non-zero exit here MUST
       # fail the job (S3 no-op-gate hazard).
       - name: Spec severity ratchet
-        run: node scripts/audit/check-spec-severity.mjs
+        run: node audits/checks/b2-check-spec-severity.mjs
 
   spec-verification:
     runs-on: [self-hosted, linux, arm64, node]
@@ -221,8 +215,9 @@ jobs:
       # (not via ajv) so a violation is a clean message, and asserts the
       # immutable/pinned verification_url shape (follow-up (b)). No `|| true` --
       # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
-      - name: Spec source-verification gate
-        run: node scripts/audit/check-spec-verification.mjs
+      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
+      - name: spec-verification
+        run: node audits/checks/b2-check-spec-verification.mjs
 
   spec-quote-integrity:
     runs-on: [self-hosted, linux, arm64, node]
@@ -261,10 +256,11 @@ jobs:
       # audit-web.yml, so their uptime never gates a merge here. No `|| true`
       # -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       - name: Spec quote-integrity gate
-        run: node scripts/audit/check-spec-drift.mjs --integrity-only
+        run: node audits/checks/b2-check-spec-drift.mjs --integrity-only
 
   spec-mutation-score:
     runs-on: [self-hosted, linux, arm64, node]
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -291,9 +287,14 @@ jobs:
 
       # Stryker mutation score over the four catalog-backed pure validators
       # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
-      # network-path plumbing in those files). thresholds.break in
-      # stryker.conf.json is the measured floor (decisions/0011, UD1) --
-      # `stryker run` itself exits non-zero below it, no `|| true`.
+      # network-path plumbing in those files). Four validators across THREE
+      # files -- check-feeds.mjs holds validateFeedXml and validateFeedJson.
+      # The mutate list lost a file, not a validator, when the llms-structure
+      # REFERENCE moved into @j0nathan-ll0yd/estate-contracts; see
+      # `_comment_llms_structure` in stryker.conf.json for what that costs and
+      # why the floor did not move. thresholds.break in stryker.conf.json is
+      # the measured floor (decisions/0011, UD1) -- `stryker run` itself exits
+      # non-zero below it, no `|| true`.
       - name: Mutation score (stryker)
         run: pnpm exec stryker run
 
@@ -303,16 +304,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: '.nvmrc'
+          cache: pnpm
 
-      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper
-      # verifies the vendored contract's sha256 pin, then checks every
-      # openspec requirement <-> covers: tether both ways. Node builtins only:
-      # no pnpm install, no GitHub Packages auth, so a registry outage never
-      # gates this job. No `|| true` -- a non-zero exit MUST fail the job
-      # (S3 no-op-gate hazard). Same invocation as `pnpm run check:covers`.
+      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
+      # npm did (atlas decision 0032 removed that line), so the token is written to the
+      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
+      - name: Authenticate to GitHub Packages
+        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # THIS JOB USED TO RUN WITHOUT AN INSTALL, and that was a real property worth naming
+      # before trading it away: the covers rule was vendored in-repo and imported nothing but
+      # node builtins, so a GitHub Packages outage could not gate a merge here.
+      #
+      # Atlas decision 0079 item 4 wave 2b deletes the vendored copy, so the rule now resolves
+      # from @j0nathan-ll0yd/estate-contracts and the install is mandatory. The trade is
+      # deliberate: one divergent local copy of a cross-repo rule is a worse failure than a
+      # registry outage, because a stale copy passes green while enforcing a rule the estate has
+      # already moved past, whereas an outage fails loudly and is retryable. Every other job in
+      # this workflow already carried the same dependency.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper verifies the SHIPPED
+      # rule against the sidecar the package ships beside it and asserts the covers spec version
+      # this repo was written against, then checks every openspec requirement <-> covers: tether
+      # both ways. No `|| true` -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
+      # Same invocation as `pnpm run check:covers`.
       - name: Covers conformance (openspec-covers, blocking)
         run: node scripts/openspec-covers.mjs --blocking

@@ -1,0 +1,243 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://j0nathan-ll0yd.github.io/audits/specs/rule.schema.json",
+  "title": "B2 spec/eval rule file",
+  "description": "One finding-id's specification: where it comes from, the severity the validator must emit, and the case inputs that make the rule discriminate. See decisions/0011 for the design rationale, and atlas decision 0129 (consumer round) for the citation split.\n\nTHE SHAPE IS A DISCRIMINATED UNION ON rule_class. A `conformance` rule REQUIRES a `cites` Citation. A `convention` / `local-policy` / `operational` rule CANNOT carry one -- `cites` is forbidden outright rather than merely discouraged -- and instead carries a required `rationale` plus an OPTIONAL `derivedFrom` SourceNote.\n\nTHE AXIS IS WHAT A FIELD ASSERTS, NOT WHICH CLASS DECLARES IT. The first cut of this split drew the line at rule_class and moved the whole citation apparatus onto the conformance arm, which conflated two different properties: 'claims conformance to an external standard' and 'has a citable external source'. They are not the same. If llmstxt.org rewrites the sentence `llms-txt-blockquote` quotes, that rule's stated rationale is stale -- exactly as stale as a conformance rule's would be. `conformance_testable: false` says the upstream has no pass/fail concept; it does NOT say the citation cannot rot. So the fields divide by their claim:\n\n  - `pinnedAt`, `retrieved` -- ANY rule with a source. They locate and date it, and the currency probe depends on them. OPTIONAL on the local arm, REQUIRED on the conformance arm.\n  - `content_sha256` -- ANY rule with a quote. It is the transcription-integrity evidence the offline half of b2-check-spec-drift.mjs blocks every PR on. Kept on both arms deliberately: dropping it from the local arm would have cut integrity coverage from 27 rules to 14 to save one line each.\n  - `conformance_testable`, `verified_at`, `verified_against_source` -- CONFORMANCE ARM ONLY. These assert verified conformance evidence, which is precisely the claim a local rule must not make. `conformance_testable` is additionally pure noise on a local rule, where it was `false` on all 20.\n\nWHAT THE SPLIT ACTUALLY REMOVES, stated honestly rather than optimistically: three fields (plus the `verification_note` that existed only to explain `verified_against_source: false`) from the 13 local rules that carry a source, and the whole block from the 7 that carry none. It is a smaller saving than 'the 20 non-conformance rules lose their citation block', which was the original framing and was wrong twice over.\n\nRELATIONSHIP TO THE SHARED CONTRACT. @j0nathan-ll0yd/estate-contracts/rule-catalog owns the SEVERITY POLICY -- the thing this repo and mantle-LifegamesPortal both need and used to duplicate. These rule files own CATALOG CONTENT, which decision 0128 ruled stays local. This schema is therefore allowed to carry MORE than the shared `RuleSchema` requires; it must not carry LESS than this repo's own checks depend on. The upstream `SourceNote` has no `pinnedAt`/`retrieved`, which is a gap in that shape rather than a rule for this one -- see the finding recorded against the next contracts release.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "artifact", "rule_class", "severity", "applicability", "expectation"],
+  "definitions": {
+    "immutableUrl": {
+      "type": "string",
+      "anyOf": [
+        {"pattern": "^https://www\\.rfc-editor\\.org/rfc/rfc[0-9]+\\.txt$"},
+        {"pattern": "^https://raw\\.githubusercontent\\.com/[^/]+/[^/]+/[0-9a-f]{40}/.+"},
+        {"pattern": "^https://www\\.rssboard\\.org/rss-2-0-[0-9]+$"}
+      ],
+      "description": "The immutable or commit-pinned source the quote was transcribed from: an RFC's canonical plaintext, a raw.githubusercontent.com blob pinned to a full 40-hex commit SHA, or a numbered RSS Advisory Board archive. Distinct from `url`, which may be a living page -- collapsing the two is how a 'verified' record comes to point at a page that has since been rewritten. ADR 0011 follow-up (b): a drift probe requires an immutable target.\n\nIMMUTABILITY IS WHY A SECOND PROBE EXISTS (atlas decision 0129 C6): because every admitted shape is frozen by construction, b2-check-spec-drift.mjs can only verify that a transcription is still faithful, and structurally cannot observe that the upstream specification has been revised. b2-check-spec-currency.mjs asks that question instead -- weekly and advisory -- by comparing a commit-pinned GitHub blob against the same path on its default branch. The other two shapes are classified not-applicable there and say so: an RFC revision becomes a new number at a new URL, and the RSS Advisory Board publishes each revision as its own numbered archive, so neither has a current version at this identity."
+    },
+    "isoDate": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "ISO-8601 calendar date (YYYY-MM-DD). A month or a bare year is not a retrieval record."
+    },
+    "quoteDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "sha256 of this rule's own `quote`, computed at authoring time (see audits/specs/hash-normative-quotes.mjs). It is the entire subject of the OFFLINE integrity half of b2-check-spec-drift.mjs (`audit:spec-integrity`), which blocks every PR by asserting the transcription has not been edited without re-verification."
+    }
+  },
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "The finding id this rule specifies. Must match the id string emit() is called with."
+    },
+    "title": {"type": "string", "minLength": 1},
+    "artifact": {"type": "string", "minLength": 1},
+    "rule_class": {
+      "enum": ["conformance", "local-policy", "convention", "operational"],
+      "description": "conformance: a MUST in a spec that has a real conformance concept; REQUIRES `cites`. local-policy: the spec sets a weaker/no threshold and we impose a stricter operational one. convention: the artifact's spec has no conformance concept at all. operational: no external spec clause and no pure-function input can produce the condition (transport/fetch failures) -- cases are omitted and untested_rationale is required instead. The last three are the LOCAL arm: they take `rationale` and optional `derivedFrom`, and may not carry `cites`."
+    },
+    "severity": {
+      "enum": ["fail", "warn"],
+      "description": "No default. A rule file that omits this is invalid -- an implicit default would silently re-open the historical severity hole (SEV1). For the five llms-txt structural ids the SHIPPED severity now comes from @j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt; the value here is the declared-case expectation that keeps the two tethered."
+    },
+    "params": {
+      "type": "object",
+      "description": "Thresholds this rule contributes to the PRODUCTION call path (not merely to a test). Absence for a rule that genuinely has a threshold must be declared via params_pending instead of silently omitted."
+    },
+    "params_pending": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Declares that this rule has an operative threshold that is NOT yet derived from params, and why (e.g. the constant is shared with an out-of-scope validator). Tracked by the params_pending ratchet in check-spec-severity.mjs -- the count may not increase."
+    },
+    "untested_rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required for rule_class: operational. States why no pure-function case can exercise this id and what does cover it instead (e.g. a smoke-suite route assertion)."
+    },
+    "cites": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "clause",
+        "quote",
+        "url",
+        "version",
+        "pinnedAt",
+        "retrieved",
+        "content_sha256",
+        "conformance_testable",
+        "verified_against_source",
+        "verified_at"
+      ],
+      "description": "NORMATIVE evidence, and the CONFORMANCE arm only. The clause this rule enforces, transcribed from a source that cannot change under the transcription, plus the verified-conformance ceremony a local rule may not claim.",
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "clause": {"type": "string", "minLength": 1},
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Transcribed from pinnedAt and faithful to its rendered text: whitespace across line wraps is normalized and markdown formatting is de-marked (code-span backticks and hyperlink syntax reduced to the text they render), but no word, clause, section, or sentence boundary is altered, and separate source passages joined into one quote are separated by an ellipsis rather than spliced."
+        },
+        "url": {"type": "string", "pattern": "^https://"},
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "WHICH EDITION of the source this clause was read in, e.g. 'RFC 9116 (April 2022)'. Spec identity, not verification bookkeeping: two sources here publish revisions under the same name ('RSS 2.0.11 (March 30, 2009)'), so dropping it would make the citation ambiguous about what was read."
+        },
+        "pinnedAt": {"$ref": "#/definitions/immutableUrl"},
+        "retrieved": {"$ref": "#/definitions/isoDate"},
+        "content_sha256": {"$ref": "#/definitions/quoteDigest"},
+        "conformance_testable": {
+          "type": "boolean",
+          "description": "Whether the cited spec has a real pass/fail conformance concept for this clause. Must be true here -- forbids dressing local opinion as a standard (0010's lesson). It is absent from the local arm because it was false on all 20 local rules, which is pure noise."
+        },
+        "verified_against_source": {
+          "type": "boolean",
+          "description": "Whether `quote` has been transcribed and checked against the primary source at `pinnedAt`. Must be true here. This is the checkable promotion of the prose disclosure ADR 0011's citation sweep found in 13 of 24 rule files but could not enforce ('recalled from training-data familiarity' vs 'verified against a live fetch') -- the defect rate tracked exactly the claims that skipped verification (7 of 7 conformance rules defective on first authoring). It is CONFORMANCE-ONLY because it asserts verified conformance evidence; a local rule that wants to make that claim moves class and cites properly."
+        },
+        "verified_at": {"$ref": "#/definitions/isoDate"},
+        "note": {
+          "type": "string",
+          "description": "Free prose carried over from the old spec.note: transcription history, corrections made in review, and why conformance_testable was judged true."
+        }
+      }
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Required on the LOCAL arm. Why this rule exists, given that no conformance claim backs it. A local rule must say why it exists rather than gesturing at a standard that does not back it."
+    },
+    "derivedFrom": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "clause", "url"],
+      "description": "INFORMATIVE derivation, and the LOCAL arm only. Where this rule got its idea, with NO claim that the source tests it.\n\nIt KEEPS `pinnedAt`, `retrieved` and `content_sha256` as optional, and that is the correction at the heart of this schema: a rule that quotes an external source needs that quote located, dated, and watched, whether or not it claims conformance. What it does not carry is `conformance_testable`, `verified_at` and `verified_against_source` -- the assertions that the quote is VERIFIED CONFORMANCE EVIDENCE. A rule that wants that standing moves to rule_class: conformance; it cannot have the standing of a citation while carrying the obligations of a note.",
+      "properties": {
+        "source": {"type": "string", "minLength": 1},
+        "clause": {"type": "string", "minLength": 1},
+        "url": {"type": "string", "pattern": "^https://"},
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "WHICH EDITION the derivation was read in. Same reasoning as cites.version: spec identity, not verification bookkeeping."
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The sentence this rule descends from, carried over verbatim from the old spec.normative_quote. INFORMATIVE: no conformance claim rests on it. Its integrity and its currency are still checked, because a stale quote makes a stale rationale."
+        },
+        "pinnedAt": {"$ref": "#/definitions/immutableUrl"},
+        "retrieved": {"$ref": "#/definitions/isoDate"},
+        "content_sha256": {"$ref": "#/definitions/quoteDigest"}
+      },
+      "allOf": [
+        {
+          "_comment": "A quote must be locatable and its transcription protected. Without pinnedAt there is nothing for the drift or currency probe to fetch, and a quote nobody can re-read is a claim nobody can check.",
+          "if": {"required": ["quote"]},
+          "then": {"required": ["pinnedAt", "retrieved", "content_sha256"]}
+        }
+      ]
+    },
+    "applicability": {"type": "string", "minLength": 1},
+    "expectation": {"type": "string", "minLength": 1},
+    "policy_note": {"type": "string"},
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "outcome", "input_file", "input_kind", "expect"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "outcome": {"enum": ["passed", "failed", "inapplicable", "cantTell"]},
+          "input_file": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the case input, resolved relative to this rule file's own directory (not the repo root, and not process.cwd())."
+          },
+          "input_kind": {"enum": ["text", "json"]},
+          "now": {
+            "type": "string",
+            "description": "ISO-8601 instant passed to the validator as `now`, for time-sensitive rules. Omitted for validators with no time dependency."
+          },
+          "expect": {
+            "type": "array",
+            "description": "The FULL set of {id, severity} pairs the validator emits for this input -- order-insensitive multiset equality, not a subset assertion. An id may repeat if the validator legitimately emits it more than once for this input.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "severity"],
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "severity": {"enum": ["fail", "warn"]}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "_comment": "The CONFORMANCE arm. A rule asserting an external standard must carry a real citation with an immutable pinnedAt, and must be a `fail` -- a conformance violation the estate is willing to report only as advice is not a conformance claim. `rationale` and `derivedFrom` belong to the local arm and are forbidden here, so a rule cannot straddle the two.",
+      "if": {"required": ["rule_class"], "properties": {"rule_class": {"const": "conformance"}}},
+      "then": {
+        "required": ["cites"],
+        "properties": {
+          "severity": {"const": "fail"},
+          "cites": {"properties": {"conformance_testable": {"const": true}, "verified_against_source": {"const": true}}}
+        },
+        "not": {"anyOf": [{"required": ["rationale"]}, {"required": ["derivedFrom"]}]}
+      }
+    },
+    {
+      "_comment": "The LOCAL arm. `cites` is FORBIDDEN, which is the whole point of the union: a rule cannot dodge the conformance obligations by downgrading its rule_class and still present itself as verified conformance evidence. This replaces the old spec.clause-keyed gate, which had to force verified_against_source true for every clause-citing rule precisely because a single shared `spec` block made the two indistinguishable. They are now different shapes, so the gate is structural.",
+      "if": {
+        "required": ["rule_class"],
+        "properties": {"rule_class": {"enum": ["convention", "local-policy", "operational"]}}
+      },
+      "then": {"required": ["rationale"], "not": {"required": ["cites"]}}
+    },
+    {
+      "if": {"required": ["rule_class"], "properties": {"rule_class": {"const": "operational"}}},
+      "then": {
+        "required": ["untested_rationale"],
+        "not": {"required": ["cases"]}
+      }
+    },
+    {
+      "_comment": "An operational rule is a transport condition with no external clause, so it may not claim a derivation either -- there is no published sentence it descends from.",
+      "if": {"required": ["rule_class"], "properties": {"rule_class": {"const": "operational"}}},
+      "then": {"not": {"required": ["derivedFrom"]}}
+    },
+    {
+      "if": {
+        "required": ["rule_class"],
+        "properties": {"rule_class": {"enum": ["conformance", "local-policy", "convention"]}}
+      },
+      "then": {
+        "required": ["cases"],
+        "properties": {
+          "cases": {
+            "type": "array",
+            "allOf": [
+              {
+                "contains": {"type": "object", "properties": {"outcome": {"const": "failed"}}},
+                "description": "(i) at least one case demonstrates this rule can fail"
+              },
+              {
+                "contains": {"type": "object", "properties": {"outcome": {"enum": ["passed", "inapplicable"]}}},
+                "description": "(ii) at least one case demonstrates this rule can pass or not apply"
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

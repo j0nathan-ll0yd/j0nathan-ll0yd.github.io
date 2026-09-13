@@ -6,7 +6,43 @@
  * 4c: Overlay tests (focus-work, focus-dnd).
  */
 import {expect, type Page, test} from './pw-fixtures'
+import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {captureFullPage, FROZEN_NOW_MS, setupPage, stabilizeForLocatorScreenshot, stylePath, waitForStableBox, WIDGET_SELECTORS} from './helpers'
+
+const FOCUS_GATED_PATHS = new Set(Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus').map(([, endpoint]) => endpoint))
+
+function collectFocusGatedRuntimeFetches(page: Page): string[] {
+  const requests: string[] = []
+  page.on('request', (request) => {
+    const pathname = new URL(request.url()).pathname
+    // Dashboard.astro intentionally emits browser prefetch hints for four
+    // endpoints. They may download fixture bytes but cannot populate the DOM;
+    // only fetch() traffic proves the suppression-aware runtime crossed its gate.
+    if (request.resourceType() === 'fetch' && FOCUS_GATED_PATHS.has(pathname)) {
+      requests.push(pathname)
+    }
+  })
+  return requests
+}
+
+async function expectSuppressedDashboard(
+  page: Page,
+  visibleOverlay: '#focusOverlay' | '#dndOverlay',
+  hiddenOverlay: '#focusOverlay' | '#dndOverlay',
+  gatedRuntimeFetches: string[]
+): Promise<void> {
+  await expect(page.locator(visibleOverlay)).toBeVisible()
+  await expect(page.locator(hiddenOverlay)).toBeHidden()
+  expect(gatedRuntimeFetches, 'focus suppression must not fetch gated live-data endpoints').toEqual([])
+
+  // Suppression exposes the build-time SSR shell instead of leaving opaque
+  // loading skeletons. The conditional workouts card remains unpopulated and
+  // hidden because its gated endpoint was never requested.
+  await expect(page.locator('.is-loading')).toHaveCount(0)
+  await expect(page.locator('#cardHR')).toHaveCount(1)
+  await expect(page.locator('#cardHR #pulseBpm')).toHaveText(/\S/)
+  await expect(page.locator('#cardWorkouts')).toBeHidden()
+}
 
 // ---------------------------------------------------------------------------
 // 4a: Baseline Widget Screenshots (populated scenario)
@@ -367,14 +403,16 @@ test.describe('Widget variations - Reading Feed', () => {
 
 test.describe('Overlays', () => {
   test('focus overlay', async ({page}) => {
-    await setupPage(page, 'focus-work', {waitForScrollHeight: true})
-    await page.locator('#focusOverlay').waitFor({state: 'visible', timeout: 10000})
+    const gatedRuntimeFetches = collectFocusGatedRuntimeFetches(page)
+    await setupPage(page, 'focus-work', {waitForWorkouts: false, waitForScrollHeight: true})
+    await expectSuppressedDashboard(page, '#focusOverlay', '#dndOverlay', gatedRuntimeFetches)
     await captureFullPage(page, 'focus-overlay.png', {stylePath})
   })
 
   test('dnd overlay', async ({page}) => {
-    await setupPage(page, 'focus-dnd', {waitForScrollHeight: true})
-    await page.locator('#dndOverlay').waitFor({state: 'visible', timeout: 10000})
+    const gatedRuntimeFetches = collectFocusGatedRuntimeFetches(page)
+    await setupPage(page, 'focus-dnd', {waitForWorkouts: false, waitForScrollHeight: true})
+    await expectSuppressedDashboard(page, '#dndOverlay', '#focusOverlay', gatedRuntimeFetches)
     await captureFullPage(page, 'dnd-overlay.png', {stylePath})
   })
 })

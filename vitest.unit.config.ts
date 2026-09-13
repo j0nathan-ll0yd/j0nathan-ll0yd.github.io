@@ -5,9 +5,10 @@ import {defineConfig} from 'vitest/config'
 // under jsdom — deliberately separate from vitest.build.config.ts, whose
 // globalSetup runs a full `astro build` (wrong/slow for fetch-mocked unit tests).
 //
-// tests/audit/**/*.test.ts (added for lp-audit Phase 2) exercise the pure
-// validation functions exported from scripts/audit/*.mjs against local
+// audits/__tests__/**/*.test.ts (added for lp-audit Phase 2, moved out of
+// tests/audit/ by atlas decision 0111 phase 2b) exercise the pure validation
+// functions exported from audits/checks/*.mjs and audits/lib/* against local
 // fixtures -- no network, no jsdom-specific APIs needed, but jsdom is a
 // superset environment so plain Node/string-logic tests run fine under it
 // without a third vitest config.
-export default defineConfig({test: {environment: 'jsdom', include: ['tests/unit/**/*.test.ts', 'tests/audit/**/*.test.ts'], clearMocks: true}})
+export default defineConfig({test: {environment: 'jsdom', include: ['tests/unit/**/*.test.ts', 'audits/__tests__/**/*.test.ts'], clearMocks: true}})

@@ -3,18 +3,22 @@
 // middleware carries the same cross-cutting policy on Function responses.
 
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
 // already an origin. Sourcing both from the contract keeps the CSP in sync with
 // the live addressing without hardcoded literals.
 const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin
 
-const CSP = [
+// Exported so audits/__tests__/csp-golden.test.ts can diff it against
+// audits/fixtures/golden/csp.txt. check-headers.mjs only catches that drift against
+// the LIVE site, which is after a deploy; the two must move in lockstep here.
+export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com https://m.media-amazon.com https://images.squarespace-cdn.com https://books.google.com ${CLOUDFRONT_BASE}`,
+  `img-src 'self' data: https://*.basemaps.cartocdn.com ${CLOUDFRONT_BASE}`,
   `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
   "worker-src 'self'",
   "object-src 'none'",
@@ -60,24 +64,124 @@ export const LINK_HEADER = [
 interface PagesContext {
   request: Request
   next(): Promise<Response>
+  waitUntil(promise: Promise<unknown>): void
+}
+
+interface MediaRange {
+  type: string
+  subtype: string
+  q: number
+}
+
+/** Parse an Accept header into media ranges with RFC 9110 q weights (default 1, clamped 0..1). */
+function parseAccept(accept: string): MediaRange[] {
+  const ranges: MediaRange[] = []
+  for (const part of accept.split(',')) {
+    const [range = '', ...params] = part.split(';')
+    const media = range.trim().toLowerCase()
+    const slash = media.indexOf('/')
+    if (slash < 1) {
+      continue
+    }
+    let q = 1
+    for (const param of params) {
+      const eq = param.indexOf('=')
+      if (eq < 0 || param.slice(0, eq).trim().toLowerCase() !== 'q') {
+        continue
+      }
+      const value = Number.parseFloat(param.slice(eq + 1))
+      q = Number.isFinite(value) ? Math.min(Math.max(value, 0), 1) : 1
+      break // the first q ends the media-type parameters (RFC 9110 12.4.2)
+    }
+    ranges.push({type: media.slice(0, slash), subtype: media.slice(slash + 1), q})
+  }
+  return ranges
+}
+
+/**
+ * The ONE homepage negotiation decision: does this Accept value select the markdown
+ * representation of `/` over the HTML one?
+ *
+ * text/markdown is eligible only when NAMED EXPLICITLY with q>0 -- no wildcard
+ * range (full or `text/*`) ever selects markdown, and `text/markdown;q=0` is a
+ * rejection, not a request. text/html competes with standard precedence (exact
+ * `text/html`, then `text/*`, then the full wildcard). Markdown wins only on a
+ * STRICTLY higher q: an equal-q tie serves HTML, the canonical representation
+ * (openspec/specs/llms-txt/spec.md, "Markdown negotiation applies only to the
+ * homepage and honors Accept q-values").
+ */
+export function prefersMarkdown(accept: string | null): boolean {
+  if (!accept) {
+    return false
+  }
+  const ranges = parseAccept(accept)
+
+  let markdownQ = 0
+  for (const range of ranges) {
+    if (range.type === 'text' && range.subtype === 'markdown') {
+      markdownQ = Math.max(markdownQ, range.q)
+    }
+  }
+  if (markdownQ <= 0) {
+    return false
+  }
+
+  let htmlQ = 0
+  let htmlSpecificity = -1
+  for (const range of ranges) {
+    let specificity = -1
+    if (range.type === 'text' && range.subtype === 'html') {
+      specificity = 2
+    } else if (range.type === 'text' && range.subtype === '*') {
+      specificity = 1
+    } else if (range.type === '*' && range.subtype === '*') {
+      specificity = 0
+    }
+    if (specificity < 0 || specificity < htmlSpecificity) {
+      continue
+    }
+    htmlQ = specificity > htmlSpecificity ? range.q : Math.max(htmlQ, range.q)
+    htmlSpecificity = specificity
+  }
+
+  return markdownQ > htmlQ
+}
+
+// The negotiated homepage markdown IS the /llms-full.txt representation, served
+// through the same proxy machinery as the explicit route (functions/llms-full.txt.ts):
+// privacy gate, bounded retry, last-known-good fallback under the shared cache key,
+// and the llm-outputs no-store cache policy. No independent fetch path exists here.
+const serveLlmsFull = makeCloudfrontProxy({
+  path: LLM_CONTENT_PATHS.llmsFull,
+  contentType: 'text/markdown; charset=utf-8',
+  cachePolicy: LLM_OUTPUT_CACHE_POLICY
+})
+
+/** Merge `Accept` into Vary so every cache layer keys homepage representations on it. */
+function mergeVaryAccept(headers: Headers): void {
+  const existing = headers.get('Vary')
+  if (!existing) {
+    headers.set('Vary', 'Accept')
+    return
+  }
+  const tokens = existing.split(',').map((token) => token.trim().toLowerCase())
+  if (!tokens.includes('accept') && !tokens.includes('*')) {
+    headers.set('Vary', `${existing}, Accept`)
+  }
 }
 
 export async function onRequest(context: PagesContext): Promise<Response> {
   const {request} = context
   const url = new URL(request.url)
-  const accept = request.headers.get('Accept') || ''
 
-  // Markdown negotiation: serve pre-composed markdown from CloudFront when
-  // agents send Accept: text/markdown (passes isitagentready.com check)
-  if (accept.includes('text/markdown')) {
-    const mdResponse = await fetch(`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`)
-    return new Response(mdResponse.body, {
-      status: mdResponse.status,
-      headers: {'Content-Type': 'text/markdown', 'Cache-Control': 'no-store', 'Content-Usage': CONTENT_USAGE, 'x-markdown-tokens': '2500'}
-    })
-  }
+  // Markdown negotiation, HOMEPAGE ONLY (GET/HEAD). Explicit artifact paths
+  // (/llms.txt, /llms-full.txt, /index.md), pages, API routes, and feeds never
+  // negotiate: each keeps its own bytes and content type for every Accept value.
+  const negotiated = url.pathname === '/' && (request.method === 'GET' || request.method === 'HEAD') && prefersMarkdown(request.headers.get('Accept'))
 
-  const response = await context.next()
+  const response = negotiated
+    ? await serveLlmsFull({request, waitUntil: (promise) => context.waitUntil(promise)})
+    : await context.next()
   const headers = new Headers(response.headers)
 
   // Security headers
@@ -91,7 +195,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
   headers.set('X-Frame-Options', 'DENY')
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break cross-origin Amazon and Carto tile resources.
+  // COEP/CORP omitted -- would break the cross-origin Carto tile resources.
   headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
   headers.set('Permissions-Policy',
     'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()')
@@ -112,6 +216,8 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   if (url.pathname === '/') {
     headers.set('Link', LINK_HEADER)
     headers.set('CDN-Cache-Control', 'no-store')
+    // Both homepage representations (HTML and negotiated markdown) vary on Accept.
+    mergeVaryAccept(headers)
     // Prevent UTM/ad-click params from fragmenting the cache or Back/Forward Cache.
     headers.set('No-Vary-Search', 'params=("utm_source" "utm_medium" "utm_campaign" "utm_term" "utm_content" "gclid" "fbclid")')
   }
@@ -128,5 +234,9 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     headers.set('Access-Control-Allow-Origin', '*')
   }
 
-  return new Response(response.body, {status: response.status, statusText: response.statusText, headers})
+  // The proxy machinery composes GET bodies; a negotiated HEAD must not carry one.
+  // Suppression responses already null theirs; this covers the success and error paths.
+  // (Pass-through responses keep their body: context.next() already honors HEAD.)
+  const body = negotiated && request.method === 'HEAD' ? null : response.body
+  return new Response(body, {status: response.status, statusText: response.statusText, headers})
 }

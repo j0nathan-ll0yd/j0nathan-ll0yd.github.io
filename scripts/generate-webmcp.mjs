@@ -11,7 +11,7 @@ import {writeFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
-import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
 // Copy flat JSON — prose sourced from @j0nathan-ll0yd/copy so wording is never duplicated.
 const req = createRequire(import.meta.url)
@@ -36,6 +36,7 @@ const dataSources = [
 ]
 
 const booksUrl = cf(ENDPOINTS.books)
+const focusUrl = cf(ENDPOINTS.focus)
 // llms-full.txt is advertised at its prod-domain path (proxied by
 // functions/llms-full.txt.ts), keeping agents on jonathanlloyd.me; the raw
 // JSON dataSources above stay on CloudFront (no prod-domain proxy exists for them).
@@ -54,6 +55,7 @@ const dataSourceLines = dataSources.map((s) => `      { name: ${sq(s.name)}, url
 const expertiseLines = copyIdentity.seo.expertise.map((e) => sq(e)).join(', ')
 
 const interestsLines = copyIdentity.person.interests.map((i) => sq(i)).join(', ')
+const hidingFocusModeLines = HIDING_FOCUS_MODES.map((mode) => sq(mode)).join(', ')
 
 const output = `(function() {
   if (typeof navigator !== 'undefined' && navigator.modelContext && navigator.modelContext.provideContext) {
@@ -99,8 +101,21 @@ ${dataSourceLines}
           description: ${sq(copyLlm.mcp.toolGetCurrentReading)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async function() {
-            const res = await fetch(${sq(booksUrl)});
-            const data = await res.json();
+            var focusRes = await fetch(${sq(focusUrl)}, { cache: 'no-store' });
+            if (focusRes.ok) {
+              var focusData = await focusRes.json();
+              if ([${hidingFocusModeLines}].includes(focusData.currentFocus)) {
+                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
+              }
+            }
+            var res = await fetch(${sq(booksUrl)}, { cache: 'no-store' });
+            var data = await res.json().catch(function() { return null; });
+            if (!res.ok) {
+              if (data && data.suppressed === true && typeof data.reason === 'string') {
+                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: data.reason }) }] };
+              }
+              return { content: [{ type: 'text', text: JSON.stringify({ failed: true, reason: 'bookshelf unavailable', status: res.status }) }] };
+            }
             const books = data.books || [];
             const reading = books.filter((b) => b.status === 'reading');
             const upNext = books.filter((b) => b.status === 'up-next');

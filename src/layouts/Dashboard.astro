@@ -147,11 +147,11 @@ const jsonLdGraph = isHome
   <meta name="description" content={description}>
   <meta name="robots" content={robots}>
   <meta name="keywords" content={identity.seo.keywords.join(', ')}>
-  {/* Security: CSP + Referrer-Policy served via HTTP headers (functions/_middleware.ts) */}
+  {/* CSP and Referrer-Policy are response headers, so no equivalent meta tags belong here. */}
   <meta name="author" content={identity.person.name}>
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
-  {/* LLM-friendly alternate versions (backend-composed live on CloudFront) */}
+  {/* These alternates target live backend output rather than static build artifacts. */}
   <link rel="alternate" type="text/markdown" href={`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`} title={llm.dashboard.alternateLinkMarkdown}>
   <link rel="alternate" type="text/plain" href={`${siteUrl}/llms.txt`} title={llm.dashboard.alternateLinkPlain}>
   <title>{title}</title>
@@ -161,7 +161,6 @@ const jsonLdGraph = isHome
   <link rel="sitemap" href="/sitemap-index.xml">
   <link rel="author" href="/humans.txt">
   <link rel="privacy-policy" href="/privacy">
-  {/* Feed discovery — RSS 2.0 + JSON Feed 1.1 (backend-composed live on CloudFront) */}
   <link rel="alternate" type="application/rss+xml" title={identity.feed.title} href="/feed.xml">
   <link rel="alternate" type="application/feed+json" title={identity.feed.title} href="/feed.json">
 
@@ -188,8 +187,7 @@ const jsonLdGraph = isHome
     "@graph": jsonLdGraph
   })} />
 
-  {/* Font preload (critical for swap timing) — paired with the @font-face rules
-     imported via @j0nathan-ll0yd/tokens/fonts in the <style is:global> block below. */}
+  {/* This preload must match tokens/fonts to avoid a swap-induced layout shift. */}
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
 
@@ -202,10 +200,7 @@ const jsonLdGraph = isHome
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.theatreReviews}`} as="fetch" crossorigin>
   )}
   {import.meta.env.DEV && <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">}
-  {/* Design system tokens: 3-line public contract (preamble + layered values + bare-name compat aliases).
-       Astro processes this <style> (non-inline), resolves the @imports via @j0nathan-ll0yd/tokens,
-       and inlines the result at build time because astro.config.mjs sets build.inlineStylesheets: 'always'.
-       LCP behavior is preserved vs the previous in-file :root token block. */}
+  {/* Keep this style processed so Astro resolves package imports and inlines them at build time. */}
   <style is:global>
     @import '@j0nathan-ll0yd/tokens/preamble';
     @import '@j0nathan-ll0yd/tokens/fonts';
@@ -217,9 +212,6 @@ const jsonLdGraph = isHome
     @import '@j0nathan-ll0yd/web/styles/a11y.css';
     @import '@j0nathan-ll0yd/web/styles/view-transitions.css';
   </style>
-  {/* @font-face rules (Space Grotesk + Fallback) come from @j0nathan-ll0yd/tokens/fonts,
-      imported in the <style is:global> block above. preamble only declares the
-      cascade-layer order; it carries no @font-face rules. */}
   <style is:inline>/* ===== DESIGN TOKENS =====
    Sourced from @j0nathan-ll0yd/tokens (imported via the <style> block above this
    <style is:inline> tag). All bare names (--neon-*, --glass-*, --text*,
@@ -351,12 +343,11 @@ html { overflow-y: scroll; }
   <noscript><style>.tri-card,.identity-card,.left-panel-status,.left-panel-bio{opacity:1!important;transform:none!important;}</style></noscript>
   <a href="#main-content" class="lg-skip-link">{identity.a11y.skipToMain}</a>
   <slot />
-  {/* IdentityCard social-click analytics: externalized delegated handler (CSP). */}
+  {/* The delegated analytics handler stays external to satisfy CSP. */}
   {import.meta.env.PROD && <script is:inline src="/js/social-click-track.js" defer></script>}
-  {/* Leaflet: lazy-loaded via IntersectionObserver when a map widget scrolls into view */}
+  {/* Defer Leaflet until a map enters view to avoid its initial-load cost. */}
   {import.meta.env.DEV && <script is:inline src="/js/leaflet-lazy.js"></script>}
   <script is:inline src="/js/sw-register.js"></script>
-  {/* WebMCP: expose site tools to AI agents via browser (W3C Community Draft) */}
   <script is:inline src="/js/webmcp.js"></script>
   {import.meta.env.PROD && (
     <Fragment>
@@ -364,13 +355,8 @@ html { overflow-y: scroll; }
       <noscript><img src="/simple/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
     </Fragment>
   )}
-  {/* Cloudflare Web Analytics, fully first-party: the beacon is served via
-      /cf-insights.js (proxies static.cloudflareinsights.com) and POSTs RUM data to
-      /cf-rum (which forwards to Cloudflare server-side). The browser therefore makes
-      zero cloudflareinsights.com requests, so Safari's tracker blocklist has nothing
-      to match and the "reduce protections" banner is not triggered. Auto-injection
-      must be disabled at the Pages project (manual/JS-snippet mode) so the
-      third-party beacon is not also added. Token is public (rendered in markup). */}
+  {/* Proxy script and RUM traffic first-party to avoid Safari's tracker blocklist.
+      Cloudflare auto-injection must stay disabled or it restores the third-party beacon. */}
   {import.meta.env.PROD && (
     <script
       is:inline
