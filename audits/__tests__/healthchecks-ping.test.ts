@@ -197,6 +197,57 @@ describe('healthchecks-ping.sh measurement channel', () => {
     expect(pingedUrls()).toEqual([PING_URL])
   })
 
+  // A cancelled step neither completed nor crashed. The status rungs already refuse to
+  // assert either state on a cancelled job, so the measured rung must not assert one either.
+  it('does not wedge on a cancelled step with no count', () => {
+    stubCurl()
+    expect(runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'lhci|cancelled|\nrobots|success|1\n'}).status).toBe(0)
+    expect(pingedUrls()).toEqual([PING_URL])
+  })
+
+  // THE DEFAULT ON A CLAIMING LANE IS THE WEDGE (atlas decision 0142 step 5.4). Three
+  // outcomes stand a step down for a stated reason -- success, skipped, cancelled -- and
+  // this rung used to name only `failure` as wedging and let EVERYTHING ELSE fall through
+  // to health. That is the one place this script defaulted an unclassifiable value to a
+  // pass, against the rule it states everywhere else: a false /fail costs one investigated
+  // alert, a false plain ping cost 15 dark days.
+  //
+  // The shape it laundered: a record bound to a step that does not exist. GitHub renders
+  // `${{ steps.typo.outcome }}` as the EMPTY STRING, so the record claims nothing, carries
+  // no outcome, and read as a healthy silent step on every run forever. The static binding
+  // gate in audit-web-workflow.test.ts catches a mis-bound record in THIS repo; this rung
+  // is what makes the shell fail safe when one reaches it anyway.
+  it.each([
+    ['', 'empty'],
+    ['neutral', 'neutral'],
+    ['action_required', 'action_required']
+  ])('wedges on a claiming lane whose outcome is %s and whose count is empty', (outcome, label) => {
+    stubCurl()
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: `llms|${outcome}|\nrobots|success|1\n`})
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain(`llms(unreadable-outcome:${label})`)
+    // Named, so the reader is not left diffing a tier to find which record went dark.
+    expect(stdout).not.toContain('robots(')
+  })
+
+  // The claiming lane that MATTERS after the Cloudflare cache-rule step started publishing
+  // its own declaration (atlas decision 0142 step 5.4): its record now carries a live
+  // waiver -- a stated reason and an `until=` deadline -- alongside an interpolated count.
+  // A run that dies before classifying leaves the count EMPTY, and the waiver must not
+  // cover that. The trailing fields are still present and still parse; they simply grant
+  // nothing, because the waiver attaches to the literal `deferred` and to nothing else.
+  it('never lets a trailing deferral waiver cover an empty count', () => {
+    stubCurl()
+    const {stdout} = runPing({
+      HC_URL: PING_URL,
+      JOB_STATUS: 'success',
+      TODAY_UTC: '2026-09-09',
+      MEASURED_STEPS: 'llms_cache_rules|failure||atlas 0120 D2 owner action|until=2026-12-08\nrobots|success|1\n'
+    })
+    expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
+    expect(stdout).toContain('llms_cache_rules(crashed-before-measuring)')
+  })
+
   it('still reports a wedged lane when the /fail ping itself cannot be delivered', () => {
     stubCurl(28)
     const {status, stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'sitemap|success|0\n'})

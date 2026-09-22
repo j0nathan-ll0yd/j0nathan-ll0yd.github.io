@@ -22,6 +22,20 @@
 import {appendFileSync} from 'node:fs'
 
 /**
+ * The one DECLARATION a runner may publish in place of a count (atlas decisions 0107,
+ * 0120 D2, 0142 step 5.4). It says: this step COULD claim, and an action outside this
+ * repo is in the way. `audits/healthchecks-ping.sh` accepts it only with a stated reason
+ * and a live `until=` deadline, both of which live on the workflow record -- so the
+ * runner declares the STATE and the workflow states the WAIVER, and neither alone
+ * exempts a step.
+ *
+ * `n/a` is deliberately NOT publishable here. It is structural -- a third-party tool run
+ * holds no artifact set -- and such a run never executes this repo's code at all, so a
+ * runner claiming it would be asserting something it cannot observe.
+ */
+export const MEASURED_DEFERRED = 'deferred'
+
+/**
  * Append `measured=<n>` to `$GITHUB_OUTPUT`.
  *
  * SYNCHRONOUS on purpose: every caller reaches this through `report()` inside a
@@ -31,12 +45,13 @@ import {appendFileSync} from 'node:fs'
  * Outside Actions there is no `$GITHUB_OUTPUT`, so this is a no-op -- running a
  * check on a workstation must not need a fake output file.
  *
- * @param {number} measured non-negative integer count of artifacts held and judged
- * @returns {number} `measured`, so callers can pass it straight through
+ * @param {number|'deferred'} measured non-negative integer count of artifacts held and
+ *   judged, or `MEASURED_DEFERRED`
+ * @returns {number|'deferred'} `measured`, so callers can pass it straight through
  */
 export function publishMeasured(measured, deps = {}) {
-  if (!Number.isInteger(measured) || measured < 0) {
-    throw new TypeError(`measured must be a non-negative integer, got ${JSON.stringify(measured)}`)
+  if (measured !== MEASURED_DEFERRED && (!Number.isInteger(measured) || measured < 0)) {
+    throw new TypeError(`measured must be a non-negative integer or ${JSON.stringify(MEASURED_DEFERRED)}, got ${JSON.stringify(measured)}`)
   }
   const append = deps.append ?? appendFileSync
   // The environment is read ONLY when the caller did not speak. A destructuring default
