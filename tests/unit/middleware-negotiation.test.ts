@@ -11,9 +11,14 @@ vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => lo
 // (discovery identity lost), matching `text/markdown;q=0`, bypassing the shared
 // proxy machinery with an independent fetch, and skipping the header pipeline.
 
-const FETCH_CACHE_INIT = {cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}}}
+// Both inits carry an AbortSignal: every network attempt the proxy makes is bounded by a
+// per-operation deadline drawn from the request's total budget (functions/_lib/proxy.ts).
+const FETCH_CACHE_INIT = expect.objectContaining({
+  cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}},
+  signal: expect.any(AbortSignal)
+})
 const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
-const FOCUS_FETCH_INIT = {cache: 'no-store'}
+const FOCUS_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
 const LLMS_FULL_UPSTREAM = `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
 const MARKDOWN = {Accept: 'text/markdown'}
 

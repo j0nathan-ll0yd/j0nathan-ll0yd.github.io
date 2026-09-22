@@ -52,12 +52,39 @@ describe('image mirror helpers', () => {
 
 describe('image mirror audit', () => {
   it('returns an honest non-failing SUPPRESSED result before fetching manifests', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({currentFocus: 'Work'})))
+    // hidingSince is what makes the window BOUNDED, and a bounded window is the only one this
+    // audit may stand down on (atlas decision 0142). Without it there is no duration to check.
+    const focus = {currentFocus: 'Work', hidingSince: new Date(Date.now() - 60_000).toISOString()}
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify(focus)))
 
     const result = await runImageAudit({fetchImpl, checkOnly: true, logger: {log: vi.fn(), warn: vi.fn(), error: vi.fn()}})
 
     expect(result).toEqual({status: 'suppressed', exitCode: 0})
     expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
+  it('stays visible and reports INDETERMINATE when a hiding focus mode carries no hidingSince', async () => {
+    const root = await tempDir()
+    const gated = () => new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403})
+    const fetchImpl = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url.endsWith('/focus.json') ? new Response(JSON.stringify({currentFocus: 'Work'})) : gated())
+    )
+    const logger = {log: vi.fn(), warn: vi.fn(), error: vi.fn()}
+
+    const result = await runImageAudit({
+      fetchImpl,
+      checkOnly: true,
+      publicDir: join(root, 'public'),
+      reportFile: join(root, 'report.txt'),
+      missingFile: join(root, 'missing.txt'),
+      logger
+    })
+
+    // Not `suppressed`: the probe answered, and what it answered establishes no 24-hour bound.
+    expect(result.status).toBe('indeterminate')
+    expect(result.exitCode).toBe(1)
+    expect(result.manifestErrors).toEqual(['books.json: focus mode active', 'theatre-reviews.json: focus mode active'])
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('INDETERMINATE: suppression evidence incomplete'))
   })
 
   it('is indeterminate and nonzero unless both manifests are available', async () => {

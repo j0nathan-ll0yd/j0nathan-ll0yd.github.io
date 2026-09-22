@@ -3,6 +3,7 @@
 // middleware carries the same cross-cutting policy on Function responses.
 
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
@@ -50,7 +51,7 @@ const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp
 export const CONTENT_USAGE = 'train-ai=n, search=y'
 
 export const LINK_HEADER = [
-  '</llms.txt>; rel="describedby"; type="text/plain"',
+  `<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`,
   '</.well-known/api-catalog>; rel="api-catalog"',
   '</.well-known/ai-catalog.json>; rel="ai-catalog"',
   '</sitemap-index.xml>; rel="sitemap"',

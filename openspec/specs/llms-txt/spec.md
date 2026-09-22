@@ -153,7 +153,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
 content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt SHALL
 resolve from the portal contract's generated discovery distribution.
-Verified by `tests/unit/cloudfront-proxy.test.ts:271` (all five proxy routes: upstream URL, status,
+Verified by `tests/unit/cloudfront-proxy.test.ts:432` (all five proxy routes: upstream URL, status,
 content-type, including the registry-derived discovery path).
 
 #### Scenario: Advertised path resolves
@@ -161,6 +161,40 @@ content-type, including the registry-derived discovery path).
 - **GIVEN** an agent fetches a path advertised in the llms.txt index
 - **WHEN** the proxy handles the request
 - **THEN** the system SHALL return the upstream content with the declared content-type
+
+### Requirement: Advertised LLM addresses resolve on the site plane
+
+Every address the portfolio ADVERTISES for its LLM content SHALL resolve on the site plane
+(`SITE_URL`), never on the CloudFront origin. The address IS the policy: the privacy gate and the
+cache rules live in the Pages Functions, so an advertised origin URL is an address that inherits
+none of them, and the origin serves selectively (on 2026-09-22 `location.json` returned 403
+AccessDenied while `focus.json` returned 200).
+
+The `<link rel="alternate">` pair in the page head SHALL therefore address the site plane, SHALL
+appear on the homepage ONLY -- they describe the homepage datastream, and Dashboard.astro is also
+the layout for /privacy and /404 -- and the discovery href SHALL be DERIVED from the portal
+contract's own discovery distribution (`LLMS_TXT_PATH`), never spelled as a literal.
+
+The portal contract's `DATASET_DISTRIBUTIONS` entries for `LLM complete content` and `LLM complete
+content (Markdown alias)` still carry origin `contentUrl`s, and this repo consumes them verbatim
+for the JSON-LD Dataset. That half is the producer's to move
+(`mantle-LifegamesPortal/packages/portal-contract/src/endpoints.source.json`) and is not fixable
+here.
+
+Verified by `tests/build/seo-meta.test.ts:130` (both alternates, their site-plane hrefs, the
+derived discovery path, and their absence from /404 and /privacy).
+
+#### Scenario: An agent reads the advertised markdown alternate
+
+- **GIVEN** the built homepage
+- **WHEN** an agent follows `<link rel="alternate" type="text/markdown">`
+- **THEN** the href SHALL be the site-plane `/llms-full.txt`, which passes through the privacy gate
+
+#### Scenario: A non-homepage does not advertise them
+
+- **GIVEN** the built /404 or /privacy page
+- **WHEN** an agent reads its head
+- **THEN** neither LLM alternate SHALL be present, while the feed alternates remain
 
 ### Requirement: Canonical llms responses always pass through the privacy gate
 
@@ -171,8 +205,10 @@ and error response SHALL therefore carry `Cache-Control: no-store`, `CDN-Cache-C
 and `Cloudflare-CDN-Cache-Control: no-store`. The CloudFront fetch cache (60 seconds) and the
 explicit Cache API last-known-good entry (3 hours) are separate origin-side caches behind the
 privacy check; the stored LKG representation SHALL NOT retain the public CDN no-store headers.
+The CloudFront fetch cache's 60 seconds is CONDITIONAL -- see "Every proxy network attempt is
+bounded in time" below -- and no behavior depends on the number.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:66` (proxy response policy: three-layer no-store
+Verified by `tests/unit/cloudfront-proxy.test.ts:94` (proxy response policy: three-layer no-store
 headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
 `audits/__tests__/cloudflare-llms-cache-rules.test.ts:36` (external rule audit: applicability,
 GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
@@ -197,6 +233,49 @@ or purge endpoint and SHALL emit an uploadable credential-free evidence file.
 - **GIVEN** a visible request has populated the origin fetch cache and internal LKG
 - **WHEN** the focus state changes to a hiding mode before the next canonical request
 - **THEN** the next request SHALL execute the privacy probe and return suppression, not retained content
+
+### Requirement: Every proxy network attempt is bounded in time
+
+The Pages Function proxy SHALL bound the DURATION of every network attempt it makes, not only the
+COUNT of them. The focus probe, each artifact attempt, each retry delay, and every response-body
+read SHALL draw from ONE total request budget, and each SHALL additionally carry its own
+per-operation deadline. A never-resolving fetch, or a response whose body stalls after its headers
+arrive, SHALL therefore produce an answer inside that budget rather than holding the request open.
+
+A focus probe that reaches no definite answer SHALL fail CLOSED with 502 -- after one retry for a
+transport-shaped failure, and immediately for a malformed or rejected answer, which a second read
+would only return again. An artifact attempt that times out, in its fetch or in its body read,
+SHALL remain eligible for the last-known-good fallback and SHALL keep its diagnostic headers. A run
+that never held complete bytes SHALL report `X-Proxy-Upstream-Status: unreachable` rather than the
+status of a response whose body never arrived: a retained 2xx would read as a definite
+non-retryable answer and withhold the fallback. Timeout responses stay behind the privacy gate and
+keep the route's own cache policy.
+
+The origin fetch cache SHALL NOT be load-bearing. `cf.cacheEverything` makes a subrequest eligible
+for the edge cache and leaves the TTL to the origin's `Cache-Control`; the 60-second number comes
+from `cf.cacheTtlByStatus`, whose plan availability Cloudflare's own documentation does not settle
+(the property description states no restriction, while Community threads assert Enterprise-only).
+The TTL is therefore CONDITIONAL, and the public cache policy, the privacy gate, and the
+last-known-good TTL are each decided elsewhere.
+
+Verified by `tests/unit/cloudfront-proxy.test.ts:300` (never-resolving fetch, stalled body,
+never-resolving focus probe, bounded focus retry -- each asserted to settle inside the budget read
+from the module's own constants) and `tests/unit/cloudfront-proxy.test.ts:394` (every uncertain
+focus answer denies, and a malformed one is not retried).
+
+#### Scenario: An artifact body stalls after its headers arrive
+
+- **GIVEN** an upstream response with status 200 whose body never delivers its bytes
+- **WHEN** the proxy reads it
+- **THEN** the read SHALL time out inside the request budget, and the response SHALL be the stale
+  last-known-good copy carrying `X-Proxy-Stale: true` and `X-Proxy-Upstream-Status: unreachable`
+
+#### Scenario: The focus probe never answers
+
+- **GIVEN** a focus request that never resolves
+- **WHEN** the proxy applies the privacy gate
+- **THEN** it SHALL deny with 502 inside the budget, without fetching the artifact and without
+  reading last-known-good
 
 ### Requirement: Raw and canonical llms artifacts stay coherent
 
@@ -320,7 +399,7 @@ surface, and their success and stale responses SHALL carry `public, max-age=0, s
 Responses no route may ever have cached -- suppression, focus-error, terminal-error and
 method-not-allowed -- remain unconditionally no-store regardless of the route's artifact policy.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:296` (per route, both paths, both directions: the
+Verified by `tests/unit/cloudfront-proxy.test.ts:457` (per route, both paths, both directions: the
 trio no-store, the feeds edge-cached, and the last-known-good copy).
 
 This requirement exists because a shared constant is exactly how the two surfaces got conflated
@@ -367,8 +446,8 @@ other response (security headers, Content-Usage, discovery Link header). Every h
 representation SHALL carry `Vary: Accept`, merged into any existing `Vary`. A negotiated HEAD
 response SHALL carry no body.
 
-Verified by `tests/unit/middleware-negotiation.test.ts:53` (decision table, scope, response classes),
-and verified by `tests/unit/cloudfront-proxy.test.ts:392` (explicit routes ignore Accept).
+Verified by `tests/unit/middleware-negotiation.test.ts:58` (decision table, scope, response classes),
+and verified by `tests/unit/cloudfront-proxy.test.ts:553` (explicit routes ignore Accept).
 
 #### Scenario: An agent asks the homepage for markdown
 

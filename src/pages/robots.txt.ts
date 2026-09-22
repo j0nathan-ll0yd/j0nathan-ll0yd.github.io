@@ -1,9 +1,7 @@
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-
-// /llms.txt has no dedicated LLM_CONTENT_PATHS constant — it is a Cloudflare Pages
-// Function proxy (functions/llms.txt.ts) that does not map to a CloudFront path.
-// The path is kept as a literal here intentionally; if it ever moves, update both files.
-const LLMS_TXT_PATH = '/llms.txt'
+// /llms.txt has no dedicated LLM_CONTENT_PATHS constant. The path is derived once, in
+// functions/_lib/llms-artifacts.ts, from the contract's own distribution registry.
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 
 export const prerender = true
 

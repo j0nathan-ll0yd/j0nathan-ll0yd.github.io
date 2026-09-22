@@ -1,5 +1,6 @@
 import {readFileSync} from 'node:fs'
 import {afterEach, describe, expect, it, vi} from 'vitest'
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 import {CONTENT_USAGE, LINK_HEADER, onRequest} from '../../functions/_middleware'
 
 afterEach(() => {
@@ -11,6 +12,22 @@ describe('discovery Link header', () => {
     expect(LINK_HEADER).toContain('</.well-known/ai-catalog.json>; rel="ai-catalog"')
     expect(LINK_HEADER).not.toContain('agent-card.json')
     expect(LINK_HEADER).not.toContain('agentcard.org')
+  })
+
+  // Nothing pinned rel="describedby" before atlas decision 0142, which is how the markdown
+  // alternate in Dashboard.astro drifted to the raw CloudFront origin unnoticed. The address is
+  // SITE-RELATIVE on purpose: it resolves through the Pages Function that carries the privacy
+  // gate, and the path is derived from the contract's distribution registry rather than spelled.
+  it('advertises the llms.txt discovery index at its contract path, site-relative', () => {
+    expect(LINK_HEADER).toContain(`<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`)
+    expect(LLMS_TXT_PATH).toBe('/llms.txt')
+    expect(LINK_HEADER).not.toContain('cloudfront.net')
+  })
+
+  it('sets the Link header on the homepage response', async () => {
+    const response = await onRequest({request: new Request('https://jonathanlloyd.me/'), next: async () => new Response('html'), waitUntil: () => {}})
+
+    expect(response.headers.get('Link')).toBe(LINK_HEADER)
   })
 })
 

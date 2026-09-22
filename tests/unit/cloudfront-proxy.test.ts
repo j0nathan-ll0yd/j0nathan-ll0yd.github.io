@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from '../../functions/_lib/proxy'
+import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy, PROXY_TIMEOUTS} from '../../functions/_lib/proxy'
 import type {CloudfrontProxyContext} from '../../functions/_lib/proxy'
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
@@ -16,9 +16,37 @@ vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => lo
 // from it. The regression class under guard: a transient upstream failure being
 // cached for an hour, or a multi-route CloudFront outage having no safe fallback.
 
-const FETCH_CACHE_INIT = {cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}}}
+// Every network call the proxy makes carries an AbortSignal now: the per-operation deadline asks
+// the platform to cancel, and the race in withDeadline guarantees the bound even when it cannot.
+const FETCH_CACHE_INIT = expect.objectContaining({
+  cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}},
+  signal: expect.any(AbortSignal)
+})
 const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
-const FOCUS_FETCH_INIT = {cache: 'no-store'}
+const FOCUS_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
+
+/** A fetch or body read that never settles -- the hang every bound in proxy.ts exists to cut off. */
+function neverSettles<T>(): Promise<T> {
+  return new Promise<T>(() => {})
+}
+
+/**
+ * Drive the fake clock forward and assert the request SETTLED inside `ms`.
+ *
+ * Reading the fake clock is the measurement: `vi.useFakeTimers()` mocks Date, so the elapsed
+ * value is the wall-clock the request would have spent in production, not test overhead.
+ */
+async function settleWithin(pending: Promise<Response>, ms: number) {
+  const startedAt = Date.now()
+  let settled = false
+  const tracked = pending.then((value) => {
+    settled = true
+    return value
+  })
+  await vi.advanceTimersByTimeAsync(ms)
+  expect(settled, `request did not settle within ${ms}ms`).toBe(true)
+  return {response: await tracked, elapsedMs: Date.now() - startedAt}
+}
 
 function makeContext(path = '/thing.txt', method = 'GET') {
   const background: Promise<unknown>[] = []
@@ -209,8 +237,10 @@ describe('makeCloudfrontProxy', () => {
     expectPublicNoStore(res)
   })
 
-  it('fails closed when the ungated focus state cannot be read', async () => {
-    const mock = vi.fn().mockResolvedValue(new Response('focus unavailable', {status: 503}))
+  it('fails closed when the ungated focus state returns a non-retryable status, without retrying it', async () => {
+    // 403 is a definite answer from the focus origin, not a blip: one probe, then deny. The
+    // retryable-status path (503) is covered in "bounded network attempts" below.
+    const mock = vi.fn().mockResolvedValue(new Response('focus unavailable', {status: 403}))
     vi.stubGlobal('fetch', mock)
     const cache = stubCache(new Response('old content'))
     const {context} = makeContext()
@@ -264,6 +294,137 @@ describe('makeCloudfrontProxy', () => {
     expect(recovered.status).toBe(200)
     expect(await recovered.text()).toBe('content-2')
     expect(artifactCalls).toBe(2)
+  })
+})
+
+// covers: llms-txt#Every proxy network attempt is bounded in time
+// Retry COUNT bounded nothing about DURATION. A single never-resolving fetch, or a response whose
+// body stalls mid-stream, held the request open indefinitely -- preventing BOTH a prompt failure
+// and the last-known-good fallback. These pin the bound itself, not the mechanism that enforces it.
+describe('bounded network attempts', () => {
+  it('finishes within the total budget when the artifact fetch never resolves', async () => {
+    const mock = vi.fn().mockImplementation((url: string) =>
+      url === FOCUS_URL ? Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'}))) : neverSettles<Response>()
+    )
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', mock)
+    stubCache()
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response, elapsedMs} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(elapsedMs).toBeLessThanOrEqual(PROXY_TIMEOUTS.totalMs)
+    expect(response.status).toBe(502)
+    expectPublicNoStore(response)
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy-error')
+    expect(response.headers.get('X-Proxy-Attempts')).toBe('3')
+    expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
+    expect(logger.error).toHaveBeenCalledWith('cloudfront_proxy_terminal_failure',
+      expect.objectContaining({artifact: '/thing.txt', error_class: 'TimeoutError'}))
+  })
+
+  it('finishes within the total budget when the artifact body stalls, and still serves last-known-good', async () => {
+    // A stalled body is invisible to any deadline placed on the fetch alone: headers arrive, the
+    // status is 200, and the bytes never do. The eligible failure must still reach the stale path.
+    const stalledBody = {
+      ok: true,
+      status: 200,
+      headers: new Headers({'x-amz-cf-id': 'stalled-request'}),
+      arrayBuffer: () => neverSettles<ArrayBuffer>()
+    } as unknown as Response
+    const mock = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : stalledBody)
+    )
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800'}}))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response, elapsedMs} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(elapsedMs).toBeLessThanOrEqual(PROXY_TIMEOUTS.totalMs)
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('known good')
+    expect(cache.match).toHaveBeenCalledOnce()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(response.headers.get('X-Proxy-Stale')).toBe('true')
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expect(response.headers.get('Warning')).toBe('110 - "Response is stale"')
+    expect(response.headers.get('X-Proxy-Attempts')).toBe('3')
+    // A run that never held complete bytes reads as unreachable, not as the 200 whose body stalled.
+    // A retained 2xx would read as a definite non-retryable answer and withhold this fallback.
+    expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
+  })
+
+  it('fails closed within the budget when the focus probe never resolves, without touching the artifact', async () => {
+    const mock = vi.fn().mockImplementation((url: string) => url === FOCUS_URL ? neverSettles<Response>() : Promise.resolve(new Response('leak')))
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('old content'))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response, elapsedMs} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(elapsedMs).toBeLessThanOrEqual(PROXY_TIMEOUTS.totalMs)
+    expect(response.status).toBe(502)
+    expectPublicNoStore(response)
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy-focus-error')
+    expect(mock).toHaveBeenCalledTimes(2) // one focus probe, one bounded retry -- and no artifact fetch
+    expect(mock).not.toHaveBeenCalledWith(`${CLOUDFRONT_BASE}/thing.txt`, expect.anything())
+    expect(cache.match).not.toHaveBeenCalled()
+  })
+
+  it('retries a transient focus failure once and serves the artifact when the retry succeeds', async () => {
+    const focusResponses = [new Response('focus blip', {status: 503}), new Response(JSON.stringify({currentFocus: 'Personal'}))]
+    const mock = vi.fn().mockImplementation((url: string) => Promise.resolve(url === FOCUS_URL ? focusResponses.shift()! : new Response('payload')))
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', mock)
+    vi.stubGlobal('caches', undefined)
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('payload')
+    expect(mock).toHaveBeenCalledTimes(3) // failed probe, retried probe, artifact
+    expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_focus_retry', expect.objectContaining({attempts: 1, upstream_status: 503}))
+  })
+})
+
+// covers: llms-txt#Every proxy network attempt is bounded in time
+// Four ways the gate can fail to reach a definite answer; every one of them must deny. Only the
+// non-retryable-status branch was covered before -- the other three shipped untested.
+describe('focus gate fails closed on every uncertain answer', () => {
+  const uncertainProbes: Array<[string, Response | Error, string, number]> = [
+    ['a transport error', new Error('connection reset'), 'Error', 2],
+    ['a response body that is not JSON', new Response('<html>not json</html>'), 'InvalidFocusJson', 1],
+    ['a body whose currentFocus is not a string', new Response(JSON.stringify({currentFocus: 42})), 'InvalidFocusState', 1]
+  ]
+
+  it.each(uncertainProbes)('denies on %s', async (_label, focusAnswer, errorClass, expectedProbes) => {
+    const mock = vi.fn().mockImplementation((url: string) => {
+      if (url !== FOCUS_URL) {
+        return Promise.resolve(new Response('leak'))
+      }
+      return focusAnswer instanceof Error ? Promise.reject(focusAnswer) : Promise.resolve(focusAnswer.clone())
+    })
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(new Response('old content'))
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(response.status).toBe(502)
+    expect(await response.text()).toBe('focus state unavailable')
+    expectPublicNoStore(response)
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy-focus-error')
+    expect(mock).toHaveBeenCalledTimes(expectedProbes) // a malformed ANSWER is not retried; transport is
+    expect(mock).not.toHaveBeenCalledWith(`${CLOUDFRONT_BASE}/thing.txt`, expect.anything())
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+    expect(logger.error).toHaveBeenCalledWith('cloudfront_proxy_focus_probe_failed',
+      expect.objectContaining({artifact: '/thing.txt', error_class: errorClass}))
   })
 })
 
