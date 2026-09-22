@@ -25,13 +25,39 @@ const reconcilerScript = parseJobs(workflow).flatMap((job) => job.steps).filter(
 )
 
 const reconcileCondition = `if: >-
-          always() && (
-            github.event_name == 'schedule' ||
-            (github.event_name == 'workflow_dispatch' && (inputs.scheduled_by_external == true || inputs.validate_reconciler == true))
+          always() && github.event_name == 'workflow_dispatch' && (
+            inputs.scheduled_by_external == true || inputs.validate_reconciler == true
           )`
 
-const pingCondition =
-  "if: always() && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true))"
+const pingCondition = "if: always() && github.event_name == 'workflow_dispatch' && inputs.scheduled_by_external == true"
+
+/**
+ * The `run:` script of a step, or `''` when it declares none.
+ *
+ * The block is bounded by INDENTATION, not by "everything after `run:`". Several steps
+ * put `env:` AFTER `run:` (the GitHub Packages auth step does), so a run-to-end-of-step
+ * slice would sweep a legitimate `env:` interpolation into the shell-injection assertion
+ * below and make it assert the opposite of what it means.
+ */
+function runBlock(stepBody: string): string {
+  const lines = stepBody.split('\n')
+  const start = lines.findIndex((line) => /^\s*run:/.test(line))
+  if (start < 0) {
+    return ''
+  }
+  const header = /^(\s*)run:\s*(\|-?|>-?)?\s*(.*)$/.exec(lines[start])!
+  const indent = header[1].length
+  const block = header[3] ? [header[3]] : []
+  if (header[2]) {
+    for (const line of lines.slice(start + 1)) {
+      if (line.trim() !== '' && line.search(/\S/) <= indent) {
+        break
+      }
+      block.push(line)
+    }
+  }
+  return block.join('\n')
+}
 
 describe('audit-web issue reconciliation wiring', () => {
   it('gives the workflow issue-write permission and reconciles all three scheduled buckets', () => {
@@ -50,9 +76,15 @@ describe('audit-web issue reconciliation wiring', () => {
   })
 
   it('passes every check outcome, including successes needed for recovery', () => {
-    expect(workflow).toContain("outcome: '${{ steps.smoke.outcome }}'")
-    expect(workflow).toContain("outcome: '${{ steps.llms.outputs.issue_outcome }}'")
-    expect(workflow).toContain("outcome: '${{ steps.security_txt.outcome }}'")
+    // Read from `process.env`, bound by the step's own `env:` block. See the
+    // interpolation-channel suite below for why the values no longer reach the script body
+    // as `${{ }}` source text.
+    expect(workflow).toContain('outcome: process.env.SMOKE_OUTCOME')
+    expect(workflow).toContain('SMOKE_OUTCOME: ${{ steps.smoke.outcome }}')
+    expect(workflow).toContain('outcome: process.env.LLMS_ISSUE_OUTCOME')
+    expect(workflow).toContain('LLMS_ISSUE_OUTCOME: ${{ steps.llms.outputs.issue_outcome }}')
+    expect(workflow).toContain('outcome: process.env.SECURITY_TXT_OUTCOME')
+    expect(workflow).toContain('SECURITY_TXT_OUTCOME: ${{ steps.security_txt.outcome }}')
   })
 
   // covers: llms-txt#Raw and canonical llms artifacts stay coherent
@@ -63,7 +95,7 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(llmsStep).toContain('continue-on-error: true')
     expect(llmsStep).toContain('pnpm exec tsx audits/checks/b2-llms.mjs')
     expect(executable).not.toMatch(/b2-llms\.mjs[^\n]*(\|\| true|; true)/)
-    expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.llms.outputs.issue_outcome }}'}")
+    expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: process.env.LLMS_ISSUE_OUTCOME}")
     // Scoped to the reconciler: a report-only step's process outcome cannot separate
     // "measured and failed" from "could not measure", so the ISSUE lifecycle must read
     // the tri-state output. The dead-man ping step reads `steps.llms.outcome` on
@@ -100,10 +132,12 @@ describe('audit-web issue reconciliation wiring', () => {
     const uploadStep = executable.match(/      - name: Upload Cloudflare llms cache-rule evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
     expect(uploadStep).toContain('if: always()')
     expect(uploadStep).toContain('path: artifacts/llms-assurance/cloudflare-cache-rules.json')
-    expect(workflow).toContain(
-      "{id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: '${{ steps.llms_cache_rules.outputs.issue_outcome }}'}"
-    )
-    expect(reconcilerScript).not.toContain('steps.llms_cache_rules.outcome')
+    expect(workflow).toContain("{id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: process.env.LLMS_CACHE_RULES_ISSUE_OUTCOME}")
+    expect(workflow).toContain('LLMS_CACHE_RULES_ISSUE_OUTCOME: ${{ steps.llms_cache_rules.outputs.issue_outcome }}')
+    // `steps.<id>.outcome` is what the DEAD-MAN ping reads, deliberately and for a different
+    // question. The reconciler must never see a report-only step's raw process outcome.
+    // Anchored so `steps.llms_cache_rules.outputs.issue_outcome` does not read as a hit.
+    expect(reconcilerScript).not.toMatch(/steps\.llms_cache_rules\.outcome\b/)
   })
 
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
@@ -113,10 +147,25 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow.match(/if: steps\.focus_mode\.outputs\.suppressed != 'true'/g)).toHaveLength(2)
     expect(workflow).toContain('Lighthouse result is focus-mode-conditioned')
     expect(workflow).toContain('pa11y / result is focus-mode-conditioned')
-    expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: '${{ steps.focus_mode.outcome }}'}")
-    expect(workflow).toContain("{id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: '${{ steps.focus_mode.outcome }}'}")
-    expect(workflow).toContain("{id: 'lychee', title: 'B5 lychee link check', outcome: '${{ steps.focus_mode.outcome }}'}")
+    expect(workflow).toContain("{id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: process.env.FOCUS_MODE_OUTCOME}")
+    expect(workflow).toContain("{id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: process.env.FOCUS_MODE_OUTCOME}")
+    expect(workflow).toContain("{id: 'lychee', title: 'B5 lychee link check', outcome: process.env.FOCUS_MODE_OUTCOME}")
+    expect(workflow).toContain('FOCUS_MODE_OUTCOME: ${{ steps.focus_mode.outcome }}')
     expect(workflow).not.toMatch(/id: sitemap[\s\S]{0,120}focus_mode/)
+  })
+
+  // The probe's ANSWER, not just its step outcome. Both conditioned steps read the
+  // suppression flag and the prose reason as shell variables bound by their own `env:`
+  // block, because `reason` is composed from the live focus.json response in
+  // audits/lib/suppression.mjs and is therefore remote bytes.
+  it('hands the focus probe answer to the conditioned steps as environment, not as shell source', () => {
+    for (const id of ['lhci', 'pa11y']) {
+      const step = parseJobs(workflow).flatMap((job) => job.steps).find((s) => s.id === id)!
+      expect(step.body).toContain('FOCUS_SUPPRESSED: ${{ steps.focus_mode.outputs.suppressed }}')
+      expect(step.body).toContain('FOCUS_REASON: ${{ steps.focus_mode.outputs.reason }}')
+      expect(runBlock(step.body)).toContain('if [ "$FOCUS_SUPPRESSED" = "true" ]; then')
+      expect(runBlock(step.body)).toContain('$FOCUS_REASON')
+    }
   })
 })
 
@@ -156,6 +205,83 @@ describe('audit-web tier gating', () => {
     expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')")
     expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'weekly' || inputs.tier == 'all')")
     expect(workflow).toContain("if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')")
+  })
+
+  // THE SAME DEAD ARM, in the other six conditions (atlas decision 0142 step 5.4). Ruling
+  // R9a removed `github.event.schedule` from the three TIER gates and the rung above pinned
+  // that. It left `github.event_name == 'schedule'` standing in all six reconciler and ping
+  // conditions, where it is dead for exactly the same reason: the `on:` block declares
+  // `workflow_dispatch` and nothing else, so no run of this workflow ever carries the
+  // `schedule` event name.
+  //
+  // A condition that can never be true is not merely inert. It reads as a live second
+  // trigger path, so the next reader budgets for a cron that does not exist -- and if a
+  // `schedule:` trigger is ever added, six conditions silently start firing on a clock that
+  // atlas decisions 0092/0093 deliberately moved OUT of this file.
+  it('carries no dead schedule-event arm in any reconciler or ping condition', () => {
+    expect(workflow).not.toContain("github.event_name == 'schedule'")
+    // The surviving path, still wired everywhere it was: three reconcilers, three pings.
+    expect(countOccurrences(workflow, reconcileCondition)).toBe(3)
+    expect(countOccurrences(workflow, pingCondition)).toBe(3)
+  })
+
+  it('declares workflow_dispatch as its only trigger, so the external scheduler stays the single clock', () => {
+    expect(workflow).toMatch(/^on:\n {2}workflow_dispatch:$/m)
+    expect(workflow).not.toMatch(/^ {2}schedule:$/m)
+    expect(workflow).not.toMatch(/^\s*- cron:/m)
+  })
+})
+
+// NOTHING COMPUTED REACHES CODE AS SOURCE TEXT (atlas decision 0142 step 5.4).
+//
+// `${{ }}` is resolved BEFORE the thing that reads it is parsed. A value interpolated into
+// a `run:` body is spliced into the shell script, and a value interpolated into a
+// github-script `script:` body is spliced into the JavaScript -- in a workflow holding
+// `issues: write`, on a self-hosted runner. Routing the value through `env:` moves it from
+// source text to data: bash expands `$FOO` after parsing, and node reads `process.env.FOO`
+// at runtime, so neither can ever be anything but a value.
+//
+// The motivating channel: `steps.focus_mode.outputs.reason` is composed in
+// audits/lib/suppression.mjs from the live https://jonathanlloyd.me/focus.json response --
+// an HTTP status, a JSON parse error, a fetch error message. Those are REMOTE BYTES, and
+// they were interpolated into two `run:` bodies (the B3 and B4 steps). The reconciler's
+// step outcomes are a closed set today, so this is the channel being closed rather than a
+// live escape; the assertion is what stops a future output from reopening it.
+describe('audit-web interpolation channels', () => {
+  const steps = parseJobs(workflow).flatMap((job) => job.steps)
+
+  it('finds every step, so the per-step assertions below cover the whole workflow', () => {
+    expect(steps.length).toBeGreaterThanOrEqual(30)
+    expect(steps.filter((s) => runBlock(s.body) !== '').length).toBeGreaterThanOrEqual(10)
+  })
+
+  it('interpolates nothing into any run: block', () => {
+    for (const step of steps) {
+      expect({step: step.name, interpolated: runBlock(step.body).includes('${{')}).toEqual({step: step.name, interpolated: false})
+    }
+  })
+
+  it('interpolates nothing into any github-script body', () => {
+    for (const step of steps.filter((s) => s.body.includes('actions/github-script@'))) {
+      const script = /^ {10}script: \|\n((?: {12}.*\n?)*)/m.exec(step.body)?.[1] ?? ''
+      expect({step: step.name, found: script.length > 0, interpolated: script.includes('${{')}).toEqual({step: step.name, found: true, interpolated: false})
+    }
+  })
+
+  // The `env:` half. Routing a value out of the script body is only a fix if the script
+  // still reads it, and the failure mode of a half-done rename is a reconciler that reads
+  // `undefined` for every check and silently stops managing issues.
+  it('declares every env var the reconciler scripts read, on the step that reads it', () => {
+    const reconcilers = steps.filter((s) => s.name === 'Reconcile managed audit issues')
+    expect(reconcilers).toHaveLength(3)
+    for (const step of reconcilers) {
+      const read = [...step.body.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1])
+      const declared = [...step.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.[a-z0-9_]+\.(?:outcome|outputs\.issue_outcome) \}\}$/gm)].map((m) => m[1])
+      expect(read.length).toBeGreaterThan(0)
+      expect({step: step.name, missing: read.filter((name) => !declared.includes(name))}).toEqual({step: step.name, missing: []})
+      // And nothing declared that nothing reads: a stale binding looks wired and is not.
+      expect({step: step.name, unread: declared.filter((name) => !read.includes(name))}).toEqual({step: step.name, unread: []})
+    }
   })
 })
 
@@ -257,19 +383,44 @@ describe('audit-web measurement channel', () => {
     }
   })
 
-  it('declares exactly the four tool runs as not-applicable, and one step as deferred', () => {
+  /**
+   * The one step whose waiver is carried by the RECORD while the DECLARATION is read from
+   * the step (atlas decisions 0120 D2, 0142 step 5.4).
+   *
+   * `llms_cache_rules` could always claim; all five Cloudflare reads have returned 403 for
+   * its whole observable life and 0120 D2 rules that the permissions are corrected before
+   * the channel lands. This field used to be the literal `deferred`, which meant the
+   * waiver was published unconditionally -- a run that crashed before reaching Cloudflare
+   * inherited it. The runner now classifies its own run
+   * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs)
+   * and the record forwards what it published, so the trailing reason and `until=` attach
+   * to the literal `deferred` and to nothing else.
+   *
+   * An ALLOWLIST OF ONE, keyed by step id: a second waiver cannot appear without editing
+   * this line and explaining itself here.
+   */
+  const WAIVED_STEP_IDS = new Set(['llms_cache_rules'])
+
+  it('declares exactly the four tool runs as not-applicable, and carries exactly one waiver', () => {
     const all = tiers.flatMap((tier) => measuredStepRecords(tier))
     // The four are third-party tool runs whose verdict IS their own exit code; they
     // hold no artifact set to count, so a number under this field would mean something
     // different from what it means everywhere else (atlas decision 0122 D1).
     expect(all.filter((r) => r.measured === 'n/a').map((r) => r.step).sort()).toEqual(['lhci', 'lychee', 'pa11y', 'smoke'])
-    // `llms_cache_rules` COULD claim; it is blocked on atlas 0120 D2's owner action.
-    // `deferred` rather than `n/a` keeps that distinction readable.
-    expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual(['llms_cache_rules'])
-    expect(all.find((r) => r.step === 'llms_cache_rules')?.reason).toContain('0120 D2')
+    // NO LITERAL `deferred` SURVIVES. A constant in this field is the falsified-record
+    // shape the binding rung above rejects: the step's real state is never read, so every
+    // outcome -- including a crash -- publishes the waived value.
+    expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual([])
+    // The waiver instead rides the trailing fields of a record that reads the step.
+    const waived = all.filter((r) => r.deadline !== '')
+    expect(waived.map((r) => r.step)).toEqual([...WAIVED_STEP_IDS])
+    for (const record of waived) {
+      expect(record.measured).toBe(`\${{ steps.${record.step}.outputs.measured }}`)
+      expect(record.reason).toContain('0120 D2')
+    }
   })
 
-  it.each(tiers)('$key dates every deferral and leaves every not-applicable undated', (tier) => {
+  it.each(tiers)('$key dates every waiver and leaves every other record undated', (tier) => {
     // A DEFERRAL IS TEMPORAL AND A NOT-APPLICABLE IS STRUCTURAL. Without a deadline the
     // two behave identically and a disclosed gap becomes an indefinite one: the
     // `llms_cache_rules` deferral produced a green job, no issue and no wedge on run
@@ -277,10 +428,10 @@ describe('audit-web measurement channel', () => {
     // 34086625518, the receipt decision 0122 opened with. `audits/healthchecks-ping.sh`
     // wedges past the date; this reds before the lane ever runs.
     for (const record of measuredStepRecords(tier)) {
-      if (record.measured === 'deferred') {
+      if (WAIVED_STEP_IDS.has(record.step)) {
         expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)})
       } else {
-        // Nowhere else, so `until=` cannot drift into a field that grants nothing.
+        // Nowhere else, so `until=` cannot drift onto a record where it grants nothing.
         expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: ''})
       }
     }

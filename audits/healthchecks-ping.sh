@@ -100,11 +100,15 @@ JOB_STATUS="${JOB_STATUS:-success}"
 # `until=...` as reason text, keeps seeing a REASONED declaration, and stays green while the hub
 # adopts the same expiry rung on its own cadence.
 #
-# EMPTY IS "NOT CLAIMED", NEVER A PASS. A step that published no count is silent, not healthy. If
-# its outcome is `failure` it died before writing one, which is the darkest case and wedges. If it
-# succeeded or was skipped, this script leaves it to the status rungs and atlas A19 arm 2 is what
-# reds on a step that should claim and does not -- a static gate in another repo, which is why the
-# producer and the reconciler ship as one change.
+# EMPTY IS "NOT CLAIMED", NEVER A PASS. A step that published no count is silent, not healthy, and
+# ONLY A STATED OUTCOME EXCUSES THE SILENCE. `success`, `skipped` and `cancelled` each stand the
+# step down for a reason a reader can check, and this script leaves those to the status rungs --
+# atlas A19 arm 2 is the static gate that reds a step which should claim and does not, in another
+# repo, which is why the producer and the reconciler ship as one change. EVERY OTHER OUTCOME
+# WEDGES: `failure` means the step died before writing a count, and an empty or unrecognized
+# outcome means the record names no live step, which is the same darkness wearing a different
+# shape. Defaulting the unknown case to health was the one rung here that contradicted the
+# fail-safe rule the rest of the script states.
 #
 # NO RECORDS AT ALL WEDGES, fail-safe and deliberately. An unwired tier is exactly the pre-0122
 # state this channel exists to end, and it must not read as health. A false /fail costs one
@@ -190,12 +194,37 @@ while IFS='|' read -r step outcome measured trailing; do
 
   case "${measured:-}" in
     '')
-      # Nothing claimed. A step that CONCLUDED failure without writing a count died before it
-      # could -- the crashed-before-measuring shape. A step that succeeded or stood itself down
-      # (a focus-mode `if:`) is merely silent, and atlas A19 arm 2 is the gate for that.
-      if [ "${outcome:-}" = 'failure' ]; then
-        wedged="${wedged}${step}(crashed-before-measuring) "
-      fi
+      # NOTHING CLAIMED, and the outcome decides what that means. THE DEFAULT IS THE WEDGE
+      # (atlas decision 0142 step 5.4), which is the inverse of what this arm used to do.
+      #
+      # It used to name one wedging outcome (`failure`) and let every other value fall
+      # through to silence. That is the only rung in this script whose unclassifiable case
+      # reads as health -- the `measured` rungs below wedge on a value they cannot classify,
+      # for the stated reason that a false /fail costs one investigated alert and a false
+      # plain ping cost 15 dark days. The hole it left is a record that names no live step:
+      # `${{ steps.typo.outcome }}` renders EMPTY, so `typo||` claimed nothing, had no
+      # outcome, and was read as a healthy silent step forever. So were `cancelled` and any
+      # outcome GitHub adds after this was written.
+      #
+      # Now exactly three outcomes stand a step down, each for a reason a reader can check,
+      # and everything else -- `failure`, an empty outcome, an unrecognized one -- wedges:
+      #   success    the step ran and published no count. Merely silent; atlas A19 arm 2 is
+      #              the static gate that reds a step which should claim and does not.
+      #   skipped    a focus-mode `if:` stood it down. It never ran, so it cannot have
+      #              measured, and a deliberate stand-down is not a wedge.
+      #   cancelled  the lane neither completed nor crashed. The status rungs below already
+      #              stay silent on a cancelled job rather than assert either state.
+      case "${outcome:-}" in
+        success | skipped | cancelled)
+          : # Stood down for a stated reason. Not a wedge.
+          ;;
+        failure)
+          wedged="${wedged}${step}(crashed-before-measuring) "
+          ;;
+        *)
+          wedged="${wedged}${step}(unreadable-outcome:${outcome:-empty}) "
+          ;;
+      esac
       ;;
     0)
       wedged="${wedged}${step}(measured-nothing) "

@@ -210,7 +210,7 @@ bounded in time" below -- and no behavior depends on the number.
 
 Verified by `tests/unit/cloudfront-proxy.test.ts:94` (proxy response policy: three-layer no-store
 headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
-`audits/__tests__/cloudflare-llms-cache-rules.test.ts:36` (external rule audit: applicability,
+`audits/__tests__/cloudflare-llms-cache-rules.test.ts:37` (external rule audit: applicability,
 GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
 
 Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
@@ -317,7 +317,7 @@ Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor clo
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
 Verified by `audits/__tests__/b2-llms.test.ts:390` (orchestration and issue-outcome channel) and
-`audits/__tests__/audit-web-workflow.test.ts:58` (workflow wiring).
+`audits/__tests__/audit-web-workflow.test.ts:90` (workflow wiring).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. The workflow suite
 asserts no workflow-level suppression skip, report-only exit preservation, the reconciler

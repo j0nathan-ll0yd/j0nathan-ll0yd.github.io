@@ -13,7 +13,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {checkSteps, parseJobs} from './audit-web-steps.ts'
-import {publishMeasured} from '../lib/measurement.mjs'
+import {MEASURED_DEFERRED, publishMeasured} from '../lib/measurement.mjs'
 import {report} from '../lib/http.mjs'
 
 // $GITHUB_OUTPUT IS SET WHEN THIS SUITE RUNS UNDER ACTIONS, and unset on a workstation. Any
@@ -88,6 +88,23 @@ describe('publishMeasured', () => {
 
   it('rejects a non-numeric count', () => {
     expect(() => publishMeasured('3' as unknown as number, {outputPath: undefined})).toThrow(TypeError)
+  })
+
+  // THE ONE DECLARATION A RUNNER MAY PUBLISH (atlas decisions 0120 D2, 0142 step 5.4). A step
+  // that COULD claim and is blocked on an action outside this repo says so itself, instead of
+  // the workflow hard-coding the waived value on its behalf -- a constant is published on every
+  // run, including the runs that crashed.
+  it('accepts the deferred declaration, so a blocked runner states its own state', () => {
+    const written: string[] = []
+    expect(publishMeasured(MEASURED_DEFERRED, {outputPath: '/tmp/output', append: (_p: string, line: string) => written.push(line)})).toBe('deferred')
+    expect(written).toEqual(['measured=deferred\n'])
+  })
+
+  // `n/a` is structural -- a third-party tool run holds no artifact set -- and such a run never
+  // executes this repo's code, so a runner claiming it would assert something it cannot observe.
+  // Every other string stays a TypeError: the declaration vocabulary is closed, not open.
+  it.each(['n/a', 'deferred ', 'DEFERRED', 'unknown'])('rejects %j as a declaration', (value) => {
+    expect(() => publishMeasured(value as unknown as number, {outputPath: undefined})).toThrow(TypeError)
   })
 })
 
@@ -175,26 +192,38 @@ function reportCallArgs(source: string, from: number): string[] {
 }
 
 /**
- * The one step whose runner deliberately does NOT publish a count.
+ * THE ALLOWLIST IS NOW EMPTY, and that is the finding (atlas decision 0142 step 5.4).
  *
- * `llms_cache_rules` COULD claim -- it probes five Cloudflare endpoints and could
- * count the ones that answered. It does not, because all five have returned 403 for
- * its whole observable life (weekly run 34086625518 recorded `status: unknown`), and
- * atlas decision 0120 D2 rules that the read permissions are corrected BEFORE the
- * channel lands, so the tile does not go permanently red on a known-open owner
- * action. Its workflow record therefore says `deferred` with that reason rather than
- * being omitted: the gap is stated, not implied by silence.
+ * `llms_cache_rules` used to sit here. Its runner published nothing and its workflow
+ * record hard-coded the literal `deferred`, on the reasoning that all five Cloudflare
+ * reads have returned 403 for its whole observable life (weekly run 34086625518 recorded
+ * `status: unknown`) and that atlas decision 0120 D2 corrects the read permissions BEFORE
+ * the channel lands, so the tile does not go permanently red on a known-open owner action.
  *
- * This is an ALLOWLIST OF ONE, keyed by step id, so a second deferral cannot be added
- * without editing this line and explaining itself here.
+ * The reasoning held; the implementation did not. A constant is not a reading, so a run
+ * that crashed before reaching Cloudflare at all published the same `deferred` and
+ * inherited the same waiver -- a crash hiding behind a legitimate recorded exemption. The
+ * runner now publishes its own three-way declaration
+ * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs), so
+ * it is an ordinary member of the census below and the waiver lives only in the workflow
+ * record's trailing `until=` field.
+ *
+ * Kept as an empty set rather than deleted: it is the seam a future exemption would have
+ * to reopen, with its reason, in review.
  */
-const DEFERRED_CHANNEL_STEP_IDS = new Set(['llms_cache_rules'])
+const DEFERRED_CHANNEL_STEP_IDS = new Set<string>()
 
 describe('every audit check publishes a measurement', () => {
   const jobs = parseJobs()
   const steps = jobs.flatMap((job) => checkSteps(job).map((step) => ({job: job.key, step})))
-  // Runners reachable from a check step, minus the one deferred by 0120 D2.
+  // Runners reachable from a check step, minus any whose channel is exempt.
   const censusRunners = [...new Set(steps.filter(({step}) => !DEFERRED_CHANNEL_STEP_IDS.has(step.id!)).flatMap(({step}) => step.runners))].sort()
+
+  it('exempts no runner from the census', () => {
+    // The exemption that existed was the laundering channel, not a permanent property.
+    expect([...DEFERRED_CHANNEL_STEP_IDS]).toEqual([])
+    expect(censusRunners).toContain('audits/checks/b2-check-cloudflare-llms-cache-rules.mjs')
+  })
 
   it('censuses the check steps the workflow actually declares', () => {
     // Guards the census itself: a parser that matched nothing would pass every
