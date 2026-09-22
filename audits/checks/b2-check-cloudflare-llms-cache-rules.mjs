@@ -5,6 +5,7 @@ import {dirname} from 'node:path'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
+import {MEASURED_DEFERRED, publishMeasured} from '../lib/measurement.mjs'
 
 // The three canonical URLs, derived from the portal contract rather than
 // restated (atlas decision 0119 D2): the site origin plus the same paths the
@@ -19,6 +20,12 @@ export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
 
 const API_BASE = 'https://api.cloudflare.com/client/v4'
 const UNKNOWN = Symbol('unknown')
+
+// The two HTTP statuses that mean CLOUDFLARE REFUSED THE READ, which is the permission
+// gap atlas decision 0120 D2 waives. Everything else -- a 5xx, a timeout, a DNS failure,
+// a malformed body -- is a transport failure of a different kind and is NOT waived. The
+// set is deliberately narrow: widening it widens the waiver.
+const REFUSAL_STATUSES = new Set([401, 403])
 
 function tri(value) {
   return value === UNKNOWN ? UNKNOWN : Boolean(value)
@@ -510,7 +517,11 @@ async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
   }
   if (!response.ok || payload?.success !== true) {
     const detail = safeApiMessage(payload, sensitiveValues)
-    throw new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`)
+    // The STATUS travels with the error, not just inside its message. The measurement
+    // declaration below turns on whether a read was REFUSED (401/403 -- the permission gap
+    // atlas decision 0120 D2 waives) or failed some other way, and re-reading that back out
+    // of a redacted, truncated, prose message would be a guess.
+    throw Object.assign(new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`), {status: response.status})
   }
   return {missing: false, result: payload.result, resultInfo: payload.result_info ?? null}
 }
@@ -556,12 +567,21 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
   ]
   const settled = await Promise.allSettled(requests.map(([, request]) => request()))
   const inventory = {gaps: []}
+  let held = 0
+  let refused = 0
   for (let index = 0; index < requests.length; index++) {
     const [name] = requests[index]
     const result = settled[index]
     if (result.status === 'fulfilled') {
+      // HELD AND JUDGED, which is what `measured` counts everywhere in this lane. An
+      // absent ruleset (HTTP 404) counts: the API answered authoritatively that there is
+      // nothing there, and that answer is judged like any other.
+      held++
       inventory[name] = result.value
     } else {
+      if (REFUSAL_STATUSES.has(Number(result.reason?.status))) {
+        refused++
+      }
       inventory.gaps.push({
         id: `cloudflare-${name}-unavailable`,
         evidence: redactSensitive(result.reason instanceof Error ? result.reason.message : result.reason, sensitiveValues)
@@ -570,13 +590,55 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
   }
   const evaluation = evaluateCloudflareLlmsCacheRules(inventory)
   return {
-    specVersion: 1,
+    specVersion: 2,
     checkId: 'cloudflare-llms-cache-rules',
     status: evaluation.status,
     observedAt,
     targets: [...CLOUDFLARE_LLMS_TARGETS],
+    // specVersion 2 added this block (atlas decision 0142 step 5.4). It is what lets a
+    // reader of the uploaded artifact answer "did this run reach Cloudflare at all?"
+    // without inferring it from a prose evidence string, and it is the input to
+    // `measurementDeclaration` below.
+    measurement: {sources: requests.length, held, refused},
     results: evaluation.results
   }
+}
+
+/**
+ * The step's own `measured` declaration, or `null` when the run never got far enough to
+ * make one (atlas decision 0142 step 5.4).
+ *
+ * WHY THE STEP DECLARES THIS AND THE WORKFLOW DOES NOT. `.github/workflows/audit-web.yml`
+ * used to hard-code the literal `deferred` in this step's `MEASURED_STEPS` record. A
+ * constant is not a reading: the step's real state was never consulted, so a run that
+ * crashed before reaching Cloudflare published exactly the same `deferred` as the recorded
+ * 403s and inherited the atlas 0120 D2 waiver. The four answers are now distinct:
+ *
+ *   `held` > 0            the count. n rule collections were held and judged; the channel
+ *                         has landed and the waiver is never consulted.
+ *   every read REFUSED    `deferred`. This is precisely the state 0120 D2 waives -- the
+ *                         read permissions are an open owner action -- and the workflow
+ *                         record supplies the reason and the `until=` deadline for it.
+ *   reached nothing else  `0`. Not the recorded permission gap, so not waived: the ping
+ *                         script wedges the tier on a literal zero.
+ *   never classified      `null`, so the step publishes NOTHING. An empty field with a
+ *                         non-benign outcome is `crashed-before-measuring` in
+ *                         audits/healthchecks-ping.sh, which is the correct reading of a
+ *                         usage error, an absent credential, or a runner that died.
+ *
+ * A partial read (`held` between 1 and 4) reports its count rather than deferring: the
+ * transport demonstrably worked, and the collections it could not hold are already
+ * `unknown` findings that the managed-issue reconciler raises on their own.
+ */
+export function measurementDeclaration(evidence) {
+  const measurement = evidence?.measurement
+  if (!measurement || !Number.isInteger(measurement.held) || !Number.isInteger(measurement.sources)) {
+    return null
+  }
+  if (measurement.held > 0) {
+    return measurement.held
+  }
+  return measurement.sources > 0 && measurement.refused === measurement.sources ? MEASURED_DEFERRED : 0
 }
 
 function requiredEnvironment(environment, name) {
@@ -599,9 +661,19 @@ function managedIssueOutcome(status) {
   return status === 'passed' ? 'success' : status === 'failed' ? 'failure' : 'indeterminate'
 }
 
-async function writeGithubOutput(outputPath, status) {
-  if (outputPath) {
-    await appendFile(outputPath, `issue_outcome=${managedIssueOutcome(status)}\n`, 'utf8')
+async function writeGithubOutput(outputPath, evidence) {
+  if (!outputPath) {
+    return
+  }
+  await appendFile(outputPath, `issue_outcome=${managedIssueOutcome(evidence.status)}\n`, 'utf8')
+  const declaration = measurementDeclaration(evidence)
+  if (declaration !== null) {
+    // Published through the one measurement writer (audits/lib/measurement.mjs), with this
+    // file's own already-open output path rather than the ambient $GITHUB_OUTPUT, so the
+    // injected-environment seam the CLI is tested through stays honest. A `null`
+    // declaration writes NOTHING on purpose: silence is the crashed-before-measuring
+    // signal, and a placeholder would be the falsified record this change removes.
+    publishMeasured(declaration, {outputPath})
   }
 }
 
@@ -633,7 +705,7 @@ export async function runCloudflareLlmsCacheRuleCli(
   if (outputPath) {
     await mkdir(dirname(outputPath), {recursive: true})
     await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
-    await writeGithubOutput(environment.GITHUB_OUTPUT, evidence.status)
+    await writeGithubOutput(environment.GITHUB_OUTPUT, evidence)
   }
   for (const result of evidence.results) {
     const writer = result.status === 'passed' ? logger.log : logger.error
