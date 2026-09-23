@@ -34,7 +34,7 @@
     {
       "uri": "https://d1pfm520aduift.cloudfront.net/health.json",
       "name": "Health biometrics",
-      "description": "Heart rate, HRV, activity, and workout data (7-day aggregates)",
+      "description": "Heart rate, HRV, activity, and workout data (latest export, summarised)",
       "mimeType": "application/json"
     },
     {

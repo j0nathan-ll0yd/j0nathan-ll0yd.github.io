@@ -7,7 +7,8 @@
 //
 // All customer-facing prose is sourced from @j0nathan-ll0yd/copy (identity + llm
 // namespaces). Zero prose is hardcoded in this file.
-import {writeFileSync} from 'node:fs'
+import {readFileSync, writeFileSync} from 'node:fs'
+import {createHash} from 'node:crypto'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
@@ -186,6 +187,14 @@ const serverCardPath = join(publicDir, '.well-known', 'mcp', 'server-card.json')
 writeFileSync(serverCardPath, JSON.stringify(serverCard, null, 2) + '\n')
 console.log(`Generated ${serverCardPath}`)
 
+// The digest is COMPUTED from the served bytes, never hardcoded. A literal here
+// desyncs the moment SKILL.md is edited, and nothing catches it: audits/checks/
+// b2-check-wellknown.mjs validates the digest's FORMAT, not that it matches the
+// content, so a stale digest ships green and every consumer that verifies it
+// rejects a file that is in fact correct.
+const skillMdPath = join(publicDir, '.well-known', 'agent-skills', 'portfolio-expert', 'SKILL.md')
+const skillMdDigest = createHash('sha256').update(readFileSync(skillMdPath)).digest('hex')
+
 const agentSkills = {
   $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
   skills: [
@@ -194,7 +203,7 @@ const agentSkills = {
       description: copyLlm.mcp.agentSkillDescription,
       type: 'skill-md',
       url: `${SITE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md`,
-      digest: 'sha256:d767dd16da34fcc3f80887e64bd8502158bb78b867f2ff077d7e9e9dee822f8e'
+      digest: `sha256:${skillMdDigest}`
     }
   ]
 }

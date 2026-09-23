@@ -33,7 +33,7 @@ The portfolio at jonathanlloyd.me is a sci-fi "Human Datastream" dashboard — a
 
 ## Live Data Sources
 
-All data is served from CloudFront with 5-minute edge TTL. Health data uses 7-day aggregates only for privacy.
+All data is served from CloudFront with 5-minute edge TTL. Health data is the latest export, summarised, for privacy.
 
 | Endpoint                                                          | Description                              |
 | ----------------------------------------------------------------- | ---------------------------------------- |

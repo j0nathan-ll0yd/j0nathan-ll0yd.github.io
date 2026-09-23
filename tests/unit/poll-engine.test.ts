@@ -334,7 +334,9 @@ describe('PollEngine', () => {
     })
 
     it('keeps polling focus while suppressed (overlay fallback is never gated)', async () => {
-      const fetchMock = vi.fn().mockResolvedValue(makeFetchResponse(body('focus', '2024-01-02T00:00:00Z', {currentFocus: 'Do Not Disturb'})))
+      const fetchMock = vi.fn().mockResolvedValue(
+        makeFetchResponse(body('focus', '2024-01-02T00:00:00Z', {currentFocus: 'Do Not Disturb', hidingSince: '2024-01-02T00:00:00Z'}))
+      )
       vi.stubGlobal('fetch', fetchMock)
 
       engine.setSuppressed(true)

@@ -85,7 +85,7 @@ describe('fetchArtifact', () => {
 
   it('falls back to focus.json for an unrecognized 403 and identifies hiding', async () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse({message: 'forbidden'}, 403)).mockResolvedValueOnce(
-      jsonResponse({currentFocus: 'Do Not Disturb', generatedAt: '2026-08-27T00:00:00Z'})
+      jsonResponse({currentFocus: 'Do Not Disturb', generatedAt: '2026-08-27T00:00:00Z', hidingSince: '2026-08-27T00:00:00Z'})
     )
     vi.stubGlobal('fetch', fetchMock)
 
@@ -322,7 +322,7 @@ describe('fetchAllEndpoints', () => {
   })
 
   it('does not request gated endpoints when the honest focus source says hiding', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({...focusFixture, currentFocus: 'Work'}))
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({...focusFixture, currentFocus: 'Work', hidingSince: '2024-01-01T00:00:00Z'}))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await fetchAllEndpoints()
