@@ -1,6 +1,7 @@
 ---
 import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
+import { LLMS_TXT_PATH } from '../../functions/_lib/llms-artifacts';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
@@ -151,9 +152,16 @@ const jsonLdGraph = isHome
   <meta name="author" content={identity.person.name}>
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
-  {/* These alternates target live backend output rather than static build artifacts. */}
-  <link rel="alternate" type="text/markdown" href={`${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`} title={llm.dashboard.alternateLinkMarkdown}>
-  <link rel="alternate" type="text/plain" href={`${siteUrl}/llms.txt`} title={llm.dashboard.alternateLinkPlain}>
+  {/* Both alternates address the SITE plane, never the CloudFront origin. The privacy
+      gate and the cache rules live on the site plane (functions/_lib/proxy.ts); an
+      advertised origin URL inherits none of that policy and the origin serves
+      selectively. They describe the homepage datastream, so they are gated to it. */}
+  {isHome && (
+    <>
+      <link rel="alternate" type="text/markdown" href={`${siteUrl}${LLM_CONTENT_PATHS.llmsFull}`} title={llm.dashboard.alternateLinkMarkdown}>
+      <link rel="alternate" type="text/plain" href={`${siteUrl}${LLMS_TXT_PATH}`} title={llm.dashboard.alternateLinkPlain}>
+    </>
+  )}
   <title>{title}</title>
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="apple-touch-icon" href="/assets/icon-192.png">

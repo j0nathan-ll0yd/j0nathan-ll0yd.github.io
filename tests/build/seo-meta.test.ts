@@ -2,7 +2,8 @@ import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
-import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
 import {PNG} from 'pngjs'
 
 const distDir = path.resolve(process.cwd(), 'dist')
@@ -123,5 +124,52 @@ describe('SEO Meta Tags', () => {
     expect(jsonLink.length, 'JSON Feed <link rel="alternate"> is missing').toBeGreaterThan(0)
     expect(jsonLink.attr('href'), 'JSON Feed href should be /feed.json').toBe('/feed.json')
     expect(jsonLink.attr('title'), 'JSON Feed title should be non-empty').toBeTruthy()
+  })
+})
+
+// covers: llms-txt#Advertised LLM addresses resolve on the site plane
+/**
+ * Nothing pinned these two links before atlas decision 0142, which is how the markdown alternate
+ * drifted to the raw CloudFront origin unnoticed and stayed there.
+ *
+ * The ADDRESS IS THE POLICY. An advertised URL that resolves at the origin is an address the
+ * site's privacy gate and cache rules never see -- and the origin serves selectively (on
+ * 2026-09-22, location.json returned 403 AccessDenied while focus.json returned 200). Both
+ * alternates must therefore address the site plane, where functions/_lib/proxy.ts gates them.
+ */
+describe('LLM content alternates', () => {
+  const markdownSelector = 'link[rel="alternate"][type="text/markdown"]'
+  const plainSelector = 'link[rel="alternate"][type="text/plain"]'
+
+  function loadPage(relativePath: string) {
+    return load(readFileSync(path.join(distDir, relativePath), 'utf-8'))
+  }
+
+  it('advertises llms-full.txt on the site plane, never the CloudFront origin', () => {
+    const link = $(markdownSelector)
+    expect(link.length, 'markdown <link rel="alternate"> is missing').toBe(1)
+    expect(link.attr('href')).toBe(`${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`)
+    expect(link.attr('href')).not.toContain('cloudfront.net')
+    expect(link.attr('title'), 'markdown alternate title should be non-empty').toBeTruthy()
+  })
+
+  // The href is DERIVED, not spelled: LLMS_TXT_PATH is the pathname of the contract's own "LLM
+  // discovery index" distribution entry (functions/_lib/llms-artifacts.ts).
+  it('advertises the llms.txt discovery index at its derived contract path', () => {
+    const link = $(plainSelector)
+    expect(link.length, 'plain-text <link rel="alternate"> is missing').toBe(1)
+    expect(link.attr('href')).toBe(`${SITE_URL}${LLMS_TXT_PATH}`)
+    expect(link.attr('href')).not.toContain('cloudfront.net')
+    expect(link.attr('title'), 'plain-text alternate title should be non-empty').toBeTruthy()
+  })
+
+  // Dashboard.astro is the layout for /, /privacy and /404 alike. These alternates describe the
+  // homepage datastream, so every other page advertising them was over-advertising.
+  it.each(['404.html', path.join('privacy', 'index.html')])('does not advertise them on %s', (page) => {
+    const $page = loadPage(page)
+    expect($page(markdownSelector).length).toBe(0)
+    expect($page(plainSelector).length).toBe(0)
+    // The feed alternates are site-wide and stay put.
+    expect($page('link[rel="alternate"][type="application/rss+xml"]').length).toBe(1)
   })
 })
