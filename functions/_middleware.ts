@@ -12,8 +12,11 @@ import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
 const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin
 
 // Exported so audits/__tests__/csp-golden.test.ts can diff it against
-// audits/fixtures/golden/csp.txt. check-headers.mjs only catches that drift against
-// the LIVE site, which is after a deploy; the two must move in lockstep here.
+// audits/fixtures/golden/csp.txt. audits/checks/b7-check-headers.mjs only catches that
+// drift against the LIVE site, which is after a deploy; the two must move in lockstep
+// here. (The check has lived at that path since the atlas decision 0111 phase 2b audit
+// migration; this comment still called it check-headers.mjs until 0142 phase 7. The
+// lockstep instruction it carries was and remains correct -- only the filename was stale.)
 export const CSP = [
   "default-src 'self'",
   "script-src 'self'",
