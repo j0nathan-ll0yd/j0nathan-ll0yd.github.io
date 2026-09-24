@@ -217,8 +217,24 @@ describe('readBaselineAtMain: the three outcomes', () => {
 describe('the live catalog satisfies its own ratchet', () => {
   // Distinct from every case above: those prove the gate CAN fail, this proves the committed
   // corpus currently passes it, reading the real severity-baseline.json and the real rule files.
-  it('has zero violations against the committed severity-baseline.json', () => {
-    expect(checkSpecSeverity(loadSeveritySnapshot())).toEqual([])
+  //
+  // ARM (0) IS A PROPERTY OF THE CHECKOUT, NOT OF THE CORPUS, so it is asserted separately.
+  // This suite runs in the `setup` and `spec-cases` CI jobs, which check out at the default
+  // `fetch-depth: 1` where `origin/main` genuinely does not resolve -- and the arm correctly
+  // reports INDETERMINATE there. Only the `spec-severity-ratchet` job sets `fetch-depth: 0`,
+  // with a comment saying it does so precisely so arms (a) and (c) can run; that job runs the
+  // check itself and is where the ratchet actually gates. Demanding zero violations here would
+  // make the corpus assertion depend on which job happened to run it, which is how a test comes
+  // to be "fixed" by weakening the gate it watches.
+  it('has zero SUBSTANTIVE violations against the committed severity-baseline.json', () => {
+    const substantive = (checkSpecSeverity(loadSeveritySnapshot()) as string[]).filter((v) => !v.startsWith('INDETERMINATE:'))
+    expect(substantive).toEqual([])
+  })
+
+  it('reports arms (a) and (c) as unmeasured exactly when origin/main is unreachable', () => {
+    const snapshot = loadSeveritySnapshot() as Snapshot
+    const indeterminate = (checkSpecSeverity(snapshot) as string[]).filter((v) => v.startsWith('INDETERMINATE:'))
+    expect(indeterminate.length === 1).toBe(Boolean(snapshot.baselineMain.unavailable))
   })
 
   it('records every live id, so arm (d) is satisfied by the corpus and not only by synthetics', () => {
