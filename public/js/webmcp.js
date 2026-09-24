@@ -16,7 +16,7 @@
     };
 
     var dataSources = [
-      { name: 'Health biometrics', url: 'https://d1pfm520aduift.cloudfront.net/health.json', description: 'Heart rate, HRV, activity, and workout data (7-day aggregates)' },
+      { name: 'Health biometrics', url: 'https://d1pfm520aduift.cloudfront.net/health.json', description: 'Heart rate, HRV, activity, and workout data (latest export, summarised)' },
       { name: 'Sleep data', url: 'https://d1pfm520aduift.cloudfront.net/sleep.json', description: 'Sleep phases, duration, and efficiency metrics' },
       { name: 'Focus state', url: 'https://d1pfm520aduift.cloudfront.net/focus.json', description: 'Current Do Not Disturb and focus mode status' },
       { name: 'GitHub activity', url: 'https://d1pfm520aduift.cloudfront.net/github-events.json', description: 'Dev activity, languages, contributions, and recent commits' },
