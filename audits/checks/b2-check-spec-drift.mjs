@@ -17,7 +17,7 @@ import {artifacts} from '../specs/load.mjs'
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'specs')
 
 // A quote may splice separate passages of one source. The convention (stated
-// in rule.schema.json's cites.quote description) is that they are
+// in rule.schema.json's quote descriptions, on both arms) is that they are
 // joined by an ellipsis rather than run together, so a spliced quote is
 // checked segment-by-segment, IN ORDER -- reordering passages must not pass.
 //
@@ -34,7 +34,19 @@ const SPLICE = /\s*(?:\.{3,}|…)\s*/
 // rejected even if it is present in the source. Without this floor the cheap
 // way to "fix" a drift failure is to truncate the quote down to a few common
 // words, which would keep the gate green while destroying the thing it
-// guards. The shortest segment in the live catalog is 35 characters.
+// guards.
+//
+// THE HEADROOM IS ZERO, AND IT IS PINNED (atlas decision 0142 step 5.3). This
+// comment used to claim "the shortest segment in the live catalog is 35
+// characters". It is 24 -- exactly the floor -- and has been since a splice
+// whose trailing period the SPLICE run absorbs left `link The URL of the item`
+// in feed-xml-item-field.rule.json at the boundary. The margin eroded 35 -> 24
+// unnoticed precisely because the claim was prose that nothing measured, which
+// is the failure mode this whole corpus exists to refuse. So the number is now
+// asserted by audits/__tests__/spec-drift.test.ts against the live catalog: any
+// further erosion, any floor bump, and any change to `comparable()`'s
+// normalisation reds there with the offending segment named, instead of
+// reddening the entire catalog at some later merge.
 export const MIN_SEGMENT_CHARS = 24
 
 /**
@@ -43,7 +55,7 @@ export const MIN_SEGMENT_CHARS = 24
  * line break cannot match byte-for-byte) and folds typographic variants of
  * quotes and dashes that differ between a source and its transcription. It
  * alters no word, no clause, and no sentence boundary -- matching exactly the
- * latitude rule.schema.json's cites.quote description allows.
+ * latitude rule.schema.json's quote descriptions allow.
  */
 export function normalizeText(s) {
   return String(s).replace(/\r\n?/g, '\n').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, '-') // \s already covers NBSP, thin/en/em spaces and U+FEFF in JS, so the
@@ -53,7 +65,7 @@ export function normalizeText(s) {
 }
 
 /**
- * Reduce markdown to the text it renders. Two of the three pinned sources are
+ * Reduce markdown to the text it renders. Half the pinned sources are
  * markdown/quarto files, so a quote transcribed from the RENDERED page carries
  * no backticks or link syntax while the raw blob does. De-marking both sides
  * makes them comparable without weakening the match: only formatting markers
@@ -137,18 +149,25 @@ export function citation(rule) {
 /**
  * THE PINNED SET -- the rules this probe can hold to a source, and the ONLY
  * definition of it in this file. A rule is in it when its citation block records a
- * `pinnedAt`: 27 of the 34 rules, being the 14 `conformance` rules plus the 13 local
- * rules that cite an external clause. The 7 left out record no external source (the
- * old `clause: 'n/a'`), so there is nothing to fetch.
+ * `pinnedAt`, on EITHER arm: the `conformance` rules that carry `cites`, plus the local
+ * rules whose `derivedFrom` names an external clause. The rest record no external
+ * source (the old `clause: 'n/a'`), so there is nothing to fetch.
  *
- * THE COUNT IS UNCHANGED BY THE CITATION SPLIT, DELIBERATELY. An earlier cut of that
- * split keyed this set on rule_class and would have taken it from 27 to 14, silently
- * dropping the AnswerDotAI/llms-txt blob that is decision 0129 C6's own motivating
- * receipt -- all five llms-txt rules are `convention`. A denominator that shrinks in
- * silence reports the same green while watching less, which is the failure mode this
- * estate keeps naming.
+ * NO COUNTS ARE STATED HERE, DELIBERATELY (atlas decision 0142 phase 7). They were, and
+ * they rotted: this docblock read "27 of the 34 rules ... The 7 left out" while the
+ * catalog held 35 rules with 8 unsourced, and the fetch docblock below read "15 rules
+ * resolve to 3 sources" against an actual 27 over 4. A file whose whole doctrine is that
+ * a denominator must not shrink in silence cannot carry hand-maintained denominators. The
+ * run PRINTS the live figures (see `main()`), and `audits/__tests__/spec-drift.test.ts`
+ * asserts the set's membership rule, so both are read off the corpus rather than recalled.
+ *
+ * THE SET IS KEYED ON `pinnedAt`, NEVER ON `rule_class`, AND THAT IS LOAD-BEARING. An
+ * earlier cut of the citation split keyed it on the class and would have dropped every
+ * local rule, taking with it the AnswerDotAI/llms-txt blob that is decision 0129 C6's own
+ * motivating receipt -- all five llms-txt rules are `convention`. `citation()` above is the
+ * one accessor for that reason.
  */
-const pinned = (rules) => rules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string')
+export const pinned = (rules) => rules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string')
 
 /**
  * Half 1 -- INTEGRITY, offline. content_sha256 must still equal sha256(quote),
@@ -157,6 +176,32 @@ const pinned = (rules) => rules.filter(({rule}) => typeof citation(rule)?.pinned
  *
  * Runs over every rule carrying a QUOTE, on BOTH arms. A local rule's transcription
  * is as worth protecting from an unreviewed edit as a conformance rule's.
+ *
+ * A QUOTELESS `derivedFrom` IS LEGAL; A QUOTELESS `cites` IS NOT (atlas decision 0142
+ * step 5.3, reconciling a contradiction this gate carried against the schema).
+ *
+ * The two arms make different claims, so they owe different things. `cites` REQUIRES
+ * `quote` in rule.schema.json's own `required` list, and the demand is re-stated here
+ * as defense in depth because this probe reads rule files RAW, with no ajv, so a
+ * schema-bypassing edit still meets a named violation. `derivedFrom` requires only
+ * `source`, `clause` and `url`: it is "where this rule got its idea", and a pointer at
+ * a document without a sentence lifted out of it is a complete derivation note. The
+ * schema says so structurally -- its `allOf` reads "IF quote THEN require pinnedAt,
+ * retrieved and content_sha256", a conditional that would be dead if `quote` were
+ * mandatory.
+ *
+ * WHY THE SCHEMA WON. Until this change the blocking PR gate (`audit:spec-integrity`)
+ * rejected any citation block with no quote, on either arm, with a message asserting a
+ * requirement the schema explicitly waives -- so the first author of a quoteless
+ * derivation note would have met a red gate and a false explanation. Three things
+ * decided it. (1) This function's own purpose is protecting a TRANSCRIPTION from an
+ * unreviewed edit; where nothing was transcribed there is nothing to protect, and
+ * `content_sha256` has no subject. (2) The sibling blocking gate,
+ * b2-check-spec-verification.mjs, ALREADY implements the schema's reading -- its
+ * locatability arm runs only `if (typeof spec.quote === 'string' && spec.quote.length
+ * > 0)` -- so the two gates contradicted EACH OTHER, and the schema was the tie-break.
+ * (3) Making the schema follow the gate instead would have deleted a documented shape
+ * to keep a rule nothing needed. Coverage on the `cites` arm is unchanged.
  */
 export function checkQuoteIntegrity(rules) {
   const violations = []
@@ -168,7 +213,10 @@ export function checkQuoteIntegrity(rules) {
     }
     const quote = spec.quote
     if (typeof quote !== 'string' || quote.length === 0) {
-      violations.push(`${rel}: the citation quote is required and must be a non-empty string`)
+      if (rule.cites === undefined) {
+        continue // a derivedFrom pointer with no transcribed sentence: legal, and nothing to hash
+      }
+      violations.push(`${rel}: a cites quote is required and must be a non-empty string`)
       continue
     }
 
@@ -205,14 +253,17 @@ export async function fetchText(url) {
 
 /**
  * Half 2 -- DRIFT, network. For every rule carrying a pinned citation, re-fetch
- * that source and assert the quote's segments still occur in it, in order. Only
- * rules carrying `cites` are probed -- see `pinned` above. A LOCAL rule records
- * no pinned source to drift against, which the discriminated union in
- * rule.schema.json now makes structural rather than separately enforced.
+ * that source and assert the quote's segments still occur in it, in order.
  *
- * Fetches are deduplicated per URL -- 15 rules resolve to 3 sources -- and a
- * fetch failure is reported as a violation for every rule that depended on it,
- * never skipped.
+ * BOTH ARMS ARE PROBED -- see `pinned` above. This docblock used to say "Only rules
+ * carrying `cites` are probed ... A LOCAL rule records no pinned source to drift
+ * against", which was false in both directions and contradicted the filter it described,
+ * the file's own header, and the test that pins the behaviour ("probes a derivedFrom
+ * rule, so the pinned set is not keyed on rule class"). An editor aligning the code to
+ * that comment would have re-introduced the exact near-miss decision 0129 recorded.
+ *
+ * Fetches are deduplicated per URL, and a fetch failure is reported as a violation for
+ * every rule that depended on it, never skipped.
  */
 export async function checkSourceDrift(rules, opts = {}) {
   return compareQuotesAgainstSources(rules, await fetchPinnedSources(rules, opts))
@@ -250,6 +301,14 @@ export function compareQuotesAgainstSources(rules, bodies) {
   for (const {rel, rule} of probed) {
     const spec = citation(rule)
     const body = bodies.get(spec.pinnedAt)
+
+    // A pinned derivation with no transcribed sentence has nothing to compare. Guarded rather
+    // than assumed: the schema admits a `derivedFrom` that pins a source and quotes none of it,
+    // and without this the segment walk would search the source for the literal text "undefined"
+    // and report a drift that never happened.
+    if (typeof spec.quote !== 'string' || spec.quote.length === 0) {
+      continue
+    }
 
     if (!body.ok) {
       violations.push(

@@ -252,7 +252,15 @@ describe('every audit check publishes a measurement', () => {
   // report-only lane swallows that throw, so the tier would learn about it only via
   // the crashed-before-measuring rung. Catching it here makes it a red test instead.
   // Scoped to every runner in the tree, not just the census: a helper that grows a
-  // two-argument report() call is the same defect wherever it lives.
+  // two-argument call is the same defect wherever it lives.
+  //
+  // THE SCAN IS RAW AND CANNOT TELL A COMMENT FROM A CALL. Writing the helper's name followed
+  // by an open parenthesis in a docblock reds this test (observed while documenting b2-llms.mjs
+  // under atlas decision 0142 step 5.2). That is deliberate rather than tolerated: teaching the
+  // scanner to strip comments means parsing `.mjs` well enough to tell a real `//` from one
+  // inside a string literal, and a parser that over-strips would silently stop watching real
+  // call sites. A false red a author fixes in one edit is cheaper than a gate that quietly
+  // narrows, so prose refers to the helper by name without its parentheses.
   const allRunners: string[] = globSync('audits/checks/*.mjs').sort()
   it.each(allRunners)('%s passes a count at every report() call site', (file: string) => {
     const source = readFileSync(file, 'utf8')

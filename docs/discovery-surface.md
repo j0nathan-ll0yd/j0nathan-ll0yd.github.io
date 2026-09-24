@@ -13,7 +13,7 @@ specifications carry a point-in-time verification date.
 | `/sitemap-index.xml`                               | URL discovery for search engines                            | `@astrojs/sitemap` (`astro.config.mjs`)                                 | Sitemaps 0.9                           |
 | `/humans.txt`                                      | Human authorship credits                                    | `src/pages/humans.txt.ts`                                               | humanstxt.org                          |
 | `/feed.xml`, `/feed.json`                          | Content feeds                                               | `functions/feed.xml.ts`, `functions/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
-| `/llms.txt`, `/llms-full.txt`, per-page `index.md` | LLM-ingestible corpus + `Accept: text/markdown` negotiation | `functions/llms.txt.ts`, CloudFront compose, `functions/_middleware.ts` | llms.txt convention                    |
+| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `functions/llms.txt.ts`, `functions/llms-full.txt.ts`, `functions/index.md.ts`, CloudFront compose, `functions/_middleware.ts` | llms.txt convention |
 | `/.well-known/security.txt`                        | Security contact                                            | static                                                                  | RFC 9116                               |
 | `/.well-known/api-catalog`                         | API linkset                                                 | `functions/_middleware.ts` (content-type)                               | RFC 9727                               |
 | `/.well-known/webfinger`                           | Fediverse alias (JRD)                                       | static + `_middleware.ts`                                               | RFC 7033                               |
@@ -86,9 +86,13 @@ unless a real conforming A2A endpoint is deployed.
 
 ### AI content-use preference
 
-Every site response carries `Content-Usage: train-ai=n, search=y`. The root Pages
-Function middleware sets it on Function responses, including negotiated Markdown;
-the `public/_headers` wildcard sets it on static asset responses and cache hits.
+Every site response carries a `Content-Usage` preference header. The root Pages Function
+middleware sets it on Function responses, including negotiated Markdown; the
+`public/_headers` wildcard sets it on static asset responses and cache hits. THOSE TWO
+FILES OWN THE EMITTED VALUE -- this page deliberately does not restate it, the discipline
+`docs/wiki/LLM-Content-Spec.md` already applies (a restated clause is prose nothing
+measures, and this page restated it verbatim until atlas decision 0142 phase 7). The two
+planes are held byte-identical by `tests/unit/discovery-link-header.test.ts`.
 Cloudflare
 [does not apply `_headers` rules to Pages Functions](https://developers.cloudflare.com/pages/configuration/headers/),
 so both paths are required. This is the HTTP response-header form defined by the IETF
@@ -123,6 +127,16 @@ dashboard except `/llms.txt`, while named search/answer agents remain allowed.
 
 ## Spec-drift watch
 
-ARD, DNS-AID, NLWeb, A2A, and Agent Skills discovery are moving surfaces. The status
-above is point-in-time as of 2026-08-22, not permanent. A recurring issue tracks monthly
-re-verification.
+ARD, DNS-AID, NLWeb, A2A, and Agent Skills discovery are moving surfaces. The status above
+is point-in-time as of 2026-08-22, not permanent.
+
+NOTHING CURRENTLY RE-VERIFIES THEM, and this section said otherwise. It claimed "a recurring
+issue tracks monthly re-verification"; the only such issue is #115, a ONE-OFF check-in dated
+~2026-08-07 that is closed, and no schedule or lane in this repo re-reads these surfaces
+(atlas decision 0142 phase 7 measured it). The dates above are therefore as stale as they
+look, and re-verification is a manual task nobody is assigned. What DOES run automatically
+is narrower and should not be mistaken for it: `audits/checks/b2-check-spec-currency.mjs`
+watches the rule catalog's pinned specification sources weekly, which covers llms.txt, RSS,
+JSON Feed and RFC 9116 -- not ARD, DNS-AID, NLWeb, A2A or Agent Skills. Closing this gap
+needs either a recurring issue that actually exists or those surfaces brought into the
+currency probe's corpus.

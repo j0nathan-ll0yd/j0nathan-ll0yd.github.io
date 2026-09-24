@@ -216,8 +216,10 @@ async function main() {
       `${SITE_URL}/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me`,
       validateWebfingerShape,
       'wellknown-webfinger-fetch',
-      // Accept: application/jrd+json avoids the text/markdown negotiation
-      // early-return in functions/_middleware.ts (same header the smoke suite uses).
+      // Accept: application/jrd+json is the correct request header for a JRD resource (the same
+      // one the smoke suite sends). It does NOT avoid a markdown negotiation early-return:
+      // negotiation has been homepage-only since PR #288, so this path cannot negotiate at all.
+      // The old comment described the pre-#288 every-path middleware (atlas decision 0142 phase 7).
       {Accept: 'application/jrd+json'}
     ),
     fetchAndValidate(`${SITE_URL}/.well-known/ai-catalog.json`, validateAiCatalogShape, 'wellknown-ai-catalog-fetch'),

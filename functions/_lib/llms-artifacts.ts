@@ -40,6 +40,15 @@ export type LlmsArtifact = (typeof LLMS_ARTIFACTS)[number]
 export type LlmsArtifactId = LlmsArtifact['id']
 
 // The freshness/skew thresholds that lived here are gone (atlas decision 0119 D2):
-// audits/lib/llms-coherence.ts derives them from the packaged
+// audits/checks/b2-llms.mjs derives them from the packaged
 // @j0nathan-ll0yd/estate-contracts LLM_FRESHNESS_CONFIG. They are audit-layer
-// policy, and this module stays runtime-bundle-safe (no package import).
+// policy, and this module stays free of any estate-contracts import so the Pages
+// Functions runtime bundle never pulls the package in. (It DOES import
+// @j0nathan-ll0yd/portal-contract above -- that one is the served-path contract and
+// belongs in the bundle. This comment said "no package import", which read as
+// forbidding both.)
+//
+// Corrected by atlas decision 0142 phase 7: the pointer named audits/lib/llms-coherence.ts,
+// a file PR #302 deleted when it folded the coherence libs into their single caller.
+// An engineer following the dead path could have re-derived freshness policy in the
+// wrong layer.

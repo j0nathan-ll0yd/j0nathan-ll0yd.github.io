@@ -39,11 +39,17 @@
 // actually produced -- on a live weekly run, against whatever the served llms.txt
 // happens to contain that day. This reds at unit time instead.
 //
-// SCOPE: the five CONVENTION ids only. The three OPERATIONAL ids (`llms-txt-fetch`,
-// `index-md`, `llms-full-txt`) are transport conditions the shared catalog deliberately
-// does not carry -- `b2-llms.mjs` still emits those through `emit(R, ...)` off the local
-// rule files, so for them the local `severity` IS the applied one and there is nothing
-// to compare.
+// SCOPE: the five CONVENTION ids only. The FIVE OPERATIONAL ids -- `llms-txt-fetch`,
+// `index-md`, `llms-full-txt`, `llms-composed-at-wire-skew` and `llms-origin-cache-policy`
+// -- are transport and delivery conditions the shared catalog deliberately does not carry.
+// `b2-llms.mjs` still emits those through `emit(R, ...)` off the local rule files, so for
+// them the local `severity` IS the applied one and there is nothing to compare.
+//
+// (This comment said "three" until atlas decision 0142 phase 7. The wire-skew rule landed
+// after it was written and the cache-policy rule with 0142 step 5.2; neither moved the
+// count. The undercount changed no behaviour -- the assertions below enumerate the catalog
+// and the local corpus rather than a number -- but a reader counting rule files against it
+// found more than the comment admitted.)
 
 import {describe, expect, it} from 'vitest'
 import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'

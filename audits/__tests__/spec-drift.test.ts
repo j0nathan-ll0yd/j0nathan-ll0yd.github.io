@@ -25,7 +25,8 @@ import {
   checkSpecDrift,
   comparable,
   MIN_SEGMENT_CHARS,
-  quoteSegments
+  quoteSegments,
+  readRawRules
 } from '../checks/b2-check-spec-drift.mjs'
 
 const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
@@ -65,6 +66,30 @@ describe('check-spec-drift: the live catalog', () => {
   it('has zero integrity violations (every content_sha256 matches its own quote)', () => {
     expect(checkIntegrityOnly()).toEqual([])
   })
+
+  // THE ANTI-TRUNCATION FLOOR'S HEADROOM IS ZERO, AND IT IS NOW PINNED (atlas decision 0142
+  // step 5.3). MIN_SEGMENT_CHARS exists so the cheap way to "fix" a drift failure -- cutting the
+  // quote down to a few common words -- is refused. The comment beside it claimed the shortest
+  // live segment was 35 characters; it is 24, exactly the floor, and the margin eroded 35 -> 24
+  // unnoticed because the claim was prose nothing measured. That is precisely the failure mode
+  // this corpus exists to refuse, so the number is asserted rather than recalled.
+  //
+  // WHAT THIS REDS ON, all of which are things a reader should see: a new quote spliced below the
+  // floor (which checkQuoteIntegrity would also catch), a floor BUMP with no corpus change (which
+  // would otherwise red the whole catalog at merge with no explanation), and any change to
+  // `comparable()`'s normalisation, which decides the length being measured.
+  it('names the shortest comparable segment in the corpus and its exact distance from the floor', () => {
+    const segments = readRawRules([]).flatMap(({rel, rule}) => {
+      const quote = (rule as {cites?: {quote?: string}; derivedFrom?: {quote?: string}}).cites?.quote ??
+        (rule as {derivedFrom?: {quote?: string}}).derivedFrom?.quote
+      return typeof quote === 'string' ? quoteSegments(quote).map((seg: string) => ({rel, length: comparable(seg).length, seg})) : []
+    }).sort((a, b) => a.length - b.length)
+
+    expect(segments[0]).toMatchObject({rel: 'feed-xml/feed-xml-item-field.rule.json', length: 24, seg: 'link The URL of the item'})
+    // Stated as an equality, not a `>=`: the headroom is the fact worth watching, and it is gone.
+    expect(segments[0].length - MIN_SEGMENT_CHARS).toBe(0)
+    expect(segments.every(({length}) => length >= MIN_SEGMENT_CHARS)).toBe(true)
+  })
 })
 
 describe('check-spec-drift: quoteSegments', () => {
@@ -97,8 +122,38 @@ describe('check-spec-drift: checkQuoteIntegrity can fail', () => {
     expect(violations[0]).toContain('does not match sha256(quote)')
   })
 
-  it('flags a missing quote rather than skipping the rule', () => {
-    expect(checkQuoteIntegrity([ruleWith({content_sha256: sha256(QUOTE)})])[0]).toContain('citation quote is required')
+  it('flags a cites block with no quote rather than skipping the rule', () => {
+    expect(checkQuoteIntegrity([ruleWith({content_sha256: sha256(QUOTE)})])[0]).toContain('a cites quote is required')
+  })
+
+  // THE SCHEMA/GATE CONTRADICTION, RECONCILED (atlas decision 0142 step 5.3). rule.schema.json
+  // requires `quote` on `cites` and makes it OPTIONAL on `derivedFrom` -- a pointer at a document
+  // with no sentence lifted out of it is a complete derivation note, and the schema's
+  // "if quote then require pinnedAt/retrieved/content_sha256" conditional would be dead if the
+  // quote were mandatory. This gate used to reject that shape on BOTH arms, so a schema-valid,
+  // ajv-passing, spec-verification-passing rule reddened the blocking `audit:spec-integrity` gate
+  // with a message asserting a requirement the schema explicitly waives.
+  it('accepts a derivedFrom pointer that transcribes no sentence: nothing to protect, nothing to hash', () => {
+    const pointerOnly: SyntheticRule = {rel: 'llms-txt/example.rule.json', rule: {id: 'example', derivedFrom: {}}}
+    expect(checkQuoteIntegrity([pointerOnly])).toEqual([])
+  })
+
+  // The asymmetry is the point: the two arms make different claims, so they owe different things.
+  it('still holds a derivedFrom quote to its hash once one exists', () => {
+    const r = verifiedRule(QUOTE, 'derivedFrom')
+    r.rule.derivedFrom!.content_sha256 = sha256('something else entirely')
+    expect(checkQuoteIntegrity([r])[0]).toContain('does not match sha256(quote)')
+  })
+
+  // A pinned derivation with no quote reaches the network half too. Without the guard there, the
+  // segment walk searches the fetched source for the literal text "undefined" and reports a drift
+  // that never happened.
+  it('does not invent a drift for a pinned derivation with no quote', async () => {
+    const pinnedPointer: SyntheticRule = {
+      rel: 'llms-txt/example.rule.json',
+      rule: {id: 'example', derivedFrom: {pinnedAt: RFC_URL, retrieved: '2026-07-30'}}
+    }
+    expect(await checkSourceDrift([pinnedPointer], {fetchText: vi.fn().mockResolvedValue('a source that says nothing about undefined')})).toEqual([])
   })
 
   it('checks a derivedFrom quote exactly as it checks a cites quote', () => {

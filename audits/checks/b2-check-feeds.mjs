@@ -190,7 +190,7 @@ async function main() {
   // validateFeedJson() is called OUTSIDE it. The catch below pushes
   // feed-json-fetch; if emit() ever threw for an unregistered id while the
   // call sat inside this try, that throw would be mislabelled a fetch
-  // failure. check-security-txt.mjs and validate-llms-txt.mjs already call
+  // failure. b2-check-security-txt.mjs and b2-llms.mjs already call
   // their validators outside their own fetch trys -- this matches them.
   let json
   try {

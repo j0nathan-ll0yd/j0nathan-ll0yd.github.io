@@ -25,6 +25,7 @@ import {
   LLMS_DETECTION_LATENCY,
   llmsCheckStatus,
   managedIssueOutcome,
+  ORIGIN_CACHE_FRESHNESS_SECONDS,
   runB2Llms,
   runB2LlmsCli
 } from '../checks/b2-llms.mjs'
@@ -57,6 +58,13 @@ function fullBody(timestamp: string, payload = 'same payload'): string {
 }
 
 /**
+ * The Cache-Control the origin serves, DERIVED from the same contract field the check reads, so
+ * the fixture cannot drift from the expectation it is meant to satisfy. Measured live on
+ * 2026-09-21: all three origin responses returned exactly this.
+ */
+const ORIGIN_CACHE_CONTROL = `public, max-age=${ORIGIN_CACHE_FRESHNESS_SECONDS}, s-maxage=${ORIGIN_CACHE_FRESHNESS_SECONDS}`
+
+/**
  * A snapshot for the PURE evaluator: content-type and cache state are the
  * subjects under test, so they are supplied directly rather than derived from an
  * artifact descriptor.
@@ -66,7 +74,7 @@ function pureSnapshot(body: string, contentType: string, status = 200, site = fa
     status,
     contentType,
     body: encoder.encode(body),
-    cacheControl: site ? 'no-store' : 'public, max-age=300',
+    cacheControl: site ? 'no-store' : ORIGIN_CACHE_CONTROL,
     cdnCacheControl: site ? 'no-store' : null,
     cfCacheStatus: site ? 'BYPASS' : null,
     // The coherence evaluator never reads this wire -- it compares two different
@@ -132,6 +140,12 @@ describe('evaluateLlmsCoherence', () => {
     const {coherencePolicy} = LLM_FRESHNESS_CONFIG.layers.portfolioServing
     expect(LLMS_COHERENCE_THRESHOLDS.maxCompositionAgeMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionAge))
     expect(LLMS_COHERENCE_THRESHOLDS.maxCompositionSkewMs).toBe(durationToMilliseconds(coherencePolicy.maxCompositionSkew))
+    // maxFutureSkew joined the contract at estate-contracts 0.10.0 and was the one threshold
+    // this tether did not cover (atlas decision 0142 step 5.2), so a local literal could have
+    // crept back into it alone while the other two stayed honest.
+    expect(LLMS_COHERENCE_THRESHOLDS.maxFutureSkewMs).toBe(durationToMilliseconds(coherencePolicy.maxFutureSkew))
+    // ALL THREE, and NOTHING ELSE: a fourth key would be a threshold stated locally.
+    expect(Object.keys(LLMS_COHERENCE_THRESHOLDS).sort()).toEqual(['maxCompositionAgeMs', 'maxCompositionSkewMs', 'maxFutureSkewMs'])
 
     expect(evaluateLlmsCoherence(coherentInput('2026-08-29T14:00:00.000Z'), NOW)).toEqual([])
     expect(evaluateLlmsCoherence(coherentInput('2026-08-29T13:59:59.999Z'), NOW)).toEqual(
@@ -157,6 +171,50 @@ describe('evaluateLlmsCoherence', () => {
     expect(findings).toHaveLength(4)
     expect(findings.filter(({id}) => id === 'llms-origin-site-bytes')).toHaveLength(2)
     expect(findings.filter(({id}) => id === 'llms-full-index-bytes')).toHaveLength(2)
+  })
+
+  // THE DISCOVERY INDEX IS IN SCOPE (atlas decision 0142 step 5.2, a DELIBERATE widening of the
+  // openspec "Same-generation bytes diverge" scenario from full-content responses to all three
+  // artifacts). Before it, the byte-equality arm iterated a hard-coded ['llms-full.txt',
+  // 'index.md'], so two DIFFERENT valid llms.txt bodies carrying the SAME composition timestamp
+  // both passed: the structure arm reads only the site body, the freshness arm reads only the
+  // stamp both hops agree on, and nothing compared the two hops' bytes.
+  //
+  // The mutation below is the acceptance case verbatim -- a discovery link and a title changed on
+  // the site only, with the timestamp untouched.
+  it('reports a discovery link and title changed on the site alone, under one composition timestamp', () => {
+    const input = coherentInput()
+    const corrupted = `# Sitte\n\n> Summary\n\n## Docs\n\n- [Doc](https://example.com/WRONG)\n\n<!-- composed-at: ${RECENT} -->\n`
+    input['llms.txt'].site = pureSnapshot(corrupted, 'text/plain; charset=utf-8', 200, true)
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings).toEqual([
+      expect.objectContaining({
+        id: 'llms-origin-site-bytes',
+        artifact: 'llms.txt',
+        participants: [{artifact: 'llms.txt', side: 'origin'}, {artifact: 'llms.txt', side: 'site'}]
+      })
+    ])
+    expect(findings[0].message).toContain('same composition but bytes differ')
+  })
+
+  // The widening does not reach across artifacts. llms.txt and llms-full.txt are different
+  // documents that legitimately differ byte-for-byte at the same instant; only the full/index
+  // ALIAS pair is held to equality, because that is what an alias means.
+  it('does not compare the discovery index against the full document', () => {
+    expect(evaluateLlmsCoherence(coherentInput(), NOW)).toEqual([])
+  })
+
+  // The convergence window still governs the discovery index, exactly as it governs the other
+  // two: adjacent fresh generations are not corruption.
+  it('leaves an adjacent fresh llms.txt generation alone, inside the convergence window', () => {
+    const input = coherentInput()
+    const previous = '2026-08-29T17:50:00.000Z'
+    input['llms.txt'].site = pureSnapshot(`# Site\n\n> Earlier summary\n\n<!-- composed-at: ${previous} -->\n`, 'text/plain; charset=utf-8', 200, true)
+
+    const findings = evaluateLlmsCoherence(input, NOW)
+    expect(findings.some(({id}) => id.endsWith('-bytes'))).toBe(false)
+    expect(findings).toEqual([])
   })
 
   it('accepts adjacent fresh generations inside the convergence window without claiming byte corruption', () => {
@@ -308,7 +366,7 @@ function snapshot(artifact: LlmsArtifact, side: 'origin' | 'site', body = validB
     status: 200,
     contentType: `${side === 'site' ? artifact.siteContentType : artifact.originContentType}; charset=utf-8`,
     body: bytes,
-    cacheControl: side === 'site' ? 'no-store' : 'public, max-age=300',
+    cacheControl: side === 'site' ? 'no-store' : ORIGIN_CACHE_CONTROL,
     cdnCacheControl: side === 'site' ? 'no-store' : null,
     cfCacheStatus: side === 'site' ? 'BYPASS' : null,
     // DERIVED FROM THE BODY, NOT RESTATED. The producer computes `composedAt` once and
@@ -561,6 +619,126 @@ describe('b2-llms audit orchestration', () => {
     expect(result.exitCode).toBe(0)
   })
 
+  // covers: llms-txt#The origin still advertises the TTL the convergence window is derived from
+  // THE ORIGIN CACHE POLICY THE SKEW WINDOW RESTS ON (atlas decision 0142 step 5.2).
+  // `maxCompositionSkew` is 10 minutes because the origin advertises a five-minute TTL and two
+  // intervals absorb a cross-key or cross-PoP refresh boundary. That five minutes lived only in a
+  // comment: `validateSnapshot` judged cache headers for the SITE side alone, and
+  // `fetchSnapshot` captured `origin.cacheControl` without any arm reading it.
+  it('says nothing while the origin still advertises the contract TTL', async () => {
+    const result = await runB2Llms({probeSuppressionImpl: visibleProbe, fetchPairImpl: coherentFetchPair, nowMs: Date.parse(OBSERVED_AT), logger: logger()})
+
+    expect(result.catalogFindings.filter((f: {id: string}) => f.id === 'llms-origin-cache-policy')).toEqual([])
+  })
+
+  it.each([
+    ['max-age', `public, max-age=86400, s-maxage=${ORIGIN_CACHE_FRESHNESS_SECONDS}`],
+    ['s-maxage', `public, max-age=${ORIGIN_CACHE_FRESHNESS_SECONDS}, s-maxage=86400`],
+    ['max-age and s-maxage', 'public, max-age=86400, s-maxage=86400']
+  ])('warns per artifact when the origin TTL drifts on %s, without reddening the step', async (directives, cacheControl) => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        return {...pair, origin: {...pair.origin, cacheControl}}
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    const drifted = result.catalogFindings.filter((f: {id: string}) => f.id === 'llms-origin-cache-policy')
+    // Once per artifact on the origin side: three origin responses, so an account-wide TTL
+    // change is three findings.
+    expect(drifted).toHaveLength(3)
+    expect(drifted[0].severity).toBe('warn')
+    expect(drifted[0].message).toContain(directives)
+    expect(drifted[0].message).toContain(String(ORIGIN_CACHE_FRESHNESS_SECONDS))
+    // A drifted TTL falsifies the WINDOW'S RATIONALE, not the artifact: the bytes and the stamp
+    // are still correct, so nothing reds and the count is unmoved.
+    expect(result.exitCode).toBe(0)
+    expect(result.status).toBe('passed')
+    expect(result.measured).toBe(3)
+  })
+
+  // The site plane is REQUIRED to answer no-store, and llms-site-browser-cache-policy already
+  // fails it when it does not. Applying the origin rule there would contradict that on every
+  // healthy run.
+  it('never applies the origin TTL rule to the site plane', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        return {...pair, site: {...pair.site, cacheControl: 'no-store'}}
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.catalogFindings.filter((f: {id: string}) => f.id === 'llms-origin-cache-policy')).toEqual([])
+  })
+
+  // An absent header is not a drifted one. `failedSnapshot` nulls the field, and the darkness is
+  // already reported as a transport unknown -- inventing a policy finding would double-count it.
+  it('says nothing about an origin that forwarded no Cache-Control at all', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: visibleProbe,
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        return {...pair, origin: {...pair.origin, cacheControl: null}}
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    expect(result.catalogFindings).toEqual([])
+    expect(result.exitCode).toBe(0)
+  })
+
+  // THE INDETERMINATE PROBE (atlas decision 0142 step 5.2). `suppressionDisposition` lets an
+  // indeterminate focus answer PROCEED -- unlike `suppressed` and `overdue`, which stand down --
+  // so the run fetches and judges normally while recording that it could not establish the
+  // privacy state. Nothing covered that third branch, so the unknown it pushes could have been
+  // dropped without a test noticing, and the managed issue would then have CLOSED on a run whose
+  // privacy posture was unknown.
+  it('measures and judges through an indeterminate suppression probe, but stays indeterminate', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: async () => ({status: 'indeterminate', reason: 'focus endpoint returned HTTP 502'}),
+      fetchPairImpl: coherentFetchPair,
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    // The artifacts were reached and judged clean, so this is not darkness: measured is full.
+    expect(result.measured).toBe(3)
+    expect(result.catalogFindings).toEqual([])
+    expect(result.coherenceFindings).toEqual([])
+    // But the run cannot claim a clean privacy posture, so the fold is unknown and the CLI will
+    // write `indeterminate` -- which neither opens nor closes the managed issue.
+    expect(result.unknowns).toEqual([
+      {id: 'llms-suppression-probe', evidence: 'suppression probe incomplete: focus endpoint returned HTTP 502'}
+    ])
+    expect(result.status).toBe('unknown')
+    expect(managedIssueOutcome('unknown')).toBe('indeterminate')
+    // A clean set of artifacts means nothing to red, so the step still exits 0.
+    expect(result.exitCode).toBe(0)
+  })
+
+  it('keeps a real finding definitive under an indeterminate probe', async () => {
+    const result = await runB2Llms({
+      probeSuppressionImpl: async () => ({status: 'indeterminate', reason: 'focus endpoint returned HTTP 502'}),
+      fetchPairImpl: async (artifact: LlmsArtifact) => {
+        const pair = await coherentFetchPair(artifact)
+        return artifact.id === 'llms.txt' ? {...pair, site: {...pair.site, cfCacheStatus: 'HIT'}} : pair
+      },
+      nowMs: Date.parse(OBSERVED_AT),
+      logger: logger()
+    })
+
+    // Any definitive failure wins the fold, so an unresolved probe cannot mask a true finding.
+    expect(result.status).toBe('failed')
+    expect(result.exitCode).toBe(1)
+  })
+
   // covers: llms-txt#Full-content artifacts stay fresh
   it('keeps the operational presence rules live: an empty site index.md fires index-md', async () => {
     const result = await runB2Llms({
@@ -749,6 +927,49 @@ describe('b2-llms CLI issue-outcome channel', () => {
     // A throw before any verdict is the darkest case: measured=0 so the dead-man reports the wedge
     // instead of pinging a green tile off a swallowed exit.
     expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\nmeasured=0\n')
+  })
+
+  // ROUTED THROUGH audits/lib/measurement.mjs (atlas decision 0142 step 5.2). That module
+  // declares itself the ONE place a web audit check publishes this channel; this check used to
+  // contradict it with a second private append that accepted any value at all. The visible
+  // consequence of routing through `publishMeasured` is VALIDATION at the write.
+  it('reds the step rather than writing a non-integer count to the dead-man channel', async () => {
+    const {githubOutputPath} = await scratchPaths('b2-llms-bad-count-')
+    const cliLogger = logger()
+
+    const exitCode = await runB2LlmsCli({
+      arguments_: [],
+      environment: {GITHUB_OUTPUT: githubOutputPath},
+      // A runner that reached a verdict but reported a nonsense count. Before the routing this
+      // wrote the literal line `measured=not-a-number`, which the tier reads as UNCLAIMED -- the
+      // same shape as a step that never published at all.
+      auditRunner: async () => ({exitCode: 0, status: 'passed', measured: 'not-a-number'}),
+      logger: cliLogger
+    })
+
+    expect(exitCode).toBe(1)
+    expect(cliLogger.error).toHaveBeenCalledWith(expect.stringContaining('measured must be a non-negative integer'))
+    // The issue outcome was written first and stands; the corrupt count never reached the file.
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\n')
+  })
+
+  // The environment is read ONLY when the caller did not speak. `outputPath` is passed
+  // explicitly, including when undefined, so a missing GITHUB_OUTPUT is a no-op here rather
+  // than falling through to `process.env` and writing to a real Actions file.
+  it('writes nothing, and does not read process.env, when the environment carries no GITHUB_OUTPUT', async () => {
+    const {githubOutputPath} = await scratchPaths('b2-llms-no-output-')
+    vi.stubEnv('GITHUB_OUTPUT', githubOutputPath)
+
+    const exitCode = await runB2LlmsCli({
+      arguments_: [],
+      environment: {},
+      auditRunner: async () => ({exitCode: 0, status: 'passed', measured: 3}),
+      logger: logger()
+    })
+
+    expect(exitCode).toBe(0)
+    await expect(readFile(githubOutputPath, 'utf8')).rejects.toThrow()
+    vi.unstubAllEnvs()
   })
 
   it('reds the step when the issue outcome cannot be written', async () => {

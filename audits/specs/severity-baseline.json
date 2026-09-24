@@ -1,5 +1,5 @@
 {
-  "_comment": "Monotonic severity ratchet baseline for audits/specs/**/*.rule.json (decisions/0011). severities[id] records the STRONGEST severity ('fail' > 'warn') this id has ever carried -- a decrease is forbidden outright by audits/checks/b2-check-spec-severity.mjs, both here (this file may never record a weaker value than it did on origin/main) and against the live catalog (a rule file may never emit weaker than what this file records). Downgrading an id therefore requires DELETING it from severities below, which is checked separately: an id may only leave this file if it has also left the live pilot-scoped catalog (an artifact retirement or a genuine rule removal), never as a bare edit. params_pending_count is a parallel ratchet (N6): the number of rule files carrying params_pending may not increase. Do not hand-edit this file to make a gate failure go away -- fix the rule file, or if a genuine retirement, remove the id from both this file and its catalog in the same commit.",
+  "_comment": "Monotonic severity ratchet baseline for audits/specs/**/*.rule.json (decisions/0011). severities[id] records the STRONGEST severity ('fail' > 'warn') this id has ever carried -- a decrease is forbidden outright by audits/checks/b2-check-spec-severity.mjs, both here (this file may never record a weaker value than it did on origin/main) and against the live catalog (a rule file may never emit weaker than what this file records). Downgrading an id therefore requires DELETING it from severities below, which is checked separately: an id may only leave this file if it has also left the live pilot-scoped catalog (an artifact retirement or a genuine rule removal), never as a bare edit. MEMBERSHIP IS COMPLETE, NOT OPTIONAL (atlas decision 0142 step 5.3): every id the live catalog emits must appear below, checked by arm (d), because an id that never entered this file sat outside the ratchet entirely -- add the rule at 'fail' with no entry here and every gate is green, then downgrade it to 'warn' later and every gate is still green. Record a new id's severity at birth, in the same commit as its rule file. params_pending_count is a parallel ratchet (N6): the number of rule files carrying params_pending may not increase. Do not hand-edit this file to make a gate failure go away -- fix the rule file, or if a genuine retirement, remove the id from both this file and its catalog in the same commit.",
   "params_pending_count": 0,
   "severities": {
     "feed-json-field": "fail",
@@ -20,6 +20,7 @@
     "index-md": "fail",
     "llms-composed-at-wire-skew": "warn",
     "llms-full-txt": "fail",
+    "llms-origin-cache-policy": "warn",
     "llms-txt-blockquote": "fail",
     "llms-txt-fetch": "fail",
     "llms-txt-h1": "fail",
