@@ -20,14 +20,21 @@
 // normative Format bullets are byte-identical, so no rule is wrong and no rule change
 // is due. The point is that a month passed and the estate had no way to know.
 //
-// SEVERITY, DELIBERATELY SPLIT. An upstream editorial revision is a prompt to re-read,
-// not a defect, so a moved source whose quote SURVIVES is `warn` and exits 0. A moved
-// source whose quote is GONE is `fail`: the cited clause itself has changed, and the
+// SEVERITY, DELIBERATELY SPLIT THREE WAYS. An upstream editorial revision is a prompt to
+// re-read, not a defect, so a moved source whose quote SURVIVES is `warn` and exits 0. A
+// moved source whose quote is GONE is `fail`: the cited clause itself has changed, and the
 // rule may now enforce a superseded reading. That split is the whole point of reporting
 // what was compared rather than a bare verdict -- and `fail` is the only severity the
 // managed-issue reconciler can see, so it is what makes a human look. This check runs
-// weekly and report-only; it is wired into no PR gate, so neither severity can red a
-// merge.
+// weekly and report-only; it is wired into no PR gate, so no severity can red a merge.
+//
+// THE THIRD ARM IS PATIENCE (atlas decision 0142 step 5.3). A `warn` that never escalates
+// is decoration: it exits 0, the reconciler reads only the step outcome, and the prompt to
+// re-pin ends in a log line. The receipt above IS that dead end -- a v2 upstream since
+// 2026-08-10 against a pin retrieved 2026-07-30, warned weekly and never acted on. So a
+// surviving-quote revision that stays un-re-pinned past REPIN_GRACE_RUNS becomes
+// `spec-source-moved-unrepinned` at `fail`. The FACT is unchanged; only the patience for it
+// has run out.
 //
 // A FETCH FAILURE IS INDETERMINATE, NEVER CLEAN -- the convention b2-check-spec-drift.mjs
 // establishes in its own header. Judging currency needs BOTH blobs; if either is
@@ -48,10 +55,37 @@
 // citation cannot rot.
 
 import {createHash} from 'node:crypto'
+import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {DEFAULT_BUDGET_MS, isMain, report} from '../lib/http.mjs'
 import {citation, comparable, quoteSegments, readRawRules} from './b2-check-spec-drift.mjs'
 
 export const CHECK_ID = 'check-spec-currency'
+
+/**
+ * How many consecutive weekly runs a revised source may stay un-re-pinned before the advisory
+ * `warn` becomes a `fail` (atlas decision 0142 step 5.3).
+ *
+ * A WARNING THAT NEVER ESCALATES IS DECORATION. `spec-source-moved` exits 0, and the weekly
+ * reconciler reads the STEP OUTCOME, so the prompt to "re-read and re-pin" terminated in a log
+ * line. This check's own header carries the receipt of that dead end: llms.txt shipped a v2 on
+ * 2026-08-10 against a pin retrieved 2026-07-30, and the re-pin had still not happened when the
+ * decision 0142 review measured it weeks later -- every intervening weekly run having warned into
+ * a log nobody reads. `fail` is the only severity the managed-issue reconciler can see, so it is
+ * the only thing that makes a human look.
+ *
+ * THE WINDOW IS COUNTED IN RUNS, AND THE RUN LENGTH COMES FROM THE CONTRACT.
+ * `portfolioServing.auditCadence` is the cadence of the weekly `audit-web.yml` lane this step runs
+ * in, so the window moves with the lane rather than restating a day count that a cadence change
+ * would falsify. The MULTIPLIER is local policy and deliberately generous: eight warned runs is
+ * long enough that a re-pin was never going to happen on its own, and short enough that the pin
+ * cannot be a season out of date.
+ *
+ * IT ESCALATES PATIENCE, NOT SEVERITY OF FACT. The escalated finding says exactly what
+ * `spec-source-moved` said -- the quotes still occur, no rule is falsified, no rule change is due.
+ * What changed is that the prompt has been ignored for long enough to need an owner.
+ */
+export const REPIN_GRACE_RUNS = 8
+export const REPIN_GRACE_MS = durationToMilliseconds(LLM_FRESHNESS_CONFIG.layers.portfolioServing.auditCadence) * REPIN_GRACE_RUNS
 
 // `HEAD` resolves to the repository's default branch on raw.githubusercontent.com,
 // so the current blob is reached without a second host and without hardcoding a
@@ -160,16 +194,25 @@ function sha256(s) {
 }
 
 /**
- * The rules this probe considers: exactly those the drift probe probes -- the rules
- * carrying a `cites` Citation, which the discriminated union in rule.schema.json
- * admits only on `rule_class: conformance`.
+ * The rules this probe considers: exactly those the drift probe probes -- every rule
+ * whose citation block records a `pinnedAt`, on EITHER arm. `citation()` is the one
+ * accessor and it reads `cites ?? derivedFrom`, so the `convention` rules that quote
+ * llmstxt.org are in scope alongside the `conformance` rules that cite RFC 9116.
  *
- * The set went from 27 to 14 in the atlas decision 0129 consumer round, when the
- * citation duties split. The 13 that left are local rules that cited a clause without
- * claiming it was conformance-tested; they keep the derivation in `derivedFrom` and no
- * longer record a pinned source, so there is nothing here to ask a currency question
- * about. Stated rather than left to be noticed: a probe whose denominator shrinks in
- * silence reports the same green while watching less.
+ * THIS DOCBLOCK SAID THE OPPOSITE (corrected by atlas decision 0142 phase 7). It read
+ * "the rules carrying a `cites` Citation, which the discriminated union in
+ * rule.schema.json admits only on `rule_class: conformance`" and "the set went from 27
+ * to 14 ... the 13 that left ... no longer record a pinned source". That describes the
+ * arm-keyed cut the 0129 consumer round CONSIDERED AND REJECTED, and it contradicted the
+ * filter directly beneath it, this file's own header, and the two tests that pin the
+ * behaviour. All five llms-txt rules are `convention`, so an editor aligning code to
+ * comment would have dropped the AnswerDotAI/llms-txt blob -- this check's own motivating
+ * receipt -- out of scope one day after the check was built to watch it. The denominator
+ * did not shrink; only the sentence describing it was wrong, which is the more dangerous
+ * of the two because it reads as an instruction.
+ *
+ * No count is restated here. `main()` prints the live figures and the tests assert the
+ * membership rule, so both are read off the corpus rather than recalled.
  */
 export function probedRules(rules) {
   return rules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string')
@@ -210,7 +253,7 @@ export async function fetchCurrencySources(rules, {fetchText: fetchImpl = fetchT
  * into five findings and bury the count of documents actually examined. The rules that
  * depend on it are named in the message, because they are what a reader has to re-read.
  */
-export function judgeCurrency(rules, sources) {
+export function judgeCurrency(rules, sources, {nowMs = Date.now()} = {}) {
   const findings = []
   const probed = probedRules(rules)
 
@@ -258,17 +301,46 @@ export function judgeCurrency(rules, sources) {
     // Re-running the drift comparison against the CURRENT blob answers exactly that,
     // and it is what separates "re-read the surrounding prose" from "the cited clause
     // is gone".
-    const stale = dependents.filter(({rule}) => !quoteOccursIn(citation(rule).quote, source.currentText))
+    const stale = dependents.filter(({rule}) => {
+      const {quote} = citation(rule)
+      // A pinned derivation that transcribes no sentence cannot have a stale quote. Without this
+      // guard the segment walk searches the current blob for the literal text "undefined" and
+      // reports the rule as falsified.
+      return typeof quote === 'string' && quote.length > 0 && !quoteOccursIn(quote, source.currentText)
+    })
     const currentCommit = source.currentCommit ?? 'unresolved (commit lookup degraded; the byte comparison above stands on its own)'
     const provenance =
       `pinned commit ${source.pinnedCommit} (sha256 ${pinnedDigest}) vs current ${currentCommit} (sha256 ${currentDigest}) at ${source.currentUrl}`
 
     if (stale.length === 0) {
+      // HOW LONG HAS THE PROMPT BEEN IGNORED? The dependents' own `retrieved` dates are the only
+      // durable record of when a human last re-read this source, and they need no state carried
+      // between runs. The FRESHEST one is what counts: if any dependent has been re-pinned
+      // recently, the source has been looked at recently, whatever the others say.
+      const retrievedAt = dependents.map(({rule}) => Date.parse(citation(rule).retrieved ?? '')).filter((value) => Number.isFinite(value))
+      const freshestMs = retrievedAt.length > 0 ? Math.max(...retrievedAt) : null
+      const unrepinnedMs = freshestMs === null ? null : nowMs - freshestMs
+      const runs = unrepinnedMs === null ? null : Math.floor(unrepinnedMs / (REPIN_GRACE_MS / REPIN_GRACE_RUNS))
+
+      if (unrepinnedMs !== null && unrepinnedMs > REPIN_GRACE_MS) {
+        findings.push({
+          severity: 'fail',
+          id: 'spec-source-moved-unrepinned',
+          message: `${url} has been revised upstream AND the pin has not been refreshed for ${runs} weekly run(s) -- ${provenance}. ` +
+            `Every dependent quote still occurs in the current blob, so no rule is falsified and no rule change is due; this is the SAME fact ` +
+            `spec-source-moved reports, escalated because the prompt to re-read it has now gone unanswered past the ${REPIN_GRACE_RUNS}-run grace ` +
+            `window. A warning that never escalates is decoration: fail is the only severity the managed-issue reconciler sees. Re-read the ` +
+            `surrounding prose and re-pin pinnedAt and retrieved to record that the check was made. ${dependents.length} rule(s): ${dependentList}`
+        })
+        continue
+      }
+
       findings.push({
         severity: 'warn',
         id: 'spec-source-moved',
         message:
-          `${url} has been revised upstream -- ${provenance}. Every dependent quote STILL OCCURS in the current blob, so no rule is falsified and no rule change is due; the surrounding prose is what changed. Re-read it and, if nothing normative moved, re-pin the citation's pinnedAt and retrieved to record that the check was made. ${dependents.length} rule(s): ${dependentList}`
+          `${url} has been revised upstream -- ${provenance}. Every dependent quote STILL OCCURS in the current blob, so no rule is falsified and no rule change is due; the surrounding prose is what changed. Re-read it and, if nothing normative moved, re-pin the citation's pinnedAt and retrieved to record that the check was made. ${dependents.length} rule(s): ${dependentList}` +
+          (runs === null ? '' : ` Un-re-pinned for ${runs} of the ${REPIN_GRACE_RUNS} weekly run(s) this stays advisory for.`)
       })
       continue
     }
@@ -322,7 +394,7 @@ export async function checkSpecCurrency(opts = {}) {
   }
 
   const sources = await fetchCurrencySources(rules, opts)
-  findings.push(...judgeCurrency(rules, sources))
+  findings.push(...judgeCurrency(rules, sources, opts))
 
   const applicable = [...sources.values()].filter((s) => s.kind === 'github-raw')
   if (applicable.length === 0) {

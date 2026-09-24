@@ -78,6 +78,13 @@ static asset responses and cache hits. `functions/_middleware.ts` applies to Pag
 Function responses; Cloudflare explicitly does not apply `_headers` rules to those
 responses. Cross-cutting headers must be kept in sync across both paths.
 
+That sync is now GATED, not merely asked for: `tests/unit/discovery-link-header.test.ts`
+parses the `/*` block of `public/_headers` and asserts every header in it is served
+byte-identically on a Pages Function response, so a one-sided edit reds before it ships.
+Until atlas decision 0142 phase 7 the sentence above was the whole of the enforcement and
+only `Content-Usage` was actually compared (B10: a convention that exists only as prose
+adheres about as well as its readers remember it).
+
 Discovery `<link>` relations in use:
 
 | Relation                                       | File                           | Standard             |

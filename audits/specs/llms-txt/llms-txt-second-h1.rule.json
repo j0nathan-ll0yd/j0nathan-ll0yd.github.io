@@ -9,7 +9,7 @@
     "source": "llms.txt (llmstxt.org)",
     "clause": "Format section, item 2",
     "url": "https://llmstxt.org/",
-    "version": "llmstxt.org (as documented in validate-llms-txt.mjs, retrieved 2026-07-16)",
+    "version": "llmstxt.org, the llms.txt proposal as published at AnswerDotAI/llms-txt commit c7178b9d (first transcribed 2026-07-16, re-verified against the pinned blob 2026-07-30)",
     "quote": "An H1 with the name of the project or site. This is the only required section",
     "pinnedAt": "https://raw.githubusercontent.com/AnswerDotAI/llms-txt/c7178b9dcdbf696517f52b2d3126e417eb95fd59/nbs/index.qmd",
     "retrieved": "2026-07-30",

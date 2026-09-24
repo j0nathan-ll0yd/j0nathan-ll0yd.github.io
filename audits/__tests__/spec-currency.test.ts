@@ -13,8 +13,16 @@
 
 import {createHash} from 'node:crypto'
 import {describe, expect, it, vi} from 'vitest'
-import {checkSpecCurrency, classifySource, fetchCurrencySources, judgeCurrency, probedRules} from '../checks/b2-check-spec-currency.mjs'
-import {citation, readRawRules} from '../checks/b2-check-spec-drift.mjs'
+import {
+  checkSpecCurrency,
+  classifySource,
+  fetchCurrencySources,
+  judgeCurrency,
+  probedRules,
+  REPIN_GRACE_MS,
+  REPIN_GRACE_RUNS
+} from '../checks/b2-check-spec-currency.mjs'
+import {citation, pinned, readRawRules} from '../checks/b2-check-spec-drift.mjs'
 
 const PINNED_SHA = 'c7178b9dcdbf696517f52b2d3126e417eb95fd59'
 const GITHUB_URL = `https://raw.githubusercontent.com/AnswerDotAI/llms-txt/${PINNED_SHA}/nbs/index.qmd`
@@ -64,8 +72,12 @@ function fetchServing(pinned: string, current: string): FetchText {
 
 const noCommitLookup: FetchCommit = vi.fn(async () => null)
 
-async function judge(rules: RawRule[], fetchText: FetchText, fetchCommit: FetchCommit = noCommitLookup): Promise<Finding[]> {
-  return judgeCurrency(rules, await fetchCurrencySources(rules, {fetchText, fetchCommit})) as Finding[]
+// A fixed clock keeps the escalation arm deterministic: `retrieved` in every synthetic rule is
+// 2026-07-30, and NOW is one week later unless a case says otherwise.
+const NOW_MS = Date.parse('2026-08-06T00:00:00.000Z')
+
+async function judge(rules: RawRule[], fetchText: FetchText, fetchCommit: FetchCommit = noCommitLookup, nowMs = NOW_MS): Promise<Finding[]> {
+  return judgeCurrency(rules, await fetchCurrencySources(rules, {fetchText, fetchCommit}), {nowMs}) as Finding[]
 }
 
 const idsOf = (findings: Finding[]) => findings.map((f) => f.id)
@@ -118,6 +130,68 @@ describe('check-spec-currency: the judged verdicts', () => {
     expect(idsOf(findings)).toEqual(['spec-source-moved'])
     expect(findings[0].severity).toBe('warn')
     expect(findings[0].message).toContain('STILL OCCURS')
+  })
+
+  // THE PATIENCE ARM (atlas decision 0142 step 5.3). A warn that never escalates is decoration:
+  // it exits 0, and the weekly reconciler reads only the step outcome, so the prompt to re-pin
+  // ends in a log line. The receipt is this check's own header -- llms.txt v2 upstream since
+  // 2026-08-10 against a pin retrieved 2026-07-30, warned weekly and never acted on.
+  it('escalates a surviving-quote revision to fail once the pin has gone un-refreshed past the grace window', async () => {
+    const revised = `${PINNED_BODY}\nprose that moves no normative bullet\n`
+    const wellPast = Date.parse('2026-07-30T00:00:00.000Z') + REPIN_GRACE_MS + 1
+    const findings = await judge([ruleWith(GITHUB_URL)], fetchServing(PINNED_BODY, revised), noCommitLookup, wellPast)
+
+    expect(idsOf(findings)).toEqual(['spec-source-moved-unrepinned'])
+    expect(findings[0].severity).toBe('fail')
+    // The FACT is unchanged; only the patience for it ran out. Both halves are said out loud.
+    expect(findings[0].message).toContain('no rule is falsified')
+    expect(findings[0].message).toContain(`${REPIN_GRACE_RUNS}-run grace`)
+  })
+
+  it('stays advisory on the run before the window closes, and names how far through it is', async () => {
+    const revised = `${PINNED_BODY}\nprose that moves no normative bullet\n`
+    const justInside = Date.parse('2026-07-30T00:00:00.000Z') + REPIN_GRACE_MS - 1
+    const findings = await judge([ruleWith(GITHUB_URL)], fetchServing(PINNED_BODY, revised), noCommitLookup, justInside)
+
+    expect(idsOf(findings)).toEqual(['spec-source-moved'])
+    expect(findings[0].severity).toBe('warn')
+    expect(findings[0].message).toContain(`of the ${REPIN_GRACE_RUNS} weekly run(s) this stays advisory for`)
+  })
+
+  // Re-pinning ONE dependent means a human re-read the source, so the clock restarts for all of
+  // them. The freshest date is what counts, not the oldest.
+  it('restarts the clock when any single dependent has been re-pinned recently', async () => {
+    const revised = `${PINNED_BODY}\nprose\n`
+    const stale = ruleWith(GITHUB_URL, QUOTE, 'llms-txt/a.rule.json') // retrieved 2026-07-30
+    const refreshed = ruleWith(GITHUB_URL, QUOTE, 'llms-txt/b.rule.json')
+    refreshed.rule.derivedFrom!.retrieved = '2026-09-28'
+    // 2026-07-30 plus the eight-week window closes on 2026-09-24, so this clock is past it for
+    // `stale` alone and well inside it once `refreshed` is present.
+    const wellPast = Date.parse('2026-10-01T00:00:00.000Z')
+
+    expect(idsOf(await judge([stale], fetchServing(PINNED_BODY, revised), noCommitLookup, wellPast))).toEqual(['spec-source-moved-unrepinned'])
+    expect(idsOf(await judge([stale, refreshed], fetchServing(PINNED_BODY, revised), noCommitLookup, wellPast))).toEqual(['spec-source-moved'])
+  })
+
+  // A citation with no parseable retrieval date cannot be timed, and inventing an age for it
+  // would escalate on ignorance. It stays the advisory it always was.
+  it('does not escalate a revision it cannot date', async () => {
+    const undated = ruleWith(GITHUB_URL)
+    delete undated.rule.derivedFrom!.retrieved
+    const findings = await judge([undated], fetchServing(PINNED_BODY, `${PINNED_BODY}\nprose\n`), noCommitLookup, Date.parse('2030-01-01T00:00:00.000Z'))
+
+    expect(idsOf(findings)).toEqual(['spec-source-moved'])
+    expect(findings[0].message).not.toContain('weekly run(s) this stays advisory for')
+  })
+
+  // A GONE quote is a different fact and outranks the timer: it says the rule may now enforce a
+  // superseded reading, which is true on the first run, not after eight.
+  it('reports an absent quote as the quote-absent failure, not as an un-refreshed pin', async () => {
+    const gutted = '## Format\n\n- An optional byte-order mark (BOM)\n- An H1 is now merely encouraged\n'
+    const wellPast = Date.parse('2030-01-01T00:00:00.000Z')
+    expect(idsOf(await judge([ruleWith(GITHUB_URL)], fetchServing(PINNED_BODY, gutted), noCommitLookup, wellPast))).toEqual([
+      'spec-source-moved-quote-absent'
+    ])
   })
 
   // The escalation, and the reason the two verdicts are not one. `fail` is the only
@@ -240,7 +314,16 @@ describe('check-spec-currency: the measurement channel', () => {
     expect(spy).toHaveBeenCalledTimes(2)
   })
 
+  // COMPARES THE TWO PROBES, NOT ONE PROBE AGAINST ITSELF (atlas decision 0142 step 5.3).
+  // This assertion used to restate `probedRules`' own predicate on its right-hand side, using
+  // the same imported `citation()` helper -- so it was near-tautological and a drift-side scope
+  // change could not fail it, despite that being exactly what its name advertises. `pinned` is
+  // now exported from the drift probe and compared directly.
   it('considers exactly the rules the drift probe probes, so the two cannot drift apart on scope', () => {
+    expect(probedRules(liveRules).map(({rel}) => rel)).toEqual(pinned(liveRules).map(({rel}: {rel: string}) => rel))
+    // Non-empty, so the equality is a real comparison rather than two empty lists agreeing.
+    expect(probedRules(liveRules).length).toBeGreaterThan(0)
+    // And the membership rule itself, read off the corpus rather than recalled from a comment.
     expect(probedRules(liveRules).map(({rel}) => rel)).toEqual(
       liveRules.filter(({rule}) => typeof citation(rule)?.pinnedAt === 'string').map(({rel}) => rel)
     )
@@ -261,7 +344,7 @@ describe('check-spec-currency: the measurement channel', () => {
   // built to watch it. Named explicitly rather than counted, so re-introducing that bug
   // reds here with the reason attached instead of merely lowering a number.
   it('keeps the llms.txt source in scope, whatever class its rules carry', () => {
-    const sources = probedRules(liveRules).map(({rule}) => citation(rule)!.pinnedAt)
+    const sources: string[] = probedRules(liveRules).map(({rule}) => citation(rule)!.pinnedAt)
     expect(sources.some((url) => url.includes('AnswerDotAI/llms-txt'))).toBe(true)
     expect(liveRules.filter(({rel}) => rel.startsWith('llms-txt/')).every(({rule}) => rule.rule_class !== 'conformance')).toBe(true)
   })

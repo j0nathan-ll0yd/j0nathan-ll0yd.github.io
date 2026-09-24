@@ -250,8 +250,11 @@ test.describe('production home dashboard', () => {
   })
 
   test('webfinger resolves the Fediverse alias with JRD content-type', async ({page}) => {
-    // Accept: application/jrd+json avoids the text/markdown early-return in
-    // functions/_middleware.ts that would otherwise short-circuit to llms-full.
+    // Accept: application/jrd+json is the correct request header for a JRD resource, and it is
+    // sent for that reason alone. It does NOT avoid a markdown early-return: middleware
+    // negotiation has been homepage-only since PR #288 (`url.pathname === '/'`), so
+    // /.well-known/webfinger cannot negotiate whatever the Accept header says. The old comment
+    // described the pre-#288 middleware that negotiated on every path (atlas decision 0142 phase 7).
     const res = await getStable(page.request, '/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me', {headers: {Accept: 'application/jrd+json'}})
     expect(res.status(), '/.well-known/webfinger did not return 200').toBe(200)
     const contentType = res.headers()['content-type'] || ''

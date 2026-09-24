@@ -39,6 +39,7 @@ import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structur
 import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
+import {publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
 import {emit, rules} from '../specs/load.mjs'
 
@@ -46,6 +47,13 @@ const R = rules('llms-txt')
 
 /**
  * One side of one artifact, as this run observed it.
+ *
+ * `age`, `xCache` and `source` are EVIDENCE, NOT SUBJECTS. No arm judges them;
+ * `printSnapshot` logs them so a reader triaging a skew or a byte difference can
+ * see which hop answered. They are declared here because `fetchSnapshot` and
+ * `failedSnapshot` both set them, and a fixture built from a typedef that omitted
+ * them logged `age=undefined` in place of the evidence.
+ *
  * @typedef {{
  *   status: number,
  *   contentType: string | null,
@@ -54,6 +62,9 @@ const R = rules('llms-txt')
  *   cdnCacheControl: string | null,
  *   cfCacheStatus: string | null,
  *   composedAtHeader: string | null,
+ *   age?: string | null,
+ *   xCache?: string | null,
+ *   source?: string | null,
  *   error?: string
  * }} LlmsResponseSnapshot
  */
@@ -78,11 +89,15 @@ const R = rules('llms-txt')
  * Pure function (string in, findings out) so it's testable without network.
  *
  * The five structural rules live in
- * @j0nathan-ll0yd/estate-contracts/llms-structure, the shared reference atlas
- * owns and publishes. The backend producer consumes the same package at the
- * same exact pin, so neither side holds a copy to drift. This function is the
- * CATALOG WRAPPER over it: the reference decides WHAT is wrong, the catalog
- * decides how bad it is.
+ * @j0nathan-ll0yd/estate-contracts/llms-structure, the shared reference PHOENIX
+ * owns and publishes -- `packages/estate-contracts/` is a Phoenix workspace and
+ * the published package names that repository. (This comment said "atlas" until
+ * atlas decision 0142 phase 7; atlas GOVERNS the estate and records the
+ * decisions, but it holds no contracts producer workspace, so a rule-tier change
+ * briefed from the old sentence went to the wrong repository.) The backend
+ * producer consumes the same package at the same exact pin, so neither side
+ * holds a copy to drift. This function is the CATALOG WRAPPER over it: the
+ * reference decides WHAT is wrong, the catalog decides how bad it is.
  *
  * SEVERITY COMES FROM THE SHARED CATALOG (atlas decision 0129 consumer round).
  * It used to come from `emit(R, ...)` over this repo's own rule files. Both
@@ -98,9 +113,15 @@ const R = rules('llms-txt')
  * id no rule declares, so a checker that starts emitting a new id is met by a
  * deliberate severity decision rather than scoring as harmless. The local rule
  * files remain the source of the CASES and of the verification record, and
- * `emit`/`R` still own the three OPERATIONAL ids the shared catalog does not
- * carry (`llms-txt-fetch`, `index-md`, `llms-full-txt`), which are transport
- * conditions no pure-function input can produce.
+ * `emit`/`R` still own the FIVE OPERATIONAL ids the shared catalog does not
+ * carry: `llms-txt-fetch`, `index-md`, `llms-full-txt`,
+ * `llms-composed-at-wire-skew` and `llms-origin-cache-policy`. Each is a
+ * transport or delivery condition no pure-function llms.txt body can produce, so
+ * the shared structural catalog has nothing to say about it. (This comment read
+ * "three" until atlas decision 0142 phase 7: the wire-skew rule landed after the
+ * sentence was written and the count was never moved. The undercount changed no
+ * behaviour -- `emit` throws on any id no rule file declares -- but a reader
+ * counting rule files against it found one too many.)
  */
 export function validateLlmsTxt(rawText) {
   return LLMS_TXT_CATALOG.stamp(checkLlmsStructure(rawText))
@@ -124,6 +145,34 @@ export const LLMS_COHERENCE_THRESHOLDS = Object.freeze({
   maxCompositionSkewMs: durationToMilliseconds(coherencePolicy.maxCompositionSkew),
   maxFutureSkewMs: durationToMilliseconds(coherencePolicy.maxFutureSkew)
 })
+
+/**
+ * The origin TTL the skew window is DERIVED FROM, read off the same contract
+ * (atlas decision 0142 step 5.2).
+ *
+ * WHAT WAS UNMEASURED. `maxCompositionSkew` is 10 minutes because CloudFront
+ * advertises a five-minute origin TTL and two intervals tolerate a cross-key or
+ * cross-PoP refresh boundary. That five minutes was a sentence in a comment and
+ * nothing else: `validateSnapshot` judged cache headers on the SITE side only,
+ * and `fetchSnapshot` captured `origin.cacheControl` without ever reading it. If
+ * the producer's infrastructure drifted the origin TTL upward, the derivation
+ * underneath the 10-minute window would break silently and B2 would stay green
+ * until skew actually exceeded 10 minutes -- which is exactly the interval the
+ * broken derivation no longer justifies.
+ *
+ * DERIVED, NEVER AUTHORED. `originComposition.cacheFreshness` is the contract's
+ * own statement of that TTL (300 seconds), so neither repo holds a second copy
+ * and a producer-side change moves this number with no edit here. The tether to
+ * the skew window is asserted in `audits/__tests__/b2-llms.test.ts`, not restated
+ * as arithmetic in the check.
+ *
+ * WARN, NOT FAIL. A drifted origin TTL falsifies the WINDOW'S RATIONALE, not the
+ * artifact: the bytes and the composition stamp can be perfectly correct while
+ * the header moves. It belongs in the catalog arm for the same reason
+ * `llms-composed-at-wire-skew` does -- a coherence finding carries no severity
+ * and reds the step unconditionally, and a warn is not expressible there.
+ */
+export const ORIGIN_CACHE_FRESHNESS_SECONDS = durationToMilliseconds(LLM_FRESHNESS_CONFIG.layers.originComposition.cacheFreshness) / 1000
 
 /**
  * Worst-case detection latency for the PUBLIC path (atlas decision 0128 P4).
@@ -408,26 +457,35 @@ export function evaluateLlmsCoherence(input, nowMs, thresholds = LLMS_COHERENCE_
   const findings = []
   const compositionTimes = {'llms.txt': {origin: null, site: null}, 'llms-full.txt': {origin: null, site: null}, 'index.md': {origin: null, site: null}}
 
+  // ALL THREE ARTIFACTS, INCLUDING THE DISCOVERY INDEX (atlas decision 0142 step 5.2).
+  // The byte-equality arm used to iterate a hard-coded ['llms-full.txt', 'index.md'],
+  // so two DIFFERENT valid llms.txt bodies carrying the same composition timestamp both
+  // passed: a discovery link or a title corrupted on one hop only was invisible to every
+  // arm, because the structure arm reads the site body alone and the freshness arm reads
+  // the stamp both hops agree on. The exclusion had no stated rationale anywhere and no
+  // divergence mechanism specific to llms.txt exists -- the proxy passes `upstream.body`
+  // through unchanged and only re-labels the content type (functions/_lib/proxy.ts), which
+  // the live sweep confirms: on 2026-09-21 both planes served llms.txt at 3490 bytes and
+  // sha256 dcbfffac50a12643f78ef76a9c97a953b889071c3ad14fd4d0fac6dbed834e7c. Widening the
+  // scope was therefore a DELIBERATE spec change, not a bug fix -- openspec's
+  // "Same-generation bytes diverge" scenario named full-content responses and now names
+  // all three artifacts.
+  //
+  // The full/index alias comparison below stays scoped to the two full-content artifacts,
+  // because that pair is what an alias relationship means; llms.txt is a different document.
   for (const artifact of LLMS_ARTIFACTS) {
     const pair = input[artifact.id]
+    const participants = [{artifact: artifact.id, side: 'origin'}, {artifact: artifact.id, side: 'site'}]
     const originComposedAt = validateSnapshot(findings, artifact, 'origin', pair.origin, artifact.originContentType, nowMs, thresholds)
     const siteComposedAt = validateSnapshot(findings, artifact, 'site', pair.site, artifact.siteContentType, nowMs, thresholds)
     compositionTimes[artifact.id] = {origin: originComposedAt, site: siteComposedAt}
-    validateCompositionSkew(findings, 'llms-origin-site-skew', artifact.id, 'origin/site', originComposedAt, siteComposedAt, [
-      {artifact: artifact.id, side: 'origin'},
-      {artifact: artifact.id, side: 'site'}
-    ], thresholds)
-  }
-
-  for (const artifactId of ['llms-full.txt', 'index.md']) {
-    const pair = input[artifactId]
-    const times = compositionTimes[artifactId]
-    if (representsSameComposition(times.origin, times.site) && !sameBytes(pair.origin.body, pair.site.body)) {
+    validateCompositionSkew(findings, 'llms-origin-site-skew', artifact.id, 'origin/site', originComposedAt, siteComposedAt, participants, thresholds)
+    if (representsSameComposition(originComposedAt, siteComposedAt) && !sameBytes(pair.origin.body, pair.site.body)) {
       findings.push({
         id: 'llms-origin-site-bytes',
-        artifact: artifactId,
+        artifact: artifact.id,
         message: `origin and site advertise the same composition but bytes differ (${pair.origin.body.byteLength} vs ${pair.site.body.byteLength} bytes)`,
-        participants: [{artifact: artifactId, side: 'origin'}, {artifact: artifactId, side: 'site'}]
+        participants
       })
     }
   }
@@ -514,12 +572,31 @@ async function writeIssueOutcome(outputPath, status) {
  * BOTH HALVES SHIP TOGETHER. Publishing this count without the `measured=0` rung in
  * `audits/healthchecks-ping.sh` changes nothing, and adding the rung without this count makes the
  * field empty -- which the script treats as "not claimed", never as a pass.
+ *
+ * ONE WRITER (atlas decision 0142 step 5.2). `audits/lib/measurement.mjs` declares itself the ONE
+ * place a web audit check publishes this channel, and this file used to contradict that with a
+ * second private `appendFile` -- so a wire-key change had two sites to find, and this one accepted
+ * any value at all. `publishMeasured` is the seam every other check reaches through, via the
+ * `report` helper in `audits/lib/http.mjs`; calling it directly here is what that module's
+ * `deps.outputPath` injection exists for, since this check writes its count beside `issue_outcome`
+ * rather than through that helper. `outputPath` is passed EXPLICITLY, including when it is
+ * undefined, so an absent `environment.GITHUB_OUTPUT` stays a no-op instead of falling through to
+ * `process.env` -- the exact distinction `Object.hasOwn` guards there.
+ *
+ * Do not write the helper's name followed by an open parenthesis in prose anywhere under
+ * `audits/checks/`: the call-site gate in `audits/__tests__/measurement.test.ts` scans raw source
+ * and cannot tell a comment from a call, so it reds on the mention. That is the safe direction to
+ * fail, and the limitation is stated there too.
+ *
+ * It also VALIDATES: a non-integer count is now a `TypeError` at the write rather than a literal
+ * `measured=undefined` line the tier would read as unclaimed.
+ *
+ * Declared `async` to keep the injectable `measurementWriter` seam's contract unchanged, while the
+ * append underneath stays SYNCHRONOUS -- `publishMeasured` uses `appendFileSync` so the bytes are
+ * on disk before this function returns, whatever the caller does with the promise.
  */
 async function writeMeasurement(outputPath, measured) {
-  if (!outputPath) {
-    return
-  }
-  await appendFile(outputPath, `measured=${measured}\n`, 'utf8')
+  publishMeasured(measured, {outputPath})
 }
 
 function failedSnapshot(error) {
@@ -703,6 +780,49 @@ function wireSkewFindings(pairs) {
   return findings
 }
 
+/**
+ * Origin-cache arm: does the origin still advertise the TTL the skew window rests on?
+ *
+ * READ THE HEADER THE CONTRACT NAMES, NOT A LOCAL LITERAL. `max-age` and `s-maxage`
+ * are both compared against `ORIGIN_CACHE_FRESHNESS_SECONDS`, which is
+ * `originComposition.cacheFreshness` from the packaged contract. The two directives
+ * answer different hops -- `max-age` is what a browser retains, `s-maxage` what a
+ * shared cache retains -- and the derivation of `maxCompositionSkew` assumes both,
+ * so a drift in either is worth naming.
+ *
+ * SIDE-SCOPED TO THE ORIGIN, deliberately. The site plane is required to say
+ * `no-store` and `validateSnapshot` already fails it when it does not; applying this
+ * rule there would contradict that requirement on every healthy run.
+ *
+ * A transport-dark origin contributes nothing: `failedSnapshot` sets `cacheControl`
+ * to null, which is an absent header rather than a drifted one, and the darkness is
+ * already an unknown via `transportObservation`.
+ */
+function originCachePolicyFindings(pairs) {
+  const findings = []
+  for (const {artifact, origin} of pairs) {
+    if (origin.cacheControl === null) {
+      continue
+    }
+    const directives = new Map(origin.cacheControl.split(',').map((directive) => {
+      const [name, value] = directive.split('=', 2)
+      return [name.trim().toLowerCase(), value?.trim()]
+    }))
+    const drifted = ['max-age', 's-maxage'].filter((name) => directives.get(name) !== String(ORIGIN_CACHE_FRESHNESS_SECONDS))
+    if (drifted.length === 0) {
+      continue
+    }
+    findings.push(
+      emit(R, 'llms-origin-cache-policy',
+        `${artifact.id} origin Cache-Control is ${JSON.stringify(origin.cacheControl)}; the contract's ` +
+          `originComposition.cacheFreshness is ${ORIGIN_CACHE_FRESHNESS_SECONDS}s, so ${drifted.join(' and ')} should read ` +
+          `${ORIGIN_CACHE_FRESHNESS_SECONDS}. The ${durationMinutes(LLMS_COHERENCE_THRESHOLDS.maxCompositionSkewMs)}m ` +
+          'composition-skew window is derived from that TTL; a drift here falsifies the derivation, not the artifact')
+    )
+  }
+  return findings
+}
+
 /** Presence arm: site-side existence/non-emptiness for an artifact with no formal spec of its own. */
 function presenceFindings(pair) {
   const id = PRESENCE_IDS[pair.artifact.id]
@@ -789,7 +909,8 @@ export async function runB2Llms({
   const catalogFindings = [
     ...structureFindings(pairs.find(({artifact}) => artifact.id === 'llms.txt')),
     ...pairs.filter(({artifact}) => artifact.id !== 'llms.txt').flatMap((pair) => presenceFindings(pair)),
-    ...wireSkewFindings(pairs)
+    ...wireSkewFindings(pairs),
+    ...originCachePolicyFindings(pairs)
   ]
   const catalogFailures = catalogFindings.filter((finding) => finding.severity === 'fail')
   logger.log('')

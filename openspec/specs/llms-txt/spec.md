@@ -36,16 +36,21 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   hard-coded `/llms.txt` upstream path.
 - Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.
   A network-free module carrying exactly ONE dependency, `zod`, pinned and asserted (atlas decision
-  0103; see "the dependency" below). Atlas owns it and publishes it. BOTH SIDES OF THE SEAM CONSUME
+  0103; see "the dependency" below). PHOENIX owns it and publishes it — the package's own manifest
+  names `j0nathan-ll0yd/phoenix`, directory `packages/estate-contracts`. (This line said "Atlas owns
+  it" until atlas decision 0142 phase 7. Atlas GOVERNS the estate and records the decisions, but it
+  holds no contracts producer workspace, so a rule-tier change briefed from the old sentence was
+  routed to the wrong repository. The same stale sentence stood in `audits/checks/b2-llms.mjs` and is
+  corrected there too.) BOTH SIDES OF THE SEAM CONSUME
   THE PACKAGE. The producer imports it in
   `mantle-LifegamesPortal/test/llm-content/llms-structure.contract.test.ts`; this repo imports it in
-  `audits/checks/b2-llms.mjs:26`. Each declares `@j0nathan-ll0yd/estate-contracts` exact-pinned (the
+  `audits/checks/b2-llms.mjs`. Each declares `@j0nathan-ll0yd/estate-contracts` exact-pinned (the
   version literal lives in `package.json`, deliberately not restated here) and resolves it from its
   lockfile — atlas decisions 0079 item 4 wave 2b and 0080, this repo's PR #206, the producer's PR #239.
   Neither side vendors a copy any more. The reference sat at `scripts/audit/lib/llms-structure.mjs`
   here and at `mantle-LifegamesPortal/test/contracts/llms-structure.reference.mjs` there, each with
   a sha256 sidecar, until the 2026-08 migration deleted both.
-  Agreement is enforced by atlas audit A10 (`audits/checks/conformance-fixtures.mjs`), which asserts
+  Agreement is enforced by atlas audit A10 (`audits/checks/a10-conformance-fixtures.mjs`), which asserts
   every consumer's declared specifier is EXACT and IDENTICAL across consumers. A range specifier is a
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
@@ -106,14 +111,14 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `./llms-assurance/freshness-config.schema.json` subpaths are gone. That constant's
   `coherencePolicy` is now this repo's freshness/skew authority: `audits/checks/b2-llms.mjs`
   derives its thresholds from it via the published `durationToMilliseconds` (decision 0119 D2),
-  and `audits/__tests__/b2-llms.test.ts:125` tethers the evaluator configuration to it.
+  and `audits/__tests__/b2-llms.test.ts` tethers the evaluator configuration to it.
   (The evaluator lived in `audits/lib/llms-coherence.ts` until atlas decision 0122 phase 4, executed
   by 0128, folded it into its single caller; the derivation is unchanged.)
   It also dropped the `./openspec-covers/runner` and
   `./openspec-covers/fixture.json` subpaths (decision 0113 R4; this repo consumes only the tier's
   `reference.mjs` and its sidecar, which survive) and stopped shipping tier READMEs in the tarball
   (decision 0113 R2b).
-  `0.10.0` (atlas decision 0119) and `0.11.0` (atlas decision 0124 step 4, the version pinned here)
+  `0.10.0` (atlas decision 0119) and `0.11.0` (atlas decision 0124 step 4)
   again moved neither rule tier's bytes and again changed only `llms-assurance`. `0.10.0` retired
   the spoke-evidence envelope — `validateSpokeEvidence`, `assertSpokeEvidence`,
   `aggregateSpokeEvidenceStatus`, `EVIDENCE_STATUSES` and the
@@ -139,12 +144,26 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   bullet surviving in prose, including the legal descriptive item) and is sound only because its
   generator emits nothing but link items; the legal descriptive shape is covered by the descriptive
   section suite above and by the v2 relaxation class in the differential suite.
-- Checker: `validateLlmsTxt(rawText)` — `audits/checks/b2-llms.mjs:49`. A catalog wrapper
-  that stamps severity onto the shared reference's findings.
-- Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The severity enum is
-  declared in `audits/specs/rule.schema.json:126` and stamped by `emit()`, never chosen by the
-  validator. Proposed follow-up: a named `LlmsFinding` typedef so the output shape is specified,
-  not implied.
+- Checker: `validateLlmsTxt(rawText)` — `audits/checks/b2-llms.mjs`. A catalog wrapper that stamps
+  severity onto the shared reference's findings.
+- Severity catalog: `LLMS_TXT_CATALOG` — `@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt`,
+  the THIRD contract tier this check consumes beside `llms-structure` and `llms-assurance`. It is
+  the SHIPPED severity authority for the five structural ids: `validateLlmsTxt` is
+  `LLMS_TXT_CATALOG.stamp(checkLlmsStructure(rawText))`, so for those ids the local rule file's
+  `severity` field never reaches a finding (atlas decision 0129's consumer round, which ended the
+  hand-copied split both consumers had re-derived). `stamp` throws on an id no catalog rule
+  declares, which is the runtime half of surjectivity; `audits/__tests__/llms-severity-parity.test.ts`
+  reds at unit time instead. `emit()`/`rules('llms-txt')` own only the OPERATIONAL ids the shared
+  catalog does not carry.
+  (This bullet said severity was "declared in `audits/specs/rule.schema.json:126` and stamped by
+  `emit()`" until atlas decision 0142 phase 7. It was wrong three ways: the shipped authority is the
+  catalog, not the schema; `rule-catalog` appeared nowhere in this spec despite being a consumed
+  tier; and `:126` lands inside the `derivedFrom` description, not the severity enum. The schema's
+  own description of `severity` has said so since the 0129 round.)
+- Finding: `{ id, severity: 'fail' | 'warn', message }` — currently structural. The enum is declared
+  in `audits/specs/rule.schema.json`, and for the operational ids `emit()` stamps it from the rule
+  file, never letting the validator choose it. Proposed follow-up: a named `LlmsFinding` typedef so
+  the output shape is specified, not implied.
 
 ## Requirements
 
@@ -282,14 +301,26 @@ focus answer denies, and a malformed one is not retried).
 For all three artifacts, the raw CloudFront and canonical portfolio responses SHALL return HTTP
 200, the side-specific declared content-type, and a parseable composition timestamp. A canonical
 composition timestamp SHALL differ from its raw origin by no more than 10 minutes. The full/index
-aliases on each side SHALL also differ by no more than 10 minutes. When two compared full-content
-responses advertise the same composition timestamp, their bytes SHALL be identical. Different
-fresh timestamps within that convergence window represent adjacent valid generations and SHALL
-NOT, by byte difference alone, be reported as corruption.
+aliases on each side SHALL also differ by no more than 10 minutes. When two compared responses
+advertise the same composition timestamp, their bytes SHALL be identical. Different fresh
+timestamps within that convergence window represent adjacent valid generations and SHALL NOT, by
+byte difference alone, be reported as corruption.
 
-Verified by `audits/__tests__/b2-llms.test.ts:104` (coherence evaluator).
+BYTE EQUALITY COVERS ALL THREE ARTIFACTS, INCLUDING THE DISCOVERY INDEX. This requirement said
+"two compared FULL-CONTENT responses" until atlas decision 0142 step 5.2, and the evaluator
+matched it: the origin/site byte comparison iterated a hard-coded `['llms-full.txt', 'index.md']`.
+Two DIFFERENT valid llms.txt bodies carrying the same composition timestamp therefore both passed,
+because the structure arm reads only the site body and the freshness arm reads only the stamp both
+hops agree on. The widening is DELIBERATE, not a bug fix: the old scope was a correct reading of
+the old sentence. It is safe because no divergence mechanism specific to llms.txt exists -- the
+proxy passes `upstream.body` through unchanged and only re-labels the content type -- and measured
+live on 2026-09-21, when both planes served llms.txt at 3490 bytes under one sha256. The
+`llms-full.txt`/`index.md` ALIAS comparison stays scoped to those two: llms.txt is a different
+document, not an alias of either.
+
+Verified by `audits/__tests__/b2-llms.test.ts:112` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
-same-generation byte equality, and cache policy.
+same-generation byte equality on every artifact, and cache policy.
 
 The implementation, named here and deliberately outside the citation block above because it is the
 subject under test rather than a tether: `audits/checks/b2-llms.mjs` (the one merged weekly llms
@@ -316,7 +347,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:390` (orchestration and issue-outcome channel) and
+Verified by `audits/__tests__/b2-llms.test.ts:448` (orchestration and issue-outcome channel) and
 `audits/__tests__/audit-web-workflow.test.ts:90` (workflow wiring).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. The workflow suite
@@ -340,6 +371,41 @@ consuming `steps.llms.outputs.issue_outcome`, and that no evidence envelope step
 - **GIVEN** an origin/site pair or same-side full/index pair has composition timestamps more than 10 minutes apart
 - **WHEN** the coherence evaluator compares them
 - **THEN** it SHALL report excessive composition skew without needing to infer byte corruption
+
+### Requirement: The origin still advertises the TTL the convergence window is derived from
+
+The 10-minute composition-skew window is DERIVED: the origin advertises a five-minute TTL, and two
+intervals absorb a cross-key or cross-PoP refresh boundary while still detecting a longer hold.
+Weekly B2 SHALL therefore assert that derivation's premise rather than assume it, comparing each
+origin response's `Cache-Control` `max-age` and `s-maxage` against
+`LLM_FRESHNESS_CONFIG.layers.originComposition.cacheFreshness` and emitting the catalog finding
+`llms-origin-cache-policy` when either disagrees. The expected value SHALL be read from that
+contract field, never restated locally.
+
+The finding SHALL be `warn` and SHALL move neither the exit code, the tri-state `issue_outcome`,
+nor the `measured` count: a drifted origin TTL falsifies the WINDOW'S RATIONALE, not the artifact,
+whose bytes and composition stamp can be entirely correct while the header moves. The rule SHALL
+apply to the ORIGIN side only -- the site plane is required to answer `no-store`, which
+`llms-site-browser-cache-policy` already enforces -- and a response carrying no `Cache-Control` at
+all SHALL produce no finding, because an absent header is not a drifted one and the darkness is
+already reported as a transport unknown.
+
+This requirement exists because the premise was unmeasured. `validateSnapshot` judged cache
+headers for `side === 'site'` alone and `fetchSnapshot` captured `origin.cacheControl` without any
+arm reading it, so an origin TTL drifting upward would have broken the window's justification
+silently, and B2 would have stayed green until observed skew exceeded the very interval the broken
+derivation no longer justified.
+
+Verified by `audits/__tests__/b2-llms.test.ts:622` (the agreeing header, a drift on each directive
+and on both, the absent header, and the site plane which must never fire).
+
+#### Scenario: The origin TTL drifts away from the contract
+
+- **GIVEN** an origin response whose `Cache-Control` `max-age` or `s-maxage` differs from the
+  contract's `originComposition.cacheFreshness`
+- **WHEN** weekly B2 examines that artifact
+- **THEN** it SHALL emit `llms-origin-cache-policy` at `warn` naming the served header, the
+  contract value, and which directives disagreed, and the run SHALL still exit 0
 
 ### Requirement: One composition instant, carried on two wires, agrees on one response
 
@@ -367,9 +433,9 @@ A response missing EITHER wire SHALL produce no finding. An absent body stamp is
 by `llms-{side}-composition-time`; an absent or unparseable header means the hop did not forward
 usable metadata, and an absent wire is not a disagreeing one.
 
-Verified by `audits/__tests__/b2-llms.test.ts:241` (the pure `compositionWireSkew` evaluator over
+Verified by `audits/__tests__/b2-llms.test.ts:299` (the pure `compositionWireSkew` evaluator over
 agreement, equivalent ISO spellings, both skew directions, both trailer syntaxes, and every absence
-case) and `audits/__tests__/b2-llms.test.ts:504` (the orchestration arm: per-side emission, a
+case) and `audits/__tests__/b2-llms.test.ts:562` (the orchestration arm: per-side emission, a
 fleet-wide skew as six findings, and exit 0 throughout).
 
 This requirement exists because nothing in the estate held both wires for one response.
@@ -489,7 +555,7 @@ were real links. v2 was also stricter than v1 in exactly one place: an unlinked 
 item's notes tail fires, where v1's permissive tail swallowed it.
 
 The v1→v2 and v2→v3 deltas are pinned as evidence, not described in prose:
-`audits/__tests__/llms-differential.test.ts:113` differences the live reference against frozen copies of
+`audits/__tests__/llms-differential.test.ts` differences the live reference against frozen copies of
 each earlier version over a fixed seed, run count, and input pool, and asserts the exact
 divergence classes and counts.
 
@@ -552,11 +618,11 @@ is additive: it changes no finding, no exit code, and neither GITHUB_OUTPUT fiel
 cadence is the owner call that would shorten it; keep source freshness distinct from
 recomposition freshness.
 
-Verified by `audits/__tests__/b2-llms.test.ts:126` (the pure evaluator), which injects a fixed clock
+Verified by `audits/__tests__/b2-llms.test.ts:134` (the pure evaluator), which injects a fixed clock
 and synthetic response snapshots to exercise the exact age boundary logic without network and
 asserts the evaluator configuration equals the contract's `coherencePolicy`, by
-`audits/__tests__/b2-llms.test.ts:208` (the derived detection interval and the line the run prints),
-and by `audits/__tests__/b2-llms.test.ts:564` (the presence arm). The old `spec-cases.test.ts` covers
+`audits/__tests__/b2-llms.test.ts:265` (the derived detection interval and the line the run prints),
+and by `audits/__tests__/b2-llms.test.ts:741` (the presence arm). The old `spec-cases.test.ts` covers
 claim was removed: that harness only proved operational rules had no cases and never exercised
 freshness.
 
