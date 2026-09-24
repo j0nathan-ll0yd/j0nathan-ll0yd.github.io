@@ -1,3 +1,5 @@
+import focusBaselineFixture from '@j0nathan-ll0yd/fixtures/generated/focus/baseline.json'
+import focusDndFixture from '@j0nathan-ll0yd/fixtures/generated/focus/dnd.json'
 import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {fetchAllEndpoints, fetchArtifact, isResourceKey} from '../../src/lib/runtime/api'
@@ -332,6 +334,29 @@ describe('fetchAllEndpoints', () => {
     expect(result.theatreReviews.status).toBe('suppressed')
     expect(result.focus.status).toBe('ok')
     expect(result.timestamps.health).toBeNull()
+  })
+
+  // The two cases above build their hiding payload inline, so they prove the GATE but say nothing
+  // about the fixtures the visual suite actually serves. @j0nathan-ll0yd/fixtures 1.3.4 shipped
+  // focus/baseline.json and focus/dnd.json WITHOUT `hidingSince`, which portal-contract 2.7.0 made
+  // conditionally required for a hiding mode. Decode failed, `hiding` stayed false, and the privacy
+  // overlay silently stopped rendering -- caught only by a 9.5-minute Docker visual run. These two
+  // drive the published fixture bytes through the real gate, so the same regression reds here first.
+  it.each([
+    ['baseline', focusBaselineFixture, 'Work'],
+    ['dnd', focusDndFixture, 'Do Not Disturb']
+  ])('suppresses from the published focus/%s.json fixture', async (_name, fixture, currentFocus) => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(fixture))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchAllEndpoints()
+
+    // `hiding` is not exported, so assert its two observable consequences: focus decoded `ok` (a
+    // failed decode cannot set it) and the gated endpoints were never requested.
+    expect(result.focus.status).toBe('ok')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(result.health).toEqual({status: 'suppressed', reason: 'focus mode active', currentFocus})
+    expect(result.theatreReviews.status).toBe('suppressed')
   })
 
   it('keeps endpoint failures explicit without rejecting the aggregate', async () => {
