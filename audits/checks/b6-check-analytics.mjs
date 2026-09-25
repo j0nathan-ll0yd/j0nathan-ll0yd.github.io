@@ -7,6 +7,12 @@ import {chromium} from '@playwright/test'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {DEFAULT_BUDGET_MS, fetchStable, isMain, report} from '../lib/http.mjs'
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap, and it
+// matches what catalog row B6 claims: what this runner measures is the two first-party
+// analytics proxy chains, which the surface registry does not register as an estate
+// surface. Metadata only -- the hub reads it statically from the source.
+export const ARTIFACTS = []
+
 const NAV_TIMEOUT_MS = 30_000
 const BEACON_WAIT_MS = 15_000
 

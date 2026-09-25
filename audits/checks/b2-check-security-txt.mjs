@@ -18,6 +18,11 @@ import {emit, rules} from '../specs/load.mjs'
 export const SECURITY_TXT_URL = `${SITE_URL}/.well-known/security.txt`
 const R = rules('security-txt')
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: the
+// one artifact this runner holds is security.txt, which the surface registry does
+// not register. Metadata only -- the hub reads it statically.
+export const ARTIFACTS = []
+
 // RFC 9116 §2 puts every field on its own line, so a field's value is what
 // follows the colon on THAT line and never on a later one. Matching [ \t]*
 // rather than \s* is what makes the duplicate counts below trustworthy: \s*

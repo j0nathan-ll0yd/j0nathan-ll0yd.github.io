@@ -61,6 +61,13 @@ import {citation, comparable, quoteSegments, readRawRules} from './b2-check-spec
 
 export const CHECK_ID = 'check-spec-currency'
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
+// this runner holds is a pair of upstream specification blobs per pinned source --
+// the pinned commit and the same path at HEAD. It fetches no estate artifact and
+// judges no served byte; `measured` here counts commit-pinned GitHub SOURCES held,
+// never artifacts. Metadata only -- the hub reads it statically.
+export const ARTIFACTS = []
+
 /**
  * How many consecutive weekly runs a revised source may stay un-re-pinned before the advisory
  * `warn` becomes a `fail` (atlas decision 0142 step 5.3).

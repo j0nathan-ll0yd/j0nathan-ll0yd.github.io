@@ -16,6 +16,14 @@ import {artifacts} from '../specs/load.mjs'
 
 const SPECS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'specs')
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
+// this runner holds is the local rule catalog and the third-party specification
+// documents its citations pin. It fetches no estate artifact and judges no served
+// byte -- `measured` here counts pinned SOURCES, never artifacts. The rule catalog
+// governs finding severity for llm-outputs and rss-feed checks, but governing a
+// check is not measuring a surface. Metadata only -- the hub reads it statically.
+export const ARTIFACTS = []
+
 // A quote may splice separate passages of one source. The convention (stated
 // in rule.schema.json's quote descriptions, on both arms) is that they are
 // joined by an ellipsis rather than run together, so a spliced quote is
