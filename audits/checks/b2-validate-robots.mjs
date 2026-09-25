@@ -15,6 +15,13 @@ import {fetchStable, isMain, report} from '../lib/http.mjs'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const GOLDEN_PATH = path.join(__dirname, '..', 'fixtures', 'golden', 'robots-ai-crawlers.json')
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: the
+// artifact this runner holds is robots.txt, which the surface registry does not
+// register. The AI-training arm below asserts a crawler POLICY naming /llms.txt, but
+// it never holds an llms.txt byte, so declaring llm-outputs here would claim a
+// measurement this file does not make. Metadata only -- the hub reads it statically.
+export const ARTIFACTS = []
+
 const ROBOTS_URL = `${SITE_URL}/robots.txt`
 const EXPECTED_SITEMAP_URL = `${SITE_URL}/sitemap-index.xml`
 export const EXPECTED_CONTENT_USAGE = 'train-ai=n, search=y'

@@ -18,6 +18,13 @@ const TLS_TIMEOUT_MS = 10_000
 
 const REQUIRED_TRUSTED_TYPES_DIRECTIVE = "require-trusted-types-for 'script'"
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap, and it
+// matches what catalog row B7 claims: what this runner holds is the homepage response
+// headers and the TLS peer certificate. Neither is a registered estate surface -- the
+// site-plane cache headers that DO belong to llm-outputs are judged by b2-llms.mjs,
+// per artifact, not here. Metadata only -- the hub reads it statically.
+export const ARTIFACTS = []
+
 /** Pure validation function: (live headers) -> findings[]. Testable without network. */
 export function validateHeaders(headers, goldenCsp) {
   const findings = []

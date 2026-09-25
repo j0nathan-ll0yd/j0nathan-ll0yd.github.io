@@ -25,6 +25,12 @@ import {emit, rules} from '../specs/load.mjs'
 const FEED_XML_URL = feedArtifact('feed.xml').siteUrl
 const FEED_JSON_URL = feedArtifact('feed.json').siteUrl
 // Stryker restore all
+// A18 coverage declaration (atlas decision 0145). The registered estate surfaces
+// this runner holds bytes for and judges. feed.xml and feed.json ARE the rss-feed
+// artifact, so this is the runner that measures it. Metadata only -- the hub reads
+// it statically from the source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'rss-feed'}]
+
 const R_JSON = rules('feed-json')
 const R_XML = rules('feed-xml')
 const JSON_FRESHNESS_WINDOW_DAYS = R_JSON['feed-json-stale'].params.maxAgeDays

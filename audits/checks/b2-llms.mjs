@@ -45,6 +45,13 @@ import {emit, rules} from '../specs/load.mjs'
 
 const R = rules('llms-txt')
 
+// A18 coverage declaration (atlas decision 0145). The registered estate surfaces this
+// runner holds bytes for and judges. llms.txt, llms-full.txt and index.md ARE the
+// llm-outputs artifact, fetched on both the origin and the site plane, so this is the
+// runner that measures it. Metadata only -- the hub reads it statically from the
+// source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'llm-outputs'}]
+
 /**
  * One side of one artifact, as this run observed it.
  *

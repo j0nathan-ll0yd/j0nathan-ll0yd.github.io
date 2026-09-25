@@ -18,6 +18,12 @@ import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fetchStable, headStable, isMain, report} from '../lib/http.mjs'
 import {validateSitemapDocument} from '../lib/sitemap-schema.mjs'
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: the
+// artifacts this runner holds are sitemap-index.xml and its child urlsets, neither
+// of which the surface registry registers. The <loc> sweep HEADs page URLs, not
+// export artifacts. Metadata only -- the hub reads it statically.
+export const ARTIFACTS = []
+
 const SITEMAP_INDEX_URL = `${SITE_URL}/sitemap-index.xml`
 const SITE_ORIGIN = new URL(SITE_URL).origin
 

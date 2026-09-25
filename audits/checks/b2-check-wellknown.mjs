@@ -29,6 +29,13 @@ export const PINNED_ARD_SPEC_VERSION = '1.0'
 // otherwise be validated by the wrong rules.
 export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
 
+// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: the
+// five artifacts this runner holds are the agent-discovery .well-known documents
+// (webfinger, ai-catalog.json, mcp/server-card.json, agent-skills/index.json,
+// api-catalog), none of which the surface registry registers. Metadata only -- the
+// hub reads it statically.
+export const ARTIFACTS = []
+
 // "sha256:" plus a lowercase hex digest, the form the served index uses.
 const SKILL_DIGEST = /^sha256:[a-f0-9]{64}$/
 

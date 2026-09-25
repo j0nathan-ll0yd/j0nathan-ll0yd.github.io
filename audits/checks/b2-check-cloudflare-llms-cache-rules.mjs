@@ -18,6 +18,15 @@ export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
   `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
 ])
 
+// A18 coverage declaration (atlas decision 0145). The registered estate surface this
+// runner measures. The artifact it holds is the Cloudflare rule inventory, but the
+// property it judges is a DECLARED property of llm-outputs: that surface's registry
+// node carries `external_dependency.cloudflare_edge_cache_ttl: required-unverified`
+// ("account-level rules can override response headers"), and every finding here is
+// keyed to one of the three CLOUDFLARE_LLMS_TARGETS above. Metadata only -- the hub
+// reads it statically from the source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'llm-outputs'}]
+
 const API_BASE = 'https://api.cloudflare.com/client/v4'
 const UNKNOWN = Symbol('unknown')
 
