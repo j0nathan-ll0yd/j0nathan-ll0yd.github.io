@@ -60,9 +60,31 @@ jobs:
     # assets keep loading once the shared-bridge CloudFront rule is removed. Admission-neutral;
     # inert until the host flips COLIMA_CFEDGE_LABELS (stage C3).
     runs-on: [self-hosted, linux, arm64, playwright, cfedge]
+    # Ceiling, not a budget. Nothing here declared one, so the default was 360 minutes and a
+    # wedged job held a runner until a human noticed. Derived from the observed GREEN envelope
+    # of this job, not from a round number: 38 successful runs, p50 92s, max 620s (run
+    # 33099282274, 2026-08-27, whose B1 smoke step alone took 9m11s and PASSED -- Playwright
+    # retries against a cold edge). 20 minutes is 1.94x that worst green, so it cannot cut a
+    # slow-but-healthy smoke run; it only bounds a wedge. See the weekly job for why this is a
+    # BACKSTOP and the probe hoist below is the actual diagnostic.
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # FIRST STEP AFTER CHECKOUT, AND THAT POSITION IS THE WHOLE POINT. This probe existed to
+      # tell "runner egress is down" apart from "the site is down", but it used to sit at
+      # position 6 -- after `Setup Node.js` (which downloads Node) and after `Install
+      # dependencies` (which reaches npm.pkg.github.com). Both need the egress the probe
+      # diagnoses, so when egress failed the job wedged UPSTREAM of the probe and the probe
+      # never ran: run 36530802342 (2026-09-29, 39m52s) died with `Install dependencies` still
+      # in_progress and this step `pending`; run 36823973866 (2026-10-01, 15m40s) had `Setup
+      # Node.js` cancelled and this step `skipped`. The diagnostic sat downstream of the fault
+      # it diagnoses. It is pure bash + curl (audits/preflight-egress.sh) and needs no Node and
+      # no pnpm -- only the checkout for the script itself -- so this is its earliest correct
+      # position. DO NOT move it back below the toolchain steps.
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash audits/preflight-egress.sh
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -83,12 +105,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # Distinguish a self-hosted runner egress outage from a real site regression BEFORE
-      # the continue-on-error checks run, so an egress outage reds the job with an
-      # actionable message instead of masking as a smoke no-op (2026-08-17 incident).
-      - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash audits/preflight-egress.sh
 
       # Browsers are PREINSTALLED in the runner-playwright image -- do NOT add `playwright install`.
       - name: B1 -- production smoke suite (scheduled, not just post-deploy)
@@ -172,6 +188,12 @@ jobs:
     # CloudFront asset egress for B3/B4 once the shared-bridge rule is source-scoped. Inert until
     # stage C3 flips COLIMA_CFEDGE_LABELS.
     runs-on: [self-hosted, linux, arm64, playwright, cfedge]
+    # Ceiling, not a budget -- same reasoning as the daily job, different number because the
+    # green envelope is different. 14 successful runs: 90s-135s in the CURRENT step shape, and a
+    # single 377s outlier (run 33107699521, 2026-08-27) in an older shape whose LHCI step took
+    # 3m05s. 15 minutes is 2.4x that historical worst green and 6.7x the current-shape worst, and
+    # matches the value static-checks.yml already uses on its own install-and-run jobs.
+    timeout-minutes: 15
     # NO JOB-LEVEL `outputs:` HERE, DELIBERATELY. It carried `measured` from the llms step when
     # only that step had a channel. A job output is readable only by a job that `needs:` this one,
     # and audit-web.yml's three tiers are independent -- nothing consumed it. The ping step is
@@ -181,6 +203,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Hoisted to the earliest correct position for the reason spelled out in the daily job:
+      # pure bash + curl, so it needs the checkout and nothing else, and below the toolchain
+      # steps it was downstream of the very egress it diagnoses.
+      #
+      # BE HONEST ABOUT WHAT THIS DOES AND DOES NOT COVER HERE. The weekly wedge on record
+      # (run 36385626855, 2026-09-28, 15m36s) is NOT the fault this hoist fixes: the probe
+      # already RAN and PASSED at position 7 in that run, `Install dependencies` took 6s, and
+      # the job then wedged with `B2 -- robots.txt validator` in_progress while `B2 -- external
+      # spec currency` burned 9m29s and `B3 -- Lighthouse CI` was cancelled. The probe is
+      # structurally blind to that class: its control host is registry.npmjs.org and its target
+      # is jonathanlloyd.me, so it says nothing about raw.githubusercontent.com or
+      # api.github.com, which is what spec_currency reaches. The hoist still belongs here --
+      # the daily evidence shows the pre-probe wedge is real and this job runs the identical
+      # setup-node/pnpm prefix on the identical pool -- but a per-check hang on a THIRD-PARTY
+      # host is a separate gap, and the `timeout-minutes` ceiling above is what bounds it.
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash audits/preflight-egress.sh
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -201,11 +241,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # Distinguish a self-hosted runner egress outage from a real site regression before
-      # the continue-on-error checks run (2026-08-17 incident).
-      - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash audits/preflight-egress.sh
 
       # NO PACKAGE INSTALL STEP HERE, BY DESIGN. This job used to `apt-get
       # install libxml2-utils` for the xmllint that validate-sitemap.mjs shelled
@@ -584,9 +619,26 @@ jobs:
     name: Monthly (B2 security.txt + agent-discovery re-verification)
     if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'monthly' || inputs.tier == 'all')
     runs-on: [self-hosted, linux, arm64, node]
+    # Ceiling, not a budget. This tier is the cheapest of the three: 5 successful runs, 28s-37s,
+    # both checks plain artifact fetches. 10 minutes is 16x the worst green and still replaces a
+    # 360-minute default, which is the exposure that mattered.
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # HOISTED HERE FOR THE SAME FAULT, NOT FOR SYMMETRY. This job already carried the probe,
+      # and it carried it at the same broken position 6 the other two tiers did -- downstream of
+      # `Setup Node.js` and `pnpm install --frozen-lockfile`.
+      #
+      # The pool differs (`node` rather than `playwright, cfedge`), and that difference is real
+      # but it is not load-bearing here: it changes WHICH hosts the egress allowlist permits, not
+      # WHETHER the two toolchain steps need egress at all. They do -- setup-node downloads Node
+      # and pnpm resolves six @j0nathan-ll0yd/* packages from npm.pkg.github.com on this pool
+      # exactly as on the other -- so the identical prefix can wedge the identical way and strand
+      # the identical diagnostic. Same prefix, same fault, same fix.
+      - name: Pre-flight egress probe (runner-egress-down vs site-down)
+        run: bash audits/preflight-egress.sh
 
       - name: Setup pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
@@ -607,11 +659,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # Distinguish a self-hosted runner egress outage from a real site regression before
-      # the continue-on-error checks run (2026-08-17 incident).
-      - name: Pre-flight egress probe (runner-egress-down vs site-down)
-        run: bash audits/preflight-egress.sh
 
       - name: B2 -- security.txt RFC 9116 expiry
         id: security_txt
