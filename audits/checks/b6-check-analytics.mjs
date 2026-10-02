@@ -2,10 +2,25 @@
 // Loads the live homepage in Playwright and requires both first-party analytics proxy chains to
 // fire. Browser-observed statuses avoid curl-shape false positives. With `SA_API_KEY`, it also
 // posts a synthetic event and polls the Stats API because headless pageviews are bot-filtered.
+//
+// THIS CHECK IS NARRATED FROM END TO END, AND THAT IS A CORRECTNESS PROPERTY, NOT LOGGING
+// TASTE. GitHub kills a self-hosted job at a ~600s INACTIVITY deadline, so silence is what
+// terminates a lane -- not duration (see audits/lib/progress.mjs for the measured receipts).
+// Daily run 36387113309 spent 926.4s here and NEVER CONCLUDED, emitting not one line, because
+// the final report block was this file's only output. The job died at 601s and the Healthchecks
+// tile could not tell a wedged beacon probe from a healthy one.
+//
+// Normal cost is 18-35s (runs 36685525918, 36299679621, 36102170861, 36972883627, 36223284562),
+// so 926.4s was a 26x outlier rather than the design cost. With every phase now bounded --
+// launch 60s, navigation 30s, beacon wait 15s, close 30s, each Stats API read
+// `DEFAULT_BUDGET_MS`, the ingestion poll 180s clamped to its own window -- the arithmetic worst
+// case is roughly 375s, comfortably inside one job budget, and no interval between two output
+// lines can exceed the 30s heartbeat.
 
 import {chromium} from '@playwright/test'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {DEFAULT_BUDGET_MS, fetchStable, isMain, report} from '../lib/http.mjs'
+import {progress, withHeartbeat} from '../lib/progress.mjs'
 
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap, and it
 // matches what catalog row B6 claims: what this runner measures is the two first-party
@@ -15,6 +30,29 @@ export const ARTIFACTS = []
 
 const NAV_TIMEOUT_MS = 30_000
 const BEACON_WAIT_MS = 15_000
+
+/**
+ * Explicit bounds on the two browser-lifecycle awaits.
+ *
+ * WHY THEY ARE STATED RATHER THAN LEFT TO PLAYWRIGHT. Daily run 36387113309 spent 926.4s
+ * in this step and never concluded, and the step emitted NOTHING across the whole
+ * interval -- its only output was the final report block, at the very end -- so the log cannot say
+ * which await held it. What the log CAN establish is that the bounded phases do not
+ * account for it: navigation is capped at 30s, the beacon wait at 15s, and every Stats
+ * API call at `DEFAULT_BUDGET_MS`, which totals roughly 300s against 926.4s measured. So
+ * at least ~626s was spent somewhere unbounded, and `chromium.launch()` and
+ * `browser.close()` were the only unbounded awaits in the file.
+ *
+ * `launch` has a 30s Playwright default; it is restated here because a default is not a
+ * stated bound and the next reader should not have to look it up to reason about the
+ * worst case. `close()` has NO default, and a wedged Chromium -- the likely shape when a
+ * page is still retrying assets against a default-deny egress allowlist -- can hang it
+ * indefinitely. It is raced rather than awaited: the beacons are already collected by
+ * then, so a browser that will not close is a cleanup problem, never a reason to lose
+ * the verdict.
+ */
+const LAUNCH_TIMEOUT_MS = 60_000
+const CLOSE_TIMEOUT_MS = 30_000
 
 const EXPECTATIONS = [
   {id: 'cf-insights-js', urlPattern: /\/cf-insights\.js/, method: 'GET', acceptStatus: (s) => s === 200},
@@ -33,7 +71,10 @@ const EXPECTATIONS = [
 
 /** Collects matching request/response pairs from a live page load. Network I/O -- not unit tested directly. */
 async function collectBeaconEvents(url) {
-  const browser = await chromium.launch()
+  progress(`launching headless chromium (bounded at ${LAUNCH_TIMEOUT_MS / 1000}s)`)
+  const launchedAt = Date.now()
+  const browser = await withHeartbeat('chromium.launch()', () => chromium.launch({timeout: LAUNCH_TIMEOUT_MS}))
+  progress(`chromium up in ${Date.now() - launchedAt}ms`)
   try {
     const page = await browser.newPage()
     const seen = new Map() // id -> { status, method }
@@ -43,20 +84,37 @@ async function collectBeaconEvents(url) {
       for (const exp of EXPECTATIONS) {
         if (exp.urlPattern.test(res.url()) && req.method() === exp.method && !seen.has(exp.id)) {
           seen.set(exp.id, {status: res.status(), url: res.url()})
+          // Narrated as it happens rather than tallied at the end: when the step is cut
+          // short by the inactivity deadline, the beacons already observed are the only
+          // evidence that survives in the log.
+          progress(`beacon ${exp.id} observed -- HTTP ${res.status()}`)
         }
       }
     })
 
-    await page.goto(url, {waitUntil: 'load', timeout: NAV_TIMEOUT_MS})
+    progress(`navigating to ${url} (bounded at ${NAV_TIMEOUT_MS / 1000}s)`)
+    const navAt = Date.now()
+    await withHeartbeat(`page.goto(${url})`, () => page.goto(url, {waitUntil: 'load', timeout: NAV_TIMEOUT_MS}))
+    progress(`load event in ${Date.now() - navAt}ms; waiting up to ${BEACON_WAIT_MS / 1000}s for ${EXPECTATIONS.length} beacons`)
 
     const deadline = Date.now() + BEACON_WAIT_MS
     while (seen.size < EXPECTATIONS.length && Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 250))
     }
+    progress(`beacon wait finished with ${seen.size}/${EXPECTATIONS.length} observed`)
 
     return seen
   } finally {
-    await browser.close()
+    // RACED, NOT AWAITED. `browser.close()` carries no default timeout, and it was one of
+    // only two unbounded awaits in this file when run 36387113309 hung for 926.4s. By this
+    // point every beacon is already in `seen`, so a browser that refuses to close must not
+    // be allowed to cost the verdict -- the process exits moments later regardless.
+    const closedAt = Date.now()
+    const closed = await Promise.race([
+      browser.close().then(() => true, () => true),
+      new Promise((r) => setTimeout(() => r(false), CLOSE_TIMEOUT_MS))
+    ])
+    progress(closed ? `browser closed in ${Date.now() - closedAt}ms` : `browser did not close within ${CLOSE_TIMEOUT_MS / 1000}s -- abandoning it`)
   }
 }
 
@@ -185,11 +243,14 @@ async function checkSaIngestion(apiKey) {
   const eventsUrl = `${SITE_URL}/simple/events`
   const queryUrl = saEventsQueryUrl(hostname, INGESTION_EVENT_NAME, SA_QUERY_WINDOW_DAYS)
 
-  const beforeRead = await readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME)
+  progress(`reading SA baseline count for "${INGESTION_EVENT_NAME}"`)
+  const beforeRead = await withHeartbeat('SA Stats API baseline read', () => readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME))
   if (!beforeRead.ok) {
+    progress(`baseline read failed: ${beforeRead.error.id}`)
     return evaluateIngestion({eventName: INGESTION_EVENT_NAME, error: beforeRead.error})
   }
   const before = beforeRead.total
+  progress(`baseline count is ${before}; posting synthetic event to ${eventsUrl}`)
 
   const startedAt = Date.now()
   try {
@@ -209,10 +270,20 @@ async function checkSaIngestion(apiKey) {
   }
 
   let after = before
+  let polls = 0
   const deadline = startedAt + INGESTION_POLL_TIMEOUT_MS
+  progress(`polling the Stats API every ${INGESTION_POLL_INTERVAL_MS / 1000}s for up to ${INGESTION_POLL_TIMEOUT_MS / 1000}s`)
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, INGESTION_POLL_INTERVAL_MS))
+    // The sleep is clamped to what is LEFT of the window. It used to be a flat
+    // interval taken after the `while` test, so the last iteration could start at
+    // deadline-1ms and still spend a full interval plus a full read -- pushing the
+    // phase past its own stated 180s bound by ~35s for no added signal.
+    await new Promise((r) => setTimeout(r, Math.min(INGESTION_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()))))
+    polls++
     const read = await readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME)
+    // One line per poll is what keeps this phase audible: at a 15s interval the gap
+    // between consecutive lines is an order of magnitude inside the ~600s deadline.
+    progress(`poll ${polls} at +${Math.round((Date.now() - startedAt) / 1000)}s -- ${read.ok ? `count ${read.total}` : `read failed (${read.error.id})`}`)
     if (read.ok) {
       after = read.total
       if (after > before) {
@@ -236,7 +307,7 @@ async function main() {
   // then swallows it into a green daily tile: the exact defect this channel closes.
   let seen = new Map()
   try {
-    seen = await collectBeaconEvents(SITE_URL)
+    seen = await withHeartbeat('the browser beacon phase', () => collectBeaconEvents(SITE_URL))
   } catch (err) {
     findings.push({
       severity: 'fail',
@@ -248,6 +319,7 @@ async function main() {
 
   const saApiKey = process.env.SA_API_KEY
   if (saApiKey) {
+    progress('SA_API_KEY present -- running the end-to-end ingestion confirmation')
     findings.push(...(await checkSaIngestion(saApiKey)))
   } else {
     // Explicit, visible SKIPPED marker -- never silently green when a whole

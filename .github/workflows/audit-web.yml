@@ -218,7 +218,17 @@ jobs:
       # api.github.com, which is what spec_currency reaches. The hoist still belongs here --
       # the daily evidence shows the pre-probe wedge is real and this job runs the identical
       # setup-node/pnpm prefix on the identical pool -- but a per-check hang on a THIRD-PARTY
-      # host is a separate gap, and the `timeout-minutes` ceiling above is what bounds it.
+      # host is a separate gap.
+      #
+      # AND `timeout-minutes` IS NOT WHAT BOUNDS THAT GAP. This comment used to claim it was,
+      # and that was wrong: GitHub terminates a self-hosted job at a server-side ~600s
+      # INACTIVITY deadline, so the 15-minute ceiling below (and the daily job's 20) can never
+      # fire first -- every one of the four dead jobs was stamped at 600 +/- 1s, hundreds of
+      # seconds before its own ceiling. The ceiling bounds a runner held by a wedge that keeps
+      # TALKING; it cannot bound a silent one. What actually bounds this class is per-check:
+      # a stated aggregate budget plus progress output, so no interval between two log lines
+      # approaches the deadline (audits/lib/progress.mjs). THAT is also why no third-party host
+      # is added to the probe below -- see its header for the full reasoning.
       - name: Pre-flight egress probe (runner-egress-down vs site-down)
         run: bash audits/preflight-egress.sh
 
