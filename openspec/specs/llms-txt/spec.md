@@ -543,8 +543,8 @@ contain exactly one H1. Every H2 section list item that carries an http(s) URL S
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
 Verified by `audits/__tests__/spec-cases.test.ts:123` (the five convention rules, derived cases) and
-`audits/__tests__/b2-validate-llms-txt.property.test.ts:205` (the five structural invariants as
-properties, tethered by its three `covers:` comments at `:205`, `:239`, and `:301`).
+`audits/__tests__/b2-validate-llms-txt.property.test.ts:221` (the five structural invariants as
+properties, tethered by its three `covers:` comments at `:221`, `:255`, and `:317`).
 
 SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
 section to hold a list. The producer contract test found the live index legitimately mixing file
