@@ -1,3 +1,7 @@
+> **WARNING: merging this PR deploys production.** A push to `main` runs `.github/workflows/deploy.yml`, which publishes straight to the `human-datastream` Cloudflare Pages project serving <https://jonathanlloyd.me>. There is no staging gate and no approval step.
+
+- [ ] I verified this change on the pull-request preview deployment, and I accept that merging ships it to production.
+
 ## Summary
 
 <!-- What does this PR change and why? -->
