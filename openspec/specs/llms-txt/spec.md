@@ -55,8 +55,8 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `audits/__tests__/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `6a979501dd2dd14b591158c0b503b153ddc024a57304209d9dbaa12caae6e770`, re-read
-  from the installed package at the `0.13.0` bump — and
+  beside them — sha256 `6a1afdd8f4981066a915e2b63d40f1c32e8f6a2f0f97fd95b5485737ca3a45e8`, re-read
+  from the installed package at the `0.14.1` bump — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - The dependency (atlas decision 0103, new in `0.7.0`): the tier's invariant is no longer "imports
   nothing" but "pinned, version-asserted dependencies" — the property `export-surface/extract.mjs`
