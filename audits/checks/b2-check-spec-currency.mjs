@@ -57,9 +57,30 @@
 import {createHash} from 'node:crypto'
 import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {DEFAULT_BUDGET_MS, isMain, report} from '../lib/http.mjs'
+import {createDeadline, progress, withHeartbeat} from '../lib/progress.mjs'
 import {citation, comparable, quoteSegments, readRawRules} from './b2-check-spec-drift.mjs'
 
 export const CHECK_ID = 'check-spec-currency'
+
+/**
+ * Wall-clock ceiling for the WHOLE fetch phase, across every source.
+ *
+ * MEASURED, NOT CHOSEN. This step is a 1s step: runs 34809484951 and 35564391514 both
+ * completed it in 1s, and re-running its six live calls by hand totals 1134ms (four
+ * raw.githubusercontent.com reads at 263/173/156/145ms, two api.github.com reads at
+ * 213/184ms). Weekly run 36385626855 then spent 569s on the same six calls and every one
+ * of them SUCCEEDED -- it reported `measured=2` with both blobs held and judged. Six
+ * calls at the `DEFAULT_BUDGET_MS` per-call cap is a 120s ceiling, so 569s overshot the
+ * per-call bound by 4.7x with nothing timing out.
+ *
+ * 120s is that per-call ceiling restated as an aggregate: it cannot cut any run the
+ * per-call caps would have allowed, and it is 106x the measured live cost. Exceeding it
+ * leaves the unreached sources `held: false`, which this check already reports as
+ * INDETERMINATE -- a fail finding that keeps `measured` honest rather than a silent
+ * pass. Raising this number is not the fix for a run that hits it; the fix is reading
+ * the per-source progress lines this check now prints and finding what took the time.
+ */
+export const SOURCES_BUDGET_MS = 120_000
 
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
 // this runner holds is a pair of upstream specification blobs per pinned source --
@@ -150,9 +171,14 @@ export function classifySource(url) {
   }
 }
 
-/** Default fetcher: plain text, with a timeout. Injectable for tests. */
-export async function fetchText(url) {
-  const res = await fetch(url, {signal: AbortSignal.timeout(DEFAULT_BUDGET_MS), headers: {accept: 'text/plain, text/markdown, */*'}})
+/**
+ * Default fetcher: plain text, with a timeout. Injectable for tests.
+ *
+ * `budgetMs` lets the caller hand down whatever is left of the phase budget, so the last
+ * source of a slow run cannot spend a fresh 20s past an already-exhausted aggregate.
+ */
+export async function fetchText(url, {budgetMs = DEFAULT_BUDGET_MS} = {}) {
+  const res = await fetch(url, {signal: AbortSignal.timeout(Math.min(DEFAULT_BUDGET_MS, budgetMs)), headers: {accept: 'text/plain, text/markdown, */*'}})
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`)
   }
@@ -171,9 +197,9 @@ export async function fetchText(url) {
  *
  * @returns {Promise<string|null>} 40-hex commit sha, or null when unresolved
  */
-export async function fetchCurrentCommit({owner, repo, path}, {fetchJson = defaultFetchJson} = {}) {
+export async function fetchCurrentCommit({owner, repo, path}, {fetchJson = defaultFetchJson, budgetMs = DEFAULT_BUDGET_MS} = {}) {
   try {
-    const commits = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/commits?path=${encodeURIComponent(path)}&per_page=1`)
+    const commits = await fetchJson(`https://api.github.com/repos/${owner}/${repo}/commits?path=${encodeURIComponent(path)}&per_page=1`, {budgetMs})
     const sha = Array.isArray(commits) ? commits[0]?.sha : undefined
     return typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha) ? sha : null
   } catch {
@@ -181,13 +207,13 @@ export async function fetchCurrentCommit({owner, repo, path}, {fetchJson = defau
   }
 }
 
-async function defaultFetchJson(url) {
+async function defaultFetchJson(url, {budgetMs = DEFAULT_BUDGET_MS} = {}) {
   // GITHUB_TOKEN raises the unauthenticated 60/hr per-IP ceiling, which this
   // self-hosted runner shares with every other job on the host. Absent, the call
   // still works and simply degrades to null under contention.
   const token = process.env.GITHUB_TOKEN
   const res = await fetch(url, {
-    signal: AbortSignal.timeout(DEFAULT_BUDGET_MS),
+    signal: AbortSignal.timeout(Math.min(DEFAULT_BUDGET_MS, budgetMs)),
     headers: {accept: 'application/vnd.github+json', ...(token ? {authorization: `Bearer ${token}`} : {})}
   })
   if (!res.ok) {
@@ -232,23 +258,77 @@ export function probedRules(rules) {
  * BOTH blobs are required: comparing bytes is the verdict, so holding only one of them
  * is not a partial answer, it is no answer.
  *
+ * EVERY AWAIT HERE IS NARRATED, AND THAT IS THE POINT. This loop was the entire body of
+ * weekly run 36385626855's 569s silent interval: the step's first output line is
+ * the final report line, so a reader got one 569s gap and no way to tell which of the six calls
+ * took it. A per-call line names the source and its elapsed cost, so the next occurrence
+ * localises itself; the heartbeat covers the awaits BETWEEN those lines so no interval
+ * can reach the ~600s inactivity deadline even if one call stalls outright.
+ *
  * @returns {Promise<Map<string, object>>} keyed by the rule's pinnedAt
  */
-export async function fetchCurrencySources(rules, {fetchText: fetchImpl = fetchText, fetchCommit = fetchCurrentCommit} = {}) {
+export async function fetchCurrencySources(rules, {
+  fetchText: fetchImpl = fetchText,
+  fetchCommit = fetchCurrentCommit,
+  budgetMs = SOURCES_BUDGET_MS,
+  now = Date.now,
+  log = console.log
+} = {}) {
   const sources = new Map()
-  for (const url of new Set(probedRules(rules).map(({rule}) => citation(rule).pinnedAt))) {
+  const deadline = createDeadline(budgetMs, {now})
+  const urls = [...new Set(probedRules(rules).map(({rule}) => citation(rule).pinnedAt))]
+  progress(`resolving currency for ${urls.length} distinct pinned source(s), ${Math.round(budgetMs / 1000)}s budget for the phase`, {log})
+
+  for (const [index, url] of urls.entries()) {
+    const marker = `[${index + 1}/${urls.length}]`
     const source = classifySource(url)
     if (source.kind !== 'github-raw') {
+      progress(`${marker} ${source.kind} -- no current version at this identity, nothing to fetch: ${url}`, {log})
       sources.set(url, {...source, held: false})
       continue
     }
+
+    // The aggregate bound. An exhausted budget is reported as INDETERMINATE through the
+    // same `held: false` path an unreachable source takes, because that is what it is:
+    // the probe did not get to look. It must never read as clean.
+    if (deadline.expired()) {
+      progress(`${marker} SKIPPED -- ${Math.round(deadline.elapsedMs() / 1000)}s phase budget already spent: ${url}`, {log})
+      sources.set(url, {
+        ...source,
+        held: false,
+        error: `phase budget of ${Math.round(budgetMs / 1000)}s was already spent by earlier sources before this one was attempted`
+      })
+      continue
+    }
+
+    const startedAt = now()
     try {
-      const [pinnedText, currentText] = [await fetchImpl(url), await fetchImpl(source.currentUrl)]
-      sources.set(url, {...source, held: true, pinnedText, currentText, currentCommit: await fetchCommit(source)})
+      const pinnedText = await withHeartbeat(`pinned blob ${url}`, () => fetchImpl(url, {budgetMs: deadline.remainingMs()}), {log, now})
+      progress(`${marker} pinned blob held in ${now() - startedAt}ms (${pinnedText.length}B)`, {log})
+
+      const currentAt = now()
+      const currentText = await withHeartbeat(`current blob ${source.currentUrl}`, () => fetchImpl(source.currentUrl, {budgetMs: deadline.remainingMs()}), {
+        log,
+        now
+      })
+      progress(`${marker} current blob held in ${now() - currentAt}ms (${currentText.length}B)`, {log})
+
+      // Enrichment only -- `fetchCurrentCommit` swallows its own failures and returns
+      // null, so this await can degrade the report but never the verdict.
+      const commitAt = now()
+      const currentCommit = await withHeartbeat(`commit lookup for ${source.owner}/${source.repo}`, () =>
+        fetchCommit(source, {budgetMs: deadline.remainingMs()}), {log, now})
+      progress(`${marker} commit lookup ${currentCommit ? `resolved ${currentCommit}` : 'degraded to null'} in ${now() - commitAt}ms`, {log})
+
+      sources.set(url, {...source, held: true, pinnedText, currentText, currentCommit})
     } catch (err) {
-      sources.set(url, {...source, held: false, error: err instanceof Error ? err.message : String(err)})
+      const message = err instanceof Error ? err.message : String(err)
+      progress(`${marker} NOT HELD after ${now() - startedAt}ms (${message}): ${url}`, {log})
+      sources.set(url, {...source, held: false, error: message})
     }
   }
+
+  progress(`fetch phase finished in ${Math.round(deadline.elapsedMs() / 1000)}s`, {log})
   return sources
 }
 

@@ -20,7 +20,8 @@ import {
   judgeCurrency,
   probedRules,
   REPIN_GRACE_MS,
-  REPIN_GRACE_RUNS
+  REPIN_GRACE_RUNS,
+  SOURCES_BUDGET_MS
 } from '../checks/b2-check-spec-currency.mjs'
 import {citation, pinned, readRawRules} from '../checks/b2-check-spec-drift.mjs'
 
@@ -347,5 +348,95 @@ describe('check-spec-currency: the measurement channel', () => {
     const sources: string[] = probedRules(liveRules).map(({rule}) => citation(rule)!.pinnedAt)
     expect(sources.some((url) => url.includes('AnswerDotAI/llms-txt'))).toBe(true)
     expect(liveRules.filter(({rel}) => rel.startsWith('llms-txt/')).every(({rule}) => rule.rule_class !== 'conformance')).toBe(true)
+  })
+})
+
+// THE 569s RECEIPT (weekly run 36385626855). This step is a 1s step -- runs 34809484951 and
+// 35564391514 both measured 1s, and re-running its six live calls by hand totals 1134ms -- yet
+// that run spent 569s in `fetchCurrencySources` and reported `success` with `measured=2`, both
+// blobs held and judged. Every one of the six calls SUCCEEDED, so the `DEFAULT_BUDGET_MS`
+// per-call cap bounded nothing in aggregate: six calls at 20s is a 120s ceiling and the run
+// overshot it 4.7x. GitHub then killed the job at the ~600s inactivity deadline with
+// `B3 -- Lighthouse CI` cancelled at 32s, so one silent advisory check consumed the entire
+// weekly budget.
+//
+// Two separate properties are pinned below, because the fix has two halves and either one
+// alone leaves the lane broken: the phase is BOUNDED (so 569s cannot recur whatever leaked),
+// and the phase is AUDIBLE (so the next occurrence localises itself instead of presenting as
+// one undifferentiated gap).
+describe('check-spec-currency: the phase budget and its progress channel', () => {
+  it('bounds the whole fetch phase at the ceiling the per-call cap already implied', () => {
+    // 120s is 6 calls x the 20s DEFAULT_BUDGET_MS per-call cap: an aggregate restatement of a
+    // bound that already existed per call, so it cannot cut any run the per-call caps allowed.
+    expect(SOURCES_BUDGET_MS).toBe(120_000)
+    // Strictly under the ~600s deadline, which is the only number that matters here. A budget
+    // at or above it would be decorative.
+    expect(SOURCES_BUDGET_MS).toBeLessThan(600_000)
+  })
+
+  it('reports a source it never attempted as INDETERMINATE rather than clean, once the budget is spent', async () => {
+    // Two distinct sources, a budget already exhausted by the first. The second is never
+    // dialled, and the convention this check states in its own header -- a fetch failure is
+    // INDETERMINATE, never clean -- has to hold for a budget stop exactly as for a timeout.
+    const other = GITHUB_URL.replace('AnswerDotAI/llms-txt', 'AnswerDotAI/other-repo')
+    let clock = 0
+    const sources = await fetchCurrencySources([ruleWith(GITHUB_URL), ruleWith(other, QUOTE, 'llms-txt/other.rule.json')], {
+      fetchText: async () => {
+        clock += 200_000 // the first source alone overruns the phase budget
+        return PINNED_BODY
+      },
+      fetchCommit: noCommitLookup,
+      now: () => clock,
+      log: () => undefined
+    })
+
+    const skipped = sources.get(other) as {held: boolean; error: string}
+    expect(skipped.held).toBe(false)
+    expect(skipped.error).toContain('budget')
+
+    const findings = judgeCurrency([ruleWith(GITHUB_URL), ruleWith(other, QUOTE, 'llms-txt/other.rule.json')], sources, {nowMs: NOW_MS}) as Finding[]
+    const indeterminate = findings.find((f) => f.id === 'spec-currency-indeterminate')
+    expect(indeterminate?.severity).toBe('fail')
+    // And it does not count toward `measured`, so an unreached source cannot ping a green tile.
+    expect([...sources.values()].filter((s) => (s as {held: boolean}).held)).toHaveLength(1)
+  })
+
+  it('narrates every source it dials, so a slow run localises itself instead of going dark', async () => {
+    const log = vi.fn()
+    await fetchCurrencySources([ruleWith(GITHUB_URL), ruleWith(RFC_URL, QUOTE, 'security-txt/x.rule.json')], {
+      fetchText: fetchServing(PINNED_BODY, PINNED_BODY),
+      fetchCommit: noCommitLookup,
+      log
+    })
+    const lines = log.mock.calls.map(([line]) => line as string)
+
+    // The phase announces its own shape up front and its cost at the end...
+    expect(lines[0]).toContain('2 distinct pinned source(s)')
+    expect(lines.at(-1)).toContain('fetch phase finished')
+    // ...each applicable source reports both blobs separately, which is what tells a reader
+    // WHICH of the two fetches was slow -- the distinction the 569s gap destroyed...
+    expect(lines.some((l) => l.includes('[1/2]') && l.includes('pinned blob held'))).toBe(true)
+    expect(lines.some((l) => l.includes('[1/2]') && l.includes('current blob held'))).toBe(true)
+    expect(lines.some((l) => l.includes('[1/2]') && l.includes('commit lookup'))).toBe(true)
+    // ...and a not-applicable source still speaks, so "nothing to fetch" never looks like a hang.
+    expect(lines.some((l) => l.includes('[2/2]') && l.includes('immutable-publication'))).toBe(true)
+  })
+
+  it('hands each fetch what is left of the phase budget, never a fresh full one', async () => {
+    const budgets: (number | undefined)[] = []
+    let clock = 0
+    await fetchCurrencySources([ruleWith(GITHUB_URL)], {
+      fetchText: async (_url: string, opts?: {budgetMs?: number}) => {
+        budgets.push(opts?.budgetMs)
+        clock += 30_000
+        return PINNED_BODY
+      },
+      fetchCommit: noCommitLookup,
+      now: () => clock,
+      log: () => undefined
+    })
+    // The pinned blob sees the full budget; the current blob sees it minus what the first spent.
+    expect(budgets[0]).toBe(SOURCES_BUDGET_MS)
+    expect(budgets[1]).toBe(SOURCES_BUDGET_MS - 30_000)
   })
 })
