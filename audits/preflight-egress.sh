@@ -16,6 +16,33 @@
 #      allowlist is missing the site host (the exact 2026-08-17 failure), not a site
 #      outage. (A site that is merely returning 5xx still answers at the transport layer,
 #      so it is NOT flagged here — that is left to the app-level smoke.)
+#
+# TWO HOSTS, DELIBERATELY, AND THE LIST DOES NOT GROW. This probe is structurally blind to
+# the hosts that actually hung the two 2026-09-28 jobs: `B2 -- external spec currency`
+# dials raw.githubusercontent.com and api.github.com, and `B6 -- analytics beacons` dials
+# simpleanalytics.com, none of which are named here. It PASSED in 0s in both runs that then
+# died at 600s. That gap is real, and it is answered with per-check bounded budgets and
+# progress output (audits/lib/progress.mjs), NOT by adding those hosts here. Four reasons,
+# in order of weight:
+#
+#   1. WRONG BLAST RADIUS. This step is the only one in the tier that is NOT
+#      `continue-on-error`, so it hard-fails the whole job by design. Dialing a third-party
+#      host here would let one upstream blip red every sibling check -- converting a
+#      localized advisory finding in one weekly report-only check into a tier-wide outage.
+#      Strictly worse than the thing being fixed.
+#   2. WRONG QUESTION. The probe answers a binary infrastructure question -- "does this
+#      runner have egress, and does it reach the site under test" -- once, before any check.
+#      "Did this check's upstream stall mid-run" is a different question, and it belongs to
+#      the check that owns the host and knows what an unreachable one MEANS for its verdict.
+#      spec_currency already has that answer: INDETERMINATE, never clean.
+#   3. WRONG MOMENT. A probe is a point-in-time sample. Passing at T+0 says nothing about a
+#      stall at T+60, which is exactly the shape of both failures.
+#   4. A PROBE THAT DIALS EVERYTHING IS A SECOND FLAKINESS SOURCE. Every host added here is
+#      another third party whose bad minute fails our lane for no finding.
+#
+# So: keep CONTROL and SITE. If a future check needs a NEW host proven reachable before the
+# tier commits to expensive work, that is an argument for that check bounding its own
+# fetches, not for widening this one.
 set -uo pipefail
 
 # The site under test.
