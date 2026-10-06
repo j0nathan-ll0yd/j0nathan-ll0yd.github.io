@@ -55,8 +55,8 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `audits/__tests__/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `6a979501dd2dd14b591158c0b503b153ddc024a57304209d9dbaa12caae6e770`, re-read
-  from the installed package at the `0.13.0` bump — and
+  beside them — sha256 `6a1afdd8f4981066a915e2b63d40f1c32e8f6a2f0f97fd95b5485737ca3a45e8`, re-read
+  from the installed package at the `0.14.1` bump — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - The dependency (atlas decision 0103, new in `0.7.0`): the tier's invariant is no longer "imports
   nothing" but "pinned, version-asserted dependencies" — the property `export-surface/extract.mjs`
@@ -543,8 +543,8 @@ contain exactly one H1. Every H2 section list item that carries an http(s) URL S
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
 Verified by `audits/__tests__/spec-cases.test.ts:123` (the five convention rules, derived cases) and
-`audits/__tests__/b2-validate-llms-txt.property.test.ts:205` (the five structural invariants as
-properties, tethered by its three `covers:` comments at `:205`, `:239`, and `:301`).
+`audits/__tests__/b2-validate-llms-txt.property.test.ts:221` (the five structural invariants as
+properties, tethered by its three `covers:` comments at `:221`, `:255`, and `:317`).
 
 SPEC VERSION 3, dated 2026-08-13. v1 required every list item to be a markdown link and every H2
 section to hold a list. The producer contract test found the live index legitimately mixing file

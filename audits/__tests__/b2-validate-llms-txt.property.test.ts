@@ -39,10 +39,26 @@ import {decodeLlmsTxt, encodeLlmsTxt, parseLlmsTxt, stripLines} from '@j0nathan-
 import {validateLlmsTxt} from '../checks/b2-llms.mjs'
 import {wellFormedLlmsTxtArb} from './llms-txt-arbitraries'
 
-// The contract ships JSDoc types, not a .d.ts, and tests/** is outside the
-// tsconfig include, so the model shape is restated here as a local alias for
-// readability. It is a NAME for the contract's LlmsTxtDoc, not a second
-// definition of it -- nothing here decides what is structurally valid.
+// This alias predates the contract having types at all, and 0.14.1 ended that: it is the
+// FIRST release to ship `.d.mts` declarations, with all 15 code subpaths carrying
+// `{types, default}` where 0.13.3 shipped zero. The alias is kept DELIBERATELY for the
+// 0.14.1 round (atlas decision 0148), which moves the pin across five consumers and changes
+// no consumer code. It is a NAME for the contract's LlmsTxtDoc, not a second definition of
+// it -- nothing here decides what is structurally valid.
+//
+// It is now load-bearing, which the old wording did not have to say. The real declarations
+// split the model: `parseLlmsTxt` returns `LlmsTxtDoc` with `title: string | null`, while
+// `encodeLlmsTxt` takes the narrower `EncodableLlmsTxtDoc` with `title: string` -- the
+// decision-0129 C1 narrowing, where encode-accepted implies checker-valid. So handing a
+// parsed doc straight to encode is a type error, and the `as` casts below absorb it.
+// Measured at the 0.14.1 adoption: that is the ONLY new error the real declarations surface
+// over audits/** + tests/** + functions/** (131 errors at 0.13.3, 132 at 0.14.1).
+//
+// NOTHING IN THE REPO SEES IT. tsconfig.json excludes both `audits/__tests__/**` and
+// `tests/**`, the tree carries no `@types/node`, and vitest transpiles without checking --
+// so these files are not typechecked by any gate, at either version. Trading the alias for
+// the real imports means closing that blind spot first. That is an owner call, not a
+// dependency bump.
 type LlmsTxtLink = {label: string; url: string; notes?: string}
 type LlmsTxtSection = {name: string; prose: string[]; links: LlmsTxtLink[]}
 // The source-line shadow tree `parseLlmsTxt` began returning in estate-contracts 0.13.0
