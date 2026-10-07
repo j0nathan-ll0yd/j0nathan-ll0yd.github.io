@@ -4,6 +4,7 @@ import Dashboard from './Dashboard.astro';
 import { SITE_PAGE_PATHS } from '../../functions/_lib/site-paths';
 import { AGENT_PATHS } from '../../functions/_lib/agent-paths.mjs';
 import { llm } from '@j0nathan-ll0yd/copy';
+import { pagePath } from '../lib/page-path';
 
 // The text-page layout shared by /about, /contact, /developers, and /privacy: one card
 // with a heading, the page's sections in the default slot, and a footer that links the
@@ -27,7 +28,7 @@ const pages = [
   { href: AGENT_PATHS.developers, label: llm.developers.title },
   { href: SITE_PAGE_PATHS.privacy, label: id.privacy.title },
 ];
-const current = Astro.url.pathname.replace(/\/$/, '');
+const current = pagePath(Astro.url.pathname);
 ---
 <Dashboard title={title} description={description} robots={robots} pageType={pageType}>
   <main id="main-content" class="info-page">

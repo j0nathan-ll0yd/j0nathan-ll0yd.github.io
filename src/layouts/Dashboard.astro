@@ -3,6 +3,7 @@ import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
 import { LLMS_TXT_PATH } from '../../functions/_lib/llms-artifacts';
 import { SITE_PAGE_PATHS, SITEMAP_INDEX_PATH } from '../../functions/_lib/site-paths';
+import { pagePath } from '../lib/page-path';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
@@ -16,7 +17,8 @@ const {
   pageType = 'WebPage',
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
-const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
+const servedPath = pagePath(Astro.url.pathname);
+const canonicalURL = siteUrl + (servedPath === '/' ? '' : servedPath);
 const ogImage = new URL('/assets/og-image.png', Astro.site);
 // Cloudflare Web Analytics site token (public — appears in the page markup). The
 // beacon is served first-party via /cf-insights.js; see the tag before </body>.
@@ -28,7 +30,7 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
 // Dataset are gated to it; other pages emit a plain WebPage instead. WebSite and
 // the full Person are site-wide entities and appear on every page (WebSite is
 // slimmed on non-home pages so the full node is not repeated per page).
-const isHome = Astro.url.pathname === '/';
+const isHome = servedPath === '/';
 
 // Profile's last content-modification date. This is a STATIC literal, not the
 // build time: the ProfilePage content (bio, job title, links) changes rarely and

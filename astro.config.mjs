@@ -21,7 +21,11 @@ export default defineConfig({
   // baselines). Pin to `true` to keep Astro 6's HTML-aware whitespace behavior so
   // the upgrade is visually identical and the CI-parity baselines stay valid.
   compressHTML: true,
-  build: {inlineStylesheets: 'always'},
+  // `file` emits about.html rather than about/index.html. Cloudflare Pages serves a
+  // file-format page at its extensionless path, so /about answers 200 and matches the
+  // canonical and sitemap URL that trailingSlash: 'never' writes. The directory format
+  // made Pages 308 every page to a trailing-slash URL no canonical names.
+  build: {inlineStylesheets: 'always', format: 'file'},
   vite: {
     define: {
       // Expose the build-time fixture-variation selector to source. Astro/Vite

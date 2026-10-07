@@ -27,9 +27,9 @@ function visibleText($: CheerioAPI): string {
 }
 
 const TEXT_PAGES = [
-  {file: 'about/index.html', path: '/about', title: identity.about.title},
-  {file: 'contact/index.html', path: '/contact', title: identity.contact.title},
-  {file: 'developers/index.html', path: AGENT_PATHS.developers, title: llm.developers.title}
+  {file: 'about.html', path: '/about', title: identity.about.title},
+  {file: 'contact.html', path: '/contact', title: identity.contact.title},
+  {file: 'developers.html', path: AGENT_PATHS.developers, title: llm.developers.title}
 ]
 
 describe.each(TEXT_PAGES)('$path', ({file, path: pagePath, title}) => {
@@ -65,7 +65,7 @@ describe.each(TEXT_PAGES)('$path', ({file, path: pagePath, title}) => {
 })
 
 describe('/about', () => {
-  const $ = page('about/index.html')
+  const $ = page('about.html')
 
   it('renders every about section, with person.longBio under the background heading', () => {
     const sections = $('main section').map((_, s) => ({heading: $(s).find('h2').text().trim(), body: $(s).find('p').text().trim()})).get()
@@ -79,7 +79,7 @@ describe('/about', () => {
 })
 
 describe('/contact', () => {
-  const $ = page('contact/index.html')
+  const $ = page('contact.html')
   const [linkedin, github] = identity.person.sameAs
 
   it('shows only the channels the site already publishes: the email, LinkedIn, and GitHub', () => {
@@ -100,7 +100,7 @@ describe('/contact', () => {
 })
 
 describe('/developers', () => {
-  const $ = page('developers/index.html')
+  const $ = page('developers.html')
   const d = llm.developers
 
   it('renders every developer section heading from copy', () => {
@@ -150,7 +150,7 @@ describe('/developers', () => {
 })
 
 describe('/privacy on the shared layout', () => {
-  const $ = page('privacy/index.html')
+  const $ = page('privacy.html')
 
   it('stays noindex and keeps its six sections', () => {
     expect($('meta[name="robots"]').attr('content')).toBe('noindex, follow')

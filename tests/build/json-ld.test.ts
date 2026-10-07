@@ -200,10 +200,10 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
 describe('JSON-LD @graph per-page shape and @id resolution', () => {
   const pages = [
     {label: 'home', file: 'index.html', isHome: true, webPageType: null},
-    {label: 'privacy', file: 'privacy/index.html', isHome: false, webPageType: 'WebPage'},
-    {label: 'about', file: 'about/index.html', isHome: false, webPageType: 'AboutPage'},
-    {label: 'contact', file: 'contact/index.html', isHome: false, webPageType: 'ContactPage'},
-    {label: 'developers', file: 'developers/index.html', isHome: false, webPageType: 'WebPage'},
+    {label: 'privacy', file: 'privacy.html', isHome: false, webPageType: 'WebPage'},
+    {label: 'about', file: 'about.html', isHome: false, webPageType: 'AboutPage'},
+    {label: 'contact', file: 'contact.html', isHome: false, webPageType: 'ContactPage'},
+    {label: 'developers', file: 'developers.html', isHome: false, webPageType: 'WebPage'},
     {label: '404', file: '404.html', isHome: false, webPageType: 'WebPage'}
   ]
 
