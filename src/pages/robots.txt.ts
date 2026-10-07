@@ -2,11 +2,12 @@ import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 // /llms.txt has no dedicated LLM_CONTENT_PATHS constant. The path is derived once, in
 // functions/_lib/llms-artifacts.ts, from the contract's own distribution registry.
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
+import {SITEMAP_INDEX_PATH} from '../../functions/_lib/site-paths'
 
 export const prerender = true
 
 export function GET(): Response {
-  const sitemap = `${SITE_URL}/sitemap-index.xml`
+  const sitemap = `${SITE_URL}${SITEMAP_INDEX_PATH}`
 
   const body = `# Crawlers
 User-agent: *

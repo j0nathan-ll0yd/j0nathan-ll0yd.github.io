@@ -512,7 +512,19 @@ other response (security headers, Content-Usage, discovery Link header). Every h
 representation SHALL carry `Vary: Accept`, merged into any existing `Vary`. A negotiated HEAD
 response SHALL carry no body.
 
-Verified by `tests/unit/middleware-negotiation.test.ts:58` (decision table, scope, response classes),
+404 EXCEPTION (atlas decision 0158). When a `GET`/`HEAD` request on any path resolves to 404 and
+the same `prefersMarkdown` decision selects markdown, the middleware SHALL replace the HTML 404
+page with a short markdown body: a heading and an explanation of at least 20 characters from
+copy `llm.notFound`, and links to /llms.txt, /index.md, /sitemap-index.xml, and /developers. The
+status SHALL stay 404, the `Content-Type` SHALL be `text/markdown; charset=utf-8`, and the
+response SHALL pass through the same header pipeline. Every other `Accept` value, an absent
+`Accept`, and an unsafe method SHALL keep the HTML 404. Both 404 representations SHALL carry
+`Vary: Accept` and `CDN-Cache-Control: no-store`, so an edge cache HIT cannot answer without the
+negotiation. A markdown 404 HEAD response SHALL carry no body. Paths that `public/_routes.json`
+excludes from Functions never reach the middleware and keep the static HTML 404.
+
+Verified by `tests/unit/middleware-negotiation.test.ts:61` (decision table, scope, response classes),
+by `tests/unit/middleware-negotiation.test.ts:290` (the 404 exception),
 and verified by `tests/unit/cloudfront-proxy.test.ts:553` (explicit routes ignore Accept).
 
 #### Scenario: An agent asks the homepage for markdown
@@ -535,6 +547,15 @@ and verified by `tests/unit/cloudfront-proxy.test.ts:553` (explicit routes ignor
   browser-typical value that does not name `text/markdown`
 - **WHEN** the middleware decides the representation
 - **THEN** it SHALL serve HTML
+
+#### Scenario: An agent asks for markdown on a path that does not exist
+
+- **GIVEN** a GET /no-such-path request with `Accept: text/markdown`
+- **WHEN** the site resolves the path to 404
+- **THEN** the middleware SHALL answer 404 with `Content-Type: text/markdown; charset=utf-8`, the
+  `llm.notFound` heading and body, links to /llms.txt, /index.md, /sitemap-index.xml, and
+  /developers, `Vary: Accept`, and the pipeline's security headers
+- **AND** the same request with a browser-typical `Accept` SHALL receive the HTML 404 page
 
 ### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 
