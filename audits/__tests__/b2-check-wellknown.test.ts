@@ -4,6 +4,8 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {
   judgeMcpExchange,
+  judgeModernExchange,
+  MODERN_PROTOCOL_VERSION,
   parseMcpBody,
   PINNED_AGENT_SKILLS_SCHEMA,
   PINNED_ARD_SPEC_VERSION,
@@ -186,15 +188,50 @@ describe('MCP liveness probe', () => {
     expect(() => parseMcpBody('event: message\n\n', 'text/event-stream')).toThrow()
   })
 
-  it('sends initialize then tools/list on the negotiated revision, and counts a remote that answered', async () => {
-    const calls: Array<{method: string; protocolVersion?: string}> = []
-    const post = async (_url: string, message: {method: string}, protocolVersion?: string) => {
-      calls.push({method: message.method, protocolVersion})
+  const discover = {
+    jsonrpc: '2.0',
+    id: 3,
+    result: {supportedVersions: [MODERN_PROTOCOL_VERSION], _meta: {'io.modelcontextprotocol/serverInfo': {name: card.name, version: card.version}}}
+  }
+  const called = {jsonrpc: '2.0', id: 4, result: {content: [{type: 'text', text: '{}'}]}}
+
+  it('runs both eras: initialize and tools/list, then server/discover and a tools/call per tool', async () => {
+    const calls: Array<{method: string; headers?: Record<string, string>; meta?: unknown}> = []
+    const post = async (_url: string, message: {method: string; params?: {_meta?: unknown}}, headers?: Record<string, string>) => {
+      calls.push({method: message.method, headers, meta: message.params?._meta})
+      return ({initialize, 'tools/list': toolsList, 'server/discover': discover} as Record<string, unknown>)[message.method] ?? called
+    }
+    const result = await probeMcpRemotes(card, post)
+    expect(calls.map((c) => c.method)).toEqual(['initialize', 'tools/list', 'server/discover', 'tools/call'])
+    expect(calls[1]!.headers).toEqual({'MCP-Protocol-Version': '2025-11-25'})
+    expect(calls[3]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_profile'})
+    expect(calls[3]!.meta).toEqual(expect.objectContaining({'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION}))
+    expect(result).toEqual({measured: 2, findings: []})
+  })
+
+  it('a discover that does not offer the modern revision fails', () => {
+    const legacyOnly = {...discover, result: {...discover.result, supportedVersions: ['2025-11-25']}}
+    expect(judgeModernExchange({discover: legacyOnly, calls: [], card}).map((f) => f.id)).toEqual(['mcp-discover'])
+  })
+
+  it('a tools/call that returns isError fails; a suppressed answer is a valid result', () => {
+    const failed = {jsonrpc: '2.0', id: 4, result: {isError: true, content: [{type: 'text', text: '{"failed":true}'}]}}
+    const suppressed = {jsonrpc: '2.0', id: 5, result: {content: [{type: 'text', text: '{"suppressed":true,"reason":"focus mode active"}'}]}}
+    const findings = judgeModernExchange({discover, calls: [{name: 'a', response: failed}, {name: 'b', response: suppressed}], card})
+    expect(findings.map((f) => f.id)).toEqual(['mcp-tool-call'])
+    expect(findings[0]!.message).toContain('tools/call a')
+  })
+
+  it('a modern-era failure is its own finding and the legacy era still counts', async () => {
+    const post = async (_url: string, message: {method: string}) => {
+      if (message.method === 'server/discover') {
+        throw new Error('HTTP 400 from server/discover')
+      }
       return message.method === 'initialize' ? initialize : toolsList
     }
     const result = await probeMcpRemotes(card, post)
-    expect(calls).toEqual([{method: 'initialize', protocolVersion: undefined}, {method: 'tools/list', protocolVersion: '2025-11-25'}])
-    expect(result).toEqual({measured: 1, findings: []})
+    expect(result.measured).toBe(1)
+    expect(result.findings.map((f) => f.id)).toEqual(['mcp-modern-unreachable'])
   })
 
   // The receipt: the CloudFront transport.url answered an MCP initialize with an HTML 403.

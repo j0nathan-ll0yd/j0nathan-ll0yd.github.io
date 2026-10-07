@@ -16,7 +16,8 @@ import {
   SERVER_CARD_MEDIA_TYPE,
   TOOLS
 } from '../../functions/_lib/agent-catalog.mjs'
-import {allowedHostnames, DISCOVERY_CACHE_SECONDS, PAGES_PROJECT_HOST} from '../../functions/_lib/mcp-server'
+import {DISCOVERY_CACHE_SECONDS} from '../../functions/_lib/agent-catalog.mjs'
+import {allowedHostnames, PAGES_PROJECT_HOST, STALE_META_KEY} from '../../functions/_lib/mcp-server'
 import {onRequest as mcpRoute} from '../../functions/mcp/index'
 import {onRequest as serverCardRoute} from '../../functions/mcp/server-card'
 
@@ -154,9 +155,30 @@ describe('MCP lifecycle', () => {
     expect(response.status).toBe(405)
   })
 
-  it('marks every response no-store', async () => {
-    const {response} = await modern('tools/list')
-    expect(response.headers.get('Cache-Control')).toBe('no-store')
+  it('marks every response no-store, rejections included', async () => {
+    expect((await modern('tools/list')).response.headers.get('Cache-Control')).toBe('no-store')
+    expect((await modern('tools/list', {}, undefined, {origin: 'https://evil.example'})).response.headers.get('Cache-Control')).toBe('no-store')
+  })
+
+  // The lists change only on deploy. A listen stream must acknowledge and close, not idle
+  // open on a per-request event bus that never publishes.
+  it('closes a subscriptions/listen stream right after the acknowledgement', async () => {
+    const response = await post({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'subscriptions/listen',
+      params: {notifications: {toolsListChanged: true, resourcesListChanged: true}, _meta: META}
+    }, {'MCP-Protocol-Version': MCP_PROTOCOL_VERSION, 'Mcp-Method': 'subscriptions/listen'})
+    expect(response.status).toBe(200)
+    const text = await Promise.race([response.text(), new Promise<string>((resolve) => setTimeout(() => resolve('STILL OPEN'), 1000))])
+    expect(text).not.toBe('STILL OPEN')
+    expect(text).toContain('notifications/subscriptions/acknowledged')
+    expect(text).toContain('"resultType":"complete"')
+  })
+
+  it('declares that the tool and resource lists never change at runtime', async () => {
+    const {body} = await modern('server/discover')
+    expect(body.result?.capabilities).toEqual(expect.objectContaining({tools: {listChanged: false}, resources: {listChanged: false}}))
   })
 })
 
@@ -258,6 +280,45 @@ describe('resources', () => {
     expect(JSON.parse(contents[0]!.text)).toEqual({suppressed: true, reason: 'focus mode active'})
   })
 
+  // The gate runs before the last-known-good fallback, so a stale copy cannot outlive a hiding transition.
+  it('never serves a stale copy while hiding, even when the edge cache holds one', async () => {
+    vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(new Response(JSON.stringify(BOOKS))), put: vi.fn()}})
+    currentFocus = HIDING_FOCUS_MODES[0]
+    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
+    const {body} = await modern('resources/read', {uri}, uri)
+    const contents = body.result?.contents as Array<{text: string}>
+    expect(JSON.parse(contents[0]!.text)).toEqual({suppressed: true, reason: 'focus mode active'})
+  })
+
+  it('marks data served from the last-known-good copy with the time it was stored', async () => {
+    const stored = new Response(JSON.stringify(BOOKS), {headers: {'X-Proxy-Lkg-Stored-At': '2026-10-07T00:00:00.000Z'}})
+    vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(stored), put: vi.fn()}})
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus})) : new Response('down', {status: 503}))
+    )
+    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
+    const {body} = await modern('resources/read', {uri}, uri)
+    const contents = body.result?.contents as Array<{text: string; _meta?: Record<string, string>}>
+    expect(contents[0]!.text).toBe(JSON.stringify(BOOKS))
+    expect(contents[0]!._meta?.[STALE_META_KEY]).toBe('2026-10-07T00:00:00.000Z')
+  })
+
+  it('reads the focus signal like the gate does: no edge cache, no last-known-good copy', async () => {
+    const put = vi.fn()
+    vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(new Response('{"currentFocus":"stale"}')), put}})
+    fetchMock.mockImplementation(() => Promise.resolve(new Response('down', {status: 503})))
+    const {body} = await modern('resources/read', {uri: FOCUS_URL}, FOCUS_URL)
+    expect(body.error).toBeDefined()
+    expect(JSON.stringify(body)).not.toContain('stale')
+    for (const [url, init] of fetchMock.mock.calls) {
+      if (url === FOCUS_URL) {
+        expect(init).toEqual(expect.objectContaining({cache: 'no-store'}))
+        expect(init.cf).toBeUndefined()
+      }
+    }
+    expect(put).not.toHaveBeenCalled()
+  })
+
   it('resources/read of the focus signal is never gated, as at the edge', async () => {
     currentFocus = HIDING_FOCUS_MODES[0]
     const {body} = await modern('resources/read', {uri: FOCUS_URL}, FOCUS_URL)
@@ -285,9 +346,11 @@ describe('/mcp/server-card', () => {
     expect(readFileSync('public/.well-known/mcp/server-card.json', 'utf8')).toBe(SERVER_CARD_JSON)
   })
 
-  it('answers a matching If-None-Match with 304', async () => {
+  it('answers a matching If-None-Match with 304, by weak comparison', async () => {
     const etag = (await card()).headers.get('ETag')!
     expect((await card('GET', {'If-None-Match': etag})).status).toBe(304)
+    expect((await card('GET', {'If-None-Match': `W/${etag}`})).status).toBe(304)
+    expect((await card('GET', {'If-None-Match': '"other"'})).status).toBe(200)
   })
 
   it('answers a CORS preflight with 204 and other methods with 405', async () => {

@@ -675,7 +675,7 @@ jobs:
         continue-on-error: true
         run: node audits/checks/b2-check-security-txt.mjs
 
-      - name: B2 -- .well-known agent-discovery structural checks
+      - name: B2 -- .well-known agent discovery, schema conformance, and live MCP probe
         id: wellknown
         continue-on-error: true
         run: node audits/checks/b2-check-wellknown.mjs

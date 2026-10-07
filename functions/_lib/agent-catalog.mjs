@@ -10,18 +10,9 @@ import identity from '@j0nathan-ll0yd/copy/identity.flat.json' with {type: 'json
 import llm from '@j0nathan-ll0yd/copy/llm.flat.json' with {type: 'json'}
 import {CLOUDFRONT_BASE, DATASET_DISTRIBUTIONS, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import astroPackage from 'astro/package.json' with {type: 'json'}
+import {AGENT_PATHS} from './agent-paths.mjs'
 
-/** Site-relative paths of the agent interfaces. Absolute URLs are `${SITE_URL}${path}`. */
-export const AGENT_PATHS = Object.freeze({
-  mcp: '/mcp',
-  serverCard: '/mcp/server-card',
-  serverCardCompat: '/.well-known/mcp/server-card.json',
-  aiCatalog: '/.well-known/ai-catalog.json',
-  ard: '/.well-known/ard.json',
-  apiCatalog: '/.well-known/api-catalog',
-  openapi: '/openapi.json',
-  developers: '/developers'
-})
+export { AGENT_PATHS, OPENAPI_MEDIA_TYPE } from './agent-paths.mjs'
 
 /** The MCP protocol revision this server implements (stateless Streamable HTTP). It also answers 2025-era clients. */
 export const MCP_PROTOCOL_VERSION = '2026-07-28'
@@ -38,8 +29,20 @@ export const SERVER_CARD_SCHEMA_URI = 'https://static.modelcontextprotocol.io/sc
  * which the server-card extension asks for ("Consistency with Runtime Behavior").
  * Bump the version when the tool or resource set changes.
  */
-export const MCP_SERVER_NAME = `${new URL(SITE_URL).hostname.split('.').reverse().join('.')}/human-datastream`
+/** The server's short name: the SEP-2127 name segment and the ARD `urn:air:` name. */
+export const MCP_SERVER_SLUG = 'human-datastream'
+export const MCP_SERVER_NAME = `${new URL(SITE_URL).hostname.split('.').reverse().join('.')}/${MCP_SERVER_SLUG}`
 export const MCP_SERVER_VERSION = '1.0.0'
+
+/** The version of /openapi.json. Bump when an export path, schema, or documented response changes. */
+export const OPENAPI_DOCUMENT_VERSION = '1.0.0'
+
+/**
+ * How long a client may cache the server card and the MCP list results (`server/discover`,
+ * `tools/list`, `resources/list`). All of them change only on deploy. `resources/read` keeps
+ * the SDK default (ttl 0, private), because focus state can hide an artifact at any moment.
+ */
+export const DISCOVERY_CACHE_SECONDS = 3600
 
 /** Natural-language guidance for clients, returned as `instructions` by `server/discover` and `initialize`. */
 export const MCP_INSTRUCTIONS = llm.mcp.serverDescription
@@ -90,15 +93,23 @@ export const RESOURCES = Object.freeze([
   })
 ])
 
+/** A profile URL from person.sameAs, chosen by host so the order of that list carries no meaning. */
+function sameAsOn(host) {
+  const url = identity.person.sameAs.find((candidate) => new URL(candidate).hostname.endsWith(host))
+  if (!url) {
+    throw new Error(`@j0nathan-ll0yd/copy identity.person.sameAs has no ${host} URL`)
+  }
+  return url
+}
+
 const profile = Object.freeze({
   name: identity.person.name,
   title: identity.person.jobTitle,
   location: identity.person.location,
   experience: identity.person.experiencePhrase,
   site: SITE_URL,
-  // Convention of person.sameAs: [0] LinkedIn, [1] GitHub.
-  github: identity.person.sameAs[1],
-  linkedin: identity.person.sameAs[0],
+  github: sameAsOn('github.com'),
+  linkedin: sameAsOn('linkedin.com'),
   bio: identity.person.longBio,
   expertise: identity.seo.expertise,
   interests: identity.person.interests
@@ -115,9 +126,8 @@ const techStack = Object.freeze({
 })
 
 /**
- * The reading summary. ES2017 on purpose and free of closures: it is the one piece of
- * tool logic, and the MCP server calls it directly. Kept here so a second copy never
- * appears in the browser script, which calls the server instead.
+ * The reading summary: the one piece of tool logic. Only the MCP server runs it; the
+ * WebMCP script calls the server, so no second copy exists in the browser.
  */
 export function selectCurrentReading(data) {
   const books = data && Array.isArray(data.books) ? data.books : []

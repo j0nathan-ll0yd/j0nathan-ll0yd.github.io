@@ -3,6 +3,7 @@
 // middleware carries the same cross-cutting policy on Function responses.
 
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {AGENT_PATHS, OPENAPI_MEDIA_TYPE} from './_lib/agent-paths.mjs'
 import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
 
@@ -55,9 +56,9 @@ export const CONTENT_USAGE = 'train-ai=n, search=y'
 
 export const LINK_HEADER = [
   `<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`,
-  '</.well-known/api-catalog>; rel="api-catalog"',
-  '</.well-known/ai-catalog.json>; rel="ai-catalog"',
-  '</.well-known/ard.json>; rel="ard"',
+  `<${AGENT_PATHS.apiCatalog}>; rel="api-catalog"`,
+  `<${AGENT_PATHS.aiCatalog}>; rel="ai-catalog"`,
+  `<${AGENT_PATHS.ard}>; rel="ard"`,
   '</sitemap-index.xml>; rel="sitemap"',
   '</humans.txt>; rel="author"',
   '</feed.xml>; rel="alternate"; type="application/rss+xml"',
@@ -230,6 +231,11 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // API catalog Content-Type override for RFC 9727 compliance
   if (url.pathname === '/.well-known/api-catalog') {
     headers.set('Content-Type', 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"')
+  }
+
+  // /openapi.json carries the media type the api-catalog advertises for it.
+  if (url.pathname === AGENT_PATHS.openapi) {
+    headers.set('Content-Type', OPENAPI_MEDIA_TYPE)
   }
 
   // WebFinger (RFC 7033) Content-Type + permissive CORS for the static JRD at

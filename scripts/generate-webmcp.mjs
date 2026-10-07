@@ -27,7 +27,10 @@ import {
   DATA_SOURCES,
   FOCUS_SIGNAL_PATH,
   MCP_PROTOCOL_VERSION,
+  MCP_SERVER_SLUG,
   MCP_SERVER_VERSION,
+  OPENAPI_DOCUMENT_VERSION,
+  OPENAPI_MEDIA_TYPE,
   SERVER_CARD_JSON,
   SERVER_CARD_MEDIA_TYPE,
   SERVER_CARD_URL,
@@ -46,7 +49,8 @@ function write(relativePath, content) {
 
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`
 
-// The project wiki page that documented the agent surface before /developers existed.
+// The project wiki page that documented the agent surface before /developers existed. A
+// deliberate literal: it is a page on github.com, which no package owns.
 const WIKI_LLM_CONTENT_SPEC = 'https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec'
 
 // ---------------------------------------------------------------------------
@@ -78,13 +82,16 @@ const webmcp = `(function () {
 }}, 'io.modelcontextprotocol/clientCapabilities': {}}}})
     }).then(function (res) { return res.json(); }).then(function (message) {
       if (message.error) { throw new Error(message.error.message); }
-      return JSON.parse(message.result.content[0].text);
+      var result = JSON.parse(message.result.content[0].text);
+      if (message.result.isError) { throw new Error(JSON.stringify(result)); }
+      return result;
     });
   }
   function register(modelContext) {
     tools.forEach(function (tool) {
       tool.execute = function (input, options) { return call(tool.name, options); };
-      Promise.resolve(modelContext.registerTool(tool)).catch(function () {});
+      // One failed registration (a synchronous throw or a rejection) must not stop the rest.
+      try { Promise.resolve(modelContext.registerTool(tool)).catch(function () {}); } catch (error) {}
     });
   }
   if (typeof document !== 'undefined' && document.modelContext && document.modelContext.registerTool) {
@@ -109,14 +116,14 @@ write(AGENT_PATHS.serverCardCompat.slice(1), SERVER_CARD_JSON)
 // ---------------------------------------------------------------------------
 const skillMdPath = join(publicDir, '.well-known', 'agent-skills', 'portfolio-expert', 'SKILL.md')
 const skillMdDigest = createHash('sha256').update(readFileSync(skillMdPath)).digest('hex')
-write(join('.well-known', 'agent-skills', 'index.json'), json({
+write(AGENT_PATHS.agentSkillsIndex.slice(1), json({
   $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
   skills: [
     {
       name: 'portfolio-expert',
       description: llm.mcp.agentSkillDescription,
       type: 'skill-md',
-      url: `${SITE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md`,
+      url: `${SITE_URL}${dirname(AGENT_PATHS.agentSkillsIndex)}/portfolio-expert/SKILL.md`,
       digest: `sha256:${skillMdDigest}`
     }
   ]
@@ -137,7 +144,7 @@ const catalog = json({
   host: {displayName: identity.site.fullName, documentationUrl: WIKI_LLM_CONTENT_SPEC},
   entries: [
     {
-      identifier: air('server', 'human-datastream'),
+      identifier: air('server', MCP_SERVER_SLUG),
       displayName: llm.agentDiscovery.aiCatalogMcpName,
       type: SERVER_CARD_MEDIA_TYPE,
       url: SERVER_CARD_URL,
@@ -150,7 +157,7 @@ const catalog = json({
       identifier: air('skills', 'portfolio-expert'),
       displayName: llm.agentDiscovery.aiCatalogSkillsName,
       type: 'application/json',
-      url: `${SITE_URL}/.well-known/agent-skills/index.json`,
+      url: `${SITE_URL}${AGENT_PATHS.agentSkillsIndex}`,
       description: llm.agentDiscovery.aiCatalogSkillsDescription,
       representativeQueries: llm.agentDiscovery.aiCatalogSkillsQueries
     }
@@ -164,7 +171,6 @@ write(AGENT_PATHS.ard.slice(1), catalog)
 // described by its own linkset entry. ADVERTISE ONLY WHAT WORKS: service-doc names
 // /developers only once that page exists in this tree, so no deploy can link a 404.
 // ---------------------------------------------------------------------------
-const OPENAPI_MEDIA_TYPE = 'application/vnd.oai.openapi+json;version=3.1'
 const developersPage = ['developers.astro', join('developers', 'index.astro')].some((file) => existsSync(join(root, 'src', 'pages', file)))
 const dataApi = `${CLOUDFRONT_BASE}/`
 write(AGENT_PATHS.apiCatalog.slice(1), json({
@@ -195,14 +201,47 @@ if (unmatched.length > 0) {
 }
 
 const pascal = (key) => `${key.charAt(0).toUpperCase()}${key.slice(1)}`
-const DRAFT_ONLY_KEYWORDS = /"(\$ref|definitions|dependencies|additionalItems)"/
+const DRAFT_ONLY_KEYWORDS = new Set(['$ref', 'definitions', 'dependencies', 'additionalItems'])
+
+/** The first draft-07 construct outside JSON Schema 2020-12 in `node`, or null. Walks every subschema. */
+function draftOnlyConstruct(node, at = '#') {
+  if (Array.isArray(node)) {
+    for (const [index, item] of node.entries()) {
+      const found = draftOnlyConstruct(item, `${at}/${index}`)
+      if (found) {
+        return found
+      }
+    }
+    return null
+  }
+  if (node === null || typeof node !== 'object') {
+    return null
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (DRAFT_ONLY_KEYWORDS.has(key)) {
+      return `${at}/${key}`
+    }
+    // Tuple-form `items` (an array) is draft-07; 2020-12 spells it prefixItems.
+    if (key === 'items' && Array.isArray(value)) {
+      return `${at}/items (tuple form)`
+    }
+    const found = draftOnlyConstruct(value, `${at}/${key}`)
+    if (found) {
+      return found
+    }
+  }
+  return null
+}
+
 const schemas = {}
 for (const source of DATA_SOURCES) {
-  const raw = readFileSync(req.resolve(`@j0nathan-ll0yd/portal-contract/raw-schemas/${schemaFile(source.path)}`), 'utf8')
-  if (DRAFT_ONLY_KEYWORDS.test(raw)) {
-    throw new Error(`${schemaFile(source.path)} uses a draft-07 keyword outside JSON Schema 2020-12; convert it before publishing it in OpenAPI 3.1`)
+  const schema = JSON.parse(readFileSync(req.resolve(`@j0nathan-ll0yd/portal-contract/raw-schemas/${schemaFile(source.path)}`), 'utf8'))
+  const construct = draftOnlyConstruct(schema)
+  if (construct) {
+    throw new Error(
+      `${schemaFile(source.path)} uses ${construct}, a draft-07 construct outside JSON Schema 2020-12; convert it before publishing it in OpenAPI 3.1`
+    )
   }
-  const schema = JSON.parse(raw)
   delete schema.$schema
   schemas[`${pascal(source.key)}Export`] = schema
 }
@@ -223,7 +262,7 @@ for (const source of DATA_SOURCES) {
 write(AGENT_PATHS.openapi.slice(1),
   json({
     openapi: '3.1.0',
-    info: {title: identity.site.fullName, version: MCP_SERVER_VERSION, description: llm.dashboard.datasetDescription},
+    info: {title: identity.site.fullName, version: OPENAPI_DOCUMENT_VERSION, description: llm.dashboard.datasetDescription},
     servers: [{url: CLOUDFRONT_BASE}],
     paths,
     components: {

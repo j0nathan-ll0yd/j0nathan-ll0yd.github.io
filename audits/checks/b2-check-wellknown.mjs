@@ -47,6 +47,15 @@ export const ARTIFACTS = []
 export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
 export const PROBE_PROTOCOL_VERSION = '2025-11-25'
 
+// The modern revision, which the WebMCP script speaks: no handshake, a per-request
+// `_meta` envelope, and mirrored Mcp-Method / Mcp-Name headers.
+export const MODERN_PROTOCOL_VERSION = '2026-07-28'
+const ENVELOPE = {
+  'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION,
+  'io.modelcontextprotocol/clientInfo': {name: 'b2-check-wellknown', version: '1'},
+  'io.modelcontextprotocol/clientCapabilities': {}
+}
+
 /**
  * The vendored upstream schemas, byte-identical to the commit-pinned blobs listed in
  * audits/vendor/agent-discovery/SOURCES.json. Validation here is FULL schema
@@ -232,11 +241,8 @@ export function judgeMcpExchange({initialize, toolsList, card}) {
   return findings
 }
 
-async function postMcp(url, message, protocolVersion) {
-  const headers = {'Content-Type': 'application/json', Accept: 'application/json, text/event-stream'}
-  if (protocolVersion) {
-    headers['MCP-Protocol-Version'] = protocolVersion
-  }
+async function postMcp(url, message, extraHeaders = {}) {
+  const headers = {'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...extraHeaders}
   const res = await fetchStable(url, {method: 'POST', headers, body: JSON.stringify(message)})
   const text = await res.text()
   if (!res.ok) {
@@ -245,15 +251,63 @@ async function postMcp(url, message, protocolVersion) {
   return parseMcpBody(text, res.headers.get('content-type') || '')
 }
 
+/** One modern (2026-07-28) request: the `_meta` envelope plus the mirrored headers. */
+function modernRequest(id, method, params = {}, name) {
+  const headers = {'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': method, ...(name ? {'Mcp-Name': name} : {})}
+  return {message: {jsonrpc: '2.0', id, method, params: {...params, _meta: ENVELOPE}}, headers}
+}
+
 /**
- * The live MCP exchange, against every streamable-http remote the card declares:
- * initialize, then tools/list on the negotiated revision. `measured` counts remotes
- * that answered both requests with parseable JSON-RPC, judged or not.
+ * Judge the modern exchange. Pure -- testable without network. `server/discover` must
+ * offer the modern revision and should report the card's identity (warn, as above).
+ * Every `tools/call` must return a result that is not `isError`: a focus-suppressed
+ * answer is a valid result, an upstream failure is not.
+ */
+export function judgeModernExchange({discover, calls, card}) {
+  const findings = []
+  const result = discover?.result
+  if (discover?.jsonrpc !== '2.0' || !Array.isArray(result?.supportedVersions) || !result.supportedVersions.includes(MODERN_PROTOCOL_VERSION)) {
+    findings.push({
+      severity: 'fail',
+      id: 'mcp-discover',
+      message: `server/discover did not offer ${MODERN_PROTOCOL_VERSION}: ${JSON.stringify(discover).slice(0, 300)}`
+    })
+    return findings
+  }
+  const info = result._meta?.['io.modelcontextprotocol/serverInfo']
+  if (card && (info?.name !== card.name || info?.version !== card.version)) {
+    findings.push({
+      severity: 'warn',
+      id: 'mcp-server-card-mismatch',
+      message: `server/discover serverInfo ${info?.name}@${info?.version} differs from the server card ${card.name}@${card.version}`
+    })
+  }
+  for (const {name, response} of calls) {
+    if (response?.result === undefined || response.result.isError === true) {
+      findings.push({severity: 'fail', id: 'mcp-tool-call', message: `tools/call ${name} failed: ${JSON.stringify(response).slice(0, 300)}`})
+    }
+  }
+  return findings
+}
+
+/**
+ * The live MCP exchange, against every streamable-http remote the card declares, in
+ * both protocol eras the server answers:
+ *
+ * - 2025-era: initialize, then tools/list on the negotiated revision. This is what
+ *   deployed MCP clients send first.
+ * - 2026-07-28: server/discover, then tools/call for every listed tool. This is the
+ *   path public/js/webmcp.js uses, and the calls run a focus-gated read in the
+ *   deployed runtime.
+ *
+ * `measured` counts each era's exchange that returned parseable JSON-RPC, judged or not.
  */
 export async function probeMcpRemotes(card, post = postMcp) {
   const findings = []
   let measured = 0
+  const tag = (url) => (f) => ({...f, message: `${url}: ${f.message}`})
   for (const url of streamableRemotes(card)) {
+    let toolsList
     try {
       const initialize = await post(url, {
         jsonrpc: '2.0',
@@ -261,12 +315,28 @@ export async function probeMcpRemotes(card, post = postMcp) {
         method: 'initialize',
         params: {protocolVersion: PROBE_PROTOCOL_VERSION, capabilities: {}, clientInfo: {name: 'b2-check-wellknown', version: '1'}}
       })
-      const toolsList = await post(url, {jsonrpc: '2.0', id: 2, method: 'tools/list', params: {}},
-        initialize?.result?.protocolVersion ?? PROBE_PROTOCOL_VERSION)
+      toolsList = await post(url, {jsonrpc: '2.0', id: 2, method: 'tools/list', params: {}}, {
+        'MCP-Protocol-Version': initialize?.result?.protocolVersion ?? PROBE_PROTOCOL_VERSION
+      })
       measured++
-      findings.push(...judgeMcpExchange({initialize, toolsList, card}).map((f) => ({...f, message: `${url}: ${f.message}`})))
+      findings.push(...judgeMcpExchange({initialize, toolsList, card}).map(tag(url)))
     } catch (err) {
       findings.push({severity: 'fail', id: 'mcp-unreachable', message: `${url}: ${err instanceof Error ? err.message : String(err)}`})
+      continue
+    }
+    try {
+      const discoverRequest = modernRequest(3, 'server/discover')
+      const discover = await post(url, discoverRequest.message, discoverRequest.headers)
+      const names = Array.isArray(toolsList?.result?.tools) ? toolsList.result.tools.map((tool) => tool.name) : []
+      const calls = []
+      for (const [index, name] of names.entries()) {
+        const callRequest = modernRequest(4 + index, 'tools/call', {name, arguments: {}}, name)
+        calls.push({name, response: await post(url, callRequest.message, callRequest.headers)})
+      }
+      measured++
+      findings.push(...judgeModernExchange({discover, calls, card}).map(tag(url)))
+    } catch (err) {
+      findings.push({severity: 'fail', id: 'mcp-modern-unreachable', message: `${url}: ${err instanceof Error ? err.message : String(err)}`})
     }
   }
   return {measured, findings}
@@ -431,7 +501,12 @@ async function checkMcpChain(base) {
 
 async function main() {
   const baseIndex = process.argv.indexOf('--base')
-  const base = (baseIndex > 0 ? process.argv[baseIndex + 1] : SITE_URL).replace(/\/$/, '')
+  const baseArgument = baseIndex > 0 ? process.argv[baseIndex + 1] : SITE_URL
+  if (typeof baseArgument !== 'string' || !URL.canParse(baseArgument)) {
+    console.error('usage: node audits/checks/b2-check-wellknown.mjs [--base <absolute URL of the deploy to audit>]')
+    process.exit(2)
+  }
+  const base = baseArgument.replace(/\/$/, '')
   const settled = await Promise.allSettled([
     fetchAndValidate(
       `${base}/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me`,
@@ -458,8 +533,8 @@ async function main() {
     const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
-  // One per discovery artifact held and judged, plus one per MCP remote that answered
-  // both requests. A partial sweep is a finding; reaching none of them is the darkness
+  // One per discovery artifact held and judged, plus one per MCP remote and protocol era
+  // that answered. A partial sweep is a finding; reaching none of them is the darkness
   // the dead-man reports.
   const measured = results.reduce((total, r) => total + r.measured, 0)
   process.exit(report('check-wellknown', results.flatMap((r) => r.findings), measured))

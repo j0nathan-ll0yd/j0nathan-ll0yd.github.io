@@ -136,7 +136,7 @@ const GITHUB_RAW = /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([
  *
  * The vendored schemas under audits/vendor/agent-discovery/ are watched at the same
  * pins they were vendored from, read from that directory's SOURCES.json, so a re-vendor
- * and a re-pin are one edit. The three prose specifications are listed here.
+ * and a re-pin are one edit. The prose specifications are listed here.
  */
 const VENDORED_SOURCES =
   JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'vendor', 'agent-discovery', 'SOURCES.json'), 'utf8')).files
@@ -151,6 +151,12 @@ export const WATCHED_SOURCES = Object.freeze([
     label: 'SEP-2127 MCP Server Cards (modelcontextprotocol seps/2127-mcp-server-cards.md)',
     pinnedAt:
       'https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/5c8483d511d60ef1f8ded5160c5290fd8213d19e/seps/2127-mcp-server-cards.md',
+    retrieved: '2026-10-07'
+  },
+  {
+    // functions/mcp/server-card.ts takes its path, media type, CORS and ETag behavior from here.
+    label: 'MCP server-card discovery, Hosted Server Card Location (modelcontextprotocol/ext-server-card docs/discovery.md)',
+    pinnedAt: 'https://raw.githubusercontent.com/modelcontextprotocol/ext-server-card/526201bbc80231daa40ffcdecfc9da4e54e5dc93/docs/discovery.md',
     retrieved: '2026-10-07'
   },
   {

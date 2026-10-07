@@ -75,10 +75,15 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
 - **Focus gate:** every artifact read goes through `functions/_lib/proxy.ts`, the same
   fail-closed gate as the llms routes. During a hiding focus mode a suppressible artifact
   returns the suppression document `{"suppressed":true,"reason":"focus mode active"}`,
-  never data. `focus.json` is never gated, as at the edge. An unreadable focus state fails
-  closed.
+  never data. `focus.json` is never gated, as at the edge, and is read the way the gate
+  reads it: no edge cache, no last-known-good copy. An unreadable focus state fails closed.
+  When the origin fails and the proxy answers from its last-known-good copy, the result
+  carries `_meta["me.jonathanlloyd/lastKnownGoodSince"]` with the time the copy was stored.
 - **Caching:** `server/discover`, `tools/list` and `resources/list` carry a one-hour public
   cache hint; `resources/read` keeps the default (ttl 0, private).
+- **No list-change notifications:** the tools and resources change only on deploy, so the
+  server declares `listChanged: false`. A `subscriptions/listen` request is acknowledged and
+  closed at once.
 
 ### MCP server card — SEP-2127
 
@@ -215,11 +220,14 @@ What re-verifies them automatically:
 - `audits/checks/b2-check-spec-currency.mjs` (weekly, report-only) watches the rule
   catalog's pinned sources (llms.txt, RSS, JSON Feed, RFC 9116) and, since atlas decision
   0158, the agent-discovery `WATCHED_SOURCES`: the WebMCP draft (`index.bs`), SEP-2127, the
-  ARD v0.91 specification, and the three vendored schemas. A revision is reported as
+  server-card extension's `docs/discovery.md`, the ARD v0.91 specification, and the three
+  vendored schemas. A revision is reported as
   `spec-source-moved` and escalates to `fail` after the re-pin grace window.
 - `audits/checks/b2-check-wellknown.mjs` (weekly) validates the served card, `ai-catalog.json`
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
-  `remotes[].url` with an MCP `initialize` and `tools/list`.
+  `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then
+  `server/discover` and a `tools/call` per tool (2026-07-28). `--base <url>` audits a
+  preview deploy.
 
 DNS-AID, NLWeb, A2A and Agent Skills discovery have no automatic watch. Their dates above
 are as stale as they look, and re-verifying them is a manual task.

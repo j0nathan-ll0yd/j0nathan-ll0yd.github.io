@@ -9,13 +9,16 @@
       body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/call', params: {name: name, arguments: {}, _meta: {'io.modelcontextprotocol/protocolVersion': version, 'io.modelcontextprotocol/clientInfo': {name: 'webmcp', version: "1.0.0"}, 'io.modelcontextprotocol/clientCapabilities': {}}}})
     }).then(function (res) { return res.json(); }).then(function (message) {
       if (message.error) { throw new Error(message.error.message); }
-      return JSON.parse(message.result.content[0].text);
+      var result = JSON.parse(message.result.content[0].text);
+      if (message.result.isError) { throw new Error(JSON.stringify(result)); }
+      return result;
     });
   }
   function register(modelContext) {
     tools.forEach(function (tool) {
       tool.execute = function (input, options) { return call(tool.name, options); };
-      Promise.resolve(modelContext.registerTool(tool)).catch(function () {});
+      // One failed registration (a synchronous throw or a rejection) must not stop the rest.
+      try { Promise.resolve(modelContext.registerTool(tool)).catch(function () {}); } catch (error) {}
     });
   }
   if (typeof document !== 'undefined' && document.modelContext && document.modelContext.registerTool) {

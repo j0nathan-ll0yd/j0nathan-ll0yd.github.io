@@ -5,8 +5,7 @@
 // The compatibility copy at /.well-known/mcp/server-card.json is the same bytes, written
 // at build time by scripts/generate-webmcp.mjs.
 
-import {SERVER_CARD_JSON, SERVER_CARD_MEDIA_TYPE} from '../_lib/agent-catalog.mjs'
-import {DISCOVERY_CACHE_SECONDS} from '../_lib/mcp-server'
+import {DISCOVERY_CACHE_SECONDS, SERVER_CARD_JSON, SERVER_CARD_MEDIA_TYPE} from '../_lib/agent-catalog.mjs'
 
 interface PagesContext {
   request: Request
@@ -38,8 +37,10 @@ export async function onRequest({request}: PagesContext): Promise<Response> {
   }
   const tag = await cardEtag()
   const headers = new Headers({...CORS, 'Content-Type': SERVER_CARD_MEDIA_TYPE, 'Cache-Control': `public, max-age=${DISCOVERY_CACHE_SECONDS}`, ETag: tag})
+  // If-None-Match uses the weak comparison (RFC 9110 13.1.2), and Cloudflare weakens a
+  // strong ETag when it compresses, so a client may echo W/"...".
   const ifNoneMatch = request.headers.get('If-None-Match')
-  if (ifNoneMatch && ifNoneMatch.split(',').some((value) => value.trim() === tag || value.trim() === '*')) {
+  if (ifNoneMatch && ifNoneMatch.split(',').some((value) => value.trim().replace(/^W\//, '') === tag || value.trim() === '*')) {
     return new Response(null, {status: 304, headers})
   }
   return new Response(request.method === 'HEAD' ? null : SERVER_CARD_JSON, {status: 200, headers})

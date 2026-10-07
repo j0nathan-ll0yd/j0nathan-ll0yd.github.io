@@ -119,6 +119,30 @@ describe('generated WebMCP script', () => {
     expect(await tool.execute({})).toEqual({suppressed: true, reason: 'focus mode active'})
   })
 
+  it('rejects, rather than returning data, when the server reports a tool error', async () => {
+    const modelContext = fakeModelContext()
+    run({document: {modelContext}, navigator: {}})
+    vi.stubGlobal('fetch',
+      (input: string, init?: RequestInit) => input === FOCUS_URL ? Promise.resolve(new Response('nope', {status: 404})) : browserFetch(input, init))
+    const tool = modelContext.registered.find((t) => t.name === 'get_current_reading')!
+    await expect(tool.execute({})).rejects.toThrow(/failed/)
+  })
+
+  it('keeps registering after one registration throws', () => {
+    const registered: string[] = []
+    const modelContext = {
+      registerTool: (tool: RegisteredTool) => {
+        if (tool.name === TOOLS[0]!.name) {
+          throw new Error('InvalidStateError')
+        }
+        registered.push(tool.name)
+        return Promise.resolve()
+      }
+    }
+    run({document: {modelContext}, navigator: {}})
+    expect(registered).toEqual(TOOLS.slice(1).map((t) => t.name))
+  })
+
   it('carries no data host and no tool logic of its own', () => {
     expect(SOURCE).not.toContain(CLOUDFRONT_BASE)
     expect(SOURCE).not.toContain('provideContext')

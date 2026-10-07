@@ -27,6 +27,15 @@ describe('discovery Link header', () => {
     expect(LINK_HEADER).not.toContain('cloudfront.net')
   })
 
+  it('serves /openapi.json with the media type the api-catalog advertises', async () => {
+    const response = await onRequest({
+      request: new Request('https://jonathanlloyd.me/openapi.json'),
+      next: async () => new Response('{}', {headers: {'Content-Type': 'application/json'}}),
+      waitUntil: () => {}
+    })
+    expect(response.headers.get('Content-Type')).toBe('application/vnd.oai.openapi+json;version=3.1')
+  })
+
   it('sets the Link header on the homepage response', async () => {
     const response = await onRequest({request: new Request('https://jonathanlloyd.me/'), next: async () => new Response('html'), waitUntil: () => {}})
 

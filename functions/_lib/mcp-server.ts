@@ -22,27 +22,32 @@ import {
   validateOriginHeader
 } from '@modelcontextprotocol/server'
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/server'
+import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {MCP_INSTRUCTIONS, MCP_SERVER_NAME, MCP_SERVER_VERSION, RESOURCES, SERVER_CARD, TOOLS} from './agent-catalog.mjs'
+import {
+  DISCOVERY_CACHE_SECONDS,
+  MCP_INSTRUCTIONS,
+  MCP_SERVER_NAME,
+  MCP_SERVER_SLUG,
+  MCP_SERVER_VERSION,
+  RESOURCES,
+  SERVER_CARD,
+  TOOLS
+} from './agent-catalog.mjs'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy, SUPPRESSION_SOURCE} from './proxy'
 import type {CloudfrontProxyContext} from './proxy'
+
+const logger = createEdgeLogger({service: 'mcp-server'})
 
 /**
  * The Cloudflare Pages project host. Preview deploys answer on `<branch>.<host>` and
  * `<hash>.<host>`. Must equal `--project-name` in .github/workflows/deploy.yml and
  * preview-deploy.yml; tests/unit/mcp-server.test.ts holds the two together.
  */
-export const PAGES_PROJECT_HOST = 'human-datastream.pages.dev'
+export const PAGES_PROJECT_HOST = `${MCP_SERVER_SLUG}.pages.dev`
 
 /** Hostnames always allowed. Localhost serves `wrangler pages dev`; Cloudflare never routes a localhost Host to this project. */
 const FIXED_HOSTNAMES = [new URL(SITE_URL).hostname, PAGES_PROJECT_HOST, 'localhost', '127.0.0.1']
-
-/**
- * How long a client may cache `server/discover`, `tools/list` and `resources/list`.
- * The tool and resource sets change only on deploy. `resources/read` keeps the SDK
- * default (ttl 0, private) because focus state can hide an artifact at any moment.
- */
-export const DISCOVERY_CACHE_SECONDS = 3600
 
 /** The allowlist for one candidate hostname: the fixed set, plus the candidate itself when it is a preview host of this project. */
 export function allowedHostnames(candidate: string | undefined): string[] {
@@ -56,7 +61,18 @@ export function guardResponse(request: Request): Response | undefined {
   return hostHeaderValidationResponse(request, allowedHostnames(host.hostname)) ?? originValidationResponse(request, allowedHostnames(origin.hostname))
 }
 
-type GatedRead = {status: 'ok'; text: string} | {status: 'suppressed'; text: string} | {status: 'unavailable'; httpStatus: number; text: string}
+/**
+ * `staleSince` is set when the proxy answered from its last-known-good copy because the
+ * origin failed: the time that copy was stored. Clients see it as `_meta[STALE_META_KEY]`.
+ */
+type GatedRead = {status: 'ok'; text: string; staleSince?: string} | {status: 'suppressed'; text: string} | {
+  status: 'unavailable'
+  httpStatus: number
+  text: string
+}
+
+/** Result `_meta` key that marks data served from the last-known-good copy (reverse-DNS prefix, per the MCP `_meta` rules). */
+export const STALE_META_KEY = `${new URL(SITE_URL).hostname.split('.').reverse().join('.')}/lastKnownGoodSince`
 
 /** One proxy handler per artifact path, built once per isolate. The no-store policy matches the gated reads they serve. */
 const readers = new Map<string, ReturnType<typeof makeCloudfrontProxy>>(RESOURCES.map((resource) => [
@@ -73,7 +89,9 @@ export async function readGated(path: string, context: CloudfrontProxyContext): 
   const response = await reader({request: new Request(new URL(path, context.request.url), {method: 'GET'}), waitUntil: context.waitUntil})
   const text = await response.text()
   if (response.status === 200) {
-    return {status: 'ok', text}
+    return response.headers.get('X-Proxy-Stale') === 'true'
+      ? {status: 'ok', text, staleSince: response.headers.get('X-Proxy-Lkg-Stored-At') ?? 'unknown'}
+      : {status: 'ok', text}
   }
   if (response.headers.get('X-Source') === SUPPRESSION_SOURCE) {
     return {status: 'suppressed', text}
@@ -81,14 +99,22 @@ export async function readGated(path: string, context: CloudfrontProxyContext): 
   return {status: 'unavailable', httpStatus: response.status, text}
 }
 
-function textResult(value: unknown, isError = false): CallToolResult {
-  return {content: [{type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value)}], ...(isError ? {isError: true} : {})}
+function textResult(value: unknown, {isError = false, staleSince}: {isError?: boolean; staleSince?: string} = {}): CallToolResult {
+  return {
+    content: [{type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value)}],
+    ...(isError ? {isError: true} : {}),
+    ...(staleSince ? {_meta: {[STALE_META_KEY]: staleSince}} : {})
+  }
 }
 
 /** The server factory. One instance per request, so nothing is shared between callers. */
 export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
   const cacheHint = {ttlMs: DISCOVERY_CACHE_SECONDS * 1000, cacheScope: 'public' as const}
   const server = new McpServer({name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION, title: SERVER_CARD.title}, {
+    // The lists change only on deploy, so the server emits no list-change notifications.
+    // Declaring that also makes a `subscriptions/listen` stream acknowledge and close at
+    // once, instead of idling open on a per-request event bus that never publishes.
+    capabilities: {tools: {listChanged: false}, resources: {listChanged: false}},
     instructions: MCP_INSTRUCTIONS,
     cacheHints: {'server/discover': cacheHint, 'tools/list': cacheHint, 'resources/list': cacheHint}
   })
@@ -104,9 +130,9 @@ export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
         return textResult(read.text)
       }
       if (read.status === 'unavailable') {
-        return textResult({failed: true, status: read.httpStatus, reason: read.text}, true)
+        return textResult({failed: true, status: read.httpStatus, reason: read.text}, {isError: true})
       }
-      return textResult(tool.select(JSON.parse(read.text)))
+      return textResult(tool.select(JSON.parse(read.text)), {staleSince: read.staleSince})
     })
   }
 
@@ -119,7 +145,8 @@ export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
         }
         // A suppressed read returns the suppression document in place of the artifact.
         const mimeType = read.status === 'suppressed' ? 'application/json' : resource.mimeType
-        return {contents: [{uri: uri.href, mimeType, text: read.text}]}
+        const staleSince = read.status === 'ok' ? read.staleSince : undefined
+        return {contents: [{uri: uri.href, mimeType, text: read.text, ...(staleSince ? {_meta: {[STALE_META_KEY]: staleSince}} : {})}]}
       })
   }
 
@@ -128,12 +155,10 @@ export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
 
 /** The /mcp request handler: validation first, then the SDK entry with a per-request factory. */
 export async function handleMcpRequest(context: CloudfrontProxyContext): Promise<Response> {
-  const rejected = guardResponse(context.request)
-  if (rejected) {
-    return rejected
-  }
-  const handler = createMcpHandler(() => buildMcpServer(context))
-  const response = await handler.fetch(context.request)
+  const response = guardResponse(context.request) ??
+    await createMcpHandler(() => buildMcpServer(context), {
+      onerror: (error) => logger.error('mcp_handler_error', {error_class: error.name, message: error.message})
+    }).fetch(context.request)
   const headers = new Headers(response.headers)
   headers.set('Cache-Control', 'no-store')
   return new Response(response.body, {status: response.status, statusText: response.statusText, headers})
