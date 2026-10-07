@@ -3,7 +3,7 @@
   "info": {
     "title": "Jonathan Lloyd — Human Datastream",
     "version": "1.0.0",
-    "description": "Live biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON."
+    "description": "Summarised biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON."
   },
   "servers": [
     {

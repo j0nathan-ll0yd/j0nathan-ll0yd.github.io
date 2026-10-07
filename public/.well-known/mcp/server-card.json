@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
   "name": "me.jonathanlloyd/human-datastream",
   "title": "Human Datastream",
-  "description": "Read-only MCP server for Jonathan Lloyd's live data: health, code, reading, and theatre.",
+  "description": "Read-only MCP server for Jonathan Lloyd's data: summarised health, code, reading, and theatre.",
   "version": "1.0.0",
   "remotes": [
     {

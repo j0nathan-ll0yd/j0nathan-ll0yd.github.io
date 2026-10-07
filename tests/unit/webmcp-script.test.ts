@@ -143,6 +143,21 @@ describe('generated WebMCP script', () => {
     expect(registered).toEqual(TOOLS.slice(1).map((t) => t.name))
   })
 
+  // LLM-channel data policy (SKILL.md decision 4, atlas decision 0096): WebMCP shares the catalog,
+  // so no browser tool returns a raw health, sleep, or workouts export or names its URL.
+  it('no tool result names or carries a raw health, sleep, or workouts export', async () => {
+    const modelContext = fakeModelContext()
+    run({document: {modelContext}, navigator: {}})
+    for (const tool of modelContext.registered) {
+      const text = JSON.stringify(await tool.execute({}))
+      // Stated independently of the catalog policy under test.
+      for (const url of [ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts].map((path) => `${CLOUDFRONT_BASE}${path}`)) {
+        expect(text, tool.name).not.toContain(url)
+      }
+    }
+    expect(SOURCE).not.toMatch(/health\.json|sleep\.json|workouts\.json/)
+  })
+
   it('carries no data host and no tool logic of its own', () => {
     expect(SOURCE).not.toContain(CLOUDFRONT_BASE)
     expect(SOURCE).not.toContain('provideContext')

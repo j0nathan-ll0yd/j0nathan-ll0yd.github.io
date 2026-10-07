@@ -68,10 +68,24 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   `human-datastream.pages.dev`, its preview subdomains, and localhost (for
   `wrangler pages dev`). An invalid Origin answers 403.
 - **No authorization.** The server is public and read-only, which the revision allows.
-- **Resources:** the nine JSON exports (`CLOUDFRONT_BASE` + `ENDPOINTS`) and
-  `llms-full.txt`. **Tools:** `get_profile`, `get_data_sources`, `get_current_reading`,
-  `get_tech_stack`, each annotated `readOnlyHint: true`. No tool exposes anything beyond the
-  public JSON exports and the copy package.
+- **Resources:** the six policy-exposed JSON exports (books, articles, GitHub events,
+  starred repositories, theatre reviews, focus) and `llms-full.txt`. **Tools:**
+  `get_profile`, `get_data_sources`, `get_current_reading`, `get_tech_stack`, each annotated
+  `readOnlyHint: true`. No tool exposes anything beyond the public JSON exports and the copy
+  package.
+- **LLM-channel data policy (applied, not new):** the MCP server and WebMCP are LLM-facing
+  channels, so the owner's recorded policy governs them: `SKILL.md` decision 4 ("LLM content
+  uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.") and atlas
+  decision 0096 (LLM channels carry only a coarsened health band, "no raw point-in-time
+  values in output"). Neither channel lists, reads, names, or returns `health.json`,
+  `sleep.json`, or `workouts.json`. `get_data_sources` names `llms-full.txt` for those three
+  domains, because its Body section carries the coarsened band. `LLM_CHANNEL_POLICY` in
+  `functions/_lib/agent-catalog.mjs` classifies every portal-contract endpoint as `exposed` or
+  `coarsenedOnly` and stops the build on an unclassified one, so a new export is withheld
+  until someone classifies it. `tests/unit/mcp-server.test.ts` ("LLM-channel data policy") and
+  `tests/unit/webmcp-script.test.ts` red if a raw export, its URL, or its values reach any
+  `resources/list`, `resources/read`, or `tools/call` answer. The owner applied this on
+  2026-10-07 and can reverse it.
 - **Focus gate:** every artifact read goes through `functions/_lib/proxy.ts`, the same
   fail-closed gate as the llms routes. During a hiding focus mode a suppressible artifact
   returns the suppression document `{"suppressed":true,"reason":"focus mode active"}`,
@@ -141,6 +155,13 @@ one `item`. The API's entry carries `service-desc` (`/openapi.json`,
 that page exists in the tree, the wiki before, so no deploy links a 404). `/openapi.json`
 describes the nine GET endpoints on `CLOUDFRONT_BASE`, their response schemas, and the
 focus-suppression 403 on every export except `focus.json`.
+
+`/openapi.json` still documents all nine exports, health, sleep and workouts included. The
+LLM-channel data policy above does not govern it: it describes the public developer API, the
+same JSON a browser already fetches from the CloudFront host, for a developer reading
+documentation. It is not LLM content. The boundary is the channel: an agent-facing answer
+(MCP, WebMCP, llms.txt) carries only the coarsened band, and the developer API document
+describes the raw exports that already exist.
 
 Known risk: the CloudFront/S3 origin answers a key that does not exist with an XML or HTML
 403, not JSON. If an agent-readiness scorer starts treating the site as an API, its

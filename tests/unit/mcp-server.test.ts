@@ -16,7 +16,7 @@ import {
   SERVER_CARD_MEDIA_TYPE,
   TOOLS
 } from '../../functions/_lib/agent-catalog.mjs'
-import {DISCOVERY_CACHE_SECONDS} from '../../functions/_lib/agent-catalog.mjs'
+import {DISCOVERY_CACHE_SECONDS, LLM_CHANNEL_POLICY, LLM_WITHHELD_URLS} from '../../functions/_lib/agent-catalog.mjs'
 import {allowedHostnames, PAGES_PROJECT_HOST, STALE_META_KEY} from '../../functions/_lib/mcp-server'
 import {onRequest as mcpRoute} from '../../functions/mcp/index'
 import {onRequest as serverCardRoute} from '../../functions/mcp/server-card'
@@ -35,6 +35,15 @@ const BOOKS = {
   ]
 }
 
+// A value only the raw health, sleep, and workouts exports carry. It must never surface on an LLM channel.
+const RAW_SENTINEL = 'RAW-POINT-IN-TIME-SENTINEL'
+
+// The forbidden set, stated INDEPENDENTLY of the catalog policy under test (SKILL.md decision 4,
+// atlas decision 0096). Deriving it from LLM_CHANNEL_POLICY would let one edit to the policy
+// re-expose an export and shrink this list in the same breath.
+const RAW_HEALTH_PATHS: readonly string[] = [ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts]
+const RAW_HEALTH_URLS = RAW_HEALTH_PATHS.map((path) => `${CLOUDFRONT_BASE}${path}`)
+
 let currentFocus = 'Personal'
 let fetchMock: ReturnType<typeof vi.fn>
 
@@ -49,6 +58,9 @@ beforeEach(() => {
     }
     if (url === `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`) {
       return Promise.resolve(new Response('# llms-full'))
+    }
+    if (RAW_HEALTH_URLS.includes(url)) {
+      return Promise.resolve(new Response(JSON.stringify({generatedAt: 'x', heartRate: RAW_SENTINEL})))
     }
     return Promise.resolve(new Response(JSON.stringify({generatedAt: 'x', from: url})))
   })
@@ -258,11 +270,12 @@ describe('tools', () => {
 })
 
 describe('resources', () => {
-  it('lists the nine JSON exports and llms-full.txt', async () => {
+  it('lists the policy-exposed JSON exports and llms-full.txt', async () => {
     const {body} = await modern('resources/list')
     const uris = (body.result?.resources as Array<{uri: string}>).map((r) => r.uri)
     expect(uris).toEqual(RESOURCES.map((r) => r.uri))
-    expect(uris).toEqual([...Object.values(ENDPOINTS).map((path) => `${CLOUDFRONT_BASE}${path}`), `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`])
+    const exposed = (Object.entries(ENDPOINTS) as Array<[string, string]>).filter(([key]) => (LLM_CHANNEL_POLICY.exposed as readonly string[]).includes(key))
+    expect(uris).toEqual([...exposed.map(([, path]) => `${CLOUDFRONT_BASE}${path}`), `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`])
   })
 
   it('resources/read returns the artifact through the proxy', async () => {
@@ -324,6 +337,65 @@ describe('resources', () => {
     const {body} = await modern('resources/read', {uri: FOCUS_URL}, FOCUS_URL)
     const contents = body.result?.contents as Array<{text: string}>
     expect(JSON.parse(contents[0]!.text)).toEqual({currentFocus: HIDING_FOCUS_MODES[0]})
+  })
+})
+
+// LLM-CHANNEL DATA POLICY (SKILL.md decision 4, atlas decision 0096, applied 2026-10-07). The raw
+// health, sleep, and workouts exports never reach an agent through MCP: not listed, not readable,
+// not named, not fetched. These tests are the enforcement: a catalog edit that reintroduces one
+// reds here, whichever surface it touches.
+describe('LLM-channel data policy', () => {
+  function expectNoRawHealth(text: string) {
+    for (const url of RAW_HEALTH_URLS) {
+      expect(text).not.toContain(url)
+    }
+    for (const path of RAW_HEALTH_PATHS) {
+      expect(text).not.toContain(path)
+    }
+    expect(text).not.toContain(RAW_SENTINEL)
+  }
+
+  it('classifies every portal-contract endpoint exactly once', () => {
+    const classified = [...LLM_CHANNEL_POLICY.exposed, ...LLM_CHANNEL_POLICY.coarsenedOnly].sort()
+    expect(classified).toEqual(Object.keys(ENDPOINTS).sort())
+    expect([...LLM_CHANNEL_POLICY.coarsenedOnly].sort()).toEqual(['health', 'sleep', 'workouts'])
+  })
+
+  it('resources/list names none of the raw health, sleep, or workouts exports', async () => {
+    const {body} = await modern('resources/list')
+    expectNoRawHealth(JSON.stringify(body))
+  })
+
+  it('every tools/call result excludes the raw exports, their URLs, and their values', async () => {
+    for (const tool of TOOLS) {
+      const {body} = await modern('tools/call', {name: tool.name, arguments: {}}, tool.name)
+      expect(body.result, tool.name).toBeDefined()
+      expectNoRawHealth(JSON.stringify(body))
+    }
+    for (const [url] of fetchMock.mock.calls) {
+      expect(RAW_HEALTH_URLS).not.toContain(url)
+    }
+  })
+
+  it('get_data_sources points the coarsened-only domains at llms-full.txt', async () => {
+    const {body} = await modern('tools/call', {name: 'get_data_sources', arguments: {}}, 'get_data_sources')
+    const sources = toolText(body.result) as Array<{url: string}>
+    expect(sources).toHaveLength(Object.keys(ENDPOINTS).length)
+    expect(sources.filter((s) => s.url === `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`)).toHaveLength(RAW_HEALTH_URLS.length)
+  })
+
+  it('the catalog withholds exactly the three raw exports', () => {
+    expect([...LLM_WITHHELD_URLS].sort()).toEqual([...RAW_HEALTH_URLS].sort())
+  })
+
+  it.each(RAW_HEALTH_URLS.map((url) => [url]))('resources/read of %s is refused without a fetch', async (uri) => {
+    const {body} = await modern('resources/read', {uri}, uri)
+    expect(body.result).toBeUndefined()
+    expect(body.error).toBeDefined()
+    // The SDK's "Resource not found" error echoes the URI the client sent, which discloses
+    // nothing. What must hold is no data in the answer and no read of the raw export.
+    expect(JSON.stringify(body)).not.toContain(RAW_SENTINEL)
+    expect(fetchMock).not.toHaveBeenCalledWith(uri, expect.anything())
   })
 })
 

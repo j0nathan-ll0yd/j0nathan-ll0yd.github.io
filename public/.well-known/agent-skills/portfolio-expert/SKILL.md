@@ -49,7 +49,7 @@ All data is served from CloudFront with a 30-second cache (`max-age=30, s-maxage
 
 ## MCP Server
 
-A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Resources are the JSON endpoints below plus llms-full.txt; tools return the profile, the data sources, current reading, and the tech stack. The OpenAPI 3.1 description of the JSON endpoints is at <https://jonathanlloyd.me/openapi.json>.
+A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Its resources are the reading, GitHub, theatre, and focus JSON endpoints below plus llms-full.txt; health, sleep, and workouts reach it only as the coarsened band in llms-full.txt (decision 4 below). Its tools return the profile, the data sources, current reading, and the tech stack. The OpenAPI 3.1 description of the JSON endpoints is at <https://jonathanlloyd.me/openapi.json>.
 
 ## LLM-Optimized Content
 

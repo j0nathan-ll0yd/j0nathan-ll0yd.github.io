@@ -62,7 +62,10 @@ export function fillTemplate(template, name, value) {
 /** The fixed, ungated focus signal. The edge gate never suppresses it; every other artifact is suppressible. */
 export const FOCUS_SIGNAL_PATH = ENDPOINTS.focus
 
-/** One entry per public JSON export, in contract order. A new endpoint without copy fails here, at build. */
+/**
+ * One entry per public JSON export, in contract order. A new endpoint without copy fails here, at
+ * build. This is the developer-API view (/openapi.json). LLM channels read LLM_DATA_SOURCES.
+ */
 export const DATA_SOURCES = Object.freeze(Object.entries(ENDPOINTS).map(([key, path]) => {
   const stem = `ds${key.charAt(0).toUpperCase()}${key.slice(1)}`
   const name = llm.mcp[`${stem}Name`]
@@ -78,14 +81,52 @@ if (!llmsTxt) {
   throw new Error('portal-contract DATASET_DISTRIBUTIONS is missing the LLM discovery index')
 }
 
-/** MCP resources: the nine JSON exports plus llms-full.txt, each read on the CloudFront path through the focus gate. */
+const LLMS_FULL_URL = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+
+/**
+ * LLM-CHANNEL DATA POLICY. This is the owner's recorded policy applied to the agent channels,
+ * not a new decision. SKILL.md decision 4 says LLM content uses 7-day aggregates only, with
+ * no point-in-time BPM, steps, or calories exposed. Atlas decision 0096 says LLM channels
+ * carry only a coarsened health band, with no raw point-in-time values in output. The MCP
+ * server and WebMCP are LLM-facing channels, so the raw health, sleep, and workout exports
+ * never reach them. Agents get those domains only as the coarsened band in llms-full.txt.
+ * The owner applied this to these channels on 2026-10-07 and can reverse it.
+ *
+ * FAIL-CLOSED. Every portal-contract endpoint must be classified here. A new endpoint in
+ * neither list stops the build, so a contract bump cannot expose a new raw domain to an
+ * agent by default. /openapi.json is a different channel (the public developer API) and
+ * still documents all nine exports: it reads DATA_SOURCES, not this policy.
+ */
+export const LLM_CHANNEL_POLICY = Object.freeze({
+  exposed: Object.freeze(['books', 'articles', 'githubEvents', 'starredRepos', 'theatreReviews', 'focus']),
+  coarsenedOnly: Object.freeze(['health', 'sleep', 'workouts'])
+})
+for (const key of Object.keys(ENDPOINTS)) {
+  const exposed = LLM_CHANNEL_POLICY.exposed.includes(key)
+  if (exposed === LLM_CHANNEL_POLICY.coarsenedOnly.includes(key)) {
+    throw new Error(`portal-contract endpoint "${key}" must be classified exactly once in LLM_CHANNEL_POLICY (exposed or coarsenedOnly)`)
+  }
+}
+for (const key of [...LLM_CHANNEL_POLICY.exposed, ...LLM_CHANNEL_POLICY.coarsenedOnly]) {
+  if (!(key in ENDPOINTS)) {
+    throw new Error(`LLM_CHANNEL_POLICY names "${key}", which is not a portal-contract endpoint`)
+  }
+}
+
+/** The JSON exports an LLM channel may serve raw. */
+export const LLM_DATA_SOURCES = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.exposed.includes(s.key)))
+
+/** The raw export URLs no LLM channel may serve or name. Tests assert their absence from every MCP and WebMCP answer. */
+export const LLM_WITHHELD_URLS = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.coarsenedOnly.includes(s.key)).map((s) => s.url))
+
+/** MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate. */
 export const RESOURCES = Object.freeze([
-  ...DATA_SOURCES.map((s) =>
+  ...LLM_DATA_SOURCES.map((s) =>
     Object.freeze({name: s.key, uri: s.url, path: s.path, title: s.name, description: s.description, mimeType: 'application/json'})
   ),
   Object.freeze({
     name: 'llmsFull',
-    uri: `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`,
+    uri: LLMS_FULL_URL,
     path: LLM_CONTENT_PATHS.llmsFull,
     title: llm.dashboard.alternateLinkMarkdown,
     description: llm.dashboard.datasetDescription,
@@ -115,13 +156,17 @@ const profile = Object.freeze({
   interests: identity.person.interests
 })
 
+if (typeof llm.mcp.coarsenedBandDesc !== 'string' || llm.mcp.coarsenedBandDesc.length === 0) {
+  throw new Error('@j0nathan-ll0yd/copy has no llm.mcp.coarsenedBandDesc (LLM_CHANNEL_POLICY coarsened-only entries)')
+}
+
 const techStack = Object.freeze({
   framework: fillTemplate(llm.mcp.stackFramework, 'astroMajor', ASTRO_MAJOR),
   hosting: llm.mcp.stackHosting,
   liveData: llm.mcp.stackLiveData,
   design: llm.mcp.stackDesign,
   font: llm.mcp.stackFont,
-  llmContent: {discoveryIndex: llmsTxt.contentUrl, complete: `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`},
+  llmContent: {discoveryIndex: llmsTxt.contentUrl, complete: LLMS_FULL_URL},
   mcpServer: MCP_URL
 })
 
@@ -155,7 +200,13 @@ export const TOOLS = Object.freeze([
     readOnly: true,
     untrustedContent: false,
     kind: 'static',
-    payload: DATA_SOURCES.map(({name, url, description}) => ({name, url, description}))
+    // Exposed exports by their JSON URL. A coarsened-only domain names llms-full.txt, where
+    // its coarsened band lives, and never its raw export (LLM_CHANNEL_POLICY).
+    payload: DATA_SOURCES.map(({key, name, url, description}) =>
+      LLM_CHANNEL_POLICY.exposed.includes(key)
+        ? {name, url, description}
+        : {name, url: LLMS_FULL_URL, description: llm.mcp.coarsenedBandDesc}
+    )
   }),
   Object.freeze({
     name: 'get_current_reading',
