@@ -1,0 +1,29 @@
+{
+  "description": "Provenance of the vendored agent-discovery JSON Schemas. Each file is the upstream blob at the pinned commit, byte for byte. audits/__tests__/agent-discovery-schemas.test.ts recomputes every sha256 and reds on drift. Re-vendor by fetching url, then update commit, sha256 and retrieved together. audits/checks/b2-check-spec-currency.mjs watches the same blobs for upstream revisions.",
+  "files": [
+    {
+      "file": "mcp-server-card.schema.json",
+      "spec": "SEP-2127 MCP Server Cards (modelcontextprotocol/ext-server-card)",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/ext-server-card/526201bbc80231daa40ffcdecfc9da4e54e5dc93/schema.json",
+      "commit": "526201bbc80231daa40ffcdecfc9da4e54e5dc93",
+      "sha256": "2c772b51edb367f154771d84ddbae87ddba00a624422c8e46f218a9ac03bf042",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "file": "ard-ai-catalog.schema.json",
+      "spec": "AI catalog manifest, specVersion 1.0 (ards-project/ard-spec)",
+      "url": "https://raw.githubusercontent.com/ards-project/ard-spec/b76f235a8f461876ad4f1e77abd0eb0eb302b48d/spec/schemas/ai-catalog.schema.json",
+      "commit": "b76f235a8f461876ad4f1e77abd0eb0eb302b48d",
+      "sha256": "c55238483a4738e08b250bdd6af1f4dc05a91afe882c649d224d09c19cd8fe09",
+      "retrieved": "2026-10-07"
+    },
+    {
+      "file": "ard-entry.schema.json",
+      "spec": "ARD v0.91 ArdEntry and ArdManifest (ards-project/ard-spec)",
+      "url": "https://raw.githubusercontent.com/ards-project/ard-spec/b76f235a8f461876ad4f1e77abd0eb0eb302b48d/spec/schemas/ard-entry.schema.json",
+      "commit": "b76f235a8f461876ad4f1e77abd0eb0eb302b48d",
+      "sha256": "011b86d55fd5d2883dffae3f0577d26f5efb56ca866eb079edbc78a628f95499",
+      "retrieved": "2026-10-07"
+    }
+  ]
+}

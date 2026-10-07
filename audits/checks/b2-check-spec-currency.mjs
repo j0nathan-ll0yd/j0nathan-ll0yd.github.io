@@ -55,6 +55,9 @@
 // citation cannot rot.
 
 import {createHash} from 'node:crypto'
+import {readFileSync} from 'node:fs'
+import {dirname, join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {DEFAULT_BUDGET_MS, isMain, report} from '../lib/http.mjs'
 import {createDeadline, progress, withHeartbeat} from '../lib/progress.mjs'
@@ -121,6 +124,51 @@ export const REPIN_GRACE_MS = durationToMilliseconds(LLM_FRESHNESS_CONFIG.layers
 const DEFAULT_BRANCH_REF = 'HEAD'
 
 const GITHUB_RAW = /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([0-9a-f]{40})\/(.+)$/
+
+/**
+ * WATCHED SOURCES: moving agent-discovery specifications this site implements but no
+ * rule quotes (atlas decision 0158). The rule catalog reaches only sources a rule cites,
+ * so before this list the WebMCP draft, the MCP server-card extension and ARD drifted
+ * with nothing to notice -- docs/discovery-surface.md "Spec-drift watch" recorded that
+ * gap. Each entry is a commit-pinned blob plus the date a human last read it, judged
+ * exactly like a rule-cited source with no quote: a revision is `spec-source-moved`,
+ * escalating to `fail` after the re-pin grace window.
+ *
+ * The vendored schemas under audits/vendor/agent-discovery/ are watched at the same
+ * pins they were vendored from, read from that directory's SOURCES.json, so a re-vendor
+ * and a re-pin are one edit. The three prose specifications are listed here.
+ */
+const VENDORED_SOURCES =
+  JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'vendor', 'agent-discovery', 'SOURCES.json'), 'utf8')).files
+
+export const WATCHED_SOURCES = Object.freeze([
+  {
+    label: 'WebMCP Draft Community Group Report (webmachinelearning/webmcp index.bs)',
+    pinnedAt: 'https://raw.githubusercontent.com/webmachinelearning/webmcp/6891d0e857a0b35d8478aa8a01958565fb5466cd/index.bs',
+    retrieved: '2026-10-07'
+  },
+  {
+    label: 'SEP-2127 MCP Server Cards (modelcontextprotocol seps/2127-mcp-server-cards.md)',
+    pinnedAt:
+      'https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/5c8483d511d60ef1f8ded5160c5290fd8213d19e/seps/2127-mcp-server-cards.md',
+    retrieved: '2026-10-07'
+  },
+  {
+    label: 'ARD specification v0.91 (ards-project/ard-spec spec/ard.md)',
+    pinnedAt: 'https://raw.githubusercontent.com/ards-project/ard-spec/b76f235a8f461876ad4f1e77abd0eb0eb302b48d/spec/ard.md',
+    retrieved: '2026-10-07'
+  },
+  ...VENDORED_SOURCES.map(({spec, url, retrieved}) => ({label: `${spec}, vendored schema`, pinnedAt: url, retrieved}))
+])
+
+/**
+ * The watched sources as rule-shaped records, so the one judging path serves both.
+ * `derivedFrom` carries no quote, which `judgeCurrency` already reads as "nothing to
+ * falsify": a moved source is a re-read prompt, never `spec-source-moved-quote-absent`.
+ */
+export function watchedRecords() {
+  return WATCHED_SOURCES.map(({label, pinnedAt, retrieved}) => ({rel: `watched: ${label}`, rule: {derivedFrom: {pinnedAt, retrieved}}}))
+}
 
 /**
  * Which currency question a pinned source admits.
@@ -475,7 +523,8 @@ function quoteOccursIn(quote, text) {
 export async function checkSpecCurrency(opts = {}) {
   const findings = []
   const parseErrors = []
-  const rules = readRawRules(parseErrors)
+  const catalogRules = readRawRules(parseErrors)
+  const rules = [...catalogRules, ...watchedRecords()]
   for (const message of parseErrors) {
     findings.push({severity: 'fail', id: 'spec-currency-unreadable-rule', message})
   }
@@ -496,17 +545,18 @@ export async function checkSpecCurrency(opts = {}) {
   return {
     findings,
     measured: applicable.filter((s) => s.held).length,
-    ruleCount: rules.length,
-    probedCount: probedRules(rules).length,
+    ruleCount: catalogRules.length,
+    watchedCount: WATCHED_SOURCES.length,
+    probedCount: probedRules(catalogRules).length,
     applicableCount: applicable.length,
     notApplicableCount: [...sources.values()].filter((s) => s.kind === 'immutable-publication').length
   }
 }
 
 async function main() {
-  const {findings, measured, ruleCount, probedCount, applicableCount, notApplicableCount} = await checkSpecCurrency()
+  const {findings, measured, ruleCount, watchedCount, probedCount, applicableCount, notApplicableCount} = await checkSpecCurrency()
   console.log(
-    `  ${ruleCount} rule(s) in catalog, ${probedCount} pinned to a source: ${applicableCount} commit-pinned GitHub source(s) carry a currency question, ${notApplicableCount} immutable publication(s) do not`
+    `  ${ruleCount} rule(s) in catalog, ${probedCount} pinned to a source, plus ${watchedCount} watched source(s): ${applicableCount} commit-pinned GitHub source(s) carry a currency question, ${notApplicableCount} immutable publication(s) do not`
   )
   process.exit(report(CHECK_ID, findings, measured))
 }
