@@ -143,6 +143,9 @@ const jsonLdGraph = isHome
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  {/* First script on the page and deferred: agent scanners read only the first few
+      scripts for WebMCP registrations, and defer keeps it off the critical path. */}
+  <script is:inline src="/js/webmcp.js" defer></script>
   <meta name="theme-color" content="#06060f">
   <meta name="color-scheme" content="dark">
   <meta name="description" content={description}>
@@ -356,7 +359,6 @@ html { overflow-y: scroll; }
   {/* Defer Leaflet until a map enters view to avoid its initial-load cost. */}
   {import.meta.env.DEV && <script is:inline src="/js/leaflet-lazy.js"></script>}
   <script is:inline src="/js/sw-register.js"></script>
-  <script is:inline src="/js/webmcp.js"></script>
   {import.meta.env.PROD && (
     <Fragment>
       <script is:inline src="/js/sa-loader.js"></script>

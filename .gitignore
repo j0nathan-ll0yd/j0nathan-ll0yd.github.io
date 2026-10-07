@@ -55,3 +55,6 @@ missing-images.txt
 # content. Untracked-but-not-ignored until atlas decision 0111 phase 2b, which
 # adds this line in both spokes' migration PRs.
 .worktrees/
+
+# wrangler pages dev bundles (local Pages Functions smoke)
+.wrangler/

@@ -37,8 +37,11 @@ const FOCUS_RETRY_DELAY_MS = 100
 export const PROXY_TIMEOUTS = Object.freeze({focusMs: FOCUS_TIMEOUT_MS, artifactMs: ARTIFACT_TIMEOUT_MS, totalMs: TOTAL_BUDGET_MS})
 const PUBLIC_NO_STORE = 'no-store'
 const SUPPRESSION_RETRY_SECONDS = 60
+/** The `X-Source` value of a focus-suppression response. Exported so a caller of a proxy handler can tell suppression from failure. */
+export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
-const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
+const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
+const FOCUS_URL = `${CLOUDFRONT_BASE}${FOCUS_SIGNAL_PATH}`
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
 
 // Minimal Cloudflare Pages Function types -- only the fields used here.
@@ -312,7 +315,7 @@ function suppressionResponse(method: string): Response {
   const headers = new Headers({
     'Content-Type': 'application/json; charset=utf-8',
     'Retry-After': String(SUPPRESSION_RETRY_SECONDS),
-    'X-Source': 'cloudfront-proxy-suppressed'
+    'X-Source': SUPPRESSION_SOURCE
   })
   setPublicNoStore(headers)
   const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
@@ -371,13 +374,20 @@ function delay(ms: number): Promise<void> {
  */
 const ORIGIN_FETCH_INIT: CfRequestInit = {cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': FRESH_CACHE_SECONDS, '300-599': 0}}}
 
-async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget): Promise<UpstreamResult> {
+/**
+ * The focus signal is read exactly as the gate's own probe reads it: never from the edge
+ * cache, and never from the last-known-good store. CloudFront serves it `no-store`, and a
+ * cached or stale copy would disagree with the gate that a sibling read just consulted.
+ */
+const FOCUS_FETCH_INIT: CfRequestInit = {cache: 'no-store'}
+
+async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget, init: CfRequestInit = ORIGIN_FETCH_INIT): Promise<UpstreamResult> {
   let lastResponse: Response | undefined
   let errorName: string | undefined
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      lastResponse = await withDeadline((signal) => fetch(upstreamUrl, {...ORIGIN_FETCH_INIT, signal}), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()),
+      lastResponse = await withDeadline((signal) => fetch(upstreamUrl, {...init, signal}), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()),
         `${path} fetch`)
       errorName = undefined
       if (lastResponse.ok) {
@@ -499,6 +509,7 @@ export function makeCloudfrontProxy(
 ): (context: CloudfrontProxyContext) => Promise<Response> {
   const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
+  const isFocusSignal = path === FOCUS_SIGNAL_PATH
 
   return async function onRequest(context: CloudfrontProxyContext): Promise<Response> {
     if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
@@ -517,14 +528,18 @@ export function makeCloudfrontProxy(
     // retry delay and every body read draw from it. Started here, before the first network call.
     const budget = startBudget()
 
-    const privacyResponse = await focusPrivacyResponse(context.request.method, path, budget)
+    // The focus signal itself is never gated, exactly as the edge gate never gates it
+    // (focus-privacy spec, "The focus signal stays retrievable while hiding"). Every
+    // other artifact is suppressible and goes through the gate.
+    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget)
     if (privacyResponse) {
       return privacyResponse
     }
 
-    const cache = defaultCache()
+    // The focus signal has no last-known-good copy: see FOCUS_FETCH_INIT.
+    const cache = isFocusSignal ? undefined : defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
-    const upstream = await fetchWithRetry(upstreamUrl, path, budget)
+    const upstream = await fetchWithRetry(upstreamUrl, path, budget, isFocusSignal ? FOCUS_FETCH_INIT : ORIGIN_FETCH_INIT)
 
     if (upstream.ok) {
       const response = publicResponse(upstream, contentType, cachePolicy)

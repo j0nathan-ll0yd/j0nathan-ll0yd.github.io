@@ -11,6 +11,8 @@ afterEach(() => {
 describe('discovery Link header', () => {
   it('advertises ARD without advertising an unavailable A2A interface', () => {
     expect(LINK_HEADER).toContain('</.well-known/ai-catalog.json>; rel="ai-catalog"')
+    // ARD v0.91 section 5.1: a consumer MUST honour rel="ard"; the predecessor rel stays for older consumers.
+    expect(LINK_HEADER).toContain('</.well-known/ard.json>; rel="ard"')
     expect(LINK_HEADER).not.toContain('agent-card.json')
     expect(LINK_HEADER).not.toContain('agentcard.org')
   })
@@ -23,6 +25,15 @@ describe('discovery Link header', () => {
     expect(LINK_HEADER).toContain(`<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`)
     expect(LLMS_TXT_PATH).toBe('/llms.txt')
     expect(LINK_HEADER).not.toContain('cloudfront.net')
+  })
+
+  it('serves /openapi.json with the media type the api-catalog advertises', async () => {
+    const response = await onRequest({
+      request: new Request('https://jonathanlloyd.me/openapi.json'),
+      next: async () => new Response('{}', {headers: {'Content-Type': 'application/json'}}),
+      waitUntil: () => {}
+    })
+    expect(response.headers.get('Content-Type')).toBe('application/vnd.oai.openapi+json;version=3.1')
   })
 
   it('sets the Link header on the homepage response', async () => {

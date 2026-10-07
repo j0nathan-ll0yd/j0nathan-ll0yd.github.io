@@ -1,0 +1,242 @@
+// The ONE agent catalog (atlas decision 0158). Every agent-facing surface reads it:
+// the MCP server (functions/mcp/), the WebMCP script, the server card, the AI/ARD
+// catalogs and the API catalog (all emitted by scripts/generate-webmcp.mjs).
+//
+// Plain ESM on purpose. The Pages Functions bundler, the node build script and
+// vitest all import it as-is, with no transpile step, so it cannot drift into two
+// copies. Prose comes from @j0nathan-ll0yd/copy; hosts and paths come from
+// @j0nathan-ll0yd/portal-contract. Nothing here states a literal either one owns.
+import identity from '@j0nathan-ll0yd/copy/identity.flat.json' with {type: 'json'}
+import llm from '@j0nathan-ll0yd/copy/llm.flat.json' with {type: 'json'}
+import {CLOUDFRONT_BASE, DATASET_DISTRIBUTIONS, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import astroPackage from 'astro/package.json' with {type: 'json'}
+import {AGENT_PATHS} from './agent-paths.mjs'
+
+export { AGENT_PATHS, OPENAPI_MEDIA_TYPE } from './agent-paths.mjs'
+
+/** The MCP protocol revision this server implements (stateless Streamable HTTP). It also answers 2025-era clients. */
+export const MCP_PROTOCOL_VERSION = '2026-07-28'
+
+export const MCP_URL = `${SITE_URL}${AGENT_PATHS.mcp}`
+export const SERVER_CARD_URL = `${SITE_URL}${AGENT_PATHS.serverCard}`
+
+/** SEP-2127 server card media type and schema URI (ext-server-card schema.json, `ServerCard.$schema`). */
+export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
+export const SERVER_CARD_SCHEMA_URI = 'https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json'
+
+/**
+ * Server identity. The card and `server/discover` report the same name and version,
+ * which the server-card extension asks for ("Consistency with Runtime Behavior").
+ * Bump the version when the tool or resource set changes.
+ */
+/** The server's short name: the SEP-2127 name segment and the ARD `urn:air:` name. */
+export const MCP_SERVER_SLUG = 'human-datastream'
+export const MCP_SERVER_NAME = `${new URL(SITE_URL).hostname.split('.').reverse().join('.')}/${MCP_SERVER_SLUG}`
+export const MCP_SERVER_VERSION = '1.0.0'
+
+/** The version of /openapi.json. Bump when an export path, schema, or documented response changes. */
+export const OPENAPI_DOCUMENT_VERSION = '1.0.0'
+
+/**
+ * How long a client may cache the server card and the MCP list results (`server/discover`,
+ * `tools/list`, `resources/list`). All of them change only on deploy. `resources/read` keeps
+ * the SDK default (ttl 0, private), because focus state can hide an artifact at any moment.
+ */
+export const DISCOVERY_CACHE_SECONDS = 3600
+
+/** Natural-language guidance for clients, returned as `instructions` by `server/discover` and `initialize`. */
+export const MCP_INSTRUCTIONS = llm.mcp.serverDescription
+
+/** The installed Astro major, which `llm.mcp.stackFramework` names through `{astroMajor}`. */
+export const ASTRO_MAJOR = String(astroPackage.version).split('.')[0]
+
+/** Fill one `{name}` placeholder, failing loud when the copy no longer carries it. */
+export function fillTemplate(template, name, value) {
+  const placeholder = `{${name}}`
+  if (!template.includes(placeholder)) {
+    throw new Error(`copy template "${template}" has no ${placeholder} placeholder`)
+  }
+  return template.split(placeholder).join(value)
+}
+
+/** The fixed, ungated focus signal. The edge gate never suppresses it; every other artifact is suppressible. */
+export const FOCUS_SIGNAL_PATH = ENDPOINTS.focus
+
+/**
+ * One entry per public JSON export, in contract order. A new endpoint without copy fails here, at
+ * build. This is the developer-API view (/openapi.json). LLM channels read LLM_DATA_SOURCES.
+ */
+export const DATA_SOURCES = Object.freeze(Object.entries(ENDPOINTS).map(([key, path]) => {
+  const stem = `ds${key.charAt(0).toUpperCase()}${key.slice(1)}`
+  const name = llm.mcp[`${stem}Name`]
+  const description = llm.mcp[`${stem}Desc`]
+  if (typeof name !== 'string' || typeof description !== 'string') {
+    throw new Error(`@j0nathan-ll0yd/copy has no llm.mcp.${stem}Name / ${stem}Desc for portal-contract endpoint "${key}"`)
+  }
+  return Object.freeze({key, path, url: `${CLOUDFRONT_BASE}${path}`, name, description})
+}))
+
+const llmsTxt = DATASET_DISTRIBUTIONS.find((d) => d.name === 'LLM discovery index')
+if (!llmsTxt) {
+  throw new Error('portal-contract DATASET_DISTRIBUTIONS is missing the LLM discovery index')
+}
+
+const LLMS_FULL_URL = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+
+/**
+ * LLM-CHANNEL DATA POLICY. This is the owner's recorded policy applied to the agent channels,
+ * not a new decision. SKILL.md decision 4 says LLM content uses 7-day aggregates only, with
+ * no point-in-time BPM, steps, or calories exposed. Atlas decision 0096 says LLM channels
+ * carry only a coarsened health band, with no raw point-in-time values in output. The MCP
+ * server and WebMCP are LLM-facing channels, so the raw health, sleep, and workout exports
+ * never reach them. Agents get those domains only as the coarsened band in llms-full.txt.
+ * The owner applied this to these channels on 2026-10-07 and can reverse it.
+ *
+ * FAIL-CLOSED. Every portal-contract endpoint must be classified here. A new endpoint in
+ * neither list stops the build, so a contract bump cannot expose a new raw domain to an
+ * agent by default. /openapi.json is a different channel (the public developer API) and
+ * still documents all nine exports: it reads DATA_SOURCES, not this policy.
+ */
+export const LLM_CHANNEL_POLICY = Object.freeze({
+  exposed: Object.freeze(['books', 'articles', 'githubEvents', 'starredRepos', 'theatreReviews', 'focus']),
+  coarsenedOnly: Object.freeze(['health', 'sleep', 'workouts'])
+})
+for (const key of Object.keys(ENDPOINTS)) {
+  const exposed = LLM_CHANNEL_POLICY.exposed.includes(key)
+  if (exposed === LLM_CHANNEL_POLICY.coarsenedOnly.includes(key)) {
+    throw new Error(`portal-contract endpoint "${key}" must be classified exactly once in LLM_CHANNEL_POLICY (exposed or coarsenedOnly)`)
+  }
+}
+for (const key of [...LLM_CHANNEL_POLICY.exposed, ...LLM_CHANNEL_POLICY.coarsenedOnly]) {
+  if (!(key in ENDPOINTS)) {
+    throw new Error(`LLM_CHANNEL_POLICY names "${key}", which is not a portal-contract endpoint`)
+  }
+}
+
+/** The JSON exports an LLM channel may serve raw. */
+export const LLM_DATA_SOURCES = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.exposed.includes(s.key)))
+
+/** The raw export URLs no LLM channel may serve or name. Tests assert their absence from every MCP and WebMCP answer. */
+export const LLM_WITHHELD_URLS = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.coarsenedOnly.includes(s.key)).map((s) => s.url))
+
+/** MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate. */
+export const RESOURCES = Object.freeze([
+  ...LLM_DATA_SOURCES.map((s) =>
+    Object.freeze({name: s.key, uri: s.url, path: s.path, title: s.name, description: s.description, mimeType: 'application/json'})
+  ),
+  Object.freeze({
+    name: 'llmsFull',
+    uri: LLMS_FULL_URL,
+    path: LLM_CONTENT_PATHS.llmsFull,
+    title: llm.dashboard.alternateLinkMarkdown,
+    description: llm.dashboard.datasetDescription,
+    mimeType: 'text/markdown'
+  })
+])
+
+/** A profile URL from person.sameAs, chosen by host so the order of that list carries no meaning. */
+function sameAsOn(host) {
+  const url = identity.person.sameAs.find((candidate) => new URL(candidate).hostname.endsWith(host))
+  if (!url) {
+    throw new Error(`@j0nathan-ll0yd/copy identity.person.sameAs has no ${host} URL`)
+  }
+  return url
+}
+
+const profile = Object.freeze({
+  name: identity.person.name,
+  title: identity.person.jobTitle,
+  location: identity.person.location,
+  experience: identity.person.experiencePhrase,
+  site: SITE_URL,
+  github: sameAsOn('github.com'),
+  linkedin: sameAsOn('linkedin.com'),
+  bio: identity.person.longBio,
+  expertise: identity.seo.expertise,
+  interests: identity.person.interests
+})
+
+if (typeof llm.mcp.coarsenedBandDesc !== 'string' || llm.mcp.coarsenedBandDesc.length === 0) {
+  throw new Error('@j0nathan-ll0yd/copy has no llm.mcp.coarsenedBandDesc (LLM_CHANNEL_POLICY coarsened-only entries)')
+}
+
+/**
+ * Where an agent reads each data domain: an exposed export by its JSON URL, and a coarsened-only
+ * domain at llms-full.txt, where its coarsened band lives, never at its raw export
+ * (LLM_CHANNEL_POLICY). One list drives every LLM channel that names data sources: the
+ * get_data_sources tool (MCP and WebMCP) and the SKILL.md Live Data Sources table, which
+ * scripts/generate-webmcp.mjs renders from it.
+ */
+export const LLM_DATA_SOURCE_DIRECTORY = Object.freeze(
+  DATA_SOURCES.map(({key, name, url, description}) =>
+    Object.freeze(LLM_CHANNEL_POLICY.exposed.includes(key) ? {name, url, description} : {name, url: LLMS_FULL_URL, description: llm.mcp.coarsenedBandDesc})
+  )
+)
+
+const techStack = Object.freeze({
+  framework: fillTemplate(llm.mcp.stackFramework, 'astroMajor', ASTRO_MAJOR),
+  hosting: llm.mcp.stackHosting,
+  liveData: llm.mcp.stackLiveData,
+  design: llm.mcp.stackDesign,
+  font: llm.mcp.stackFont,
+  llmContent: {discoveryIndex: llmsTxt.contentUrl, complete: LLMS_FULL_URL},
+  mcpServer: MCP_URL
+})
+
+/**
+ * The reading summary: the one piece of tool logic. Only the MCP server runs it; the
+ * WebMCP script calls the server, so no second copy exists in the browser.
+ */
+export function selectCurrentReading(data) {
+  const books = data && Array.isArray(data.books) ? data.books : []
+  return {
+    reading: books.filter((b) => b.status === 'reading'),
+    upNext: books.filter((b) => b.status === 'up-next'),
+    recentlyFinished: books.filter((b) => b.status === 'finished').slice(0, 5)
+  }
+}
+
+/**
+ * The tool catalog. `readOnly` maps to MCP `readOnlyHint` and WebMCP `readOnlyHint`;
+ * `untrustedContent` maps to WebMCP `untrustedContentHint` (MCP 2026-07-28 has no
+ * equivalent annotation). A tool exposes nothing beyond the public JSON exports and
+ * the copy package.
+ *
+ * `static` tools answer from build-time data. An `artifact` tool reads one export
+ * through the focus gate and summarizes it with `select`.
+ */
+export const TOOLS = Object.freeze([
+  Object.freeze({name: 'get_profile', description: llm.mcp.toolGetProfile, readOnly: true, untrustedContent: false, kind: 'static', payload: profile}),
+  Object.freeze({
+    name: 'get_data_sources',
+    description: llm.mcp.toolGetDataSources,
+    readOnly: true,
+    untrustedContent: false,
+    kind: 'static',
+    payload: LLM_DATA_SOURCE_DIRECTORY
+  }),
+  Object.freeze({
+    name: 'get_current_reading',
+    description: llm.mcp.toolGetCurrentReading,
+    readOnly: true,
+    // Book titles and authors are third-party text.
+    untrustedContent: true,
+    kind: 'artifact',
+    path: ENDPOINTS.books,
+    select: selectCurrentReading
+  }),
+  Object.freeze({name: 'get_tech_stack', description: llm.mcp.toolGetTechStack, readOnly: true, untrustedContent: false, kind: 'static', payload: techStack})
+])
+
+/** The SEP-2127 server card. Served at AGENT_PATHS.serverCard (canonical) and AGENT_PATHS.serverCardCompat. */
+export const SERVER_CARD = Object.freeze({
+  $schema: SERVER_CARD_SCHEMA_URI,
+  name: MCP_SERVER_NAME,
+  title: llm.mcp.serverTitle,
+  description: llm.mcp.serverCardDescription,
+  version: MCP_SERVER_VERSION,
+  remotes: [{type: 'streamable-http', url: MCP_URL}]
+})
+
+/** The served card bytes: the canonical route and the compatibility file are byte-identical. */
+export const SERVER_CARD_JSON = `${JSON.stringify(SERVER_CARD, null, 2)}\n`

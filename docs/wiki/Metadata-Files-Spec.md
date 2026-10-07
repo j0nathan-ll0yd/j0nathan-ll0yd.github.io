@@ -23,7 +23,7 @@ by the mechanism best suited to that audience's freshness requirements.
 | `/humans.txt`               | Humans                    | Build-time endpoint (`src/pages/humans.txt.ts`)                       | humanstxt.org    |
 | `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `functions/feed.xml.ts`)  | RSS 2.0          |
 | `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `functions/feed.json.ts`) | JSON Feed 1.1    |
-| `/.well-known/api-catalog`  | Machines (API clients)    | Static file (`public/.well-known/api-catalog`)                        | RFC 9727         |
+| `/.well-known/api-catalog`  | Machines (API clients)    | Generated (`scripts/generate-webmcp.mjs`)                             | RFC 9727         |
 | `/.well-known/security.txt` | Machines + humans         | (Future) Static file at `/.well-known/security.txt`                   | RFC 9116         |
 
 `/llms.txt` is the only backend-composed file because its value proposition is
@@ -91,7 +91,8 @@ Discovery `<link>` relations in use:
 | ---------------------------------------------- | ------------------------------ | -------------------- |
 | `rel="describedby" type="text/plain"`          | `/llms.txt`                    | RFC 8288             |
 | `rel="api-catalog"`                            | `/.well-known/api-catalog`     | RFC 9727             |
-| `rel="ai-catalog"`                             | `/.well-known/ai-catalog.json` | ARD                  |
+| `rel="ai-catalog"`                             | `/.well-known/ai-catalog.json` | ARD (predecessor)    |
+| `rel="ard"`                                    | `/.well-known/ard.json`        | ARD v0.91            |
 | `rel="sitemap"`                                | `/sitemap-index.xml`           | HTML Living Standard |
 | `rel="author"`                                 | `/humans.txt`                  | HTML Living Standard |
 | `rel="alternate" type="application/rss+xml"`   | `/feed.xml`                    | RSS 2.0 / HTML5      |
@@ -208,12 +209,16 @@ URL (`identity.person.sameAs[0]`), not an email address. `Last update:` is
 derived from the build timestamp (honest, because the endpoint is prerendered
 on every deploy).
 
-### `/.well-known/api-catalog` — static RFC 9727
+### `/.well-known/api-catalog` — generated RFC 9727
 
-Static JSON file at `public/.well-known/api-catalog`, copied to `dist/` by
-Astro at build time. RFC 9727 linkset format — advertises the CloudFront data
-API to agent clients. `Content-Type: application/linkset+json` is set by the
-middleware override (not by `_headers`).
+Generated into `public/.well-known/api-catalog` by `scripts/generate-webmcp.mjs`
+during `prebuild` (atlas decision 0158); do not hand-edit it. RFC 9727 linkset
+format: the first entry anchors on the catalog URL and lists the CloudFront data
+API as its one `item`; the second describes that API with `service-desc`
+(`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
+`service-doc` (`/developers` once `src/pages/developers.astro` exists, the wiki
+before). `Content-Type: application/linkset+json` is set by the middleware
+override (not by `_headers`).
 
 ### `/.well-known/security.txt` — future (RFC 9116)
 

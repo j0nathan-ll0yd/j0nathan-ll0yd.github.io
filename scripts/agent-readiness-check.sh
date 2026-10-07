@@ -1,6 +1,7 @@
 #!/bin/bash
 # Agent Readiness Local Validator
-# Tests all 12 checks from isitagentready.com against a target URL.
+# Tests all 12 checks from isitagentready.com against a target URL, plus the
+# MCP and WebMCP checks of atlas decision 0158.
 # Usage: ./scripts/agent-readiness-check.sh [URL] [BUILD_DIR]
 #   URL       - Site to test (default: https://jonathanlloyd.me)
 #   BUILD_DIR - Local build output to test (default: none, uses live URL)
@@ -142,10 +143,14 @@ else
     if echo "$link_header" | grep -qi 'sitemap'; then
       log_info "  Contains sitemap link"
     fi
+    if echo "$link_header" | grep -q 'rel="ard"'; then
+      log_pass "Link header advertises </.well-known/ard.json>; rel=\"ard\" (ARD v0.91)"
+    else
+      log_fail "Link header lacks rel=\"ard\""
+    fi
   else
     log_fail "No Link header on GET /"
-    log_info "  Fix: Cloudflare Transform Rule > Modify Response Header"
-    log_info "  Value: </llms.txt>; rel=\"describedby\"; type=\"text/plain\", </.well-known/api-catalog>; rel=\"api-catalog\", </sitemap-index.xml>; rel=\"sitemap\""
+    log_info "  Fix: LINK_HEADER in functions/_middleware.ts"
   fi
 fi
 
@@ -285,6 +290,13 @@ else
       else
         log_fail "api-catalog missing 'linkset' key"
       fi
+      desc=$(echo "$body" | python3 -c "import sys,json; l=json.load(sys.stdin)['linkset']; assert any(e.get('item') for e in l); from urllib.parse import urlparse; print(urlparse(next(d['href'] for e in l for d in e.get('service-desc', []))).path)" 2>/dev/null || true)
+      # The href names production; resolve its path against the target under test.
+      if [ -n "$desc" ] && [ "$(http_status "${BASE_URL}${desc}")" = "200" ]; then
+        log_pass "api-catalog lists an item whose service-desc resolves: $desc"
+      else
+        log_fail "api-catalog has no item, or its service-desc does not resolve"
+      fi
     else
       log_fail "api-catalog body is not valid JSON"
     fi
@@ -338,38 +350,74 @@ else
   fi
 fi
 
-# --- Check 10: MCP Server Card ---
-log_section "Check 10: MCP Server Card"
+# --- Check 10: MCP Server Card and MCP endpoint ---
+# SEP-2127 card at /mcp/server-card (canonical) and /.well-known/mcp/server-card.json
+# (compatibility copy). The live run also connects: initialize, then tools/list, at the
+# card's streamable-http remote. A card that only parses proves nothing about the server.
+log_section "Check 10: MCP Server Card and MCP endpoint"
+card_ok() {
+  python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+assert d.get('\$schema', '').startswith('https://static.modelcontextprotocol.io/schemas/'), 'no SEP-2127 \$schema'
+assert '/' in d.get('name', ''), 'name is not reverse-DNS'
+assert 0 < len(d.get('description', '')) <= 100, 'description missing or over 100 characters'
+assert any(r.get('type') == 'streamable-http' for r in d.get('remotes', [])), 'no streamable-http remote'
+"
+}
 if [ -n "$BUILD_DIR" ]; then
   if local_file_exists "/.well-known/mcp/server-card.json"; then
     log_pass "server-card.json exists in build output"
-    content=$(local_file_content "/.well-known/mcp/server-card.json")
-    if echo "$content" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
-      log_pass "server-card.json is valid JSON"
-      if echo "$content" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'resources' in d or 'capabilities' in d" 2>/dev/null; then
-        log_pass "server-card.json has resources or capabilities"
-      else
-        log_fail "server-card.json missing resources/capabilities"
-      fi
+    if local_file_content "/.well-known/mcp/server-card.json" | card_ok 2>/dev/null; then
+      log_pass "server-card.json has the SEP-2127 shape"
     else
-      log_fail "server-card.json is not valid JSON"
+      log_fail "server-card.json is not a SEP-2127 card"
     fi
   else
     log_fail "server-card.json missing from build output"
   fi
+  log_info "/mcp and /mcp/server-card are Pages Functions -- verify after deploy, or under 'wrangler pages dev'"
 else
-  status=$(http_status "${BASE_URL}/.well-known/mcp/server-card.json")
-  if [ "$status" = "200" ]; then
-    log_pass "server-card.json returns 200"
-    body=$(fetch_body "${BASE_URL}/.well-known/mcp/server-card.json")
-    if echo "$body" | python3 -c "import sys,json; json.load(sys.stdin)" 2>/dev/null; then
-      log_pass "server-card.json is valid JSON"
+  for card_path in /mcp/server-card /.well-known/mcp/server-card.json; do
+    status=$(http_status "${BASE_URL}${card_path}")
+    if [ "$status" = "200" ] && fetch_body "${BASE_URL}${card_path}" | card_ok 2>/dev/null; then
+      log_pass "${card_path} returns a SEP-2127 card"
     else
-      log_fail "server-card.json body is not valid JSON"
+      log_fail "${card_path} returns HTTP $status or not a SEP-2127 card"
     fi
+  done
+  ctype=$(fetch_headers "${BASE_URL}/mcp/server-card" | grep -i '^content-type:' | tr -d '\r' || true)
+  if echo "$ctype" | grep -qi 'application/mcp-server-card+json'; then
+    log_pass "/mcp/server-card served as application/mcp-server-card+json"
   else
-    log_fail "server-card.json returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_fail "/mcp/server-card Content-Type is '${ctype}'"
+  fi
+  mcp_url="${BASE_URL}/mcp"
+  init=$(curl -s --max-time 15 -X POST -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' "$mcp_url" \
+    --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"agent-readiness-check","version":"1"}}}' || true)
+  tools=$(curl -s --max-time 15 -X POST -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' -H 'MCP-Protocol-Version: 2025-11-25' "$mcp_url" \
+    --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' || true)
+  rpc() { python3 -c "
+import sys, json
+text = sys.stdin.read()
+lines = [l[5:].strip() for l in text.splitlines() if l.startswith('data:')]
+print(json.dumps(json.loads(lines[-1] if lines else text)))
+"; }
+  if echo "$init" | rpc 2>/dev/null | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; assert r['protocolVersion'] and r['serverInfo']['name']" 2>/dev/null; then
+    log_pass "POST /mcp initialize returns a JSON-RPC result"
+  else
+    log_fail "POST /mcp initialize did not return a JSON-RPC result"
+  fi
+  if echo "$tools" | rpc 2>/dev/null | python3 -c "import sys,json; t=json.load(sys.stdin)['result']['tools']; assert t and all(x['annotations']['readOnlyHint'] is True for x in t); print(len(t))" >/tmp/agent-readiness-tools 2>/dev/null; then
+    log_pass "POST /mcp tools/list returns $(cat /tmp/agent-readiness-tools) read-only tools"
+  else
+    log_fail "POST /mcp tools/list did not return read-only tools"
+  fi
+  get_status=$(http_status "$mcp_url")
+  if [ "$get_status" = "405" ]; then
+    log_pass "GET /mcp answers 405 (stateless Streamable HTTP, no GET stream)"
+  else
+    log_fail "GET /mcp answers HTTP $get_status (expected 405)"
   fi
 fi
 
@@ -423,44 +471,37 @@ else
 fi
 
 # --- Check 12: WebMCP ---
-log_section "Check 12: WebMCP (navigator.modelContext)"
+# WebMCP Draft CG Report 2026-10-02: document.modelContext.registerTool(tool), each tool
+# annotated readOnlyHint: true. navigator.modelContext is only an origin-trial fallback,
+# and provideContext() is not in the draft.
+log_section "Check 12: WebMCP (document.modelContext.registerTool)"
 if [ -n "$BUILD_DIR" ]; then
-  index_html=$(local_file_content "/index.html")
-  webmcp_source="$index_html"
-  if echo "$index_html" | grep -q '/js/webmcp.js' && local_file_exists "/js/webmcp.js"; then
-    webmcp_source=$(local_file_content "/js/webmcp.js")
-  fi
-  if echo "$webmcp_source" | grep -q 'navigator.modelContext'; then
-    log_pass "WebMCP script found (navigator.modelContext)"
-    if echo "$webmcp_source" | grep -q 'provideContext'; then
-      log_pass "  Uses provideContext() API"
-    fi
-    if echo "$webmcp_source" | grep -q 'get_profile\|get_data_sources\|get_current_reading\|get_tech_stack'; then
-      tool_count=$(echo "$webmcp_source" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
-      log_pass "  $tool_count tools registered"
-    fi
+  page=$(local_file_content "/index.html")
+  webmcp_source=$(local_file_content "/js/webmcp.js")
+else
+  page=$(fetch_body "${BASE_URL}/")
+  webmcp_source=$(fetch_body "${BASE_URL}/js/webmcp.js")
+fi
+first_script=$(echo "$page" | grep -o '<script[^>]*>' | head -1)
+if echo "$first_script" | grep -q 'src="/js/webmcp.js"'; then
+  log_pass "webmcp.js is the first script on the page"
+else
+  log_fail "webmcp.js is not the first script (first: ${first_script})"
+fi
+if echo "$webmcp_source" | grep -q 'document.modelContext' && echo "$webmcp_source" | grep -q 'registerTool'; then
+  log_pass "WebMCP script registers tools via document.modelContext.registerTool"
+  tool_count=$(echo "$webmcp_source" | grep -o '"name":"[a-z_]*"' | sort -u | wc -l | tr -d ' ')
+  readonly_count=$(echo "$webmcp_source" | grep -o '"readOnlyHint":true' | wc -l | tr -d ' ')
+  if [ "$tool_count" -gt 0 ] && [ "$tool_count" = "$readonly_count" ]; then
+    log_pass "  $tool_count tools, each with readOnlyHint: true"
   else
-    log_fail "WebMCP script not found in index.html or /js/webmcp.js"
+    log_fail "  $tool_count tools but $readonly_count readOnlyHint annotations"
+  fi
+  if echo "$webmcp_source" | grep -q 'provideContext'; then
+    log_fail "  still calls provideContext(), which the draft does not define"
   fi
 else
-  body=$(fetch_body "${BASE_URL}/")
-  webmcp_source="$body"
-  if echo "$body" | grep -q '/js/webmcp.js'; then
-    webmcp_source=$(fetch_body "${BASE_URL}/js/webmcp.js")
-  fi
-  if echo "$webmcp_source" | grep -q 'navigator.modelContext'; then
-    log_pass "WebMCP script found (navigator.modelContext)"
-    if echo "$webmcp_source" | grep -q 'provideContext'; then
-      log_pass "  Uses provideContext() API"
-    fi
-    tool_count=$(echo "$webmcp_source" | grep -o "name: '[a-z_]*'" | wc -l | tr -d ' ')
-    if [ "$tool_count" -gt 0 ]; then
-      log_pass "  $tool_count tools registered"
-    fi
-  else
-    log_fail "WebMCP script not found in page source or /js/webmcp.js"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
-  fi
+  log_fail "WebMCP script missing or does not use document.modelContext.registerTool"
 fi
 
 # --- Summary ---
