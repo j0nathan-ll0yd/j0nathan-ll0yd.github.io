@@ -25,7 +25,7 @@ The portfolio at jonathanlloyd.me is a sci-fi "Human Datastream" dashboard — a
 
 ### Technology Stack
 
-- **Framework:** Astro 6.x (static site generation, 0 KB JS by default)
+- **Framework:** Astro 7.x (static site generation, 0 KB JS by default)
 - **Hosting:** Cloudflare Pages via GitHub Actions
 - **Live data:** CloudFront-backed JSON API polled at runtime
 - **Design:** Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries
@@ -33,7 +33,7 @@ The portfolio at jonathanlloyd.me is a sci-fi "Human Datastream" dashboard — a
 
 ## Live Data Sources
 
-All data is served from CloudFront with 5-minute edge TTL. Health data is the latest export, summarised, for privacy.
+All data is served from CloudFront with a 30-second cache (`max-age=30, s-maxage=30`); `focus.json` is never cached. Health data is the latest export, summarised, for privacy. While a hiding focus mode is active, every export except `focus.json` answers HTTP 403 with `{"suppressed": true, "reason": ...}`.
 
 | Endpoint                                                          | Description                              |
 | ----------------------------------------------------------------- | ---------------------------------------- |
@@ -47,6 +47,10 @@ All data is served from CloudFront with 5-minute edge TTL. Health data is the la
 | <https://d1pfm520aduift.cloudfront.net/theatre-reviews.json>      | Theatre reviews                          |
 | <https://d1pfm520aduift.cloudfront.net/workouts.json>             | Workout sessions and summaries           |
 
+## MCP Server
+
+A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Resources are the JSON endpoints below plus llms-full.txt; tools return the profile, the data sources, current reading, and the tech stack. The OpenAPI 3.1 description of the JSON endpoints is at <https://jonathanlloyd.me/openapi.json>.
+
 ## LLM-Optimized Content
 
 Backend-composed markdown variants, always fresher than this static skill file:
@@ -58,7 +62,7 @@ Backend-composed markdown variants, always fresher than this static skill file:
 ## Key Architectural Decisions
 
 1. **Zero JS by default** — All rendering is build-time Astro components. No React/Vue/Svelte.
-2. **ES5 inline scripts** — Client JS uses var, IIFEs, function declarations for maximum compatibility.
+2. **ES2017 raw scripts** — Scripts served without a build step (`public/js/*.js`) use ES2017 syntax at most, and all of them load from files because the CSP is `script-src 'self'`.
 3. **Separate data origin** — JSON on CloudFront (d1pfm520aduift.cloudfront.net), HTML on Cloudflare Pages (jonathanlloyd.me). Cloudflare never caches JSON.
 4. **Privacy-first health data** — LLM content uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.
 5. **Image pipeline** — Book covers and theatre posters optimized to WebP by Lambda, downloaded locally at build time, served same-origin via Cloudflare CDN.
@@ -67,5 +71,5 @@ Backend-composed markdown variants, always fresher than this static skill file:
 
 - To summarize Jonathan's background, reference the Identity and Expertise sections above.
 - To get current data, fetch the llms-full.txt URL — it is composed by the backend on every data change and is always up to date.
-- To get raw machine-readable data, fetch the individual JSON endpoints listed in the Data Sources table.
+- To get raw machine-readable data, fetch the individual JSON endpoints listed in the Data Sources table, or connect to the MCP server.
 - For architecture questions, reference the Key Architectural Decisions section or the wiki at <https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki>

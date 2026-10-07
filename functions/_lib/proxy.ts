@@ -37,8 +37,11 @@ const FOCUS_RETRY_DELAY_MS = 100
 export const PROXY_TIMEOUTS = Object.freeze({focusMs: FOCUS_TIMEOUT_MS, artifactMs: ARTIFACT_TIMEOUT_MS, totalMs: TOTAL_BUDGET_MS})
 const PUBLIC_NO_STORE = 'no-store'
 const SUPPRESSION_RETRY_SECONDS = 60
+/** The `X-Source` value of a focus-suppression response. Exported so a caller of a proxy handler can tell suppression from failure. */
+export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
-const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
+const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
+const FOCUS_URL = `${CLOUDFRONT_BASE}${FOCUS_SIGNAL_PATH}`
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
 
 // Minimal Cloudflare Pages Function types -- only the fields used here.
@@ -312,7 +315,7 @@ function suppressionResponse(method: string): Response {
   const headers = new Headers({
     'Content-Type': 'application/json; charset=utf-8',
     'Retry-After': String(SUPPRESSION_RETRY_SECONDS),
-    'X-Source': 'cloudfront-proxy-suppressed'
+    'X-Source': SUPPRESSION_SOURCE
   })
   setPublicNoStore(headers)
   const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
@@ -517,7 +520,10 @@ export function makeCloudfrontProxy(
     // retry delay and every body read draw from it. Started here, before the first network call.
     const budget = startBudget()
 
-    const privacyResponse = await focusPrivacyResponse(context.request.method, path, budget)
+    // The focus signal itself is never gated, exactly as the edge gate never gates it
+    // (focus-privacy spec, "The focus signal stays retrievable while hiding"). Every
+    // other artifact is suppressible and goes through the gate.
+    const privacyResponse = path === FOCUS_SIGNAL_PATH ? null : await focusPrivacyResponse(context.request.method, path, budget)
     if (privacyResponse) {
       return privacyResponse
     }

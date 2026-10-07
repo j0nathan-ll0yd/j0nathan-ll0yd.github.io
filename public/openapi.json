@@ -1,0 +1,1448 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Jonathan Lloyd — Human Datastream",
+    "version": "1.0.0",
+    "description": "Live biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON."
+  },
+  "servers": [
+    {
+      "url": "https://d1pfm520aduift.cloudfront.net"
+    }
+  ],
+  "paths": {
+    "/health.json": {
+      "get": {
+        "operationId": "getHealth",
+        "summary": "Health biometrics",
+        "description": "Heart rate, HRV, activity, and workout data (latest export, summarised)",
+        "responses": {
+          "200": {
+            "description": "Heart rate, HRV, activity, and workout data (latest export, summarised)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/sleep.json": {
+      "get": {
+        "operationId": "getSleep",
+        "summary": "Sleep data",
+        "description": "Sleep phases, duration, and efficiency metrics",
+        "responses": {
+          "200": {
+            "description": "Sleep phases, duration, and efficiency metrics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SleepExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/workouts.json": {
+      "get": {
+        "operationId": "getWorkouts",
+        "summary": "Workouts",
+        "description": "Workout sessions with type, duration, and calorie burn",
+        "responses": {
+          "200": {
+            "description": "Workout sessions with type, duration, and calorie burn",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkoutsExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/books.json": {
+      "get": {
+        "operationId": "getBooks",
+        "summary": "Bookshelf",
+        "description": "Books with status, ratings, progress, and cover images",
+        "responses": {
+          "200": {
+            "description": "Books with status, ratings, progress, and cover images",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BooksExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/github-starred-repos.json": {
+      "get": {
+        "operationId": "getStarredRepos",
+        "summary": "Starred repositories",
+        "description": "GitHub starred repositories with metadata",
+        "responses": {
+          "200": {
+            "description": "GitHub starred repositories with metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StarredReposExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/github-events.json": {
+      "get": {
+        "operationId": "getGithubEvents",
+        "summary": "GitHub activity",
+        "description": "Dev activity, languages, contributions, and recent commits",
+        "responses": {
+          "200": {
+            "description": "Dev activity, languages, contributions, and recent commits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GithubEventsExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/articles.json": {
+      "get": {
+        "operationId": "getArticles",
+        "summary": "Reading feed",
+        "description": "Starred articles and RSS feed items",
+        "responses": {
+          "200": {
+            "description": "Starred articles and RSS feed items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArticlesExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    },
+    "/focus.json": {
+      "get": {
+        "operationId": "getFocus",
+        "summary": "Focus state",
+        "description": "Current Do Not Disturb and focus mode status",
+        "responses": {
+          "200": {
+            "description": "Current Do Not Disturb and focus mode status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FocusExport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/theatre-reviews.json": {
+      "get": {
+        "operationId": "getTheatreReviews",
+        "summary": "Theatre reviews",
+        "description": "Theatre show reviews with ratings and venue info",
+        "responses": {
+          "200": {
+            "description": "Theatre show reviews with ratings and venue info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TheatreReviewsExport"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Suppressed"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthExport": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "lastSync": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quantities": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string",
+              "enum": [
+                "stepCount",
+                "activeEnergyBurned",
+                "basalEnergyBurned",
+                "distanceWalkingRunning",
+                "flightsClimbed",
+                "exerciseTime",
+                "standTime",
+                "standHours",
+                "timeInDaylight",
+                "heartRate",
+                "restingHeartRate",
+                "heartRateVariabilitySDNN",
+                "respiratoryRate",
+                "wristTemperatureDelta",
+                "sleepScore",
+                "dietaryWater",
+                "dietaryCaffeine"
+              ]
+            },
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "value",
+                "unit"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "goals": {
+            "type": "object",
+            "properties": {
+              "moveKcal": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "exerciseMin": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "standHr": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "daylightMin": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "moveKcal",
+              "exerciseMin",
+              "standHr",
+              "daylightMin"
+            ],
+            "additionalProperties": false
+          },
+          "solar": {
+            "type": "object",
+            "properties": {
+              "sunriseHHmm": {
+                "type": "string"
+              },
+              "sunsetHHmm": {
+                "type": "string"
+              },
+              "currentProgressPct": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "sunriseHHmm",
+              "sunsetHHmm",
+              "currentProgressPct"
+            ],
+            "additionalProperties": false
+          },
+          "watch": {
+            "type": "object",
+            "properties": {
+              "worn": {
+                "type": "boolean"
+              },
+              "since": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "charging",
+                  "hrGap"
+                ]
+              }
+            },
+            "required": [
+              "worn",
+              "source"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "date",
+          "generatedAt",
+          "quantities"
+        ],
+        "additionalProperties": false
+      },
+      "SleepExport": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "awake": {
+            "type": "object",
+            "properties": {
+              "seconds": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "seconds"
+            ],
+            "additionalProperties": false
+          },
+          "core": {
+            "type": "object",
+            "properties": {
+              "seconds": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "seconds"
+            ],
+            "additionalProperties": false
+          },
+          "deep": {
+            "type": "object",
+            "properties": {
+              "seconds": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "seconds"
+            ],
+            "additionalProperties": false
+          },
+          "rem": {
+            "type": "object",
+            "properties": {
+              "seconds": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "seconds"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "date",
+          "generatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "WorkoutsExport": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "workouts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "activityType": {
+                  "type": "string"
+                },
+                "duration": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "energyBurned": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "distance": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "activityType",
+                "duration",
+                "energyBurned",
+                "distance",
+                "source"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "date",
+          "generatedAt",
+          "workouts"
+        ],
+        "additionalProperties": false
+      },
+      "BooksExport": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "books": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "asin": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "author": {
+                  "type": "string"
+                },
+                "series": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seriesNumber": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "seriesTotal": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "publicationDate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "publishedYear": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "isbn10": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "isbn13": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pageCount": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImageVersion": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImage": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImageThumb": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImageCard": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImageAvif": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImageThumbAvif": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "mainImageCardAvif": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "images": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "averageRating": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "category": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "currentPage": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "totalPages": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "rating": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "updatedAt": {
+                  "type": "string"
+                },
+                "finishedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "startedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "asin",
+                "title",
+                "author",
+                "series",
+                "seriesNumber",
+                "seriesTotal",
+                "description",
+                "publicationDate",
+                "publishedYear",
+                "isbn10",
+                "isbn13",
+                "pageCount",
+                "mainImageVersion",
+                "mainImage",
+                "mainImageThumb",
+                "mainImageCard",
+                "mainImageAvif",
+                "mainImageThumbAvif",
+                "mainImageCardAvif",
+                "images",
+                "averageRating",
+                "category",
+                "status",
+                "currentPage",
+                "totalPages",
+                "rating",
+                "notes",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "books"
+        ],
+        "additionalProperties": false
+      },
+      "StarredReposExport": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "repos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "ownerLogin": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "ownerHtmlUrl": {
+                  "type": "string"
+                },
+                "htmlUrl": {
+                  "type": "string"
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "forksCount": {
+                  "type": "number"
+                },
+                "stargazersCount": {
+                  "type": "number"
+                },
+                "watchersCount": {
+                  "type": "number"
+                },
+                "openIssuesCount": {
+                  "type": "number"
+                },
+                "topics": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "size": {
+                  "type": "number"
+                },
+                "licenseKey": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "licenseName": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "licenseSpdxId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "starredAt": {
+                  "type": "string"
+                },
+                "languages": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "language": {
+                        "type": "string"
+                      },
+                      "lines": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "language",
+                      "lines"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "ownerLogin",
+                "ownerHtmlUrl",
+                "htmlUrl",
+                "description",
+                "forksCount",
+                "stargazersCount",
+                "watchersCount",
+                "openIssuesCount",
+                "topics",
+                "size",
+                "licenseKey",
+                "licenseName",
+                "licenseSpdxId",
+                "starredAt",
+                "languages"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "repos"
+        ],
+        "additionalProperties": false
+      },
+      "GithubEventsExport": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string"
+                },
+                "repo": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "title": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "number": {
+                  "type": "number"
+                },
+                "hash": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "additions": {
+                  "type": "number"
+                },
+                "deletions": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "type",
+                "repo",
+                "title",
+                "date"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "ArticlesExport": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "articles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "articleUrl": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "articleTitle": {
+                  "type": "string"
+                },
+                "articleAuthor": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleFirstImageUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articlePublishedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleBoards": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleCategories": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sourceTitle": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sourceUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sourceFeedUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "sourceDomain": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleEngagement": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleEngagementRate": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleFirstHighlight": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "articleFirstComment": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "savedAt": {
+                  "type": "string"
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "comment": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "comment",
+                      "createdAt"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "articleUrl",
+                "articleTitle",
+                "articleAuthor",
+                "articleFirstImageUrl",
+                "articlePublishedAt",
+                "articleBoards",
+                "articleCategories",
+                "sourceTitle",
+                "sourceUrl",
+                "sourceFeedUrl",
+                "sourceDomain",
+                "articleEngagement",
+                "articleEngagementRate",
+                "articleFirstHighlight",
+                "articleFirstComment",
+                "savedAt",
+                "notes"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "articles"
+        ],
+        "additionalProperties": false
+      },
+      "FocusExport": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "currentFocus": {
+            "type": "string"
+          },
+          "hidingSince": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "generatedAt",
+          "currentFocus"
+        ],
+        "additionalProperties": false,
+        "if": {
+          "properties": {
+            "currentFocus": {
+              "enum": [
+                "Work",
+                "Do Not Disturb"
+              ]
+            }
+          },
+          "required": [
+            "currentFocus"
+          ]
+        },
+        "then": {
+          "required": [
+            "hidingSince"
+          ]
+        }
+      },
+      "TheatreReviewsExport": {
+        "type": "object",
+        "properties": {
+          "generatedAt": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "const": "coasttocoastreviews.com"
+          },
+          "totalReviews": {
+            "type": "number"
+          },
+          "reviews": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "url": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "author": {
+                  "type": "string"
+                },
+                "publishedAt": {
+                  "type": "string"
+                },
+                "rating": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ratingNumeric": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "excerpt": {
+                  "type": "string"
+                },
+                "imageVersion": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageUrl": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageWidth": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageHeight": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageUrlAvif": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageUrlCard": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "imageUrlCardAvif": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "title",
+                "slug",
+                "url",
+                "author",
+                "publishedAt",
+                "rating",
+                "ratingNumeric",
+                "excerpt",
+                "imageVersion",
+                "imageUrl",
+                "imageWidth",
+                "imageHeight",
+                "imageUrlAvif",
+                "imageUrlCard",
+                "imageUrlCardAvif"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "generatedAt",
+          "source",
+          "totalReviews",
+          "reviews"
+        ],
+        "additionalProperties": false
+      },
+      "Suppressed": {
+        "type": "object",
+        "required": [
+          "suppressed",
+          "reason"
+        ],
+        "properties": {
+          "suppressed": {
+            "const": true
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "responses": {
+      "Suppressed": {
+        "description": "Hidden by an active focus mode. The JSON body states suppressed: true and the reason, and carries no data.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Suppressed"
+            }
+          }
+        }
+      }
+    }
+  }
+}

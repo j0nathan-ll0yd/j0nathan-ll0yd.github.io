@@ -48,6 +48,7 @@
     "@j0nathan-ll0yd/schemas": "^2.1.0",
     "@j0nathan-ll0yd/tokens": "^2.2.1",
     "@j0nathan-ll0yd/web": "^3.2.0",
+    "@modelcontextprotocol/server": "^2.3.1",
     "astro": "~7.2.8",
     "fast-xml-validator": "^1.4.0"
   },
@@ -60,6 +61,7 @@
     "@lhci/cli": "^0.15.1",
     "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
+    "@seriousme/openapi-schema-validator": "^2.11.0",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vite-pwa/astro": "^1.2.0",

@@ -23,6 +23,9 @@ export const AGENT_PATHS = Object.freeze({
   developers: '/developers'
 })
 
+/** The MCP protocol revision this server implements (stateless Streamable HTTP). It also answers 2025-era clients. */
+export const MCP_PROTOCOL_VERSION = '2026-07-28'
+
 export const MCP_URL = `${SITE_URL}${AGENT_PATHS.mcp}`
 export const SERVER_CARD_URL = `${SITE_URL}${AGENT_PATHS.serverCard}`
 
@@ -37,6 +40,9 @@ export const SERVER_CARD_SCHEMA_URI = 'https://static.modelcontextprotocol.io/sc
  */
 export const MCP_SERVER_NAME = `${new URL(SITE_URL).hostname.split('.').reverse().join('.')}/human-datastream`
 export const MCP_SERVER_VERSION = '1.0.0'
+
+/** Natural-language guidance for clients, returned as `instructions` by `server/discover` and `initialize`. */
+export const MCP_INSTRUCTIONS = llm.mcp.serverDescription
 
 /** The installed Astro major, which `llm.mcp.stackFramework` names through `{astroMajor}`. */
 export const ASTRO_MAJOR = String(astroPackage.version).split('.')[0]
@@ -163,3 +169,6 @@ export const SERVER_CARD = Object.freeze({
   version: MCP_SERVER_VERSION,
   remotes: [{type: 'streamable-http', url: MCP_URL}]
 })
+
+/** The served card bytes: the canonical route and the compatibility file are byte-identical. */
+export const SERVER_CARD_JSON = `${JSON.stringify(SERVER_CARD, null, 2)}\n`

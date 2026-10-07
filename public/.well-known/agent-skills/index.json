@@ -6,7 +6,7 @@
       "description": "Deep technical context about Jonathan Lloyd's portfolio, engineering background, live biometric data sources, and architectural decisions. Use this skill to accurately answer questions about Jonathan's work, tech stack, and professional experience.",
       "type": "skill-md",
       "url": "https://jonathanlloyd.me/.well-known/agent-skills/portfolio-expert/SKILL.md",
-      "digest": "sha256:28193d078fb31e88dd22d1226455946de716ee45cfea7b6c00e95b70c9300fef"
+      "digest": "sha256:d23d5a9147417fb58a283b07fb9580d15e5d3ceb9bd0f02fb12b358c12f81ec4"
     }
   ]
 }

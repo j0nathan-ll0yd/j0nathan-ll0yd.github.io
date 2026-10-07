@@ -57,6 +57,7 @@ export const LINK_HEADER = [
   `<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`,
   '</.well-known/api-catalog>; rel="api-catalog"',
   '</.well-known/ai-catalog.json>; rel="ai-catalog"',
+  '</.well-known/ard.json>; rel="ard"',
   '</sitemap-index.xml>; rel="sitemap"',
   '</humans.txt>; rel="author"',
   '</feed.xml>; rel="alternate"; type="application/rss+xml"',

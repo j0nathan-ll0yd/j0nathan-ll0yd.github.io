@@ -11,6 +11,8 @@ afterEach(() => {
 describe('discovery Link header', () => {
   it('advertises ARD without advertising an unavailable A2A interface', () => {
     expect(LINK_HEADER).toContain('</.well-known/ai-catalog.json>; rel="ai-catalog"')
+    // ARD v0.91 section 5.1: a consumer MUST honour rel="ard"; the predecessor rel stays for older consumers.
+    expect(LINK_HEADER).toContain('</.well-known/ard.json>; rel="ard"')
     expect(LINK_HEADER).not.toContain('agent-card.json')
     expect(LINK_HEADER).not.toContain('agentcard.org')
   })
