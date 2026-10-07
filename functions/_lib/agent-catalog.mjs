@@ -160,6 +160,19 @@ if (typeof llm.mcp.coarsenedBandDesc !== 'string' || llm.mcp.coarsenedBandDesc.l
   throw new Error('@j0nathan-ll0yd/copy has no llm.mcp.coarsenedBandDesc (LLM_CHANNEL_POLICY coarsened-only entries)')
 }
 
+/**
+ * Where an agent reads each data domain: an exposed export by its JSON URL, and a coarsened-only
+ * domain at llms-full.txt, where its coarsened band lives, never at its raw export
+ * (LLM_CHANNEL_POLICY). One list drives every LLM channel that names data sources: the
+ * get_data_sources tool (MCP and WebMCP) and the SKILL.md Live Data Sources table, which
+ * scripts/generate-webmcp.mjs renders from it.
+ */
+export const LLM_DATA_SOURCE_DIRECTORY = Object.freeze(
+  DATA_SOURCES.map(({key, name, url, description}) =>
+    Object.freeze(LLM_CHANNEL_POLICY.exposed.includes(key) ? {name, url, description} : {name, url: LLMS_FULL_URL, description: llm.mcp.coarsenedBandDesc})
+  )
+)
+
 const techStack = Object.freeze({
   framework: fillTemplate(llm.mcp.stackFramework, 'astroMajor', ASTRO_MAJOR),
   hosting: llm.mcp.stackHosting,
@@ -200,13 +213,7 @@ export const TOOLS = Object.freeze([
     readOnly: true,
     untrustedContent: false,
     kind: 'static',
-    // Exposed exports by their JSON URL. A coarsened-only domain names llms-full.txt, where
-    // its coarsened band lives, and never its raw export (LLM_CHANNEL_POLICY).
-    payload: DATA_SOURCES.map(({key, name, url, description}) =>
-      LLM_CHANNEL_POLICY.exposed.includes(key)
-        ? {name, url, description}
-        : {name, url: LLMS_FULL_URL, description: llm.mcp.coarsenedBandDesc}
-    )
+    payload: LLM_DATA_SOURCE_DIRECTORY
   }),
   Object.freeze({
     name: 'get_current_reading',

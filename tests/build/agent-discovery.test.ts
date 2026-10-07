@@ -38,6 +38,18 @@ describe('agent discovery build output', () => {
   })
 })
 
+// The served Agent Skill is an LLM channel: the LLM-channel data policy (SKILL.md decision 4, atlas
+// decision 0096) holds for the bytes an agent actually fetches, not only for the source file.
+describe('served portfolio-expert SKILL.md', () => {
+  const skill = read('.well-known/agent-skills/portfolio-expert/SKILL.md')
+
+  it('names none of the three raw health, sleep, or workouts export URLs', () => {
+    for (const path of [ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts]) {
+      expect(skill).not.toContain(`${CLOUDFRONT_BASE}${path}`)
+    }
+  })
+})
+
 describe('API catalog and OpenAPI', () => {
   const openapi = JSON.parse(read(AGENT_PATHS.openapi))
 

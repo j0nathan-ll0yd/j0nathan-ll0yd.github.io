@@ -26,6 +26,7 @@ import {
   AGENT_PATHS,
   DATA_SOURCES,
   FOCUS_SIGNAL_PATH,
+  LLM_DATA_SOURCE_DIRECTORY,
   MCP_PROTOCOL_VERSION,
   MCP_SERVER_SLUG,
   MCP_SERVER_VERSION,
@@ -109,12 +110,33 @@ write(join('js', 'webmcp.js'), webmcp)
 write(AGENT_PATHS.serverCardCompat.slice(1), SERVER_CARD_JSON)
 
 // ---------------------------------------------------------------------------
-// Agent Skills index. SKILL.md is HAND-WRITTEN; this script only reads it to compute
-// the digest from the served bytes. A literal digest desyncs the moment SKILL.md is
+// Agent Skills index. SKILL.md is HAND-WRITTEN apart from its generated data-source table
+// (rendered below); this script computes the digest from the resulting served bytes. A literal digest desyncs the moment SKILL.md is
 // edited, and audits/checks/b2-check-wellknown.mjs validates the digest's FORMAT, not
 // its match, so a stale one would ship green.
 // ---------------------------------------------------------------------------
 const skillMdPath = join(publicDir, '.well-known', 'agent-skills', 'portfolio-expert', 'SKILL.md')
+
+// SKILL.md is hand-written EXCEPT its Live Data Sources table, which is rendered here from
+// LLM_DATA_SOURCE_DIRECTORY, the same list get_data_sources serves. The LLM-channel data policy
+// (LLM_CHANNEL_POLICY) therefore governs the skill too, and the table cannot drift from it. The
+// block is regenerated before the digest is computed, so the digest covers the served bytes.
+const DIRECTORY_BEGIN = /<!-- BEGIN GENERATED: data-source directory\.[^>]*-->\n/
+const DIRECTORY_END = '<!-- END GENERATED: data-source directory -->'
+const cell = (value) => String(value).replace(/\|/g, '\\|')
+const skillSource = readFileSync(skillMdPath, 'utf8')
+const begin = DIRECTORY_BEGIN.exec(skillSource)
+const end = skillSource.indexOf(DIRECTORY_END)
+if (!begin || end < begin.index) {
+  throw new Error(`${skillMdPath} lost its generated data-source directory markers`)
+}
+const directoryTable = [
+  '| Data | Where to read it | Description |',
+  '| --- | --- | --- |',
+  ...LLM_DATA_SOURCE_DIRECTORY.map((s) => `| ${cell(s.name)} | <${s.url}> | ${cell(s.description)} |`)
+].join('\n')
+writeFileSync(skillMdPath, `${skillSource.slice(0, begin.index + begin[0].length)}${directoryTable}\n${skillSource.slice(end)}`)
+
 const skillMdDigest = createHash('sha256').update(readFileSync(skillMdPath)).digest('hex')
 write(AGENT_PATHS.agentSkillsIndex.slice(1), json({
   $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',

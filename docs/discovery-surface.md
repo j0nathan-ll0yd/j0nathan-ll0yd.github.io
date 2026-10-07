@@ -34,8 +34,9 @@ WebMCP script, and every discovery JSON file read it, so the surfaces cannot dis
 `scripts/generate-webmcp.mjs` emits the static outputs during `prebuild`:
 `public/js/webmcp.js`, `mcp/server-card.json`, `agent-skills/index.json`,
 `ai-catalog.json`, `ard.json`, `api-catalog` and `public/openapi.json`. Do not hand-edit
-those outputs. `agent-skills/portfolio-expert/SKILL.md` is hand-written; the generator
-only reads it to compute its digest.
+those outputs. `agent-skills/portfolio-expert/SKILL.md` is hand-written except its
+generated Live Data Sources table; the generator renders that table, then computes the
+digest.
 
 - Prose comes from `@j0nathan-ll0yd/copy` (`identity` + `llm` namespaces).
 - URLs and identifiers come from `@j0nathan-ll0yd/portal-contract` (`SITE_URL`,
@@ -73,18 +74,23 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   `get_profile`, `get_data_sources`, `get_current_reading`, `get_tech_stack`, each annotated
   `readOnlyHint: true`. No tool exposes anything beyond the public JSON exports and the copy
   package.
-- **LLM-channel data policy (applied, not new):** the MCP server and WebMCP are LLM-facing
-  channels, so the owner's recorded policy governs them: `SKILL.md` decision 4 ("LLM content
+- **LLM-channel data policy (applied, not new):** the LLM channels (the MCP server,
+  WebMCP, the portfolio-expert `SKILL.md`, and the llms trio) carry the coarsened health band
+  only, so the owner's recorded policy governs them: `SKILL.md` decision 4 ("LLM content
   uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.") and atlas
   decision 0096 (LLM channels carry only a coarsened health band, "no raw point-in-time
-  values in output"). Neither channel lists, reads, names, or returns `health.json`,
-  `sleep.json`, or `workouts.json`. `get_data_sources` names `llms-full.txt` for those three
-  domains, because its Body section carries the coarsened band. `LLM_CHANNEL_POLICY` in
+  values in output"). No agent channel lists, reads, names, or returns `health.json`,
+  `sleep.json`, or `workouts.json`. `get_data_sources` and the `SKILL.md` Live Data Sources
+  table both name `llms-full.txt` for those three domains, because its Body section carries
+  the coarsened band. Both render from one list, `LLM_DATA_SOURCE_DIRECTORY`; the generator
+  writes the `SKILL.md` table between its `BEGIN GENERATED` and `END GENERATED` markers, then
+  recomputes the digest. `LLM_CHANNEL_POLICY` in
   `functions/_lib/agent-catalog.mjs` classifies every portal-contract endpoint as `exposed` or
   `coarsenedOnly` and stops the build on an unclassified one, so a new export is withheld
   until someone classifies it. `tests/unit/mcp-server.test.ts` ("LLM-channel data policy") and
   `tests/unit/webmcp-script.test.ts` red if a raw export, its URL, or its values reach any
-  `resources/list`, `resources/read`, or `tools/call` answer. The owner applied this on
+  `resources/list`, `resources/read`, or `tools/call` answer. `tests/unit/skill-md.test.ts`
+  and `tests/build/agent-discovery.test.ts` red if the source or served `SKILL.md` names one. The owner applied this on
   2026-10-07 and can reverse it.
 - **Focus gate:** every artifact read goes through `functions/_lib/proxy.ts`, the same
   fail-closed gate as the llms routes. During a hiding focus mode a suppressible artifact
@@ -156,12 +162,13 @@ that page exists in the tree, the wiki before, so no deploy links a 404). `/open
 describes the nine GET endpoints on `CLOUDFRONT_BASE`, their response schemas, and the
 focus-suppression 403 on every export except `focus.json`.
 
-`/openapi.json` still documents all nine exports, health, sleep and workouts included. The
-LLM-channel data policy above does not govern it: it describes the public developer API, the
-same JSON a browser already fetches from the CloudFront host, for a developer reading
-documentation. It is not LLM content. The boundary is the channel: an agent-facing answer
-(MCP, WebMCP, llms.txt) carries only the coarsened band, and the developer API document
-describes the raw exports that already exist.
+The public data documentation still describes all nine exports, health, sleep and workouts
+included: `/openapi.json` and the homepage JSON-LD `Dataset` (its `distribution` list). The
+LLM-channel data policy above does not govern them: they document the public API, the same
+JSON a browser already fetches from the CloudFront host. They are not LLM content. The
+boundary is the channel. The LLM channels (MCP, WebMCP, `SKILL.md`, and the llms trio) carry
+only the coarsened band; the public data documentation describes the exports that exist. The
+owner can reverse this choice.
 
 Known risk: the CloudFront/S3 origin answers a key that does not exist with an XML or HTML
 403, not JSON. If an agent-readiness scorer starts treating the site as an API, its
