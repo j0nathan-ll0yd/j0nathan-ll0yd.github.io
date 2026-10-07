@@ -36,9 +36,13 @@ curl -sI -H 'Accept: text/markdown' https://jonathanlloyd.me/ | grep -iE '^(cont
 curl -sI https://jonathanlloyd.me/.well-known/api-catalog | grep -i '^content-type:' | tee /tmp/vp-catalog-ct.txt
 # Expect: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"
 
-# MCP server-card must list exactly 10 resources
-curl -s https://jonathanlloyd.me/.well-known/mcp/server-card.json | python3 -c "import sys,json; d=json.load(sys.stdin); print('resources:', len(d['resources']))"
-# Expect: resources: 10
+# MCP server card (SEP-2127) lists no resources; the server does, at runtime.
+# The canonical card and the compatibility copy must be the same bytes.
+diff <(curl -s https://jonathanlloyd.me/mcp/server-card) <(curl -s https://jonathanlloyd.me/.well-known/mcp/server-card.json) && echo "server card: IDENTICAL"
+# MCP resources/list must equal the portal-contract ENDPOINTS plus llms-full.txt
+# (functions/_lib/agent-catalog.mjs RESOURCES). The audit runner walks the full chain:
+node audits/checks/b2-check-wellknown.mjs
+# Expect: server card: IDENTICAL, and check-wellknown with 0 fail
 
 # Agent Skills Discovery digest must match the live SKILL.md body
 INDEX=$(curl -s https://jonathanlloyd.me/.well-known/agent-skills/index.json)
