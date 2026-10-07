@@ -51,6 +51,19 @@ const current = pagePath(Astro.url.pathname);
 </Dashboard>
 
 <style is:global>
+  /* Dashboard.astro locks viewport scroll at 1100px and up, where the bento grid fits
+     100dvh. A text page is taller than the viewport, so it scrolls again. :root outranks
+     the dashboard's bare `html` selector whatever order the two style blocks land in. */
+  html:root {
+    overflow-y: auto;
+  }
+
+  html:root body {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
   .info-page {
     min-height: 100dvh;
     display: flex;
@@ -90,6 +103,10 @@ const current = pagePath(Astro.url.pathname);
     font-size: var(--font-size-base);
     color: var(--text);
     line-height: 1.7;
+  }
+
+  .info-lede {
+    margin-bottom: var(--space-28);
   }
 
   .info-section {
