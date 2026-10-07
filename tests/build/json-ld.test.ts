@@ -3,6 +3,7 @@ import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {DATASET_DISTRIBUTIONS, DATASET_VARIABLES, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {identity} from '@j0nathan-ll0yd/copy'
 
 const distDir = path.resolve(process.cwd(), 'dist')
 
@@ -162,6 +163,32 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
   it('license points at the privacy page, not the bare site root', () => {
     const dataset = graph.find((n: any) => n['@type'] === 'Dataset')
     expect(dataset.license).toBe(SITE_URL + '/privacy')
+  })
+
+  // Atlas decision 0158 (O5): the Person carries the contact data; every value is a copy key.
+  it('Person has a contactPoint with the copy email, contact type, and the /contact page', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.contactPoint).toEqual({
+      '@type': 'ContactPoint',
+      contactType: identity.person.contactType,
+      email: identity.person.email,
+      url: SITE_URL + '/contact'
+    })
+  })
+
+  it('Person has a PostalAddress from the copy locality, region, and country', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.address).toEqual({
+      '@type': 'PostalAddress',
+      addressLocality: identity.person.addressLocality,
+      addressRegion: identity.person.addressRegion,
+      addressCountry: identity.person.addressCountry
+    })
+  })
+
+  it('names no Organization for "Lifegames" anywhere in the graph', () => {
+    const organizations = JSON.stringify(graph).match(/"@type":"Organization","name":"[^"]*"/g) ?? []
+    expect(organizations.filter((o) => /lifegames/i.test(o))).toEqual([])
   })
 })
 

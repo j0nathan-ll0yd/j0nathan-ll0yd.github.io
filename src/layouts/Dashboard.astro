@@ -61,6 +61,18 @@ const personNode = {
   url: siteUrl,
   image: avatarImage,
   sameAs: identity.person.sameAs,
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: identity.person.contactType,
+    email: identity.person.email,
+    url: new URL(SITE_PAGE_PATHS.contact, Astro.site).href,
+  },
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: identity.person.addressLocality,
+    addressRegion: identity.person.addressRegion,
+    addressCountry: identity.person.addressCountry,
+  },
   knowsAbout: identity.seo.expertise,
   worksFor: {
     '@type': 'Organization',
