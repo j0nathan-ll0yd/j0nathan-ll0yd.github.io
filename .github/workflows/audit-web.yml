@@ -481,7 +481,7 @@ jobs:
           path: lhci-reports/
           retention-days: 30
 
-      - name: B4 -- pa11y-ci (axe + htmlcs, live URL + /privacy)
+      - name: B4 -- pa11y-ci (axe + htmlcs, live URL + text pages)
         id: pa11y
         continue-on-error: true
         env:
@@ -492,7 +492,7 @@ jobs:
           FOCUS_REASON: ${{ steps.focus_mode.outputs.reason }}
         run: |
           if [ "$FOCUS_SUPPRESSED" = "true" ]; then
-            echo "CONDITIONED: pa11y measured the focus-mode overlay on /; /privacy remains unconditioned."
+            echo "CONDITIONED: pa11y measured the focus-mode overlay on /; the text pages remain unconditioned."
             echo "> pa11y / result is focus-mode-conditioned: $FOCUS_REASON" >> "$GITHUB_STEP_SUMMARY"
           fi
           pnpm exec pa11y-ci
@@ -519,6 +519,9 @@ jobs:
             --verbose --no-progress --cache --max-cache-age 1d --max-retries 0
             https://jonathanlloyd.me/
             https://jonathanlloyd.me/privacy
+            https://jonathanlloyd.me/about
+            https://jonathanlloyd.me/contact
+            https://jonathanlloyd.me/developers
             https://jonathanlloyd.me/llms.txt
             https://jonathanlloyd.me/feed.xml
           fail: true

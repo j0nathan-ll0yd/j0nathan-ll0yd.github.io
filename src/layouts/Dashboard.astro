@@ -2,6 +2,7 @@
 import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
 import { LLMS_TXT_PATH } from '../../functions/_lib/llms-artifacts';
+import { SITE_PAGE_PATHS, SITEMAP_INDEX_PATH } from '../../functions/_lib/site-paths';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
@@ -11,6 +12,8 @@ const {
   description = identity.person.shortBio,
   ogDescription = identity.person.socialBio,
   robots = 'index, follow',
+  // schema.org type of this page's WebPage node: AboutPage, ContactPage, or plain WebPage.
+  pageType = 'WebPage',
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
 const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
@@ -20,7 +23,7 @@ const ogImage = new URL('/assets/og-image.png', Astro.site);
 const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
 
 // --- JSON-LD @graph ---------------------------------------------------------
-// Dashboard.astro is the layout for /, /privacy and /404 alike. Only the home
+// Dashboard.astro is the layout for /, the text pages and /404 alike. Only the home
 // page is a person's profile page and the live datastream, so ProfilePage and
 // Dataset are gated to it; other pages emit a plain WebPage instead. WebSite and
 // the full Person are site-wide entities and appear on every page (WebSite is
@@ -113,7 +116,7 @@ const datasetNode = {
   name: identity.site.name,
   description: llm.dashboard.datasetDescription,
   creator: { '@id': personId },
-  license: new URL('/privacy', Astro.site).href,
+  license: new URL(SITE_PAGE_PATHS.privacy, Astro.site).href,
   isAccessibleForFree: true,
   variableMeasured: [...DATASET_VARIABLES],
   distribution: DATASET_DISTRIBUTIONS.map((d) => ({
@@ -127,7 +130,7 @@ const datasetNode = {
 };
 
 const webPageNode = {
-  '@type': 'WebPage',
+  '@type': pageType,
   '@id': canonicalURL.toString() + '#webpage',
   isPartOf: { '@id': websiteId },
   name: title,
@@ -169,9 +172,9 @@ const jsonLdGraph = isHome
   <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
   <link rel="apple-touch-icon" href="/assets/icon-192.png">
   <link rel="manifest" href="/manifest.webmanifest">
-  <link rel="sitemap" href="/sitemap-index.xml">
+  <link rel="sitemap" href={SITEMAP_INDEX_PATH}>
   <link rel="author" href="/humans.txt">
-  <link rel="privacy-policy" href="/privacy">
+  <link rel="privacy-policy" href={SITE_PAGE_PATHS.privacy}>
   <link rel="alternate" type="application/rss+xml" title={identity.feed.title} href="/feed.xml">
   <link rel="alternate" type="application/feed+json" title={identity.feed.title} href="/feed.json">
 

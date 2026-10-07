@@ -1,0 +1,45 @@
+---
+import { SITE_URL } from '@j0nathan-ll0yd/portal-contract/constants';
+import { llm } from '@j0nathan-ll0yd/copy';
+import InfoPage from '../layouts/InfoPage.astro';
+import { DATA_SOURCES, TOOLS, fillTemplate } from '../../functions/_lib/agent-catalog.mjs';
+import { linkSegments } from '../lib/link-segments';
+
+const d = llm.developers;
+const site = (template: string) => fillTemplate(template, 'siteUrl', SITE_URL);
+
+type Item = { name: string; href?: string; note: string };
+type Section = { id: string; heading: string; body: string; items?: Item[] };
+
+const sections: Section[] = [
+  { id: 'api', heading: d.apiHeading, body: site(d.apiBody), items: DATA_SOURCES.map((s) => ({ name: s.name, href: s.url, note: s.description })) },
+  { id: 'mcp', heading: d.mcpHeading, body: site(d.mcpBody) },
+  { id: 'webmcp', heading: d.webmcpHeading, body: d.webmcpBody, items: TOOLS.map((t) => ({ name: t.name, note: t.description })) },
+  { id: 'llms', heading: d.llmsHeading, body: site(d.llmsBody) },
+  { id: 'feeds', heading: d.feedsHeading, body: site(d.feedsBody) },
+  { id: 'caching', heading: d.cachingHeading, body: d.cachingBody },
+  { id: 'focus', heading: d.focusHeading, body: d.focusBody },
+  { id: 'usage', heading: d.usageHeading, body: d.usageBody },
+];
+---
+<InfoPage title={d.title} description={d.metaDescription}>
+  <p class="info-lede">{d.intro}</p>
+  {sections.map((s) => (
+    <section class="info-section" id={s.id} aria-labelledby={`${s.id}-heading`}>
+      <h2 id={`${s.id}-heading`} class="info-section-heading">{s.heading}</h2>
+      <p class="info-section-body">
+        {linkSegments(s.body).map((seg) => (seg.href ? <a href={seg.href}>{seg.text}</a> : seg.text))}
+      </p>
+      {s.items && (
+        <ul class="info-list">
+          {s.items.map((item) => (
+            <li class="info-list-item">
+              {item.href ? <a href={item.href}>{item.name}</a> : <code>{item.name}</code>}
+              <span class="info-list-note">{item.note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  ))}
+</InfoPage>

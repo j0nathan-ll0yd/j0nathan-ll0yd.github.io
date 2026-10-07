@@ -25,12 +25,9 @@ function urlBlock(locSuffix: string): string {
 }
 
 describe('Enriched sitemap', () => {
-  it('contains only the two canonical pages (home + privacy), no 404', () => {
+  it('contains only the five canonical pages (home + four text pages), no 404', () => {
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs).toHaveLength(2)
-    expect(locs.some((l) => /jonathanlloyd\.me$/.test(l))).toBe(true)
-    expect(locs.some((l) => l.endsWith('/privacy'))).toBe(true)
-    expect(locs.some((l) => l.includes('/404'))).toBe(false)
+    expect(locs.sort()).toEqual(['', '/about', '/contact', '/developers', '/privacy'].map((p) => `https://jonathanlloyd.me${p}`))
   })
 
   it('every url carries a lastmod', () => {
@@ -51,5 +48,11 @@ describe('Enriched sitemap', () => {
     const privacy = urlBlock('/privacy')
     expect(privacy).toMatch(/<priority>0\.3<\/priority>/)
     expect(privacy).toMatch(/<changefreq>monthly<\/changefreq>/)
+  })
+
+  it.each(['/about', '/contact', '/developers'])('%s has priority 0.5 and monthly changefreq', (page) => {
+    const block = urlBlock(page)
+    expect(block).toMatch(/<priority>0\.5<\/priority>/)
+    expect(block).toMatch(/<changefreq>monthly<\/changefreq>/)
   })
 })

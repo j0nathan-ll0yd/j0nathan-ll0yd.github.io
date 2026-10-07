@@ -3,6 +3,8 @@ import AstroPWA from '@vite-pwa/astro'
 import sitemap from '@astrojs/sitemap'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
+import {AGENT_PATHS} from './functions/_lib/agent-paths.mjs'
+import {SITE_PAGE_PATHS} from './functions/_lib/site-paths.ts'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -40,7 +42,7 @@ export default defineConfig({
   integrations: [
     sitemap({
       // Enrich the sitemap with per-page SEO signals. The built surface is small
-      // (home + privacy); 404 is excluded by Astro automatically, the filter is a
+      // (home + four text pages); 404 is excluded by Astro automatically, the filter is a
       // guard so a future non-canonical route can never leak in. lastmod is the
       // build time: content is data-driven and can change on every deploy, so a
       // per-build timestamp is honest and avoids a bespoke per-page mtime pipeline.
@@ -53,9 +55,13 @@ export default defineConfig({
         if (path === '/') {
           item.changefreq = 'daily'
           item.priority = 1.0
-        } else if (path === '/privacy') {
+        } else if (path === SITE_PAGE_PATHS.privacy) {
           item.changefreq = 'monthly'
           item.priority = 0.3
+        } else if ([SITE_PAGE_PATHS.about, SITE_PAGE_PATHS.contact, AGENT_PATHS.developers].includes(path)) {
+          // Copy-driven pages: they change only when a @j0nathan-ll0yd/copy release does.
+          item.changefreq = 'monthly'
+          item.priority = 0.5
         }
         return item
       }

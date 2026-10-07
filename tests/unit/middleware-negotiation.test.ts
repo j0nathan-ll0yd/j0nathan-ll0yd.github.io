@@ -2,7 +2,8 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import {llm} from '@j0nathan-ll0yd/copy'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
-import {SITE_PAGE_PATHS, SITEMAP_INDEX_PATH} from '../../functions/_lib/site-paths'
+import {AGENT_PATHS} from '../../functions/_lib/agent-paths.mjs'
+import {SITEMAP_INDEX_PATH} from '../../functions/_lib/site-paths'
 import {CONTENT_USAGE, CSP, LINK_HEADER, NOT_FOUND_MARKDOWN, onRequest, prefersMarkdown} from '../../functions/_middleware'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
@@ -313,7 +314,7 @@ describe('markdown 404', () => {
       [llm.notFound.linkLlmsTxt, LLMS_TXT_PATH],
       [llm.notFound.linkIndexMd, LLM_CONTENT_PATHS.indexMarkdown],
       [llm.notFound.linkSitemap, SITEMAP_INDEX_PATH],
-      [llm.notFound.linkDevelopers, SITE_PAGE_PATHS.developers]
+      [llm.notFound.linkDevelopers, AGENT_PATHS.developers]
     ] as const
     for (const [link, path] of links) {
       // The contract path and the copy link's own template must name the same URL.

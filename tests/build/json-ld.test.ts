@@ -172,9 +172,12 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
 // gated to the home page.
 describe('JSON-LD @graph per-page shape and @id resolution', () => {
   const pages = [
-    {label: 'home', file: 'index.html', isHome: true},
-    {label: 'privacy', file: 'privacy/index.html', isHome: false},
-    {label: '404', file: '404.html', isHome: false}
+    {label: 'home', file: 'index.html', isHome: true, webPageType: null},
+    {label: 'privacy', file: 'privacy/index.html', isHome: false, webPageType: 'WebPage'},
+    {label: 'about', file: 'about/index.html', isHome: false, webPageType: 'AboutPage'},
+    {label: 'contact', file: 'contact/index.html', isHome: false, webPageType: 'ContactPage'},
+    {label: 'developers', file: 'developers/index.html', isHome: false, webPageType: 'WebPage'},
+    {label: '404', file: '404.html', isHome: false, webPageType: 'WebPage'}
   ]
 
   for (const page of pages) {
@@ -215,8 +218,8 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
           expect(pageGraph.some((n) => n['@type'] === 'Dataset')).toBe(false)
         })
 
-        it('non-home page emits a WebPage node that isPartOf the WebSite', () => {
-          const webpage = pageGraph.find((n) => n['@type'] === 'WebPage')
+        it(`non-home page emits a ${page.webPageType} node that isPartOf the WebSite`, () => {
+          const webpage = pageGraph.find((n) => n['@type'] === page.webPageType)
           expect(webpage).toBeDefined()
           expect(webpage.isPartOf['@id']).toBe(SITE_URL + '#website')
           expect(webpage.name).toBeTruthy()

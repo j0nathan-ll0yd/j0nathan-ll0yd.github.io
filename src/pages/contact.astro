@@ -1,0 +1,42 @@
+---
+import { getEntry } from 'astro:content';
+import InfoPage from '../layouts/InfoPage.astro';
+
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[contact.astro] @j0nathan-ll0yd/copy identity entry missing');
+const id = _identityEntry.data;
+const c = id.contact;
+// Select each channel by host, not by array position: a reordered or extended sameAs list
+// must never attach the LinkedIn label to another profile. A missing host fails the build.
+function profile(host: string): string {
+  const url = id.person.sameAs.find((u) => new URL(u).hostname.replace(/^www\./, '') === host);
+  if (!url) throw new Error(`[contact.astro] identity.person.sameAs has no ${host} profile`);
+  return url;
+}
+const linkedinUrl = profile('linkedin.com');
+const githubUrl = profile('github.com');
+---
+<InfoPage title={c.title} description={c.metaDescription} pageType="ContactPage">
+  <p class="info-lede">{c.intro}</p>
+  <section class="info-section" aria-labelledby="contact-channels">
+    <h2 id="contact-channels" class="info-section-heading">{c.channelsHeading}</h2>
+    <ul class="info-list">
+      <li class="info-list-item" data-channel="email">
+        <span class="info-list-label">{c.emailLabel}</span> <a href={`mailto:${id.person.email}`}>{id.person.email}</a>
+        <span class="info-list-note">{c.emailNote}</span>
+      </li>
+      <li class="info-list-item" data-channel="linkedin">
+        <a href={linkedinUrl} rel="me noopener">{c.linkedinLabel}</a>
+        <span class="info-list-note">{c.linkedinNote}</span>
+      </li>
+      <li class="info-list-item" data-channel="github">
+        <a href={githubUrl} rel="me noopener">{c.githubLabel}</a>
+        <span class="info-list-note">{c.githubNote}</span>
+      </li>
+    </ul>
+  </section>
+  <section class="info-section" aria-labelledby="contact-security">
+    <h2 id="contact-security" class="info-section-heading">{c.securityHeading}</h2>
+    <p class="info-section-body">{c.security}</p>
+  </section>
+</InfoPage>

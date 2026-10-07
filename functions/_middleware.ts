@@ -7,7 +7,7 @@ import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, SITE_URL, WEBSOCKET_URL} from '@j0na
 import {AGENT_PATHS, OPENAPI_MEDIA_TYPE} from './_lib/agent-paths.mjs'
 import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
-import {SITE_PAGE_PATHS, SITEMAP_INDEX_PATH} from './_lib/site-paths'
+import {SITEMAP_INDEX_PATH} from './_lib/site-paths'
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
 // already an origin. Sourcing both from the contract keeps the CSP in sync with
@@ -175,7 +175,7 @@ const notFoundLinks = [
   [llmCopy.notFound.linkLlmsTxt, LLMS_TXT_PATH],
   [llmCopy.notFound.linkIndexMd, LLM_CONTENT_PATHS.indexMarkdown],
   [llmCopy.notFound.linkSitemap, SITEMAP_INDEX_PATH],
-  [llmCopy.notFound.linkDevelopers, SITE_PAGE_PATHS.developers]
+  [llmCopy.notFound.linkDevelopers, AGENT_PATHS.developers]
 ] as const
 
 export const NOT_FOUND_MARKDOWN = [
