@@ -13,6 +13,11 @@ export const DEFAULT_BUDGET_MS = 20_000
 /** Cap on any single attempt, so one hung attempt leaves budget for a retry. */
 const PER_ATTEMPT_CAP_MS = 10_000
 
+/** The default retry rule: every upstream 5xx is treated as transient. */
+function isTransient5xx(res) {
+  return res.status >= 500
+}
+
 /** True when `err` is a per-attempt AbortSignal.timeout() firing. undici rejects with the signal reason, occasionally wrapped as `cause`. */
 function isAttemptTimeout(err) {
   return err?.name === 'TimeoutError' || err?.cause?.name === 'TimeoutError'
@@ -38,8 +43,11 @@ function attemptSignal(callerSignal, remainingMs, perAttemptCapMs) {
  * composed in via AbortSignal.any() and its abort always propagates unretried.
  * `perAttemptCapMs` is overridable so tests can exercise the timeout-retry
  * path with tiny real budgets; production callers use the default.
+ * `shouldRetry` decides which responses count as transient. The default retries
+ * every 5xx. A caller whose question a 5xx already answers narrows it (the
+ * crawler-edge check: a 5xx the site itself wrote proves the request got through).
  */
-export async function fetchStable(url, init = {}, budgetMs = DEFAULT_BUDGET_MS, perAttemptCapMs = PER_ATTEMPT_CAP_MS) {
+export async function fetchStable(url, init = {}, budgetMs = DEFAULT_BUDGET_MS, perAttemptCapMs = PER_ATTEMPT_CAP_MS, shouldRetry = isTransient5xx) {
   const deadline = Date.now() + budgetMs
   let backoffs = 0
   while (true) {
@@ -58,7 +66,7 @@ export async function fetchStable(url, init = {}, budgetMs = DEFAULT_BUDGET_MS, 
       }
       continue
     }
-    if (res.status < 500) {
+    if (!shouldRetry(res)) {
       return res
     }
     const backoffMs = Math.min(1_000 * 2 ** backoffs, 5_000)

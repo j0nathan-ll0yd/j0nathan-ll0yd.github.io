@@ -334,6 +334,15 @@ jobs:
         continue-on-error: true
         run: node audits/checks/b2-validate-robots.mjs
 
+      # Atlas decision 0158. The robots validator above judges robots.txt TEXT with a default
+      # User-Agent. This step asks whether the Cloudflare zone honors it: each named group's
+      # robots-allowed paths are requested with that group's token, and a 403, the zone's
+      # block body, or an answer without the site's Content-Usage header is a fail.
+      - name: B2 -- crawler edge access vs robots.txt
+        id: crawler_edge
+        continue-on-error: true
+        run: node audits/checks/b2-check-crawler-edge.mjs
+
       - name: B2 -- feed.xml / feed.json validator
         id: feeds
         if: steps.focus_mode.outputs.suppressed != 'true'
@@ -472,7 +481,7 @@ jobs:
           path: lhci-reports/
           retention-days: 30
 
-      - name: B4 -- pa11y-ci (axe + htmlcs, live URL + /privacy)
+      - name: B4 -- pa11y-ci (axe + htmlcs, live URL + text pages)
         id: pa11y
         continue-on-error: true
         env:
@@ -483,7 +492,7 @@ jobs:
           FOCUS_REASON: ${{ steps.focus_mode.outputs.reason }}
         run: |
           if [ "$FOCUS_SUPPRESSED" = "true" ]; then
-            echo "CONDITIONED: pa11y measured the focus-mode overlay on /; /privacy remains unconditioned."
+            echo "CONDITIONED: pa11y measured the focus-mode overlay on /; the text pages remain unconditioned."
             echo "> pa11y / result is focus-mode-conditioned: $FOCUS_REASON" >> "$GITHUB_STEP_SUMMARY"
           fi
           pnpm exec pa11y-ci
@@ -510,6 +519,9 @@ jobs:
             --verbose --no-progress --cache --max-cache-age 1d --max-retries 0
             https://jonathanlloyd.me/
             https://jonathanlloyd.me/privacy
+            https://jonathanlloyd.me/about
+            https://jonathanlloyd.me/contact
+            https://jonathanlloyd.me/developers
             https://jonathanlloyd.me/llms.txt
             https://jonathanlloyd.me/feed.xml
           fail: true
@@ -530,6 +542,7 @@ jobs:
           LLMS_CACHE_RULES_ISSUE_OUTCOME: ${{ steps.llms_cache_rules.outputs.issue_outcome }}
           SITEMAP_OUTCOME: ${{ steps.sitemap.outcome }}
           ROBOTS_OUTCOME: ${{ steps.robots.outcome }}
+          CRAWLER_EDGE_OUTCOME: ${{ steps.crawler_edge.outcome }}
           FEEDS_OUTCOME: ${{ steps.feeds.outcome }}
           SPEC_DRIFT_OUTCOME: ${{ steps.spec_drift.outcome }}
           SPEC_CURRENCY_OUTCOME: ${{ steps.spec_currency.outcome }}
@@ -548,6 +561,7 @@ jobs:
                 {id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: process.env.LLMS_CACHE_RULES_ISSUE_OUTCOME},
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: process.env.SITEMAP_OUTCOME},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: process.env.ROBOTS_OUTCOME},
+                {id: 'crawler-edge', title: 'B2 crawler edge access vs robots.txt', outcome: process.env.CRAWLER_EDGE_OUTCOME},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: process.env.FOCUS_MODE_OUTCOME},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: process.env.FEEDS_OUTCOME},
                 {id: 'spec-drift', title: 'B2 external spec drift (pinned sources vs normative quotes)', outcome: process.env.SPEC_DRIFT_OUTCOME},
@@ -616,6 +630,7 @@ jobs:
             llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}|atlas 0120 D2 owner action -- five Cloudflare reads return 403; the channel lands with the permissions fix|until=2026-12-08
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
+            crawler_edge|${{ steps.crawler_edge.outcome }}|${{ steps.crawler_edge.outputs.measured }}
             feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}
             spec_drift|${{ steps.spec_drift.outcome }}|${{ steps.spec_drift.outputs.measured }}
             spec_currency|${{ steps.spec_currency.outcome }}|${{ steps.spec_currency.outputs.measured }}

@@ -1,0 +1,24 @@
+---
+import { getEntry } from 'astro:content';
+import InfoPage from '../layouts/InfoPage.astro';
+
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[about.astro] @j0nathan-ll0yd/copy identity entry missing');
+const id = _identityEntry.data;
+const a = id.about;
+
+const sections = [
+  { heading: a.backgroundHeading, body: id.person.longBio },
+  { heading: a.workHeading, body: a.work },
+  { heading: a.siteHeading, body: a.site },
+  { heading: a.outsideHeading, body: a.outside },
+];
+---
+<InfoPage title={a.title} description={a.metaDescription} pageType="AboutPage">
+  {sections.map((s) => (
+    <section class="info-section" aria-label={s.heading}>
+      <h2 class="info-section-heading">{s.heading}</h2>
+      <p class="info-section-body">{s.body}</p>
+    </section>
+  ))}
+</InfoPage>

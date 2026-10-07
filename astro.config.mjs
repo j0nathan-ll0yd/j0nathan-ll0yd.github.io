@@ -3,11 +3,22 @@ import AstroPWA from '@vite-pwa/astro'
 import sitemap from '@astrojs/sitemap'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
+import llm from '@j0nathan-ll0yd/copy/llm.flat.json'
+import {AGENT_PATHS} from './functions/_lib/agent-paths.mjs'
+import {SITE_PAGE_PATHS} from './functions/_lib/site-paths.ts'
+import {contentLastModified} from './src/lib/content-date.ts'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
 const CF_HOST = new URL(CLOUDFRONT_BASE).host
 const CF_HOST_RE = CF_HOST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// The content date of each copy-driven page, from its copy lastModified key.
+const COPY_PAGE_LASTMOD = {
+  [SITE_PAGE_PATHS.about]: contentLastModified(identity.about.lastModified),
+  [SITE_PAGE_PATHS.contact]: contentLastModified(identity.contact.lastModified),
+  [AGENT_PATHS.developers]: contentLastModified(llm.developers.lastModified)
+}
 
 export default defineConfig({
   site: SITE_URL,
@@ -19,7 +30,11 @@ export default defineConfig({
   // baselines). Pin to `true` to keep Astro 6's HTML-aware whitespace behavior so
   // the upgrade is visually identical and the CI-parity baselines stay valid.
   compressHTML: true,
-  build: {inlineStylesheets: 'always'},
+  // `file` emits about.html rather than about/index.html. Cloudflare Pages serves a
+  // file-format page at its extensionless path, so /about answers 200 and matches the
+  // canonical and sitemap URL that trailingSlash: 'never' writes. The directory format
+  // made Pages 308 every page to a trailing-slash URL no canonical names.
+  build: {inlineStylesheets: 'always', format: 'file'},
   vite: {
     define: {
       // Expose the build-time fixture-variation selector to source. Astro/Vite
@@ -40,10 +55,11 @@ export default defineConfig({
   integrations: [
     sitemap({
       // Enrich the sitemap with per-page SEO signals. The built surface is small
-      // (home + privacy); 404 is excluded by Astro automatically, the filter is a
-      // guard so a future non-canonical route can never leak in. lastmod is the
-      // build time: content is data-driven and can change on every deploy, so a
-      // per-build timestamp is honest and avoids a bespoke per-page mtime pipeline.
+      // (home + four text pages); 404 is excluded by Astro automatically, the filter is a
+      // guard so a future non-canonical route can never leak in. lastmod means "content
+      // last changed". The homepage keeps the build time below: every build bakes fresh
+      // data into its HTML. A static text page changes only when its copy does, so
+      // serialize() replaces the build time with its copy's lastModified date.
       filter: (page) => !page.includes('/404'),
       changefreq: 'weekly',
       priority: 0.7,
@@ -53,9 +69,15 @@ export default defineConfig({
         if (path === '/') {
           item.changefreq = 'daily'
           item.priority = 1.0
-        } else if (path === '/privacy') {
+        } else if (path === SITE_PAGE_PATHS.privacy) {
           item.changefreq = 'monthly'
           item.priority = 0.3
+          item.lastmod = contentLastModified(identity.privacy.lastModified)
+        } else if (path in COPY_PAGE_LASTMOD) {
+          // Copy-driven pages: they change only when a @j0nathan-ll0yd/copy release does.
+          item.changefreq = 'monthly'
+          item.priority = 0.5
+          item.lastmod = COPY_PAGE_LASTMOD[path]
         }
         return item
       }

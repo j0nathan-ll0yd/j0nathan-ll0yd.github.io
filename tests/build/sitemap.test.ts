@@ -1,6 +1,8 @@
 import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import path from 'path'
+import {identity, llm} from '@j0nathan-ll0yd/copy'
+import {contentLastModified} from '../../src/lib/content-date'
 
 // Asserts the enriched sitemap (astro.config.mjs sitemap() options) ships the
 // per-page SEO signals it is configured for. Without this, the changefreq /
@@ -25,12 +27,9 @@ function urlBlock(locSuffix: string): string {
 }
 
 describe('Enriched sitemap', () => {
-  it('contains only the two canonical pages (home + privacy), no 404', () => {
+  it('contains only the five canonical pages (home + four text pages), no 404', () => {
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs).toHaveLength(2)
-    expect(locs.some((l) => /jonathanlloyd\.me$/.test(l))).toBe(true)
-    expect(locs.some((l) => l.endsWith('/privacy'))).toBe(true)
-    expect(locs.some((l) => l.includes('/404'))).toBe(false)
+    expect(locs.sort()).toEqual(['', '/about', '/contact', '/developers', '/privacy'].map((p) => `https://jonathanlloyd.me${p}`))
   })
 
   it('every url carries a lastmod', () => {
@@ -51,5 +50,33 @@ describe('Enriched sitemap', () => {
     const privacy = urlBlock('/privacy')
     expect(privacy).toMatch(/<priority>0\.3<\/priority>/)
     expect(privacy).toMatch(/<changefreq>monthly<\/changefreq>/)
+  })
+
+  it.each(['/about', '/contact', '/developers'])('%s has priority 0.5 and monthly changefreq', (page) => {
+    const block = urlBlock(page)
+    expect(block).toMatch(/<priority>0\.5<\/priority>/)
+    expect(block).toMatch(/<changefreq>monthly<\/changefreq>/)
+  })
+
+  // lastmod means "content last changed" (atlas decision 0158). The homepage bakes fresh data
+  // into every build, so it carries the build time. A static page carries its copy's
+  // lastModified date. A static page stamped with the build time is the defect this guards.
+  const lastmodOf = (page: string) => urlBlock(page).match(/<lastmod>([^<]+)<\/lastmod>/)?.[1] ?? ''
+
+  it('home page lastmod is this build time', () => {
+    const built = Date.parse(lastmodOf('/'))
+    expect(Number.isNaN(built)).toBe(false)
+    expect(Date.now() - built).toBeLessThan(60 * 60 * 1000)
+  })
+
+  it.each([
+    ['/privacy', identity.privacy.lastModified],
+    ['/about', identity.about.lastModified],
+    ['/contact', identity.contact.lastModified],
+    ['/developers', llm.developers.lastModified]
+  ])('%s lastmod is its copy lastModified (%s), never the build time', (page, copyDate) => {
+    const lastmod = lastmodOf(page)
+    expect(lastmod).not.toBe(lastmodOf('/'))
+    expect(lastmod).toBe(contentLastModified(copyDate))
   })
 })

@@ -1,6 +1,10 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {CONTENT_USAGE, CSP, LINK_HEADER, onRequest, prefersMarkdown} from '../../functions/_middleware'
+import {llm} from '@j0nathan-ll0yd/copy'
+import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
+import {AGENT_PATHS} from '../../functions/_lib/agent-paths.mjs'
+import {SITEMAP_INDEX_PATH} from '../../functions/_lib/site-paths'
+import {CONTENT_USAGE, CSP, LINK_HEADER, NOT_FOUND_MARKDOWN, onRequest, prefersMarkdown} from '../../functions/_middleware'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
@@ -281,5 +285,92 @@ describe('negotiated homepage markdown', () => {
     expect(recovered.status).toBe(200)
     expect(await recovered.text()).toBe('content-2')
     expect(artifactCalls).toBe(2)
+  })
+})
+
+// covers: llms-txt#Markdown negotiation applies only to the homepage and honors Accept q-values
+describe('markdown 404', () => {
+  function notFoundContext(path: string, init: RequestInit = {}) {
+    const next = vi.fn(async () => new Response('<html>not found</html>', {status: 404, headers: {'Content-Type': 'text/html; charset=utf-8'}}))
+    return {context: {request: new Request(`https://jonathanlloyd.me${path}`, init), next, waitUntil: () => {}}, next}
+  }
+
+  it('answers a markdown 404 with the copy body, the agent links, and the header pipeline', async () => {
+    const mock = stubFetch()
+    const {context, next} = notFoundContext('/no-such-path', {headers: MARKDOWN})
+
+    const response = await onRequest(context)
+    const body = await response.text()
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(mock).not.toHaveBeenCalled()
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(body).toBe(NOT_FOUND_MARKDOWN)
+    expect(body).toMatch(/^# \S/)
+    expect(llm.notFound.body.length).toBeGreaterThanOrEqual(20)
+    expect(body).toContain(llm.notFound.body)
+    const links = [
+      [llm.notFound.linkLlmsTxt, LLMS_TXT_PATH],
+      [llm.notFound.linkIndexMd, LLM_CONTENT_PATHS.indexMarkdown],
+      [llm.notFound.linkSitemap, SITEMAP_INDEX_PATH],
+      [llm.notFound.linkDevelopers, AGENT_PATHS.developers]
+    ] as const
+    for (const [link, path] of links) {
+      // The contract path and the copy link's own template must name the same URL.
+      expect(link.url.replace('{siteUrl}', SITE_URL), path).toBe(`${SITE_URL}${path}`)
+      expect(body, path).toContain(`- [${link.label}](${SITE_URL}${path}): ${link.notes}`)
+    }
+    expect(response.headers.get('Vary')).toBe('Accept')
+    expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Content-Security-Policy')).toBe(CSP)
+    expect(response.headers.get('Content-Usage')).toBe(CONTENT_USAGE)
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+  })
+
+  it('returns no body for a markdown HEAD 404 while keeping the GET headers', async () => {
+    const {context} = notFoundContext('/no-such-path', {method: 'HEAD', headers: MARKDOWN})
+
+    const response = await onRequest(context)
+
+    expect(response.status).toBe(404)
+    expect(response.body).toBeNull()
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(response.headers.get('Vary')).toBe('Accept')
+  })
+
+  it.each([
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    '*/*',
+    'text/markdown;q=0',
+    'text/markdown, text/html'
+  ])('keeps the HTML 404 for Accept %j, varying on Accept', async (accept) => {
+    const {context} = notFoundContext('/no-such-path', {headers: {Accept: accept}})
+
+    const response = await onRequest(context)
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    expect(await response.text()).toBe('<html>not found</html>')
+    expect(response.headers.get('Vary')).toBe('Accept')
+  })
+
+  it('keeps the HTML 404 when Accept is absent or the method is unsafe', async () => {
+    for (const init of [{}, {method: 'POST', headers: MARKDOWN}] as RequestInit[]) {
+      const response = await onRequest(notFoundContext('/no-such-path', init).context)
+
+      expect(response.status).toBe(404)
+      expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    }
+  })
+
+  it('leaves a found page untouched under a markdown Accept', async () => {
+    const {context} = makeContext('/about', {headers: MARKDOWN})
+
+    const response = await onRequest(context)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('<html>home</html>')
+    expect(response.headers.get('Vary')).toBeNull()
   })
 })

@@ -3,6 +3,7 @@ import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {DATASET_DISTRIBUTIONS, DATASET_VARIABLES, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {identity} from '@j0nathan-ll0yd/copy'
 
 const distDir = path.resolve(process.cwd(), 'dist')
 
@@ -163,6 +164,32 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
     const dataset = graph.find((n: any) => n['@type'] === 'Dataset')
     expect(dataset.license).toBe(SITE_URL + '/privacy')
   })
+
+  // Atlas decision 0158 (O5): the Person carries the contact data; every value is a copy key.
+  it('Person has a contactPoint with the copy email, contact type, and the /contact page', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.contactPoint).toEqual({
+      '@type': 'ContactPoint',
+      contactType: identity.person.contactType,
+      email: identity.person.email,
+      url: SITE_URL + '/contact'
+    })
+  })
+
+  it('Person has a PostalAddress from the copy locality, region, and country', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.address).toEqual({
+      '@type': 'PostalAddress',
+      addressLocality: identity.person.addressLocality,
+      addressRegion: identity.person.addressRegion,
+      addressCountry: identity.person.addressCountry
+    })
+  })
+
+  it('names no Organization for "Lifegames" anywhere in the graph', () => {
+    const organizations = JSON.stringify(graph).match(/"@type":"Organization","name":"[^"]*"/g) ?? []
+    expect(organizations.filter((o) => /lifegames/i.test(o))).toEqual([])
+  })
 })
 
 // Regression guard for the /privacy + /404 bug: Dashboard.astro is the shared
@@ -172,9 +199,12 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
 // gated to the home page.
 describe('JSON-LD @graph per-page shape and @id resolution', () => {
   const pages = [
-    {label: 'home', file: 'index.html', isHome: true},
-    {label: 'privacy', file: 'privacy/index.html', isHome: false},
-    {label: '404', file: '404.html', isHome: false}
+    {label: 'home', file: 'index.html', isHome: true, webPageType: null},
+    {label: 'privacy', file: 'privacy.html', isHome: false, webPageType: 'WebPage'},
+    {label: 'about', file: 'about.html', isHome: false, webPageType: 'AboutPage'},
+    {label: 'contact', file: 'contact.html', isHome: false, webPageType: 'ContactPage'},
+    {label: 'developers', file: 'developers.html', isHome: false, webPageType: 'WebPage'},
+    {label: '404', file: '404.html', isHome: false, webPageType: 'WebPage'}
   ]
 
   for (const page of pages) {
@@ -215,8 +245,8 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
           expect(pageGraph.some((n) => n['@type'] === 'Dataset')).toBe(false)
         })
 
-        it('non-home page emits a WebPage node that isPartOf the WebSite', () => {
-          const webpage = pageGraph.find((n) => n['@type'] === 'WebPage')
+        it(`non-home page emits a ${page.webPageType} node that isPartOf the WebSite`, () => {
+          const webpage = pageGraph.find((n) => n['@type'] === page.webPageType)
           expect(webpage).toBeDefined()
           expect(webpage.isPartOf['@id']).toBe(SITE_URL + '#website')
           expect(webpage.name).toBeTruthy()

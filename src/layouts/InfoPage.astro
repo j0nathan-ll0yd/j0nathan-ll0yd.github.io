@@ -1,0 +1,218 @@
+---
+import { getEntry } from 'astro:content';
+import Dashboard from './Dashboard.astro';
+import { SITE_PAGE_PATHS } from '../../functions/_lib/site-paths';
+import { AGENT_PATHS } from '../../functions/_lib/agent-paths.mjs';
+import { llm } from '@j0nathan-ll0yd/copy';
+import { pagePath } from '../lib/page-path';
+
+// The text-page layout shared by /about, /contact, /developers, and /privacy: one card
+// with a heading, the page's sections in the default slot, and a footer that links the
+// four pages to one another and back to the dashboard.
+interface Props {
+  title: string;
+  description: string;
+  robots?: string;
+  pageType?: string;
+}
+
+const { title, description, robots, pageType } = Astro.props;
+
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[InfoPage.astro] @j0nathan-ll0yd/copy identity entry missing');
+const id = _identityEntry.data;
+
+const pages = [
+  { href: SITE_PAGE_PATHS.about, label: id.about.title },
+  { href: SITE_PAGE_PATHS.contact, label: id.contact.title },
+  { href: AGENT_PATHS.developers, label: llm.developers.title },
+  { href: SITE_PAGE_PATHS.privacy, label: id.privacy.title },
+];
+const current = pagePath(Astro.url.pathname);
+---
+<Dashboard title={title} description={description} robots={robots} pageType={pageType}>
+  <main id="main-content" class="info-page">
+    <article class="info-card" aria-labelledby="info-heading">
+      <header class="info-header">
+        <h1 id="info-heading" class="info-title">{title}</h1>
+        <slot name="header" />
+      </header>
+      <slot />
+      <footer class="info-footer">
+        <a href="/" class="info-back-link">{id.privacy.backLink}</a>
+        <nav class="info-pages">
+          {pages.map((page) => (
+            <a href={page.href} class="info-pages-link" aria-current={page.href === current ? 'page' : undefined}>{page.label}</a>
+          ))}
+        </nav>
+      </footer>
+    </article>
+  </main>
+</Dashboard>
+
+<style is:global>
+  /* Dashboard.astro locks viewport scroll at 1100px and up, where the bento grid fits
+     100dvh. A text page is taller than the viewport, so it scrolls again. :root outranks
+     the dashboard's bare `html` selector whatever order the two style blocks land in. */
+  html:root {
+    overflow-y: auto;
+  }
+
+  html:root body {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .info-page {
+    min-height: 100dvh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: var(--space-40) var(--space-24);
+    background: var(--bg);
+  }
+
+  .info-card {
+    width: 100%;
+    max-width: 720px;
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-40);
+    backdrop-filter: blur(var(--blur-md));
+    -webkit-backdrop-filter: blur(var(--blur-md));
+  }
+
+  .info-header {
+    margin-bottom: var(--space-28);
+    padding-bottom: var(--space-20);
+    border-bottom: 1px solid var(--glass-border);
+  }
+
+  .info-title {
+    font-size: var(--font-size-xl);
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: var(--space-8);
+  }
+
+  .info-lede,
+  .info-section-body {
+    font-size: var(--font-size-base);
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  .info-lede {
+    margin-bottom: var(--space-28);
+  }
+
+  .info-section {
+    margin-bottom: var(--space-28);
+  }
+
+  .info-section-heading {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--neon-cyan);
+    margin-bottom: var(--space-10);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .info-section-body + .info-section-body,
+  .info-section-body + .info-list,
+  .info-list + .info-section-body {
+    margin-top: var(--space-10);
+  }
+
+  .info-list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    gap: var(--space-12);
+  }
+
+  .info-list-item {
+    font-size: var(--font-size-base);
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .info-list-label {
+    font-weight: 600;
+  }
+
+  .info-updated {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+  }
+
+  .info-list-note {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+  }
+
+  .info-card a:not(.info-back-link):not(.info-pages-link) {
+    color: var(--neon-cyan);
+    overflow-wrap: anywhere;
+  }
+
+  .info-footer {
+    margin-top: var(--space-40);
+    padding-top: var(--space-20);
+    border-top: 1px solid var(--glass-border);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-12);
+  }
+
+  .info-pages {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-16);
+  }
+
+  .info-back-link,
+  .info-pages-link {
+    font-size: var(--font-size-sm);
+    color: var(--neon-cyan);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .info-pages-link {
+    color: var(--text-muted);
+  }
+
+  .info-pages-link[aria-current='page'] {
+    color: var(--text);
+  }
+
+  .info-back-link:hover,
+  .info-pages-link:hover {
+    text-decoration: underline;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .info-card {
+      animation: info-fade-in 0.4s ease;
+    }
+  }
+
+  @keyframes info-fade-in {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .info-card {
+      background: rgba(6, 6, 15, 0.95);
+    }
+  }
+</style>

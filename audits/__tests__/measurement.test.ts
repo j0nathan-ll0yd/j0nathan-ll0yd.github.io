@@ -228,14 +228,15 @@ describe('every audit check publishes a measurement', () => {
   it('censuses the check steps the workflow actually declares', () => {
     // Guards the census itself: a parser that matched nothing would pass every
     // assertion below while proving nothing -- the silent-empty-population shape this
-    // whole channel exists to end. 15 report-only check steps across the three tiers:
-    // 2 daily, 11 weekly, 2 monthly. The weekly count moved from 10 with
+    // whole channel exists to end. 16 report-only check steps across the three tiers:
+    // 2 daily, 12 weekly, 2 monthly. The weekly count moved from 10 with
     // `spec_currency` (atlas decision 0129 C6), which measures CURRENT upstream blobs
-    // where its `spec_drift` sibling measures PINNED ones.
+    // where its `spec_drift` sibling measures PINNED ones, and from 11 with
+    // `crawler_edge` (atlas decision 0158), which measures edge responses to crawler tokens.
     expect(steps.map(({job}) => job).filter((j) => j === 'daily')).toHaveLength(2)
-    expect(steps.map(({job}) => job).filter((j) => j === 'weekly')).toHaveLength(11)
+    expect(steps.map(({job}) => job).filter((j) => j === 'weekly')).toHaveLength(12)
     expect(steps.map(({job}) => job).filter((j) => j === 'monthly')).toHaveLength(2)
-    expect(steps).toHaveLength(15)
+    expect(steps).toHaveLength(16)
     expect(censusRunners.length).toBeGreaterThanOrEqual(8)
   })
 
