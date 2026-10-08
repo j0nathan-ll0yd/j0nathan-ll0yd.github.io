@@ -18,6 +18,19 @@
     return;
   }
 
+  // Page-side purge of the retired 'live-data' cache (atlas decision 0160, PR 0b).
+  // The worker-side purge in /js/sw-purge.js runs only if
+  // the new worker installs: when its importScripts fails, the new worker stays
+  // waiting and the OLD worker keeps replaying gated JSON from this cache. The
+  // page can reach the same CacheStorage, so it deletes the cache on every load
+  // as a second line of defence. While an old worker still controls the page it
+  // can store new entries between loads; this bounds that, it does not end it.
+  if ('caches' in window) {
+    try {
+      caches['delete']('live-data')['catch'](function () {});
+    } catch (e) {}
+  }
+
   var IDLE_MS = 60000;            // no-user-input window before a safe reload
   var REFOCUS_STALE_MS = 60000;   // hidden duration that warrants a check on return
   var UPDATE_POLL_MS = 3600000;   // hourly registration.update() backstop
