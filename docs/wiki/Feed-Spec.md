@@ -50,13 +50,20 @@ composition would make the feed stale by definition.
 
 - Backend composes on EventBridge trigger (any source update) + 30-minute schedule
 - CloudFront origin object TTL: 5 minutes (`max-age=300, s-maxage=300`, stamped by `ComposeFeed`)
-- Pages Function origin fetch cache: 60 seconds (`FRESH_CACHE_SECONDS`, `functions/_lib/proxy.ts:14`)
+- Pages Function origin fetch: no cache. Every artifact fetch is
+  `cache: 'no-store'` with no `cf` cache options (`GATED_FETCH_INIT` in
+  `functions/_lib/proxy.ts`), so each one passes the backend focus gate
+  (atlas decision 0160, PR 0b). The former 60-second origin fetch cache sat in
+  front of that gate and is gone.
 - Pages Function response policy: `public, max-age=0, s-maxage=60`
-  (`EDGE_CACHED_POLICY`, `functions/_lib/proxy.ts:63`). No route emits
-  `stale-while-revalidate`; see the comment at `functions/_lib/proxy.ts:364`.
-- Last-known-good fallback copy: `public, max-age=10800`, three hours
-  (`LKG_CACHE_POLICY`, `functions/_lib/proxy.ts:73`). Served only when the
-  upstream fetch fails, and stamped `X-Proxy-Stale: true`.
+  (`EDGE_CACHED_POLICY` in `functions/_lib/proxy.ts`). No route emits
+  `stale-while-revalidate`.
+- Last-known-good fallback copy: stored with `public, max-age=10800`
+  (`LKG_CACHE_POLICY`). Served only when the upstream fetch fails retryably,
+  the copy's upstream composition stamp is at most three hours old, and the
+  same request observed the gate open; stamped `X-Proxy-Stale: true`. See
+  the llms-txt spec requirement "Gated artifacts are admitted only through
+  the CloudFront gate".
 - **Cloudflare account-level override.** A catch-all Edge Cache TTL rule
   rewrites the browser-facing `max-age` to 600 on every non-trio path. The
   header a client actually observes on `/feed.xml` and `/feed.json` is

@@ -128,8 +128,11 @@ describe('Content-Usage response header', () => {
   })
 
   it('is retained on the negotiated homepage markdown representation', async () => {
-    vi.stubGlobal('fetch',
-      vi.fn(async (url: string) => url.endsWith('/focus.json') ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('# full profile')))
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      url.endsWith('/focus.json')
+        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
+        : new Response('# full profile', {headers: {'x-amz-cf-id': 'cf'}})
+    ))
     const next = vi.fn(async () => new Response('html'))
 
     const response = await onRequest({request: new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/markdown'}}), next, waitUntil: () => {}})
