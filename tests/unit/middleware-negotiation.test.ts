@@ -15,7 +15,7 @@ vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => lo
 // per-operation deadline drawn from the request's total budget (functions/_lib/proxy.ts).
 // Gated fetches are no-store with no `cf` cache options (atlas decision 0160, PR 0b); a gated 200
 // is admitted only with CloudFront's `x-amz-cf-id`, and its copy only with a composition stamp.
-const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
+const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', redirect: 'manual', signal: expect.any(AbortSignal)})
 const CLOUDFRONT = (extra: Record<string, string> = {}) => ({'x-amz-cf-id': 'cf', 'x-amz-meta-composed-at': new Date().toISOString(), ...extra})
 const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
 const FOCUS_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
@@ -218,12 +218,15 @@ describe('negotiated homepage markdown', () => {
 
   it('serves the warm last-known-good copy with no-store when the upstream fails', async () => {
     vi.useFakeTimers()
-    vi.stubGlobal('fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(
-          url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 502, headers: CLOUDFRONT()})
-        )
-      ))
+    // Three CloudFront 502s, then a gate probe that answers 200: only a 200 proves the gate is open.
+    let artifactCalls = 0
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'})))
+      }
+      artifactCalls++
+      return Promise.resolve(new Response(artifactCalls <= 3 ? 'upstream down' : 'probe', {status: artifactCalls <= 3 ? 502 : 200, headers: CLOUDFRONT()}))
+    }))
     stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800', 'X-Proxy-Lkg-Composed-At': new Date().toISOString()}}))
     const {context} = makeContext('/', {headers: MARKDOWN})
 

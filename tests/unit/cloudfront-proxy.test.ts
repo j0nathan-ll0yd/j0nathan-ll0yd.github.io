@@ -22,7 +22,7 @@ vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => lo
 // PR 0b): a Cloudflare cache in front of the CloudFront gate served gated content without asking
 // it. `expectGatedFetchesUncached` asserts the absence of `cf` on every call, which
 // `objectContaining` alone cannot.
-const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
+const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', redirect: 'manual', signal: expect.any(AbortSignal)})
 const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
 const FOCUS_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
 const COMPOSED_AT = 'x-amz-meta-composed-at'
@@ -115,11 +115,24 @@ function expectPublicNoStore(response: Response) {
   expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
 }
 
-/** The default CachePolicy: edge-cacheable for 60s, and NO CDN override of any kind. */
-function expectEdgeCached(response: Response) {
-  expect(response.headers.get('Cache-Control')).toBe('public, max-age=0, s-maxage=60')
-  expect(response.headers.get('CDN-Cache-Control')).toBeNull()
-  expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
+/**
+ * A CloudFront outage of the artifact (every attempt answers `status` with `x-amz-cf-id`) followed
+ * by a gate probe that answers 200. No error status is gate evidence, so the probe is what admits
+ * the last-known-good copy.
+ */
+function stubOutageWithOpenProbe(status = 502) {
+  let artifactCalls = 0
+  const mock = vi.fn().mockImplementation((url: string) => {
+    if (url === FOCUS_URL) {
+      return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'})))
+    }
+    artifactCalls++
+    return Promise.resolve(artifactCalls <= 3
+      ? new Response('upstream down', {status, headers: {'x-amz-cf-id': 'terminal-request'}})
+      : fromCloudfront('probe body is never served'))
+  })
+  vi.stubGlobal('fetch', mock)
+  return mock
 }
 
 afterEach(() => {
@@ -145,8 +158,8 @@ describe('makeCloudfrontProxy', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
     expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
-    // No cachePolicy passed, so this exercises the DEFAULT (edge-cached) policy.
-    expectEdgeCached(res)
+    // No cachePolicy passed, so this exercises the DEFAULT policy, which is no-store.
+    expectPublicNoStore(res)
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy')
     expect(res.headers.get('X-Proxy-Attempts')).toBe('1')
     expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('200')
@@ -190,12 +203,7 @@ describe('makeCloudfrontProxy', () => {
 
   it('serves an explicit stale last-known-good response after retries are exhausted', async () => {
     vi.useFakeTimers()
-    const mock = vi.fn().mockImplementation((url: string) =>
-      Promise.resolve(url === FOCUS_URL
-        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
-        : new Response('upstream down', {status: 502, headers: {'x-amz-cf-id': 'terminal-request'}}))
-    )
-    vi.stubGlobal('fetch', mock)
+    const mock = stubOutageWithOpenProbe()
     const cache = stubCache(lkgCopy('known good', {'Content-Type': 'text/plain; charset=utf-8', 'X-Proxy-Lkg-Stored-At': '2026-08-22T20:00:00.000Z'}))
     const {context} = makeContext()
     const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
@@ -204,12 +212,12 @@ describe('makeCloudfrontProxy', () => {
     await vi.runAllTimersAsync()
     const res = await pending
 
-    expect(mock).toHaveBeenCalledTimes(4)
+    expect(mock).toHaveBeenCalledTimes(5) // focus, three attempts, one gate probe
     expect(cache.match).toHaveBeenCalledOnce()
     expect(res.status).toBe(200)
     expect(res.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    // No cachePolicy passed, so the stale path also carries the DEFAULT policy.
-    expectEdgeCached(res)
+    // No cachePolicy passed, so the stale path also carries the DEFAULT policy, which is no-store.
+    expectPublicNoStore(res)
     expect(res.headers.get('Warning')).toBe('110 - "Response is stale"')
     expect(res.headers.get('X-Proxy-Stale')).toBe('true')
     expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
@@ -494,23 +502,21 @@ describe('proxy routes', () => {
 })
 
 describe('per-route cache policy', () => {
-  // covers: llms-txt#Cache policy is per route, and the feed routes stay edge-cached
-  // The llms-assurance contract requires no-store on all three cache headers for every
-  // llm-outputs response class. Two regression classes are under guard here, one per
-  // direction: the trio's success or stale path silently reverting to the edge policy, and
-  // the feed routes silently inheriting the trio's no-store. proxy.ts builds all five, so
-  // neither is visible from the factory tests alone -- they must be asserted per route.
-  const trio: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
+  // covers: llms-txt#Every proxy route is no-store, the feed routes included
+  // All five routes are gated (atlas decision 0160, plan D3: no Cloudflare artifact cache on a
+  // gated path). The regression class under guard: any route's success or stale path reverting to
+  // a shared-cacheable policy. The feeds once carried `s-maxage=60`, and Cloudflare's zone edge
+  // cache replayed them for up to 796 s with no focus probe. proxy.ts builds all five, so a
+  // per-route regression is invisible from the factory tests alone -- they must be asserted per route.
+  const routes: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
     ['/llms.txt', llmsTxtRoute],
     ['/llms-full.txt', llmsFullRoute],
-    ['/index.md', indexMdRoute]
-  ]
-  const feeds: Array<[string, (context: CloudfrontProxyContext) => Promise<Response>]> = [
+    ['/index.md', indexMdRoute],
     ['/feed.xml', feedXmlRoute],
     ['/feed.json', feedJsonRoute]
   ]
 
-  it.each(trio)('%s serves no-store on the success path', async (route, onRequest) => {
+  it.each(routes)('%s serves no-store on the success path', async (route, onRequest) => {
     stubFetch(fromCloudfront('payload'))
     vi.stubGlobal('caches', undefined)
     const {context} = makeContext(route)
@@ -521,13 +527,12 @@ describe('per-route cache policy', () => {
     expectPublicNoStore(res)
   })
 
-  it.each(trio)('%s serves no-store on the stale last-known-good path', async (route, onRequest) => {
+  it.each(routes)('%s serves no-store on the stale last-known-good path, whatever the stored copy says', async (route, onRequest) => {
     vi.useFakeTimers()
-    vi.stubGlobal('fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : fromCloudfront('upstream down', {status: 502}))
-      ))
-    stubCache(lkgCopy('known good'))
+    stubOutageWithOpenProbe()
+    // The stored copy carries a shared-cacheable policy on purpose: the stale path must overwrite
+    // whatever it reads from the cache with the ROUTE's policy, not inherit the entry's headers.
+    stubCache(lkgCopy('known good', {'Cache-Control': 'public, max-age=600, s-maxage=60'}))
     const {context} = makeContext(route)
 
     const pending = onRequest(context)
@@ -539,7 +544,7 @@ describe('per-route cache policy', () => {
     expectPublicNoStore(res)
   })
 
-  it.each(trio)('%s stores a cacheable last-known-good copy despite the no-store public policy', async (route, onRequest) => {
+  it.each(routes)('%s stores a cacheable last-known-good copy despite the no-store public policy', async (route, onRequest) => {
     stubFetch(fromCloudfront('payload'))
     const cache = stubCache()
     const {context, background} = makeContext(route)
@@ -551,37 +556,6 @@ describe('per-route cache policy', () => {
     expect(stored.headers.get('Cache-Control')).toBe('public, max-age=10800')
     expect(stored.headers.get('CDN-Cache-Control')).toBeNull()
     expect(stored.headers.get('Cloudflare-CDN-Cache-Control')).toBeNull()
-  })
-
-  it.each(feeds)('%s stays edge-cached on the success path and sets no CDN override', async (route, onRequest) => {
-    stubFetch(fromCloudfront('payload'))
-    vi.stubGlobal('caches', undefined)
-    const {context} = makeContext(route)
-
-    const res = await onRequest(context)
-
-    expect(res.status).toBe(200)
-    expectEdgeCached(res)
-  })
-
-  it.each(feeds)('%s stays edge-cached on the stale last-known-good path', async (route, onRequest) => {
-    vi.useFakeTimers()
-    vi.stubGlobal('fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : fromCloudfront('upstream down', {status: 502}))
-      ))
-    // The stored copy carries no-store here on purpose: the stale path must overwrite whatever
-    // it reads from the cache with the ROUTE's policy, not inherit the cached entry's headers.
-    stubCache(lkgCopy('known good', {'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store'}))
-    const {context} = makeContext(route)
-
-    const pending = onRequest(context)
-    await vi.runAllTimersAsync()
-    const res = await pending
-
-    expect(res.status).toBe(200)
-    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
-    expectEdgeCached(res)
   })
 
   it('exports the llm-outputs policy as no-store on every cache header', () => {
@@ -731,8 +705,13 @@ describe('gate admission', () => {
     expect(await res.text()).toBe('fresh')
   })
 
-  it.each([500, 502, 504])('admits a fresh copy after a CloudFront %s without a separate probe: the error itself passed the gate', async (status) => {
-    const mock = stubArtifactAnswers([() => Promise.resolve(fromCloudfront('origin error', {status}))])
+  // No CloudFront error status proves the gate function let the request through. AWS documents
+  // that with CloudFront Functions a 503 "can indicate that your function returned an execution
+  // error" (http-503-service-unavailable.html) and a 502 "can indicate that the CloudFront function
+  // is trying to add, delete, or change a read-only header" (http-502-bad-gateway.html).
+  it.each([500, 502, 503, 504])('treats a CloudFront %s as no gate evidence: the copy needs a gate probe that returns 200', async (status) => {
+    const originError = () => Promise.resolve(fromCloudfront('origin error', {status}))
+    const mock = stubArtifactAnswers([originError, originError, originError, () => Promise.resolve(fromCloudfront('probe body is never served'))])
     const composedAt = minutesAgo(30)
     stubCache(lkgCopy('known good', {}, composedAt))
 
@@ -742,8 +721,53 @@ describe('gate admission', () => {
     expect(await res.text()).toBe('known good')
     expect(res.headers.get('X-Proxy-Stale')).toBe('true')
     expect(res.headers.get('X-Proxy-Lkg-Composed-At')).toBe(composedAt)
-    expect(mock.mock.calls.filter(([url]) => url === ARTIFACT_URL)).toHaveLength(3)
+    expect(mock.mock.calls.filter(([url]) => url === ARTIFACT_URL)).toHaveLength(4) // three attempts, one probe
     expectGatedFetchesUncached(mock)
+  })
+
+  it.each([500, 502, 503, 504])('refuses the copy when the gate probe also answers a CloudFront %s', async (status) => {
+    const originError = () => Promise.resolve(fromCloudfront('origin error', {status}))
+    const mock = stubArtifactAnswers([originError])
+    stubCache(lkgCopy('known good'))
+
+    const res = await run()
+
+    expect(res.status).toBe(502)
+    expect(mock.mock.calls.filter(([url]) => url === ARTIFACT_URL)).toHaveLength(4)
+    expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_lkg_refused', expect.objectContaining({reason: 'no-gate-evidence'}))
+  })
+
+  // Atlas 0160 PR 0b review M8: only a 200 is a complete artifact, and a redirect must never carry
+  // a gated request somewhere the gate does not guard.
+  it.each([203, 204, 206])('refuses a CloudFront %s instead of serving it as the artifact', async (status) => {
+    const mock = stubArtifactAnswers([() => Promise.resolve(fromCloudfront(status === 204 ? null : 'partial', {status}))])
+    const cache = stubCache(lkgCopy('known good'))
+
+    const res = await run()
+
+    expect(res.status).toBe(502)
+    expect(res.headers.get('X-Proxy-Refused')).toBe('non-200-success')
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe(String(status))
+    expect(mock.mock.calls.filter(([url]) => url === ARTIFACT_URL)).toHaveLength(1)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
+  })
+
+  it('does not follow a redirect from a gated path', async () => {
+    const mock = stubArtifactAnswers([
+      () => Promise.resolve(fromCloudfront(null, {status: 301, headers: {Location: 'https://elsewhere.example/thing.txt'}}))
+    ])
+    const cache = stubCache(lkgCopy('known good'))
+
+    const res = await run()
+
+    expect(res.status).toBe(502)
+    expect(res.headers.get('X-Proxy-Upstream-Status')).toBe('301')
+    expect(mock.mock.calls.map(([url]) => url)).toEqual([FOCUS_URL, ARTIFACT_URL])
+    for (const [, init] of mock.mock.calls.filter(([url]) => url === ARTIFACT_URL)) {
+      expect(init).toHaveProperty('redirect', 'manual')
+    }
+    expect(cache.match).not.toHaveBeenCalled()
   })
 
   it('refuses a copy whose upstream composition is older than the source-age bound', async () => {
@@ -763,7 +787,12 @@ describe('gate admission', () => {
   it.each<[string, string | null]>([
     ['no composition stamp', null],
     ['an unparseable stamp', 'yesterday'],
-    ['a stamp far in the future', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()]
+    ['a stamp far in the future', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()],
+    // Loose forms Date.parse accepts but that are not ISO-8601 date-times (review I9).
+    ['a bare number', '1'],
+    ['a bare year', '2026'],
+    ['an RFC 1123 date', new Date().toUTCString()],
+    ['a date without a time', new Date().toISOString().slice(0, 10)]
   ])('refuses a copy with %s', async (_label, composedAt) => {
     stubArtifactAnswers([cloudfront502])
     stubCache(lkgCopy('unprovable age', {}, composedAt))
@@ -772,30 +801,19 @@ describe('gate admission', () => {
 
     expect(res.status).toBe(502)
     expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_lkg_refused',
-      expect.objectContaining({reason: composedAt && composedAt !== 'yesterday' ? 'composed-at-in-future' : 'no-composed-at'}))
+      expect.objectContaining({reason: _label === 'a stamp far in the future' ? 'composed-at-in-future' : 'no-composed-at'}))
   })
 
-  // AWS: with CloudFront Functions "an HTTP 503 status code can indicate that your function returned
-  // an execution error" (http-503-service-unavailable.html). A 503 may mean the gate never ran.
-  it('does not treat a CloudFront 503 as gate evidence, and probes instead', async () => {
-    const mock = stubArtifactAnswers([cloudfront503, cloudfront503, cloudfront503, cloudfront503])
-    stubCache(lkgCopy('known good'))
+  it.each(['1', '2026', new Date().toUTCString()])('writes no copy for a 200 whose composition stamp is the loose form %s', async (stamp) => {
+    stubArtifactAnswers([() => Promise.resolve(fromCloudfront('loosely stamped', {headers: {[COMPOSED_AT]: stamp}}))])
+    const cache = stubCache()
+    const {context, background} = makeContext()
 
-    const res = await run()
-
-    expect(res.status).toBe(502)
-    expect(mock.mock.calls.filter(([url]) => url === ARTIFACT_URL)).toHaveLength(4) // three attempts, one probe
-    expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_lkg_refused', expect.objectContaining({reason: 'no-gate-evidence'}))
-  })
-
-  it('admits the copy after CloudFront 503s when the gate probe returns a 200', async () => {
-    stubArtifactAnswers([cloudfront503, cloudfront503, cloudfront503, () => Promise.resolve(fromCloudfront('probe body is never served'))])
-    stubCache(lkgCopy('known good'))
-
-    const res = await run()
+    const res = await proxy()(context)
+    await Promise.all(background)
 
     expect(res.status).toBe(200)
-    expect(await res.text()).toBe('known good')
+    expect(cache.put).not.toHaveBeenCalled()
   })
 
   it('after a transport failure, admits the copy only once a gate probe reaches CloudFront', async () => {

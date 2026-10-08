@@ -23,21 +23,30 @@
 // 2. A 403 suppression body from the gate wins over a visible focus probe: the
 //    route answers with its 503 suppression response.
 // 3. The last-known-good copy is admitted only with fresh evidence, in the same
-//    request, that the gate is open (a 200 or a CloudFront 500, 502 or 504; not
-//    a 503, which a failed gate function also returns), and only when its
-//    upstream composition stamp is at most 3 hours old.
+//    request, that the gate is open (a 200 that passed it; no CloudFront error
+//    status proves that), and only when its upstream composition stamp is at
+//    most 3 hours old.
+// 4. Every response this factory builds is no-store at the browser, generic CDN
+//    and Cloudflare layers, the two feed routes included.
 //
 // Residual windows: KeyValueStore propagation (the backend spec records about
 // 30 s to first denial and about 75 s to convergence, with no SLA), and a
-// response that passed the gate before a flip and is still in flight. The feed
-// routes also keep their public 60 s shared-cache policy (`s-maxage=60`), which
-// downstream caches may honor after a flip.
+// response that passed the gate before a flip and is still in flight.
+//
+// One window is NOT this module's to close. Cloudflare's zone edge cache sits in
+// front of this Function, and a zone Edge Cache TTL rule can store a feed
+// response and replay it with no focus probe and no gate check. On 2026-10-08
+// /feed.xml and /feed.json answered `cf-cache-status: HIT` with `Age` up to
+// 796 s while they still sent `s-maxage=60`, so that rule, not the header, set
+// the window. Whether the no-store policy below ends it depends on the rule's
+// mode: a rule that respects origin headers stops caching, one that overrides
+// them does not. audits/checks/b2-check-cloudflare-llms-cache-rules.mjs measures
+// the rule for all five paths; the zone change is an owner decision.
 
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {COMPOSED_AT_METADATA_HEADER} from './feed-artifacts'
 
-const FRESH_CACHE_SECONDS = 60
 /**
  * The oldest upstream composition the last-known-good path may serve. It equals the registry's
  * `audit.error` threshold for these artifacts (3 h). Storage time is not source age: a copy stored
@@ -95,22 +104,13 @@ const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
  * Cloudflare's caches, so every attempt reaches CloudFront and passes the viewer-request gate.
  * There are deliberately no `cf` cache options: `cacheEverything` and `cacheTtlByStatus` put a
  * Cloudflare cache IN FRONT of the gate, and a hit there served gated content without asking it.
+ * `redirect: 'manual'` keeps a redirect from carrying the request to a URL the gate does not
+ * guard; a 3xx is then an ordinary non-retryable failure.
  */
-const GATED_FETCH_INIT: RequestInit = Object.freeze({cache: 'no-store'})
+const GATED_FETCH_INIT: RequestInit = Object.freeze({cache: 'no-store', redirect: 'manual'})
 
 /** `cf-cache-status` values that mean Cloudflare answered from its own cache, not from the origin. */
 const CLOUDFLARE_CACHE_SERVED = new Set(['HIT', 'STALE', 'UPDATING', 'REVALIDATED'])
-
-/**
- * CloudFront error statuses that prove the viewer-request gate let the request through: each one
- * comes from the origin leg (an origin 500, an unreachable or failing origin as 502 or 504), which
- * CloudFront reaches only after the gate function returned the request. 503 is deliberately absent.
- * AWS documents that with CloudFront Functions "an HTTP 503 status code can indicate that your
- * function returned an execution error"
- * (https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/http-503-service-unavailable.html),
- * so a 503 may mean the gate never ran. No documented header tells the two apart.
- */
-const GATE_EVIDENCE_ERROR_STATUSES = new Set([500, 502, 504])
 
 interface CacheLike {
   match(request: Request): Promise<Response | undefined>
@@ -143,17 +143,14 @@ export interface CachePolicy {
 }
 
 /**
- * Default: a browser revalidate plus a short shared-cache TTL. Carried by /feed.xml and
- * /feed.json, which are the `rss-feed` surface and are deliberately edge-cacheable.
- */
-const EDGE_CACHED_POLICY: CachePolicy = {cacheControl: `public, max-age=0, s-maxage=${FRESH_CACHE_SECONDS}`}
-
-/**
- * The llm-outputs trio (/llms.txt, /llms-full.txt, /index.md). The llms-assurance contract
- * requires no-store on all three cache headers for every response class of this surface, so the
- * success and stale paths carry what the suppression and error paths already emit.
+ * No-store on all three cache headers. The llms-assurance contract requires it for every response
+ * class of the llm-outputs trio (/llms.txt, /llms-full.txt, /index.md), and atlas decision 0160
+ * (plan D3: no Cloudflare artifact cache on a gated path) requires it for the `rss-feed` routes
+ * (/feed.xml, /feed.json) too, because all five are gated. It is therefore the factory DEFAULT:
+ * a route that passes no policy is no-store, and none of the five passes another.
  */
 export const LLM_OUTPUT_CACHE_POLICY: CachePolicy = {cacheControl: PUBLIC_NO_STORE, cdnCacheControl: PUBLIC_NO_STORE}
+const GATED_ARTIFACT_CACHE_POLICY: CachePolicy = LLM_OUTPUT_CACHE_POLICY
 
 /** Last-known-good entries are written to the edge Cache API, so they carry their own TTL. */
 const LKG_CACHE_POLICY: CachePolicy = {cacheControl: `public, max-age=${LAST_KNOWN_GOOD_SECONDS}`}
@@ -163,7 +160,7 @@ export interface CloudfrontProxyConfig {
   path: string
   /** Content-Type served to the client (CloudFront serves its own; the route owns the public one). */
   contentType: string
-  /** Cache directives for the success and stale paths. Defaults to the shared 60s edge policy. */
+  /** Cache directives for the success and stale paths. Defaults to no-store, which every gated route needs. */
   cachePolicy?: CachePolicy
 }
 
@@ -182,18 +179,20 @@ interface UpstreamFailure {
   response?: Response
   errorName?: string
   /**
-   * True when an attempt in THIS request returned gate-open evidence (`isGateOpenEvidence`): it
-   * carried `x-amz-cf-id`, Cloudflare did not serve it from cache, and it was a 200 or a CloudFront
-   * 500, 502 or 504. A 503 does not count, because a failed gate function also answers 503.
-   * Transport failures and Cloudflare-generated 52x do not count.
+   * True when an attempt in THIS request returned gate-open evidence (`isGateOpenEvidence`): a 200
+   * that carried `x-amz-cf-id` and that Cloudflare did not serve from cache. No error status counts
+   * (see `isGateOpenEvidence`), nor does a transport failure or a Cloudflare-generated 52x.
    */
   gateOpen: boolean
   /**
-   * Set when a 200 was refused because it cannot prove it passed the gate. The refusal is a
-   * privacy decision, so it admits no last-known-good copy.
+   * Set when a success-class response was refused: a 200 that cannot prove it passed the gate, or
+   * a 2xx other than 200, which is not a complete artifact. The refusal is a privacy decision; its
+   * status is never retryable, so it admits no last-known-good copy.
    */
-  refused?: 'cloudflare-cache' | 'no-cloudfront-id'
+  refused?: Refusal
 }
+
+type Refusal = 'cloudflare-cache' | 'no-cloudfront-id' | 'non-200-success'
 
 /** The gate answered an artifact request with its 403 suppression body. The gate wins. */
 interface UpstreamSuppressed {
@@ -455,10 +454,28 @@ function passedGate(response: Response): boolean {
 
 /**
  * True when this response is evidence, for the last-known-good path, that the gate is open now: a
- * 200 or an origin-leg error (`GATE_EVIDENCE_ERROR_STATUSES`) that passed the gate in this request.
+ * 200 that passed the gate in this request. No CloudFront error status proves that the gate
+ * function let the request through. AWS documents that with CloudFront Functions "an HTTP 503
+ * status code can indicate that your function returned an execution error"
+ * (https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/http-503-service-unavailable.html)
+ * and that "an HTTP 502 status code can indicate that the CloudFront function is trying to add,
+ * delete, or change a read-only header"
+ * (https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/http-502-bad-gateway.html),
+ * and no documented header tells a function failure from an origin failure.
  */
 function isGateOpenEvidence(response: Response): boolean {
-  return passedGate(response) && (response.status === 200 || GATE_EVIDENCE_ERROR_STATUSES.has(response.status))
+  return response.status === 200 && passedGate(response)
+}
+
+/** Why a success-class response may not be admitted, or undefined when it may. */
+function successRefusal(response: Response): Refusal | undefined {
+  if (response.status !== 200) {
+    return 'non-200-success'
+  }
+  if (servedFromCloudflareCache(response)) {
+    return 'cloudflare-cache'
+  }
+  return passedGate(response) ? undefined : 'no-cloudfront-id'
 }
 
 /**
@@ -495,13 +512,9 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
         return {ok: false, suppressed: true, attempts: attempt, response: lastResponse}
       }
       if (lastResponse.ok) {
-        // A 200 is admitted only when it provably passed the gate in this request. With no-store a
-        // Cloudflare cache hit should not occur; this is the second line if it ever does.
-        const refused = servedFromCloudflareCache(lastResponse)
-          ? 'cloudflare-cache'
-          : passedGate(lastResponse)
-          ? undefined
-          : 'no-cloudfront-id'
+        // Only a 200 is admitted, and only when it provably passed the gate in this request. With
+        // no-store a Cloudflare cache hit should not occur; this is the second line if it ever does.
+        const refused = successRefusal(lastResponse)
         if (refused) {
           discardBody(lastResponse)
           return {ok: false, attempts: attempt, response: lastResponse, gateOpen: false, refused}
@@ -516,8 +529,8 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
         const body = await withDeadline(() => response.arrayBuffer(), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), `${path} body`)
         return {ok: true, attempts: attempt, response, body}
       }
-      gateOpen = gateOpen || isGateOpenEvidence(lastResponse)
       if (!isRetryableStatus(lastResponse.status)) {
+        discardBody(lastResponse)
         return {ok: false, attempts: attempt, response: lastResponse, gateOpen}
       }
     } catch (error) {
@@ -544,11 +557,13 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
 
 /**
  * One bounded `no-store` GET of the gated path, asked only when no artifact attempt in this
- * request produced gate-open evidence (every failure was transport -- a timeout, DNS, or a
- * Cloudflare 52x without `x-amz-cf-id` -- or a CloudFront 503, which a failed gate function also
- * returns). It answers one question -- is the gate open right now -- and its body is never served.
- * `open` needs gate-open evidence (`isGateOpenEvidence`); a suppression body is `suppressed`;
- * everything else, a failed probe included, is `unknown`, which admits nothing.
+ * request produced gate-open evidence: every failure was transport (a timeout, DNS, a Cloudflare
+ * 52x without `x-amz-cf-id`) or a CloudFront error status, which a failed gate function can also
+ * return. It answers one question -- is the gate open right now -- and its body is never served.
+ * `open` needs gate-open evidence (`isGateOpenEvidence`, a 200); a suppression body is
+ * `suppressed`; everything else, a failed probe or another 5xx included, is `unknown`, which
+ * admits nothing. During a CloudFront outage of the path itself the probe answers 5xx too, so the
+ * copy is withheld: fail-closed by design.
  *
  * A hung origin hangs this probe too, and the artifact attempts may already have spent the budget.
  * Then the answer is `unknown` and no copy is served: without a gate observation there is no
@@ -667,25 +682,29 @@ type StaleOutcome = {kind: 'served'; response: Response} | {kind: 'suppressed'} 
 /**
  * The last-known-good path. A stored copy is served only when ALL of these hold:
  *
- * 1. The failure was retryable and was not a privacy refusal (a cache-served or unattributed 200).
+ * 1. The failure was retryable, which no privacy refusal is.
  * 2. The copy's upstream composition stamp is at most `LKG_MAX_SOURCE_AGE_MS` old.
- * 3. This request holds fresh evidence that the gate is open (`isGateOpenEvidence`): from an
- *    artifact attempt, or else from one gate probe (`observeGate`).
+ * 3. This request holds fresh evidence that the gate is open (`isGateOpenEvidence`, a 200): from
+ *    an artifact attempt whose body then stalled, or else from one gate probe (`observeGate`).
  *
  * A suppression body at step 3 returns `suppressed`: the gate wins and the route answers 503.
  * The copy is checked before the probe so an ineligible copy costs no extra request.
  */
-async function staleResponse(
-  cache: CacheLike | undefined,
-  cacheKey: Request,
-  contentType: string,
-  path: string,
-  upstreamUrl: string,
-  failure: UpstreamFailure,
-  policy: CachePolicy,
+interface StaleRequest {
+  cache: CacheLike | undefined
+  cacheKey: Request
+  contentType: string
+  path: string
+  upstreamUrl: string
+  failure: UpstreamFailure
+  policy: CachePolicy
   budget: RequestBudget
-): Promise<StaleOutcome> {
-  if (!cache || failure.refused || (failure.response && !isRetryableStatus(failure.response.status))) {
+}
+
+async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure, policy, budget}: StaleRequest): Promise<StaleOutcome> {
+  // A refusal always carries its success-class response, whose status is never retryable, so this
+  // one test also withholds the copy from every refusal.
+  if (!cache || (failure.response && !isRetryableStatus(failure.response.status))) {
     return {kind: 'none'}
   }
 
@@ -737,7 +756,7 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
 
 /** Builds an onRequest handler that proxies one CloudFront artifact resiliently. */
 export function makeCloudfrontProxy(
-  {path, contentType, cachePolicy = EDGE_CACHED_POLICY}: CloudfrontProxyConfig
+  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY}: CloudfrontProxyConfig
 ): (context: CloudfrontProxyContext) => Promise<Response> {
   const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
@@ -752,10 +771,10 @@ export function makeCloudfrontProxy(
     // Privacy gate first. The focus signal is never itself gated, and a hiding value denies at
     // once. A VISIBLE value is not permission on its own: the backend gate can be shut over a
     // visible signal, so every artifact fetch below still passes the gate itself (no-store), and a
-    // suppression body from it wins. The trio's responses are no-store at the browser, generic
-    // CDN, and Cloudflare-specific layers, so every request for them reaches this Function. The
-    // feeds keep their public 60s shared-cache policy, which bounds their public window after a
-    // hiding transition. No route can enter SWR.
+    // suppression body from it wins. Every route's responses, the feeds included, are no-store at
+    // the browser, generic CDN, and Cloudflare-specific layers. Whether every request then reaches
+    // this Function is the Cloudflare zone's decision, not this header's: see the zone-edge-cache
+    // note at the top of this module. No route can enter SWR.
     // ONE budget for the whole request: the focus probe, its retry, every artifact attempt, every
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.
@@ -790,7 +809,7 @@ export function makeCloudfrontProxy(
       })
     }
 
-    const stale = await staleResponse(cache, cacheKey, contentType, path, upstreamUrl, upstream, cachePolicy, budget)
+    const stale = await staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure: upstream, policy: cachePolicy, budget})
     if (stale.kind === 'served') {
       return stale.response
     }
