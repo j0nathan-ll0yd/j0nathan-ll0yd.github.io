@@ -14,6 +14,7 @@
     "doctor:install": "node scripts/doctor-install.mjs",
     "dev": "astro dev",
     "generate:webmcp": "node scripts/generate-webmcp.mjs",
+    "check:webmcp": "node scripts/generate-webmcp.mjs --check",
     "prebuild": "pnpm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD pnpm exec tsx node_modules/@j0nathan-ll0yd/schemas/scripts/validate.ts && pnpm run audit:fixtures && pnpm run audit:inline-scripts && pnpm run audit:sa-path",
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
