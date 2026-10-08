@@ -436,7 +436,7 @@ describe('live-data → clearing gated values on suppression', () => {
     await bootLiveData()
 
     expect(engineSpies.setSuppressed).toHaveBeenLastCalledWith(true)
-    // Review M4: assert the withholding itself, not only the absence of a later reload.
+    // Assert the withholding itself, not only the absence of a later reload.
     expect(updaterSpies.updateBookshelf).not.toHaveBeenCalled()
     expect(engineSpies.seed).toHaveBeenCalledOnce()
     expect(engineSpies.seed.mock.calls[0][0]).not.toHaveProperty('books')
@@ -460,7 +460,7 @@ describe('live-data → clearing gated values on suppression', () => {
     expect(engineSpies.seed.mock.calls[0][0]).toHaveProperty('books', booksExport.generatedAt)
   })
 
-  it('reloads once, however many suppressions one poll burst delivers (review I5)', async () => {
+  it('reloads once, however many suppressions one poll burst delivers', async () => {
     await bootLiveData()
     engineCapture.onUpdate?.('books', booksExport)
 
@@ -472,7 +472,7 @@ describe('live-data → clearing gated values on suppression', () => {
     expect(reload).toHaveBeenCalledOnce()
   })
 
-  it('does not queue a second reload while the first is in flight (review I5)', async () => {
+  it('does not queue a second reload while the first is in flight', async () => {
     await bootLiveData()
     engineCapture.onUpdate?.('books', booksExport)
     wsOpts?.onFocusChange?.('Work') // reload #1 starts; the navigation has not happened yet
@@ -485,7 +485,7 @@ describe('live-data → clearing gated values on suppression', () => {
     expect(reload).toHaveBeenCalledOnce()
   })
 
-  it('tells the engine whether the startup focus read was readable (review I2)', async () => {
+  it('tells the engine whether the startup focus read was readable', async () => {
     await bootLiveData()
     expect(engineSpies.setFocusReadable).toHaveBeenLastCalledWith(false)
 
@@ -545,7 +545,7 @@ describe('live-data → recovery from gate suppression', () => {
   // This suite mocks the engine, so it guards only the live-data half of H1 (the window and the
   // re-check interval). The engine half -- dispatching an unchanged focus answer while suppressed --
   // is guarded by 'dispatches an unchanged focus answer while suppressed' in poll-engine.test.ts.
-  it('recovers after a visible push whose own refetch met a lagging gate (adversarial review H1)', async () => {
+  it('recovers after a visible push whose own refetch met a lagging gate', async () => {
     await bootLiveData()
     wsOpts?.onStateChange?.(true)
     wsOpts?.onFocusChange?.('Do Not Disturb')
@@ -585,7 +585,7 @@ describe('live-data → recovery from gate suppression', () => {
   })
 })
 
-// Review I4: a gate denial is re-checked by a one-shot timer that asks the gate itself, so restore
+// A gate denial is re-checked by a one-shot timer that asks the gate itself, so restore
 // does not wait for a focus poll that lands 25 s after the last 403 (up to about 165 s passive).
 // covers: client-privacy#Entering suppression removes gated values, and leaving it restores them
 describe('live-data → one-shot gate re-check', () => {

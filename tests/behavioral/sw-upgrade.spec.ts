@@ -5,7 +5,7 @@ import {extname, join, normalize, resolve} from 'node:path'
 import type {AddressInfo} from 'node:net'
 
 // Service-worker upgrade over a warm `live-data` cache, in real Chromium (atlas decision 0160,
-// PR 0b; review finding M3).
+// PR 0b).
 //
 // The suite's shared preview server answers on `localhost` only, and public/js/sw-register.js
 // deliberately skips registration on `localhost`. So this file serves the built `dist/` itself on

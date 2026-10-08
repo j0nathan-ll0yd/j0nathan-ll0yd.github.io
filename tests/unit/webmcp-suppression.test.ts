@@ -48,7 +48,7 @@ describe('generated WebMCP reading tool', () => {
   })
 
   // covers: client-privacy#An unreadable focus value applies no gated data
-  // Review M7: the tool fetched books.json whenever focusRes.ok was false.
+  // The tool once fetched books.json whenever focusRes.ok was false.
   it.each<[string, () => Promise<Response>]>([
     ['an HTTP error', () => json({}, 503)],
     ['a network failure', () => Promise.reject(new TypeError('offline'))],
