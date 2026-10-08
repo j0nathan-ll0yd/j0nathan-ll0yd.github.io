@@ -1,9 +1,18 @@
 import {describe, expect, it} from 'vitest'
-import {gatedProbeUrls, readRegexLiteral, scanWorkerSource, siteGatedProbeUrls, verifyPurgeScript} from '../../scripts/lib/sw-privacy.mjs'
+import {
+  gatedProbeUrls,
+  precachedGatedUrls,
+  readRegexLiteral,
+  scanWorkerSource,
+  scanWorkerTree,
+  siteGatedProbeUrls,
+  verifyPurgeScript,
+  workerImports
+} from '../../scripts/lib/sw-privacy.mjs'
 
 // covers: client-privacy#No service-worker path caches a gated response
 // Synthetic workers for the scan shared by scripts/check-sw-precache.mjs and the build test (atlas
-// decision 0160, PR 0b; review finding M2). Each blind spot the review found has a case here that
+// decision 0160, PR 0b). Each known blind spot of the scan has a case here that
 // the scan must reject, and the real worker shape must pass.
 const gatedUrls = gatedProbeUrls({
   cloudfrontBase: 'https://d1pfm520aduift.cloudfront.net',
@@ -59,8 +68,8 @@ describe('scanWorkerSource', () => {
     ['a raw fetch listener (single quotes, spaced)', "self.addEventListener( 'fetch' , handler);"]
   ])('rejects %s', (name, code) => {
     const problems = scanWorkerSource(PURGE_IMPORT + IMAGE_ROUTES + code, {gatedUrls, requirePurgeImport: true})
-    expect(problems.some((problem) => problem.includes('calls '))).toBe(true)
-    expect(problems.join('\n')).toContain(name.startsWith('a raw') ? "addEventListener('fetch')" : name)
+    expect(problems.some((problem) => problem.includes('uses '))).toBe(true)
+    expect(problems.join('\n')).toContain(name.startsWith('a raw') ? "a 'fetch' event listener" : name)
   })
 
   it('rejects a route whose matcher is not a regex literal', () => {
@@ -121,5 +130,84 @@ describe('verifyPurgeScript', () => {
     expect(await verifyPurgeScript("self.addEventListener('activate',function(){caches.delete('live-data');});")).toContain(
       'purge activate listener does not call event.waitUntil'
     )
+  })
+})
+
+// Textual gaps the verifier found in the first version of the scan: each must be rejected.
+describe('scanWorkerSource: aliases and alternate listener forms', () => {
+  it.each([
+    [
+      'an alias of registerRoute',
+      'const r=e.registerRoute;r(/^https:\\/\\/jonathanlloyd\\.me\\/feed\\.xml$/,new e.NetworkFirst(),"GET");',
+      'other than as a direct call'
+    ],
+    ['a bracket call of registerRoute', 'e["registerRoute"](/x/,new e.NetworkFirst(),"GET");', 'other than as a direct call'],
+    ['self.onfetch =', 'self.onfetch=function(t){t.respondWith(caches.match(t.request))};', 'uses onfetch'],
+    ['self["addEventListener"]("fetch")', 'self["addEventListener"]("fetch",function(){});', "a 'fetch' event listener"],
+    ['addEventListener.call(self, `fetch`)', 'self.addEventListener.call(self,`fetch`,function(){});', "a 'fetch' event listener"]
+  ])('rejects %s', (_label, code, expected) => {
+    const problems = scanWorkerSource(PURGE_IMPORT + IMAGE_ROUTES + code, {gatedUrls, requirePurgeImport: true})
+    expect(problems.join('\n')).toContain(expected)
+  })
+})
+
+describe('workerImports', () => {
+  const loader = 'if(!self.define){let e;const r=a=>new Promise(s=>{importScripts(a),s()});self.define=(a,i)=>{}}'
+
+  it('names every literal importScripts target and every non-runtime define dependency', () => {
+    const {imports, problems} = workerImports(loader + 'define(["./workbox-e190f46a","./extra"],function(e){importScripts("/js/a.js","/js/b.js")});')
+    expect(imports).toEqual(['/js/a.js', '/js/b.js', './extra.js'])
+    expect(problems).toEqual([])
+  })
+
+  it('recognizes the readable loader a NODE_ENV=test build emits', () => {
+    const readable = 'if (!self.define) {\n  const singleRequire = (uri) => new Promise(resolve => { importScripts(uri); resolve() })\n}\n' +
+      "define(['./workbox-eebca069'], (function (workbox) { 'use strict';\n  importScripts(\"/js/sw-purge.js\");\n}));"
+    expect(workerImports(readable)).toEqual({imports: ['/js/sw-purge.js'], problems: []})
+  })
+
+  it('allows the Workbox loader its one dynamic import, and refuses a dynamic import anywhere else', () => {
+    expect(workerImports(loader + 'define(["./workbox-e190f46a"],function(e){});').problems).toEqual([])
+    const {problems} = workerImports(loader + 'define(["./workbox-e190f46a"],function(e){importScripts(self.name)});')
+    expect(problems.some((problem) => problem.includes('cannot name'))).toBe(true)
+    expect(workerImports('importScripts(x);').problems).toHaveLength(1)
+  })
+})
+
+describe('precachedGatedUrls', () => {
+  it('finds a relative or absolute gated URL in the precache manifest', () => {
+    const source =
+      'e.precacheAndRoute([{url:"robots.txt",revision:"1"},{url:"llms.txt",revision:"2"},{url:"https://jonathanlloyd.me/feed.json",revision:null}],{});'
+    expect(precachedGatedUrls(source, {gatedUrls, siteUrl: 'https://jonathanlloyd.me'})).toEqual([
+      'https://jonathanlloyd.me/llms.txt',
+      'https://jonathanlloyd.me/feed.json'
+    ])
+  })
+})
+
+describe('scanWorkerTree', () => {
+  const clean = PURGE_IMPORT + 'e.precacheAndRoute([{url:"/",revision:"1"}],{});' + IMAGE_ROUTES
+  const purge = "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+  const scan = (files: Record<string, string>) =>
+    scanWorkerTree({entry: '/sw.js', readWorkerFile: (path: string) => files[path] ?? null, gatedUrls, siteUrl: 'https://jonathanlloyd.me'})
+
+  it('passes a clean worker and its clean imports', () => {
+    expect(scan({'/sw.js': clean, '/js/sw-purge.js': purge})).toEqual([])
+  })
+
+  it('scans every imported script, recursively, and reports a missing one', () => {
+    const problems = scan({
+      '/sw.js': clean + 'importScripts("/js/one.js");',
+      '/js/sw-purge.js': purge,
+      '/js/one.js': 'importScripts("/js/two.js");',
+      '/js/two.js': "self.addEventListener('fetch',function(){});"
+    })
+    expect(problems.some((problem) => problem.startsWith("/js/two.js: uses a 'fetch' event listener"))).toBe(true)
+    expect(scan({'/sw.js': clean}).some((problem) => problem.startsWith('/js/sw-purge.js is imported by the worker but missing'))).toBe(true)
+  })
+
+  it('reports a gated URL in the entry worker precache manifest', () => {
+    const problems = scan({'/sw.js': PURGE_IMPORT + 'e.precacheAndRoute([{url:"index.md",revision:"1"}],{});', '/js/sw-purge.js': purge})
+    expect(problems).toContain('/sw.js: precaches gated URL https://jonathanlloyd.me/index.md; a precached gated response replays until the next deploy')
   })
 })

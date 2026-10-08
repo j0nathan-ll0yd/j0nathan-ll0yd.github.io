@@ -20,9 +20,14 @@ requirement "Gated artifacts are admitted only through the CloudFront gate".
 The service worker SHALL NOT cache, or answer from a cache, any gated response: the focus signal,
 any CloudFront JSON export (with or without the poll query), or any of the five site-origin proxy
 routes (/llms.txt, /llms-full.txt, /index.md, /feed.xml, /feed.json). No `registerRoute` matcher may
-match one of those URLs, every matcher SHALL be a regex literal the build can test, and the worker
-SHALL NOT call `setDefaultHandler`, `setCatchHandler` or `addEventListener('fetch')`, any of which
-can answer a gated request outside a testable route.
+match one of those URLs, every matcher SHALL be a regex literal the build can test, and every
+mention of `registerRoute` SHALL be such a direct call (an alias or a bracket access is a route the
+build cannot test). The worker SHALL NOT use `setDefaultHandler`, `setCatchHandler`, `onfetch`, or
+any `'fetch'` event listener in any form, each of which can answer a gated request outside a
+testable route. These rules apply to the worker AND to every script it loads: each
+`importScripts` target and each Workbox `define` dependency except the Workbox runtime chunk, read
+recursively. A dynamic `importScripts(<expression>)` is allowed only inside the Workbox loader. The
+precache manifest SHALL NOT list a gated URL.
 
 The retired `live-data` cache SHALL be deleted for returning visitors twice over: by
 `/js/sw-purge.js`, imported into the generated worker, on `activate`; and by
@@ -33,10 +38,12 @@ through `scripts/lib/sw-privacy.mjs`, and runs the purge script in a sandboxed w
 than matching its text. The real upgrade over a warm `live-data` cache, on both paths, is exercised
 in Chromium by `tests/behavioral/sw-upgrade.spec.ts`.
 
-Verified by `tests/unit/sw-privacy.test.ts:4` (synthetic workers: a CloudFront JSON route, a
+Verified by `tests/unit/sw-privacy.test.ts:13` (synthetic workers: a CloudFront JSON route, a
 site-origin feed route, an llms route, a default handler, a catch handler, a raw fetch listener, a
-non-regex matcher, the retired cache name and a missing purge import are each rejected; the purge
-is judged by what it does) and `tests/build/sw-update.test.ts:43` (the generated worker and the
+non-regex matcher, an aliased or bracket-called registerRoute, `onfetch`, a bracket fetch listener,
+a fetch listener in an imported script, a missing import, a dynamic import outside the Workbox
+loader, a precached gated URL, the retired cache name and a missing purge import are each rejected;
+the purge is judged by what it does) and `tests/build/sw-update.test.ts:44` (the generated worker and the
 shipped purge script pass the same scan).
 
 #### Scenario: A route caches a gated feed

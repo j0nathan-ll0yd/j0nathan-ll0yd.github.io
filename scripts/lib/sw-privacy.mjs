@@ -70,15 +70,27 @@ export function readRegexLiteral(source, start) {
   return null
 }
 
-// Calls that let a worker answer requests outside a regex route this scan can test. Each one is
-// refused outright: a default handler or a catch handler answers EVERY unmatched request, and a raw
-// fetch listener can cache anything. Workbox's own runtime lives in workbox-<hash>.js and is not
-// scanned; this scans the generated sw.js and the scripts it imports.
+// Ways a worker can answer requests outside a regex route this scan can test. Each one is refused
+// outright, matched as TEXT ANYWHERE rather than as one call shape, so an alias, a bracket access or
+// an `on` property cannot slip past: a default or catch handler answers EVERY unmatched request, and
+// a fetch listener -- `addEventListener('fetch', ...)`, `self['addEventListener']('fetch', ...)`,
+// `self.onfetch = ...` -- can cache anything. A worker that needs one of these words for another
+// reason is rare enough to justify a deliberate change here. Workbox's own runtime chunk
+// (workbox-<hash>.js) legitimately listens for fetch and is the one file this scan does not read.
 const UNROUTED_HANDLERS = [
-  {pattern: /\bsetDefaultHandler\s*\(/, name: 'setDefaultHandler'},
-  {pattern: /\bsetCatchHandler\s*\(/, name: 'setCatchHandler'},
-  {pattern: /addEventListener\s*\(\s*["'`]fetch["'`]/, name: "addEventListener('fetch')"}
+  {pattern: /setDefaultHandler/, name: 'setDefaultHandler'},
+  {pattern: /setCatchHandler/, name: 'setCatchHandler'},
+  {pattern: /\bonfetch\b/, name: 'onfetch'},
+  {pattern: /["'`]fetch["'`]/, name: "a 'fetch' event listener"}
 ]
+
+// The Workbox runtime chunk the generated worker loads through its AMD `define`.
+const WORKBOX_RUNTIME_DEPENDENCY = /^\.\/workbox-[0-9a-f]{8}$/
+// The Workbox AMD loader at the top of the generated sw.js calls `importScripts(<variable>)` to load
+// its runtime chunk. That one dynamic import is allowed only inside the loader, before `define([`.
+// Matched with optional whitespace: the build minifies the worker (`if(!self.define)`), but a build
+// under NODE_ENV=test, as test:build runs it, leaves it readable (`if (!self.define) {`).
+const WORKBOX_LOADER_MARKER = /if\s*\(\s*!\s*self\.define\s*\)/
 
 /**
  * Scans one worker script for gated-data caching paths.
@@ -97,6 +109,15 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
   }
 
   const routeStarts = [...source.matchAll(/registerRoute\(\s*/g)].map((m) => m.index + m[0].length)
+  // Every mention of registerRoute must be a direct call this scan can test. An alias
+  // (`const r = e.registerRoute`) or a bracket access (`e['registerRoute'](...)`) is a route the
+  // matcher loop below never sees.
+  const mentions = (source.match(/registerRoute/g) ?? []).length
+  if (mentions !== routeStarts.length) {
+    problems.push(
+      `${label}: registerRoute is referenced ${mentions - routeStarts.length} time(s) other than as a direct call; an aliased route cannot be tested`
+    )
+  }
   for (const start of routeStarts) {
     const matcher = readRegexLiteral(source, start)
     if (!matcher) {
@@ -114,7 +135,7 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
 
   for (const {pattern, name} of UNROUTED_HANDLERS) {
     if (pattern.test(source)) {
-      problems.push(`${label}: calls ${name}, which can answer gated requests outside any route this scan can test`)
+      problems.push(`${label}: uses ${name}, which can answer gated requests outside any route this scan can test`)
     }
   }
 
@@ -126,6 +147,91 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
     const escaped = PURGE_SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     if (!new RegExp(`importScripts\\(\\s*["']${escaped}["']\\s*\\)`).test(source)) {
       problems.push(`${label}: does not importScripts("${PURGE_SCRIPT}"); returning visitors keep the retired "${RETIRED_CACHE}" cache`)
+    }
+  }
+  return problems
+}
+
+/** The string literals of a comma-separated argument list, or null when any argument is not one. */
+function literalArguments(argumentText) {
+  const parts = argumentText.split(',').map((part) => part.trim()).filter(Boolean)
+  const literals = parts.map((part) => /^(["'])([^"'\\]*)\1$/.exec(part)?.[2])
+  return literals.every((value) => value !== undefined) ? literals : null
+}
+
+/**
+ * Every script a worker loads: each `importScripts(...)` target, and each Workbox `define` dependency
+ * other than the Workbox runtime chunk. A dynamic `importScripts(<expression>)` outside the Workbox
+ * loader is a problem, because no scan can tell what it loads.
+ */
+export function workerImports(source, label = 'sw.js') {
+  const imports = []
+  const problems = []
+  const loaderAt = source.search(WORKBOX_LOADER_MARKER)
+  const moduleAt = source.search(/\bdefine\(\s*\[/)
+  for (const match of source.matchAll(/importScripts\(([^)]*)\)/g)) {
+    const literals = literalArguments(match[1])
+    if (literals) {
+      imports.push(...literals)
+      continue
+    }
+    const insideLoader = loaderAt >= 0 && moduleAt > loaderAt && match.index > loaderAt && match.index < moduleAt
+    if (!insideLoader) {
+      problems.push(`${label}: importScripts(${match[1].slice(0, 60)}) loads a script this scan cannot name`)
+    }
+  }
+  for (const match of source.matchAll(/define\(\[([^\]]*)\]/g)) {
+    const dependencies = literalArguments(match[1])
+    if (!dependencies) {
+      problems.push(`${label}: a define() dependency list this scan cannot read`)
+      continue
+    }
+    imports.push(...dependencies.filter((dependency) => !WORKBOX_RUNTIME_DEPENDENCY.test(dependency)).map((dependency) => `${dependency}.js`))
+  }
+  return {imports, problems}
+}
+
+/** Gated URLs listed in the worker's precache manifest. A precached gated response replays forever. */
+export function precachedGatedUrls(source, {gatedUrls, siteUrl}) {
+  const manifest = /precacheAndRoute\(\[(.*?)\]\s*,/s.exec(source)?.[1] ?? ''
+  const gated = new Set(gatedUrls.map((url) => url.split(/[?#]/)[0]))
+  return [...manifest.matchAll(/["']?url["']?\s*:\s*["']([^"']+)["']/g)].map((match) => new URL(match[1], `${siteUrl}/`).href.split(/[?#]/)[0]).filter((
+    url
+  ) => gated.has(url))
+}
+
+/**
+ * Scans the whole worker: the entry script, its precache manifest, and every script it imports,
+ * recursively. `readWorkerFile(path)` returns the source of a site-absolute path, or null when the
+ * file does not exist.
+ *
+ * @returns {string[]} problems; empty when the tree is clean
+ */
+export function scanWorkerTree({entry = '/sw.js', readWorkerFile, gatedUrls, siteUrl}) {
+  const problems = []
+  const visited = new Set()
+  const queue = [{path: entry, isEntry: true}]
+  while (queue.length > 0) {
+    const {path, isEntry} = queue.shift()
+    if (visited.has(path)) {
+      continue
+    }
+    visited.add(path)
+    const source = readWorkerFile(path)
+    if (source === null) {
+      problems.push(`${path} is imported by the worker but missing; the import would fail the worker install`)
+      continue
+    }
+    problems.push(...scanWorkerSource(source, {gatedUrls, requirePurgeImport: isEntry, label: path}))
+    if (isEntry) {
+      for (const url of precachedGatedUrls(source, {gatedUrls, siteUrl})) {
+        problems.push(`${path}: precaches gated URL ${url}; a precached gated response replays until the next deploy`)
+      }
+    }
+    const {imports, problems: importProblems} = workerImports(source, path)
+    problems.push(...importProblems)
+    for (const target of imports) {
+      queue.push({path: new URL(target, `${siteUrl}${path}`).pathname, isEntry: false})
     }
   }
   return problems
@@ -160,13 +266,15 @@ export async function verifyPurgeScript(source, retiredCache = RETIRED_CACHE) {
       Promise
     }
     runInNewContext(source, sandbox)
-    let pending = null
+    // Held on an object so the callback's assignment is visible to the type checker.
+    /** @type {{pending: Promise<unknown> | null}} */
+    const activation = {pending: null}
     for (const {type, listener} of listeners) {
       if (type === 'activate') {
-        listener({waitUntil: (promise) => (pending = promise)})
+        listener({waitUntil: (promise) => (activation.pending = promise)})
       }
     }
-    return {listeners, deleted, pending}
+    return {listeners, deleted, pending: activation.pending}
   }
 
   let run
@@ -182,7 +290,7 @@ export async function verifyPurgeScript(source, retiredCache = RETIRED_CACHE) {
   if (!run.pending) {
     problems.push('purge activate listener does not call event.waitUntil')
   } else {
-    await run.pending
+    await Promise.resolve(run.pending)
   }
   if (!run.deleted.includes(retiredCache)) {
     problems.push(`purge activate listener does not delete the "${retiredCache}" cache`)
@@ -190,7 +298,7 @@ export async function verifyPurgeScript(source, retiredCache = RETIRED_CACHE) {
 
   try {
     const failing = await activateWith(() => Promise.reject(new Error('quota')))
-    await failing.pending
+    await Promise.resolve(failing.pending)
   } catch {
     problems.push('purge activation rejects when the cache delete rejects; the new worker would fail to activate')
   }

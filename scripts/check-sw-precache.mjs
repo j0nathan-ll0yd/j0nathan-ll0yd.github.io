@@ -21,7 +21,8 @@
 // app shell, and we derive the expected floor from the actual built assets.
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {join, resolve} from 'node:path'
-import {PURGE_SCRIPT, scanWorkerSource, siteGatedProbeUrls, verifyPurgeScript} from './lib/sw-privacy.mjs'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {PURGE_SCRIPT, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from './lib/sw-privacy.mjs'
 
 const distDir = resolve(process.cwd(), 'dist')
 const swPath = join(distDir, 'sw.js')
@@ -147,18 +148,19 @@ if (!cloudfrontImagesRoute) {
 // No service-worker path may cache, or answer from a cache, a gated response:
 // the focus signal, any CloudFront JSON export, or one of the five site-origin
 // proxy routes. The scan lives in scripts/lib/sw-privacy.mjs, shared with the
-// build test and unit-tested against synthetic workers. The purge script is
-// checked by RUNNING it in a sandboxed worker scope, not by matching strings.
-const gatedUrls = siteGatedProbeUrls()
-problems.push(...scanWorkerSource(sw, {gatedUrls, requirePurgeImport: true, label: 'sw.js'}))
-let purgeSource = ''
-try {
-  purgeSource = readFileSync(join(distDir, PURGE_SCRIPT), 'utf-8')
-} catch {
-  problems.push(`dist${PURGE_SCRIPT} is missing; the imported purge script would 404 and fail the worker install`)
+// build test and unit-tested against synthetic workers. It reads the worker,
+// its precache manifest, and every script the worker imports, recursively. The
+// purge script is also checked by RUNNING it in a sandboxed worker scope.
+function readWorkerFile(path) {
+  try {
+    return readFileSync(join(distDir, path), 'utf-8')
+  } catch {
+    return null
+  }
 }
+problems.push(...scanWorkerTree({entry: '/sw.js', readWorkerFile, gatedUrls: siteGatedProbeUrls(), siteUrl: SITE_URL}))
+const purgeSource = readWorkerFile(PURGE_SCRIPT)
 if (purgeSource) {
-  problems.push(...scanWorkerSource(purgeSource, {gatedUrls, label: `dist${PURGE_SCRIPT}`}))
   problems.push(...(await verifyPurgeScript(purgeSource)).map((problem) => `dist${PURGE_SCRIPT}: ${problem}`))
 }
 

@@ -18,7 +18,7 @@
 
   self.addEventListener('activate', function (event) {
     event.waitUntil(Promise.all(RETIRED_CACHES.map(function (name) {
-      return caches.delete(name).catch(function () { return false; });
+      return caches['delete'](name)['catch'](function () { return false; });
     })));
   });
 })();

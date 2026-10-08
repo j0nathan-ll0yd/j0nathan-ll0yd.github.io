@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {existsSync, readFileSync} from 'fs'
 import path from 'path'
-import {scanWorkerSource, siteGatedProbeUrls, verifyPurgeScript} from '../../scripts/lib/sw-privacy.mjs'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {scanWorkerSource, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from '../../scripts/lib/sw-privacy.mjs'
 
 // Graceful no-interaction deploy updates (Phase 1).
 // Plan: .omc/plans/graceful-deploy-auto-update-plan.md
@@ -49,10 +50,10 @@ describe('SW gated-data privacy', () => {
   const swPath = path.join(distDir, 'sw.js')
   const purgePath = path.join(distDir, 'js', 'sw-purge.js')
 
-  it('has no gated route, no unrouted handler, no live-data cache, and imports the purge script', () => {
-    const sw = readFileSync(swPath, 'utf-8')
-    expect(scanWorkerSource(sw, {gatedUrls: siteGatedProbeUrls(), requirePurgeImport: true})).toEqual([])
-    expect(sw).not.toContain('NetworkFirst')
+  it('has no gated route, unrouted handler, gated precache entry or live-data cache, in the worker or anything it imports', () => {
+    const readWorkerFile = (file: string) => (existsSync(path.join(distDir, file)) ? readFileSync(path.join(distDir, file), 'utf-8') : null)
+    expect(scanWorkerTree({entry: '/sw.js', readWorkerFile, gatedUrls: siteGatedProbeUrls(), siteUrl: SITE_URL})).toEqual([])
+    expect(readFileSync(swPath, 'utf-8')).not.toContain('NetworkFirst')
   })
 
   it('ships a purge script that deletes live-data on activate when run in a worker scope', async () => {
