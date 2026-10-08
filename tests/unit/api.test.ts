@@ -371,6 +371,7 @@ describe('fetchAllEndpoints', () => {
     expect(result.timestamps.health).toBeNull()
   })
 
+  // covers: client-privacy#An unreadable focus value applies no gated data
   // Atlas decision 0160, PR 0b: an unreadable focus read is never permission. Before this change a
   // failed focus read fell through to the gated fetch, so a client that could not tell whether the
   // owner was hiding still fetched and applied every gated artifact.

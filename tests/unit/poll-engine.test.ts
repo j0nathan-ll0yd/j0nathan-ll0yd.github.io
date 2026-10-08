@@ -414,6 +414,50 @@ describe('PollEngine', () => {
     })
   })
 
+  // covers: client-privacy#An unreadable focus value applies no gated data
+  // Review I2: an unreadable focus value is never permission to read a gated resource.
+  describe('focus readability', () => {
+    it('reads nothing gated while focus is unreadable, and resumes once a focus read decodes', async () => {
+      const failing = vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(url.includes('/focus.json') ? makeFetchResponse(null, false, 503) : makeFetchResponse(body('books', '2024-01-02T00:00:00Z')))
+      )
+      vi.stubGlobal('fetch', failing)
+
+      await engine.pollNow()
+      expect(failing.mock.calls.map(([url]) => url)).toEqual([expect.stringContaining('/focus.json')])
+      await engine.pollResource('books')
+      expect(failing).toHaveBeenCalledOnce()
+
+      const healthy = fetchEveryResource('2024-01-02T00:00:00Z')
+      vi.stubGlobal('fetch', healthy)
+      await engine.pollNow()
+      expect(healthy.mock.calls.length).toBe(RESOURCE_KEYS.length)
+    })
+
+    it('honors a startup readability of false until focus is read', async () => {
+      const mock = fetchEveryResource('2024-01-02T00:00:00Z')
+      vi.stubGlobal('fetch', mock)
+      engine.setFocusReadable(false)
+
+      await engine.pollResource('health')
+      expect(mock).not.toHaveBeenCalled()
+    })
+
+    it('reads focus before any gated resource in a tier, so a hiding answer stops the gated reads', async () => {
+      const mock = fetchEveryResource('2024-01-02T00:00:00Z')
+      vi.stubGlobal('fetch', mock)
+      onUpdate.mockImplementation((key: ResourceKey) => {
+        if (key === 'focus') {
+          engine.setSuppressed(true) // what live-data does on a hiding value
+        }
+      })
+
+      await engine.pollNow()
+
+      expect(mock.mock.calls.map(([url]) => url)).toEqual([expect.stringContaining('/focus.json')])
+    })
+  })
+
   describe('forgetFingerprints()', () => {
     it('re-applies an unchanged export after every fingerprint is forgotten', async () => {
       const unchanged = body('health', '2024-01-01T00:00:00Z')

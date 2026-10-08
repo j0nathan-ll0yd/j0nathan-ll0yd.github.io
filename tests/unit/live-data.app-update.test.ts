@@ -16,6 +16,22 @@ interface CapturedWsOpts {
 }
 let wsOpts: CapturedWsOpts | null = null
 
+// Two design-system updaters stand in for every gated write: the bookshelf (a gated value) and the
+// system-status panel (gated timestamps). Spying on them is how a test proves a gated value did NOT
+// reach the page, rather than inferring it from the absence of a later reload.
+const updaterSpies = vi.hoisted(() => ({updateBookshelf: vi.fn(), updateSystemStatus: vi.fn()}))
+vi.mock('@j0nathan-ll0yd/web/runtime/updaters',
+  async (importActual) => ({
+    ...await importActual<typeof import('@j0nathan-ll0yd/web/runtime/updaters')>(),
+    updateBookshelf: updaterSpies.updateBookshelf,
+    updateSystemStatus: updaterSpies.updateSystemStatus
+  }))
+
+/** Every gated key with a non-null timestamp in an object passed to updateSystemStatus or seed. */
+function gatedTimestampKeys(timestamps: Record<string, string | null>): string[] {
+  return Object.keys(timestamps).filter((key) => key !== 'focus' && timestamps[key] != null)
+}
+
 vi.mock('../../src/lib/runtime/ws-client', () => ({
   WSClient: class {
     constructor(opts: CapturedWsOpts) {
@@ -32,7 +48,8 @@ const engineSpies = vi.hoisted(() => ({
   pollNow: vi.fn<() => Promise<void>>(() => Promise.resolve()),
   pollResource: vi.fn<() => Promise<void>>(() => Promise.resolve()),
   forgetFingerprints: vi.fn<(keys?: string[]) => void>(),
-  seed: vi.fn<(timestamps: Record<string, string | null>) => void>()
+  seed: vi.fn<(timestamps: Record<string, string | null>) => void>(),
+  setFocusReadable: vi.fn<(readable: boolean) => void>()
 }))
 
 // Captures the engine's onUpdate (handleResourceUpdate) so a test can simulate a poll result.
@@ -48,6 +65,7 @@ vi.mock('../../src/lib/runtime/poll-engine', () => ({
       engineCapture.onSuppressed = opts.onSuppressed ?? null
     }
     seed = engineSpies.seed
+    setFocusReadable = engineSpies.setFocusReadable
     start(): void {}
     setMode(): void {}
     setSuppressed = engineSpies.setSuppressed
@@ -115,6 +133,9 @@ function clearSpies(): void {
   engineSpies.pollResource.mockClear()
   engineSpies.forgetFingerprints.mockClear()
   engineSpies.seed.mockClear()
+  engineSpies.setFocusReadable.mockClear()
+  updaterSpies.updateBookshelf.mockClear()
+  updaterSpies.updateSystemStatus.mockClear()
   fetchSpy.mockClear()
   fetchAllSpy.mockReset()
   fetchAllSpy.mockImplementation(() => Promise.resolve(allFailed()))
@@ -325,6 +346,7 @@ describe('live-data → focus overlay + suppression wiring', () => {
 
 // Atlas decision 0160, PR 0b: entering a hiding mode must REMOVE gated values, not cover them. The
 // mechanism is a page reload, guarded so it fires only when gated data reached this document.
+// covers: client-privacy#Entering suppression removes gated values, and leaving it restores them
 describe('live-data → clearing gated values on suppression', () => {
   const booksExport = {generatedAt: '2026-01-01T00:00:00Z', books: []}
   const originalLocation = window.location
@@ -396,6 +418,7 @@ describe('live-data → clearing gated values on suppression', () => {
 
     // A read that was in flight when hiding began resolves now. It must not reach the page.
     engineCapture.onUpdate?.('books', booksExport)
+    expect(updaterSpies.updateBookshelf).not.toHaveBeenCalled()
     wsOpts?.onFocusChange?.('None')
     wsOpts?.onFocusChange?.('Do Not Disturb')
 
@@ -413,11 +436,64 @@ describe('live-data → clearing gated values on suppression', () => {
     await bootLiveData()
 
     expect(engineSpies.setSuppressed).toHaveBeenLastCalledWith(true)
+    // Review M4: assert the withholding itself, not only the absence of a later reload.
+    expect(updaterSpies.updateBookshelf).not.toHaveBeenCalled()
+    expect(engineSpies.seed).toHaveBeenCalledOnce()
+    expect(engineSpies.seed.mock.calls[0][0]).not.toHaveProperty('books')
+    expect(updaterSpies.updateSystemStatus).toHaveBeenCalled()
+    for (const [timestamps] of updaterSpies.updateSystemStatus.mock.calls) {
+      expect(gatedTimestampKeys(timestamps as Record<string, string | null>)).toEqual([])
+    }
 
     // The 200 sibling was never applied, so a later hiding transition has nothing to clear.
     wsOpts?.onFocusChange?.('None')
     wsOpts?.onFocusChange?.('Work')
     expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('applies a gated value at startup when no path is suppressed (the control for the case above)', async () => {
+    fetchSpy.mockResolvedValueOnce({status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'None'}})
+    fetchAllSpy.mockResolvedValueOnce({...allFailed(), books: {status: 'ok', data: booksExport}, timestamps: {books: booksExport.generatedAt}})
+    await bootLiveData()
+
+    expect(updaterSpies.updateBookshelf).toHaveBeenCalledOnce()
+    expect(engineSpies.seed.mock.calls[0][0]).toHaveProperty('books', booksExport.generatedAt)
+  })
+
+  it('reloads once, however many suppressions one poll burst delivers (review I5)', async () => {
+    await bootLiveData()
+    engineCapture.onUpdate?.('books', booksExport)
+
+    for (let i = 0; i < 8; i++) {
+      engineCapture.onSuppressed?.({status: 'suppressed', reason: 'focus mode active'})
+    }
+    wsOpts?.onFocusChange?.('Work')
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('does not queue a second reload while the first is in flight (review I5)', async () => {
+    await bootLiveData()
+    engineCapture.onUpdate?.('books', booksExport)
+    wsOpts?.onFocusChange?.('Work') // reload #1 starts; the navigation has not happened yet
+
+    // Before the page unloads, the owner unhides, a poll applies data, and the owner hides again.
+    wsOpts?.onFocusChange?.('None')
+    engineCapture.onUpdate?.('books', {...booksExport, generatedAt: '2026-01-01T00:01:00Z'})
+    wsOpts?.onFocusChange?.('Work')
+
+    expect(reload).toHaveBeenCalledOnce()
+  })
+
+  it('tells the engine whether the startup focus read was readable (review I2)', async () => {
+    await bootLiveData()
+    expect(engineSpies.setFocusReadable).toHaveBeenLastCalledWith(false)
+
+    vi.resetModules()
+    engineSpies.setFocusReadable.mockClear()
+    fetchAllSpy.mockResolvedValueOnce({...allFailed(), focus: {status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z', currentFocus: 'None'}}})
+    await bootLiveData()
+    expect(engineSpies.setFocusReadable).toHaveBeenLastCalledWith(true)
   })
 
   it('reloads when a poll meets the gate after gated data was applied', async () => {
@@ -506,5 +582,95 @@ describe('live-data → recovery from gate suppression', () => {
     wsOpts?.onFocusChange?.('None')
 
     expect(engineSpies.setSuppressed).toHaveBeenCalledWith(false)
+  })
+})
+
+// Review I4: a gate denial is re-checked by a one-shot timer that asks the gate itself, so restore
+// does not wait for a focus poll that lands 25 s after the last 403 (up to about 165 s passive).
+// covers: client-privacy#Entering suppression removes gated values, and leaving it restores them
+describe('live-data → one-shot gate re-check', () => {
+  beforeEach(() => {
+    wsOpts = null
+    vi.resetModules()
+    vi.useFakeTimers()
+    clearSpies()
+    document.body.innerHTML = '<div id="focusOverlay" style="display:none"></div>' + '<div id="dndOverlay" style="display:none"></div>'
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function gateSuppressed(): Promise<void> {
+    await bootLiveData()
+    fetchSpy.mockClear()
+    engineCapture.onSuppressed?.({status: 'suppressed', reason: 'focus mode active'})
+    engineSpies.setSuppressed.mockClear()
+    engineSpies.pollNow.mockClear()
+  }
+
+  it('asks the gate on one path after the interval, and lifts suppression on a 200', async () => {
+    await gateSuppressed()
+    fetchSpy.mockResolvedValueOnce({status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z'}})
+
+    await vi.advanceTimersByTimeAsync(24_999)
+    expect(fetchSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(fetchSpy).toHaveBeenCalledOnce()
+    expect(fetchSpy).toHaveBeenCalledWith('health', {query: '?_poll=1'})
+    expect(engineSpies.setSuppressed).toHaveBeenCalledWith(false)
+    expect(engineSpies.forgetFingerprints).toHaveBeenCalledWith()
+    expect(engineSpies.pollNow).toHaveBeenCalledOnce()
+  })
+
+  it('stays suppressed and re-arms when the gate still answers with a suppression body', async () => {
+    await gateSuppressed()
+    fetchSpy.mockResolvedValue({status: 'suppressed', reason: 'focus mode active'})
+
+    await vi.advanceTimersByTimeAsync(25_000)
+    expect(engineSpies.setSuppressed).not.toHaveBeenCalledWith(false)
+    await vi.advanceTimersByTimeAsync(25_000)
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(engineSpies.setSuppressed).not.toHaveBeenCalledWith(false)
+  })
+
+  it('does not lift a suppression that a hiding signal took over while the probe was in flight', async () => {
+    await gateSuppressed()
+    let answer: (value: unknown) => void = () => {}
+    fetchSpy.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)))
+
+    await vi.advanceTimersByTimeAsync(25_000)
+    wsOpts?.onFocusChange?.('Do Not Disturb')
+    answer({status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z'}})
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(engineSpies.setSuppressed).not.toHaveBeenCalledWith(false)
+  })
+
+  it('asks nothing while the tab is hidden, and re-checks when it returns', async () => {
+    await gateSuppressed()
+    fetchSpy.mockResolvedValue({status: 'ok', data: {generatedAt: '2026-01-01T00:00:00Z'}})
+    Object.defineProperty(document, 'hidden', {configurable: true, get: () => true})
+
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(fetchSpy).not.toHaveBeenCalled()
+
+    Object.defineProperty(document, 'hidden', {configurable: true, get: () => false})
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(fetchSpy).toHaveBeenCalledOnce()
+    expect(engineSpies.setSuppressed).toHaveBeenCalledWith(false)
+  })
+
+  it('cancels the re-check when a hiding signal explains the suppression', async () => {
+    await gateSuppressed()
+    wsOpts?.onFocusChange?.('Work')
+
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

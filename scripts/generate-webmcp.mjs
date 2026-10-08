@@ -102,12 +102,15 @@ ${dataSourceLines}
           description: ${sq(copyLlm.mcp.toolGetCurrentReading)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async function() {
-            var focusRes = await fetch(${sq(focusUrl)}, { cache: 'no-store' });
-            if (focusRes.ok) {
-              var focusData = await focusRes.json();
-              if ([${hidingFocusModeLines}].includes(focusData.currentFocus)) {
-                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
-              }
+            // Fail closed (atlas decision 0160, PR 0b): a focus state this tool could not
+            // read is never permission to read the gated bookshelf.
+            var focusRes = await fetch(${sq(focusUrl)}, { cache: 'no-store' }).catch(function() { return null; });
+            var focusData = focusRes && focusRes.ok ? await focusRes.json().catch(function() { return null; }) : null;
+            if (!focusData || typeof focusData.currentFocus !== 'string') {
+              return { content: [{ type: 'text', text: JSON.stringify({ failed: true, reason: 'focus state unreadable' }) }] };
+            }
+            if ([${hidingFocusModeLines}].includes(focusData.currentFocus)) {
+              return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
             }
             var res = await fetch(${sq(booksUrl)}, { cache: 'no-store' });
             var data = await res.json().catch(function() { return null; });

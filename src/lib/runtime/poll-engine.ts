@@ -57,6 +57,10 @@ export class PollEngine {
   private wsConnected = false
   private mode: 'active' | 'passive' = 'active'
   private suppressed = false
+  // Whether the last focus read decoded. An unreadable focus value is never permission to read a
+  // gated resource (atlas decision 0160, PR 0b): the engine then fetches nothing gated
+  // until a focus read succeeds, exactly as fetchAllEndpoints does at startup.
+  private focusReadable = true
 
   constructor(opts: PollEngineOptions) {
     this.opts = opts
@@ -80,6 +84,11 @@ export class PollEngine {
    */
   setSuppressed(suppressed: boolean): void {
     this.suppressed = suppressed
+  }
+
+  /** Seeds focus readability from the startup read; later focus polls keep it current. */
+  setFocusReadable(readable: boolean): void {
+    this.focusReadable = readable
   }
 
   /**
@@ -192,15 +201,20 @@ export class PollEngine {
   }
 
   private async pollTier(keys: ResourceKey[]): Promise<void> {
-    await Promise.all(keys.map((k) => this.fetchResource(k)))
+    // Focus first, then the rest: a hiding or unreadable focus answer must reach the gates below
+    // BEFORE any gated read in the same tier starts.
+    if (keys.includes('focus')) {
+      await this.fetchResource('focus')
+    }
+    await Promise.all(keys.filter((k) => k !== 'focus').map((k) => this.fetchResource(k)))
     this.lastPollAt = new Date().toISOString()
     this.emitStatus()
   }
 
   private async fetchResource<K extends ResourceKey>(key: K): Promise<void> {
-    // While suppressed, every gated resource returns 403 — don't hammer the edge gate.
-    // `focus` is exempt from the gate and stays polled (overlay fallback).
-    if (this.suppressed && key !== 'focus') {
+    // While suppressed, every gated resource returns 403 — don't hammer the edge gate. While focus
+    // is unreadable, no gated resource is read at all. `focus` is exempt from both and stays polled.
+    if ((this.suppressed || !this.focusReadable) && key !== 'focus') {
       return
     }
 
@@ -212,10 +226,13 @@ export class PollEngine {
     // its schema arrives as `failed` and is recorded as a poll error -- it can never be dispatched
     // to an updater as fresh data.
     const result = await fetchArtifact(key, {query: '?_poll=1'})
+    if (key === 'focus') {
+      this.focusReadable = result.status === 'ok'
+    }
     // Suppression may have begun while this read was in flight. Drop a late gated answer before it
     // can set a fingerprint: a fingerprint for a value that was never applied would make the
     // restore poll skip it.
-    if (this.suppressed && key !== 'focus' && result.status === 'ok') {
+    if ((this.suppressed || !this.focusReadable) && key !== 'focus' && result.status === 'ok') {
       return
     }
     if (result.status === 'suppressed') {

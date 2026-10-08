@@ -56,7 +56,6 @@ let ws: WSClient | null = null
 // gate is the real privacy boundary. This layer must still never SHOW what the gate now denies:
 // it withholds gated values while suppressed and clears the ones it already applied.
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
-let suppressed = false
 
 // The WS push is the authoritative focus source. A focus poll (the fallback for when the WS is
 // down) refetches the ~30s edge-cached focus.json, which lags a just-changed state. For a short
@@ -80,17 +79,41 @@ let lastFocusPushAtMs = 0
 // A reloaded page during hiding never applies gated data, so it can never reload again; the next
 // reload needs a visible period in which data was applied, followed by a new hiding transition.
 let gatedDataApplied = false
+// One poll burst can deliver several suppressions (up to one per gated resource). The first one
+// reloads; the rest must not queue more reloads behind it.
+let reloading = false
 
-// What put the page into suppression. A hiding focus value lifts the moment focus reads visible.
-// A gate denial under a visible signal lifts only after GATE_RECHECK_INTERVAL_MS: a focus answer
-// that races a fresh 403 in the same poll would otherwise lift and re-suppress in a loop, each
-// round refetching every resource. 25 s sits below the 30 s fast poll interval, so each fast tick
-// can re-ask the gate once.
+// The page's suppression state, in ONE value. `focus`: a hiding focus value; it lifts
+// the moment focus reads visible. `gate`: a gate denial under a visible signal; it lifts only after
+// GATE_RECHECK_INTERVAL_MS from `sinceMs`, because a focus answer that races a fresh 403 in the
+// same poll would otherwise lift and re-suppress in a loop, each round refetching every resource.
+// 25 s sits below the 30 s fast poll interval, so each fast tick can re-ask the gate once.
+type Suppression = {kind: 'none'} | {kind: 'focus'} | {kind: 'gate'; sinceMs: number}
+let suppression: Suppression = {kind: 'none'}
 const GATE_RECHECK_INTERVAL_MS = 25_000
-let suppressionSource: 'focus' | 'gate' | null = null
-let gateSuppressedAtMs = 0
+
+// One-shot re-check of a gate denial. Without it, recovery waits for a focus poll that
+// lands at least 25 s after the last 403 -- up to about 165 s with the 120 s passive interval. The
+// timer asks the gate itself, on one gated path, as soon as the interval allows.
+const GATE_PROBE_KEY: ResourceKey = 'health'
+let gateRecheckTimer: ReturnType<typeof setTimeout> | null = null
+let recheckOnReturn = false
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && recheckOnReturn) {
+    recheckOnReturn = false
+    void recheckGate()
+  }
+})
+
+function isSuppressed(): boolean {
+  return suppression.kind !== 'none'
+}
 
 function reloadForPrivacy(): void {
+  if (reloading) {
+    return
+  }
+  reloading = true
   window.location.reload()
 }
 
@@ -115,36 +138,84 @@ function applyFocus(currentFocus: string | null): void {
   // overlays), so this runs even when the hiding class is unchanged.
   updateFocusOverlay(currentFocus ? {generatedAt: new Date().toISOString(), currentFocus} : null)
 
-  const hiding = isHiding(currentFocus)
-  if (hiding) {
-    suppressionSource = 'focus'
-  }
-  if (hiding === suppressed) {
+  if (isHiding(currentFocus)) {
+    const entering = suppression.kind === 'none'
+    // A gate suppression that the hiding signal now explains becomes a focus suppression, so the
+    // gate re-check interval no longer delays the restore when focus turns visible.
+    suppression = {kind: 'focus'}
+    cancelGateRecheck()
+    if (entering) {
+      enterSuppression()
+    }
     return
   }
-  if (!hiding && suppressionSource === 'gate' && Date.now() - gateSuppressedAtMs < GATE_RECHECK_INTERVAL_MS) {
+  if (suppression.kind === 'none') {
     return
   }
-  suppressed = hiding
-  if (!hiding) {
-    suppressionSource = null
+  if (suppression.kind === 'gate' && Date.now() - suppression.sinceMs < GATE_RECHECK_INTERVAL_MS) {
+    return
   }
+  liftSuppression()
+}
 
-  if (hiding) {
-    LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
-  }
+function enterSuppression(): void {
+  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  engine?.setSuppressed(true)
+  // Covering is not clearing: remove the values themselves (see clearGatedData).
+  clearGatedData()
+}
 
-  engine?.setSuppressed(hiding)
-  if (hiding) {
-    // Covering is not clearing: remove the values themselves (see clearGatedData).
-    clearGatedData()
-    return
-  }
-  // Leaving hiding: the DOM holds no gated value (it was cleared, or none was ever applied), so
-  // EVERY gated resource must be applied again, even one whose `generatedAt` the engine already
+function liftSuppression(): void {
+  suppression = {kind: 'none'}
+  cancelGateRecheck()
+  engine?.setSuppressed(false)
+  // Leaving suppression: the DOM holds no gated value (it was cleared, or none was ever applied),
+  // so EVERY gated resource must be applied again, even one whose `generatedAt` the engine already
   // fingerprinted. Forgetting the fingerprints first is what makes pollNow restore them.
   engine?.forgetFingerprints()
   void engine?.pollNow()
+}
+
+function cancelGateRecheck(): void {
+  recheckOnReturn = false
+  if (gateRecheckTimer !== null) {
+    clearTimeout(gateRecheckTimer)
+    gateRecheckTimer = null
+  }
+}
+
+function armGateRecheck(): void {
+  cancelGateRecheck()
+  gateRecheckTimer = setTimeout(() => {
+    gateRecheckTimer = null
+    void recheckGate()
+  }, GATE_RECHECK_INTERVAL_MS)
+}
+
+/**
+ * Asks the gate on one path. A 200 lifts gate suppression; a suppression body re-arms it. A hidden
+ * tab asks nothing: the poll engine pauses on `visibilitychange`, and this probe follows it, so a
+ * gate that stays shut costs a hidden tab no request every 25 s. The re-check runs on return.
+ */
+async function recheckGate(): Promise<void> {
+  if (suppression.kind !== 'gate') {
+    return
+  }
+  if (document.hidden) {
+    recheckOnReturn = true
+    return
+  }
+  const result = await fetchArtifact(GATE_PROBE_KEY, {query: '?_poll=1'})
+  // The state may have moved while the probe was in flight: a hiding signal must not be lifted.
+  if (suppression.kind !== 'gate') {
+    return
+  }
+  if (result.status === 'ok') {
+    liftSuppression()
+  } else if (result.status === 'suppressed') {
+    applySuppression(result)
+  }
+  // A failed probe proves nothing; the next focus poll after the interval still lifts it.
 }
 
 function endpointData<T>(result: EndpointResult<T>): T | null {
@@ -158,18 +229,19 @@ function applySuppression(result: EndpointSuppressed): void {
   }
   // The gate denied a gated read while the focus signal still reads visible: the backend closes the
   // gate before it publishes a hiding signal, and a failed publication leaves it so. The gate wins.
-  // Recovery: the engine keeps dispatching focus answers while suppressed, and the first visible
-  // one at least GATE_RECHECK_INTERVAL_MS later lifts suppression and re-reads the gated resources.
-  // A gate still shut answers 403 again. That retry never reloads, because a suppressed document
-  // applies no gated data.
-  if (suppressionSource !== 'focus') {
-    suppressionSource = 'gate'
-    gateSuppressedAtMs = Date.now()
+  // Recovery: a one-shot timer re-asks the gate after GATE_RECHECK_INTERVAL_MS, and the engine
+  // keeps dispatching focus answers while suppressed, so the first visible one after the interval
+  // also lifts it. A gate still shut answers 403 again. That retry never reloads, because a
+  // suppressed document applies no gated data.
+  if (suppression.kind === 'focus') {
+    return
   }
-  suppressed = true
-  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
-  engine?.setSuppressed(true)
-  clearGatedData()
+  const entering = suppression.kind === 'none'
+  suppression = {kind: 'gate', sinceMs: Date.now()}
+  armGateRecheck()
+  if (entering) {
+    enterSuppression()
+  }
 }
 
 // ── Per-resource incremental update dispatch ─────────────────────────
@@ -227,7 +299,7 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
 function handleResourceUpdate<K extends ResourceKey>(key: K, data: ArtifactValues[K]): void {
   // A gated read that was in flight when suppression began can still resolve `ok`. Drop it: no
   // gated value reaches the DOM while suppressed. Focus is the signal itself and always applies.
-  if (suppressed && key !== 'focus') {
+  if (isSuppressed() && key !== 'focus') {
     return
   }
   timestamps[key] = data.generatedAt
@@ -258,7 +330,7 @@ const fallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
 const startFetch = async () => {
   // Focus overlay (page-level concern). applyFocus drives the overlay immediately and, if
   // focus is already a hiding mode at load, sets suppression intent (engine is still null;
-  // it is propagated via engine.setSuppressed(suppressed) below once created).
+  // it is propagated via engine.setSuppressed(isSuppressed()) below once created).
   const focusResult = await fetchArtifact('focus')
   applyFocus(focusResult.status === 'ok' ? focusResult.data.currentFocus : null)
 
@@ -281,7 +353,7 @@ const startFetch = async () => {
   // Any suppression -- from the focus read above or from ANY gated path -- withholds EVERY gated
   // value. During a gate transition one path can answer 403 while a sibling still answers 200;
   // the gate wins that disagreement for the whole page.
-  const gated = <T>(result: EndpointResult<T>): T | null => suppressed ? null : endpointData(result)
+  const gated = <T>(result: EndpointResult<T>): T | null => isSuppressed() ? null : endpointData(result)
   const health = gated(data.health)
   const sleep = gated(data.sleep)
   const workouts = gated(data.workouts)
@@ -299,7 +371,7 @@ const startFetch = async () => {
   if (sleep) {
     lastSleep = sleep
   }
-  Object.assign(timestamps, suppressed ? {focus: data.timestamps.focus} : data.timestamps)
+  Object.assign(timestamps, isSuppressed() ? {focus: data.timestamps.focus} : data.timestamps)
 
   // ── Initial DOM updates (identical to previous one-shot behavior) ──
   if (health) {
@@ -388,7 +460,8 @@ const startFetch = async () => {
   })
   engine.seed(timestamps)
   // Propagate the load-time suppression intent set by applyFocus() (engine was null then).
-  engine.setSuppressed(suppressed)
+  engine.setSuppressed(isSuppressed())
+  engine.setFocusReadable(data.focus.status === 'ok')
   engine.start()
 
   // Nudge the service worker to check for a new build now. The graceful,
