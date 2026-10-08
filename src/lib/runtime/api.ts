@@ -92,7 +92,7 @@ export interface FetchArtifactOptions {
    * an absolute deadline instead of a duration.
    */
   timeoutMs?: number
-  /** Query string appended to the endpoint URL -- the poll engine's `?_poll=1` service-worker bypass. */
+  /** Query string appended to the endpoint URL -- the poll engine's `?_poll=1` marker (inert since the service worker stopped routing CloudFront JSON). */
   query?: string
 }
 
@@ -189,9 +189,30 @@ function suppressed(reason: string, currentFocus?: string): EndpointSuppressed {
   return {status: 'suppressed', reason, ...(currentFocus ? {currentFocus} : {})}
 }
 
+function failed(reason: string): EndpointFailed {
+  return {status: 'failed', reason}
+}
+
+/** The `reason` a gated artifact carries when the focus read could not decide visibility. */
+export const FOCUS_UNREADABLE_REASON = 'focus state unreadable; gated data withheld'
+
+/**
+ * Fetch every dashboard artifact behind ONE focus read.
+ *
+ * The focus read decides three ways, and only a decoded visible value lets a gated artifact be
+ * fetched. A hiding value, or a suppression body on the focus path itself, marks every gated
+ * artifact `suppressed`. An unreadable focus value -- a timeout, a network failure, an HTTP error,
+ * a body that fails its contract -- marks every gated artifact `failed` WITHOUT fetching it: a
+ * focus state the client could not read is never permission to apply gated data (atlas decision
+ * 0160, PR 0b). The poll engine retries on its next tick, so a transient failure costs one
+ * interval, not the data.
+ *
+ * The rule is this function's, not the whole client's: the poll engine reads each gated resource
+ * on its own and relies on the CloudFront gate, which answers every gated request itself.
+ */
 export async function fetchAllEndpoints(): Promise<FetchResult> {
   const focus = await fetchArtifact('focus')
-  const hiding = focus.status === 'ok' && HIDING_FOCUS_MODE_SET.has(focus.data.currentFocus)
+  const hidingFocus = focus.status === 'ok' && HIDING_FOCUS_MODE_SET.has(focus.data.currentFocus) ? focus.data.currentFocus : undefined
 
   let health: EndpointResult<HealthExport>
   let sleep: EndpointResult<SleepExport>
@@ -202,17 +223,25 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
   let articles: EndpointResult<ArticlesExport>
   let theatreReviews: EndpointResult<TheatreReviewsExport>
 
-  if (hiding) {
-    const reason = 'focus mode active'
-    const currentFocus = focus.data.currentFocus
-    health = suppressed(reason, currentFocus)
-    sleep = suppressed(reason, currentFocus)
-    workouts = suppressed(reason, currentFocus)
-    books = suppressed(reason, currentFocus)
-    githubEvents = suppressed(reason, currentFocus)
-    starredRepos = suppressed(reason, currentFocus)
-    articles = suppressed(reason, currentFocus)
-    theatreReviews = suppressed(reason, currentFocus)
+  if (hidingFocus !== undefined || focus.status === 'suppressed') {
+    const reason = focus.status === 'suppressed' ? focus.reason : 'focus mode active'
+    health = suppressed(reason, hidingFocus)
+    sleep = suppressed(reason, hidingFocus)
+    workouts = suppressed(reason, hidingFocus)
+    books = suppressed(reason, hidingFocus)
+    githubEvents = suppressed(reason, hidingFocus)
+    starredRepos = suppressed(reason, hidingFocus)
+    articles = suppressed(reason, hidingFocus)
+    theatreReviews = suppressed(reason, hidingFocus)
+  } else if (focus.status !== 'ok') {
+    health = failed(FOCUS_UNREADABLE_REASON)
+    sleep = failed(FOCUS_UNREADABLE_REASON)
+    workouts = failed(FOCUS_UNREADABLE_REASON)
+    books = failed(FOCUS_UNREADABLE_REASON)
+    githubEvents = failed(FOCUS_UNREADABLE_REASON)
+    starredRepos = failed(FOCUS_UNREADABLE_REASON)
+    articles = failed(FOCUS_UNREADABLE_REASON)
+    theatreReviews = failed(FOCUS_UNREADABLE_REASON)
   } else {
     ;[health, sleep, workouts, books, githubEvents, starredRepos, articles, theatreReviews] = await Promise.all([
       fetchArtifact('health'),

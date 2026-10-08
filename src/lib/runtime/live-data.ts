@@ -52,9 +52,9 @@ let ws: WSClient | null = null
 // client mirrors that: overlay immediately, pause suppressible polling, and expose the SSR
 // shell instead of leaving the live cards behind permanent loading overlays.
 // HIDING_FOCUS_MODES is the cross-platform single source of truth (@j0nathan-ll0yd/portal-contract),
-// shared with the backend gate + the DS overlay so the three layers can never drift — the web
-// layer is cosmetic + efficiency only; the edge gate is the real privacy boundary, so a
-// mismatch degrades to redundant 403 polls, never a data leak.
+// shared with the backend gate + the DS overlay so the three layers can never drift. The edge
+// gate is the real privacy boundary. This layer must still never SHOW what the gate now denies:
+// it withholds gated values while suppressed and clears the ones it already applied.
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 let suppressed = false
 
@@ -66,6 +66,40 @@ let suppressed = false
 const STALE_FOCUS_POLL_WINDOW_MS = 45_000
 let wsConnected = false
 let lastFocusPushAtMs = 0
+
+// ── Clearing gated values on suppression (atlas decision 0160, PR 0b) ──
+// The overlay only COVERS the cards; the values stay in the DOM, in canvas buffers, in the book
+// modal, in the system-status timestamps, and in this module's own `lastHealth`/`lastSleep`. A
+// hiding mode must remove them, not hide them. A reload is the one mechanism that clears every one
+// of those places at once: the page is static, so the reloaded document holds no gated value, and
+// its startup reads focus first and applies nothing while hiding. Restoring each card's captured
+// markup was rejected: it leaves the canvas loop, the modal and the module state holding data, and
+// it detaches the nodes the design-system runtimes hold references to.
+//
+// Loop guard: the reload fires only when gated data reached the DOM since this document loaded.
+// A reloaded page during hiding never applies gated data, so it can never reload again; the next
+// reload needs a visible period in which data was applied, followed by a new hiding transition.
+let gatedDataApplied = false
+
+// What put the page into suppression. A hiding focus value lifts the moment focus reads visible.
+// A gate denial under a visible signal lifts only after GATE_RECHECK_INTERVAL_MS: a focus answer
+// that races a fresh 403 in the same poll would otherwise lift and re-suppress in a loop, each
+// round refetching every resource. 25 s sits below the 30 s fast poll interval, so each fast tick
+// can re-ask the gate once.
+const GATE_RECHECK_INTERVAL_MS = 25_000
+let suppressionSource: 'focus' | 'gate' | null = null
+let gateSuppressedAtMs = 0
+
+function reloadForPrivacy(): void {
+  window.location.reload()
+}
+
+/** Removes every gated value this document holds, if it holds any. */
+function clearGatedData(): void {
+  if (gatedDataApplied) {
+    reloadForPrivacy()
+  }
+}
 
 function isHiding(currentFocus: string | null): boolean {
   return currentFocus !== null && HIDING_FOCUS_MODE_SET.has(currentFocus)
@@ -82,25 +116,35 @@ function applyFocus(currentFocus: string | null): void {
   updateFocusOverlay(currentFocus ? {generatedAt: new Date().toISOString(), currentFocus} : null)
 
   const hiding = isHiding(currentFocus)
+  if (hiding) {
+    suppressionSource = 'focus'
+  }
   if (hiding === suppressed) {
     return
   }
+  if (!hiding && suppressionSource === 'gate' && Date.now() - gateSuppressedAtMs < GATE_RECHECK_INTERVAL_MS) {
+    return
+  }
   suppressed = hiding
+  if (!hiding) {
+    suppressionSource = null
+  }
 
   if (hiding) {
     LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
   }
 
-  // The overlay is opaque and full-screen, so it is the sole visual treatment — deliberately
-  // DON'T re-skeleton the cards. `is-loading` only adds an opaque overlay (Card.astro) without
-  // removing the retained data, so it buys no DOM hygiene; worse, a card whose data is
-  // unchanged during hiding would be skipped by pollNow()'s fingerprint check on restore and
-  // stay stuck showing a skeleton. On restore the overlay simply lifts to reveal the retained
-  // (still-current) data; pollNow refreshes whatever actually changed.
   engine?.setSuppressed(hiding)
-  if (!hiding) {
-    void engine?.pollNow()
+  if (hiding) {
+    // Covering is not clearing: remove the values themselves (see clearGatedData).
+    clearGatedData()
+    return
   }
+  // Leaving hiding: the DOM holds no gated value (it was cleared, or none was ever applied), so
+  // EVERY gated resource must be applied again, even one whose `generatedAt` the engine already
+  // fingerprinted. Forgetting the fingerprints first is what makes pollNow restore them.
+  engine?.forgetFingerprints()
+  void engine?.pollNow()
 }
 
 function endpointData<T>(result: EndpointResult<T>): T | null {
@@ -112,9 +156,20 @@ function applySuppression(result: EndpointSuppressed): void {
     applyFocus(result.currentFocus)
     return
   }
+  // The gate denied a gated read while the focus signal still reads visible: the backend closes the
+  // gate before it publishes a hiding signal, and a failed publication leaves it so. The gate wins.
+  // Recovery: the engine keeps dispatching focus answers while suppressed, and the first visible
+  // one at least GATE_RECHECK_INTERVAL_MS later lifts suppression and re-reads the gated resources.
+  // A gate still shut answers 403 again. That retry never reloads, because a suppressed document
+  // applies no gated data.
+  if (suppressionSource !== 'focus') {
+    suppressionSource = 'gate'
+    gateSuppressedAtMs = Date.now()
+  }
   suppressed = true
   LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
   engine?.setSuppressed(true)
+  clearGatedData()
 }
 
 // ── Per-resource incremental update dispatch ─────────────────────────
@@ -170,7 +225,15 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
 }
 
 function handleResourceUpdate<K extends ResourceKey>(key: K, data: ArtifactValues[K]): void {
+  // A gated read that was in flight when suppression began can still resolve `ok`. Drop it: no
+  // gated value reaches the DOM while suppressed. Focus is the signal itself and always applies.
+  if (suppressed && key !== 'focus') {
+    return
+  }
   timestamps[key] = data.generatedAt
+  if (key !== 'focus') {
+    gatedDataApplied = true
+  }
 
   // Still required after decoding: this guards adapter and updater throws, which are a different
   // failure from an invalid payload. A payload that fails its contract never reaches this
@@ -200,14 +263,6 @@ const startFetch = async () => {
   applyFocus(focusResult.status === 'ok' ? focusResult.data.currentFocus : null)
 
   const data = await fetchAllEndpoints()
-  const health = endpointData(data.health)
-  const sleep = endpointData(data.sleep)
-  const workouts = endpointData(data.workouts)
-  const books = endpointData(data.books)
-  const githubEvents = endpointData(data.githubEvents)
-  const starredRepos = endpointData(data.starredRepos)
-  const articles = endpointData(data.articles)
-  const theatreReviews = endpointData(data.theatreReviews)
 
   const initialSuppression = [
     data.health,
@@ -223,6 +278,20 @@ const startFetch = async () => {
     applySuppression(initialSuppression)
   }
 
+  // Any suppression -- from the focus read above or from ANY gated path -- withholds EVERY gated
+  // value. During a gate transition one path can answer 403 while a sibling still answers 200;
+  // the gate wins that disagreement for the whole page.
+  const gated = <T>(result: EndpointResult<T>): T | null => suppressed ? null : endpointData(result)
+  const health = gated(data.health)
+  const sleep = gated(data.sleep)
+  const workouts = gated(data.workouts)
+  const books = gated(data.books)
+  const githubEvents = gated(data.githubEvents)
+  const starredRepos = gated(data.starredRepos)
+  const articles = gated(data.articles)
+  const theatreReviews = gated(data.theatreReviews)
+  gatedDataApplied = [health, sleep, workouts, books, githubEvents, starredRepos, articles, theatreReviews].some((value) => value !== null)
+
   // Cache raw data for cross-resource dependencies
   if (health) {
     lastHealth = health
@@ -230,7 +299,7 @@ const startFetch = async () => {
   if (sleep) {
     lastSleep = sleep
   }
-  Object.assign(timestamps, data.timestamps)
+  Object.assign(timestamps, suppressed ? {focus: data.timestamps.focus} : data.timestamps)
 
   // ── Initial DOM updates (identical to previous one-shot behavior) ──
   if (health) {
@@ -301,7 +370,7 @@ const startFetch = async () => {
     }
   }
 
-  updateSystemStatus(data.timestamps)
+  updateSystemStatus(timestamps)
 
   // Clean up every loading overlay, including during suppression: the SSR shell is the
   // honest fallback presentation and must not remain hidden behind permanent skeletons.
@@ -317,7 +386,7 @@ const startFetch = async () => {
     onError: (key, err) => console.warn(`[poll] ${key} error:`, err.message),
     onStatusChange: updatePollStatus
   })
-  engine.seed(data.timestamps)
+  engine.seed(timestamps)
   // Propagate the load-time suppression intent set by applyFocus() (engine was null then).
   engine.setSuppressed(suppressed)
   engine.start()

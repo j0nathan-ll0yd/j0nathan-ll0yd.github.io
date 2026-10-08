@@ -82,6 +82,19 @@ export class PollEngine {
     this.suppressed = suppressed
   }
 
+  /**
+   * Forget the `generatedAt` fingerprints of `keys` (every key by default), so the next poll of
+   * each one is applied even when its value did not change. Leaving a hiding mode needs this: the
+   * gated values were removed from the page, so an unchanged export must still be applied again.
+   */
+  forgetFingerprints(keys?: ResourceKey[]): void {
+    if (!keys) {
+      this.fingerprints.clear()
+      return
+    }
+    keys.forEach((key) => this.fingerprints.delete(key))
+  }
+
   /** Switch between active (no WS) and passive (WS connected) polling intervals */
   setMode(mode: 'active' | 'passive'): void {
     if (this.mode === mode) {
@@ -191,10 +204,20 @@ export class PollEngine {
       return
     }
 
-    // Append ?_poll=1 to bypass Workbox service worker. The key selects the URL and the contract
-    // decoder together, so a poll response that violates its schema arrives as `failed` and is
-    // recorded as a poll error -- it can never be dispatched to an updater as fresh data.
+    // `?_poll=1` once bypassed a Workbox route that cached CloudFront JSON. That route is gone (atlas
+    // decision 0160, PR 0b) and scripts/check-sw-precache.mjs fails the build if any route matches
+    // a gated URL with or without this query, so the marker is now inert; it is kept to leave the
+    // request shape the origin sees unchanged by a privacy-only change.
+    // The key selects the URL and the contract decoder together, so a poll response that violates
+    // its schema arrives as `failed` and is recorded as a poll error -- it can never be dispatched
+    // to an updater as fresh data.
     const result = await fetchArtifact(key, {query: '?_poll=1'})
+    // Suppression may have begun while this read was in flight. Drop a late gated answer before it
+    // can set a fingerprint: a fingerprint for a value that was never applied would make the
+    // restore poll skip it.
+    if (this.suppressed && key !== 'focus' && result.status === 'ok') {
+      return
+    }
     if (result.status === 'suppressed') {
       this.suppressed = true
       this.errorCounts.delete(key)
@@ -215,7 +238,11 @@ export class PollEngine {
       const generatedAt = data.generatedAt
       const prev = this.fingerprints.get(key)
 
-      if (generatedAt && generatedAt === prev) {
+      // While suppressed, a focus answer is dispatched even when unchanged. The page can be
+      // suppressed by the gate under an unchanged VISIBLE signal, or the consumer can have ignored
+      // the last focus answer; only a dispatched focus value can lift suppression, so the
+      // fingerprint must not swallow it.
+      if (generatedAt && generatedAt === prev && !(this.suppressed && key === 'focus')) {
         this.errorCounts.delete(key)
         return
       }

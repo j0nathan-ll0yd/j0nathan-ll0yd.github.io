@@ -376,6 +376,68 @@ describe('PollEngine', () => {
       expect(onError).not.toHaveBeenCalled()
       expect(onUpdate.mock.calls.map((call) => call[0]).sort()).toEqual([...RESOURCE_KEYS].sort())
     })
+
+    // Atlas decision 0160, PR 0b: a gated read that was in flight when suppression began must not
+    // dispatch, and must not set a fingerprint for a value that never reached the page.
+    it('drops a gated answer that resolves after suppression began, without fingerprinting it', async () => {
+      const late = body('books', '2024-01-02T00:00:00Z')
+      let resolveFetch: (value: unknown) => void = () => {}
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise((resolve) => (resolveFetch = resolve))))
+
+      const pending = engine.pollResource('books')
+      engine.setSuppressed(true)
+      resolveFetch(makeFetchResponse(late))
+      await pending
+      expect(onUpdate).not.toHaveBeenCalled()
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(late)))
+      engine.setSuppressed(false)
+      await engine.pollResource('books')
+      expect(onUpdate).toHaveBeenCalledWith('books', late)
+    })
+  })
+
+  describe('focus while suppressed', () => {
+    it('dispatches an unchanged focus answer while suppressed, so a visible value can lift suppression', async () => {
+      const unchanged = body('focus', '2024-01-01T00:00:00Z')
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(unchanged)))
+      engine.seed({focus: '2024-01-01T00:00:00Z'})
+
+      await engine.pollResource('focus')
+      expect(onUpdate).not.toHaveBeenCalled()
+
+      engine.setSuppressed(true)
+      await engine.pollResource('focus')
+      await engine.pollResource('focus')
+      expect(onUpdate).toHaveBeenCalledTimes(2)
+      expect(onUpdate).toHaveBeenCalledWith('focus', unchanged)
+    })
+  })
+
+  describe('forgetFingerprints()', () => {
+    it('re-applies an unchanged export after every fingerprint is forgotten', async () => {
+      const unchanged = body('health', '2024-01-01T00:00:00Z')
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(unchanged)))
+      engine.seed({health: '2024-01-01T00:00:00Z'})
+
+      await engine.pollResource('health')
+      expect(onUpdate).not.toHaveBeenCalled()
+
+      engine.forgetFingerprints()
+      await engine.pollResource('health')
+      expect(onUpdate).toHaveBeenCalledWith('health', unchanged)
+    })
+
+    it('forgets only the named keys', async () => {
+      vi.stubGlobal('fetch', fetchEveryResource('2024-01-01T00:00:00Z'))
+      engine.seed({health: '2024-01-01T00:00:00Z', focus: '2024-01-01T00:00:00Z'})
+
+      engine.forgetFingerprints(['focus'])
+      await engine.pollResource('health')
+      await engine.pollResource('focus')
+
+      expect(onUpdate.mock.calls.map((call) => call[0])).toEqual(['focus'])
+    })
   })
 
   describe('getStatus()', () => {

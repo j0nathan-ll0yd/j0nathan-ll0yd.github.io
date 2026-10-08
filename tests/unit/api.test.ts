@@ -2,7 +2,7 @@ import focusBaselineFixture from '@j0nathan-ll0yd/fixtures/generated/focus/basel
 import focusDndFixture from '@j0nathan-ll0yd/fixtures/generated/focus/dnd.json'
 import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {fetchAllEndpoints, fetchArtifact, isResourceKey} from '../../src/lib/runtime/api'
+import {fetchAllEndpoints, fetchArtifact, FOCUS_UNREADABLE_REASON, isResourceKey} from '../../src/lib/runtime/api'
 
 vi.mock('@j0nathan-ll0yd/portal-contract/constants', async (importActual) => {
   const actual = await importActual<typeof import('@j0nathan-ll0yd/portal-contract/constants')>()
@@ -360,14 +360,48 @@ describe('fetchAllEndpoints', () => {
   })
 
   it('keeps endpoint failures explicit without rejecting the aggregate', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('all fail')))
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse(focusFixture)).mockRejectedValue(new Error('all fail'))
+    vi.stubGlobal('fetch', fetchMock)
 
     const result = await fetchAllEndpoints()
 
     expect(result.health).toEqual({status: 'failed', reason: 'all fail'})
     expect(result.sleep).toEqual({status: 'failed', reason: 'all fail'})
-    expect(result.focus).toEqual({status: 'failed', reason: 'all fail'})
+    expect(result.focus.status).toBe('ok')
     expect(result.timestamps.health).toBeNull()
+  })
+
+  // Atlas decision 0160, PR 0b: an unreadable focus read is never permission. Before this change a
+  // failed focus read fell through to the gated fetch, so a client that could not tell whether the
+  // owner was hiding still fetched and applied every gated artifact.
+  it.each<[string, () => Promise<Response>]>([
+    ['a network failure', () => Promise.reject(new Error('offline'))],
+    ['an HTTP error', () => Promise.resolve(new Response('upstream down', {status: 503}))],
+    ['a body that fails its contract', () => Promise.resolve(jsonResponse({currentFocus: 42}))]
+  ])('withholds every gated artifact without fetching it when focus is unreadable through %s', async (_label, focusAnswer) => {
+    const fetchMock = vi.fn().mockImplementation((url: string) => url.endsWith('/focus.json') ? focusAnswer() : Promise.resolve(jsonResponse(healthFixture)))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchAllEndpoints()
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/focus\.json$/)
+    expect(result.focus.status).toBe('failed')
+    for (const key of ['health', 'sleep', 'workouts', 'books', 'githubEvents', 'starredRepos', 'articles', 'theatreReviews'] as const) {
+      expect(result[key]).toEqual({status: 'failed', reason: FOCUS_UNREADABLE_REASON})
+      expect(result.timestamps[key] ?? null).toBeNull()
+    }
+  })
+
+  it('treats a suppression body on the focus path as suppression of every gated artifact', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({suppressed: true, reason: 'focus mode active'}, 403))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await fetchAllEndpoints()
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(result.health).toEqual({status: 'suppressed', reason: 'focus mode active'})
+    expect(result.theatreReviews).toEqual({status: 'suppressed', reason: 'focus mode active'})
   })
 
   it('isolates one contract violation without discarding its valid siblings', async () => {
