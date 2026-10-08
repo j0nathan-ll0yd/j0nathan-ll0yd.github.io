@@ -21,6 +21,7 @@
 // app shell, and we derive the expected floor from the actual built assets.
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {join, resolve} from 'node:path'
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 
 const distDir = resolve(process.cwd(), 'dist')
 const swPath = join(distDir, 'sw.js')
@@ -142,6 +143,76 @@ if (!cloudfrontImagesRoute) {
   }
 }
 
+// ── Gated-data privacy (atlas decision 0160, PR 0b) ──────────────────
+// No runtime route may match the focus signal or any CloudFront JSON export. A
+// cached copy replayed after a network timeout or offline can show gated data
+// while the owner hides it. Every registerRoute matcher in sw.js is evaluated
+// against real gated URLs, with and without the poll query, so a route that
+// merely excludes `?_poll=1` still fails. A matcher this check cannot read is
+// itself a failure: an unverifiable route is not a verified one.
+const RETIRED_CACHE = 'live-data'
+const PURGE_SCRIPT = '/js/sw-purge.js'
+
+/** Reads the JS regex literal that starts at `start` (a `/`), or null when there is none. */
+function readRegexLiteral(source, start) {
+  if (source[start] !== '/') {
+    return null
+  }
+  let inClass = false
+  for (let i = start + 1; i < source.length; i++) {
+    const ch = source[i]
+    if (ch === '\\') {
+      i++
+    } else if (ch === '[') {
+      inClass = true
+    } else if (ch === ']') {
+      inClass = false
+    } else if (ch === '\n') {
+      return null
+    } else if (ch === '/' && !inClass) {
+      const flags = /^[dgimsuyv]*/.exec(source.slice(i + 1))[0]
+      return new RegExp(source.slice(start + 1, i), flags)
+    }
+  }
+  return null
+}
+
+const gatedUrls = Object.values(ENDPOINTS).filter((path) => path.endsWith('.json')).flatMap((
+  path
+) => [`${CLOUDFRONT_BASE}${path}`, `${CLOUDFRONT_BASE}${path}?_poll=1`])
+if (!gatedUrls.some((url) => url.endsWith('/focus.json'))) {
+  problems.push('ENDPOINTS has no /focus.json; the gated-route probe set is incomplete')
+}
+
+const routeStarts = [...sw.matchAll(/registerRoute\(\s*/g)].map((m) => m.index + m[0].length)
+for (const start of routeStarts) {
+  const matcher = readRegexLiteral(sw, start)
+  if (!matcher) {
+    problems.push(`runtime route at sw.js offset ${start} has a matcher that is not a regex literal; cannot prove it skips gated JSON`)
+    continue
+  }
+  const hit = gatedUrls.find((url) => matcher.test(url))
+  if (hit) {
+    problems.push(`runtime route ${matcher} matches gated URL ${hit}; focus.json and CloudFront JSON must never be cached`)
+  }
+}
+
+if (new RegExp(`["']?cacheName["']?\\s*:\\s*["']${RETIRED_CACHE}["']`).test(sw)) {
+  problems.push(`sw.js still declares the retired "${RETIRED_CACHE}" cache`)
+}
+if (!new RegExp(`importScripts\\(\\s*["']${PURGE_SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["']\\s*\\)`).test(sw)) {
+  problems.push(`sw.js does not importScripts("${PURGE_SCRIPT}"); returning visitors keep the retired "${RETIRED_CACHE}" cache`)
+}
+let purgeSource = ''
+try {
+  purgeSource = readFileSync(join(distDir, PURGE_SCRIPT), 'utf-8')
+} catch {
+  problems.push(`dist${PURGE_SCRIPT} is missing; the imported purge script would 404 and fail the worker install`)
+}
+if (purgeSource && !(purgeSource.includes(`'${RETIRED_CACHE}'`) && purgeSource.includes('caches.delete') && purgeSource.includes("'activate'"))) {
+  problems.push(`dist${PURGE_SCRIPT} no longer deletes the "${RETIRED_CACHE}" cache on activate`)
+}
+
 if (problems.length > 0) {
   console.error('[check-sw-precache] FAIL:')
   for (const p of problems) {
@@ -151,7 +222,10 @@ if (problems.length > 0) {
   console.error('Likely cause: Workbox generateSW did not glob dist assets — check that')
   console.error('@vite-pwa/astro + vite-plugin-pwa ran and that Vite/Rolldown emitted the bundle')
   console.error('graph before the PWA build hook. See astro.config.mjs workbox.globPatterns.')
+  console.error('For a gated-route, live-data or purge failure, see astro.config.mjs workbox.runtimeCaching')
+  console.error('and workbox.importScripts, and public/js/sw-purge.js (atlas decision 0160, PR 0b).')
   process.exit(1)
 }
 
-console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');', 'app shell, activation, and image runtime routes present.')
+console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');',
+  'app shell, activation, image runtime routes, no gated-JSON route, and the live-data purge present.')

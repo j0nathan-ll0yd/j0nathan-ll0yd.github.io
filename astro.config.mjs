@@ -93,6 +93,16 @@ export default defineConfig({
         // → public/js/sw-register.js's graceful reload never fires. (Verified via build.)
         skipWaiting: true,
         clientsClaim: true,
+        // Deletes the retired `live-data` cache on activate, so a returning
+        // visitor loses any gated JSON the old NetworkFirst route stored.
+        // scripts/check-sw-precache.mjs fails the build if this import is lost.
+        importScripts: ['/js/sw-purge.js'],
+        // No route here may match CloudFront JSON or focus.json (atlas decision
+        // 0160, PR 0b). A cached focus signal or gated export replayed after a
+        // timeout or offline can show data while the owner hides it. The client
+        // already fetches them with `cache: 'no-store'` (src/lib/runtime/api.ts),
+        // so with no route they go straight to the network.
+        // scripts/check-sw-precache.mjs enforces this.
         runtimeCaching: [
           {
             // Local optimized images — CacheFirst (downloaded at build time from CloudFront)
@@ -105,13 +115,6 @@ export default defineConfig({
             urlPattern: new RegExp(`^https://${CF_HOST_RE}/images/`),
             handler: 'CacheFirst',
             options: {cacheName: 'optimized-images-fallback', expiration: {maxEntries: 50, maxAgeSeconds: 604800}}
-          },
-          {
-            // CloudFront JSON data — NetworkFirst for guaranteed freshness
-            // Poll requests (?_poll=1) bypass the SW entirely via negative lookahead
-            urlPattern: new RegExp(`^https://${CF_HOST_RE}/(?!.*[?&]_poll=).*\\.json$`),
-            handler: 'NetworkFirst',
-            options: {cacheName: 'live-data', networkTimeoutSeconds: 3, fetchOptions: {cache: 'no-store'}, expiration: {maxAgeSeconds: 300}}
           }
         ]
       }
