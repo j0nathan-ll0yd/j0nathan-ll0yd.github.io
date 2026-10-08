@@ -4,6 +4,8 @@ import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
   auditCloudflareLlmsCacheRules,
+  CLOUDFLARE_FEED_TARGETS,
+  CLOUDFLARE_GATED_TARGETS,
   CLOUDFLARE_LLMS_TARGETS,
   evaluateCloudflareLlmsCacheRules,
   expressionApplicability,
@@ -86,6 +88,30 @@ describe('Cloudflare llms cache-rule evaluation', () => {
       'zone-cache-response-rule-response',
       'page-rule-page'
     ]))
+  })
+
+  // Atlas decision 0160 PR 0b, review finding H1: the feeds are gated paths, and a catch-all rule
+  // over every non-trio path stored them ahead of the Pages Function (Age up to 796 s on 2026-10-08).
+  it('judges both feed URLs, and reports the rule mode and TTL for a catch-all non-trio Edge TTL rule', () => {
+    expect(CLOUDFLARE_FEED_TARGETS).toEqual(['https://jonathanlloyd.me/feed.xml', 'https://jonathanlloyd.me/feed.json'])
+    expect(CLOUDFLARE_GATED_TARGETS).toEqual([...CLOUDFLARE_LLMS_TARGETS, ...CLOUDFLARE_FEED_TARGETS])
+
+    const evaluation = evaluateCloudflareLlmsCacheRules({
+      zoneRequestRules: [{
+        id: 'catch-all',
+        enabled: true,
+        action: 'set_cache_settings',
+        expression: 'not (http.request.uri.path in {"/llms.txt" "/llms-full.txt" "/index.md"})',
+        action_parameters: {cache: true, edge_ttl: {mode: 'override_origin', default: 7200}}
+      }]
+    })
+
+    expect(evaluation.status).toBe('failed')
+    const failed = evaluation.results.filter(({status}) => status === 'failed')
+    expect(failed.map(({target}) => target).sort()).toEqual([...CLOUDFLARE_FEED_TARGETS].sort())
+    for (const result of failed) {
+      expect(result.evidence).toContain('mode=override_origin, ttl=7200s')
+    }
   })
 
   it('passes disabled, disjoint, and origin-respecting rules', () => {

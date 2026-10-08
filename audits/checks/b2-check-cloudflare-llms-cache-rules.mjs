@@ -4,6 +4,7 @@ import {appendFile, mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
+import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 import {MEASURED_DEFERRED, publishMeasured} from '../lib/measurement.mjs'
 
@@ -18,14 +19,26 @@ export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
   `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
 ])
 
+// The two feed URLs (atlas decision 0160, PR 0b, review finding H1). They are gated paths
+// of the same backend focus gate and are served by the same proxy factory, but a zone edge
+// cache stored and replayed them ahead of the Pages Function: on 2026-10-08 both answered
+// `cf-cache-status: HIT` with `Age` up to 796 s while sending `s-maxage=60`. Any rule that
+// can make Cloudflare store them is the same defect as for the trio. Derived from the feed
+// registry the routes themselves read, not restated.
+export const CLOUDFLARE_FEED_TARGETS = Object.freeze(FEED_ARTIFACTS.map((artifact) => artifact.siteUrl))
+
+// Every gated proxy URL this runner judges.
+export const CLOUDFLARE_GATED_TARGETS = Object.freeze([...CLOUDFLARE_LLMS_TARGETS, ...CLOUDFLARE_FEED_TARGETS])
+
 // A18 coverage declaration (atlas decision 0145). The registered estate surface this
 // runner measures. The artifact it holds is the Cloudflare rule inventory, but the
 // property it judges is a DECLARED property of llm-outputs: that surface's registry
 // node carries `external_dependency.cloudflare_edge_cache_ttl: required-unverified`
 // ("account-level rules can override response headers"), and every finding here is
-// keyed to one of the three CLOUDFLARE_LLMS_TARGETS above. Metadata only -- the hub
-// reads it statically from the source; nothing imports it.
-export const ARTIFACTS = [{surfaceId: 'llm-outputs'}]
+// keyed to one of the CLOUDFLARE_GATED_TARGETS above. Since atlas decision 0160 PR 0b it
+// also judges the two `rss-feed` URLs. Metadata only -- the hub reads it statically from
+// the source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'llm-outputs'}, {surfaceId: 'rss-feed'}]
 
 const API_BASE = 'https://api.cloudflare.com/client/v4'
 const UNKNOWN = Symbol('unknown')
@@ -339,7 +352,10 @@ function requestRuleRisks(rule) {
   const parameters = rule.action_parameters ?? {}
   const risks = []
   if (parameters.edge_ttl?.mode === 'override_origin') {
-    risks.push('Edge Cache TTL ignores origin cache-control')
+    // The mode and the TTL are the two numbers an owner needs to size the replay window, so
+    // the evidence carries both rather than a bare verdict.
+    const ttl = parameters.edge_ttl.default === undefined ? 'unset' : `${parameters.edge_ttl.default}s`
+    risks.push(`Edge Cache TTL ignores origin cache-control (mode=override_origin, ttl=${ttl})`)
   }
   const successStatusTtl = parameters.edge_ttl?.status_code_ttl?.find((setting) => {
     if (Number(setting.value) <= 0) {
@@ -450,7 +466,7 @@ export function evaluateCloudflareLlmsCacheRules(inventory) {
       if (risks.length === 0) {
         continue
       }
-      for (const target of CLOUDFLARE_LLMS_TARGETS) {
+      for (const target of CLOUDFLARE_GATED_TARGETS) {
         const applicability = expressionApplicability(rule.expression, target)
         if (applicability === 'disjoint') {
           continue
@@ -469,7 +485,7 @@ export function evaluateCloudflareLlmsCacheRules(inventory) {
     if (risks.length === 0) {
       continue
     }
-    for (const target of CLOUDFLARE_LLMS_TARGETS) {
+    for (const target of CLOUDFLARE_GATED_TARGETS) {
       const applicability = pageRuleApplicability(rule, target)
       if (applicability === 'disjoint') {
         continue
@@ -603,7 +619,7 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
     checkId: 'cloudflare-llms-cache-rules',
     status: evaluation.status,
     observedAt,
-    targets: [...CLOUDFLARE_LLMS_TARGETS],
+    targets: [...CLOUDFLARE_GATED_TARGETS],
     // specVersion 2 added this block (atlas decision 0142 step 5.4). It is what lets a
     // reader of the uploaded artifact answer "did this run reach Cloudflare at all?"
     // without inferring it from a prose evidence string, and it is the input to
@@ -707,7 +723,7 @@ export async function runCloudflareLlmsCacheRuleCli(
       checkId: 'cloudflare-llms-cache-rules',
       status: 'unknown',
       observedAt,
-      targets: [...CLOUDFLARE_LLMS_TARGETS],
+      targets: [...CLOUDFLARE_GATED_TARGETS],
       results: [{id: 'cloudflare-rule-audit-unavailable', status: 'unknown', target: null, evidence: error instanceof Error ? error.message : String(error)}]
     }
   }
