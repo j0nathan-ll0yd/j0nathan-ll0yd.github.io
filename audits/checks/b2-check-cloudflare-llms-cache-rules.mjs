@@ -19,7 +19,7 @@ export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
   `${SITE_URL}${LLM_CONTENT_PATHS.indexMarkdown}`
 ])
 
-// The two feed URLs (atlas decision 0160, PR 0b, review finding H1). They are gated paths
+// The two feed URLs (atlas decision 0160, PR 0b). They are gated paths
 // of the same backend focus gate and are served by the same proxy factory, but a zone edge
 // cache stored and replayed them ahead of the Pages Function: on 2026-10-08 both answered
 // `cf-cache-status: HIT` with `Age` up to 796 s while sending `s-maxage=60`. Any rule that

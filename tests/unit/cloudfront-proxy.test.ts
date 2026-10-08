@@ -737,7 +737,7 @@ describe('gate admission', () => {
     expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_lkg_refused', expect.objectContaining({reason: 'no-gate-evidence'}))
   })
 
-  // Atlas 0160 PR 0b review M8: only a 200 is a complete artifact, and a redirect must never carry
+  // Atlas 0160 PR 0b: only a 200 is a complete artifact, and a redirect must never carry
   // a gated request somewhere the gate does not guard.
   it.each([203, 204, 206])('refuses a CloudFront %s instead of serving it as the artifact', async (status) => {
     const mock = stubArtifactAnswers([() => Promise.resolve(fromCloudfront(status === 204 ? null : 'partial', {status}))])
@@ -788,7 +788,7 @@ describe('gate admission', () => {
     ['no composition stamp', null],
     ['an unparseable stamp', 'yesterday'],
     ['a stamp far in the future', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()],
-    // Loose forms Date.parse accepts but that are not ISO-8601 date-times (review I9).
+    // Loose forms Date.parse accepts but that are not ISO-8601 date-times.
     ['a bare number', '1'],
     ['a bare year', '2026'],
     ['an RFC 1123 date', new Date().toUTCString()],
@@ -846,7 +846,22 @@ describe('gate admission', () => {
     ['answers a Cloudflare 52x without x-amz-cf-id', cloudflare52x],
     ['answers a 403 that is not a suppression body', () => Promise.resolve(new Response('denied', {status: 403}))],
     ['answers a CloudFront 503', cloudfront503],
-    ['answers from the Cloudflare cache', () => Promise.resolve(fromCloudfront('cached', {status: 502, headers: {'cf-cache-status': 'HIT'}}))]
+    // A probe 200 proves the gate open only when it passed the gate in THIS request: a 200 replayed
+    // from a Cloudflare cache, or one without x-amz-cf-id, proves nothing.
+    ...['HIT', 'STALE', 'UPDATING', 'REVALIDATED'].map((status): [string, () => Promise<Response>] => [
+      `answers a 200 from the Cloudflare cache (cf-cache-status ${status})`,
+      () => Promise.resolve(fromCloudfront('cached', {headers: {'cf-cache-status': status}}))
+    ]),
+    ['answers a 200 without x-amz-cf-id', () => Promise.resolve(new Response('unattributed'))],
+    // Only a 200 is proof: another success status, or a redirect, is not.
+    ...[203, 204, 206].map((status): [string, () => Promise<Response>] => [
+      `answers a CloudFront ${status}`,
+      () => Promise.resolve(fromCloudfront(status === 204 ? null : 'partial', {status}))
+    ]),
+    ...[301, 302, 307, 308].map((status): [string, () => Promise<Response>] => [
+      `answers a CloudFront ${status} redirect`,
+      () => Promise.resolve(fromCloudfront(null, {status, headers: {Location: 'https://elsewhere.example/thing.txt'}}))
+    ])
   ])('after a transport failure, refuses the copy when the gate probe %s', async (_label, probe) => {
     stubArtifactAnswers([transport, transport, transport, probe])
     stubCache(lkgCopy('known good'))

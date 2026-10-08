@@ -415,7 +415,7 @@ describe('PollEngine', () => {
   })
 
   // covers: client-privacy#An unreadable focus value applies no gated data
-  // Review I2: an unreadable focus value is never permission to read a gated resource.
+  // An unreadable focus value is never permission to read a gated resource.
   describe('focus readability', () => {
     it('reads nothing gated while focus is unreadable, and resumes once a focus read decodes', async () => {
       const failing = vi.fn().mockImplementation((url: string) =>
@@ -432,6 +432,27 @@ describe('PollEngine', () => {
       vi.stubGlobal('fetch', healthy)
       await engine.pollNow()
       expect(healthy.mock.calls.length).toBe(RESOURCE_KEYS.length)
+    })
+
+    it('drops a gated answer that resolves after focus became unreadable, without fingerprinting it', async () => {
+      const late = body('books', '2024-01-02T00:00:00Z')
+      let resolveBooks: (value: unknown) => void = () => {}
+      vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) =>
+        url.includes('/focus.json')
+          ? Promise.resolve(makeFetchResponse(null, false, 503))
+          : new Promise((resolve) => (resolveBooks = resolve))
+      ))
+
+      const pending = engine.pollResource('books')
+      await engine.pollResource('focus') // the focus read fails while books is in flight
+      resolveBooks(makeFetchResponse(late))
+      await pending
+      expect(onUpdate).not.toHaveBeenCalledWith('books', expect.anything())
+
+      vi.stubGlobal('fetch', fetchEveryResource('2024-01-02T00:00:00Z'))
+      await engine.pollResource('focus')
+      await engine.pollResource('books')
+      expect(onUpdate).toHaveBeenCalledWith('books', late)
     })
 
     it('honors a startup readability of false until focus is read', async () => {
