@@ -2,6 +2,7 @@ import {expect, type Page, test} from '@playwright/test'
 import {createRequire} from 'node:module'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 import {type DistServer, startDistServer} from './dist-server'
+import {siteGatedProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
 
 // The authored notice the page shows. Read from the copy package's JSON export, the same value
 // src/pages/offline.astro renders (the package's TypeScript entry cannot load in this runner).
@@ -28,12 +29,30 @@ test.afterAll(async () => {
   await server.close()
 })
 
+// Gated URLs as cache keys see them: CloudFront exports (with and without the poll query) and the
+// five site-origin proxy routes.
+const GATED_URLS = new Set(siteGatedProbeUrls())
+let gatedResponses = 0
+
 test.beforeEach(async ({context}) => {
   server.overrides.clear()
   server.down = false
-  // No live data in these tests: CloudFront is unreachable, so the dashboard's own requests (and
-  // the image fallback route they could trigger) cannot add cache entries the assertions misread.
-  await context.route(`${CLOUDFRONT_BASE}/**`, (route) => route.abort())
+  gatedResponses = 0
+  // CloudFront JSON gets a real, cacheable 200, so a worker that cached gated data would have
+  // something to cache. Every other CloudFront request (book-cover images) is refused, so the
+  // image-fallback route cannot add entries that have nothing to do with these assertions.
+  await context.route(`${CLOUDFRONT_BASE}/**`, (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('.json')) {
+      gatedResponses++
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: {'Access-Control-Allow-Origin': '*', 'Cache-Control': 'max-age=300'},
+        body: '{}'
+      })
+    }
+    return route.abort()
+  })
 })
 
 const isDocumentPath = (path: string) => path === '/' || path.endsWith('.html') || !/\.[a-z0-9]+$/i.test(path)
@@ -50,17 +69,20 @@ async function expectStable(assertion: () => Promise<void>, ms = 2_000): Promise
   } while (Date.now() < deadline)
 }
 
-/** Every request URL held in any cache, as pathnames. */
-const cachedPaths = (page: Page) =>
+/** Every request URL held in any cache. */
+const cachedUrls = (page: Page) =>
   page.evaluate(async () => {
-    const paths: string[] = []
+    const urls: string[] = []
     for (const name of await caches.keys()) {
       for (const request of await (await caches.open(name)).keys()) {
-        paths.push(new URL(request.url).pathname)
+        urls.push(request.url)
       }
     }
-    return paths
+    return urls
   })
+
+/** Every request URL held in any cache, as pathnames. */
+const cachedPaths = async (page: Page) => (await cachedUrls(page)).map((url) => new URL(url).pathname)
 
 async function installWorker(page: Page): Promise<void> {
   await page.goto(`${server.origin}/`)
@@ -99,12 +121,15 @@ test('an online navigation reaches the network and stores nothing', async ({page
   expect(server.requests).toContain('/') // and it went to the network
   await expect(page.locator('#cardHR')).toHaveCount(1) // the dashboard, not the offline page
   expect(await page.locator('[data-offline-page]').count()).toBe(0)
+  // The dashboard really received gated JSON, so a caching worker would have had it to store.
+  await expect.poll(() => gatedResponses, {message: 'the page fetched gated JSON'}).toBeGreaterThan(0)
   // No document but /offline is ever stored, and no gated URL is: checked over 2 s, because a
   // cache write in a worker's waitUntil can land after the page load resolves.
   await expectStable(async () => {
-    const paths = await cachedPaths(page)
-    expect(paths.filter(isDocumentPath)).toEqual(['/offline'])
-    expect(paths.filter((path) => path.endsWith('.json'))).toEqual([])
+    const urls = await cachedUrls(page)
+    expect(urls.map((url) => new URL(url).pathname).filter(isDocumentPath)).toEqual(['/offline'])
+    expect(urls.map((url) => url.split('#')[0]).filter((url) => GATED_URLS.has(url) || GATED_URLS.has(url.split('?')[0]))).toEqual([])
+    expect(urls.filter((url) => url.startsWith(CLOUDFRONT_BASE) && new URL(url).pathname.endsWith('.json'))).toEqual([])
   })
 })
 

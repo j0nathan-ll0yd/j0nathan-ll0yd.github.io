@@ -117,7 +117,8 @@ describe('no built page prefetches gated data', () => {
 
   it.each(htmlFiles(distDir).map((file) => [path.relative(distDir, file)]))('%s has no prefetch of CloudFront data', (relative) => {
     const page = readFileSync(path.join(distDir, relative), 'utf-8')
-    const prefetches = [...page.matchAll(/<link[^>]*rel="(?:prefetch|preload)"[^>]*>/g)].map((m) => m[0])
+    // Any rel value that includes prefetch or preload: quoted, unquoted, or one token of several.
+    const prefetches = [...page.matchAll(/<link\b[^>]*\brel=["']?[^"'>]*\b(?:prefetch|preload)\b[^>]*>/gi)].map((m) => m[0])
     expect(prefetches.filter((tag) => tag.includes(new URL(CLOUDFRONT_BASE).host))).toEqual([])
   })
 })
