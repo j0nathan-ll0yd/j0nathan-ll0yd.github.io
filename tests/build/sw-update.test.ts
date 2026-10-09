@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {existsSync, readFileSync} from 'fs'
+import {existsSync, readdirSync, readFileSync, statSync} from 'fs'
 import path from 'path'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {scanWorkerSource, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from '../../scripts/lib/sw-privacy.mjs'
@@ -101,5 +101,23 @@ describe('the data-free /offline page', () => {
       url === '/' || url.endsWith('.html') || !/\.[a-z0-9]+$/i.test(url)
     )
     expect(documents).toEqual(['offline'])
+  })
+})
+
+// covers: client-privacy#No page prefetches gated data
+// The browser HTTP cache is a cache too. A <link rel="prefetch"> of a gated export stored it for
+// minutes after the owner may have hidden it, and the client never read that copy (every runtime
+// read is `cache: 'no-store'`). No built page may prefetch CloudFront data.
+describe('no built page prefetches gated data', () => {
+  const htmlFiles = (dir: string): string[] =>
+    readdirSync(dir).flatMap((name) => {
+      const file = path.join(dir, name)
+      return statSync(file).isDirectory() ? htmlFiles(file) : file.endsWith('.html') ? [file] : []
+    })
+
+  it.each(htmlFiles(distDir).map((file) => [path.relative(distDir, file)]))('%s has no prefetch of CloudFront data', (relative) => {
+    const page = readFileSync(path.join(distDir, relative), 'utf-8')
+    const prefetches = [...page.matchAll(/<link[^>]*rel="(?:prefetch|preload)"[^>]*>/g)].map((m) => m[0])
+    expect(prefetches.filter((tag) => tag.includes(new URL(CLOUDFRONT_BASE).host))).toEqual([])
   })
 })

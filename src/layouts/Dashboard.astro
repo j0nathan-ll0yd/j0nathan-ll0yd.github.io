@@ -1,6 +1,6 @@
 ---
 import { getEntry } from 'astro:content';
-import { CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
+import { CLOUDFRONT_BASE, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
 import { LLMS_TXT_PATH } from '../../functions/_lib/llms-artifacts';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
@@ -11,8 +11,7 @@ const {
   description = identity.person.shortBio,
   ogDescription = identity.person.socialBio,
   robots = 'index, follow',
-  // A data-free page (/offline) carries no live-data plumbing at all: no gated-JSON prefetch, no
-  // CloudFront preconnect, no WebMCP tools (they read gated data), no analytics and no JSON-LD
+  // A data-free page (/offline) carries no live-data plumbing at all: no CloudFront preconnect, no WebMCP tools (they read gated data), no analytics and no JSON-LD
   // graph. The service worker serves it from its precache with no network (atlas decision 0160,
   // PR 0b; openspec/specs/client-privacy).
   dataFree = false,
@@ -206,14 +205,11 @@ const jsonLdGraph = isHome
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
   {!dataFree && <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">}
 
+  {/* No gated-JSON prefetch (atlas decision 0160, PR 0b). A prefetch stores the export in the
+      browser HTTP cache for minutes, after the owner may have hidden it, and the client never reads
+      that copy: every runtime read is `cache: 'no-store'` (src/lib/runtime/api.ts). The preconnect
+      keeps the connection warm without storing any data. */}
   {!dataFree && <link rel="preconnect" href={CLOUDFRONT_BASE} crossorigin>}
-  {import.meta.env.PROD && !dataFree && (
-    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.health}`} as="fetch" crossorigin>
-    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.sleep}`} as="fetch" crossorigin>
-    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.focus}`} as="fetch" crossorigin>
-    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.books}`} as="fetch" crossorigin>
-    <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.theatreReviews}`} as="fetch" crossorigin>
-  )}
   {import.meta.env.DEV && <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">}
   {/* Keep this style processed so Astro resolves package imports and inlines them at build time. */}
   <style is:global>

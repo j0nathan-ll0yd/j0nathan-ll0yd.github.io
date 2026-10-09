@@ -99,6 +99,23 @@ precached document).
 - **WHEN** they navigate to `/`
 - **THEN** the request SHALL reach the network and no cache SHALL gain an entry
 
+### Requirement: No page prefetches gated data
+
+No built page SHALL emit a `<link rel="prefetch">` or `<link rel="preload">` for a CloudFront export.
+A prefetch stores the export in the browser HTTP cache for minutes (Chrome keeps prefetched responses
+for about 5 minutes; `health.json` is served `max-age=30`), after the owner may have hidden it, and
+the client never reads that copy: every runtime read is `cache: 'no-store'`. The layout keeps a
+`preconnect` to CloudFront, which warms the connection and stores no data. The data-free `/offline`
+page has no preconnect either.
+
+Verified by `tests/build/sw-update.test.ts:107` (every built HTML page is checked).
+
+#### Scenario: The dashboard loads
+
+- **GIVEN** the built `/`, `/privacy`, `/404` and `/offline`
+- **WHEN** their markup is read
+- **THEN** none SHALL prefetch or preload a CloudFront URL
+
 ### Requirement: An unreadable focus value applies no gated data
 
 A focus value the client could not read -- a network failure, an HTTP error, a body that is not

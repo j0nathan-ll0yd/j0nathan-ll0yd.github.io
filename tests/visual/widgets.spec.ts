@@ -15,9 +15,9 @@ function collectFocusGatedRuntimeFetches(page: Page): string[] {
   const requests: string[] = []
   page.on('request', (request) => {
     const pathname = new URL(request.url()).pathname
-    // Dashboard.astro intentionally emits browser prefetch hints for four
-    // endpoints. They may download fixture bytes but cannot populate the DOM;
-    // only fetch() traffic proves the suppression-aware runtime crossed its gate.
+    // Only fetch() traffic proves the suppression-aware runtime crossed its
+    // gate. (Dashboard.astro emitted gated-JSON prefetch hints until atlas
+    // decision 0160 PR 0b removed them; the resource-type filter stays.)
     if (request.resourceType() === 'fetch' && FOCUS_GATED_PATHS.has(pathname)) {
       requests.push(pathname)
     }
