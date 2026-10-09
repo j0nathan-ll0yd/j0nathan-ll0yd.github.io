@@ -271,6 +271,36 @@ describe('inspectWorker + verifyInspectedWorker', () => {
     expect(verify(worker(body)).join('\n')).toContain(expected)
   })
 
+  // Shapes an independent review found the first inspection missed: each registers a route that
+  // caches gated JSON, but outside what a single synchronous run with a plain request could see.
+  const CACHE_JSON = 'new e.CacheFirst({cacheName:"json"}),"GET"'
+  it.each<[string, string, string]>([
+    [
+      'a route registered in a promise callback',
+      `Promise.resolve().then(()=>e.registerRoute(({url:t})=>t.pathname.endsWith(".json"),${CACHE_JSON}));`,
+      'call site(s) but'
+    ],
+    [
+      'a route registered in an activate listener',
+      `self.addEventListener("activate",()=>e.registerRoute(({url:t})=>t.pathname.endsWith(".json"),${CACHE_JSON}));`,
+      "registers a 'activate' listener"
+    ],
+    [
+      'a matcher that reads request.headers',
+      // Optional chaining: without the throwing stand-in this would quietly evaluate to false.
+      `e.registerRoute(({request:t})=>t.headers?.get("accept")==="application/json",${CACHE_JSON});`,
+      'a CacheFirst route answers gated URL'
+    ],
+    ['a matcher that reads request.cache', `e.registerRoute(({request:t})=>t.cache==="default",${CACHE_JSON});`, 'a CacheFirst route answers gated URL'],
+    [
+      'a route behind a condition that is false while inspected',
+      `if(self.registration&&self.registration.scope)e.registerRoute(({url:t})=>t.pathname.endsWith(".json"),${CACHE_JSON});`,
+      'call site(s) but'
+    ]
+  ])('rejects %s', (_label, body, expected) => {
+    expect(verify(worker(NAV + body)).join('\n')).toContain(expected)
+  })
+
   it('requires /offline in the precache and rejects any other precached HTML document', () => {
     expect(verify(worker(NAV, '')).join('\n')).toContain('the data-free /offline page is not precached')
     const problems = verify(worker(NAV, OFFLINE_ENTRY + '{url:"/",revision:"1"},{url:"privacy",revision:"1"},{url:"404.html",revision:"1"},'))

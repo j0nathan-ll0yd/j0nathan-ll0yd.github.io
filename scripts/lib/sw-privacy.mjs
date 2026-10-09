@@ -228,7 +228,7 @@ export const OFFLINE_PATH = '/offline'
 
 /** Runs a generated worker against a recording Workbox stand-in and returns what it registered. */
 export function inspectWorker(source, {siteUrl}) {
-  const record = {routes: [], precache: [], forbidden: [], unknown: []}
+  const record = {routes: [], precache: [], forbidden: [], unknown: [], listeners: [], callSites: (source.match(/registerRoute\(/g) ?? []).length}
   const workbox = {
     registerRoute: (matcher, handler, method) => record.routes.push({matcher, handler, method}),
     precacheAndRoute: (entries) => record.precache.push(...entries),
@@ -264,7 +264,10 @@ export function inspectWorker(source, {siteUrl}) {
   const sandbox = {
     importScripts: () => {},
     skipWaiting: () => {},
-    addEventListener: () => {},
+    // The generated entry worker registers no listener of its own (Workbox's live in its runtime
+    // chunk, and the purge's in the imported script). Any listener here is recorded and fails: one
+    // could register a route, or answer a request, after this inspection has finished.
+    addEventListener: (type) => record.listeners.push(String(type)),
     clients: {claim: () => {}},
     caches: {delete: () => Promise.resolve(true)},
     location: new URL('/sw.js', `${siteUrl}/`),
@@ -278,6 +281,21 @@ export function inspectWorker(source, {siteUrl}) {
   return record
 }
 
+// A request with only the properties this check models. Reading any other property throws, so a
+// matcher that depends on, say, `request.headers` or `request.cache` lands in routeMatches' catch and
+// counts as matching everything, rather than silently answering false.
+const MODELLED_REQUEST_KEYS = new Set(['url', 'mode', 'method', 'destination'])
+function modelledRequest(fields) {
+  return new Proxy(fields, {
+    get(target, key) {
+      if (typeof key === 'string' && !MODELLED_REQUEST_KEYS.has(key)) {
+        throw new Error(`the inspection does not model request.${key}`)
+      }
+      return target[key]
+    }
+  })
+}
+
 function routeMatches(route, url, mode, siteOrigin) {
   const target = new URL(url)
   if (route.matcher instanceof RegExp || Object.prototype.toString.call(route.matcher) === '[object RegExp]') {
@@ -288,7 +306,7 @@ function routeMatches(route, url, mode, siteOrigin) {
     return true // an unknown matcher shape is assumed to match everything
   }
   try {
-    const request = {url: target.href, mode, method: 'GET', destination: mode === 'navigate' ? 'document' : ''}
+    const request = modelledRequest({url: target.href, mode, method: 'GET', destination: mode === 'navigate' ? 'document' : ''})
     return Boolean(route.matcher({url: target, request, sameOrigin: target.origin === siteOrigin, event: {request}}))
   } catch {
     return true // a matcher that throws on a plain request is assumed to match it
@@ -327,6 +345,17 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
   const siteOrigin = new URL(siteUrl).origin
   for (const name of record.forbidden) {
     problems.push(`${label}: uses ${name}, which can serve a navigation or gated request outside the NetworkOnly route`)
+  }
+  // Every registerRoute call site in the source must have run during the inspection. A route
+  // registered later (in a promise callback, an event listener, or behind a condition) is a route
+  // this check never judged.
+  if (record.callSites !== record.routes.length) {
+    problems.push(
+      `${label}: ${record.callSites} registerRoute call site(s) but ${record.routes.length} route(s) registered while the worker ran; a deferred or conditional route cannot be judged`
+    )
+  }
+  for (const type of [...new Set(record.listeners)]) {
+    problems.push(`${label}: registers a '${type}' listener in the entry worker; a listener can register routes or answer requests after inspection`)
   }
   for (const name of [...new Set(record.unknown)]) {
     problems.push(`${label}: uses Workbox ${name}, which this check does not model; teach scripts/lib/sw-privacy.mjs about it first`)
