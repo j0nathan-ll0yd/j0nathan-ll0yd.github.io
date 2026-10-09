@@ -1,8 +1,5 @@
 import {expect, type Page, test} from '@playwright/test'
-import {createServer, type Server} from 'node:http'
-import {readFile} from 'node:fs/promises'
-import {extname, join, normalize, resolve} from 'node:path'
-import type {AddressInfo} from 'node:net'
+import {type DistServer, javascript, notFound, startDistServer} from './dist-server'
 
 // Service-worker upgrade over a warm `live-data` cache, in real Chromium (atlas decision 0160,
 // PR 0b).
@@ -19,7 +16,6 @@ import type {AddressInfo} from 'node:net'
 //    the OLD worker stays in control -- and the page-side purge in sw-register.js still deletes
 //    `live-data` on the next load. That second line exists because path 1 alone depends on the install succeeding.
 
-const DIST = resolve(process.cwd(), 'dist')
 const RETIRED_CACHE = 'live-data'
 const GATED_URL = 'https://d1pfm520aduift.cloudfront.net/health.json'
 
@@ -35,51 +31,9 @@ self.addEventListener('install', function (event) {
 self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
 `
 
-const MIME: Record<string, string> = {
-  '.html': 'text/html; charset=utf-8',
-  '.js': 'text/javascript; charset=utf-8',
-  '.css': 'text/css; charset=utf-8',
-  '.json': 'application/json',
-  '.webmanifest': 'application/manifest+json',
-  '.svg': 'image/svg+xml',
-  '.png': 'image/png',
-  '.ico': 'image/x-icon',
-  '.txt': 'text/plain; charset=utf-8',
-  '.woff2': 'font/woff2'
-}
-
-interface Mode {
-  worker: 'old' | 'new'
-  purgeMissing: boolean
-}
-
-const mode: Mode = {worker: 'old', purgeMissing: false}
-let server: Server
+const OLD_WORKER_ANSWER = javascript(OLD_WORKER)
+let server: DistServer
 let origin: string
-
-async function serve(pathname: string): Promise<{status: number; type: string; body: Buffer | string}> {
-  if (pathname === '/sw.js' && mode.worker === 'old') {
-    return {status: 200, type: MIME['.js'], body: OLD_WORKER}
-  }
-  if (pathname === '/js/sw-purge.js' && mode.purgeMissing) {
-    return {status: 404, type: 'text/plain', body: 'not found'}
-  }
-  const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '')
-  const file = normalize(join(DIST, relative))
-  if (!file.startsWith(DIST)) {
-    return {status: 403, type: 'text/plain', body: 'forbidden'}
-  }
-  // Astro builds `/privacy` and `/404` as `privacy.html` and `404.html` (trailingSlash: 'never'), and
-  // Workbox precaches them by their extensionless URLs, so resolve the way the production host does.
-  for (const candidate of [file, `${file}.html`, join(file, 'index.html')]) {
-    try {
-      return {status: 200, type: MIME[extname(candidate)] ?? 'application/octet-stream', body: await readFile(candidate)}
-    } catch {
-      // Try the next candidate.
-    }
-  }
-  return {status: 404, type: 'text/plain', body: 'not found'}
-}
 
 test.use({serviceWorkers: 'allow'})
 // The suite default is 30 s. Installing the real worker precaches all of dist/, and each test polls
@@ -87,24 +41,17 @@ test.use({serviceWorkers: 'allow'})
 test.describe.configure({timeout: 90_000})
 
 test.beforeAll(async () => {
-  server = createServer((request, response) => {
-    void serve(new URL(request.url ?? '/', 'http://127.0.0.1').pathname).then(({status, type, body}) => {
-      // no-cache on everything, so a worker update check always reaches this server.
-      response.writeHead(status, {'Content-Type': type, 'Cache-Control': 'no-cache'})
-      response.end(body)
-    })
-  })
-  await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
-  origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  server = await startDistServer()
+  origin = server.origin
 })
 
 test.afterAll(async () => {
-  await new Promise((done) => server.close(done))
+  await server.close()
 })
 
 test.beforeEach(() => {
-  mode.worker = 'old'
-  mode.purgeMissing = false
+  server.overrides.clear()
+  server.overrides.set('/sw.js', OLD_WORKER_ANSWER)
 })
 
 const hasRetiredCache = (page: Page) => page.evaluate((name) => caches.has(name), RETIRED_CACHE)
@@ -127,7 +74,7 @@ async function checkForUpdate(page: Page): Promise<void> {
 test('the new worker deletes live-data when it activates over the old one', async ({page}) => {
   await loadWithOldWorker(page)
 
-  mode.worker = 'new'
+  server.overrides.delete('/sw.js')
   await checkForUpdate(page)
 
   await expect.poll(() => hasPrecache(page), {message: 'the generated worker installed', timeout: 20_000}).toBe(true)
@@ -137,8 +84,8 @@ test('the new worker deletes live-data when it activates over the old one', asyn
 test('the page deletes live-data on load when the new worker cannot install', async ({page}) => {
   await loadWithOldWorker(page)
 
-  mode.worker = 'new'
-  mode.purgeMissing = true
+  server.overrides.delete('/sw.js')
+  server.overrides.set('/js/sw-purge.js', notFound)
   await checkForUpdate(page)
 
   // importScripts('/js/sw-purge.js') throws inside Workbox's asynchronous module callback, before

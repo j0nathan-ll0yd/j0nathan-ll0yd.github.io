@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {existsSync, readFileSync} from 'fs'
 import path from 'path'
-import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {scanWorkerSource, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from '../../scripts/lib/sw-privacy.mjs'
 
 // Graceful no-interaction deploy updates (Phase 1).
@@ -60,5 +60,46 @@ describe('SW gated-data privacy', () => {
     const purge = readFileSync(purgePath, 'utf-8')
     expect(scanWorkerSource(purge, {gatedUrls: siteGatedProbeUrls(), label: 'sw-purge.js'})).toEqual([])
     expect(await verifyPurgeScript(purge)).toEqual([])
+  })
+})
+
+// covers: client-privacy#Navigations go to the network, and only the data-free /offline page answers offline
+// The built /offline document itself: data-free, and carrying none of the live-data plumbing. The
+// real-Chromium navigation behavior is tests/behavioral/offline-navigation.spec.ts.
+describe('the data-free /offline page', () => {
+  const html = () => readFileSync(path.join(distDir, 'offline', 'index.html'), 'utf-8')
+
+  it('is built, marked, and kept out of search', () => {
+    expect(html()).toContain('data-offline-page')
+    expect(html()).toMatch(/<meta name="robots" content="noindex, nofollow">/)
+  })
+
+  it('holds no live widget, gated-data request, data-reading script or analytics', () => {
+    // Judge the markup, not the inlined site stylesheet, whose selectors name every widget class.
+    const page = html().replace(/<style[^>]*>[\s\S]*?<\/style>/g, '')
+    for (
+      const forbidden of [
+        'tri-card',
+        'is-loading',
+        'cardHR',
+        'focusOverlay',
+        'rel="prefetch"',
+        'application/ld+json',
+        '/js/webmcp.js',
+        '/js/sa-loader.js',
+        '/cf-insights.js',
+        new URL(CLOUDFRONT_BASE).host
+      ]
+    ) {
+      expect(page, `offline page contains ${forbidden}`).not.toContain(forbidden)
+    }
+  })
+
+  it('is the only HTML document the worker precaches', () => {
+    const sw = readFileSync(path.join(distDir, 'sw.js'), 'utf-8')
+    const documents = [...sw.matchAll(/["']?url["']?\s*:\s*["']([^"']+)["']/g)].map((m) => m[1]).filter((url) =>
+      url === '/' || url.endsWith('.html') || !/\.[a-z0-9]+$/i.test(url)
+    )
+    expect(documents).toEqual(['offline'])
   })
 })

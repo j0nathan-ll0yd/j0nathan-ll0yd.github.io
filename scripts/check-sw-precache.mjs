@@ -29,13 +29,17 @@ const swPath = join(distDir, 'sw.js')
 
 // Workbox globPatterns / globIgnores from astro.config.mjs. Kept in sync there;
 // if the PWA glob config changes, update this list too.
-const PRECACHE_EXT_RE = /\.(css|js|html|svg|png|ico|txt|webmanifest|woff2)$/
+// HTML is deliberately absent: the only precached document is the data-free
+// /offline page (OFFLINE_DOCUMENT below), atlas decision 0160, PR 0b.
+const PRECACHE_EXT_RE = /\.(css|js|svg|png|ico|txt|webmanifest|woff2)$/
+const OFFLINE_DOCUMENT_RE = /[\\/]offline[\\/]index\.html$/
 const GLOB_IGNORE_RE = /\/images\/(books|theatre)\//
 // sw.js and the workbox-<hash>.js runtime are never self-precached.
 const SW_RUNTIME_RE = /\/(sw|workbox-[^/]+)\.js$/
 
-// App-shell URLs that MUST be precached for the offline experience to work.
-const REQUIRED_URLS = ['/', 'manifest.webmanifest']
+// URLs that MUST be precached. `/` is NOT one of them: navigations are
+// NetworkOnly, and an offline navigation gets the data-free /offline page.
+const REQUIRED_URLS = ['offline', 'manifest.webmanifest']
 
 let sw
 try {
@@ -77,7 +81,7 @@ function walk(dir) {
   }
   return out
 }
-const globbed = walk(distDir).filter((f) => PRECACHE_EXT_RE.test(f) && !GLOB_IGNORE_RE.test(f) && !SW_RUNTIME_RE.test(f))
+const globbed = walk(distDir).filter((f) => (PRECACHE_EXT_RE.test(f) || OFFLINE_DOCUMENT_RE.test(f)) && !GLOB_IGNORE_RE.test(f) && !SW_RUNTIME_RE.test(f))
 const floor = globbed.length
 // Allow modest slack (route/file URL transforms, dedup) but fail on an
 // empty or gutted manifest. Baseline (Astro 6 and Astro 7) is a clean 38/38.
@@ -179,4 +183,4 @@ if (problems.length > 0) {
 }
 
 console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');',
-  'app shell, activation, image runtime routes, no gated route or unrouted handler, and a working live-data purge.')
+  '/offline precached as the only document, NetworkOnly navigations, activation, image runtime routes, no gated route or unrouted handler, and a working live-data purge.')

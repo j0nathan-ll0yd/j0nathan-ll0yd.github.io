@@ -44,7 +44,7 @@ export default defineConfig({
       // guard so a future non-canonical route can never leak in. lastmod is the
       // build time: content is data-driven and can change on every deploy, so a
       // per-build timestamp is honest and avoids a bespoke per-page mtime pipeline.
-      filter: (page) => !page.includes('/404'),
+      filter: (page) => !page.includes('/404') && !page.includes('/offline'),
       changefreq: 'weekly',
       priority: 0.7,
       lastmod: new Date(),
@@ -81,7 +81,14 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{css,js,html,svg,png,ico,txt,webmanifest,woff2}'],
+        // HTML documents are NOT precached, except the data-free /offline page
+        // (atlas decision 0160, PR 0b). A precached document answers a navigation
+        // from the precache before any runtime route runs, so a precached `/`
+        // replayed the dashboard shell, fixture values and all, offline and even
+        // online until the next worker update. Navigations now go to the network
+        // (the NetworkOnly route below) and fall back to /offline only when the
+        // network fails. scripts/check-sw-precache.mjs enforces both rules.
+        globPatterns: ['**/*.{css,js,svg,png,ico,txt,webmanifest,woff2}', 'offline/index.html'],
         globIgnores: ['images/books/**', 'images/theatre/**'],
         navigateFallback: null,
         // Immediate activation so fix deploys reach returning visitors on next
@@ -104,6 +111,15 @@ export default defineConfig({
         // so with no route they go straight to the network.
         // scripts/check-sw-precache.mjs enforces this.
         runtimeCaching: [
+          {
+            // Every navigation goes to the network. On a network failure the
+            // precached data-free /offline page answers instead; nothing else
+            // is ever served for a navigation from a cache. precacheFallback
+            // adds Workbox's PrecacheFallbackPlugin, so no catch handler exists.
+            urlPattern: ({request}) => request.mode === 'navigate',
+            handler: 'NetworkOnly',
+            options: {precacheFallback: {fallbackURL: '/offline'}}
+          },
           {
             // Local optimized images — CacheFirst (downloaded at build time from CloudFront)
             urlPattern: /\/images\/(books|theatre)\//,

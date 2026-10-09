@@ -1,11 +1,13 @@
 import {describe, expect, it} from 'vitest'
 import {
   gatedProbeUrls,
+  inspectWorker,
   precachedGatedUrls,
   readRegexLiteral,
   scanWorkerSource,
   scanWorkerTree,
   siteGatedProbeUrls,
+  verifyInspectedWorker,
   verifyPurgeScript,
   workerImports
 } from '../../scripts/lib/sw-privacy.mjs'
@@ -186,7 +188,11 @@ describe('precachedGatedUrls', () => {
 })
 
 describe('scanWorkerTree', () => {
-  const clean = PURGE_IMPORT + 'e.precacheAndRoute([{url:"/",revision:"1"}],{});' + IMAGE_ROUTES
+  // The entry worker is in the shape generateSW emits, because the tree scan also RUNS it (inspectWorker).
+  const generated = (body: string, precache = '{url:"offline",revision:"1"}') =>
+    `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}e.precacheAndRoute([${precache}],{});` +
+    `e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");${body}}));`
+  const clean = generated(IMAGE_ROUTES)
   const purge = "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
   const scan = (files: Record<string, string>) =>
     scanWorkerTree({entry: '/sw.js', readWorkerFile: (path: string) => files[path] ?? null, gatedUrls, siteUrl: 'https://jonathanlloyd.me'})
@@ -197,7 +203,7 @@ describe('scanWorkerTree', () => {
 
   it('scans every imported script, recursively, and reports a missing one', () => {
     const problems = scan({
-      '/sw.js': clean + 'importScripts("/js/one.js");',
+      '/sw.js': generated(IMAGE_ROUTES + 'importScripts("/js/one.js");'),
       '/js/sw-purge.js': purge,
       '/js/one.js': 'importScripts("/js/two.js");',
       '/js/two.js': "self.addEventListener('fetch',function(){});"
@@ -207,7 +213,85 @@ describe('scanWorkerTree', () => {
   })
 
   it('reports a gated URL in the entry worker precache manifest', () => {
-    const problems = scan({'/sw.js': PURGE_IMPORT + 'e.precacheAndRoute([{url:"index.md",revision:"1"}],{});', '/js/sw-purge.js': purge})
+    const problems = scan({'/sw.js': generated('', '{url:"offline",revision:"1"},{url:"index.md",revision:"1"}'), '/js/sw-purge.js': purge})
     expect(problems).toContain('/sw.js: precaches gated URL https://jonathanlloyd.me/index.md; a precached gated response replays until the next deploy')
+  })
+})
+
+// covers: client-privacy#Navigations go to the network, and only the data-free /offline page answers offline
+// The generated worker is RUN against a recording Workbox stand-in, so a function matcher is judged
+// by what it matches, not by how it is spelled. Each worker below is in the shape generateSW emits.
+describe('inspectWorker + verifyInspectedWorker', () => {
+  const SITE = 'https://jonathanlloyd.me'
+  const NAV =
+    'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");'
+  const OFFLINE_ENTRY = '{url:"offline",revision:"1"},'
+  const worker = (body: string, precache = OFFLINE_ENTRY) =>
+    `define(["./workbox-e190f46a"],(function(e){"use strict";importScripts("/js/sw-purge.js"),self.skipWaiting(),e.clientsClaim(),` +
+    `e.precacheAndRoute([${precache}{url:"manifest.webmanifest",revision:"1"}],{}),e.cleanupOutdatedCaches();${body}}));`
+  const verify = (source: string) => verifyInspectedWorker(inspectWorker(source, {siteUrl: SITE}), {gatedUrls, siteUrl: SITE})
+
+  it('passes the shipped shape: a NetworkOnly navigation route falling back to the precached /offline', () => {
+    expect(verify(worker(NAV + IMAGE_ROUTES))).toEqual([])
+  })
+
+  it.each<[string, string, string]>([
+    ['no navigation route', IMAGE_ROUTES, 'no route answers a navigation to /'],
+    [
+      'a NetworkFirst navigation route',
+      'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkFirst({cacheName:"pages"}),"GET");',
+      'answered by NetworkFirst'
+    ],
+    [
+      'a NetworkOnly navigation route with no fallback',
+      'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly,"GET");',
+      'not NetworkOnly with the /offline fallback'
+    ],
+    [
+      'a fallback to another URL',
+      'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/"})]}),"GET");',
+      'is not the single plugin of a NetworkOnly route'
+    ],
+    [
+      'a second fallback route',
+      NAV +
+      'e.registerRoute(({url:e})=>e.pathname.endsWith(".json"),new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");',
+      'exactly one navigation fallback is allowed'
+    ],
+    ['a catch handler', NAV + 'e.setCatchHandler(()=>caches.match("/offline"));', 'uses setCatchHandler'],
+    ['a default handler', NAV + 'e.setDefaultHandler(new e.NetworkFirst);', 'uses setDefaultHandler'],
+    ['a NavigationRoute (navigateFallback)', NAV + 'e.registerRoute(new e.NavigationRoute(e.createHandlerBoundToURL("/")));', 'uses NavigationRoute'],
+    [
+      'a function route that caches a gated feed',
+      NAV + 'e.registerRoute(({url:e})=>e.pathname.startsWith("/feed"),new e.CacheFirst({cacheName:"feeds"}),"GET");',
+      'a CacheFirst route answers gated URL https://jonathanlloyd.me/feed.xml'
+    ],
+    ['a Workbox API this check does not model', NAV + 'e.warmStrategyCache({urls:["/"],strategy:new e.CacheFirst});', 'uses Workbox warmStrategyCache']
+  ])('rejects %s', (_label, body, expected) => {
+    expect(verify(worker(body)).join('\n')).toContain(expected)
+  })
+
+  it('requires /offline in the precache and rejects any other precached HTML document', () => {
+    expect(verify(worker(NAV, '')).join('\n')).toContain('the data-free /offline page is not precached')
+    const problems = verify(worker(NAV, OFFLINE_ENTRY + '{url:"/",revision:"1"},{url:"privacy",revision:"1"},{url:"404.html",revision:"1"},'))
+    expect(problems).toEqual(expect.arrayContaining([
+      '/sw.js: precaches the HTML document /; a precached document answers navigations before the NetworkOnly route',
+      '/sw.js: precaches the HTML document /privacy; a precached document answers navigations before the NetworkOnly route',
+      '/sw.js: precaches the HTML document /404.html; a precached document answers navigations before the NetworkOnly route'
+    ]))
+  })
+
+  it('accepts the shipped function matcher in the entry worker, and reports a worker that cannot run', () => {
+    const purge =
+      "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+    const scan = (entry: string) =>
+      scanWorkerTree({
+        entry: '/sw.js',
+        readWorkerFile: (path: string) => (path === '/sw.js' ? entry : path === '/js/sw-purge.js' ? purge : null),
+        gatedUrls,
+        siteUrl: SITE
+      })
+    expect(scan(worker(NAV + IMAGE_ROUTES))).toEqual([])
+    expect(scan(worker(NAV) + 'throw new Error("boom")').join('\n')).toContain('could not be run for inspection')
   })
 })

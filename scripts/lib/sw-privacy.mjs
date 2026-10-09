@@ -102,7 +102,7 @@ const WORKBOX_LOADER_MARKER = /if\s*\(\s*!\s*self\.define\s*\)/
  * @param {string} [options.label]           how problems name this source
  * @returns {string[]} problems; empty when the source is clean
  */
-export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false, label = 'sw.js'}) {
+export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false, label = 'sw.js', matchersInspected = false}) {
   const problems = []
   if (!gatedUrls.some((url) => url.endsWith('/focus.json'))) {
     problems.push('the gated-URL probe set has no /focus.json; it is incomplete')
@@ -121,7 +121,11 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
   for (const start of routeStarts) {
     const matcher = readRegexLiteral(source, start)
     if (!matcher) {
-      problems.push(`${label}: runtime route at offset ${start} has a matcher that is not a regex literal; cannot prove it skips gated URLs`)
+      // A function matcher cannot be tested as text. It is allowed only in a worker whose routes
+      // inspectWorker() has run and verifyInspectedWorker() has judged (the entry sw.js).
+      if (!matchersInspected) {
+        problems.push(`${label}: runtime route at offset ${start} has a matcher that is not a regex literal; cannot prove it skips gated URLs`)
+      }
       continue
     }
     const hit = gatedUrls.find((url) => {
@@ -200,6 +204,178 @@ export function precachedGatedUrls(source, {gatedUrls, siteUrl}) {
   ) => gated.has(url))
 }
 
+// ── Behavioral inspection of the generated worker ────────────────────────
+//
+// Text alone cannot tell what a function matcher such as `({request}) => request.mode === 'navigate'`
+// matches. inspectWorker() therefore RUNS the generated sw.js in a sandbox: `self.define` is set
+// before the script runs, so the Workbox AMD loader is skipped and the module callback receives a
+// recording stand-in for the Workbox runtime. Every registerRoute, strategy, plugin and precache
+// entry is captured as a value, and verifyInspectedWorker() asks the captured routes real
+// questions: which route answers a navigation, and which routes answer a gated URL.
+
+const STRATEGIES = ['NetworkOnly', 'NetworkFirst', 'CacheFirst', 'CacheOnly', 'StaleWhileRevalidate']
+const PLUGINS = [
+  'PrecacheFallbackPlugin',
+  'ExpirationPlugin',
+  'CacheableResponsePlugin',
+  'BroadcastUpdatePlugin',
+  'RangeRequestsPlugin',
+  'BackgroundSyncPlugin'
+]
+// Workbox calls that change no route and serve nothing.
+const NEUTRAL_CALLS = ['cleanupOutdatedCaches', 'clientsClaim', 'skipWaiting']
+export const OFFLINE_PATH = '/offline'
+
+/** Runs a generated worker against a recording Workbox stand-in and returns what it registered. */
+export function inspectWorker(source, {siteUrl}) {
+  const record = {routes: [], precache: [], forbidden: [], unknown: []}
+  const workbox = {
+    registerRoute: (matcher, handler, method) => record.routes.push({matcher, handler, method}),
+    precacheAndRoute: (entries) => record.precache.push(...entries),
+    setDefaultHandler: () => record.forbidden.push('setDefaultHandler'),
+    setCatchHandler: () => record.forbidden.push('setCatchHandler'),
+    createHandlerBoundToURL: () => record.forbidden.push('createHandlerBoundToURL'),
+    NavigationRoute: class {
+      constructor() {
+        record.forbidden.push('NavigationRoute')
+      }
+    }
+  }
+  for (const name of NEUTRAL_CALLS) {
+    workbox[name] = () => {}
+  }
+  for (const name of [...STRATEGIES, ...PLUGINS]) {
+    workbox[name] = class {
+      constructor(options = {}) {
+        this.kind = name
+        this.options = options
+      }
+    }
+  }
+  const recorder = new Proxy(workbox, {
+    get(target, key) {
+      if (typeof key === 'string' && !(key in target)) {
+        record.unknown.push(key)
+        return () => {}
+      }
+      return target[key]
+    }
+  })
+  const sandbox = {
+    importScripts: () => {},
+    skipWaiting: () => {},
+    addEventListener: () => {},
+    clients: {claim: () => {}},
+    caches: {delete: () => Promise.resolve(true)},
+    location: new URL('/sw.js', `${siteUrl}/`),
+    URL,
+    Promise,
+    console: {log: () => {}, warn: () => {}, error: () => {}}
+  }
+  sandbox.self = sandbox
+  sandbox.define = (_dependencies, factory) => factory(recorder)
+  runInNewContext(source, sandbox, {timeout: 2000})
+  return record
+}
+
+function routeMatches(route, url, mode, siteOrigin) {
+  const target = new URL(url)
+  if (route.matcher instanceof RegExp || Object.prototype.toString.call(route.matcher) === '[object RegExp]') {
+    route.matcher.lastIndex = 0
+    return route.matcher.test(target.href)
+  }
+  if (typeof route.matcher !== 'function') {
+    return true // an unknown matcher shape is assumed to match everything
+  }
+  try {
+    const request = {url: target.href, mode, method: 'GET', destination: mode === 'navigate' ? 'document' : ''}
+    return Boolean(route.matcher({url: target, request, sameOrigin: target.origin === siteOrigin, event: {request}}))
+  } catch {
+    return true // a matcher that throws on a plain request is assumed to match it
+  }
+}
+
+/** True when the handler is NetworkOnly whose only plugin falls back to the precached /offline. */
+function isOfflineFallbackNetworkOnly(handler, siteUrl) {
+  if (!handler || handler.kind !== 'NetworkOnly') {
+    return false
+  }
+  const plugins = handler.options?.plugins ?? []
+  if (plugins.length === 0) {
+    return true
+  }
+  return plugins.length === 1 && plugins[0]?.kind === 'PrecacheFallbackPlugin' &&
+    new URL(String(plugins[0].options?.fallbackURL ?? ''), `${siteUrl}/`).pathname === OFFLINE_PATH
+}
+
+/** A precache entry that is an HTML document: `/`, a `.html` file, or a path with no extension. */
+function isDocumentEntry(entry, siteUrl) {
+  const url = typeof entry === 'string' ? entry : entry?.url
+  const path = new URL(String(url), `${siteUrl}/`).pathname
+  return path.endsWith('/') || path.endsWith('.html') || !/\.[a-z0-9]+$/i.test(path)
+}
+
+/**
+ * Judges an inspected worker. Rules (atlas decision 0160, PR 0b; openspec/specs/client-privacy):
+ * - navigations are NetworkOnly, and the only allowed fallback serves the precached /offline;
+ * - /offline is precached and no other HTML document is;
+ * - every route that answers a gated URL is NetworkOnly (nothing cached), with at most that fallback;
+ * - no default handler, catch handler or NavigationRoute, and no Workbox API this check cannot model.
+ */
+export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.js'}) {
+  const problems = []
+  const siteOrigin = new URL(siteUrl).origin
+  for (const name of record.forbidden) {
+    problems.push(`${label}: uses ${name}, which can serve a navigation or gated request outside the NetworkOnly route`)
+  }
+  for (const name of [...new Set(record.unknown)]) {
+    problems.push(`${label}: uses Workbox ${name}, which this check does not model; teach scripts/lib/sw-privacy.mjs about it first`)
+  }
+
+  const documents = record.precache.filter((entry) => isDocumentEntry(entry, siteUrl)).map((entry) =>
+    new URL(String(typeof entry === 'string' ? entry : entry.url), `${siteUrl}/`).pathname
+  )
+  if (!documents.includes(OFFLINE_PATH)) {
+    problems.push(`${label}: the data-free ${OFFLINE_PATH} page is not precached; an offline navigation would have nothing to show`)
+  }
+  for (const path of documents.filter((path) => path !== OFFLINE_PATH)) {
+    problems.push(`${label}: precaches the HTML document ${path}; a precached document answers navigations before the NetworkOnly route`)
+  }
+
+  const fallbackRoutes = record.routes.filter((route) => (route.handler?.options?.plugins ?? []).some((plugin) => plugin?.kind === 'PrecacheFallbackPlugin'))
+  for (const route of fallbackRoutes) {
+    if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl)) {
+      problems.push(`${label}: a PrecacheFallbackPlugin is not the single plugin of a NetworkOnly route falling back to ${OFFLINE_PATH}`)
+    }
+  }
+  if (fallbackRoutes.length > 1) {
+    problems.push(`${label}: ${fallbackRoutes.length} routes carry a precache fallback; exactly one navigation fallback is allowed`)
+  }
+
+  for (const path of ['/', '/privacy', OFFLINE_PATH, '/no-such-page']) {
+    const url = new URL(path, `${siteUrl}/`).href
+    const first = record.routes.find((route) => routeMatches(route, url, 'navigate', siteOrigin))
+    if (!first) {
+      problems.push(`${label}: no route answers a navigation to ${path}; navigations must be NetworkOnly with the ${OFFLINE_PATH} fallback`)
+    } else if (!isOfflineFallbackNetworkOnly(first.handler, siteUrl) || (first.handler.options?.plugins ?? []).length !== 1) {
+      problems.push(
+        `${label}: a navigation to ${path} is answered by ${first.handler?.kind ?? 'an unknown handler'}, not NetworkOnly with the ${OFFLINE_PATH} fallback`
+      )
+    }
+  }
+
+  for (const url of gatedUrls) {
+    for (const mode of ['cors', 'no-cors', 'navigate']) {
+      for (const route of record.routes.filter((candidate) => routeMatches(candidate, url, mode, siteOrigin))) {
+        if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl)) {
+          problems.push(`${label}: a ${route.handler?.kind ?? 'unknown'} route answers gated URL ${url} (${mode}); gated responses must never be cached`)
+        }
+      }
+    }
+  }
+  return [...new Set(problems)]
+}
+
 /**
  * Scans the whole worker: the entry script, its precache manifest, and every script it imports,
  * recursively. `readWorkerFile(path)` returns the source of a site-absolute path, or null when the
@@ -222,7 +398,16 @@ export function scanWorkerTree({entry = '/sw.js', readWorkerFile, gatedUrls, sit
       problems.push(`${path} is imported by the worker but missing; the import would fail the worker install`)
       continue
     }
-    problems.push(...scanWorkerSource(source, {gatedUrls, requirePurgeImport: isEntry, label: path}))
+    let matchersInspected = false
+    if (isEntry) {
+      try {
+        problems.push(...verifyInspectedWorker(inspectWorker(source, {siteUrl}), {gatedUrls, siteUrl, label: path}))
+        matchersInspected = true
+      } catch (error) {
+        problems.push(`${path}: could not be run for inspection (${error instanceof Error ? error.message : String(error)}); its routes cannot be verified`)
+      }
+    }
+    problems.push(...scanWorkerSource(source, {gatedUrls, requirePurgeImport: isEntry, label: path, matchersInspected}))
     if (isEntry) {
       for (const url of precachedGatedUrls(source, {gatedUrls, siteUrl})) {
         problems.push(`${path}: precaches gated URL ${url}; a precached gated response replays until the next deploy`)

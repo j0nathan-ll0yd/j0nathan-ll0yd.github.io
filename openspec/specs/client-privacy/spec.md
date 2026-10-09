@@ -38,7 +38,7 @@ through `scripts/lib/sw-privacy.mjs`, and runs the purge script in a sandboxed w
 than matching its text. The real upgrade over a warm `live-data` cache, on both paths, is exercised
 in Chromium by `tests/behavioral/sw-upgrade.spec.ts`.
 
-Verified by `tests/unit/sw-privacy.test.ts:13` (synthetic workers: a CloudFront JSON route, a
+Verified by `tests/unit/sw-privacy.test.ts:15` (synthetic workers: a CloudFront JSON route, a
 site-origin feed route, an llms route, a default handler, a catch handler, a raw fetch listener, a
 non-regex matcher, an aliased or bracket-called registerRoute, `onfetch`, a bracket fetch listener,
 a fetch listener in an imported script, a missing import, a dynamic import outside the Workbox
@@ -57,6 +57,47 @@ shipped purge script pass the same scan).
 - **GIVEN** a returning visitor whose old worker left gated JSON in `live-data`
 - **WHEN** the new worker cannot import `/js/sw-purge.js` and never activates
 - **THEN** the next page load SHALL still delete `live-data` from the page
+
+### Requirement: Navigations go to the network, and only the data-free /offline page answers offline
+
+Every navigation SHALL be handled by one NetworkOnly route: it always reaches the network and
+stores nothing. Only when the network fails SHALL the worker answer, and then only with the
+precached `/offline` page (Workbox `precacheFallback`; `navigateFallback` stays `null`). `/offline`
+holds no gated value, no fixture value and no live widget: authored identity copy and an offline
+notice from `@j0nathan-ll0yd/copy`, the site stylesheet, and `sw-register.js`. It carries no
+gated-JSON prefetch, no CloudFront preconnect, no WebMCP script, no analytics and no JSON-LD.
+
+`/offline` SHALL be the only precached HTML document. A precached document answers a navigation
+from the precache before any runtime route runs: the previously precached `/` replayed the
+dashboard shell, fixture values included, offline and even online until the next worker update.
+No default handler, catch handler or `NavigationRoute` is allowed, and a `PrecacheFallbackPlugin`
+SHALL appear only as the single plugin of that NetworkOnly route, falling back to `/offline`.
+
+`scripts/check-sw-precache.mjs` enforces this on every build by RUNNING the generated worker
+against a recording Workbox stand-in (`inspectWorker` and `verifyInspectedWorker` in
+`scripts/lib/sw-privacy.mjs`): each navigation must reach that route, and each route that answers a
+gated URL must be NetworkOnly. In Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
+behavior: an online navigation to `/` reaches the server and changes no cache, and with the server
+down or the browser offline, `/` and `/privacy` render the data-free page.
+
+Verified by `tests/unit/sw-privacy.test.ts:221` (the shipped shape passes; no navigation route, a
+NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
+catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
+Workbox API, a missing `/offline` and any other precached document each fail) and
+`tests/build/sw-update.test.ts:66` (the built `/offline` document is data-free and is the only
+precached document).
+
+#### Scenario: A returning visitor navigates while offline
+
+- **GIVEN** a visitor whose browser holds the current service worker
+- **WHEN** they navigate to `/` with no network
+- **THEN** the worker SHALL answer with the precached `/offline` page, which shows no data
+
+#### Scenario: A visitor navigates while online
+
+- **GIVEN** the same visitor with network
+- **WHEN** they navigate to `/`
+- **THEN** the request SHALL reach the network and no cache SHALL gain an entry
 
 ### Requirement: An unreadable focus value applies no gated data
 
