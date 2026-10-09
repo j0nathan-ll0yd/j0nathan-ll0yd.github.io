@@ -378,7 +378,11 @@ function isOfflineFallbackNetworkOnly(handler, siteUrl) {
   // `plugins` is the only option allowed. Any other option can reintroduce a cache: for example
   // `fetchOptions: {cache: 'force-cache'}` lets a "NetworkOnly" request be answered from the
   // browser HTTP cache, and `matchOptions` or `cacheName` signal intent to read a cache.
-  if (Object.keys(handler.options ?? {}).some((key) => key !== 'plugins')) {
+  // Own keys of every kind (Reflect.ownKeys sees non-enumerable and symbol keys), and a plain object
+  // of the sandbox realm (a prototype chain could carry an inherited fetchOptions Workbox would read).
+  const options = handler.options ?? {}
+  const prototype = Object.getPrototypeOf(options)
+  if ((prototype !== null && Object.getPrototypeOf(prototype) !== null) || Reflect.ownKeys(options).some((key) => key !== 'plugins')) {
     return false
   }
   const plugins = handler.options?.plugins ?? []

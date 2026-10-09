@@ -374,6 +374,18 @@ describe('inspectWorker + verifyInspectedWorker', () => {
       'a NetworkOnly route answers gated URL'
     ],
     [
+      'a non-enumerable fetchOptions',
+      NAV.replace('new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]})',
+        'new e.NetworkOnly(Object.defineProperty({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]},"fetchOptions",{value:{cache:"force-cache"}}))'),
+      'not NetworkOnly with the /offline fallback'
+    ],
+    [
+      'an inherited fetchOptions',
+      NAV.replace('new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]})',
+        'new e.NetworkOnly(Object.assign(Object.create({fetchOptions:{cache:"force-cache"}}),{plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}))'),
+      'not NetworkOnly with the /offline fallback'
+    ],
+    [
       'a gated NetworkOnly route with matchOptions',
       NAV + 'e.registerRoute(/\\.json$/,new e.NetworkOnly({matchOptions:{ignoreSearch:true}}),"GET");',
       'a NetworkOnly route answers gated URL'

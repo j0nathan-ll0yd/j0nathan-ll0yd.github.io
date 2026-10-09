@@ -82,13 +82,14 @@ The only function matcher allowed is the exact navigation test `({request}) => r
 'navigate'`; every other matcher SHALL be a regex literal, because no evaluation can prove what an
 arbitrary function matches. In Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
 behavior: an online navigation to `/` reaches the server and no cache gains a document or a gated
-entry, and with the server
-down or the browser offline, `/` and `/privacy` render the data-free page.
+entry, and with the server down or the browser offline, `/` and `/privacy` render the data-free
+page.
 
 Verified by `tests/unit/sw-privacy.test.ts:222` (the shipped shape passes; no navigation route, a
 NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
 catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
-Workbox API, a missing `/offline` and any other precached document each fail) and
+Workbox API, a NetworkOnly route carrying any option but `plugins`, a missing `/offline` and any
+other precached document each fail) and
 `tests/build/sw-update.test.ts:66` (the built `/offline` document is data-free and is the only
 precached document).
 
