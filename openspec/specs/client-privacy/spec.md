@@ -81,7 +81,8 @@ exactly once while the worker is inspected, and a `registerRoute` reached by a c
 The only function matcher allowed is the exact navigation test `({request}) => request.mode ===
 'navigate'`; every other matcher SHALL be a regex literal, because no evaluation can prove what an
 arbitrary function matches. In Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
-behavior: an online navigation to `/` reaches the server and changes no cache, and with the server
+behavior: an online navigation to `/` reaches the server and no cache gains a document or a gated
+entry, and with the server
 down or the browser offline, `/` and `/privacy` render the data-free page.
 
 Verified by `tests/unit/sw-privacy.test.ts:222` (the shipped shape passes; no navigation route, a
@@ -101,7 +102,7 @@ precached document).
 
 - **GIVEN** the same visitor with network
 - **WHEN** they navigate to `/`
-- **THEN** the request SHALL reach the network and no cache SHALL gain an entry
+- **THEN** the request SHALL reach the network and no cache SHALL gain a document or a gated entry
 
 ### Requirement: No page prefetches gated data
 

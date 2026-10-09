@@ -360,6 +360,28 @@ describe('inspectWorker + verifyInspectedWorker', () => {
     expect(isNavigationMatcherAt('({request:e,event:t})=>"navigate"===e.mode,x', 0)).toBe(false)
   })
 
+  // A third review: NetworkOnly with a fetchOptions cache mode can still be answered from the
+  // browser HTTP cache, so plugins is the only option a NetworkOnly route may carry.
+  it.each<[string, string, string]>([
+    [
+      'a navigation route with fetchOptions cache: force-cache',
+      NAV.replace('new e.NetworkOnly({plugins:', 'new e.NetworkOnly({fetchOptions:{cache:"force-cache"},plugins:'),
+      'not NetworkOnly with the /offline fallback'
+    ],
+    [
+      'a gated NetworkOnly route with fetchOptions',
+      NAV + 'e.registerRoute(/\\.json$/,new e.NetworkOnly({fetchOptions:{cache:"force-cache"}}),"GET");',
+      'a NetworkOnly route answers gated URL'
+    ],
+    [
+      'a gated NetworkOnly route with matchOptions',
+      NAV + 'e.registerRoute(/\\.json$/,new e.NetworkOnly({matchOptions:{ignoreSearch:true}}),"GET");',
+      'a NetworkOnly route answers gated URL'
+    ]
+  ])('rejects %s', (_label, body, expected) => {
+    expect(verify(worker(body)).join('\n')).toContain(expected)
+  })
+
   it('requires /offline in the precache and rejects any other precached HTML document', () => {
     expect(verify(worker(NAV, '')).join('\n')).toContain('the data-free /offline page is not precached')
     const problems = verify(worker(NAV, OFFLINE_ENTRY + '{url:"/",revision:"1"},{url:"privacy",revision:"1"},{url:"404.html",revision:"1"},'))

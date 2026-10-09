@@ -11,9 +11,10 @@ const {
   description = identity.person.shortBio,
   ogDescription = identity.person.socialBio,
   robots = 'index, follow',
-  // A data-free page (/offline) carries no live-data plumbing at all: no CloudFront preconnect, no WebMCP tools (they read gated data), no analytics and no JSON-LD
-  // graph. The service worker serves it from its precache with no network (atlas decision 0160,
-  // PR 0b; openspec/specs/client-privacy).
+  // A data-free page (/offline) carries no live-data plumbing at all: no CloudFront preconnect,
+  // no WebMCP tools (they read gated data), no analytics and no JSON-LD graph. The service worker
+  // serves it from its precache with no network (atlas decision 0160, PR 0b;
+  // openspec/specs/client-privacy).
   dataFree = false,
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');

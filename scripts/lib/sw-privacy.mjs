@@ -259,7 +259,11 @@ export function inspectWorker(source, {siteUrl}) {
   let sites = 0
   const instrumented = source.replace(/registerRoute\(/g, () => `__registerRoute${sites++}(`)
   const record = {routes: [], precache: [], forbidden: [], unknown: [], listeners: [], siteRuns: new Array(sites).fill(0)}
-  const workbox = {
+  // The stand-in has a null prototype, and the inspection is NOT a security boundary: `node:vm` shares
+  // host objects (URL, Promise, closures), so code in the worker can reach the build process. That is
+  // acceptable only because the input is this repo's own workbox-build output. Never point this at
+  // untrusted code.
+  const workbox = Object.assign(Object.create(null), {
     precacheAndRoute: (entries) => record.precache.push(...entries),
     setDefaultHandler: () => record.forbidden.push('setDefaultHandler'),
     setCatchHandler: () => record.forbidden.push('setCatchHandler'),
@@ -269,7 +273,7 @@ export function inspectWorker(source, {siteUrl}) {
         record.forbidden.push('NavigationRoute')
       }
     }
-  }
+  })
   for (const name of NEUTRAL_CALLS) {
     workbox[name] = () => {}
   }
@@ -369,6 +373,12 @@ function routeMatches(route, url, mode, siteOrigin) {
 /** True when the handler is NetworkOnly whose only plugin falls back to the precached /offline. */
 function isOfflineFallbackNetworkOnly(handler, siteUrl) {
   if (!handler || handler.kind !== 'NetworkOnly') {
+    return false
+  }
+  // `plugins` is the only option allowed. Any other option can reintroduce a cache: for example
+  // `fetchOptions: {cache: 'force-cache'}` lets a "NetworkOnly" request be answered from the
+  // browser HTTP cache, and `matchOptions` or `cacheName` signal intent to read a cache.
+  if (Object.keys(handler.options ?? {}).some((key) => key !== 'plugins')) {
     return false
   }
   const plugins = handler.options?.plugins ?? []
