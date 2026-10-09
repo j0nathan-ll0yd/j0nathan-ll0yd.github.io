@@ -29,6 +29,8 @@ export interface Answer {
   status: number
   type: string
   body: Buffer | string
+  /** A redirect target, sent as the Location header. */
+  location?: string
 }
 
 export interface DistServer {
@@ -74,9 +76,9 @@ export async function startDistServer(): Promise<DistServer> {
     const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
     state.requests.push(pathname)
     const answer = state.overrides.get(pathname)
-    void (answer ? Promise.resolve(answer) : fromDist(pathname)).then(({status, type, body}) => {
+    void (answer ? Promise.resolve(answer) : fromDist(pathname)).then(({status, type, body, location}) => {
       // no-cache on everything, so a worker update check always reaches this server.
-      response.writeHead(status, {'Content-Type': type, 'Cache-Control': 'no-cache'})
+      response.writeHead(status, {'Content-Type': type, 'Cache-Control': 'no-cache', ...(location ? {Location: location} : {})})
       response.end(body)
     })
   })
