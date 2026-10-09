@@ -441,9 +441,10 @@ describe('bounded network attempts', () => {
       expect.objectContaining({artifact: '/thing.txt', error_class: 'TimeoutError'}))
   })
 
-  it('serves no copy once the budget is spent, even when the cache answers and the gate is open', async () => {
-    // Every artifact attempt hangs until its deadline, which spends the budget before the cache is
-    // read. A copy found after that point is not used: the request answers inside the budget.
+  it('serves no copy when the cache answers only after the budget is spent', async () => {
+    // Every artifact attempt hangs until its deadline, which spends the budget up to the read
+    // reserve. The cache answers only at totalMs, past the reserve: the read times out and the
+    // request answers 502 inside the budget.
     let artifactCalls = 0
     const mock = vi.fn().mockImplementation((url: string) => {
       if (url === FOCUS_URL) {

@@ -173,7 +173,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
 content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt SHALL
 resolve from the portal contract's generated discovery distribution.
-Verified by `tests/unit/cloudfront-proxy.test.ts:553` (all five proxy routes: upstream URL, status,
+Verified by `tests/unit/cloudfront-proxy.test.ts:554` (all five proxy routes: upstream URL, status,
 content-type, including the registry-derived discovery path).
 
 #### Scenario: Advertised path resolves
@@ -289,7 +289,7 @@ and SHALL deny with the controlled 502, never with an unhandled error.
 Verified by `tests/unit/cloudfront-proxy.test.ts:346` (never-resolving fetch, stalled body,
 stalled last-known-good cache read, stalled copy body, a copy found after the budget is spent,
 never-resolving focus probe, bounded focus retry -- each asserted to settle inside the budget read
-from the module's own constants) and `tests/unit/cloudfront-proxy.test.ts:507` (every uncertain
+from the module's own constants) and `tests/unit/cloudfront-proxy.test.ts:508` (every uncertain
 focus answer denies, a JSON root that is not a focus object included, and a malformed one is not
 retried).
 
@@ -366,7 +366,7 @@ included"); whether that ends the replay depends on the rule's mode, which
 `audits/checks/b2-check-cloudflare-llms-cache-rules.mjs` measures for all five paths. The zone
 change is an owner decision.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:687` (gate shut over a visible signal, every
+Verified by `tests/unit/cloudfront-proxy.test.ts:688` (gate shut over a visible signal, every
 Cloudflare cache status, an unattributed 200, a 203, 204 and 206, a redirect that is not followed,
 CloudFront 500, 502, 503 and 504 that are not evidence until a probe returns 200, a stale, an
 unstamped and a loosely stamped copy, and a transport failure with an open, a suppressing and a
@@ -572,7 +572,7 @@ write the route's policy over whatever headers the stored copy carries.
 Responses no route may ever have cached -- suppression, focus-error, terminal-error and
 method-not-allowed -- remain unconditionally no-store as before.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:579` (per route, all five, both paths, and the
+Verified by `tests/unit/cloudfront-proxy.test.ts:580` (per route, all five, both paths, and the
 last-known-good copy).
 
 This requirement replaced "Cache policy is per route, and the feed routes stay edge-cached". The
@@ -621,7 +621,7 @@ representation SHALL carry `Vary: Accept`, merged into any existing `Vary`. A ne
 response SHALL carry no body.
 
 Verified by `tests/unit/middleware-negotiation.test.ts:58` (decision table, scope, response classes),
-and verified by `tests/unit/cloudfront-proxy.test.ts:641` (explicit routes ignore Accept).
+and verified by `tests/unit/cloudfront-proxy.test.ts:642` (explicit routes ignore Accept).
 
 #### Scenario: An agent asks the homepage for markdown
 
