@@ -1,32 +1,41 @@
 import {expect, type Page, test} from '@playwright/test'
 import {type DistServer, javascript, notFound, startDistServer} from './dist-server'
 
-// Service-worker upgrade over a warm `live-data` cache, in real Chromium (atlas decision 0160,
-// PR 0b).
+// Service-worker upgrade over warm retired caches, in real Chromium (atlas decision 0160, PR 0b).
 //
 // The suite's shared preview server answers on `localhost` only, and public/js/sw-register.js
 // deliberately skips registration on `localhost`. So this file serves the built `dist/` itself on
 // 127.0.0.1, which also lets it swap the worker script between an OLD worker (one that leaves gated
-// JSON in `live-data`, as the retired NetworkFirst route did) and the REAL generated worker.
+// data in the retired caches) and the REAL generated worker.
+//
+// The retired caches: `live-data` (gated JSON under the retired NetworkFirst route) and
+// `local-images` (a gated feed the old whole-URL image regex matched through its query string,
+// adversarial review H01).
 //
 // Two paths are proven:
-// 1. Normal upgrade: the new worker installs, its imported /js/sw-purge.js deletes `live-data` on
+// 1. Normal upgrade: the new worker installs, its imported /js/sw-purge.js deletes both caches on
 //    activate.
 // 2. Purge script missing: importScripts fails, the new worker never activates (it stays waiting),
 //    the OLD worker stays in control -- and the page-side purge in sw-register.js still deletes
-//    `live-data` on the next load. That second line exists because path 1 alone depends on the install succeeding.
+//    both caches on the next load. That second line exists because path 1 alone depends on the
+//    install succeeding.
 
-const RETIRED_CACHE = 'live-data'
-const GATED_URL = 'https://d1pfm520aduift.cloudfront.net/health.json'
+const RETIRED_ENTRIES: Record<string, string> = {
+  'live-data': 'https://d1pfm520aduift.cloudfront.net/health.json',
+  'local-images': '/feed.json?preview=/images/books/'
+}
 
 // The old worker: what a returning visitor's browser holds before this deploy, reduced to the part
-// that matters -- a `live-data` cache that holds a gated export.
+// that matters -- each retired cache holding a gated response.
 const OLD_WORKER = `
 self.addEventListener('install', function (event) {
   self.skipWaiting();
-  event.waitUntil(caches.open('${RETIRED_CACHE}').then(function (cache) {
-    return cache.put('${GATED_URL}', new Response('{"gated":true}', {headers: {'Content-Type': 'application/json'}}));
-  }));
+  var entries = ${JSON.stringify(RETIRED_ENTRIES)};
+  event.waitUntil(Promise.all(Object.keys(entries).map(function (name) {
+    return caches.open(name).then(function (cache) {
+      return cache.put(entries[name], new Response('{"gated":true}', {headers: {'Content-Type': 'application/json'}}));
+    });
+  })));
 });
 self.addEventListener('activate', function (event) { event.waitUntil(self.clients.claim()); });
 `
@@ -54,13 +63,16 @@ test.beforeEach(() => {
   server.overrides.set('/sw.js', OLD_WORKER_ANSWER)
 })
 
-const hasRetiredCache = (page: Page) => page.evaluate((name) => caches.has(name), RETIRED_CACHE)
+/** The retired caches that still exist. */
+const retiredCaches = (page: Page) =>
+  page.evaluate(async (names) => (await Promise.all(names.map(async (name) => (await caches.has(name)) ? name : null))).filter(Boolean),
+    Object.keys(RETIRED_ENTRIES))
 const hasPrecache = (page: Page) => page.evaluate(async () => (await caches.keys()).some((key) => key.startsWith('workbox-precache')))
 
 async function loadWithOldWorker(page: Page): Promise<void> {
   await page.goto(`${origin}/`)
   await page.evaluate(() => navigator.serviceWorker.ready)
-  await expect.poll(() => hasRetiredCache(page), {message: 'the old worker left gated JSON in live-data'}).toBe(true)
+  await expect.poll(() => retiredCaches(page), {message: 'the old worker left gated data in every retired cache'}).toEqual(['live-data', 'local-images'])
   expect(await hasPrecache(page)).toBe(false)
 }
 
@@ -71,17 +83,17 @@ async function checkForUpdate(page: Page): Promise<void> {
   })
 }
 
-test('the new worker deletes live-data when it activates over the old one', async ({page}) => {
+test('the new worker deletes every retired cache when it activates over the old one', async ({page}) => {
   await loadWithOldWorker(page)
 
   server.overrides.delete('/sw.js')
   await checkForUpdate(page)
 
   await expect.poll(() => hasPrecache(page), {message: 'the generated worker installed', timeout: 20_000}).toBe(true)
-  await expect.poll(() => hasRetiredCache(page), {message: 'sw-purge.js deleted live-data on activate', timeout: 20_000}).toBe(false)
+  await expect.poll(() => retiredCaches(page), {message: 'sw-purge.js deleted the retired caches on activate', timeout: 20_000}).toEqual([])
 })
 
-test('the page deletes live-data on load when the new worker cannot install', async ({page}) => {
+test('the page deletes every retired cache on load when the new worker cannot install', async ({page}) => {
   await loadWithOldWorker(page)
 
   server.overrides.delete('/sw.js')
@@ -91,7 +103,7 @@ test('the page deletes live-data on load when the new worker cannot install', as
   // importScripts('/js/sw-purge.js') throws inside Workbox's asynchronous module callback, before
   // precacheAndRoute and skipWaiting run. The new worker therefore finishes installing with no work
   // and stays WAITING (or, in other engines, goes redundant); either way it never activates. The old
-  // worker stays in control and live-data survives: the worker-side purge never ran.
+  // worker stays in control and the retired caches survive: the worker-side purge never ran.
   await expect.poll(() =>
     page.evaluate(async () => {
       const registration = await navigator.serviceWorker.getRegistration()
@@ -99,9 +111,9 @@ test('the page deletes live-data on load when the new worker cannot install', as
     }), {timeout: 20_000}).toBe(true)
   expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())?.active?.state)).toBe('activated')
   expect(await hasPrecache(page)).toBe(false)
-  expect(await hasRetiredCache(page)).toBe(true)
+  expect(await retiredCaches(page)).toEqual(['live-data', 'local-images'])
 
   await page.reload()
 
-  await expect.poll(() => hasRetiredCache(page), {message: 'sw-register.js deleted live-data from the page'}).toBe(false)
+  await expect.poll(() => retiredCaches(page), {message: 'sw-register.js deleted the retired caches from the page'}).toEqual([])
 })

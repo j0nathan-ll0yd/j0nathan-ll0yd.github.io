@@ -33,22 +33,32 @@ test.afterAll(async () => {
 // five site-origin proxy routes.
 const GATED_URLS = new Set(siteGatedProbeUrls())
 let gatedResponses = 0
+// CloudFront paths that carry gated data: every JSON export, and the origin of each proxied artifact.
+const GATED_CLOUDFRONT_PATHS = new Set([...GATED_URLS].filter((url) => url.startsWith(CLOUDFRONT_BASE)).map((url) => new URL(url).pathname))
+const isGatedCloudfrontPath = (path: string) => path.endsWith('.json') || GATED_CLOUDFRONT_PATHS.has(path)
+// What CloudFront JSON answers. The H01 regression below switches it to a closed gate and then to
+// an unreachable origin; every other test keeps the open default.
+let cloudfrontJson: {status: number; body: string} | 'down' = {status: 200, body: '{}'}
 
 test.beforeEach(async ({context}) => {
   server.overrides.clear()
   server.down = false
   gatedResponses = 0
-  // CloudFront JSON gets a real, cacheable 200, so a worker that cached gated data would have
+  cloudfrontJson = {status: 200, body: '{}'}
+  // Gated CloudFront paths get a real, cacheable 200, so a worker that cached gated data would have
   // something to cache. Every other CloudFront request (book-cover images) is refused, so the
   // image-fallback route cannot add entries that have nothing to do with these assertions.
   await context.route(`${CLOUDFRONT_BASE}/**`, (route) => {
-    if (new URL(route.request().url()).pathname.endsWith('.json')) {
+    if (isGatedCloudfrontPath(new URL(route.request().url()).pathname)) {
       gatedResponses++
+      if (cloudfrontJson === 'down') {
+        return route.abort('connectionrefused')
+      }
       return route.fulfill({
-        status: 200,
+        status: cloudfrontJson.status,
         contentType: 'application/json',
         headers: {'Access-Control-Allow-Origin': '*', 'Cache-Control': 'max-age=300'},
-        body: '{}'
+        body: cloudfrontJson.body
       })
     }
     return route.abort()
@@ -165,4 +175,78 @@ test('the fallback works when the host redirects /offline to /offline/', async (
 
   await page.goto(`${server.origin}/`)
   await expectDataFreeOfflinePage(page)
+})
+
+// H01 (adversarial review): the old image route tested the whole URL, so
+// /feed.json?preview=/images/books/ was cached CacheFirst and replayed after the origin closed, with
+// no origin read. Every gated URL -- the five site paths and every CloudFront export, focus.json
+// included -- is fetched here through the REAL worker with every probe query string and fragment:
+// first while the origin is open, then with the gate closed (503), then with the origin down. No
+// answer after the first may carry the open-gate marker, every closed-gate fetch must reach the
+// origin, and no cache may hold a gated pathname.
+test('no gated URL is replayed from a cache, whatever query string or fragment it carries', async ({page}) => {
+  const MARKER = 'GATED_BEFORE_HIDING'
+  const siteOrigin = new URL([...GATED_URLS].find((url) => !url.startsWith(CLOUDFRONT_BASE))!).origin
+  const sitePaths = [...new Set([...GATED_URLS].filter((url) => url.startsWith(siteOrigin)).map((url) => new URL(url).pathname))]
+  expect(sitePaths.sort()).toEqual(['/feed.json', '/feed.xml', '/index.md', '/llms-full.txt', '/llms.txt'])
+  // Site probes go to this server; CloudFront probes stay on CloudFront (answered by context.route).
+  const probes = [...GATED_URLS].map((url) => url.startsWith(siteOrigin) ? `${server.origin}${url.slice(siteOrigin.length)}` : url)
+  const siteProbes = probes.filter((url) => url.startsWith(server.origin))
+  const cloudfrontProbes = probes.filter((url) => url.startsWith(CLOUDFRONT_BASE))
+  expect(siteProbes.some((url) => url.endsWith('/feed.json?preview=/images/books/'))).toBe(true)
+  expect(cloudfrontProbes.some((url) => url.endsWith('/focus.json?preview=/images/books/'))).toBe(true)
+
+  const fetchAll = () =>
+    page.evaluate((urls) =>
+      Promise.all(urls.map(async (url) => {
+        try {
+          const response = await fetch(url, {cache: 'no-store'})
+          return {url, status: response.status, body: await response.text()}
+        } catch {
+          return {url, status: 0, body: ''}
+        }
+      })), probes)
+  const setSiteAnswer = (status: number, body: string) => {
+    for (const path of sitePaths) {
+      server.overrides.set(path, {status, type: 'text/plain; charset=utf-8', body})
+    }
+  }
+
+  await installWorker(page)
+
+  // Open: every probe reaches the origin and carries the marker.
+  setSiteAnswer(200, MARKER)
+  cloudfrontJson = {status: 200, body: JSON.stringify({marker: MARKER})}
+  const open = await fetchAll()
+  expect(open.filter((answer) => answer.status !== 200 || !answer.body.includes(MARKER))).toEqual([])
+  await new Promise((resolve) => setTimeout(resolve, 1_000)) // let any waitUntil cache write land
+
+  // Closed gate: every probe reaches the origin again and gets the suppression, never the marker.
+  setSiteAnswer(503, 'SUPPRESSED')
+  cloudfrontJson = {status: 503, body: 'SUPPRESSED'}
+  const siteReadsBefore = server.requests.length
+  const cloudfrontReadsBefore = gatedResponses
+  const closed = await fetchAll()
+  expect(closed.filter((answer) => answer.status !== 503 || answer.body.includes(MARKER))).toEqual([])
+  expect(server.requests.length - siteReadsBefore).toBe(siteProbes.length)
+  expect(gatedResponses - cloudfrontReadsBefore).toBe(cloudfrontProbes.length)
+
+  // Origin down: every probe fails as a network error; nothing answers from a cache.
+  server.down = true
+  cloudfrontJson = 'down'
+  const down = await fetchAll()
+  expect(down.filter((answer) => answer.status !== 0 || answer.body.includes(MARKER))).toEqual([])
+
+  // A navigation to a query-form gated URL gets only the data-free /offline page.
+  await page.goto(`${server.origin}/feed.xml?preview=/images/books/`)
+  await expectDataFreeOfflinePage(page)
+  expect(await page.content()).not.toContain(MARKER)
+
+  const gatedPaths = new Set([...GATED_URLS].map((url) => {
+    const parsed = new URL(url)
+    return `${parsed.origin === siteOrigin ? server.origin : parsed.origin}${parsed.pathname}`
+  }))
+  const cached = await cachedUrls(page)
+  expect(cached.filter((url) => gatedPaths.has(`${new URL(url).origin}${new URL(url).pathname}`))).toEqual([])
+  expect(await page.evaluate(() => caches.has('local-images'))).toBe(false)
 })

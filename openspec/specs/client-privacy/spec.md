@@ -18,33 +18,76 @@ requirement "Gated artifacts are admitted only through the CloudFront gate".
 ### Requirement: No service-worker path caches a gated response
 
 The service worker SHALL NOT cache, or answer from a cache, any gated response: the focus signal,
-any CloudFront JSON export (with or without the poll query), or any of the five site-origin proxy
-routes (/llms.txt, /llms-full.txt, /index.md, /feed.xml, /feed.json). No `registerRoute` matcher may
-match one of those URLs, every matcher SHALL be a regex literal the build can test, and every
-mention of `registerRoute` SHALL be such a direct call (an alias or a bracket access is a route the
+any CloudFront JSON export, or any of the five site-origin proxy routes (/llms.txt, /llms-full.txt,
+/index.md, /feed.xml, /feed.json), whatever query string or fragment the request carries.
+
+Every runtime route SHALL classify a request by its origin and pathname only, never by its query
+string or fragment. A route matcher SHALL be one of three shapes:
+
+- a regex literal anchored on a literal origin and path (`^https://<host>/<path>...`), tested
+  against the whole URL;
+- a same-origin pathname test, exactly `({url, sameOrigin}) => sameOrigin &&
+  /^\/<path>.../.test(url.pathname)`;
+- the navigation test `({request}) => request.mode === 'navigate'`, whose route SHALL be NetworkOnly
+  with the /offline fallback (requirement "Navigations go to the network...").
+
+The literal prefix a regex requires SHALL NOT cover the origin and pathname of any gated URL, in
+either direction, and its path part SHALL NOT cover any gated pathname on any host (the gated
+routes also answer on hosts the probe set does not name). A regex with the `i` flag is refused:
+under `u` or `v`, Unicode case folding defeats any prefix comparison. A regex literal counts only
+when it is the whole matcher argument. The gated URLs include the CloudFront origin of each of the
+five proxied artifacts. The inspection also checks every precache entry the worker registers,
+whatever shape the manifest text takes. Every route SHALL also be probed with each gated URL bare, with a fixed set of
+query strings and fragments (`GATED_URL_SUFFIXES` in `scripts/lib/sw-privacy.mjs`, image paths in
+query values included), and with query strings and fragments built from every route's own regex
+text. A whole-URL regex that a query value can satisfy fails the anchoring rule and the probes
+independently. Motivating failure (adversarial review H01): the image route
+`/\/images\/(books|theatre)\//` tested the whole URL, so `/feed.json?preview=/images/books/`
+matched it and a gated feed was cached CacheFirst for 30 days and replayed after the gate closed.
+
+Every mention of `registerRoute` SHALL be a direct call (an alias or a bracket access is a route the
 build cannot test). The worker SHALL NOT use `setDefaultHandler`, `setCatchHandler`, `onfetch`, or
 any `'fetch'` event listener in any form, each of which can answer a gated request outside a
 testable route. These rules apply to the worker AND to every script it loads: each
 `importScripts` target and each Workbox `define` dependency except the Workbox runtime chunk, read
 recursively. A dynamic `importScripts(<expression>)` is allowed only inside the Workbox loader. The
-precache manifest SHALL NOT list a gated URL.
+precache manifest, `additionalManifestEntries` included, SHALL NOT list a gated URL, with or
+without a query string.
 
-The retired `live-data` cache SHALL be deleted for returning visitors twice over: by
-`/js/sw-purge.js`, imported into the generated worker, on `activate`; and by
-`public/js/sw-register.js` on every page load. The second line exists because the first depends on
-the new worker installing: when the purge import fails, the new worker never activates and the
-old worker keeps control. The postbuild gate `scripts/check-sw-precache.mjs` enforces all of it
-through `scripts/lib/sw-privacy.mjs`, and runs the purge script in a sandboxed worker scope rather
-than matching its text. The real upgrade over a warm `live-data` cache, on both paths, is exercised
-in Chromium by `tests/behavioral/sw-upgrade.spec.ts`.
+The retired caches SHALL be deleted for returning visitors twice over: by `/js/sw-purge.js`,
+imported into the generated worker, on `activate`; and by `public/js/sw-register.js` on every page
+load. The retired caches are `live-data` (gated JSON under the retired NetworkFirst route) and
+`local-images` (written by the H01 image route, so it can hold a gated feed); the image route now
+writes `local-images-v2`, and no route may declare a retired name. The second line exists because
+the first depends on the new worker installing: when the purge import fails, the new worker never
+activates and the old worker keeps control. The postbuild gate `scripts/check-sw-precache.mjs`
+enforces all of it through `scripts/lib/sw-privacy.mjs`, and runs the purge script in a sandboxed
+worker scope rather than matching its text.
 
-Verified by `tests/unit/sw-privacy.test.ts:16` (synthetic workers: a CloudFront JSON route, a
+Verified by `tests/unit/sw-privacy.test.ts:24` (synthetic workers: a CloudFront JSON route, a
 site-origin feed route, an llms route, a default handler, a catch handler, a raw fetch listener, a
 non-regex matcher, an aliased or bracket-called registerRoute, `onfetch`, a bracket fetch listener,
 a fetch listener in an imported script, a missing import, a dynamic import outside the Workbox
 loader, a precached gated URL, the retired cache name and a missing purge import are each rejected;
-the purge is judged by what it does) and `tests/build/sw-update.test.ts:44` (the generated worker and the
-shipped purge script pass the same scan).
+the purge is judged by what it does), `tests/unit/sw-privacy.test.ts:127` (the H01 route, query-steered
+regexes, pathname tests that read the query or cover a gated path, unanchored, case-insensitive, trailing-expression
+regexes, a purge that keeps `local-images`, and `additionalManifestEntries` gated URLs are each
+rejected) and `tests/build/sw-update.test.ts:44` (the generated worker and the shipped purge script
+pass the same scan).
+
+In Chromium, the real generated worker is exercised by two Playwright specs.
+`tests/behavioral/offline-navigation.spec.ts` fetches every gated URL with every probe query string
+and fragment: first while the origin is open, then with the gate closed, then with the origin down.
+No answer after the first replays the open-gate marker, every closed-gate fetch reaches the origin,
+and no cache holds a gated pathname. `tests/behavioral/sw-upgrade.spec.ts` runs the real upgrade over
+warm `live-data` and `local-images` caches, on both purge paths.
+
+#### Scenario: A query string steers an image route onto a gated feed
+
+- **GIVEN** a build whose worker registers a CacheFirst route `/\/images\/(books|theatre)\//`
+- **WHEN** the postbuild gate runs
+- **THEN** the build SHALL fail: the route is not anchored on an origin and path, and it matches
+  `/feed.json?preview=/images/books/`
 
 #### Scenario: A route caches a gated feed
 
@@ -54,9 +97,9 @@ shipped purge script pass the same scan).
 
 #### Scenario: The purge import fails on upgrade
 
-- **GIVEN** a returning visitor whose old worker left gated JSON in `live-data`
+- **GIVEN** a returning visitor whose old worker left gated data in `live-data` and `local-images`
 - **WHEN** the new worker cannot import `/js/sw-purge.js` and never activates
-- **THEN** the next page load SHALL still delete `live-data` from the page
+- **THEN** the next page load SHALL still delete both caches from the page
 
 ### Requirement: Navigations go to the network, and only the data-free /offline page answers offline
 
@@ -78,14 +121,17 @@ against a recording Workbox stand-in (`inspectWorker` and `verifyInspectedWorker
 `scripts/lib/sw-privacy.mjs`): each navigation must reach that route, and each route that answers a
 gated URL must be NetworkOnly. Each textual `registerRoute(` call site is instrumented and must run
 exactly once while the worker is inspected, and a `registerRoute` reached by a computed name fails.
-The only function matcher allowed is the exact navigation test `({request}) => request.mode ===
-'navigate'`; every other matcher SHALL be a regex literal, because no evaluation can prove what an
-arbitrary function matches. In Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
+Two function matchers are allowed, each spelled exactly: the navigation test `({request}) =>
+request.mode === 'navigate'`, and the same-origin pathname test of "No service-worker path caches a
+gated response". Every other matcher SHALL be an anchored regex literal, because no evaluation can
+prove what an arbitrary function matches. A navigation to a gated URL with any query string reaches
+this NetworkOnly route, so it is never answered from a cache; offline it gets only `/offline`. In
+Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
 behavior: an online navigation to `/` reaches the server and no cache gains a document or a gated
 entry, and with the server down or the browser offline, `/` and `/privacy` render the data-free
 page.
 
-Verified by `tests/unit/sw-privacy.test.ts:222` (the shipped shape passes; no navigation route, a
+Verified by `tests/unit/sw-privacy.test.ts:444` (the shipped shape passes; no navigation route, a
 NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
 catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
 Workbox API, a NetworkOnly route carrying any option but `plugins`, a missing `/offline` and any

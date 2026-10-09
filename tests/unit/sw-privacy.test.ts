@@ -1,10 +1,18 @@
+import {readFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {runInNewContext} from 'node:vm'
 import {describe, expect, it} from 'vitest'
 import {
+  anchoredLiteralPrefix,
+  GATED_URL_SUFFIXES,
   gatedProbeUrls,
   inspectWorker,
   isNavigationMatcherAt,
   precachedGatedUrls,
   readRegexLiteral,
+  RETIRED_CACHES,
+  routeDerivedProbeUrls,
+  sameOriginPathMatcherAt,
   scanWorkerSource,
   scanWorkerTree,
   siteGatedProbeUrls,
@@ -24,8 +32,16 @@ const gatedUrls = gatedProbeUrls({
   siteGatedPaths: ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json']
 })
 const PURGE_IMPORT = 'importScripts("/js/sw-purge.js");'
-const IMAGE_ROUTES = 'e.registerRoute(/\\/images\\/(books|theatre)\\//,new e.CacheFirst({cacheName:"local-images"}),"GET");' +
+// The two image routes as generateSW emits them: a same-origin pathname test, and a regex anchored
+// on the CloudFront origin and /images/.
+const LOCAL_IMAGES_MATCHER = '({url:e,sameOrigin:s})=>s&&/^\\/images\\/(books|theatre)\\//.test(e.pathname)'
+const IMAGE_ROUTES = `e.registerRoute(${LOCAL_IMAGES_MATCHER},new e.CacheFirst({cacheName:"local-images-v2"}),"GET");` +
   'e.registerRoute(/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\//,new e.CacheFirst({cacheName:"optimized-images-fallback"}),"GET");'
+// The route H01 found: a whole-URL regex, so /feed.json?preview=/images/books/ matched it.
+const UNANCHORED_IMAGE_ROUTE = 'e.registerRoute(/\\/images\\/(books|theatre)\\//,new e.CacheFirst({cacheName:"local-images"}),"GET");'
+// A purge in the shape public/js/sw-purge.js ships: every retired cache, each delete's failure absorbed.
+const PURGE_SOURCE = "(function(){var R=['live-data','local-images'];self.addEventListener('activate',function(e){" +
+  'e.waitUntil(Promise.all(R.map(function(n){return caches.delete(n).catch(function(){return false;});})));});})();'
 
 describe('gatedProbeUrls', () => {
   it('probes every CloudFront JSON path with and without the poll query, and every site gated path', () => {
@@ -33,6 +49,15 @@ describe('gatedProbeUrls', () => {
     expect(gatedUrls).toContain('https://d1pfm520aduift.cloudfront.net/health.json?_poll=1')
     expect(gatedUrls).toContain('https://jonathanlloyd.me/feed.xml')
     expect(gatedUrls).toContain('https://jonathanlloyd.me/llms.txt')
+  })
+
+  it('probes every gated URL with query strings and fragments, focus.json and the five site paths included', () => {
+    for (const base of ['https://d1pfm520aduift.cloudfront.net/focus.json', 'https://jonathanlloyd.me/feed.json', 'https://jonathanlloyd.me/llms.txt']) {
+      for (const suffix of GATED_URL_SUFFIXES) {
+        expect(gatedUrls).toContain(`${base}${suffix}`)
+      }
+    }
+    expect(GATED_URL_SUFFIXES).toEqual(expect.arrayContaining(['?preview=/images/books/', '#/images/books/', '?v=1']))
   })
 
   it('derives the production set from the contract and the route registries', () => {
@@ -80,7 +105,7 @@ describe('scanWorkerSource', () => {
       gatedUrls,
       requirePurgeImport: true
     })
-    expect(problems.some((problem) => problem.includes('neither a regex literal nor the navigation test'))).toBe(true)
+    expect(problems.some((problem) => problem.includes('cannot prove it skips gated URLs'))).toBe(true)
   })
 
   it('rejects the retired cache name and a missing purge import', () => {
@@ -99,6 +124,191 @@ describe('scanWorkerSource', () => {
   })
 })
 
+// covers: client-privacy#No service-worker path caches a gated response
+// H01 (adversarial review): a whole-URL regex tested /feed.json?preview=/images/books/ and cached
+// the gated feed. Every route must classify by origin and pathname, and every route is probed with
+// query and fragment forms of each gated URL.
+describe('routes classify by origin and pathname only', () => {
+  it('rejects the H01 route in the text scan: unanchored, and matched by a query-string probe', () => {
+    const problems = scanWorkerSource(PURGE_IMPORT + UNANCHORED_IMAGE_ROUTE, {gatedUrls, requirePurgeImport: true}).join('\n')
+    expect(problems).toContain('is not anchored on a literal origin and path')
+    expect(problems).toContain('matches gated URL https://d1pfm520aduift.cloudfront.net/focus.json?preview=/images/books/')
+    expect(problems).toContain('declares the retired "local-images" cache')
+  })
+
+  it('rejects the H01 route in the inspection, for each of the five site paths and with no image route present', () => {
+    const SITE = 'https://jonathanlloyd.me'
+    const NAV =
+      'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");'
+    const entry =
+      `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}e.precacheAndRoute([{url:"offline",revision:"1"}],{});${NAV}${UNANCHORED_IMAGE_ROUTE}}));`
+    const problems = verifyInspectedWorker(inspectWorker(entry, {siteUrl: SITE}), {gatedUrls, siteUrl: SITE}).join('\n')
+    for (const path of ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json']) {
+      expect(problems).toContain(`a CacheFirst route answers gated URL ${SITE}${path}?preview=/images/books/ (cors)`)
+    }
+    expect(problems).toContain('is not anchored on a literal origin and path')
+  })
+
+  it('catches a query-steered regex the fixed suffixes do not name, through probes built from the route itself', () => {
+    const route = /[?&]asset=\/static\/(icons|fonts)\//
+    const derived = routeDerivedProbeUrls(gatedUrls, route)
+    expect(gatedUrls.some((url) => route.test(url))).toBe(false) // the fixed set alone misses it
+    expect(derived.some((url) => url.startsWith('https://jonathanlloyd.me/feed.json') && route.test(url))).toBe(true)
+    const problems = scanWorkerSource(`${PURGE_IMPORT}e.registerRoute(${route},new e.CacheFirst({cacheName:"assets"}),"GET");`, {gatedUrls}).join('\n')
+    expect(problems).toContain('matches gated URL https://')
+    expect(problems).toContain('is not anchored on a literal origin and path')
+    // The inspection probes the registered RegExp with the same route-derived URLs.
+    const SITE = 'https://jonathanlloyd.me'
+    const entry = `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}e.precacheAndRoute([{url:"offline",revision:"1"}],{});` +
+      `e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");` +
+      `e.registerRoute(${route},new e.CacheFirst({cacheName:"assets"}),"GET");}));`
+    const inspected = verifyInspectedWorker(inspectWorker(entry, {siteUrl: SITE}), {gatedUrls, siteUrl: SITE}).join('\n')
+    expect(inspected).toContain('a CacheFirst route answers gated URL https://jonathanlloyd.me/feed.json?asset=/static/icons/ (cors)')
+  })
+
+  it.each<[string, string, string]>([
+    ['a pathname test that covers a feed', '({url:e,sameOrigin:s})=>s&&/^\\/feed/.test(e.pathname)', 'covers gated path /feed.xml'],
+    ['a pathname test that covers focus.json', '({url:e,sameOrigin:s})=>s&&/^\\/focus\\.json/.test(e.pathname)', 'covers gated path /focus.json'],
+    ['an unanchored pathname test', '({url:e,sameOrigin:s})=>s&&/\\/images\\//.test(e.pathname)', 'is not anchored on a literal path'],
+    ['a pathname test anchored on a group', '({url:e,sameOrigin:s})=>s&&/^(?:\\/images)\\//.test(e.pathname)', 'is not anchored on a literal path'],
+    [
+      'a pathname test that also reads the query',
+      '({url:e,sameOrigin:s})=>s&&/^\\/images\\//.test(e.pathname+e.search)',
+      'cannot prove it skips gated URLs'
+    ],
+    ['a pathname test on the href', '({url:e,sameOrigin:s})=>s&&/^\\/images\\//.test(e.href)', 'cannot prove it skips gated URLs'],
+    ['a pathname test without the same-origin check', '({url:e})=>/^\\/images\\//.test(e.pathname)', 'cannot prove it skips gated URLs'],
+    ['a same-origin check that is not the guard', '({url:e,sameOrigin:s})=>e&&/^\\/images\\//.test(e.pathname)', 'cannot prove it skips gated URLs'],
+    ['a pathname test widened with ||', '({url:e,sameOrigin:s})=>s&&/^\\/images\\//.test(e.pathname)||e.search', 'cannot prove it skips gated URLs'],
+    [
+      'a regex on the site origin that covers the llms trio',
+      '/^https:\\/\\/jonathanlloyd\\.me\\/llms/',
+      'covers gated path https://jonathanlloyd.me/llms.txt'
+    ],
+    ['a case-insensitive regex', '/^https:\\/\\/JONATHANLLOYD\\.ME\\/FEED/i', 'is not anchored on a literal origin and path'],
+    // Unicode case folding: under `iu`, U+017F folds to `s`, so this matches /feed.json?zz=2.
+    [
+      'a Unicode case-folding regex that reaches a feed',
+      '/^https:\\/\\/jonathanlloyd\\.me\\/feed\\.j\u017fon\\?zz/iu',
+      'is not anchored on a literal origin and path'
+    ],
+    ['a regex on another host that covers a gated path', '/^https:\\/\\/www\\.jonathanlloyd\\.me\\/feed/', 'covers gated path'],
+    ['a regex on a preview host that covers the llms trio', '/^https:\\/\\/abc\\.portfolio\\.pages\\.dev\\/llms/', 'covers gated path'],
+    [
+      'a regex on the whole CloudFront origin',
+      '/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\//',
+      'covers gated path https://d1pfm520aduift.cloudfront.net/focus.json'
+    ],
+    ['a regex with a top-level alternation', '/^https:\\/\\/x\\.example\\/images\\/|feed/', 'is not anchored on a literal origin and path'],
+    ['a regex anchored on no origin', '/^\\/images\\//', 'is not anchored on a literal origin and path']
+  ])('rejects %s, in the text scan and in the inspection', (_label, matcher, expected) => {
+    const SITE = 'https://jonathanlloyd.me'
+    const NAV =
+      'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");'
+    const route = `e.registerRoute(${matcher},new e.CacheFirst({cacheName:"x"}),"GET");`
+    expect(scanWorkerSource(PURGE_IMPORT + route, {gatedUrls}).join('\n')).toContain(expected)
+    const entry =
+      `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}e.precacheAndRoute([{url:"offline",revision:"1"}],{});${NAV}${route}}));`
+    const inspected = verifyInspectedWorker(inspectWorker(entry, {siteUrl: SITE}), {gatedUrls, siteUrl: SITE}).join('\n')
+    // The inspection judges the registered VALUE: a function by its own source text, a RegExp by its source.
+    expect(inspected).toContain(
+      expected === 'cannot prove it skips gated URLs' ? 'neither an anchored RegExp, a same-origin pathname test, nor the navigation test' : expected
+    )
+  })
+
+  it('reads the same-origin pathname matcher in both build forms, and nothing looser', () => {
+    expect(sameOriginPathMatcherAt(`${LOCAL_IMAGES_MATCHER},new e.CacheFirst`, 0)?.source).toBe('^\\/images\\/(books|theatre)\\/')
+    const readable = '({\n  url,\n  sameOrigin\n}) => sameOrigin && /^\\/images\\/(books|theatre)\\//.test(url.pathname), new workbox.CacheFirst'
+    expect(sameOriginPathMatcherAt(readable, 0)?.source).toBe('^\\/images\\/(books|theatre)\\/')
+    expect(sameOriginPathMatcherAt('({sameOrigin:s,url:e})=>s&&/^\\/a\\//.test(e.pathname),x', 0)?.source).toBe('^\\/a\\/')
+    expect(sameOriginPathMatcherAt('({url:e,sameOrigin:s})=>s&&/^\\/a\\//.test(s.pathname),x', 0)).toBeNull()
+    expect(sameOriginPathMatcherAt('({url:e,url:s})=>s&&/^\\/a\\//.test(e.pathname),x', 0)).toBeNull()
+    expect(sameOriginPathMatcherAt('({url:e,sameOrigin:e})=>e&&/^\\/a\\//.test(e.pathname),x', 0)).toBeNull()
+  })
+
+  it('computes the literal prefix an anchored regex requires', () => {
+    expect(anchoredLiteralPrefix(/^https:\/\/d1pfm520aduift\.cloudfront\.net\/images\//)).toBe('https://d1pfm520aduift.cloudfront.net/images/')
+    expect(anchoredLiteralPrefix(/^\/images\/(books|theatre)\//)).toBe('/images/')
+    expect(anchoredLiteralPrefix(/^\/imagesX?\//)).toBe('/images')
+    expect(anchoredLiteralPrefix(/^\/a+b/)).toBe('/a')
+    expect(anchoredLiteralPrefix(/^\/A\d/i)).toBeNull()
+    expect(anchoredLiteralPrefix(/^\/feed\.j\u017fon/iu)).toBeNull()
+    expect(anchoredLiteralPrefix(/\/images\//)).toBeNull()
+    expect(anchoredLiteralPrefix(/^\/a|\/b/)).toBeNull()
+    expect(anchoredLiteralPrefix(/^\/a/m)).toBeNull()
+    expect(anchoredLiteralPrefix(/^\/a/g)).toBeNull()
+    expect(anchoredLiteralPrefix(/^\/(a|b)/)).toBe('/')
+  })
+})
+
+describe('review follow-ups', () => {
+  it('probes the CloudFront origin of each proxied artifact, and rejects a route on one', () => {
+    for (const path of ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json']) {
+      expect(siteGatedProbeUrls()).toContain(`https://d1pfm520aduift.cloudfront.net${path}`)
+    }
+    const problems = scanWorkerSource(
+      `${PURGE_IMPORT}e.registerRoute(/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/index\\.md/,new e.CacheFirst({cacheName:"x"}),"GET");`,
+      {gatedUrls: siteGatedProbeUrls()}
+    )
+    expect(problems.join('\n')).toContain('matches gated URL https://d1pfm520aduift.cloudfront.net/index.md')
+    expect(problems.join('\n')).toContain('covers gated path')
+  })
+
+  it('refuses a regex literal followed by more expression in the text scan', () => {
+    const route = 'e.registerRoute(/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\//||(()=>!0),new e.CacheFirst({cacheName:"x"}),"GET");'
+    expect(scanWorkerSource(PURGE_IMPORT + route, {gatedUrls}).join('\n')).toContain('cannot prove it skips gated URLs')
+  })
+
+  it.each([
+    ['a manifest held in a variable', 'const m=[{url:"offline",revision:"1"},{url:"/feed.json",revision:null}];e.precacheAndRoute(m,{});'],
+    ['string entries and no options argument', 'e.precacheAndRoute([{url:"offline",revision:"1"},"feed.json"]);']
+  ])('reports a gated URL the worker precaches through %s', (_label, precache) => {
+    const SITE = 'https://jonathanlloyd.me'
+    const NAV =
+      'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");'
+    const entry = `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}${precache}${NAV}}));`
+    expect(verifyInspectedWorker(inspectWorker(entry, {siteUrl: SITE}), {gatedUrls, siteUrl: SITE})).toContain(
+      '/sw.js: precaches gated URL https://jonathanlloyd.me/feed.json; a precached gated response replays until the next deploy'
+    )
+  })
+})
+
+describe('retired caches', () => {
+  it('lists both caches a retired route wrote', () => {
+    expect(RETIRED_CACHES).toEqual(['live-data', 'local-images'])
+  })
+
+  it('the page-side purge in public/js/sw-register.js deletes exactly RETIRED_CACHES', () => {
+    const deleted: string[] = []
+    const source = readFileSync(join(process.cwd(), 'public/js/sw-register.js'), 'utf8')
+    const window = {caches: {delete: (name: string) => (deleted.push(name), Promise.resolve(true))}}
+    // The purge runs first, before any registration work; the stand-ins past it are minimal, so a
+    // later throw is tolerated and only the deleted names are judged.
+    try {
+      runInNewContext(source, {
+        window,
+        caches: window.caches,
+        navigator: {serviceWorker: {register: () => new Promise(() => {}), addEventListener: () => {}}},
+        location: {hostname: 'jonathanlloyd.me'},
+        setTimeout: () => 0,
+        setInterval: () => 0,
+        addEventListener: () => {},
+        document: {addEventListener: () => {}}
+      })
+    } catch {
+      // See above.
+    }
+    expect(deleted).toEqual([...RETIRED_CACHES])
+  })
+
+  it('rejects a purge that deletes live-data but keeps local-images', async () => {
+    const problems = await verifyPurgeScript(
+      "self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});"
+    )
+    expect(problems).toEqual(['purge activate listener does not delete the "local-images" cache'])
+  })
+})
+
 describe('readRegexLiteral', () => {
   it('reads a literal with a slash inside a character class and returns null for non-literals', () => {
     const source = 'x(/a[/]b\\/c/gi, 1)'
@@ -108,9 +318,9 @@ describe('readRegexLiteral', () => {
 })
 
 describe('verifyPurgeScript', () => {
-  const good = "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+  const good = PURGE_SOURCE
 
-  it('accepts a purge that deletes live-data on activate and tolerates a failing delete', async () => {
+  it('accepts a purge that deletes every retired cache on activate and tolerates a failing delete', async () => {
     expect(await verifyPurgeScript(good)).toEqual([])
   })
 
@@ -194,7 +404,7 @@ describe('scanWorkerTree', () => {
     `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}e.precacheAndRoute([${precache}],{});` +
     `e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");${body}}));`
   const clean = generated(IMAGE_ROUTES)
-  const purge = "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+  const purge = PURGE_SOURCE
   const scan = (files: Record<string, string>) =>
     scanWorkerTree({entry: '/sw.js', readWorkerFile: (path: string) => files[path] ?? null, gatedUrls, siteUrl: 'https://jonathanlloyd.me'})
 
@@ -211,6 +421,18 @@ describe('scanWorkerTree', () => {
     })
     expect(problems.some((problem) => problem.startsWith("/js/two.js: uses a 'fetch' event listener"))).toBe(true)
     expect(scan({'/sw.js': clean}).some((problem) => problem.startsWith('/js/sw-purge.js is imported by the worker but missing'))).toBe(true)
+  })
+
+  // S2 (adversarial review): additionalManifestEntries: [{url: '/feed.xml', revision: null}] lands in
+  // the same precacheAndRoute array, and survived the guard at 97e82034 with zero origin reads on
+  // replay. The manifest scan reads every entry of that array, absolute paths and queries included.
+  it.each([
+    ['/feed.xml', 'https://jonathanlloyd.me/feed.xml'],
+    ['/feed.json?preview=/images/books/', 'https://jonathanlloyd.me/feed.json'],
+    ['https://d1pfm520aduift.cloudfront.net/focus.json', 'https://d1pfm520aduift.cloudfront.net/focus.json']
+  ])('reports an additionalManifestEntries entry %s', (url, reported) => {
+    const problems = scan({'/sw.js': generated('', `{url:"offline",revision:"1"},{url:"${url}",revision:null}`), '/js/sw-purge.js': purge})
+    expect(problems).toContain(`/sw.js: precaches gated URL ${reported}; a precached gated response replays until the next deploy`)
   })
 
   it('reports a gated URL in the entry worker precache manifest', () => {
@@ -305,8 +527,7 @@ describe('inspectWorker + verifyInspectedWorker', () => {
 
   // A second review's probes: each balanced a plain call-site count, or used a matcher input the
   // stand-in modelled loosely. The whole scan (text allowlist plus inspection) must reject each.
-  const purgeScript =
-    "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+  const purgeScript = PURGE_SOURCE
   const scanEntry = (body: string) =>
     scanWorkerTree({
       entry: '/sw.js',
@@ -326,27 +547,27 @@ describe('inspectWorker + verifyInspectedWorker', () => {
       `e["regis"+"terRoute"](/a/,new e.NetworkOnly,"GET");${DEFERRED}`,
       'registerRoute reached by a computed name'
     ],
-    ['a matcher that reads event', `e.registerRoute(({event:t})=>t.clientId!==undefined,${CACHE_JSON});`, 'neither a regex literal nor the navigation test'],
+    ['a matcher that reads event', `e.registerRoute(({event:t})=>t.clientId!==undefined,${CACHE_JSON});`, 'cannot prove it skips gated URLs'],
     [
       'a matcher that tests "headers" in request',
       `e.registerRoute(({request:t})=>"headers" in t,${CACHE_JSON});`,
-      'neither a regex literal nor the navigation test'
+      'cannot prove it skips gated URLs'
     ],
     [
       'a matcher that swallows a throw',
       `e.registerRoute(({request:t})=>{try{return t.headers.get("x")==="y"}catch{return false}},${CACHE_JSON});`,
-      'neither a regex literal nor the navigation test'
+      'cannot prove it skips gated URLs'
     ],
     [
       'a matcher that sniffs the environment',
       `e.registerRoute(()=>"registration" in self,${CACHE_JSON});`,
-      'neither a regex literal nor the navigation test'
+      'cannot prove it skips gated URLs'
     ],
-    ['a matcher gated on the clock', `e.registerRoute(()=>Date.now()>17e11,${CACHE_JSON});`, 'neither a regex literal nor the navigation test'],
+    ['a matcher gated on the clock', `e.registerRoute(()=>Date.now()>17e11,${CACHE_JSON});`, 'cannot prove it skips gated URLs'],
     [
       'a matcher chosen by an expression',
       `e.registerRoute(self.registration?/\\.json$/:/^$/,${CACHE_JSON});`,
-      'neither a regex literal nor the navigation test'
+      'cannot prove it skips gated URLs'
     ]
   ])('rejects %s', (_label, body, expected) => {
     expect(scanEntry(body)).toContain(expected)
@@ -422,8 +643,7 @@ describe('inspectWorker + verifyInspectedWorker', () => {
   })
 
   it('accepts the shipped function matcher in the entry worker, and reports a worker that cannot run', () => {
-    const purge =
-      "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+    const purge = PURGE_SOURCE
     const scan = (entry: string) =>
       scanWorkerTree({
         entry: '/sw.js',

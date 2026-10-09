@@ -13,34 +13,205 @@ import {types} from 'node:util'
 import {createContext, runInContext, runInNewContext} from 'node:vm'
 import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
+import {LLMS_ARTIFACTS, LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
 
-export const RETIRED_CACHE = 'live-data'
+/**
+ * Runtime caches a retired route wrote, deleted on activate by the purge script and on every page
+ * load by public/js/sw-register.js. `live-data` held CloudFront JSON under a NetworkFirst route.
+ * `local-images` held whatever its unanchored /\/images\/(books|theatre)\// regex matched, and a
+ * regex tests the whole URL: /feed.json?preview=/images/books/ matched and cached a gated feed.
+ */
+export const RETIRED_CACHES = Object.freeze(['live-data', 'local-images'])
 export const PURGE_SCRIPT = '/js/sw-purge.js'
 
 /**
- * Every URL a route matcher must NOT match: each CloudFront `.json` endpoint with and without the
- * poll query, and each site-origin gated path. A route that excludes `?_poll=1` still fails.
+ * Query strings and fragments appended to every gated URL. A route must skip a gated pathname
+ * whatever follows it, so the probes carry the shapes that fooled a whole-URL regex (an image path
+ * in a query value, a bare query, a fragment) and generic ones that name no route at all.
  */
-export function gatedProbeUrls({cloudfrontBase, endpointPaths, siteUrl, siteGatedPaths}) {
-  const cloudfront = endpointPaths.filter((path) => path.endsWith('.json')).flatMap((
-    path
-  ) => [`${cloudfrontBase}${path}`, `${cloudfrontBase}${path}?_poll=1`])
-  const site = siteGatedPaths.map((path) => `${siteUrl}${path}`)
-  return [...cloudfront, ...site]
+export const GATED_URL_SUFFIXES = Object.freeze([
+  '?_poll=1',
+  '?v=1',
+  '?a=1&b=2',
+  '?preview=/images/books/',
+  '?x=/images/theatre/cover.avif',
+  '?/images/books/',
+  '?q=https://example.com/images/',
+  '#x',
+  '#/images/books/',
+  '?a=1#/images/theatre/'
+])
+
+/**
+ * Every URL a route matcher must NOT match: each CloudFront `.json` endpoint and each site-origin
+ * gated path, bare and with every suffix in GATED_URL_SUFFIXES. A route that excludes `?_poll=1`, or
+ * that a query value can steer, still fails.
+ */
+export function gatedProbeUrls({cloudfrontBase, endpointPaths, siteUrl, siteGatedPaths, originUrls = []}) {
+  const bases = [
+    ...endpointPaths.filter((path) => path.endsWith('.json')).map((path) => `${cloudfrontBase}${path}`),
+    ...siteGatedPaths.map((path) => `${siteUrl}${path}`),
+    ...originUrls
+  ]
+  return bases.flatMap((base) => [base, ...GATED_URL_SUFFIXES.map((suffix) => `${base}${suffix}`)])
 }
 
 /**
  * The production probe set, derived from the same registries the proxy routes and the client read:
- * every CloudFront export, and the five site-origin gated routes.
+ * every CloudFront export, the five site-origin gated routes, and the CloudFront origin of each of
+ * those five (the proxy's upstream, also published as a dataset distribution).
  */
 export function siteGatedProbeUrls() {
   return gatedProbeUrls({
     cloudfrontBase: CLOUDFRONT_BASE,
     endpointPaths: Object.values(ENDPOINTS),
     siteUrl: SITE_URL,
-    siteGatedPaths: [LLMS_TXT_PATH, LLM_CONTENT_PATHS.llmsFull, LLM_CONTENT_PATHS.indexMarkdown, ...FEED_ARTIFACTS.map((artifact) => artifact.path)]
+    siteGatedPaths: [LLMS_TXT_PATH, LLM_CONTENT_PATHS.llmsFull, LLM_CONTENT_PATHS.indexMarkdown, ...FEED_ARTIFACTS.map((artifact) => artifact.path)],
+    originUrls: [...LLMS_ARTIFACTS, ...FEED_ARTIFACTS].map((artifact) => artifact.originUrl)
   })
+}
+
+/** A gated URL with its query and fragment removed. */
+const bareUrl = (url) => url.split(/[?#]/)[0]
+
+/**
+ * Probe URLs built from one route's own matcher: each gated base URL with the route's literal text
+ * in a query value, as a bare query, and as a fragment. A whole-URL regex that a query value can
+ * satisfy matches at least one of these, whatever image path it names.
+ */
+export function routeDerivedProbeUrls(gatedUrls, matcherRegex) {
+  const samples = regexSamples(matcherRegex)
+  const bases = [...new Set(gatedUrls.map(bareUrl))]
+  return bases.flatMap((base) => samples.flatMap((sample) => [`${base}?q=${sample}`, `${base}?${sample}`, `${base}#${sample}`, `${base}?q=${sample}x.avif`]))
+}
+
+/** Literal strings a regex is built around: escapes undone, each alternative of a group expanded. */
+function regexSamples(regex) {
+  let variants = [regex.source.replace(/^\^/, '').replace(/\$$/, '')]
+  // Expand non-nested groups, one at a time, capped so a pathological regex cannot explode.
+  for (let round = 0; round < 4; round++) {
+    const next = []
+    let expanded = false
+    for (const variant of variants) {
+      const group = /\((?:\?:)?([^()]*)\)/.exec(variant)
+      if (!group) {
+        next.push(variant)
+        continue
+      }
+      expanded = true
+      for (const alternative of group[1].split('|')) {
+        next.push(variant.slice(0, group.index) + alternative + variant.slice(group.index + group[0].length))
+      }
+    }
+    variants = next.slice(0, 16)
+    if (!expanded) {
+      break
+    }
+  }
+  return [
+    ...new Set(
+      variants.map((variant) =>
+        variant.replace(/\[[^\]]*\][*+?]?/g, '').replace(/\\([^dwsbDWSBnrtfv0-9])/g, '$1').replace(/\\[dwsbDWSBnrtfv0-9]/g, '').replace(/[\^$*+?{}|]/g, '')
+      ).filter(Boolean)
+    )
+  ]
+}
+
+/**
+ * The literal text an anchored regex requires at the start of its input, or null when the regex
+ * is not anchored with `^`, carries a top-level alternation (whose other branch would not be
+ * anchored), or uses the `g`, `y`, `m` or `i` flag. The `i` flag is refused outright: with `u` or
+ * `v`, Unicode case folding maps characters such as U+017F to `s`, so no lower-casing of the
+ * prefix models what it matches. Lower-cased all the same, as a second line. A regex whose prefix is `https://host/images/` can only match URLs whose origin
+ * is that host and whose pathname starts with `/images/`: no query string or fragment changes that.
+ */
+export function anchoredLiteralPrefix(regex) {
+  const source = regex.source
+  if (/[gimy]/.test(regex.flags) || source[0] !== '^') {
+    return null
+  }
+  let depth = 0
+  let inClass = false
+  for (let i = 0; i < source.length; i++) {
+    const ch = source[i]
+    if (ch === '\\') {
+      i++
+    } else if (inClass) {
+      inClass = ch !== ']'
+    } else if (ch === '[') {
+      inClass = true
+    } else if (ch === '(') {
+      depth++
+    } else if (ch === ')') {
+      depth--
+    } else if (ch === '|' && depth === 0) {
+      return null
+    }
+  }
+  let prefix = ''
+  for (let i = 1; i < source.length;) {
+    let literal
+    let width
+    if (source[i] === '\\') {
+      if (/[A-Za-z0-9]/.test(source[i + 1] ?? 'x')) {
+        break // a class escape (\d, \w) or a backreference: not a literal
+      }
+      literal = source[i + 1]
+      width = 2
+    } else if ('.*+?()[]{}|^$'.includes(source[i])) {
+      break
+    } else {
+      literal = source[i]
+      width = 1
+    }
+    const quantifier = source[i + width]
+    if (quantifier === '*' || quantifier === '?' || quantifier === '{') {
+      break // the character may be absent, so it is not required
+    }
+    prefix += literal
+    if (quantifier === '+') {
+      break
+    }
+    i += width
+  }
+  return prefix.toLowerCase()
+}
+
+/** True when a required prefix and a gated path can describe the same resource, either way round. */
+const overlaps = (prefix, target) => target.toLowerCase().startsWith(prefix) || prefix.startsWith(target.toLowerCase())
+
+/**
+ * Problems with a whole-URL regex matcher. It must classify by origin and pathname: anchored on a
+ * literal `https://<host>/` (with any literal path after it), and that prefix must not cover a gated
+ * URL's origin and pathname.
+ */
+export function urlRegexProblems(regex, gatedUrls, label) {
+  const prefix = anchoredLiteralPrefix(regex)
+  if (prefix === null || !/^https?:\/\/[^/?#\s]+\//.test(prefix)) {
+    return [
+      `${label}: runtime route ${regex} is not anchored on a literal origin and path (^https://host/...); a query string or fragment could steer it onto a gated URL`
+    ]
+  }
+  // Compared by PATH against every gated pathname, whatever its origin: the gated routes also run on
+  // hosts the probe set does not name (www, a *.pages.dev preview), and a route anchored on one of
+  // those must not cover them either.
+  const pathPrefix = prefix.slice(new URL(prefix).origin.length)
+  const hit = gatedUrls.map((url) => new URL(url)).find((url) => overlaps(prefix, `${url.origin}${url.pathname}`) || overlaps(pathPrefix, url.pathname))
+  return hit ? [`${label}: runtime route ${regex} covers gated path ${hit.origin}${hit.pathname}; gated responses must never be cached`] : []
+}
+
+/**
+ * Problems with the pathname regex of a same-origin pathname matcher. It must be anchored on a
+ * literal path (`^/segment...`), and that prefix must not cover the pathname of any gated URL. Every
+ * gated pathname is checked, CloudFront's included, which is stricter than the same-origin test.
+ */
+export function pathRegexProblems(regex, gatedUrls, label) {
+  const prefix = anchoredLiteralPrefix(regex)
+  if (prefix === null || !/^\/[^/?#]/.test(prefix)) {
+    return [`${label}: runtime route pathname test ${regex} is not anchored on a literal path (^/segment...)`]
+  }
+  const hit = gatedUrls.map((url) => new URL(url).pathname).find((pathname) => overlaps(prefix, pathname))
+  return hit ? [`${label}: runtime route pathname test ${regex} covers gated path ${hit}; gated responses must never be cached`] : []
 }
 
 /**
@@ -61,6 +232,11 @@ export function isNavigationMatcherAt(source, start) {
 
 /** Reads the JS regex literal that starts at `start` (a `/`), or null when there is none. */
 export function readRegexLiteral(source, start) {
+  return readRegexLiteralSpan(source, start)?.regex ?? null
+}
+
+/** The regex literal at `start` and the offset just past it (after its flags), or null. */
+function readRegexLiteralSpan(source, start) {
   if (source[start] !== '/') {
     return null
   }
@@ -78,13 +254,44 @@ export function readRegexLiteral(source, start) {
     } else if (ch === '/' && !inClass) {
       const flags = /^[dgimsuyv]*/.exec(source.slice(i + 1))[0]
       try {
-        return new RegExp(source.slice(start + 1, i), flags)
+        return {regex: new RegExp(source.slice(start + 1, i), flags), end: i + 1 + flags.length}
       } catch {
         return null
       }
     }
   }
   return null
+}
+
+const IDENTIFIER = '[A-Za-z_$][\\w$]*'
+const PATH_MATCHER_HEAD = new RegExp(
+  `^\\(\\{\\s*(url|sameOrigin)\\s*(?::\\s*(${IDENTIFIER}))?\\s*,\\s*(url|sameOrigin)\\s*(?::\\s*(${IDENTIFIER}))?\\s*\\}\\)\\s*=>\\s*(${IDENTIFIER})\\s*&&\\s*`
+)
+const PATH_MATCHER_TAIL = new RegExp(`^\\.test\\(\\s*(${IDENTIFIER})\\.pathname\\s*\\)\\s*,`)
+
+/**
+ * The pathname regex of a same-origin pathname matcher at `start`, or null when the text there is
+ * not exactly `({url, sameOrigin}) => sameOrigin && /<regex>/.test(url.pathname)`, in the form
+ * generateSW emits it (minified, `({url:e,sameOrigin:s})=>s&&/.../.test(e.pathname)`, or readable),
+ * followed by the argument-separating comma. Such a matcher classifies a request by its origin and
+ * pathname only: no query string or fragment reaches the regex.
+ */
+export function sameOriginPathMatcherAt(source, start) {
+  const head = PATH_MATCHER_HEAD.exec(source.slice(start))
+  if (!head) {
+    return null
+  }
+  // A repeated key leaves one binding undefined, which the checks below refuse.
+  const bindings = {[head[1]]: head[2] ?? head[1], [head[3]]: head[4] ?? head[3]}
+  if (bindings.url === bindings.sameOrigin || head[5] !== bindings.sameOrigin) {
+    return null
+  }
+  const literal = readRegexLiteralSpan(source, start + head[0].length)
+  if (!literal) {
+    return null
+  }
+  const tail = PATH_MATCHER_TAIL.exec(source.slice(literal.end))
+  return tail && tail[1] === bindings.url ? literal.regex : null
 }
 
 // Ways a worker can answer requests outside a regex route this scan can test. Each one is refused
@@ -135,26 +342,47 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
       `${label}: registerRoute is referenced ${mentions - routeStarts.length} time(s) other than as a direct call; an aliased route cannot be tested`
     )
   }
+  // Every route must classify a request by origin and pathname, never by its query or fragment:
+  // a whole-URL regex anchored on a literal origin and path, a same-origin pathname test, or the
+  // navigation test (judged by inspectWorker/verifyInspectedWorker). Then every route is also
+  // probed with the gated URLs, their query and fragment variants, and variants built from every
+  // route's own regex text.
+  const routes = []
   for (const start of routeStarts) {
-    const matcher = readRegexLiteral(source, start)
-    if (!matcher) {
-      // The one function matcher allowed is the navigation test, spelled exactly, in a worker whose
-      // routes inspectWorker() has run and verifyInspectedWorker() has judged (the entry sw.js). Any
-      // other function -- one that reads event, sniffs the environment, keeps state, or is chosen
-      // by an expression -- is refused here, because no evaluation can prove what it matches.
-      if (!(matchersInspected && isNavigationMatcherAt(source, start))) {
-        problems.push(
-          `${label}: runtime route at offset ${start} has a matcher that is neither a regex literal nor the navigation test; cannot prove it skips gated URLs`
-        )
-      }
+    // A regex literal counts only when it IS the whole first argument: `/re/||(()=>!0)` is an
+    // expression, not the literal.
+    const span = readRegexLiteralSpan(source, start)
+    const regex = span && /^\s*,/.test(source.slice(span.end)) ? span.regex : null
+    if (regex) {
+      routes.push({start, kind: 'url', regex})
+      problems.push(...urlRegexProblems(regex, gatedUrls, label))
       continue
     }
-    const hit = gatedUrls.find((url) => {
-      matcher.lastIndex = 0
-      return matcher.test(url)
+    const pathRegex = sameOriginPathMatcherAt(source, start)
+    if (pathRegex) {
+      routes.push({start, kind: 'path', regex: pathRegex})
+      problems.push(...pathRegexProblems(pathRegex, gatedUrls, label))
+      continue
+    }
+    // The one other function matcher allowed is the navigation test, spelled exactly, in a worker
+    // whose routes inspectWorker() has run and verifyInspectedWorker() has judged (the entry
+    // sw.js). Any other function -- one that reads the query, reads event, sniffs the environment,
+    // keeps state, or is chosen by an expression -- is refused, because no evaluation can prove
+    // what it matches.
+    if (!(matchersInspected && isNavigationMatcherAt(source, start))) {
+      problems.push(
+        `${label}: runtime route at offset ${start} has a matcher that is neither an anchored regex literal, a same-origin pathname test, nor the navigation test; cannot prove it skips gated URLs`
+      )
+    }
+  }
+  const probes = [...new Set([...gatedUrls, ...routes.flatMap((route) => routeDerivedProbeUrls(gatedUrls, route.regex))])]
+  for (const {kind, regex} of routes) {
+    const hit = probes.find((url) => {
+      regex.lastIndex = 0
+      return regex.test(kind === 'path' ? new URL(url).pathname : url)
     })
     if (hit) {
-      problems.push(`${label}: runtime route ${matcher} matches gated URL ${hit}; gated responses must never be cached`)
+      problems.push(`${label}: runtime route ${regex} matches gated URL ${hit}; gated responses must never be cached`)
     }
   }
 
@@ -164,14 +392,16 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
     }
   }
 
-  if (new RegExp(`["']?cacheName["']?\\s*:\\s*["']${RETIRED_CACHE}["']`).test(source)) {
-    problems.push(`${label}: declares the retired "${RETIRED_CACHE}" cache`)
+  for (const retired of RETIRED_CACHES) {
+    if (new RegExp(`["']?cacheName["']?\\s*:\\s*["']${retired}["']`).test(source)) {
+      problems.push(`${label}: declares the retired "${retired}" cache`)
+    }
   }
 
   if (requirePurgeImport) {
     const escaped = PURGE_SCRIPT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     if (!new RegExp(`importScripts\\(\\s*["']${escaped}["']\\s*\\)`).test(source)) {
-      problems.push(`${label}: does not importScripts("${PURGE_SCRIPT}"); returning visitors keep the retired "${RETIRED_CACHE}" cache`)
+      problems.push(`${label}: does not importScripts("${PURGE_SCRIPT}"); returning visitors keep the retired caches (${RETIRED_CACHES.join(', ')})`)
     }
   }
   return problems
@@ -457,6 +687,16 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
     problems.push(`${label}: precaches the HTML document ${path}; a precached document answers navigations before the NetworkOnly route`)
   }
 
+  // The precache entries the worker REGISTERED, whatever shape the text took (a variable, string
+  // entries, no options argument). A precached gated response replays until the next deploy.
+  const gatedBases = new Set(gatedUrls.map(bareUrl))
+  for (const entry of record.precache) {
+    const url = new URL(String(typeof entry === 'string' ? entry : entry?.url), `${siteUrl}/`).href.split(/[?#]/)[0]
+    if (gatedBases.has(url)) {
+      problems.push(`${label}: precaches gated URL ${url}; a precached gated response replays until the next deploy`)
+    }
+  }
+
   const fallbackRoutes = record.routes.filter((route) => (route.handler?.options?.plugins ?? []).some((plugin) => plugin?.kind === 'PrecacheFallbackPlugin'))
   for (const route of fallbackRoutes) {
     if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl, record.objectPrototype)) {
@@ -479,7 +719,31 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
     }
   }
 
-  for (const url of gatedUrls) {
+  // Every route must classify by origin and pathname (see scanWorkerSource), judged here on the
+  // VALUES the worker registered: a RegExp by its source, a function by its own source text.
+  const derivedProbes = []
+  for (const route of record.routes) {
+    const matcher = route.matcher
+    if (Object.prototype.toString.call(matcher) === '[object RegExp]') {
+      problems.push(...urlRegexProblems(matcher, gatedUrls, label))
+      derivedProbes.push(...routeDerivedProbeUrls(gatedUrls, matcher))
+      continue
+    }
+    // The appended comma stands for the argument separator the text parsers require; any text
+    // after the recognised shape (`|| true`, `&& url.search`) sits before it and fails the parse.
+    const text = typeof matcher === 'function' ? `${Function.prototype.toString.call(matcher)},` : ''
+    const pathRegex = sameOriginPathMatcherAt(text, 0)
+    if (pathRegex) {
+      problems.push(...pathRegexProblems(pathRegex, gatedUrls, label))
+      derivedProbes.push(...routeDerivedProbeUrls(gatedUrls, pathRegex))
+    } else if (!isNavigationMatcherAt(text, 0)) {
+      problems.push(
+        `${label}: a route matcher is neither an anchored RegExp, a same-origin pathname test, nor the navigation test; it may read the query string`
+      )
+    }
+  }
+
+  for (const url of new Set([...gatedUrls, ...derivedProbes])) {
     for (const mode of ['cors', 'no-cors', 'navigate']) {
       for (const route of record.routes.filter((candidate) => routeMatches(candidate, url, mode, siteOrigin))) {
         if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl, record.objectPrototype)) {
@@ -540,12 +804,12 @@ export function scanWorkerTree({entry = '/sw.js', readWorkerFile, gatedUrls, sit
 /**
  * Runs the purge script in a sandboxed service-worker scope and checks what it DOES, not what it
  * contains: it must register exactly one `activate` listener, that listener must delete the
- * retired cache inside `waitUntil`, and activation must still settle when the delete rejects. A
+ * retired caches inside `waitUntil`, and activation must still settle when the delete rejects. A
  * string match on the source passed a script that only mentioned the cache name in a comment.
  *
  * @returns {Promise<string[]>} problems; empty when the purge behaves
  */
-export async function verifyPurgeScript(source, retiredCache = RETIRED_CACHE) {
+export async function verifyPurgeScript(source, retiredCaches = RETIRED_CACHES) {
   const problems = []
 
   async function activateWith(deleteImpl) {
@@ -592,8 +856,10 @@ export async function verifyPurgeScript(source, retiredCache = RETIRED_CACHE) {
   } else {
     await Promise.resolve(run.pending)
   }
-  if (!run.deleted.includes(retiredCache)) {
-    problems.push(`purge activate listener does not delete the "${retiredCache}" cache`)
+  for (const retiredCache of retiredCaches) {
+    if (!run.deleted.includes(retiredCache)) {
+      problems.push(`purge activate listener does not delete the "${retiredCache}" cache`)
+    }
   }
 
   try {

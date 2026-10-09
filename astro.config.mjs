@@ -121,13 +121,18 @@ export default defineConfig({
             options: {precacheFallback: {fallbackURL: '/offline'}}
           },
           {
-            // Local optimized images — CacheFirst (downloaded at build time from CloudFront)
-            urlPattern: /\/images\/(books|theatre)\//,
+            // Local optimized images — CacheFirst (downloaded at build time from CloudFront).
+            // Classified by origin and pathname ONLY. A regex tests the whole URL, so the old
+            // /\/images\/(books|theatre)\// matched /feed.json?preview=/images/books/ and cached a
+            // gated feed for 30 days. The cache is renamed because the old "local-images" cache can
+            // hold such entries; public/js/sw-purge.js and sw-register.js delete it.
+            urlPattern: ({url, sameOrigin}) => sameOrigin && /^\/images\/(books|theatre)\//.test(url.pathname),
             handler: 'CacheFirst',
-            options: {cacheName: 'local-images', expiration: {maxEntries: 200, maxAgeSeconds: 2592000}}
+            options: {cacheName: 'local-images-v2', expiration: {maxEntries: 200, maxAgeSeconds: 2592000}}
           },
           {
-            // CloudFront images fallback — safety net for onerror fallback fetches
+            // CloudFront images fallback — safety net for onerror fallback fetches. Anchored at
+            // the origin and the first path segment, so a query string cannot change the match.
             urlPattern: new RegExp(`^https://${CF_HOST_RE}/images/`),
             handler: 'CacheFirst',
             options: {cacheName: 'optimized-images-fallback', expiration: {maxEntries: 50, maxAgeSeconds: 604800}}

@@ -22,7 +22,7 @@
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {join, resolve} from 'node:path'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {PURGE_SCRIPT, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from './lib/sw-privacy.mjs'
+import {PURGE_SCRIPT, sameOriginPathMatcherAt, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from './lib/sw-privacy.mjs'
 
 const distDir = resolve(process.cwd(), 'dist')
 const swPath = join(distDir, 'sw.js')
@@ -118,18 +118,22 @@ function runtimeRoute(cacheName) {
   return start >= 0 ? sw.slice(start, next >= 0 ? next : sw.length) : null
 }
 
-const localImagesRoute = runtimeRoute('local-images')
+// The local image route classifies by origin and pathname only: a same-origin pathname test, never
+// a whole-URL regex a query string can satisfy. Its cache name is versioned; the retired
+// "local-images" name may hold gated responses and is purged (scripts/lib/sw-privacy.mjs).
+const localImagesRoute = runtimeRoute('local-images-v2')
 if (!localImagesRoute) {
-  problems.push('missing local-images runtime route')
+  problems.push('missing local-images-v2 runtime route')
 } else {
-  if (!localImagesRoute.includes('/\\/images\\/(books|theatre)\\//')) {
-    problems.push('local-images runtime route no longer matches /images/(books|theatre)/')
+  const pathTest = sameOriginPathMatcherAt(localImagesRoute, 'registerRoute('.length)
+  if (!pathTest || pathTest.source !== String.raw`^\/images\/(books|theatre)\/`) {
+    problems.push('local-images-v2 runtime route is not the same-origin pathname test for ^/images/(books|theatre)/')
   }
   if (!localImagesRoute.includes('CacheFirst')) {
-    problems.push('local-images runtime route is not CacheFirst')
+    problems.push('local-images-v2 runtime route is not CacheFirst')
   }
   if (!/["']?maxEntries["']?\s*:\s*200/.test(localImagesRoute) || !/["']?maxAgeSeconds["']?\s*:\s*(2592000|2592e3)/.test(localImagesRoute)) {
-    problems.push('local-images runtime route lost maxEntries=200 or maxAgeSeconds=2592000')
+    problems.push('local-images-v2 runtime route lost maxEntries=200 or maxAgeSeconds=2592000')
   }
 }
 
@@ -177,10 +181,10 @@ if (problems.length > 0) {
   console.error('Likely cause: Workbox generateSW did not glob dist assets — check that')
   console.error('@vite-pwa/astro + vite-plugin-pwa ran and that Vite/Rolldown emitted the bundle')
   console.error('graph before the PWA build hook. See astro.config.mjs workbox.globPatterns.')
-  console.error('For a gated-route, live-data or purge failure, see astro.config.mjs workbox.runtimeCaching')
+  console.error('For a gated-route, retired-cache or purge failure, see astro.config.mjs workbox.runtimeCaching')
   console.error('and workbox.importScripts, and public/js/sw-purge.js (atlas decision 0160, PR 0b).')
   process.exit(1)
 }
 
 console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');',
-  '/offline precached as the only document, NetworkOnly navigations, activation, image runtime routes, no gated route or unrouted handler, and a working live-data purge.')
+  '/offline precached as the only document, NetworkOnly navigations, activation, image runtime routes, no gated route (query and fragment forms included) or unrouted handler, and a working purge of the retired caches.')
