@@ -1,0 +1,49 @@
+---
+import { getEntry } from 'astro:content';
+import { widgets } from '@j0nathan-ll0yd/copy';
+import Dashboard from '../layouts/Dashboard.astro';
+
+// The data-free offline page (atlas decision 0160, PR 0b). The service worker precaches it and
+// serves it, and only it, when a navigation fails for lack of network. It holds no gated value, no
+// fixture value and no live widget: authored identity copy and an offline notice only.
+// @j0nathan-ll0yd/copy has no offline-page key yet, so the notice reuses the authored System
+// Status "Offline" value; a dedicated key is a design-system follow-up.
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[offline.astro] @j0nathan-ll0yd/copy identity entry missing');
+const id = _identityEntry.data;
+const offline = widgets.systemStatus.valueOffline;
+---
+<Dashboard title={`${offline} — ${id.site.name}`} description={id.site.fullName} robots="noindex, nofollow" dataFree>
+  <main id="main-content" class="offline-page" data-offline-page>
+    <h1 class="offline-title">{offline}</h1>
+    <p class="offline-site">{id.site.fullName}</p>
+    <a href="/" class="offline-back-link">{id.privacy.backLink}</a>
+  </main>
+</Dashboard>
+
+<style>
+  .offline-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-12);
+    min-height: 100vh;
+    padding: var(--space-24);
+    text-align: center;
+  }
+  .offline-title {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    color: var(--text);
+  }
+  .offline-site {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--text-muted);
+  }
+  .offline-back-link {
+    font-size: var(--font-size-sm);
+    color: var(--neon-cyan);
+  }
+</style>

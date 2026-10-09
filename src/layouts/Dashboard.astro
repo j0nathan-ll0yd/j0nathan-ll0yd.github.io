@@ -11,6 +11,11 @@ const {
   description = identity.person.shortBio,
   ogDescription = identity.person.socialBio,
   robots = 'index, follow',
+  // A data-free page (/offline) carries no live-data plumbing at all: no gated-JSON prefetch, no
+  // CloudFront preconnect, no WebMCP tools (they read gated data), no analytics and no JSON-LD
+  // graph. The service worker serves it from its precache with no network (atlas decision 0160,
+  // PR 0b; openspec/specs/client-privacy).
+  dataFree = false,
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
 const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
@@ -190,17 +195,19 @@ const jsonLdGraph = isHome
   <meta name="twitter:image" content={ogImage}>
   <meta name="twitter:image:alt" content={identity.a11y.ogImageAlt}>
 
-  <script type="application/ld+json" is:inline set:html={JSON.stringify({
-    "@context": "https://schema.org",
-    "@graph": jsonLdGraph
-  })} />
+  {!dataFree && (
+    <script type="application/ld+json" is:inline set:html={JSON.stringify({
+      "@context": "https://schema.org",
+      "@graph": jsonLdGraph
+    })} />
+  )}
 
   {/* This preload must match tokens/fonts to avoid a swap-induced layout shift. */}
   <link rel="preload" href="/fonts/space-grotesk-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">
+  {!dataFree && <link rel="preload" as="image" type="image/webp" href="/assets/avatar.webp">}
 
-  <link rel="preconnect" href={CLOUDFRONT_BASE} crossorigin>
-  {import.meta.env.PROD && (
+  {!dataFree && <link rel="preconnect" href={CLOUDFRONT_BASE} crossorigin>}
+  {import.meta.env.PROD && !dataFree && (
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.health}`} as="fetch" crossorigin>
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.sleep}`} as="fetch" crossorigin>
     <link rel="prefetch" href={`${CLOUDFRONT_BASE}${ENDPOINTS.focus}`} as="fetch" crossorigin>
@@ -344,7 +351,7 @@ html { overflow-y: scroll; }
   <style is:global>
     @import '@j0nathan-ll0yd/web/styles/layout.css';
   </style>
-  {import.meta.env.PROD && <script is:inline src="/js/sa-stub.js"></script>}
+  {import.meta.env.PROD && !dataFree && <script is:inline src="/js/sa-stub.js"></script>}
 </head>
 <body>
   <div class="hud-frame" aria-hidden="true"></div>
@@ -352,12 +359,12 @@ html { overflow-y: scroll; }
   <a href="#main-content" class="lg-skip-link">{identity.a11y.skipToMain}</a>
   <slot />
   {/* The delegated analytics handler stays external to satisfy CSP. */}
-  {import.meta.env.PROD && <script is:inline src="/js/social-click-track.js" defer></script>}
+  {import.meta.env.PROD && !dataFree && <script is:inline src="/js/social-click-track.js" defer></script>}
   {/* Defer Leaflet until a map enters view to avoid its initial-load cost. */}
   {import.meta.env.DEV && <script is:inline src="/js/leaflet-lazy.js"></script>}
   <script is:inline src="/js/sw-register.js"></script>
-  <script is:inline src="/js/webmcp.js"></script>
-  {import.meta.env.PROD && (
+  {!dataFree && <script is:inline src="/js/webmcp.js"></script>}
+  {import.meta.env.PROD && !dataFree && (
     <Fragment>
       <script is:inline src="/js/sa-loader.js"></script>
       <noscript><img src="/simple/noscript.gif" alt="" referrerpolicy="no-referrer-when-downgrade" /></noscript>
@@ -365,7 +372,7 @@ html { overflow-y: scroll; }
   )}
   {/* Proxy script and RUM traffic first-party to avoid Safari's tracker blocklist.
       Cloudflare auto-injection must stay disabled or it restores the third-party beacon. */}
-  {import.meta.env.PROD && (
+  {import.meta.env.PROD && !dataFree && (
     <script
       is:inline
       defer
