@@ -38,7 +38,7 @@ through `scripts/lib/sw-privacy.mjs`, and runs the purge script in a sandboxed w
 than matching its text. The real upgrade over a warm `live-data` cache, on both paths, is exercised
 in Chromium by `tests/behavioral/sw-upgrade.spec.ts`.
 
-Verified by `tests/unit/sw-privacy.test.ts:15` (synthetic workers: a CloudFront JSON route, a
+Verified by `tests/unit/sw-privacy.test.ts:16` (synthetic workers: a CloudFront JSON route, a
 site-origin feed route, an llms route, a default handler, a catch handler, a raw fetch listener, a
 non-regex matcher, an aliased or bracket-called registerRoute, `onfetch`, a bracket fetch listener,
 a fetch listener in an imported script, a missing import, a dynamic import outside the Workbox
@@ -76,11 +76,15 @@ SHALL appear only as the single plugin of that NetworkOnly route, falling back t
 `scripts/check-sw-precache.mjs` enforces this on every build by RUNNING the generated worker
 against a recording Workbox stand-in (`inspectWorker` and `verifyInspectedWorker` in
 `scripts/lib/sw-privacy.mjs`): each navigation must reach that route, and each route that answers a
-gated URL must be NetworkOnly. In Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
+gated URL must be NetworkOnly. Each textual `registerRoute(` call site is instrumented and must run
+exactly once while the worker is inspected, and a `registerRoute` reached by a computed name fails.
+The only function matcher allowed is the exact navigation test `({request}) => request.mode ===
+'navigate'`; every other matcher SHALL be a regex literal, because no evaluation can prove what an
+arbitrary function matches. In Chromium, `tests/behavioral/offline-navigation.spec.ts` proves the
 behavior: an online navigation to `/` reaches the server and changes no cache, and with the server
 down or the browser offline, `/` and `/privacy` render the data-free page.
 
-Verified by `tests/unit/sw-privacy.test.ts:221` (the shipped shape passes; no navigation route, a
+Verified by `tests/unit/sw-privacy.test.ts:222` (the shipped shape passes; no navigation route, a
 NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
 catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
 Workbox API, a missing `/offline` and any other precached document each fail) and
@@ -102,9 +106,8 @@ precached document).
 ### Requirement: No page prefetches gated data
 
 No built page SHALL emit a `<link rel="prefetch">` or `<link rel="preload">` for a CloudFront export.
-A prefetch stores the export in the browser HTTP cache for minutes (Chrome keeps prefetched responses
-for about 5 minutes; `health.json` is served `max-age=30`), after the owner may have hidden it, and
-the client never reads that copy: every runtime read is `cache: 'no-store'`. The layout keeps a
+A prefetch stores the export in the browser HTTP cache (`health.json` is served `max-age=30`), where
+it can outlive the moment the owner hides it, and the client never reads that copy: every runtime read is `cache: 'no-store'`. The layout keeps a
 `preconnect` to CloudFront, which warms the connection and stores no data. The data-free `/offline`
 page has no preconnect either.
 

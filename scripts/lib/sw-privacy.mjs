@@ -42,6 +42,22 @@ export function siteGatedProbeUrls() {
   })
 }
 
+/**
+ * True when the text at `start` is exactly the navigation matcher `({request}) => request.mode ===
+ * 'navigate'`, in the form generateSW emits it: minified (`({request:e})=>"navigate"===e.mode`) or
+ * readable, followed by the argument-separating comma.
+ */
+export function isNavigationMatcherAt(source, start) {
+  const match =
+    /^\(\{\s*request\s*(?::\s*([A-Za-z_$][\w$]*))?\s*\}\)\s*=>\s*(?:(["'])navigate\2\s*===\s*([A-Za-z_$][\w$]*)\.mode|([A-Za-z_$][\w$]*)\.mode\s*===\s*(["'])navigate\5)\s*,/
+      .exec(source.slice(start))
+  if (!match) {
+    return false
+  }
+  const parameter = match[1] ?? 'request'
+  return (match[3] ?? match[4]) === parameter
+}
+
 /** Reads the JS regex literal that starts at `start` (a `/`), or null when there is none. */
 export function readRegexLiteral(source, start) {
   if (source[start] !== '/') {
@@ -121,10 +137,14 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
   for (const start of routeStarts) {
     const matcher = readRegexLiteral(source, start)
     if (!matcher) {
-      // A function matcher cannot be tested as text. It is allowed only in a worker whose routes
-      // inspectWorker() has run and verifyInspectedWorker() has judged (the entry sw.js).
-      if (!matchersInspected) {
-        problems.push(`${label}: runtime route at offset ${start} has a matcher that is not a regex literal; cannot prove it skips gated URLs`)
+      // The one function matcher allowed is the navigation test, spelled exactly, in a worker whose
+      // routes inspectWorker() has run and verifyInspectedWorker() has judged (the entry sw.js). Any
+      // other function -- one that reads event, sniffs the environment, keeps state, or is chosen
+      // by an expression -- is refused here, because no evaluation can prove what it matches.
+      if (!(matchersInspected && isNavigationMatcherAt(source, start))) {
+        problems.push(
+          `${label}: runtime route at offset ${start} has a matcher that is neither a regex literal nor the navigation test; cannot prove it skips gated URLs`
+        )
       }
       continue
     }
@@ -226,11 +246,20 @@ const PLUGINS = [
 const NEUTRAL_CALLS = ['cleanupOutdatedCaches', 'clientsClaim', 'skipWaiting']
 export const OFFLINE_PATH = '/offline'
 
-/** Runs a generated worker against a recording Workbox stand-in and returns what it registered. */
+/**
+ * Runs a generated worker against a recording Workbox stand-in and returns what it registered.
+ *
+ * Every textual `registerRoute(` call site is first renamed to a numbered `__registerRouteN(`, and
+ * each N must run exactly once. A site that runs twice (a helper called twice), never (deferred to a
+ * promise or a listener, or behind a condition), or a `registerRoute` reached any other way (a
+ * computed name such as `e["regis" + "terRoute"]`) is therefore visible, rather than balancing a
+ * plain count.
+ */
 export function inspectWorker(source, {siteUrl}) {
-  const record = {routes: [], precache: [], forbidden: [], unknown: [], listeners: [], callSites: (source.match(/registerRoute\(/g) ?? []).length}
+  let sites = 0
+  const instrumented = source.replace(/registerRoute\(/g, () => `__registerRoute${sites++}(`)
+  const record = {routes: [], precache: [], forbidden: [], unknown: [], listeners: [], siteRuns: new Array(sites).fill(0)}
   const workbox = {
-    registerRoute: (matcher, handler, method) => record.routes.push({matcher, handler, method}),
     precacheAndRoute: (entries) => record.precache.push(...entries),
     setDefaultHandler: () => record.forbidden.push('setDefaultHandler'),
     setCatchHandler: () => record.forbidden.push('setCatchHandler'),
@@ -254,6 +283,18 @@ export function inspectWorker(source, {siteUrl}) {
   }
   const recorder = new Proxy(workbox, {
     get(target, key) {
+      const site = typeof key === 'string' ? /^__registerRoute(\d+)$/.exec(key) : null
+      if (site) {
+        const index = Number(site[1])
+        return (matcher, handler, method) => {
+          record.siteRuns[index] = (record.siteRuns[index] ?? 0) + 1
+          record.routes.push({matcher, handler, method, site: index})
+        }
+      }
+      if (key === 'registerRoute') {
+        record.forbidden.push('registerRoute reached by a computed name')
+        return () => {}
+      }
       if (typeof key === 'string' && !(key in target)) {
         record.unknown.push(key)
         return () => {}
@@ -277,7 +318,7 @@ export function inspectWorker(source, {siteUrl}) {
   }
   sandbox.self = sandbox
   sandbox.define = (_dependencies, factory) => factory(recorder)
-  runInNewContext(source, sandbox, {timeout: 2000})
+  runInNewContext(instrumented, sandbox, {timeout: 2000})
   return record
 }
 
@@ -285,16 +326,27 @@ export function inspectWorker(source, {siteUrl}) {
 // matcher that depends on, say, `request.headers` or `request.cache` lands in routeMatches' catch and
 // counts as matching everything, rather than silently answering false.
 const MODELLED_REQUEST_KEYS = new Set(['url', 'mode', 'method', 'destination'])
-function modelledRequest(fields) {
+function modelledObject(fields, keys, name) {
+  const refuse = (key) => {
+    if (typeof key === 'string' && !keys.has(key)) {
+      throw new Error(`the inspection does not model ${name}.${key}`)
+    }
+  }
   return new Proxy(fields, {
     get(target, key) {
-      if (typeof key === 'string' && !MODELLED_REQUEST_KEYS.has(key)) {
-        throw new Error(`the inspection does not model request.${key}`)
-      }
+      refuse(key)
       return target[key]
+    },
+    has(target, key) {
+      refuse(key)
+      return key in target
+    },
+    ownKeys() {
+      throw new Error(`the inspection does not model enumerating ${name}`)
     }
   })
 }
+const modelledRequest = (fields) => modelledObject(fields, MODELLED_REQUEST_KEYS, 'request')
 
 function routeMatches(route, url, mode, siteOrigin) {
   const target = new URL(url)
@@ -307,7 +359,8 @@ function routeMatches(route, url, mode, siteOrigin) {
   }
   try {
     const request = modelledRequest({url: target.href, mode, method: 'GET', destination: mode === 'navigate' ? 'document' : ''})
-    return Boolean(route.matcher({url: target, request, sameOrigin: target.origin === siteOrigin, event: {request}}))
+    const event = modelledObject({request}, new Set(['request']), 'event')
+    return Boolean(route.matcher({url: target, request, sameOrigin: target.origin === siteOrigin, event}))
   } catch {
     return true // a matcher that throws on a plain request is assumed to match it
   }
@@ -349,11 +402,13 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
   // Every registerRoute call site in the source must have run during the inspection. A route
   // registered later (in a promise callback, an event listener, or behind a condition) is a route
   // this check never judged.
-  if (record.callSites !== record.routes.length) {
-    problems.push(
-      `${label}: ${record.callSites} registerRoute call site(s) but ${record.routes.length} route(s) registered while the worker ran; a deferred or conditional route cannot be judged`
-    )
-  }
+  record.siteRuns.forEach((runs, index) => {
+    if (runs !== 1) {
+      problems.push(
+        `${label}: registerRoute call site ${index} ran ${runs} time(s) while the worker was inspected; each call site must run exactly once, or its routes cannot be judged`
+      )
+    }
+  })
   for (const type of [...new Set(record.listeners)]) {
     problems.push(`${label}: registers a '${type}' listener in the entry worker; a listener can register routes or answer requests after inspection`)
   }

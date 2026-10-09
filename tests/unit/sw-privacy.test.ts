@@ -2,6 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {
   gatedProbeUrls,
   inspectWorker,
+  isNavigationMatcherAt,
   precachedGatedUrls,
   readRegexLiteral,
   scanWorkerSource,
@@ -79,7 +80,7 @@ describe('scanWorkerSource', () => {
       gatedUrls,
       requirePurgeImport: true
     })
-    expect(problems.some((problem) => problem.includes('not a regex literal'))).toBe(true)
+    expect(problems.some((problem) => problem.includes('neither a regex literal nor the navigation test'))).toBe(true)
   })
 
   it('rejects the retired cache name and a missing purge import', () => {
@@ -278,7 +279,7 @@ describe('inspectWorker + verifyInspectedWorker', () => {
     [
       'a route registered in a promise callback',
       `Promise.resolve().then(()=>e.registerRoute(({url:t})=>t.pathname.endsWith(".json"),${CACHE_JSON}));`,
-      'call site(s) but'
+      'ran 0 time(s) while the worker was inspected'
     ],
     [
       'a route registered in an activate listener',
@@ -292,13 +293,71 @@ describe('inspectWorker + verifyInspectedWorker', () => {
       'a CacheFirst route answers gated URL'
     ],
     ['a matcher that reads request.cache', `e.registerRoute(({request:t})=>t.cache==="default",${CACHE_JSON});`, 'a CacheFirst route answers gated URL'],
+    ['a matcher that reads event', `e.registerRoute(({event:t})=>t.clientId!==undefined,${CACHE_JSON});`, 'a CacheFirst route answers gated URL'],
     [
       'a route behind a condition that is false while inspected',
       `if(self.registration&&self.registration.scope)e.registerRoute(({url:t})=>t.pathname.endsWith(".json"),${CACHE_JSON});`,
-      'call site(s) but'
+      'ran 0 time(s) while the worker was inspected'
     ]
   ])('rejects %s', (_label, body, expected) => {
     expect(verify(worker(NAV + body)).join('\n')).toContain(expected)
+  })
+
+  // A second review's probes: each balanced a plain call-site count, or used a matcher input the
+  // stand-in modelled loosely. The whole scan (text allowlist plus inspection) must reject each.
+  const purgeScript =
+    "(function(){self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});})();"
+  const scanEntry = (body: string) =>
+    scanWorkerTree({
+      entry: '/sw.js',
+      readWorkerFile: (path: string) => (path === '/sw.js' ? worker(NAV + body) : path === '/js/sw-purge.js' ? purgeScript : null),
+      gatedUrls,
+      siteUrl: SITE
+    }).join('\n')
+  const DEFERRED = `Promise.resolve().then(()=>e.registerRoute(/\\.json$/,${CACHE_JSON}));`
+  it.each<[string, string, string]>([
+    [
+      'a helper that calls one registerRoute site twice, plus a deferred route',
+      `const f=m=>e.registerRoute(m,new e.NetworkOnly,"GET");f(/a/);f(/b/);${DEFERRED}`,
+      'ran 2 time(s)'
+    ],
+    [
+      'a computed registerRoute name, plus a deferred route',
+      `e["regis"+"terRoute"](/a/,new e.NetworkOnly,"GET");${DEFERRED}`,
+      'registerRoute reached by a computed name'
+    ],
+    ['a matcher that reads event', `e.registerRoute(({event:t})=>t.clientId!==undefined,${CACHE_JSON});`, 'neither a regex literal nor the navigation test'],
+    [
+      'a matcher that tests "headers" in request',
+      `e.registerRoute(({request:t})=>"headers" in t,${CACHE_JSON});`,
+      'neither a regex literal nor the navigation test'
+    ],
+    [
+      'a matcher that swallows a throw',
+      `e.registerRoute(({request:t})=>{try{return t.headers.get("x")==="y"}catch{return false}},${CACHE_JSON});`,
+      'neither a regex literal nor the navigation test'
+    ],
+    [
+      'a matcher that sniffs the environment',
+      `e.registerRoute(()=>"registration" in self,${CACHE_JSON});`,
+      'neither a regex literal nor the navigation test'
+    ],
+    ['a matcher gated on the clock', `e.registerRoute(()=>Date.now()>17e11,${CACHE_JSON});`, 'neither a regex literal nor the navigation test'],
+    [
+      'a matcher chosen by an expression',
+      `e.registerRoute(self.registration?/\\.json$/:/^$/,${CACHE_JSON});`,
+      'neither a regex literal nor the navigation test'
+    ]
+  ])('rejects %s', (_label, body, expected) => {
+    expect(scanEntry(body)).toContain(expected)
+  })
+
+  it('accepts the navigation matcher in both build forms, and only when its parameter is the one compared', () => {
+    expect(isNavigationMatcherAt('({request:e})=>"navigate"===e.mode,new e.NetworkOnly', 0)).toBe(true)
+    expect(isNavigationMatcherAt("({\n  request\n}) => request.mode === 'navigate', new workbox.NetworkOnly", 0)).toBe(true)
+    expect(isNavigationMatcherAt('({request:e})=>"navigate"===t.mode,new e.NetworkOnly', 0)).toBe(false)
+    expect(isNavigationMatcherAt('({request:e})=>"navigate"===e.mode||1,new e.CacheFirst', 0)).toBe(false)
+    expect(isNavigationMatcherAt('({request:e,event:t})=>"navigate"===e.mode,x', 0)).toBe(false)
   })
 
   it('requires /offline in the precache and rejects any other precached HTML document', () => {
