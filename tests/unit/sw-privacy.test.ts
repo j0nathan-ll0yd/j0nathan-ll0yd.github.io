@@ -386,6 +386,23 @@ describe('inspectWorker + verifyInspectedWorker', () => {
       'not NetworkOnly with the /offline fallback'
     ],
     [
+      'fetchOptions two levels up a null-prototype chain',
+      NAV.replace('new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]})',
+        'new e.NetworkOnly(Object.assign(Object.create(Object.assign(Object.create(null),{fetchOptions:{cache:"force-cache"}})),{plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}))'),
+      'not NetworkOnly with the /offline fallback'
+    ],
+    [
+      'fetchOptions planted on Object.prototype',
+      'Object.prototype.fetchOptions={cache:"force-cache"};' + NAV,
+      "adds 'fetchOptions' to Object.prototype"
+    ],
+    [
+      'options that are a Proxy',
+      NAV.replace('new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]})',
+        'new e.NetworkOnly(new Proxy({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]},{get:(t,k)=>k==="fetchOptions"?{cache:"force-cache"}:t[k]}))'),
+      'not NetworkOnly with the /offline fallback'
+    ],
+    [
       'a gated NetworkOnly route with matchOptions',
       NAV + 'e.registerRoute(/\\.json$/,new e.NetworkOnly({matchOptions:{ignoreSearch:true}}),"GET");',
       'a NetworkOnly route answers gated URL'

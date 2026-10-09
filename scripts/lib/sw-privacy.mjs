@@ -9,7 +9,8 @@
 // response. Gated responses are the focus signal and every CloudFront JSON export, and the five
 // site-origin proxy routes (the llms trio and the two feeds). A replayed copy shows data while the
 // owner hides it.
-import {runInNewContext} from 'node:vm'
+import {types} from 'node:util'
+import {createContext, runInContext, runInNewContext} from 'node:vm'
 import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
@@ -322,7 +323,14 @@ export function inspectWorker(source, {siteUrl}) {
   }
   sandbox.self = sandbox
   sandbox.define = (_dependencies, factory) => factory(recorder)
-  runInNewContext(instrumented, sandbox, {timeout: 2000})
+  const context = createContext(sandbox)
+  // The sandbox realm's own Object.prototype, and its keys before the worker runs. Options objects
+  // the worker builds must have exactly this prototype (or none), and the worker must not add keys
+  // to it: a key planted there (say fetchOptions) would be inherited by every options object.
+  record.objectPrototype = runInContext('Object.prototype', context)
+  const builtInKeys = new Set(Reflect.ownKeys(record.objectPrototype))
+  runInContext(instrumented, context, {timeout: 2000})
+  record.prototypeAdditions = Reflect.ownKeys(record.objectPrototype).filter((key) => !builtInKeys.has(key)).map(String)
   return record
 }
 
@@ -371,18 +379,24 @@ function routeMatches(route, url, mode, siteOrigin) {
 }
 
 /** True when the handler is NetworkOnly whose only plugin falls back to the precached /offline. */
-function isOfflineFallbackNetworkOnly(handler, siteUrl) {
+function isOfflineFallbackNetworkOnly(handler, siteUrl, realmPrototype) {
   if (!handler || handler.kind !== 'NetworkOnly') {
     return false
   }
   // `plugins` is the only option allowed. Any other option can reintroduce a cache: for example
   // `fetchOptions: {cache: 'force-cache'}` lets a "NetworkOnly" request be answered from the
   // browser HTTP cache, and `matchOptions` or `cacheName` signal intent to read a cache.
-  // Own keys of every kind (Reflect.ownKeys sees non-enumerable and symbol keys), and a plain object
-  // of the sandbox realm (a prototype chain could carry an inherited fetchOptions Workbox would read).
+  // The options must be a plain object: not a Proxy (whose traps could answer any key), with exactly
+  // the sandbox realm's Object.prototype or no prototype at all (any other chain could carry an
+  // inherited fetchOptions Workbox would read), and no own key of any kind but plugins
+  // (Reflect.ownKeys also sees non-enumerable and symbol keys). verifyInspectedWorker separately
+  // fails a worker that adds keys to that Object.prototype.
   const options = handler.options ?? {}
+  if (types.isProxy(options)) {
+    return false
+  }
   const prototype = Object.getPrototypeOf(options)
-  if ((prototype !== null && Object.getPrototypeOf(prototype) !== null) || Reflect.ownKeys(options).some((key) => key !== 'plugins')) {
+  if ((prototype !== null && prototype !== realmPrototype) || Reflect.ownKeys(options).some((key) => key !== 'plugins')) {
     return false
   }
   const plugins = handler.options?.plugins ?? []
@@ -423,6 +437,9 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
       )
     }
   })
+  for (const key of record.prototypeAdditions ?? []) {
+    problems.push(`${label}: adds '${key}' to Object.prototype; every options object would inherit it`)
+  }
   for (const type of [...new Set(record.listeners)]) {
     problems.push(`${label}: registers a '${type}' listener in the entry worker; a listener can register routes or answer requests after inspection`)
   }
@@ -442,7 +459,7 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
 
   const fallbackRoutes = record.routes.filter((route) => (route.handler?.options?.plugins ?? []).some((plugin) => plugin?.kind === 'PrecacheFallbackPlugin'))
   for (const route of fallbackRoutes) {
-    if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl)) {
+    if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl, record.objectPrototype)) {
       problems.push(`${label}: a PrecacheFallbackPlugin is not the single plugin of a NetworkOnly route falling back to ${OFFLINE_PATH}`)
     }
   }
@@ -455,7 +472,7 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
     const first = record.routes.find((route) => routeMatches(route, url, 'navigate', siteOrigin))
     if (!first) {
       problems.push(`${label}: no route answers a navigation to ${path}; navigations must be NetworkOnly with the ${OFFLINE_PATH} fallback`)
-    } else if (!isOfflineFallbackNetworkOnly(first.handler, siteUrl) || (first.handler.options?.plugins ?? []).length !== 1) {
+    } else if (!isOfflineFallbackNetworkOnly(first.handler, siteUrl, record.objectPrototype) || (first.handler.options?.plugins ?? []).length !== 1) {
       problems.push(
         `${label}: a navigation to ${path} is answered by ${first.handler?.kind ?? 'an unknown handler'}, not NetworkOnly with the ${OFFLINE_PATH} fallback`
       )
@@ -465,7 +482,7 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
   for (const url of gatedUrls) {
     for (const mode of ['cors', 'no-cors', 'navigate']) {
       for (const route of record.routes.filter((candidate) => routeMatches(candidate, url, mode, siteOrigin))) {
-        if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl)) {
+        if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl, record.objectPrototype)) {
           problems.push(`${label}: a ${route.handler?.kind ?? 'unknown'} route answers gated URL ${url} (${mode}); gated responses must never be cached`)
         }
       }
