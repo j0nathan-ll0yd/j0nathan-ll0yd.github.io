@@ -79,6 +79,13 @@ const FOCUS_TIMEOUT_MS = 2_000
 const ARTIFACT_TIMEOUT_MS = 4_000
 const GATE_PROBE_TIMEOUT_MS = 2_000
 const TOTAL_BUDGET_MS = 10_000
+/**
+ * The share of the total budget the artifact attempts may NOT spend: it is kept for the
+ * last-known-good cache read and the copy's body, which are bounded by it too. Without the reserve,
+ * a stalled upstream body spent the whole budget and the bounded cache read then had none left, so
+ * the stall the fallback exists for could never reach it.
+ */
+const LKG_READ_RESERVE_MS = 1_000
 const FOCUS_MAX_ATTEMPTS = 2
 const FOCUS_RETRY_DELAY_MS = 100
 
@@ -87,6 +94,7 @@ export const PROXY_TIMEOUTS = Object.freeze({
   focusMs: FOCUS_TIMEOUT_MS,
   artifactMs: ARTIFACT_TIMEOUT_MS,
   gateProbeMs: GATE_PROBE_TIMEOUT_MS,
+  lkgReadReserveMs: LKG_READ_RESERVE_MS,
   totalMs: TOTAL_BUDGET_MS
 })
 /** The last-known-good admission bounds, exported for the same reason. */
@@ -239,6 +247,11 @@ export function startBudget(totalMs: number = TOTAL_BUDGET_MS): RequestBudget {
   return {remainingMs: () => Math.max(0, totalMs - (Date.now() - startedAt))}
 }
 
+/** The same budget, less `reserveMs` that the holder may not spend. */
+function reserving(budget: RequestBudget, reserveMs: number): RequestBudget {
+  return {remainingMs: () => Math.max(0, budget.remainingMs() - reserveMs)}
+}
+
 /** Raised when a bounded operation outlives its deadline. Named TimeoutError so diagnostics read like the platform's own. */
 class DeadlineError extends Error {
   constructor(message: string) {
@@ -359,9 +372,9 @@ async function probeFocusOnce(budget: RequestBudget): Promise<FocusResult> {
     return {status: 'unavailable', upstreamStatus: response.status, retryable: isRetryableStatus(response.status)}
   }
 
-  let focus: {currentFocus?: unknown}
+  let focus: unknown
   try {
-    focus = await withDeadline(() => response.json() as Promise<{currentFocus?: unknown}>, Math.min(FOCUS_TIMEOUT_MS, budget.remainingMs()), 'focus body')
+    focus = await withDeadline(() => response.json() as Promise<unknown>, Math.min(FOCUS_TIMEOUT_MS, budget.remainingMs()), 'focus body')
   } catch (error) {
     // A stalled body is transport; malformed JSON is an answer, and a second read returns it again.
     return error instanceof DeadlineError
@@ -369,7 +382,9 @@ async function probeFocusOnce(budget: RequestBudget): Promise<FocusResult> {
       : {status: 'unavailable', errorName: 'InvalidFocusJson', retryable: false}
   }
 
-  if (typeof focus.currentFocus !== 'string') {
+  // Valid JSON is not a focus state: `null`, a primitive or an array has no currentFocus to read,
+  // and reading one off `null` throws past every controlled response.
+  if (focus === null || typeof focus !== 'object' || Array.isArray(focus) || !('currentFocus' in focus) || typeof focus.currentFocus !== 'string') {
     return {status: 'unavailable', errorName: 'InvalidFocusState', retryable: false}
   }
   if (HIDING_FOCUS_MODE_SET.has(focus.currentFocus)) {
@@ -708,9 +723,11 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
     return {kind: 'none'}
   }
 
+  // The cache read and the copy's body draw on the same request budget as every network call: a
+  // stalled Cache API read must end in an answer inside PROXY_TIMEOUTS.totalMs, not outlive it.
   let cached: Response | undefined
   try {
-    cached = await cache.match(cacheKey)
+    cached = await withDeadline(() => cache.match(cacheKey), Math.min(LKG_READ_RESERVE_MS, budget.remainingMs()), `${path} last-known-good read`)
   } catch (error) {
     logger.error('cloudfront_proxy_lkg_read_failed', {artifact: path, error_class: errorClass(error)})
     return {kind: 'none'}
@@ -737,6 +754,17 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
     return {kind: 'none'}
   }
 
+  // Read the admitted copy whole, under what remains of the budget. Streaming `cached.body` would
+  // return a response whose bytes could still stall after the deadline.
+  let body: ArrayBuffer
+  try {
+    const copy = cached
+    body = await withDeadline(() => copy.arrayBuffer(), Math.min(LKG_READ_RESERVE_MS, budget.remainingMs()), `${path} last-known-good body`)
+  } catch (error) {
+    logger.error('cloudfront_proxy_lkg_read_failed', {artifact: path, error_class: errorClass(error)})
+    return {kind: 'none'}
+  }
+
   const headers = new Headers(cached.headers)
   const diagnostics = diagnosticHeaders(failure)
   diagnostics.forEach((value, name) => headers.set(name, value))
@@ -746,7 +774,7 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
   headers.set('X-Proxy-Stale', 'true')
   headers.set('X-Source', 'cloudfront-proxy-stale')
   logger.warn('cloudfront_proxy_stale_fallback', diagnosticFields(path, failure, true))
-  return {kind: 'served', response: new Response(cached.body, {status: 200, headers})}
+  return {kind: 'served', response: new Response(body, {status: 200, headers})}
 }
 
 function gateSuppressedResponse(method: string, path: string, attempts: number): Response {
@@ -787,7 +815,7 @@ export function makeCloudfrontProxy(
 
     const cache = defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
-    const upstream = await fetchWithRetry(upstreamUrl, path, budget)
+    const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS))
 
     if (upstream.ok) {
       const response = publicResponse(upstream, contentType, cachePolicy)

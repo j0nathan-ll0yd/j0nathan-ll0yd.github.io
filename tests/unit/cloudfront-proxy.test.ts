@@ -403,6 +403,72 @@ describe('bounded network attempts', () => {
     expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
   })
 
+  it('finishes within the total budget when the last-known-good cache read never settles', async () => {
+    const mock = stubOutageWithOpenProbe(503)
+    vi.useFakeTimers()
+    const cache = {match: vi.fn().mockImplementation(() => neverSettles<Response>()), put: vi.fn()}
+    vi.stubGlobal('caches', {default: cache})
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response, elapsedMs} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(elapsedMs).toBeLessThanOrEqual(PROXY_TIMEOUTS.totalMs)
+    expect(response.status).toBe(502)
+    expectPublicNoStore(response)
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy-error')
+    expect(cache.match).toHaveBeenCalledOnce()
+    expect(mock).toHaveBeenCalledTimes(4) // focus + three artifact attempts; no probe without a copy
+    expect(logger.error).toHaveBeenCalledWith('cloudfront_proxy_lkg_read_failed',
+      expect.objectContaining({artifact: '/thing.txt', error_class: 'TimeoutError'}))
+  })
+
+  it('finishes within the total budget when the admitted copy body never arrives, and serves nothing of it', async () => {
+    stubOutageWithOpenProbe(503)
+    vi.useFakeTimers()
+    const stalledCopy = lkgCopy('never read')
+    Object.defineProperty(stalledCopy, 'arrayBuffer', {value: () => neverSettles<ArrayBuffer>()})
+    const cache = stubCache(stalledCopy)
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response, elapsedMs} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(elapsedMs).toBeLessThanOrEqual(PROXY_TIMEOUTS.totalMs)
+    expect(response.status).toBe(502)
+    expect(await response.text()).toBe('thing.txt unavailable')
+    expect(response.headers.get('X-Proxy-Stale')).toBeNull()
+    expect(cache.match).toHaveBeenCalledOnce()
+    expect(logger.error).toHaveBeenCalledWith('cloudfront_proxy_lkg_read_failed',
+      expect.objectContaining({artifact: '/thing.txt', error_class: 'TimeoutError'}))
+  })
+
+  it('serves no copy once the budget is spent, even when the cache answers and the gate is open', async () => {
+    // Every artifact attempt hangs until its deadline, which spends the budget before the cache is
+    // read. A copy found after that point is not used: the request answers inside the budget.
+    let artifactCalls = 0
+    const mock = vi.fn().mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'})))
+      }
+      artifactCalls++
+      return neverSettles<Response>()
+    })
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', mock)
+    const cache = {
+      match: vi.fn().mockImplementation(() => new Promise<Response>((resolve) => setTimeout(() => resolve(lkgCopy('late copy')), PROXY_TIMEOUTS.totalMs))),
+      put: vi.fn()
+    }
+    vi.stubGlobal('caches', {default: cache})
+    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain; charset=utf-8'})
+
+    const {response, elapsedMs} = await settleWithin(proxy(makeContext().context), PROXY_TIMEOUTS.totalMs)
+
+    expect(elapsedMs).toBeLessThanOrEqual(PROXY_TIMEOUTS.totalMs)
+    expect(artifactCalls).toBeGreaterThan(0)
+    expect(response.status).toBe(502)
+    expect(await response.text()).toBe('thing.txt unavailable')
+  })
+
   it('fails closed within the budget when the focus probe never resolves, without touching the artifact', async () => {
     const mock = vi.fn().mockImplementation((url: string) => url === FOCUS_URL ? neverSettles<Response>() : Promise.resolve(new Response('leak')))
     vi.useFakeTimers()
@@ -445,7 +511,15 @@ describe('focus gate fails closed on every uncertain answer', () => {
   const uncertainProbes: Array<[string, Response | Error, string, number]> = [
     ['a transport error', new Error('connection reset'), 'Error', 2],
     ['a response body that is not JSON', new Response('<html>not json</html>'), 'InvalidFocusJson', 1],
-    ['a body whose currentFocus is not a string', new Response(JSON.stringify({currentFocus: 42})), 'InvalidFocusState', 1]
+    ['a body whose currentFocus is not a string', new Response(JSON.stringify({currentFocus: 42})), 'InvalidFocusState', 1],
+    // Valid JSON whose root is not an object: reading currentFocus off `null` threw past every
+    // controlled response, and an array or primitive carries no focus state.
+    ['a JSON null body', new Response('null'), 'InvalidFocusState', 1],
+    ['a JSON number body', new Response('42'), 'InvalidFocusState', 1],
+    ['a JSON string body', new Response('"Personal"'), 'InvalidFocusState', 1],
+    ['a JSON boolean body', new Response('true'), 'InvalidFocusState', 1],
+    ['a JSON array body', new Response(JSON.stringify([{currentFocus: 'Personal'}])), 'InvalidFocusState', 1],
+    ['an object without currentFocus', new Response('{}'), 'InvalidFocusState', 1]
   ]
 
   it.each(uncertainProbes)('denies on %s', async (_label, focusAnswer, errorClass, expectedProbes) => {
