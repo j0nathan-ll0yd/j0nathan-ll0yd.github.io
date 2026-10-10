@@ -1,8 +1,9 @@
 import {expect, type Page, test} from '@playwright/test'
 import {createRequire} from 'node:module'
+import {posix} from 'node:path'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 import {type DistServer, startDistServer} from './dist-server'
-import {siteGatedProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
+import {LOCAL_IMAGE_PATH_SOURCE, siteGatedProbeUrls, traversalProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
 
 // The authored notice the page shows. Read from the copy package's JSON export, the same value
 // src/pages/offline.astro renders (the package's TypeScript entry cannot load in this runner).
@@ -43,6 +44,7 @@ let cloudfrontJson: {status: number; body: string} | 'down' = {status: 200, body
 test.beforeEach(async ({context}) => {
   server.overrides.clear()
   server.down = false
+  server.decodePaths = false
   gatedResponses = 0
   cloudfrontJson = {status: 200, body: '{}'}
   // Gated CloudFront paths get a real, cacheable 200, so a worker that cached gated data would have
@@ -249,4 +251,72 @@ test('no gated URL is replayed from a cache, whatever query string or fragment i
   const cached = await cachedUrls(page)
   expect(cached.filter((url) => gatedPaths.has(`${new URL(url).origin}${new URL(url).pathname}`))).toEqual([])
   expect(await page.evaluate(() => caches.has('local-images'))).toBe(false)
+})
+
+// LOW-2 (final verification of #351): the image route accepted any pathname under its prefix. On an
+// origin that decodes %2F and %5C and resolves `..`, /images/books/..%2F..%2Ffeed.json is the gated
+// feed, and the open-ended route cached it in local-images-v2 and replayed it with the gate closed.
+// This server now decodes like that origin. Every encoded-slash, dot-segment and backslash escape of
+// both image roots, aimed at each of the five site paths, is fetched open, closed and down.
+test('no path escape under an image root is cached, even on an origin that decodes it', async ({page}) => {
+  const MARKER = 'GATED_BEFORE_HIDING'
+  const siteOrigin = new URL([...GATED_URLS].find((url) => !url.startsWith(CLOUDFRONT_BASE))!).origin
+  const sitePaths = [...new Set([...GATED_URLS].filter((url) => url.startsWith(siteOrigin)).map((url) => new URL(url).pathname))]
+  const sitePathUrls = sitePaths.map((path) => `${siteOrigin}${path}`)
+  // Probes the OLD route accepted, built by the same function the build guard uses.
+  const oldRoute = /^\/images\/(books|theatre)\//
+  // Kept: the ones this decoding origin resolves to a gated file (a double-encoded %252F decodes
+  // once, to a literal %2F, and is a 404 there, so it proves nothing here).
+  const resolvesToGated = (url: string) => {
+    const decoded = posix.normalize(decodeURIComponent(new URL(url).pathname).replace(/\\/g, '/'))
+    return sitePaths.includes(decoded)
+  }
+  const probes = traversalProbeUrls(sitePathUrls, new RegExp(LOCAL_IMAGE_PATH_SOURCE), siteOrigin).filter((url) =>
+    oldRoute.test(new URL(url).pathname) && resolvesToGated(url)
+  ).map((url) => `${server.origin}${url.slice(siteOrigin.length)}`)
+  expect(probes.length).toBeGreaterThanOrEqual(25)
+  expect(probes).toContain(`${server.origin}/images/books/..%2F..%2Ffeed.json`)
+
+  const fetchAll = () =>
+    page.evaluate((urls) =>
+      Promise.all(urls.map(async (url) => {
+        try {
+          const response = await fetch(url, {cache: 'no-store'})
+          return {url, status: response.status, body: await response.text()}
+        } catch {
+          return {url, status: 0, body: ''}
+        }
+      })), probes)
+  const setSiteAnswer = (status: number, body: string) => {
+    for (const path of sitePaths) {
+      server.overrides.set(path, {status, type: 'text/plain; charset=utf-8', body})
+    }
+  }
+
+  await installWorker(page)
+  server.decodePaths = true
+
+  // Open: the decoding origin answers every escape with the gated file.
+  setSiteAnswer(200, MARKER)
+  const open = await fetchAll()
+  expect(open.filter((answer) => answer.status !== 200 || !answer.body.includes(MARKER))).toEqual([])
+  await new Promise((resolve) => setTimeout(resolve, 1_000)) // let any waitUntil cache write land
+
+  // Closed: every escape reaches the origin again and gets the suppression.
+  setSiteAnswer(503, 'SUPPRESSED')
+  const readsBefore = server.requests.length
+  const closed = await fetchAll()
+  expect(closed.filter((answer) => answer.status !== 503 || answer.body.includes(MARKER))).toEqual([])
+  expect(server.requests.length - readsBefore).toBe(probes.length)
+
+  // Down: nothing answers from a cache.
+  server.down = true
+  const down = await fetchAll()
+  expect(down.filter((answer) => answer.status !== 0 || answer.body.includes(MARKER))).toEqual([])
+
+  const cached = await cachedUrls(page)
+  // The precache holds /images/no-cover.svg (a static placeholder); nothing under an image root is
+  // cached, and the image cache stays empty.
+  expect(cached.filter((url) => /^\/images\/(books|theatre)\//.test(new URL(url).pathname))).toEqual([])
+  expect(await page.evaluate(async () => (await caches.has('local-images-v2')) ? (await (await caches.open('local-images-v2')).keys()).length : 0)).toBe(0)
 })

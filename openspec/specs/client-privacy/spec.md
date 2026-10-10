@@ -24,10 +24,10 @@ any CloudFront JSON export, or any of the five site-origin proxy routes (/llms.t
 Every runtime route SHALL classify a request by its origin and pathname only, never by its query
 string or fragment. A route matcher SHALL be one of three shapes:
 
-- a regex literal anchored on a literal origin and path (`^https://<host>/<path>...`), tested
+- a regex literal anchored on a literal origin and path (`^https://<host>/<path>...$`), tested
   against the whole URL;
 - a same-origin pathname test, exactly `({url, sameOrigin}) => sameOrigin &&
-  /^\/<path>.../.test(url.pathname)`;
+  /^\/<path>...$/.test(url.pathname)`;
 - the navigation test `({request}) => request.mode === 'navigate'`, whose route SHALL be NetworkOnly
   with the /offline fallback (requirement "Navigations go to the network...").
 
@@ -41,7 +41,20 @@ whatever shape the manifest text takes. Every route SHALL also be probed with ea
 query strings and fragments (`GATED_URL_SUFFIXES` in `scripts/lib/sw-privacy.mjs`, image paths in
 query values included), and with query strings and fragments built from every route's own regex
 text. A whole-URL regex that a query value can satisfy fails the anchoring rule and the probes
-independently. Motivating failure (adversarial review H01): the image route
+independently.
+
+Both regex shapes SHALL be end-anchored (`$`), and SHALL accept no escape of their own prefix. Every
+route is probed with its prefix followed by encoded-slash, dot-segment and backslash escapes aimed
+at each gated file name (`TRAVERSAL_SUFFIXES`, for example `/images/books/..%2F..%2Ffeed.json`). A
+browser keeps these inside the prefix, but an origin that decodes `%2F` or `%5C` and resolves dot
+segments serves the gated file for them. The two image routes therefore end in ONE file-name
+segment, `[A-Za-z0-9][A-Za-z0-9._-]*` (`IMAGE_FILE_NAME_SOURCE`), which every mirror file name
+matches; the build guard pins both shapes exactly. Motivating failure (final verification of
+#351, LOW-2): `^/images/(books|theatre)/` cached 25 such forms in `local-images-v2` on a decoding
+test origin and replayed them with the gate closed. A regex anchored on a bare origin
+(`^https://<host>/`) is refused with a message that names the missing path segment.
+
+Motivating failure (adversarial review H01): the image route
 `/\/images\/(books|theatre)\//` tested the whole URL, so `/feed.json?preview=/images/books/`
 matched it and a gated feed was cached CacheFirst for 30 days and replayed after the gate closed.
 
@@ -64,12 +77,12 @@ activates and the old worker keeps control. The postbuild gate `scripts/check-sw
 enforces all of it through `scripts/lib/sw-privacy.mjs`, and runs the purge script in a sandboxed
 worker scope rather than matching its text.
 
-Verified by `tests/unit/sw-privacy.test.ts:24` (synthetic workers: a CloudFront JSON route, a
+Verified by `tests/unit/sw-privacy.test.ts:29` (synthetic workers: a CloudFront JSON route, a
 site-origin feed route, an llms route, a default handler, a catch handler, a raw fetch listener, a
 non-regex matcher, an aliased or bracket-called registerRoute, `onfetch`, a bracket fetch listener,
 a fetch listener in an imported script, a missing import, a dynamic import outside the Workbox
 loader, a precached gated URL, the retired cache name and a missing purge import are each rejected;
-the purge is judged by what it does), `tests/unit/sw-privacy.test.ts:127` (the H01 route, query-steered
+the purge is judged by what it does), `tests/unit/sw-privacy.test.ts:132` (the H01 route, query-steered
 regexes, pathname tests that read the query or cover a gated path, unanchored, case-insensitive, trailing-expression
 regexes, a purge that keeps `local-images`, and `additionalManifestEntries` gated URLs are each
 rejected) and `tests/build/sw-update.test.ts:44` (the generated worker and the shipped purge script
@@ -131,7 +144,7 @@ behavior: an online navigation to `/` reaches the server and no cache gains a do
 entry, and with the server down or the browser offline, `/` and `/privacy` render the data-free
 page.
 
-Verified by `tests/unit/sw-privacy.test.ts:444` (the shipped shape passes; no navigation route, a
+Verified by `tests/unit/sw-privacy.test.ts:546` (the shipped shape passes; no navigation route, a
 NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
 catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
 Workbox API, a NetworkOnly route carrying any option but `plugins`, a missing `/offline` and any

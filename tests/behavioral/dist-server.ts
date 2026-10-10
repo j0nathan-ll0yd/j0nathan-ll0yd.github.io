@@ -1,6 +1,6 @@
 import {createServer, type Server} from 'node:http'
 import {readFile} from 'node:fs/promises'
-import {extname, join, normalize, resolve} from 'node:path'
+import {extname, join, normalize, posix, resolve} from 'node:path'
 import type {AddressInfo} from 'node:net'
 
 // A static server for the BUILT site on 127.0.0.1, for the service-worker behavioral specs.
@@ -41,6 +41,12 @@ export interface DistServer {
   requests: string[]
   /** When true, every connection is destroyed without a response. */
   down: boolean
+  /**
+   * When true, the server decodes the path (`%2F`, `%5C` included), turns backslashes into slashes
+   * and resolves dot segments before it answers, as some origins do. `/images/books/..%2F..%2Ffeed.json`
+   * then answers as `/feed.json`. Off by default.
+   */
+  decodePaths: boolean
   close(): Promise<void>
 }
 
@@ -66,14 +72,23 @@ async function fromDist(pathname: string): Promise<Answer> {
   return notFound
 }
 
+function safeDecode(path: string): string {
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
+}
+
 export async function startDistServer(): Promise<DistServer> {
-  const state = {overrides: new Map<string, Answer>(), requests: [] as string[], down: false}
+  const state = {overrides: new Map<string, Answer>(), requests: [] as string[], down: false, decodePaths: false}
   const server: Server = createServer((request, response) => {
     if (state.down) {
       request.socket.destroy()
       return
     }
-    const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+    const raw = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+    const pathname = state.decodePaths ? posix.normalize(safeDecode(raw).replace(/\\/g, '/')) : raw
     state.requests.push(pathname)
     const answer = state.overrides.get(pathname)
     void (answer ? Promise.resolve(answer) : fromDist(pathname)).then(({status, type, body, location}) => {

@@ -1,13 +1,16 @@
-import {readFileSync} from 'node:fs'
+import {readdirSync, readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {runInNewContext} from 'node:vm'
 import {describe, expect, it} from 'vitest'
 import {
   anchoredLiteralPrefix,
+  cloudfrontImageUrlSource,
   GATED_URL_SUFFIXES,
   gatedProbeUrls,
+  IMAGE_FILE_NAME_SOURCE,
   inspectWorker,
   isNavigationMatcherAt,
+  LOCAL_IMAGE_PATH_SOURCE,
   precachedGatedUrls,
   readRegexLiteral,
   RETIRED_CACHES,
@@ -16,6 +19,8 @@ import {
   scanWorkerSource,
   scanWorkerTree,
   siteGatedProbeUrls,
+  TRAVERSAL_SUFFIXES,
+  traversalProbeUrls,
   verifyInspectedWorker,
   verifyPurgeScript,
   workerImports
@@ -34,9 +39,9 @@ const gatedUrls = gatedProbeUrls({
 const PURGE_IMPORT = 'importScripts("/js/sw-purge.js");'
 // The two image routes as generateSW emits them: a same-origin pathname test, and a regex anchored
 // on the CloudFront origin and /images/.
-const LOCAL_IMAGES_MATCHER = '({url:e,sameOrigin:s})=>s&&/^\\/images\\/(books|theatre)\\//.test(e.pathname)'
+const LOCAL_IMAGES_MATCHER = '({url:e,sameOrigin:s})=>s&&/^\\/images\\/(books|theatre)\\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(e.pathname)'
 const IMAGE_ROUTES = `e.registerRoute(${LOCAL_IMAGES_MATCHER},new e.CacheFirst({cacheName:"local-images-v2"}),"GET");` +
-  'e.registerRoute(/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\//,new e.CacheFirst({cacheName:"optimized-images-fallback"}),"GET");'
+  'e.registerRoute(/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\/(books|theatre)\\/[A-Za-z0-9][A-Za-z0-9._-]*$/,new e.CacheFirst({cacheName:"optimized-images-fallback"}),"GET");'
 // The route H01 found: a whole-URL regex, so /feed.json?preview=/images/books/ matched it.
 const UNANCHORED_IMAGE_ROUTE = 'e.registerRoute(/\\/images\\/(books|theatre)\\//,new e.CacheFirst({cacheName:"local-images"}),"GET");'
 // A purge in the shape public/js/sw-purge.js ships: every retired cache, each delete's failure absorbed.
@@ -183,7 +188,7 @@ describe('routes classify by origin and pathname only', () => {
     [
       'a regex on the site origin that covers the llms trio',
       '/^https:\\/\\/jonathanlloyd\\.me\\/llms/',
-      'covers gated path https://jonathanlloyd.me/llms.txt'
+      'covers gated URL https://jonathanlloyd.me/llms.txt'
     ],
     ['a case-insensitive regex', '/^https:\\/\\/JONATHANLLOYD\\.ME\\/FEED/i', 'is not anchored on a literal origin and path'],
     // Unicode case folding: under `iu`, U+017F folds to `s`, so this matches /feed.json?zz=2.
@@ -192,12 +197,20 @@ describe('routes classify by origin and pathname only', () => {
       '/^https:\\/\\/jonathanlloyd\\.me\\/feed\\.j\u017fon\\?zz/iu',
       'is not anchored on a literal origin and path'
     ],
-    ['a regex on another host that covers a gated path', '/^https:\\/\\/www\\.jonathanlloyd\\.me\\/feed/', 'covers gated path'],
-    ['a regex on a preview host that covers the llms trio', '/^https:\\/\\/abc\\.portfolio\\.pages\\.dev\\/llms/', 'covers gated path'],
+    [
+      'a regex on another host that covers a gated path',
+      '/^https:\\/\\/www\\.jonathanlloyd\\.me\\/feed/',
+      'has the literal path prefix /feed, which covers the gated path /feed.xml'
+    ],
+    [
+      'a regex on a preview host that covers the llms trio',
+      '/^https:\\/\\/abc\\.portfolio\\.pages\\.dev\\/llms/',
+      'has the literal path prefix /llms, which covers the gated path /llms.txt'
+    ],
     [
       'a regex on the whole CloudFront origin',
       '/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\//',
-      'covers gated path https://d1pfm520aduift.cloudfront.net/focus.json'
+      'is anchored on the bare origin https://d1pfm520aduift.cloudfront.net/ with no literal path segment'
     ],
     ['a regex with a top-level alternation', '/^https:\\/\\/x\\.example\\/images\\/|feed/', 'is not anchored on a literal origin and path'],
     ['a regex anchored on no origin', '/^\\/images\\//', 'is not anchored on a literal origin and path']
@@ -217,9 +230,10 @@ describe('routes classify by origin and pathname only', () => {
   })
 
   it('reads the same-origin pathname matcher in both build forms, and nothing looser', () => {
-    expect(sameOriginPathMatcherAt(`${LOCAL_IMAGES_MATCHER},new e.CacheFirst`, 0)?.source).toBe('^\\/images\\/(books|theatre)\\/')
-    const readable = '({\n  url,\n  sameOrigin\n}) => sameOrigin && /^\\/images\\/(books|theatre)\\//.test(url.pathname), new workbox.CacheFirst'
-    expect(sameOriginPathMatcherAt(readable, 0)?.source).toBe('^\\/images\\/(books|theatre)\\/')
+    expect(sameOriginPathMatcherAt(`${LOCAL_IMAGES_MATCHER},new e.CacheFirst`, 0)?.source).toBe(LOCAL_IMAGE_PATH_SOURCE)
+    const readable =
+      '({\n  url,\n  sameOrigin\n}) => sameOrigin && /^\\/images\\/(books|theatre)\\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(url.pathname), new workbox.CacheFirst'
+    expect(sameOriginPathMatcherAt(readable, 0)?.source).toBe(LOCAL_IMAGE_PATH_SOURCE)
     expect(sameOriginPathMatcherAt('({sameOrigin:s,url:e})=>s&&/^\\/a\\//.test(e.pathname),x', 0)?.source).toBe('^\\/a\\/')
     expect(sameOriginPathMatcherAt('({url:e,sameOrigin:s})=>s&&/^\\/a\\//.test(s.pathname),x', 0)).toBeNull()
     expect(sameOriginPathMatcherAt('({url:e,url:s})=>s&&/^\\/a\\//.test(e.pathname),x', 0)).toBeNull()
@@ -251,7 +265,7 @@ describe('review follow-ups', () => {
       {gatedUrls: siteGatedProbeUrls()}
     )
     expect(problems.join('\n')).toContain('matches gated URL https://d1pfm520aduift.cloudfront.net/index.md')
-    expect(problems.join('\n')).toContain('covers gated path')
+    expect(problems.join('\n')).toContain('covers gated URL https://d1pfm520aduift.cloudfront.net/index.md')
   })
 
   it('refuses a regex literal followed by more expression in the text scan', () => {
@@ -306,6 +320,94 @@ describe('retired caches', () => {
       "self.addEventListener('activate',function(e){e.waitUntil(caches.delete('live-data').catch(function(){return false;}));});"
     )
     expect(problems).toEqual(['purge activate listener does not delete the "local-images" cache'])
+  })
+})
+
+// covers: client-privacy#No service-worker path caches a gated response
+// LOW-2 (final verification of #351): the image route accepted any pathname under its prefix. On an
+// origin that decodes %2F and resolves `..`, /images/books/..%2F..%2Ffeed.json was cached in
+// local-images-v2 and replayed with the gate closed. Each route must end in one file-name segment,
+// and every route is probed with encoded-slash, dot-segment and backslash escapes of its own prefix.
+describe('image routes end in one file-name segment', () => {
+  const SITE = 'https://jonathanlloyd.me'
+  const NAV =
+    'e.registerRoute(({request:e})=>"navigate"===e.mode,new e.NetworkOnly({plugins:[new e.PrecacheFallbackPlugin({fallbackURL:"/offline"})]}),"GET");'
+  const entryWith = (route: string) =>
+    `define(["./workbox-e190f46a"],(function(e){"use strict";${PURGE_IMPORT}e.precacheAndRoute([{url:"offline",revision:"1"}],{});${NAV}${route}}));`
+  const inspect = (route: string) => verifyInspectedWorker(inspectWorker(entryWith(route), {siteUrl: SITE}), {gatedUrls, siteUrl: SITE}).join('\n')
+
+  it('matches every mirror file name under public/images/books and public/images/theatre', () => {
+    const fileName = new RegExp(`^${IMAGE_FILE_NAME_SOURCE}$`)
+    const localImage = new RegExp(LOCAL_IMAGE_PATH_SOURCE)
+    const names = ['books', 'theatre'].flatMap((root) => readdirSync(join(process.cwd(), 'public/images', root)).map((name) => `/images/${root}/${name}`))
+    expect(names.length).toBeGreaterThan(0)
+    expect(names.filter((path) => !fileName.test(path.split('/').pop()!) || !localImage.test(path))).toEqual([])
+    expect(
+      new RegExp(cloudfrontImageUrlSource('https://d1pfm520aduift.cloudfront.net')).test(
+        'https://d1pfm520aduift.cloudfront.net/images/books/0525573844-card.avif'
+      )
+    ).toBe(true)
+    // The pinned CloudFront shape: the escaped host, an image root, one file-name segment, end to end.
+    const cloudfront = new RegExp(cloudfrontImageUrlSource('https://d1pfm520aduift.cloudfront.net'))
+    expect(cloudfront.source).toBe(`^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\/(books|theatre)\\/${IMAGE_FILE_NAME_SOURCE}$`)
+    for (const escape of ['/images/books/..%2F..%2Ffeed.json', '/images/theatre/a?x=1', '/images/books/', '/images/other/a.avif']) {
+      expect(cloudfront.test(`https://d1pfm520aduift.cloudfront.net${escape}`)).toBe(false)
+    }
+  })
+
+  it('builds escape probes from the route prefix for every gated file name', () => {
+    const probes = traversalProbeUrls(gatedUrls, new RegExp(LOCAL_IMAGE_PATH_SOURCE), SITE)
+    expect(probes).toContain('https://jonathanlloyd.me/images/books/..%2F..%2Ffeed.json')
+    expect(probes).toContain('https://jonathanlloyd.me/images/theatre/..%5C..%5Cfocus.json')
+    expect(probes).toContain('https://jonathanlloyd.me/images/books/..%2f..%2f..%2fllms.txt')
+    // A browser resolves %2e%2e/ itself, so that form never reaches a route as an escape.
+    expect(probes.some((url) => url.includes('%2e%2e/'))).toBe(false)
+    expect(TRAVERSAL_SUFFIXES.length).toBeGreaterThanOrEqual(12)
+    // None of them is accepted by the shipped shape.
+    const shipped = new RegExp(LOCAL_IMAGE_PATH_SOURCE)
+    expect(probes.filter((url) => shipped.test(new URL(url).pathname))).toEqual([])
+  })
+
+  it.each<[string, string, string]>([
+    ['the open-ended prefix #351 shipped', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/(books|theatre)\\//.test(e.pathname)', 'is not end-anchored'],
+    ['an end-anchored but open tail', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/.*$/.test(e.pathname)', 'accepts https://'],
+    ['a tail that excludes only the slash', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[^/]*$/.test(e.pathname)', 'accepts https://'],
+    ['a tail that admits a percent sign', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[\\w.%-]+$/.test(e.pathname)', 'accepts https://'],
+    // A literal (escaped) dollar sign is not an end anchor.
+    ['a tail ending in a literal dollar sign', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[a-z]+\\$/.test(e.pathname)', 'is not end-anchored'],
+    ['an open-ended CloudFront image regex', '/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\//', 'is not end-anchored'],
+    [
+      'a CloudFront image regex with an open tail',
+      '/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\/books\\/[^/?#]+$/',
+      'accepts https://d1pfm520aduift.cloudfront.net/images/books/'
+    ]
+  ])('rejects %s, in the text scan and in the inspection', (_label, matcher, expected) => {
+    const route = `e.registerRoute(${matcher},new e.CacheFirst({cacheName:"x"}),"GET");`
+    expect(scanWorkerSource(PURGE_IMPORT + route, {gatedUrls}).join('\n')).toContain(expected)
+    expect(inspect(route)).toContain(expected)
+  })
+
+  it('names the path escape in the problem', () => {
+    const route = 'e.registerRoute(({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[^/]*$/.test(e.pathname),new e.CacheFirst({cacheName:"x"}),"GET");'
+    expect(inspect(route)).toContain(
+      'accepts https://jonathanlloyd.me/images/books/..%2F..%2Fhealth.json, which an origin that decodes %2F or %5C and resolves dot segments serves as a gated file; anchor the route on a file-name shape (cors)'
+    )
+  })
+
+  it('passes the shipped image routes', () => {
+    expect(inspect(IMAGE_ROUTES)).toBe('')
+    expect(scanWorkerSource(PURGE_IMPORT + IMAGE_ROUTES, {gatedUrls})).toEqual([])
+  })
+})
+
+// INFO-4 (final verification of #351): a route on an unrelated bare origin was reported as covering
+// a gated CloudFront path. The message now names what is wrong: no literal path segment.
+describe('a regex on a bare origin', () => {
+  it('names the missing path segment, not a gated path it does not reach', () => {
+    const problems = scanWorkerSource(`${PURGE_IMPORT}e.registerRoute(/^https:\\/\\/fonts\\.gstatic\\.com\\//,new e.CacheFirst({cacheName:"fonts"}),"GET");`,
+      {gatedUrls}).join('\n')
+    expect(problems).toContain('is anchored on the bare origin https://fonts.gstatic.com/ with no literal path segment')
+    expect(problems).not.toContain('covers gated')
   })
 })
 

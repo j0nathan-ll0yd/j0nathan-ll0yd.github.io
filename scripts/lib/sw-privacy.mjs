@@ -25,6 +25,21 @@ export const RETIRED_CACHES = Object.freeze(['live-data', 'local-images'])
 export const PURGE_SCRIPT = '/js/sw-purge.js'
 
 /**
+ * The image routes' pinned shapes (scripts/check-sw-precache.mjs asserts the built worker carries
+ * exactly these). Each ends in ONE file-name segment: a letter or digit, then letters, digits, `.`,
+ * `_` or `-`. Every mirror file under public/images/books and public/images/theatre matches it
+ * (tests/unit/sw-privacy.test.ts reads them), and no `%`, `/` or `\` can, so an encoded slash or a
+ * dot-segment escape never reaches a cache.
+ */
+export const IMAGE_FILE_NAME_SOURCE = '[A-Za-z0-9][A-Za-z0-9._-]*'
+export const LOCAL_IMAGE_PATH_SOURCE = `^\\/images\\/(books|theatre)\\/${IMAGE_FILE_NAME_SOURCE}$`
+/** The CloudFront fallback route's source, as `new RegExp` builds it from the escaped host. */
+export function cloudfrontImageUrlSource(cloudfrontBase) {
+  const host = new URL(cloudfrontBase).host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return new RegExp(`^https://${host}/images/(books|theatre)/${IMAGE_FILE_NAME_SOURCE}$`).source
+}
+
+/**
  * Query strings and fragments appended to every gated URL. A route must skip a gated pathname
  * whatever follows it, so the probes carry the shapes that fooled a whole-URL regex (an image path
  * in a query value, a bare query, a fragment) and generic ones that name no route at all.
@@ -83,6 +98,49 @@ export function routeDerivedProbeUrls(gatedUrls, matcherRegex) {
   const samples = regexSamples(matcherRegex)
   const bases = [...new Set(gatedUrls.map(bareUrl))]
   return bases.flatMap((base) => samples.flatMap((sample) => [`${base}?q=${sample}`, `${base}?${sample}`, `${base}#${sample}`, `${base}?q=${sample}x.avif`]))
+}
+
+/**
+ * Path escapes appended to a route's own prefix, with `{t}` standing for a gated file name. A
+ * browser keeps each of these inside the route's prefix (it decodes neither `%2F` nor `%5C`, and a
+ * literal backslash or `..` is resolved before any route sees the URL), but an origin that decodes
+ * `%2F` or `%5C` and then resolves dot segments serves the gated file for it. A route anchored on a
+ * single file-name segment matches none of them.
+ */
+export const TRAVERSAL_SUFFIXES = Object.freeze([
+  '..%2F..%2F{t}',
+  '..%2f..%2f..%2f{t}',
+  '%2E%2E%2F%2E%2E%2F{t}',
+  '.%2E%2F.%2E%2F{t}',
+  '%2e%2e/%2e%2e/{t}',
+  '..%5C..%5C{t}',
+  '..%5c..%5c..%5c{t}',
+  '%2E%2E%5C%2E%2E%5C{t}',
+  '..\\..\\{t}',
+  'x%2F..%2F..%2F..%2F{t}',
+  '..%252F..%252F{t}',
+  'x/..%2F..%2F..%2F{t}',
+  '%2F{t}'
+])
+
+/**
+ * Probe URLs that escape one route's own prefix: each literal prefix the route is built around
+ * (`regexSamples`), followed by every TRAVERSAL_SUFFIXES form aimed at every gated file name. A
+ * pathname sample is placed on `origin`. Each URL is returned as the browser normalizes it.
+ */
+export function traversalProbeUrls(gatedUrls, matcherRegex, origin) {
+  const targets = [...new Set(gatedUrls.map((url) => new URL(url).pathname.replace(/^\/+/, '')).filter(Boolean))]
+  const urls = regexSamples(matcherRegex).flatMap((sample) => {
+    const base = sample.startsWith('/') ? `${origin}${sample}` : sample
+    return /^https?:\/\/[^/]+\//.test(base) ? TRAVERSAL_SUFFIXES.flatMap((suffix) => targets.map((target) => `${base}${suffix.replace('{t}', target)}`)) : []
+  })
+  return [...new Set(urls.map((url) => new URL(url).href))]
+}
+
+/** True when a regex ends in an unescaped `$`, so nothing may follow what it describes. */
+function isEndAnchored(regex) {
+  const trailing = /(\\*)\$$/.exec(regex.source)
+  return Boolean(trailing) && trailing[1].length % 2 === 0
 }
 
 /** Literal strings a regex is built around: escapes undone, each alternative of a group expanded. */
@@ -195,9 +253,29 @@ export function urlRegexProblems(regex, gatedUrls, label) {
   // Compared by PATH against every gated pathname, whatever its origin: the gated routes also run on
   // hosts the probe set does not name (www, a *.pages.dev preview), and a route anchored on one of
   // those must not cover them either.
-  const pathPrefix = prefix.slice(new URL(prefix).origin.length)
-  const hit = gatedUrls.map((url) => new URL(url)).find((url) => overlaps(prefix, `${url.origin}${url.pathname}`) || overlaps(pathPrefix, url.pathname))
-  return hit ? [`${label}: runtime route ${regex} covers gated path ${hit.origin}${hit.pathname}; gated responses must never be cached`] : []
+  const origin = new URL(prefix).origin
+  const pathPrefix = prefix.slice(origin.length)
+  if (pathPrefix === '/') {
+    return [
+      `${label}: runtime route ${regex} is anchored on the bare origin ${origin}/ with no literal path segment; the gated routes answer on hosts the guard cannot list (www, a *.pages.dev preview), so a route must also name a literal path that is not gated (^${origin}/<segment>/...)`
+    ]
+  }
+  const problems = []
+  const exact = gatedUrls.map((url) => new URL(url)).find((url) => overlaps(prefix, `${url.origin}${url.pathname}`))
+  const byPath = exact ? null : gatedUrls.map((url) => new URL(url)).find((url) => overlaps(pathPrefix, url.pathname))
+  if (exact) {
+    problems.push(`${label}: runtime route ${regex} covers gated URL ${exact.origin}${exact.pathname}; gated responses must never be cached`)
+  } else if (byPath) {
+    problems.push(
+      `${label}: runtime route ${regex} has the literal path prefix ${pathPrefix}, which covers the gated path ${byPath.pathname}; the gated routes answer on every host, so a route on ${origin} must not cover it either`
+    )
+  }
+  if (!isEndAnchored(regex)) {
+    problems.push(
+      `${label}: runtime route ${regex} is not end-anchored ($); anchor it on a file-name shape so no further path, query or encoded escape can follow`
+    )
+  }
+  return problems
 }
 
 /**
@@ -210,8 +288,17 @@ export function pathRegexProblems(regex, gatedUrls, label) {
   if (prefix === null || !/^\/[^/?#]/.test(prefix)) {
     return [`${label}: runtime route pathname test ${regex} is not anchored on a literal path (^/segment...)`]
   }
+  const problems = []
   const hit = gatedUrls.map((url) => new URL(url).pathname).find((pathname) => overlaps(prefix, pathname))
-  return hit ? [`${label}: runtime route pathname test ${regex} covers gated path ${hit}; gated responses must never be cached`] : []
+  if (hit) {
+    problems.push(`${label}: runtime route pathname test ${regex} covers gated path ${hit}; gated responses must never be cached`)
+  }
+  if (!isEndAnchored(regex)) {
+    problems.push(
+      `${label}: runtime route pathname test ${regex} is not end-anchored ($); anchor it on a file-name shape so an encoded slash or dot segment cannot follow`
+    )
+  }
+  return problems
 }
 
 /**
@@ -383,6 +470,13 @@ export function scanWorkerSource(source, {gatedUrls, requirePurgeImport = false,
     })
     if (hit) {
       problems.push(`${label}: runtime route ${regex} matches gated URL ${hit}; gated responses must never be cached`)
+    }
+    const escape = traversalProbeUrls(gatedUrls, regex, 'https://probe.invalid').find((url) => {
+      regex.lastIndex = 0
+      return regex.test(kind === 'path' ? new URL(url).pathname : url)
+    })
+    if (escape) {
+      problems.push(`${label}: ${traversalMessage(regex, escape)}`)
     }
   }
 
@@ -722,11 +816,13 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
   // Every route must classify by origin and pathname (see scanWorkerSource), judged here on the
   // VALUES the worker registered: a RegExp by its source, a function by its own source text.
   const derivedProbes = []
+  const escapeProbes = []
   for (const route of record.routes) {
     const matcher = route.matcher
     if (Object.prototype.toString.call(matcher) === '[object RegExp]') {
       problems.push(...urlRegexProblems(matcher, gatedUrls, label))
       derivedProbes.push(...routeDerivedProbeUrls(gatedUrls, matcher))
+      escapeProbes.push(...traversalProbeUrls(gatedUrls, matcher, siteOrigin))
       continue
     }
     // The appended comma stands for the argument separator the text parsers require; any text
@@ -736,6 +832,7 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
     if (pathRegex) {
       problems.push(...pathRegexProblems(pathRegex, gatedUrls, label))
       derivedProbes.push(...routeDerivedProbeUrls(gatedUrls, pathRegex))
+      escapeProbes.push(...traversalProbeUrls(gatedUrls, pathRegex, siteOrigin))
     } else if (!isNavigationMatcherAt(text, 0)) {
       problems.push(
         `${label}: a route matcher is neither an anchored RegExp, a same-origin pathname test, nor the navigation test; it may read the query string`
@@ -752,7 +849,21 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
       }
     }
   }
+  for (const url of new Set(escapeProbes)) {
+    for (const mode of ['cors', 'no-cors']) {
+      for (const route of record.routes.filter((candidate) => routeMatches(candidate, url, mode, siteOrigin))) {
+        if (!isOfflineFallbackNetworkOnly(route.handler, siteUrl, record.objectPrototype)) {
+          problems.push(`${label}: a ${route.handler?.kind ?? 'unknown'} ${traversalMessage(route.matcher, url)} (${mode})`)
+        }
+      }
+    }
+  }
   return [...new Set(problems)]
+}
+
+/** The problem text for a route that accepts a path escape. */
+function traversalMessage(matcher, url) {
+  return `route ${matcher} accepts ${url}, which an origin that decodes %2F or %5C and resolves dot segments serves as a gated file; anchor the route on a file-name shape`
 }
 
 /**

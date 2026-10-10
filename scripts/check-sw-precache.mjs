@@ -21,8 +21,17 @@
 // app shell, and we derive the expected floor from the actual built assets.
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {join, resolve} from 'node:path'
-import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {PURGE_SCRIPT, sameOriginPathMatcherAt, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from './lib/sw-privacy.mjs'
+import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {
+  cloudfrontImageUrlSource,
+  LOCAL_IMAGE_PATH_SOURCE,
+  PURGE_SCRIPT,
+  readRegexLiteral,
+  sameOriginPathMatcherAt,
+  scanWorkerTree,
+  siteGatedProbeUrls,
+  verifyPurgeScript
+} from './lib/sw-privacy.mjs'
 
 const distDir = resolve(process.cwd(), 'dist')
 const swPath = join(distDir, 'sw.js')
@@ -126,8 +135,8 @@ if (!localImagesRoute) {
   problems.push('missing local-images-v2 runtime route')
 } else {
   const pathTest = sameOriginPathMatcherAt(localImagesRoute, 'registerRoute('.length)
-  if (!pathTest || pathTest.source !== String.raw`^\/images\/(books|theatre)\/`) {
-    problems.push('local-images-v2 runtime route is not the same-origin pathname test for ^/images/(books|theatre)/')
+  if (!pathTest || pathTest.source !== LOCAL_IMAGE_PATH_SOURCE) {
+    problems.push(`local-images-v2 runtime route is not the same-origin pathname test /${LOCAL_IMAGE_PATH_SOURCE}/`)
   }
   if (!localImagesRoute.includes('CacheFirst')) {
     problems.push('local-images-v2 runtime route is not CacheFirst')
@@ -141,8 +150,9 @@ const cloudfrontImagesRoute = runtimeRoute('optimized-images-fallback')
 if (!cloudfrontImagesRoute) {
   problems.push('missing optimized-images-fallback runtime route')
 } else {
-  if (!cloudfrontImagesRoute.includes('cloudfront\\.net\\/images\\/')) {
-    problems.push('optimized-images-fallback route no longer targets the CloudFront /images/ path')
+  const cloudfrontMatcher = readRegexLiteral(cloudfrontImagesRoute, 'registerRoute('.length)
+  if (!cloudfrontMatcher || cloudfrontMatcher.source !== cloudfrontImageUrlSource(CLOUDFRONT_BASE)) {
+    problems.push(`optimized-images-fallback route is not /${cloudfrontImageUrlSource(CLOUDFRONT_BASE)}/`)
   }
   if (!cloudfrontImagesRoute.includes('CacheFirst')) {
     problems.push('optimized-images-fallback runtime route is not CacheFirst')
@@ -187,4 +197,4 @@ if (problems.length > 0) {
 }
 
 console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');',
-  '/offline precached as the only document, NetworkOnly navigations, activation, image runtime routes, no gated route (query and fragment forms included) or unrouted handler, and a working purge of the retired caches.')
+  '/offline precached as the only document, NetworkOnly navigations, activation, image runtime routes, no gated route (query, fragment and encoded path-escape forms included) or unrouted handler, and a working purge of the retired caches.')
