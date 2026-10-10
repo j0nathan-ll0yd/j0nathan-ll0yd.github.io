@@ -98,7 +98,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await loadTheatreFixture(page, 'empty')
 
     await expect(page.locator('#cardTheatreReviews .widget-empty')).toContainText(THEATRE_EMPTY_MESSAGE)
-    await expect(page.locator('#theatreCount')).toHaveText('0 reviews')
+    // An empty export names no count: the bare "reviews" link (@j0nathan-ll0yd/web 4).
+    await expect(page.locator('#theatreCount')).toHaveText('reviews')
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
 
     await expectNoNewAxeViolations(page, 'theatre-reviews/empty')

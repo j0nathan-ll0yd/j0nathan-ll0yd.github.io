@@ -17,8 +17,8 @@ encode a wall-clock boundary as a conformance fact.
 ### Requirement: Loading state keeps the reading feed in its loading presentation
 
 While the articles request is pending, the system SHALL keep the Reading Feed card in its loading
-presentation. The server-rendered rows may remain underneath that presentation until fresh data
-arrives.
+presentation. The server renders no items (`dashboard-shell`), so the card shows only its skeleton and a
+hidden, empty scaffold until fresh data arrives.
 Verified by `tests/behavioral/articles-matrix.test.ts:18`.
 
 #### Scenario: The feed stays in its loading presentation while articles.json is outstanding

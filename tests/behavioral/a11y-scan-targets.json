@@ -1,7 +1,12 @@
 {
   "description": "Every per-widget axe scan the behavioral matrices perform (atlas phoenix-eval GAP 4 / W16). One entry per <widget>/<state> the matrices render; `key` is also the key used in a11y-baseline.json. Declared as data, not as TypeScript, because scripts/update-a11y-baseline.mjs needs the same list and parsing a .ts source textually to get it was fragile enough to break on a single inline comment. Loaded and validated by tests/behavioral/a11y-scan-targets.ts. `expectsWcagApplicableNodes: false` waives the guard that says axe must have reached at least one node inside this card, and REQUIRES a measured `sparseReason` -- the waiver is the only thing between a card that stopped rendering and a clean-looking scan of nothing.",
   "targets": [
-    {"key": "bookshelf/loading", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {
+      "key": "bookshelf/loading",
+      "selector": "#cardBooks",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-10-10 (playwright noble image, axe-core 4.13, @j0nathan-ll0yd/web 4.0): the data-free page (atlas decision 0160) renders the `loading` card as one h3.widget-label, an empty live-label span, decorative .skeleton-bar divs, a <noscript> note (inert while scripts run) and the value-free shelf scaffold, `hidden`. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable. Before 0160 the server rendered fixture books, whose tiles made this scan applicable."
+    },
     {
       "key": "bookshelf/empty",
       "selector": "#cardBooks",
@@ -13,7 +18,12 @@
     {"key": "bookshelf/allReading", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
     {"key": "bookshelf/noCovers", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
     {"key": "bookshelf/full", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
-    {"key": "theatre-reviews/loading", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
+    {
+      "key": "theatre-reviews/loading",
+      "selector": "#cardTheatreReviews",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-10-10 (playwright noble image, axe-core 4.13, @j0nathan-ll0yd/web 4.0): the `loading` card renders one h3.widget-label, an empty #theatreCount span (the link appears only with data), nine decorative .skeleton-bar divs, a <noscript> note and the hidden #theatreRow scaffold. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable. theatre-reviews/empty stays guarded: its count is a real link."
+    },
     {"key": "theatre-reviews/empty", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
     {"key": "theatre-reviews/baseline", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
     {"key": "theatre-reviews/allGrades", "selector": "#cardTheatreReviews", "expectsWcagApplicableNodes": true},
@@ -65,9 +75,20 @@
       "sparseReason": "Measured 2026-09-01 (playwright noble image, axe-core 4.13): unlinked sessions render as divs of label/value text beside decorative activity SVGs that carry no img role, so every WCAG-tagged rule is inapplicable. health/workoutsBranded is NOT waived: a mapped session renders a real anchor, which makes link-name applicable -- so the guard still proves this card renders whenever it can."
     },
     {"key": "health/workoutsBranded", "selector": "#cardWorkouts", "expectsWcagApplicableNodes": true},
+    {
+      "key": "health/workoutsRestDay",
+      "selector": "#cardWorkouts",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-10-10 (playwright noble image, axe-core 4.13, @j0nathan-ll0yd/web 4.0.1), six consecutive runs: the recovery-day card renders one h3.widget-label, a live-label span, a decorative rest-icon SVG with no img role and three text divs. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable, as for health/workoutsMulti. health/workoutsBranded keeps the guard live for this card."
+    },
     {"key": "health/systemStatus", "selector": "#cardSystem", "expectsWcagApplicableNodes": true},
     {"key": "health/contractViolation", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
-    {"key": "articles/loading", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
+    {
+      "key": "articles/loading",
+      "selector": "#cardReading",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-10-10 (playwright noble image, axe-core 4.13, @j0nathan-ll0yd/web 4.0): the `loading` card renders one h3.widget-label, an empty live-label span, decorative .skeleton-bar divs, a <noscript> note and the empty article list, `hidden`. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable. Before atlas decision 0160 the server rendered fixture articles, whose anchors made this scan applicable."
+    },
     {
       "key": "articles/empty",
       "selector": "#cardReading",
@@ -79,7 +100,12 @@
     {"key": "articles/withNotes", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
     {"key": "articles/pagination", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
     {"key": "articles/overThirty", "selector": "#cardReading", "expectsWcagApplicableNodes": true},
-    {"key": "devlog/loading", "selector": "#cardDevLog", "expectsWcagApplicableNodes": true},
+    {
+      "key": "devlog/loading",
+      "selector": "#cardDevLog",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-10-10 (playwright noble image, axe-core 4.13, @j0nathan-ll0yd/web 4.0): the `loading` card renders one h3.widget-label, an empty live-label span, decorative .skeleton-bar divs, a <noscript> note and the empty terminal scaffold, `hidden`. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable. Before atlas decision 0160 the server rendered fixture events, whose anchors made this scan applicable."
+    },
     {
       "key": "devlog/empty",
       "selector": "#cardDevLog",

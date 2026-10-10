@@ -25,6 +25,7 @@ export default defineConfig({
     '**/*.spec.ts',
     '**/articles-matrix.test.ts',
     '**/bookshelf-matrix.test.ts',
+    '**/data-free-shell.test.ts',
     '**/devlog-matrix.test.ts',
     '**/health-matrix.test.ts',
     '**/theatre-reviews-matrix.test.ts'

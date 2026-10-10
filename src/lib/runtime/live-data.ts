@@ -11,6 +11,8 @@ import type {HealthExport, SleepExport} from '@j0nathan-ll0yd/portal-contract/sc
 import type {ArtifactValues} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@j0nathan-ll0yd/web/runtime/adapters'
+import {releaseSuppression} from '@j0nathan-ll0yd/web/runtime/updater-empty'
+import {sleepScoreSource} from '@j0nathan-ll0yd/web/runtime/widget-rules'
 import {WSClient} from './ws-client'
 import {
   updateBookshelf,
@@ -31,6 +33,7 @@ const LIVE_CARDS = [
   'cardMovement',
   'cardSleep',
   'cardHydration',
+  'cardWorkouts',
   'cardBooks',
   'cardDevLog',
   'cardReading',
@@ -165,8 +168,20 @@ function enterSuppression(): void {
   clearGatedData()
 }
 
+/**
+ * The focus gate's own word that hiding ended. A card or System Status row a server rendered
+ * `suppressed` refuses every data update until it is released (`@j0nathan-ll0yd/web` 4), so the
+ * gate releases each one before the refetch that refills it. The data-free page renders none
+ * suppressed today; a server-rendered page (atlas decision 0160, PR B) does.
+ */
+function releaseSuppressedCards(): void {
+  LIVE_CARDS.forEach((id) => releaseSuppression(document.getElementById(id)))
+  document.querySelectorAll('#systemStatus .sys-line').forEach((row) => releaseSuppression(row))
+}
+
 function liftSuppression(): void {
   suppression = {kind: 'none'}
+  releaseSuppressedCards()
   cancelGateRecheck()
   engine?.setSuppressed(false)
   // Leaving suppression: the DOM holds no gated value (it was cleared, or none was ever applied),
@@ -266,10 +281,14 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
     updateHeartRateFooter(health)
     updateMovementRings(health)
     updateHydration(health)
+    // The health export lends NightSummary its sleep score: a new one refreshes the score.
+    if (lastSleep) {
+      updateNightSummary(adaptSleep(lastSleep, nightScoreSource(data)))
+    }
   },
   sleep: (data) => {
     lastSleep = data
-    updateNightSummary(adaptSleep(data, lastHealth ?? null))
+    updateNightSummary(adaptSleep(data, nightScoreSource(lastHealth)))
     if (lastHealth) {
       const health = adaptHealth(lastHealth, data)
       updateHeartRate(health)
@@ -294,6 +313,16 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
   },
   theatreReviews: (data) => updateTheatreReviews(data),
   starredRepos: (data) => updateStarredRepos(adaptStarredRepos(data))
+}
+
+/**
+ * The health export NightSummary may take its sleep score from (`@j0nathan-ll0yd/web` 4,
+ * `sleepScoreSource`). The card follows the sleep export alone; only a live health export lends
+ * the score. The client reads no freshness yet, so a decoded health export counts as live and a
+ * missing one renders the score as the no-reading mark.
+ */
+function nightScoreSource(health: HealthExport | null | undefined): HealthExport | null {
+  return sleepScoreSource(health, health ? 'live' : 'unavailable')
 }
 
 function handleResourceUpdate<K extends ResourceKey>(key: K, data: ArtifactValues[K]): void {
@@ -388,7 +417,7 @@ const startFetch = async () => {
 
   if (sleep) {
     try {
-      updateNightSummary(adaptSleep(sleep, health))
+      updateNightSummary(adaptSleep(sleep, nightScoreSource(health)))
     } catch (e) {
       console.warn('[live-data] Sleep update failed:', e)
     }

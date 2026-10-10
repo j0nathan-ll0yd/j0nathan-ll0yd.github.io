@@ -22,57 +22,60 @@ This is Astro's **islands architecture**: the page is static HTML with selective
 
 ## Data Flow
 
-Six JSON files in `data/` are read at build time via `fs.readFileSync` in the `index.astro` frontmatter:
+`/` is a data-free page (atlas decision 0160, PR 0a; spec `openspec/specs/dashboard-shell`). The build reads no data, no network and no fixture. `loadDashboardData()` in `src/lib/load-dashboard-data.ts` returns three things:
 
-| File | Contents | Consumers |
-|---|---|---|
-| `profile.json` | Name, title, bio, avatar, social links | IdentityCard, BioTerminal, Location |
-| `health.json` | Heart rate, steps, sleep, hydration, workouts | HeartRate, DailyActivity, Workouts, NightSummary, Hydration |
-| `github.json` | Contribution heatmap, recent commits, stats | GitHubHeatmap, RecentCommits |
-| `books.json` | Book covers, titles, authors, reading status | Bookshelf |
-| `reading.json` | RSS/article feed items | ReadingFeed |
-| `system.json` | System status indicators | SystemStatus |
+| Field         | Source                                                                                                                          | Consumers               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `profile`     | `@j0nathan-ll0yd/copy`: `identity.person` (name, job title, bio, `sameAs` links) and `profile` (tagline, terminal blocks)         | IdentityCard, BioTerminal |
+| `system`      | One row per source with the no-reading mark and no status, age or timestamp                                                      | SystemStatus            |
+| `localCovers` | The committed cover mirror under `public/images/books/`                                                                          | Bookshelf               |
 
-```javascript
+```astro
+---
 // src/pages/index.astro (frontmatter)
-const dataDir = path.join(process.cwd(), 'data');
-const profile = JSON.parse(fs.readFileSync(path.join(dataDir, 'profile.json'), 'utf-8'));
+const { profile, system, localCovers } = loadDashboardData();
+---
+<IdentityCard profile={profile.card} />
+<HeartRate state="loading" />
+<Bookshelf state="loading" localCovers={localCovers} />
 ```
 
-Data is passed to components as Astro props. No client-side data fetching occurs.
+Every live widget renders `state="loading"`: its skeleton, `data-ssr-state="loading"` and a `<noscript>` note that live data needs JavaScript. The client runtime (`src/lib/runtime/live-data.ts`) then fetches the CloudFront exports and fills each card through the design-system updaters. With JavaScript off, a visitor sees the identity content and honest loading cards, never a fabricated value.
+
+`@j0nathan-ll0yd/fixtures` is a devDependency for tests only. The `forbid-fixtures` Vite plugin (`scripts/vite-forbid-fixtures.mjs`, registered in `astro.config.mjs`) fails the build when any module resolves to it, directly or through another module or package.
 
 ## Component Catalog
 
-14 `.astro` components in `src/components/`, each mapping 1:1 to a dashboard widget.
+Every widget comes from `@j0nathan-ll0yd/web/production`; this repo has no `src/components/`. Live widgets take an optional `state` and `generatedAt` (`@j0nathan-ll0yd/web` 4).
 
 ### Left Panel
 
-| Component | Props | Description |
-|---|---|---|
-| `IdentityCard` | `profile` | Avatar, name, title, bio, social links |
-| `BioTerminal` | `profile` | Faux terminal with typing animation |
-| `SystemStatus` | `system` | System status indicators with live dots |
+| Component      | Props on `/`               | Description                                   |
+| -------------- | -------------------------- | --------------------------------------------- |
+| `IdentityCard` | `profile` (from copy)      | Avatar, name, title, bio, tagline, social links |
+| `BioTerminal`  | `profile` (from copy)      | Faux terminal with typing animation           |
+| `SystemStatus` | `system` (no-reading rows) | Per-source status, filled by the client       |
 
 ### Body Column
 
-| Component | Props | Description |
-|---|---|---|
-| `HeartRate` | `health` | ECG animation, BPM display, heart rate zones |
-| `DailyActivity` | `health` | Steps, calories, distance with progress bars |
-| `Workouts` | `health` | Workout log with live/sample data toggle |
-| `NightSummary` | `health` | Sleep duration, stages, quality score |
-| `Hydration` | `health` | Water intake with wave animation and count-up |
-| `Location` | `profile` | Leaflet map with pulse marker (CartoDB Dark Matter tiles) |
+| Component       | Props on `/`      | Description                               |
+| --------------- | ----------------- | ----------------------------------------- |
+| `HeartRate`     | `state="loading"` | ECG animation, BPM display, heart-rate zones |
+| `Workouts`      | `state="loading"` | Workout sessions, or the recovery-day state |
+| `MovementRings` | `state="loading"` | Move, exercise, stand and daylight rings  |
+| `Hydration`     | `state="loading"` | Water and caffeine vessels                |
+| `NightSummary`  | `state="loading"` | Sleep duration, phases and score          |
 
 ### Mind Column
 
-| Component | Props | Description |
-|---|---|---|
-| `GitHubHeatmap` | `github` | Contribution grid with color-coded intensity |
-| `RecentCommits` | `github` | Commit log with relative timestamps |
-| `ReadingFeed` | `reading` | RSS/article feed with source and date |
-| `Bookshelf` | `books` | Book covers grid, click opens BookModal |
-| `BookModal` | (none) | Modal with focus trapping, Tab cycling, Escape to close |
+| Component         | Props on `/`                     | Description                                    |
+| ----------------- | -------------------------------- | ---------------------------------------------- |
+| `DevActivityLog`  | `state="loading"`                | GitHub activity log                            |
+| `ReadingFeed`     | `state="loading"`                | Saved articles with source and date            |
+| `StarredRepoList` | `state="loading"`                | Recently starred repositories                  |
+| `Bookshelf`       | `state="loading"`, `localCovers` | Book covers; a click opens BookModal           |
+| `TheatreReviews`  | `state="loading"`                | Theatre review cards                           |
+| `BookModal`       | (none)                           | Native dialog with the selected book's details |
 
 ## Component Showcase (Dev Only)
 

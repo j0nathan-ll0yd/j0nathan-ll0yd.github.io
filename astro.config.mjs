@@ -3,6 +3,7 @@ import AstroPWA from '@vite-pwa/astro'
 import sitemap from '@astrojs/sitemap'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
+import {forbidFixtures} from './scripts/vite-forbid-fixtures.mjs'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -21,13 +22,10 @@ export default defineConfig({
   compressHTML: true,
   build: {inlineStylesheets: 'always'},
   vite: {
-    define: {
-      // Expose the build-time fixture-variation selector to source. Astro/Vite
-      // only forwards VITE_-prefixed env to import.meta.env by default; the
-      // visual suite sets FIXTURE_VARIATION on the build process to pick a named
-      // @j0nathan-ll0yd/fixtures post-adapter variation (default 'baseline').
-      'import.meta.env.FIXTURE_VARIATION': JSON.stringify(process.env.FIXTURE_VARIATION ?? 'baseline')
-    },
+    // Fails the build when any module resolves to @j0nathan-ll0yd/fixtures, directly or through
+    // another module or package (atlas decision 0160, plan Step 6.7). Production pages carry no
+    // fixture data; tests serve fixtures by route interception only.
+    plugins: [forbidFixtures()],
     build: {
       // Force every bundled JS chunk to emit as an external _astro/*.js file
       // instead of being inlined into the HTML. Required because production CSP

@@ -27,12 +27,10 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `pnpm build` -> `clou
 ├── src/
 │   ├── pages/                    # index.astro (loads data, composes DS widgets), 404.astro
 │   ├── layouts/                  # Dashboard.astro (head, SEO meta, JSON-LD, DS CSS)
-│   └── lib/                      # load-dashboard-data.ts (7 build-time fixtures)
-├── data/                         # 7 build-time JSON fixtures
-├── test/fixtures/                # build-fixture generation + generated build-data/
+│   └── lib/                      # load-dashboard-data.ts (data-free shell), identity-profile.ts (copy), runtime/
 ├── tests/                        # build (Vitest), visual + smoke (Playwright)
 ├── audits/                       # ALL audit code (atlas decision 0111): checks/, lib/, specs/, fixtures/, __tests__/, vendor/
-├── scripts/                      # fixture validation, image fetch, type gen, CI setup
+├── scripts/                      # build gates (incl. vite-forbid-fixtures.mjs), image fetch, type gen, CI setup
 ├── public/                       # assets, images, .well-known, manifest
 ├── functions/                    # _middleware.ts (security headers) + llms.txt.ts (CloudFront proxy)
 └── .github/workflows/            # deploy, visual-tests, smoke-check
@@ -46,13 +44,15 @@ Deploy: push to `main` -> GitHub Actions (`deploy.yml`) -> `pnpm build` -> `clou
 
 | Context         | Source                                                         | Mechanism                                                             |
 | --------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Build-time      | `@j0nathan-ll0yd/fixtures` (`getDashboardFixture()`)           | `loadDashboardData()` in `index.astro` frontmatter                    |
-| Visual fixtures | `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
+| Build-time      | `@j0nathan-ll0yd/copy` (identity only; no data)                | `loadDashboardData()` in `index.astro` frontmatter                    |
+| Test fixtures   | `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` | Playwright CloudFront route interception (`tests/visual/fixtures.ts`) |
 | Client-side     | CloudFront                                                     | `@j0nathan-ll0yd/web/runtime/live-data.ts` after page load            |
 | Polling         | CloudFront JSON                                                | PollEngine (30s fast, 120s slow), never cached by the service worker  |
 | WebSocket       | API Gateway                                                    | Adaptive fallback when WS unavailable                                 |
 
-Fixtures are DS-owned (Plan #04): the SSR shell comes from `@j0nathan-ll0yd/fixtures` (post-adapter `baseline` by default; `import.meta.env.FIXTURE_VARIATION` selects a named variation, wired in `astro.config.mjs`). This repo hand-bakes no fixtures -- consumer-side fixtures are forbidden by Invariant I2 (`pnpm run audit:fixtures`, a prebuild gate). Visual tests serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` via CloudFront route interception.
+**`/` carries no fixture data (atlas decision 0160, PR 0a; spec `openspec/specs/dashboard-shell`).** `loadDashboardData()` returns only the authored identity content (`src/lib/identity-profile.ts`: name, title, bio and links from `identity.person`, tagline and terminal from the `profile` namespace of `@j0nathan-ll0yd/copy`), the System Status rows with the no-reading mark, and the mirrored cover paths for Bookshelf `localCovers`. Every live widget renders `state="loading"`: its skeleton, `data-ssr-state="loading"` and a `<noscript>` note. The client runtime fills live data after load. With JavaScript off, a visitor sees identity content and honest loading cards, never a fabricated value. This version is the rollback target for every later 0160 change (D9); there is no fixture rollback.
+
+`@j0nathan-ll0yd/fixtures` is a **devDependency for tests only**. Two gates keep it out of production: `scripts/audit-fixtures.mjs` (prebuild) fails on a direct import under `src/` or `functions/` and on hand-baked fixture JSON (Invariant I2); the `forbid-fixtures` Vite plugin (`scripts/vite-forbid-fixtures.mjs`, in `astro.config.mjs`) fails the build when ANY module in the production graph resolves to the package, directly or through another module or package. Its self-test is `tests/unit/forbid-fixtures.test.ts`. Tests that need populated widgets serve raw fixtures from `@j0nathan-ll0yd/fixtures/generated/` by CloudFront route interception, a path no production module reaches. There is no build-time fixture variation (`FIXTURE_VARIATION` is gone).
 
 ## Design System Integration
 

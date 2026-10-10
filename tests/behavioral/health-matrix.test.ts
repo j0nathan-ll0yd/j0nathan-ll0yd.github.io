@@ -1,6 +1,7 @@
 import {expect, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {expectNoNewAxeViolations} from './a11y'
+import {createRequire} from 'node:module'
 import {fixture, interceptDashboard, loadDashboard} from './dashboard-fixtures'
 
 // Health vertical render conformance: heart rate, movement rings, hydration, night summary,
@@ -12,6 +13,9 @@ import {fixture, interceptDashboard, loadDashboard} from './dashboard-fixtures'
 //   - caffeine  = round(dietaryCaffeine g * 1000)
 //   - zone      = classifyHeartRate thresholds 45 / 60 / 100 / 140  (runtime/heart-rate.ts)
 //   - sleep     = formatDuration / formatPhase / computeSleepPercentages  (runtime/sleep.ts)
+
+// The copy package's TypeScript entry cannot load in this runner; its flat JSON export can.
+const WORKOUTS_RECOVERY_DAY: string = createRequire(import.meta.url)('@j0nathan-ll0yd/copy/widgets.flat.json').workouts.recoveryDay
 
 const HR_PAUSED_OFF_WRIST = 'Heart-rate tracking paused while the watch is off the wrist.'
 const HR_PAUSED_CHARGING = 'Heart-rate tracking paused while the watch is charging.'
@@ -228,14 +232,20 @@ test.describe('Health Render Conformance', () => {
     await expectNoNewAxeViolations(page, 'health/workoutsBranded')
   })
 
-  // covers: health-render#A rest day leaves the conditional workouts card hidden
-  test('leaves the workouts card hidden on a rest day', async ({page}) => {
+  // covers: health-render#A rest day shows the recovery-day state rather than a session
+  test('shows the recovery-day state on a rest day', async ({page}) => {
     await loadDashboard(page, {[ENDPOINTS.workouts]: fixture('workouts', 'empty')}, '#cardHR')
 
-    // The card ships display:none and is revealed only by a non-empty export, so a rest day must
-    // not surface the build-time SSR session. No axe scan here: a hidden card evaluates no nodes.
-    await expect(page.locator('#cardWorkouts')).toBeHidden()
+    // @j0nathan-ll0yd/web 4 renders Workouts visible in every state; an empty export is the
+    // recovery-day empty state (workoutsRestHtml), never a hidden card and never a session.
+    const card = page.locator('#cardWorkouts')
+    await expect(card).toBeVisible()
+    await expect(card).toHaveAttribute('data-ssr-state', 'empty')
+    await expect(card.locator('[data-state-notice="empty"]')).toContainText(WORKOUTS_RECOVERY_DAY)
+    await expect(card.locator('.workout-stat')).toHaveCount(0)
     await expect(page.locator('#cardHR')).toBeVisible()
+
+    await expectNoNewAxeViolations(page, 'health/workoutsRestDay')
   })
 
   // covers: health-render#System status reports each health source as active once its export lands
@@ -277,12 +287,13 @@ test.describe('Health Render Conformance', () => {
     await page.goto('/')
     await expect(page.locator('#cardHR')).not.toHaveClass(/is-loading/)
 
-    // 72 is the server-rendered value the runtime leaves untouched. It comes from the build-time
-    // post-adapter fixture, which is a different fixture from the raw baseline this suite serves
-    // over the network (63) -- so reading 72 here proves the live update never ran at all. 199 with
-    // its "Peak Zone" badge is what the page displayed while arriving JSON was taken on trust.
-    await expect(page.locator('#pulseBpm')).toHaveText('72')
-    await expect(page.locator('#hrZoneBadge')).toHaveText('Normal Zone')
+    // The page is data-free (atlas decision 0160), so the card keeps its value-free `loading`
+    // scaffold: an empty readout proves the live update never ran at all. 199 with its "Peak Zone"
+    // badge is what the page displayed while arriving JSON was taken on trust.
+    await expect(page.locator('#cardHR')).toHaveAttribute('data-ssr-state', 'loading')
+    await expect(page.locator('#pulseBpm')).toHaveText('')
+    await expect(page.locator('#hrZoneBadge')).toHaveText('')
+    await expect(page.locator('#cardHR')).not.toContainText('199')
     await expect(page.locator('#cardHR')).not.toHaveClass(/tri-card-accent-red/)
 
     // The refusal is legible where it matters operationally: a rejected export contributes no
