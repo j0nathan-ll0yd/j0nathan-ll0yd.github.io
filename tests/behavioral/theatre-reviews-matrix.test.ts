@@ -157,8 +157,8 @@ test.describe('Theatre Reviews Render Conformance', () => {
   // covers: theatre-reviews-render#Full variation renders populated optimized-image review cards
   test('renders optimized poster picture sources and safe outbound links', async ({page}) => {
     // The raw fixture's off-origin posters are rejected by the image sanitizer.
-    // Substitute committed same-origin assets to exercise the allowed optimized
-    // picture path independently of the rejection behavior asserted above.
+    // Serve same-origin fixture posters (serveFixturePosters) to exercise the allowed
+    // optimized picture path independently of the rejection behavior asserted above.
     await interceptDashboardData(page, allowedPosterFixture())
     await serveFixturePosters(page)
     await page.goto('/')
