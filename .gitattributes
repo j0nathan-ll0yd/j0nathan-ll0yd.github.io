@@ -13,6 +13,8 @@ tests/visual/__screenshots__/**/*.png binary
 *.jpeg -text -diff
 *.webp binary
 *.webp -text -diff
+*.avif binary
+*.avif -text -diff
 *.gif binary
 *.gif -text -diff
 *.ico binary
