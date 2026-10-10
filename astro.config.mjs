@@ -126,14 +126,18 @@ export default defineConfig({
             // /\/images\/(books|theatre)\// matched /feed.json?preview=/images/books/ and cached a
             // gated feed for 30 days. The cache is renamed because the old "local-images" cache can
             // hold such entries; public/js/sw-purge.js and sw-register.js delete it.
-            urlPattern: ({url, sameOrigin}) => sameOrigin && /^\/images\/(books|theatre)\//.test(url.pathname),
+            // The pathname is anchored on ONE file-name segment: an origin that decodes %2F and
+            // resolves `..` served /images/books/..%2F..%2Ffeed.json as the gated feed, and an
+            // open-ended prefix cached it. Every mirror file name matches this shape.
+            urlPattern: ({url, sameOrigin}) => sameOrigin && /^\/images\/(books|theatre)\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(url.pathname),
             handler: 'CacheFirst',
             options: {cacheName: 'local-images-v2', expiration: {maxEntries: 200, maxAgeSeconds: 2592000}}
           },
           {
-            // CloudFront images fallback — safety net for onerror fallback fetches. Anchored at
-            // the origin and the first path segment, so a query string cannot change the match.
-            urlPattern: new RegExp(`^https://${CF_HOST_RE}/images/`),
+            // CloudFront images fallback — safety net for onerror fallback fetches. Anchored on
+            // the origin, the image root and one file-name segment, end to end: no query string,
+            // encoded slash or dot segment can change the match.
+            urlPattern: new RegExp(`^https://${CF_HOST_RE}/images/(books|theatre)/[A-Za-z0-9][A-Za-z0-9._-]*$`),
             handler: 'CacheFirst',
             options: {cacheName: 'optimized-images-fallback', expiration: {maxEntries: 50, maxAgeSeconds: 604800}}
           }

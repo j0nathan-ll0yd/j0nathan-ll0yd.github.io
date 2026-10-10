@@ -1,6 +1,6 @@
 import {createServer, type Server} from 'node:http'
 import {readFile} from 'node:fs/promises'
-import {extname, join, normalize, resolve} from 'node:path'
+import {extname, join, normalize, posix, resolve} from 'node:path'
 import type {AddressInfo} from 'node:net'
 
 // A static server for the BUILT site on 127.0.0.1, for the service-worker behavioral specs.
@@ -41,6 +41,11 @@ export interface DistServer {
   requests: string[]
   /** When true, every connection is destroyed without a response. */
   down: boolean
+  /**
+   * When true, the server resolves the path as a lenient origin does (`decodeLikeOrigin`) before it
+   * answers. `/images/books/..%2F..%2Ffeed.json;x.avif` then answers as `/feed.json`. Off by default.
+   */
+  decodePaths: boolean
   close(): Promise<void>
 }
 
@@ -66,14 +71,33 @@ async function fromDist(pathname: string): Promise<Answer> {
   return notFound
 }
 
+function safeDecode(path: string): string {
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
+}
+
+/**
+ * The path a lenient origin serves for `path`: decoded once (`%2F`, `%5C`, `%3F`, `%23`, `%00`
+ * included), cut at the first `;`, `?`, `#` or NUL (a stripped path parameter, or a query or
+ * fragment decoded too early), backslashes turned into slashes, and dot segments resolved.
+ */
+export function decodeLikeOrigin(path: string): string {
+  const decoded = safeDecode(path).split(/[;?#\0]/)[0]
+  return posix.normalize(decoded.replace(/\\/g, '/'))
+}
+
 export async function startDistServer(): Promise<DistServer> {
-  const state = {overrides: new Map<string, Answer>(), requests: [] as string[], down: false}
+  const state = {overrides: new Map<string, Answer>(), requests: [] as string[], down: false, decodePaths: false}
   const server: Server = createServer((request, response) => {
     if (state.down) {
       request.socket.destroy()
       return
     }
-    const pathname = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+    const raw = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
+    const pathname = state.decodePaths ? decodeLikeOrigin(raw) : raw
     state.requests.push(pathname)
     const answer = state.overrides.get(pathname)
     void (answer ? Promise.resolve(answer) : fromDist(pathname)).then(({status, type, body, location}) => {
