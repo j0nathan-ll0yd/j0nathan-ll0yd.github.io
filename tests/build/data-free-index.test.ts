@@ -75,11 +75,10 @@ describe('data-free / (atlas decision 0160, PR 0a)', () => {
   })
 
   it('renders no measured value in the heart-rate readouts', () => {
-    for (const id of ['pulseBpm', 'hrZoneBadge', 'hrHrv']) {
+    for (const id of ['pulseBpm', 'hrZoneBadge', 'hrHrvValue', 'hrFooterRhr', 'hrFooterRr', 'hrFooterTemp']) {
       const node = $(`#${id}`)
-      if (node.length > 0) {
-        expect(node.text().trim(), `#${id}`).toBe('')
-      }
+      expect(node, `#${id}`).toHaveLength(1)
+      expect(node.text().trim(), `#${id}`).toBe('')
     }
     expect($('[data-generated-at]')).toHaveLength(0)
   })

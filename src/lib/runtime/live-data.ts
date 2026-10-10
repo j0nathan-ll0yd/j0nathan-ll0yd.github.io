@@ -52,8 +52,8 @@ let ws: WSClient | null = null
 
 // ── Focus-mode suppression (companion to the backend CloudFront edge gate) ──
 // While focus is a hiding mode the gate denies every suppressible artifact (403). The
-// client mirrors that: overlay immediately, pause suppressible polling, and expose the SSR
-// shell instead of leaving the live cards behind permanent loading overlays.
+// client mirrors that: overlay immediately, pause suppressible polling, and clear the skeletons
+// over the value-free cards instead of leaving them behind permanent loading overlays.
 // HIDING_FOCUS_MODES is the cross-platform single source of truth (@j0nathan-ll0yd/portal-contract),
 // shared with the backend gate + the DS overlay so the three layers can never drift. The edge
 // gate is the real privacy boundary. This layer must still never SHOW what the gate now denies:
@@ -169,10 +169,13 @@ function enterSuppression(): void {
 }
 
 /**
- * The focus gate's own word that hiding ended. A card or System Status row a server rendered
- * `suppressed` refuses every data update until it is released (`@j0nathan-ll0yd/web` 4), so the
- * gate releases each one before the refetch that refills it. The data-free page renders none
- * suppressed today; a server-rendered page (atlas decision 0160, PR B) does.
+ * The focus gate's own word that the page is visible. A card or System Status row a server
+ * rendered `suppressed` refuses every data update until it is released (`@j0nathan-ll0yd/web` 4).
+ * Two moments carry that word: leaving a hiding mode this tab observed (`liftSuppression`, before
+ * its refetch), and a startup whose focus read decoded visible with no gated path suppressed
+ * (`startFetch`, before its first writes), which covers a page rendered during hiding and opened
+ * after it ended. The data-free page renders none suppressed today; a server-rendered page (atlas
+ * decision 0160, PR B) does.
  */
 function releaseSuppressedCards(): void {
   LIVE_CARDS.forEach((id) => releaseSuppression(document.getElementById(id)))
@@ -378,6 +381,11 @@ const startFetch = async () => {
   if (initialSuppression) {
     applySuppression(initialSuppression)
   }
+  // A decoded visible focus value with no gated path suppressed is the gate's word that the page
+  // is visible: release what a server rendered suppressed, before the first writes below.
+  if (!isSuppressed() && data.focus.status === 'ok' && !isHiding(data.focus.data.currentFocus)) {
+    releaseSuppressedCards()
+  }
 
   // Any suppression -- from the focus read above or from ANY gated path -- withholds EVERY gated
   // value. During a gate transition one path can answer 403 while a sibling still answers 200;
@@ -473,7 +481,7 @@ const startFetch = async () => {
 
   updateSystemStatus(timestamps)
 
-  // Clean up every loading overlay, including during suppression: the SSR shell is the
+  // Clean up every loading overlay, including during suppression: the value-free cards are the
   // honest fallback presentation and must not remain hidden behind permanent skeletons.
   LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
   if (fallbackTimer) {

@@ -18,8 +18,12 @@
 //     import was spelled (a relative path inside another package, a symlinked store path);
 //   - the server build normally externalizes node_modules, and Vite never reads an external
 //     package's own imports. The plugin therefore bundles every first-party `@j0nathan-ll0yd/*`
-//     package in the server build (`resolve.noExternal` per environment), so a first-party package that imports
-//     fixtures is read, not skipped. Third-party packages cannot depend on this private scope.
+//     package in every environment (`resolve.noExternal`), so a first-party package that
+//     imports fixtures is read, not skipped. A third-party package stays external; none in the
+//     tree depends on fixtures (`pnpm why @j0nathan-ll0yd/fixtures` names only this repo).
+//
+// The Pages Functions under functions/ are bundled by wrangler, outside this build. The same
+// plugin runs over their graph in tests/unit/forbid-fixtures.test.ts.
 //
 // Its self-test is tests/unit/forbid-fixtures.test.ts: it builds a temporary entry that imports
 // fixtures through an intermediate module, and through an intermediate first-party package, in

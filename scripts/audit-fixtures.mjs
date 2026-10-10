@@ -10,8 +10,9 @@
  *   - data/**\/*.json            (the retired hand-baked SSR data)
  *   - test/fixtures/**\/*.json   (the retired local fixture factory output)
  *   - src/**\/fixtures/**\/*.json (any in-source fixture snapshot)
- *   - any file under src/ or functions/ that names `@j0nathan-ll0yd/fixtures`
- *     (a direct import from code that ships)
+ *   - any file under src/ or functions/, or astro.config, whose code names
+ *     `@j0nathan-ll0yd/fixtures` in a quoted specifier (a direct import from code
+ *     that ships)
  *
  * This check reads source files only. A TRANSITIVE import -- through another module
  * or package -- is invisible here; the forbid-fixtures Vite plugin
@@ -44,28 +45,39 @@ for (var i = 0; i < PATTERNS.length; i++) {
   }
 }
 
-// Code that ships: the Astro sources and the Pages Functions.
-var SHIPPED_SOURCES = ['src/**/*.{ts,mts,js,mjs,astro}', 'functions/**/*.{ts,mts,js,mjs}']
-// Static `import`/`export ... from`, side-effect `import '...'`, dynamic `import()` and `require()`.
-var FIXTURES_SPECIFIER = /(?:\bfrom|\bimport|\brequire)\s*\(?\s*['"]@j0nathan-ll0yd\/fixtures(?:\/[^'"]*)?['"]/
+// Code that ships: the Astro sources, the Pages Functions and the build config.
+var SHIPPED_SOURCES = [
+  'src/**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx,astro,md,mdx}',
+  'functions/**/*.{ts,mts,cts,tsx,js,mjs,cjs,jsx}',
+  'astro.config.{mjs,ts,js}'
+]
+// Any quoted specifier that names the package or a subpath, in code: a static or dynamic import,
+// `require`, `createRequire(...)(...)`, `import.meta.resolve`, or a template literal. Comments are
+// stripped first, so prose that names the package is not an import.
+var FIXTURES_SPECIFIER = /['"`]@j0nathan-ll0yd\/fixtures(?:\/[^'"`]*)?['"`]/
+
+/** The source with block comments and whole-line or trailing `//` comments removed. */
+var stripComments = function(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
+}
 
 var importers = []
 for (var s = 0; s < SHIPPED_SOURCES.length; s++) {
   var files = globSync(SHIPPED_SOURCES[s], {exclude: isIgnored})
   for (var f = 0; f < files.length; f++) {
-    if (FIXTURES_SPECIFIER.test(readFileSync(files[f], 'utf8'))) {
+    if (FIXTURES_SPECIFIER.test(stripComments(readFileSync(files[f], 'utf8')))) {
       importers.push(files[f])
     }
   }
 }
 
+// Report both failures before exiting, so one run names every offender.
 if (importers.length > 0) {
   console.error('Shipped code must not import @j0nathan-ll0yd/fixtures (atlas decision 0160):')
   for (var n = 0; n < importers.length; n++) {
     console.error('  x ' + importers[n])
   }
   console.error('\nProduction pages carry no fixture data. Tests serve fixtures by route interception only.')
-  process.exit(1)
 }
 
 if (offenders.length > 0) {
@@ -76,7 +88,10 @@ if (offenders.length > 0) {
   console.error('\nFixtures are DS-owned. Add/edit them in')
   console.error('design-system-Lifegames/packages/fixtures, then publish a new @j0nathan-ll0yd/fixtures version.')
   console.error('Tests consume `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json` (Playwright).')
+}
+
+if (importers.length > 0 || offenders.length > 0) {
   process.exit(1)
 }
 
-console.log('No consumer-side fixtures ✓ (Invariant I2: data/, test/fixtures/, src/**/fixtures/ clean; no src/ or functions/ import)')
+console.log('No consumer-side fixtures ✓ (Invariant I2: data/, test/fixtures/, src/**/fixtures/ clean; no src/, functions/ or astro.config import)')

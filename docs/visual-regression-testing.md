@@ -276,7 +276,7 @@ Lives in `ci-runners-private/.github/workflows/`. Triggered only by `workflow_ca
 
 Jobs:
 
-- `setup` — checks out this repo at `ref`, runs `ppnpm install --frozen-lockfile` (resolves the `@j0nathan-ll0yd/*` packages from GitHub Packages), builds the Astro site (the SSR shell comes from `@j0nathan-ll0yd/fixtures`), uploads the `dist` artifact.
+- `setup` — checks out this repo at `ref`, runs `ppnpm install --frozen-lockfile` (resolves the `@j0nathan-ll0yd/*` packages from GitHub Packages), builds the Astro site (the data-free page: identity copy and every live widget `loading`; no fixture reaches the build), uploads the `dist` artifact.
 - `visual-tests` — 4-shard matrix (`fail-fast: false`). Each shard downloads the setup artifact, runs `pnpm exec playwright test --shard=N/4` with `SKIP_BUILD=true`. In `update_snapshots` mode forces `workers=1` to eliminate the intra-shard write race (microsoft/playwright#9760).
 - `commit-baselines` — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`.
 - `merge-reports` — merges blob reports from each shard into a single HTML report.

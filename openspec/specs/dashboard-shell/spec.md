@@ -95,17 +95,20 @@ Verified by `tests/build/data-free-index.test.ts:112` (the built HTML) and
 module in its graph resolves to that package, directly or through another module or package, in
 the client build and in the prerender server build. The `forbid-fixtures` Vite plugin
 (`scripts/vite-forbid-fixtures.mjs`, registered in `astro.config.mjs`) watches the module graph; it
-bundles every first-party `@j0nathan-ll0yd/*` package in the server build, so a first-party package
-that imports fixtures is read rather than left external. Separately, `scripts/audit-fixtures.mjs`
-(prebuild) SHALL fail on a direct import under `src/` or `functions/`.
+bundles every first-party `@j0nathan-ll0yd/*` package in every build environment, so a first-party
+package that imports fixtures is read rather than left external. The Pages Functions under
+`functions/` are bundled by wrangler, outside the Astro build; the same plugin SHALL find no
+fixtures in their graph. Separately, `scripts/audit-fixtures.mjs` (prebuild) SHALL fail on any
+quoted specifier that names the package in the code of `src/`, `functions/` or `astro.config`.
 
 Tests serve fixtures by Playwright route interception only, a path no production module reaches.
 
 Verified by `tests/unit/forbid-fixtures.test.ts:84` (temporary entries that import fixtures
 through an intermediate module, an intermediate first-party package, a relative path into the
 package and a generated JSON subpath each fail a client build and a server build; a clean entry
-builds; without the guard the same graphs build silently; the guard is registered in the Astro
-config; the source check fails on each direct import form).
+builds; without the guard the same graphs build silently; every Astro environment bundles the
+first-party scope; the Pages Functions graph builds clean through the guard; the guard is
+registered in the Astro config; the source check fails on each import form and passes prose).
 
 #### Scenario: A fixture import arrives through an intermediate module
 

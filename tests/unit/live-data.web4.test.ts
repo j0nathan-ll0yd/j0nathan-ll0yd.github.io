@@ -63,6 +63,8 @@ vi.mock('../../src/lib/runtime/poll-engine', () => ({
 }))
 
 const failed = {status: 'failed', reason: 'unit test'}
+// The focus result the startup read (`fetchAllEndpoints`) reports; a test may set a decoded value.
+const bootFocus = vi.hoisted(() => ({value: null as unknown}))
 vi.mock('../../src/lib/runtime/api',
   async (importActual) => ({
     ...await importActual<typeof import('../../src/lib/runtime/api')>(),
@@ -76,7 +78,7 @@ vi.mock('../../src/lib/runtime/api',
         githubEvents: failed,
         starredRepos: failed,
         articles: failed,
-        focus: failed,
+        focus: bootFocus.value ?? failed,
         theatreReviews: failed,
         timestamps: {}
       })
@@ -102,6 +104,7 @@ describe('live-data → the focus gate releases suppressed cards and System Stat
   beforeEach(() => {
     wsOpts = null
     stateAtPollNow.value = null
+    bootFocus.value = null
     vi.resetModules()
     vi.useFakeTimers()
     document.body.innerHTML = SUPPRESSED_PAGE
@@ -139,6 +142,31 @@ describe('live-data → the focus gate releases suppressed cards and System Stat
     expect(document.getElementById('cardHR')?.dataset.ssrState).toBe('suppressed')
     expect(document.querySelector<HTMLElement>('.sys-line[data-source="health"]')?.dataset.ssrState).toBe('suppressed')
     expect(stateAtPollNow.value).toBeNull()
+  })
+
+  it('releases a server-suppressed page at startup when the first focus read is visible', async () => {
+    // A page rendered during hiding and opened after it ended: this tab never saw a hiding value.
+    bootFocus.value = {status: 'ok', data: {generatedAt: '2026-10-10T07:00:00Z', currentFocus: 'Personal'}}
+    await bootLiveData()
+
+    expect(document.getElementById('cardHR')?.dataset.ssrState).toBe('unavailable')
+    expect(document.getElementById('cardBooks')?.dataset.ssrState).toBe('unavailable')
+    // Released, then filled by the startup System Status write, which drops the attribute.
+    const row = document.querySelector<HTMLElement>('.sys-line[data-source="health"]')
+    expect(row?.dataset.ssrState).toBeUndefined()
+    expect(row?.textContent).toContain('OFFLINE')
+    expect(document.getElementById('cardReading')?.dataset.ssrState).toBe('loading')
+  })
+
+  it.each([
+    ['unreadable', null],
+    ['hiding', {status: 'ok', data: {generatedAt: '2026-10-10T07:00:00Z', currentFocus: 'Do Not Disturb'}}]
+  ])('keeps a server-suppressed page suppressed at startup when the first focus read is %s', async (_label, focus) => {
+    bootFocus.value = focus
+    await bootLiveData()
+
+    expect(document.getElementById('cardHR')?.dataset.ssrState).toBe('suppressed')
+    expect(document.querySelector<HTMLElement>('.sys-line[data-source="health"]')?.dataset.ssrState).toBe('suppressed')
   })
 
   it('lets a released System Status row take live status again', async () => {

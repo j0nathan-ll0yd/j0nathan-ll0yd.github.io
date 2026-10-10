@@ -9,13 +9,13 @@
 // The builds run on the Vite that Astro itself resolves, so the test exercises the same bundler the
 // production build uses.
 import {spawnSync} from 'node:child_process'
-import {mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
+import {globSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {dirname, join, resolve} from 'node:path'
 import {pathToFileURL} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {forbidFixtures, isFixturesModule, isFixturesSpecifier} from '../../scripts/vite-forbid-fixtures.mjs'
+import {FIRST_PARTY_SCOPE, forbidFixtures, isFixturesModule, isFixturesSpecifier} from '../../scripts/vite-forbid-fixtures.mjs'
 import astroConfig from '../../astro.config.mjs'
 
 type ViteBuild = (config: Record<string, unknown>) => Promise<unknown>
@@ -114,6 +114,33 @@ describe('forbid-fixtures build guard', () => {
     expect(server).not.toContain(SENTINEL)
   })
 
+  it('bundles first-party packages in every server environment Astro builds', () => {
+    // The self-test above drives plain Vite; Astro builds `prerender` (and `ssr` with an adapter).
+    // The hook must hand each of them the scope, or a first-party package would stay external.
+    const plugin = forbidFixtures() as unknown as {configEnvironment: (name: string, options: Record<string, unknown>) => unknown}
+    for (const name of ['client', 'ssr', 'prerender', 'astro']) {
+      expect(plugin.configEnvironment(name, {})).toEqual({resolve: {noExternal: [FIRST_PARTY_SCOPE]}})
+    }
+    // An environment that already bundles everything needs nothing more.
+    expect(plugin.configEnvironment('ssr', {resolve: {noExternal: true}})).toBeNull()
+  })
+
+  it('finds no fixtures in the Pages Functions graph, which wrangler bundles outside Vite', async () => {
+    // functions/ is production code the Astro build never reads. Build every Function entry
+    // through the same guard, server-side, with the first-party scope bundled.
+    const entries = globSync('functions/**/*.ts', {cwd: process.cwd()}).map((file) => resolve(process.cwd(), file))
+    expect(entries.length).toBeGreaterThan(5)
+    await expect(
+      viteBuild({
+        root: process.cwd(),
+        configFile: false,
+        logLevel: 'silent',
+        plugins: [forbidFixtures()],
+        build: {write: false, ssr: true, rollupOptions: {input: entries}}
+      })
+    ).resolves.toBeDefined()
+  })
+
   it('is registered in the production Astro config', () => {
     const plugins = (astroConfig.vite?.plugins ?? []).flat() as {name?: string}[]
     expect(plugins.map((p) => p?.name)).toContain('forbid-fixtures')
@@ -152,14 +179,27 @@ describe('audit-fixtures source check', () => {
     ['src/lib/a.ts', "import {getDashboardFixture} from '@j0nathan-ll0yd/fixtures'\n"],
     ['src/pages/b.astro', '---\nimport data from "@j0nathan-ll0yd/fixtures/generated/health/baseline.json"\n---\n'],
     ['src/lib/c.ts', "const m = await import('@j0nathan-ll0yd/fixtures')\n"],
-    ['functions/d.ts', "export * from '@j0nathan-ll0yd/fixtures'\n"]
+    ['functions/d.ts', "export * from '@j0nathan-ll0yd/fixtures'\n"],
+    ['src/lib/e.ts', 'const m = await import(`@j0nathan-ll0yd/fixtures`)\n'],
+    ['src/lib/f.ts', "export const p = import.meta.resolve('@j0nathan-ll0yd/fixtures/generated/a.json')\n"],
+    ['functions/g.mjs', "import {createRequire} from 'node:module'\ncreateRequire(import.meta.url)('@j0nathan-ll0yd/fixtures')\n"],
+    ['astro.config.mjs', "import f from '@j0nathan-ll0yd/fixtures'\n"]
   ])('fails on a direct import in %s', (path, content) => {
     const run = audit({[path]: content})
     expect(run.status).toBe(1)
     expect(run.stderr).toContain(path)
   })
 
-  it('passes shipped code that only names the package in prose', () => {
-    expect(audit({'src/lib/a.ts': '// `@j0nathan-ll0yd/fixtures` is a devDependency for tests only.\nexport const x = 1\n'}).status).toBe(0)
+  it('passes shipped code that only names the package in a comment', () => {
+    expect(audit({'src/lib/a.ts': "// `@j0nathan-ll0yd/fixtures` is a devDependency.\n/* '@j0nathan-ll0yd/fixtures' */\nexport const x = 1\n"}).status).toBe(
+      0
+    )
+  })
+
+  it('names every offender of both kinds in one run', () => {
+    const run = audit({'src/lib/a.ts': "import '@j0nathan-ll0yd/fixtures'\n", 'data/x.json': '{}\n'})
+    expect(run.status).toBe(1)
+    expect(run.stderr).toContain('src/lib/a.ts')
+    expect(run.stderr).toContain('data/x.json')
   })
 })

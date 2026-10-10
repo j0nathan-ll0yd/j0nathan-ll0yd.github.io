@@ -121,8 +121,11 @@ test.describe('Data-free dashboard with JavaScript enabled', () => {
     await expect(page.locator('.is-loading')).toHaveCount(0, {timeout: 15_000})
 
     await expectNoFixtureValue(page)
-    for (const id of LIVE_CARD_IDS) {
-      await expect(page.locator(`#${id}`), `#${id}`).toHaveAttribute('data-ssr-state', 'loading')
-    }
+    // No card claims data it never read. (Which non-data state a failed read should show is not
+    // decided here: the design system has no client writer for `unavailable` yet, so the cards keep
+    // their value-free `loading` scaffold. The server-rendered page of decision 0160 PR B renders
+    // `unavailable` itself.)
+    await expect(page.locator('[data-ssr-state="live"], [data-ssr-state="stale"], [data-ssr-state="empty"]')).toHaveCount(0)
+    await expect(page.locator('#systemStatus')).not.toContainText('ACTIVE')
   })
 })

@@ -159,7 +159,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:182`.
 
 ### Requirement: Workouts render each session's type, duration, calories and distance
 
-When the workouts export carries sessions, the system SHALL reveal the workouts card and render one
+When the workouts export carries sessions, the system SHALL render one
 sub-card per session with its activity type, duration, energy burned and distance.
 Verified by `tests/behavioral/health-matrix.test.ts:197`.
 
