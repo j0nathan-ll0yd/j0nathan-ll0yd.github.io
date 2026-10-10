@@ -112,7 +112,12 @@ jobs:
             -d "{\"build\":\"${GITHUB_SHA}\"}"
 
   check-images:
-    runs-on: [self-hosted, linux, arm64, node]
+    # cfedge: the self-hosted Linux fleet reaches CloudFront only from the cfedge
+    # egress lane (ci-runners-private #130, atlas decisions 0085 and 0088). Without
+    # the label, every deploy from 2026-08-28 to 2026-10-10 printed `fetch failed`
+    # for focus.json, books.json and theatre-reviews.json, and the check measured
+    # nothing. audits/__tests__/deploy-workflow.test.ts keeps the label.
+    runs-on: [self-hosted, linux, arm64, node, cfedge]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -144,40 +149,42 @@ jobs:
         continue-on-error: true
         run: node scripts/fetch-images.mjs --check-only
 
-      - name: Create issue for new images
-        if: steps.check.outcome == 'failure'
+      - name: Publish image audit report
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '## Image mirror audit'
+            echo
+            echo "Status: \`${CHECK_STATUS:-not reported}\`"
+            echo
+            echo '```'
+            if [ -f image-audit-report.txt ]; then cat image-audit-report.txt; else echo '(no report written; inspect the check step log)'; fi
+            echo '```'
+            echo
+            echo 'To update the mirror: run `pnpm run fetch:images`, then commit `public/images/`.'
+            echo 'Review local-minus-manifest entries before deleting them; the script never prunes.'
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CHECK_STATUS: ${{ steps.check.outputs.status }}
+
+      - name: Reconcile managed image-mirror issue
+        if: ${{ !cancelled() }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          # Passed through the environment, never interpolated into the script body
+          # (atlas decision 0142 step 5.4). The script writes issue_outcome on every
+          # path, a crash included. An empty value means the check step never ran
+          # (for example, the install failed), so nothing was measured: failure.
+          IMAGE_MIRROR_ISSUE_OUTCOME: ${{ steps.check.outputs.issue_outcome }}
         with:
           script: |
-            const fs = await import('node:fs');
-            const readEvidence = (path, fallback) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8').trim() : fallback;
-            const missing = readEvidence('missing-images.txt', '(no manifest-minus-local list was produced; inspect the audit report)');
-            const report = readEvidence('image-audit-report.txt', '(image audit report missing; inspect the workflow log)');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: 'Image mirror audit failed',
-              body: [
-                'The deploy image-mirror check found missing, stale, invalid, or unreachable image artifacts.',
-                '',
-                '**Missing images:**',
-                '```',
-                missing,
-                '```',
-                '',
-                '**Full audit report:**',
-                '```',
-                report,
-                '```',
-                '',
-                '**To update the mirror:**',
-                '```bash',
-                'pnpm run fetch:images',
-                'git add public/images/',
-                'git commit -m "Add optimized images from CloudFront"',
-                'git push',
-                '```',
-                '',
-                'Review local-minus-manifest entries before deleting them; the script never prunes automatically.',
-              ].join('\n'),
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'image-mirror', title: 'Image mirror audit (deploy)', outcome: process.env.IMAGE_MIRROR_ISSUE_OUTCOME || 'failure'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
             });

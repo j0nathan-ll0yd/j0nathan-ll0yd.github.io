@@ -8,9 +8,12 @@
  * Check mode requires both manifests, HEAD-verifies every advertised object,
  * validates existing local files, and computes drift in both directions.
  * Stale local files are reported for reviewed pruning and are never deleted.
+ *
+ * Check mode also writes `issue_outcome=` to $GITHUB_OUTPUT for the deploy
+ * workflow's managed-issue reconciler. See `issueOutcome` for the mapping.
  */
 
-import {access, mkdir, readdir, stat, writeFile} from 'node:fs/promises'
+import {access, appendFile, mkdir, readdir, stat, writeFile} from 'node:fs/promises'
 import {dirname, join, relative, resolve, sep} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -224,17 +227,16 @@ export async function runImageAudit({
     return {status: 'overdue', exitCode: 1}
   }
 
-  const manifests = await Promise.allSettled([
-    fetchJson('books.json', fetchImpl),
-    fetchJson('theatre-reviews.json', fetchImpl)
-  ])
-  const manifestErrors = manifests.map((result, index) =>
-    result.status === 'rejected'
-      ? `${index === 0 ? 'books.json' : 'theatre-reviews.json'}: ${result.reason.message}`
-      : null
-  ).filter(Boolean)
+  const endpoints = ['books.json', 'theatre-reviews.json']
+  const manifests = await Promise.allSettled(endpoints.map((endpoint) => fetchJson(endpoint, fetchImpl)))
+  const rejected = manifests.map((result, index) => ({result, endpoint: endpoints[index]})).filter(({result}) => result.status === 'rejected')
+  const manifestErrors = rejected.map(({result, endpoint}) => `${endpoint}: ${result.reason.message}`)
+  // A manifest denied with the suppression disclosure body proves CloudFront answered and the
+  // focus gate is closed. Any other rejection (a transport error, a non-disclosure status) means
+  // the audit could not reach what it measures, and that must stay loud.
+  const gatedOnly = rejected.length > 0 && rejected.every(({result}) => result.reason instanceof SuppressedManifestError)
 
-  if (manifestErrors.some((message) => message.includes('focus mode active'))) {
+  if (gatedOnly) {
     const reprobe = await probeSuppression({fetchImpl})
     const retryDisposition = suppressionDisposition(reprobe, 'image mirror audit', logger)
     if (retryDisposition === 'skip') {
@@ -248,8 +250,12 @@ export async function runImageAudit({
   if (manifestErrors.length > 0) {
     const report = renderReport({manifestErrors})
     await writeReports(report, [], reportFile, missingFile)
-    logger.error('INDETERMINATE: both image manifests are required.\n' + report)
-    return {status: 'indeterminate', exitCode: 1, manifestErrors}
+    if (gatedOnly) {
+      logger.error('GATED: the focus gate denied both image manifests, so the mirror was not measured.\n' + report)
+      return {status: 'gated', exitCode: 1, manifestErrors}
+    }
+    logger.error('UNREACHABLE: both image manifests are required, and at least one could not be fetched.\n' + report)
+    return {status: 'unreachable', exitCode: 1, manifestErrors}
   }
 
   const urls = extractImageUrls(manifests[0].value, manifests[1].value)
@@ -281,14 +287,50 @@ export async function runImageAudit({
   return {status: failed ? 'failed' : 'ok', exitCode: failed ? 1 : 0, ...drift, remoteFailures, localFailures}
 }
 
+/**
+ * Map a check-mode status onto the managed-issue reconciler's tri-state.
+ *
+ * - `ok`: every manifest image is mirrored and verified -> `success` (close the issue).
+ * - `failed`: missing, stale, or unverifiable images -> `failure`.
+ * - `overdue`: focus has hidden public data for more than 24 hours -> `failure`.
+ * - `unreachable`: a manifest could not be fetched (transport error or a non-disclosure HTTP
+ *   status). The check is blind, and a blind measurer must stay loud -> `failure`.
+ * - `suppressed` or `gated`: the focus gate legitimately denied the manifests -> `indeterminate`
+ *   (leave the issue unchanged).
+ * - Anything else, including a crash: `failure`, because nothing was measured.
+ */
+export function issueOutcome(status) {
+  if (status === 'ok') {
+    return 'success'
+  }
+  if (status === 'suppressed' || status === 'gated') {
+    return 'indeterminate'
+  }
+  return 'failure'
+}
+
+async function writeIssueOutcome(outputPath, status) {
+  if (outputPath) {
+    await appendFile(outputPath, `status=${status}\nissue_outcome=${issueOutcome(status)}\n`, 'utf8')
+  }
+}
+
 async function main() {
-  const result = await runImageAudit({checkOnly: process.argv.includes('--check-only')})
-  process.exitCode = result.exitCode
+  const checkOnly = process.argv.includes('--check-only')
+  let status = 'crashed'
+  try {
+    const result = await runImageAudit({checkOnly})
+    status = result.status
+    process.exitCode = result.exitCode
+  } catch (error) {
+    console.error('Image mirror audit crashed:', error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  }
+  if (checkOnly) {
+    await writeIssueOutcome(process.env.GITHUB_OUTPUT, status)
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error) => {
-    console.error('Image mirror audit crashed:', error instanceof Error ? error.message : String(error))
-    process.exitCode = 1
-  })
+  await main()
 }

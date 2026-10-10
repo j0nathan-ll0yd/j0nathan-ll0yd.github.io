@@ -3,7 +3,7 @@ import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
-import {compareMirror, extractImageUrls, imageRelativePath, runImageAudit, verifyRemoteImage} from '../../scripts/fetch-images.mjs'
+import {compareMirror, extractImageUrls, imageRelativePath, issueOutcome, runImageAudit, verifyRemoteImage} from '../../scripts/fetch-images.mjs'
 
 const tempDirs: string[] = []
 
@@ -63,7 +63,7 @@ describe('image mirror audit', () => {
     expect(fetchImpl).toHaveBeenCalledOnce()
   })
 
-  it('stays visible and reports INDETERMINATE when a hiding focus mode carries no hidingSince', async () => {
+  it('stays visible and reports GATED when a hiding focus mode carries no hidingSince', async () => {
     const root = await tempDir()
     const gated = () => new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403})
     const fetchImpl = vi.fn().mockImplementation((url: string) =>
@@ -81,13 +81,15 @@ describe('image mirror audit', () => {
     })
 
     // Not `suppressed`: the probe answered, and what it answered establishes no 24-hour bound.
-    expect(result.status).toBe('indeterminate')
+    // Not `unreachable` either: both denials carry the disclosure body, so CloudFront answered.
+    expect(result.status).toBe('gated')
+    expect(issueOutcome(result.status)).toBe('indeterminate')
     expect(result.exitCode).toBe(1)
     expect(result.manifestErrors).toEqual(['books.json: focus mode active', 'theatre-reviews.json: focus mode active'])
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('INDETERMINATE: suppression evidence incomplete'))
   })
 
-  it('is indeterminate and nonzero unless both manifests are available', async () => {
+  it('is UNREACHABLE, nonzero and a managed-issue failure when a manifest returns a non-disclosure status', async () => {
     const root = await tempDir()
     const fetchImpl = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({currentFocus: 'Personal'}))).mockResolvedValueOnce(
       new Response('down', {status: 503})
@@ -102,8 +104,98 @@ describe('image mirror audit', () => {
       logger: {log: vi.fn(), warn: vi.fn(), error: vi.fn()}
     })
 
-    expect(result.status).toBe('indeterminate')
+    expect(result.status).toBe('unreachable')
     expect(result.exitCode).toBe(1)
+    expect(issueOutcome(result.status)).toBe('failure')
+  })
+
+  it('is UNREACHABLE and a managed-issue failure on a transport error, the 2026-08-28 to 2026-10-10 blind state', async () => {
+    // The shape every deploy printed without the cfedge lane: undici rejects with `fetch failed`
+    // for the focus probe and both manifests. That must never read as a focus-gate stand-down.
+    const root = await tempDir()
+    const fetchImpl = vi.fn().mockRejectedValue(new TypeError('fetch failed'))
+    const logger = {log: vi.fn(), warn: vi.fn(), error: vi.fn()}
+
+    const result = await runImageAudit({
+      fetchImpl,
+      checkOnly: true,
+      publicDir: join(root, 'public'),
+      reportFile: join(root, 'report.txt'),
+      missingFile: join(root, 'missing.txt'),
+      logger
+    })
+
+    expect(result).toEqual({status: 'unreachable', exitCode: 1, manifestErrors: ['books.json: fetch failed', 'theatre-reviews.json: fetch failed']})
+    expect(issueOutcome(result.status)).toBe('failure')
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('focus.json probe failed: fetch failed'))
+  })
+
+  it('is UNREACHABLE when one manifest is gated and the other fails in transport', async () => {
+    const root = await tempDir()
+    const fetchImpl = vi.fn().mockImplementation((url: string) => {
+      if (url.endsWith('/focus.json')) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Work'})))
+      }
+      if (url.endsWith('/books.json')) {
+        return Promise.resolve(new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403}))
+      }
+      return Promise.reject(new TypeError('fetch failed'))
+    })
+
+    const result = await runImageAudit({
+      fetchImpl,
+      checkOnly: true,
+      publicDir: join(root, 'public'),
+      reportFile: join(root, 'report.txt'),
+      missingFile: join(root, 'missing.txt'),
+      logger: {log: vi.fn(), warn: vi.fn(), error: vi.fn()}
+    })
+
+    expect(result.status).toBe('unreachable')
+    expect(issueOutcome(result.status)).toBe('failure')
+  })
+
+  it('maps every check-mode status onto the reconciler tri-state, failing closed', () => {
+    expect(issueOutcome('ok')).toBe('success')
+    expect(issueOutcome('failed')).toBe('failure')
+    expect(issueOutcome('overdue')).toBe('failure')
+    expect(issueOutcome('unreachable')).toBe('failure')
+    expect(issueOutcome('crashed')).toBe('failure')
+    expect(issueOutcome('suppressed')).toBe('indeterminate')
+    expect(issueOutcome('gated')).toBe('indeterminate')
+  })
+
+  it('reports OK and a managed-issue success when the mirror matches and every object verifies', async () => {
+    const root = await tempDir()
+    const publicDir = join(root, 'public')
+    await mkdir(join(publicDir, 'images', 'books'), {recursive: true})
+    await writeFile(join(publicDir, 'images', 'books', 'a.webp'), Buffer.from([1]))
+    const url = `${CLOUDFRONT_BASE}/images/books/a.webp`
+    const fetchImpl = vi.fn().mockImplementation((input: string) => {
+      if (input.endsWith('/focus.json')) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'})))
+      }
+      if (input.endsWith('/books.json')) {
+        return Promise.resolve(new Response(JSON.stringify({books: [{mainImage: url}]})))
+      }
+      if (input.endsWith('/theatre-reviews.json')) {
+        return Promise.resolve(new Response(JSON.stringify({reviews: []})))
+      }
+      return Promise.resolve(new Response(null, {headers: {'Content-Type': 'image/webp', 'Content-Length': '1'}}))
+    })
+
+    const result = await runImageAudit({
+      fetchImpl,
+      checkOnly: true,
+      publicDir,
+      reportFile: join(root, 'report.txt'),
+      missingFile: join(root, 'missing.txt'),
+      logger: {log: vi.fn(), warn: vi.fn(), error: vi.fn()}
+    })
+
+    expect(result.status).toBe('ok')
+    expect(result.exitCode).toBe(0)
+    expect(issueOutcome(result.status)).toBe('success')
   })
 
   it('HEAD-checks existing objects and reports reviewed prune candidates without deleting them', async () => {
