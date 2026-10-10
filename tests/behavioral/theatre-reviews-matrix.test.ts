@@ -58,16 +58,16 @@ async function interceptDashboardData(page: Page, theatreFixture: FixtureRespons
   })
 }
 
-// Use committed same-origin images to retain optimized-picture coverage while
-// the raw fixture's rejected off-origin candidates cover the sanitizer path.
+// Use same-origin fixture images (serveFixturePosters) to retain optimized-picture
+// coverage while the raw fixture's rejected off-origin candidates cover the sanitizer path.
 function allowedPosterFixture(): FixtureResponse {
   const payload = JSON.parse(readFileSync(fixture('theatre-reviews', 'full'), 'utf8')) as Record<string, unknown>
   payload.reviews = (payload.reviews as Array<Record<string, unknown>>).map((review) => ({
     ...review,
-    imageUrl: '/images/theatre/just-in-time.webp',
-    imageUrlAvif: '/images/theatre/just-in-time.avif',
-    imageUrlCard: '/images/theatre/just-in-time-card.webp',
-    imageUrlCardAvif: '/images/theatre/just-in-time-card.avif'
+    imageUrl: '/images/theatre/behavioral-fixture-poster.webp',
+    imageUrlAvif: '/images/theatre/behavioral-fixture-poster.avif',
+    imageUrlCard: '/images/theatre/behavioral-fixture-poster-card.webp',
+    imageUrlCardAvif: '/images/theatre/behavioral-fixture-poster-card.avif'
   }))
   return {body: JSON.stringify(payload)}
 }
@@ -160,13 +160,25 @@ test.describe('Theatre Reviews Render Conformance', () => {
     // Substitute committed same-origin assets to exercise the allowed optimized
     // picture path independently of the rejection behavior asserted above.
     await interceptDashboardData(page, allowedPosterFixture())
+    await serveFixturePosters(page)
     await page.goto('/')
     await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
 
     const cards = page.locator('#cardTheatreReviews .theatre-card')
     await expect(cards).toHaveCount(8)
     await expect(page.locator('#cardTheatreReviews picture source[type="image/avif"]')).toHaveCount(8)
-    await expect(page.locator('#cardTheatreReviews .theatre-poster-wrap img')).toHaveCount(8)
+    const posters = page.locator('#cardTheatreReviews .theatre-poster-wrap img')
+    await expect(posters).toHaveCount(8)
+    // Every poster decoded from a fixture path. A 404 would swap in the W6
+    // placeholder and leave this optimized-picture path unexercised.
+    await expect.poll(async () =>
+      posters.evaluateAll((images) =>
+        (images as HTMLImageElement[]).map((image) => ({
+          loaded: image.complete && image.naturalWidth > 0,
+          fixture: new URL(image.currentSrc).pathname.startsWith('/images/theatre/behavioral-fixture-poster')
+        }))
+      )
+    ).toEqual(Array.from({length: 8}, () => ({loaded: true, fixture: true})))
     await expect(cards.first()).toHaveAttribute('target', '_blank')
     await expect(cards.first()).toHaveAttribute('rel', 'noopener noreferrer')
     await expect(cards.first()).toHaveAttribute('href', 'https://coasttocoastreviews.com/reviews/a-midsummer-nights-dream')
@@ -183,4 +195,29 @@ async function expectSanitizedPlaceholderCovers(page: Page, count: number): Prom
   await expect.poll(async () =>
     posters.evaluateAll((images) => images.map((image) => ({src: image.getAttribute('src'), srcset: image.getAttribute('srcset')})))
   ).toEqual(Array.from({length: count}, () => ({src: '/images/no-cover.svg', srcset: null})))
+}
+
+// Same-origin poster paths served from a test fixture, never from the deployed
+// mirror. public/images/ tracks the live manifests and is pruned when the
+// producer renames an image, so a test that borrowed a mirror file broke on the
+// next prune. Defined below the tests so the covers: annotations above keep
+// their line numbers (openspec cites them as path:line).
+const FIXTURE_POSTERS: Record<string, {file: string; contentType: string}> = {
+  '/images/theatre/behavioral-fixture-poster.webp': {file: 'poster.webp', contentType: 'image/webp'},
+  '/images/theatre/behavioral-fixture-poster.avif': {file: 'poster.avif', contentType: 'image/avif'},
+  '/images/theatre/behavioral-fixture-poster-card.webp': {file: 'poster-card.webp', contentType: 'image/webp'},
+  '/images/theatre/behavioral-fixture-poster-card.avif': {file: 'poster-card.avif', contentType: 'image/avif'}
+}
+
+async function serveFixturePosters(page: Page): Promise<void> {
+  // Registered after interceptDashboardData, so it takes precedence over the
+  // catch-all route there. serviceWorkers: 'block' keeps the worker out of the way.
+  await page.route('**/images/theatre/behavioral-fixture-poster*', async (route) => {
+    const poster = FIXTURE_POSTERS[new URL(route.request().url()).pathname]
+    if (poster) {
+      await route.fulfill({path: require.resolve(`./fixtures/theatre-poster/${poster.file}`), contentType: poster.contentType})
+    } else {
+      await route.fulfill({status: 404})
+    }
+  })
 }
