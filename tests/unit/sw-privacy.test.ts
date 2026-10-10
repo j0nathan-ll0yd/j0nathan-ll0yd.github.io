@@ -363,6 +363,15 @@ describe('image routes end in one file-name segment', () => {
     // A browser resolves %2e%2e/ itself, so that form never reaches a route as an escape.
     expect(probes.some((url) => url.includes('%2e%2e/'))).toBe(false)
     expect(TRAVERSAL_SUFFIXES.length).toBeGreaterThanOrEqual(12)
+    // Extension-suffixed forms, for an origin that strips `;` or decodes %3F, %23 or %00 first.
+    for (const suffix of [';x.avif', '%3F.webp', '%23.png', '%00.jpg']) {
+      expect(probes).toContain(`https://jonathanlloyd.me/images/books/..%2F..%2Ffeed.json${suffix}`)
+    }
+    // An open regex yields its literal path as the probe base, not a `.` taken for a character.
+    const openTail = traversalProbeUrls(gatedUrls, /^\/images\/books\/.+\.avif$/, SITE)
+    expect(openTail.every((url) => url.startsWith('https://jonathanlloyd.me/images/books/'))).toBe(true)
+    expect(openTail.some((url) => url.includes('..avif'))).toBe(false)
+    expect(openTail.filter((url) => /^\/images\/books\/.+\.avif$/.test(new URL(url).pathname)).length).toBeGreaterThan(0)
     // None of them is accepted by the shipped shape.
     const shipped = new RegExp(LOCAL_IMAGE_PATH_SOURCE)
     expect(probes.filter((url) => shipped.test(new URL(url).pathname))).toEqual([])
@@ -373,6 +382,23 @@ describe('image routes end in one file-name segment', () => {
     ['an end-anchored but open tail', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/.*$/.test(e.pathname)', 'accepts https://'],
     ['a tail that excludes only the slash', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[^/]*$/.test(e.pathname)', 'accepts https://'],
     ['a tail that admits a percent sign', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[\\w.%-]+$/.test(e.pathname)', 'accepts https://'],
+    // An end-anchored tail that must end in an image extension passes every probe that ends in a
+    // gated file name, yet carries ..%2F..%2Ffeed.json;.avif to an origin that strips `;` parameters.
+    [
+      'a tail that only demands an image extension',
+      '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/.+\\.avif$/.test(e.pathname)',
+      'does not end in a literal path and exactly one file-name segment'
+    ],
+    [
+      'a CloudFront regex whose tail demands an extension',
+      '/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\/books\\/[^/]+\\.(avif|webp)$/',
+      'does not end in a literal path and exactly one file-name segment'
+    ],
+    [
+      'a quantifier in the literal path',
+      '({url:e,sameOrigin:s})=>s&&/^\\/images+\\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(e.pathname)',
+      'does not end in a literal path'
+    ],
     // A literal (escaped) dollar sign is not an end anchor.
     ['a tail ending in a literal dollar sign', '({url:e,sameOrigin:s})=>s&&/^\\/images\\/books\\/[a-z]+\\$/.test(e.pathname)', 'is not end-anchored'],
     ['an open-ended CloudFront image regex', '/^https:\\/\\/d1pfm520aduift\\.cloudfront\\.net\\/images\\//', 'is not end-anchored'],

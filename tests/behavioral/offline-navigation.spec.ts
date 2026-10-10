@@ -1,9 +1,8 @@
 import {expect, type Page, test} from '@playwright/test'
 import {createRequire} from 'node:module'
-import {posix} from 'node:path'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
-import {type DistServer, startDistServer} from './dist-server'
-import {LOCAL_IMAGE_PATH_SOURCE, siteGatedProbeUrls, traversalProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
+import {decodeLikeOrigin, type DistServer, startDistServer} from './dist-server'
+import {siteGatedProbeUrls, traversalProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
 
 // The authored notice the page shows. Read from the copy package's JSON export, the same value
 // src/pages/offline.astro renders (the package's TypeScript entry cannot load in this runner).
@@ -40,6 +39,9 @@ const isGatedCloudfrontPath = (path: string) => path.endsWith('.json') || GATED_
 // What CloudFront JSON answers. The H01 regression below switches it to a closed gate and then to
 // an unreachable origin; every other test keeps the open default.
 let cloudfrontJson: {status: number; body: string} | 'down' = {status: 200, body: '{}'}
+// When true, CloudFront resolves a request path as a lenient origin does before routing it, so an
+// image-path escape reaches a gated export (the LOW-2 regression below).
+let cloudfrontDecodes = false
 
 test.beforeEach(async ({context}) => {
   server.overrides.clear()
@@ -47,11 +49,13 @@ test.beforeEach(async ({context}) => {
   server.decodePaths = false
   gatedResponses = 0
   cloudfrontJson = {status: 200, body: '{}'}
+  cloudfrontDecodes = false
   // Gated CloudFront paths get a real, cacheable 200, so a worker that cached gated data would have
   // something to cache. Every other CloudFront request (book-cover images) is refused, so the
   // image-fallback route cannot add entries that have nothing to do with these assertions.
   await context.route(`${CLOUDFRONT_BASE}/**`, (route) => {
-    if (isGatedCloudfrontPath(new URL(route.request().url()).pathname)) {
+    const requested = new URL(route.request().url()).pathname
+    if (isGatedCloudfrontPath(cloudfrontDecodes ? decodeLikeOrigin(requested) : requested)) {
       gatedResponses++
       if (cloudfrontJson === 'down') {
         return route.abort('connectionrefused')
@@ -262,20 +266,22 @@ test('no path escape under an image root is cached, even on an origin that decod
   const MARKER = 'GATED_BEFORE_HIDING'
   const siteOrigin = new URL([...GATED_URLS].find((url) => !url.startsWith(CLOUDFRONT_BASE))!).origin
   const sitePaths = [...new Set([...GATED_URLS].filter((url) => url.startsWith(siteOrigin)).map((url) => new URL(url).pathname))]
-  const sitePathUrls = sitePaths.map((path) => `${siteOrigin}${path}`)
-  // Probes the OLD route accepted, built by the same function the build guard uses.
-  const oldRoute = /^\/images\/(books|theatre)\//
-  // Kept: the ones this decoding origin resolves to a gated file (a double-encoded %252F decodes
-  // once, to a literal %2F, and is a 404 there, so it proves nothing here).
-  const resolvesToGated = (url: string) => {
-    const decoded = posix.normalize(decodeURIComponent(new URL(url).pathname).replace(/\\/g, '/'))
-    return sitePaths.includes(decoded)
-  }
-  const probes = traversalProbeUrls(sitePathUrls, new RegExp(LOCAL_IMAGE_PATH_SOURCE), siteOrigin).filter((url) =>
-    oldRoute.test(new URL(url).pathname) && resolvesToGated(url)
+  const cloudfrontGated = [...GATED_URLS].filter((url) => url.startsWith(CLOUDFRONT_BASE)).map((url) => url.split(/[?#]/)[0])
+  // Escapes built by the same function the build guard uses, from the OPEN-ENDED prefixes #351
+  // shipped, and kept when a lenient origin resolves them to a gated file. A double-encoded %252F
+  // decodes once, to a literal %2F, and is a 404 there, so it proves nothing here and is dropped.
+  const siteProbes = traversalProbeUrls(sitePaths.map((path) => `${siteOrigin}${path}`), /^\/images\/(books|theatre)\//, siteOrigin).filter((url) =>
+    sitePaths.includes(decodeLikeOrigin(new URL(url).pathname))
   ).map((url) => `${server.origin}${url.slice(siteOrigin.length)}`)
-  expect(probes.length).toBeGreaterThanOrEqual(25)
-  expect(probes).toContain(`${server.origin}/images/books/..%2F..%2Ffeed.json`)
+  const cloudfrontProbes = traversalProbeUrls(cloudfrontGated,
+    new RegExp(`^${CLOUDFRONT_BASE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/images/(books|theatre)/`), siteOrigin).filter((url) =>
+      isGatedCloudfrontPath(decodeLikeOrigin(new URL(url).pathname))
+    )
+  const probes = [...siteProbes, ...cloudfrontProbes]
+  expect(siteProbes.length).toBeGreaterThanOrEqual(25)
+  expect(siteProbes).toContain(`${server.origin}/images/books/..%2F..%2Ffeed.json`)
+  expect(siteProbes).toContain(`${server.origin}/images/books/..%2F..%2Ffeed.json;x.avif`)
+  expect(cloudfrontProbes).toContain(`${CLOUDFRONT_BASE}/images/books/..%2F..%2Ffocus.json`)
 
   const fetchAll = () =>
     page.evaluate((urls) =>
@@ -292,31 +298,44 @@ test('no path escape under an image root is cached, even on an origin that decod
       server.overrides.set(path, {status, type: 'text/plain; charset=utf-8', body})
     }
   }
+  /** Entries in the two image caches. */
+  const imageCacheEntries = () =>
+    page.evaluate(async () => {
+      let count = 0
+      for (const name of ['local-images-v2', 'optimized-images-fallback']) {
+        if (await caches.has(name)) {
+          count += (await (await caches.open(name)).keys()).length
+        }
+      }
+      return count
+    })
 
   await installWorker(page)
   server.decodePaths = true
+  cloudfrontDecodes = true
 
-  // Open: the decoding origin answers every escape with the gated file.
+  // Open: the lenient origins answer every escape with the gated file. No image cache gains an
+  // entry, held over 2 s because a cache write in a worker's waitUntil lands after the response.
   setSiteAnswer(200, MARKER)
+  cloudfrontJson = {status: 200, body: JSON.stringify({marker: MARKER})}
   const open = await fetchAll()
   expect(open.filter((answer) => answer.status !== 200 || !answer.body.includes(MARKER))).toEqual([])
-  await new Promise((resolve) => setTimeout(resolve, 1_000)) // let any waitUntil cache write land
+  await expectStable(async () => expect(await imageCacheEntries()).toBe(0))
 
-  // Closed: every escape reaches the origin again and gets the suppression.
+  // Closed: every escape reaches its origin again and gets the suppression.
   setSiteAnswer(503, 'SUPPRESSED')
-  const readsBefore = server.requests.length
+  cloudfrontJson = {status: 503, body: 'SUPPRESSED'}
+  const siteReadsBefore = server.requests.length
+  const cloudfrontReadsBefore = gatedResponses
   const closed = await fetchAll()
   expect(closed.filter((answer) => answer.status !== 503 || answer.body.includes(MARKER))).toEqual([])
-  expect(server.requests.length - readsBefore).toBe(probes.length)
+  expect(server.requests.length - siteReadsBefore).toBe(siteProbes.length)
+  expect(gatedResponses - cloudfrontReadsBefore).toBe(cloudfrontProbes.length)
 
   // Down: nothing answers from a cache.
   server.down = true
+  cloudfrontJson = 'down'
   const down = await fetchAll()
   expect(down.filter((answer) => answer.status !== 0 || answer.body.includes(MARKER))).toEqual([])
-
-  const cached = await cachedUrls(page)
-  // The precache holds /images/no-cover.svg (a static placeholder); nothing under an image root is
-  // cached, and the image cache stays empty.
-  expect(cached.filter((url) => /^\/images\/(books|theatre)\//.test(new URL(url).pathname))).toEqual([])
-  expect(await page.evaluate(async () => (await caches.has('local-images-v2')) ? (await (await caches.open('local-images-v2')).keys()).length : 0)).toBe(0)
+  expect(await imageCacheEntries()).toBe(0)
 })

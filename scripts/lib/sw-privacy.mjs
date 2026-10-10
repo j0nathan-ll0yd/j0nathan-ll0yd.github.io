@@ -120,7 +120,15 @@ export const TRAVERSAL_SUFFIXES = Object.freeze([
   'x%2F..%2F..%2F..%2F{t}',
   '..%252F..%252F{t}',
   'x/..%2F..%2F..%2F{t}',
-  '%2F{t}'
+  '%2F{t}',
+  // An origin that strips `;` parameters, or decodes `%3F`, `%23` or `%00` before it splits the
+  // path, serves the gated file for these, whatever image extension a route demands.
+  ...['avif', 'webp', 'png', 'jpg', 'jpeg', 'gif', 'svg'].flatMap((extension) => [
+    `..%2F..%2F{t};x.${extension}`,
+    `..%2F..%2F{t}%3F.${extension}`,
+    `..%2F..%2F{t}%23.${extension}`,
+    `..%2F..%2F{t}%00.${extension}`
+  ])
 ])
 
 /**
@@ -137,10 +145,25 @@ export function traversalProbeUrls(gatedUrls, matcherRegex, origin) {
   return [...new Set(urls.map((url) => new URL(url).href))]
 }
 
-/** True when a regex ends in an unescaped `$`, so nothing may follow what it describes. */
+/**
+ * True when a regex ends in an unescaped `$`, so nothing may follow what it describes. Strict on
+ * purpose: an equivalent anchor inside a group (`(?:x$)`, `(a|b$)`) is refused, never passed.
+ */
 function isEndAnchored(regex) {
   const trailing = /(\\*)\$$/.exec(regex.source)
   return Boolean(trailing) && trailing[1].length % 2 === 0
+}
+
+// The only regex shape a route may take: `^`, then a LITERAL path -- plain characters, escaped
+// `/ . - :`, and groups of plain alternatives such as `(books|theatre)` -- then `/`, exactly ONE
+// file-name segment and `$`. No class, quantifier or `.` may sit anywhere else. An open or
+// suffix-matched tail (`.+\.avif$`, `[^/]+\.(avif|webp)$`) passes an end anchor and every probe that
+// ends in a gated file name, yet carries `..%2F..%2Ffeed.json;.avif` to an origin that strips `;`
+// parameters. Probes cannot prove a tail safe; this structure can.
+const LITERAL_PATH_HEAD = /^\^(?:[A-Za-z0-9:_-]|\\[/.:-]|\((?:\?:)?[A-Za-z0-9_-]+(?:\|[A-Za-z0-9_-]+)*\))*$/
+function endsInOneFileName(regex) {
+  const tail = `\\/${IMAGE_FILE_NAME_SOURCE}$`
+  return regex.source.endsWith(tail) && LITERAL_PATH_HEAD.test(regex.source.slice(0, -tail.length))
 }
 
 /** Literal strings a regex is built around: escapes undone, each alternative of a group expanded. */
@@ -169,7 +192,10 @@ function regexSamples(regex) {
   return [
     ...new Set(
       variants.map((variant) =>
-        variant.replace(/\[[^\]]*\][*+?]?/g, '').replace(/\\([^dwsbDWSBnrtfv0-9])/g, '$1').replace(/\\[dwsbDWSBnrtfv0-9]/g, '').replace(/[\^$*+?{}|]/g, '')
+        variant.replace(/\[[^\]]*\][*+?]?/g, '').replace(/(^|[^\\])\.[*+?]?/g, '$1').replace(/\\([^dwsbDWSBnrtfv0-9])/g, '$1').replace(
+          /\\[dwsbDWSBnrtfv0-9]/g,
+          ''
+        ).replace(/[\^$*+?{}|]/g, '')
       ).filter(Boolean)
     )
   ]
@@ -274,6 +300,8 @@ export function urlRegexProblems(regex, gatedUrls, label) {
     problems.push(
       `${label}: runtime route ${regex} is not end-anchored ($); anchor it on a file-name shape so no further path, query or encoded escape can follow`
     )
+  } else if (!endsInOneFileName(regex)) {
+    problems.push(`${label}: ${fileNameShapeMessage(regex)}`)
   }
   return problems
 }
@@ -297,6 +325,8 @@ export function pathRegexProblems(regex, gatedUrls, label) {
     problems.push(
       `${label}: runtime route pathname test ${regex} is not end-anchored ($); anchor it on a file-name shape so an encoded slash or dot segment cannot follow`
     )
+  } else if (!endsInOneFileName(regex)) {
+    problems.push(`${label}: ${fileNameShapeMessage(regex)}`)
   }
   return problems
 }
@@ -859,6 +889,11 @@ export function verifyInspectedWorker(record, {gatedUrls, siteUrl, label = '/sw.
     }
   }
   return [...new Set(problems)]
+}
+
+/** The problem text for an end-anchored route whose tail is not one file-name segment. */
+function fileNameShapeMessage(regex) {
+  return `runtime route ${regex} does not end in a literal path and exactly one file-name segment (/${IMAGE_FILE_NAME_SOURCE}$); an open or suffix-matched tail can carry an encoded escape such as ..%2F..%2Ffeed.json;.avif`
 }
 
 /** The problem text for a route that accepts a path escape. */

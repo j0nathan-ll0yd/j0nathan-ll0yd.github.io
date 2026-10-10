@@ -47,9 +47,14 @@ Both regex shapes SHALL be end-anchored (`$`), and SHALL accept no escape of the
 route is probed with its prefix followed by encoded-slash, dot-segment and backslash escapes aimed
 at each gated file name (`TRAVERSAL_SUFFIXES`, for example `/images/books/..%2F..%2Ffeed.json`). A
 browser keeps these inside the prefix, but an origin that decodes `%2F` or `%5C` and resolves dot
-segments serves the gated file for them. The two image routes therefore end in ONE file-name
-segment, `[A-Za-z0-9][A-Za-z0-9._-]*` (`IMAGE_FILE_NAME_SOURCE`), which every mirror file name
-matches; the build guard pins both shapes exactly. Motivating failure (final verification of
+segments serves the gated file for them. Probes alone cannot prove a tail safe: a tail that only
+demands an extension (`.+\.avif$`) passes every probe that ends in a gated file name, yet carries
+`..%2F..%2Ffeed.json;.avif` to an origin that strips `;` parameters. So every regex SHALL also have
+the structure `^`, a literal path (plain characters, escaped `/ . - :`, and groups of plain
+alternatives), then `/` and exactly ONE file-name segment, `[A-Za-z0-9][A-Za-z0-9._-]*`
+(`IMAGE_FILE_NAME_SOURCE`), then `$`. Every mirror file name matches it, and the build guard pins
+both image routes exactly. The probes also carry `;x.<ext>`, `%3F.<ext>`, `%23.<ext>` and
+`%00.<ext>` forms for seven image extensions. Motivating failure (final verification of
 #351, LOW-2): `^/images/(books|theatre)/` cached 25 such forms in `local-images-v2` on a decoding
 test origin and replayed them with the gate closed. A regex anchored on a bare origin
 (`^https://<host>/`) is refused with a message that names the missing path segment.
@@ -144,7 +149,7 @@ behavior: an online navigation to `/` reaches the server and no cache gains a do
 entry, and with the server down or the browser offline, `/` and `/privacy` render the data-free
 page.
 
-Verified by `tests/unit/sw-privacy.test.ts:546` (the shipped shape passes; no navigation route, a
+Verified by `tests/unit/sw-privacy.test.ts:572` (the shipped shape passes; no navigation route, a
 NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
 catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
 Workbox API, a NetworkOnly route carrying any option but `plugins`, a missing `/offline` and any

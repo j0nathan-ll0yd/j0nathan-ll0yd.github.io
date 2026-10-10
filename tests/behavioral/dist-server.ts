@@ -42,9 +42,8 @@ export interface DistServer {
   /** When true, every connection is destroyed without a response. */
   down: boolean
   /**
-   * When true, the server decodes the path (`%2F`, `%5C` included), turns backslashes into slashes
-   * and resolves dot segments before it answers, as some origins do. `/images/books/..%2F..%2Ffeed.json`
-   * then answers as `/feed.json`. Off by default.
+   * When true, the server resolves the path as a lenient origin does (`decodeLikeOrigin`) before it
+   * answers. `/images/books/..%2F..%2Ffeed.json;x.avif` then answers as `/feed.json`. Off by default.
    */
   decodePaths: boolean
   close(): Promise<void>
@@ -80,6 +79,16 @@ function safeDecode(path: string): string {
   }
 }
 
+/**
+ * The path a lenient origin serves for `path`: decoded once (`%2F`, `%5C`, `%3F`, `%23`, `%00`
+ * included), cut at the first `;`, `?`, `#` or NUL (a stripped path parameter, or a query or
+ * fragment decoded too early), backslashes turned into slashes, and dot segments resolved.
+ */
+export function decodeLikeOrigin(path: string): string {
+  const decoded = safeDecode(path).split(/[;?#\0]/)[0]
+  return posix.normalize(decoded.replace(/\\/g, '/'))
+}
+
 export async function startDistServer(): Promise<DistServer> {
   const state = {overrides: new Map<string, Answer>(), requests: [] as string[], down: false, decodePaths: false}
   const server: Server = createServer((request, response) => {
@@ -88,7 +97,7 @@ export async function startDistServer(): Promise<DistServer> {
       return
     }
     const raw = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
-    const pathname = state.decodePaths ? posix.normalize(safeDecode(raw).replace(/\\/g, '/')) : raw
+    const pathname = state.decodePaths ? decodeLikeOrigin(raw) : raw
     state.requests.push(pathname)
     const answer = state.overrides.get(pathname)
     void (answer ? Promise.resolve(answer) : fromDist(pathname)).then(({status, type, body, location}) => {
