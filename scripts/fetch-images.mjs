@@ -9,8 +9,9 @@
  * validates existing local files, and computes drift in both directions.
  * Stale local files are reported for reviewed pruning and are never deleted.
  *
- * Check mode also writes `issue_outcome=` to $GITHUB_OUTPUT for the deploy
- * workflow's managed-issue reconciler. See `issueOutcome` for the mapping.
+ * Check mode writes `status=` and `issue_outcome=` to $GITHUB_OUTPUT for the deploy workflow's
+ * managed-issue reconciler, on every path after module load. A load-time crash writes nothing,
+ * and the workflow reads an empty value as failure. See `issueOutcome` for the mapping.
  */
 
 import {access, appendFile, mkdir, readdir, stat, writeFile} from 'node:fs/promises'
@@ -230,14 +231,17 @@ export async function runImageAudit({
   const endpoints = ['books.json', 'theatre-reviews.json']
   const manifests = await Promise.allSettled(endpoints.map((endpoint) => fetchJson(endpoint, fetchImpl)))
   const rejected = manifests.map((result, index) => ({result, endpoint: endpoints[index]})).filter(({result}) => result.status === 'rejected')
-  const manifestErrors = rejected.map(({result, endpoint}) => `${endpoint}: ${result.reason.message}`)
+  const manifestErrors = rejected.map(({result, endpoint}) =>
+    `${endpoint}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`
+  )
   // A manifest denied with the suppression disclosure body proves CloudFront answered and the
   // focus gate is closed. Any other rejection (a transport error, a non-disclosure status) means
   // the audit could not reach what it measures, and that must stay loud.
   const gatedOnly = rejected.length > 0 && rejected.every(({result}) => result.reason instanceof SuppressedManifestError)
 
+  let reprobe = null
   if (gatedOnly) {
-    const reprobe = await probeSuppression({fetchImpl})
+    reprobe = await probeSuppression({fetchImpl})
     const retryDisposition = suppressionDisposition(reprobe, 'image mirror audit', logger)
     if (retryDisposition === 'skip') {
       return {status: 'suppressed', exitCode: 0}
@@ -251,8 +255,15 @@ export async function runImageAudit({
     const report = renderReport({manifestErrors})
     await writeReports(report, [], reportFile, missingFile)
     if (gatedOnly) {
-      logger.error('GATED: the focus gate denied both image manifests, so the mirror was not measured.\n' + report)
-      return {status: 'gated', exitCode: 1, manifestErrors}
+      // The focus contract requires `hidingSince` whenever focus hides public data, so a
+      // legitimate hiding window always reprobes as `suppressed` or `overdue`. Reaching here
+      // means the gate denied the manifests while the probe showed no bounded hiding window:
+      // focus visible, `hidingSince` missing, or the probe itself failed. That is a stuck gate,
+      // a contract violation, or a blind probe, and all three must stay loud.
+      logger.error(
+        `GATE CONTRADICTION: the focus gate denied the image manifests, but the focus probe shows no bounded hiding window (${reprobe.reason}).\n` + report
+      )
+      return {status: 'gate-contradiction', exitCode: 1, manifestErrors}
     }
     logger.error('UNREACHABLE: both image manifests are required, and at least one could not be fetched.\n' + report)
     return {status: 'unreachable', exitCode: 1, manifestErrors}
@@ -295,15 +306,18 @@ export async function runImageAudit({
  * - `overdue`: focus has hidden public data for more than 24 hours -> `failure`.
  * - `unreachable`: a manifest could not be fetched (transport error or a non-disclosure HTTP
  *   status). The check is blind, and a blind measurer must stay loud -> `failure`.
- * - `suppressed` or `gated`: the focus gate legitimately denied the manifests -> `indeterminate`
- *   (leave the issue unchanged).
+ * - `gate-contradiction`: the gate denied the manifests, but the focus probe shows no bounded
+ *   hiding window -> `failure`.
+ * - `suppressed`: a bounded hiding window (the focus contract's `hidingSince` is under 24 hours
+ *   old), so the gate legitimately denies the manifests -> `indeterminate` (leave the issue
+ *   unchanged). This is the ONLY status that does not move the issue.
  * - Anything else, including a crash: `failure`, because nothing was measured.
  */
 export function issueOutcome(status) {
   if (status === 'ok') {
     return 'success'
   }
-  if (status === 'suppressed' || status === 'gated') {
+  if (status === 'suppressed') {
     return 'indeterminate'
   }
   return 'failure'

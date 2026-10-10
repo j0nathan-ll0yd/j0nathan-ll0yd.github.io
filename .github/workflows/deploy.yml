@@ -147,6 +147,10 @@ jobs:
       - name: Check for new images
         id: check
         continue-on-error: true
+        # A step timeout fails the step without cancelling the job, so the
+        # reconcile step below still runs and reads the empty output as failure.
+        # A job timeout would cancel the job and skip it.
+        timeout-minutes: 10
         run: node scripts/fetch-images.mjs --check-only
 
       - name: Publish image audit report
@@ -173,8 +177,9 @@ jobs:
         env:
           # Passed through the environment, never interpolated into the script body
           # (atlas decision 0142 step 5.4). The script writes issue_outcome on every
-          # path, a crash included. An empty value means the check step never ran
-          # (for example, the install failed), so nothing was measured: failure.
+          # path after module load. An empty value means nothing was measured: the
+          # step never ran (the install failed), crashed at load, or timed out. All
+          # of those are failure.
           IMAGE_MIRROR_ISSUE_OUTCOME: ${{ steps.check.outputs.issue_outcome }}
         with:
           script: |
