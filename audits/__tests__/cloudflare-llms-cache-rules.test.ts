@@ -4,6 +4,8 @@ import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
   auditCloudflareLlmsCacheRules,
+  CLOUDFLARE_FEED_TARGETS,
+  CLOUDFLARE_GATED_TARGETS,
   CLOUDFLARE_LLMS_TARGETS,
   evaluateCloudflareLlmsCacheRules,
   expressionApplicability,
@@ -88,6 +90,30 @@ describe('Cloudflare llms cache-rule evaluation', () => {
     ]))
   })
 
+  // Atlas decision 0160 PR 0b: the feeds are gated paths, and a catch-all rule
+  // over every non-trio path stored them ahead of the Pages Function (Age up to 796 s on 2026-10-08).
+  it('judges both feed URLs, and reports the rule mode and TTL for a catch-all non-trio Edge TTL rule', () => {
+    expect(CLOUDFLARE_FEED_TARGETS).toEqual(['https://jonathanlloyd.me/feed.xml', 'https://jonathanlloyd.me/feed.json'])
+    expect(CLOUDFLARE_GATED_TARGETS).toEqual([...CLOUDFLARE_LLMS_TARGETS, ...CLOUDFLARE_FEED_TARGETS])
+
+    const evaluation = evaluateCloudflareLlmsCacheRules({
+      zoneRequestRules: [{
+        id: 'catch-all',
+        enabled: true,
+        action: 'set_cache_settings',
+        expression: 'not (http.request.uri.path in {"/llms.txt" "/llms-full.txt" "/index.md"})',
+        action_parameters: {cache: true, edge_ttl: {mode: 'override_origin', default: 7200}}
+      }]
+    })
+
+    expect(evaluation.status).toBe('failed')
+    const failed = evaluation.results.filter(({status}) => status === 'failed')
+    expect(failed.map(({target}) => target).sort()).toEqual([...CLOUDFLARE_FEED_TARGETS].sort())
+    for (const result of failed) {
+      expect(result.evidence).toContain('mode=override_origin, ttl=7200s')
+    }
+  })
+
   it('passes disabled, disjoint, and origin-respecting rules', () => {
     const evaluation = evaluateCloudflareLlmsCacheRules({
       zoneRequestRules: [
@@ -157,6 +183,54 @@ describe('Cloudflare cache-rule API audit', () => {
     expect(requests.every(({init}) => init.method === 'GET')).toBe(true)
     expect(requests.every(({url}) => !/purge|trace/i.test(url))).toBe(true)
     expect(JSON.stringify(evidence)).not.toContain('do-not-print')
+    // The evidence names every judged URL, the two feeds included.
+    expect(evidence.targets).toEqual([...CLOUDFLARE_GATED_TARGETS])
+  })
+
+  it('names every judged URL even when the run cannot start (missing credential)', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
+    scratchDirectories.push(scratch)
+    const outputPath = join(scratch, 'evidence.json')
+
+    const exitCode = await runCloudflareLlmsCacheRuleCli({
+      arguments_: ['--evidence-out', outputPath],
+      environment: {},
+      fetchImpl: vi.fn(),
+      now: () => new Date('2026-10-08T00:00:00.000Z'),
+      logger: {log: vi.fn(), error: vi.fn()}
+    })
+
+    const evidence = JSON.parse(await readFile(outputPath, 'utf8'))
+    expect(exitCode).toBe(1)
+    expect(evidence.targets).toEqual([...CLOUDFLARE_GATED_TARGETS])
+  })
+
+  it('judges a Page Rule over the feeds and reports it in the evidence', async () => {
+    const fetchImpl = vi.fn(async (url: string) => {
+      if (url.includes('/pagerules?')) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            result: [{
+              id: 'feeds',
+              status: 'active',
+              targets: [{target: 'url', constraint: {value: 'https://jonathanlloyd.me/feed.*'}}],
+              actions: [{id: 'edge_cache_ttl', value: 7200}]
+            }],
+            result_info: {total_pages: 1}
+          }),
+          {status: 200}
+        )
+      }
+      return new Response(JSON.stringify({success: false, errors: []}), {status: 404})
+    })
+
+    const evidence = await auditCloudflareLlmsCacheRules({accountId: 'a', zoneId: 'z', apiToken: 't', fetchImpl, observedAt: '2026-10-08T00:00:00.000Z'})
+
+    expect(evidence.status).toBe('failed')
+    const failed = evidence.results.filter(({status}: {status: string}) => status === 'failed')
+    expect(failed.map(({target}: {target: string}) => target).sort()).toEqual([...CLOUDFLARE_FEED_TARGETS].sort())
+    expect(failed.every(({id}: {id: string}) => id === 'page-rule-feeds')).toBe(true)
   })
 
   it('writes unknown evidence and exits nonzero when read permission is incomplete', async () => {
@@ -185,6 +259,7 @@ describe('Cloudflare cache-rule API audit', () => {
     expect(exitCode).toBe(1)
     expect(evidence.status).toBe('unknown')
     expect(evidence.results).not.toHaveLength(0)
+    expect(evidence.targets).toEqual([...CLOUDFLARE_GATED_TARGETS])
     expect(JSON.stringify(evidence)).not.toContain('secret-token')
     expect(JSON.stringify(evidence)).not.toContain('account-id')
     expect(JSON.stringify(evidence)).not.toContain('zone-id')

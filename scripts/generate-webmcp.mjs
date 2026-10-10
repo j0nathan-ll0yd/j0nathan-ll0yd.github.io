@@ -7,7 +7,23 @@
 //
 // All customer-facing prose is sourced from @j0nathan-ll0yd/copy (identity + llm
 // namespaces). Zero prose is hardcoded in this file.
-import {readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, readFileSync, writeFileSync} from 'node:fs'
+
+// `--check` compares instead of writing: every generated file must already equal what this script
+// would write, or the run exits 1 naming the drifted files. CI runs it (static-checks.yml, lint job)
+// so a hand edit to public/js/webmcp.js, or a generator change committed without regenerating,
+// cannot merge. The build regenerates anyway (prebuild), so drift would otherwise ship unreviewed.
+const CHECK = process.argv.includes('--check')
+const drifted = []
+function emit(path, content) {
+  if (!CHECK) {
+    writeFileSync(path, content)
+    return
+  }
+  if (!existsSync(path) || readFileSync(path, 'utf8') !== content) {
+    drifted.push(path)
+  }
+}
 import {createHash} from 'node:crypto'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
@@ -102,12 +118,15 @@ ${dataSourceLines}
           description: ${sq(copyLlm.mcp.toolGetCurrentReading)},
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async function() {
-            var focusRes = await fetch(${sq(focusUrl)}, { cache: 'no-store' });
-            if (focusRes.ok) {
-              var focusData = await focusRes.json();
-              if ([${hidingFocusModeLines}].includes(focusData.currentFocus)) {
-                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
-              }
+            // Fail closed (atlas decision 0160, PR 0b): a focus state this tool could not
+            // read is never permission to read the gated bookshelf.
+            var focusRes = await fetch(${sq(focusUrl)}, { cache: 'no-store' }).catch(function() { return null; });
+            var focusData = focusRes && focusRes.ok ? await focusRes.json().catch(function() { return null; }) : null;
+            if (!focusData || typeof focusData.currentFocus !== 'string') {
+              return { content: [{ type: 'text', text: JSON.stringify({ failed: true, reason: 'focus state unreadable' }) }] };
+            }
+            if ([${hidingFocusModeLines}].includes(focusData.currentFocus)) {
+              return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
             }
             var res = await fetch(${sq(booksUrl)}, { cache: 'no-store' });
             var data = await res.json().catch(function() { return null; });
@@ -150,8 +169,10 @@ ${dataSourceLines}
 `
 
 const outPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'js', 'webmcp.js')
-writeFileSync(outPath, output)
-console.log(`Generated ${outPath}`)
+emit(outPath, output)
+if (!CHECK) {
+  console.log(`Generated ${outPath}`)
+}
 
 // Generate .well-known files from SITE_URL so the URL never drifts from the
 // portal-contract constant. Content is byte-identical to the committed files
@@ -184,8 +205,10 @@ const serverCard = {
 }
 
 const serverCardPath = join(publicDir, '.well-known', 'mcp', 'server-card.json')
-writeFileSync(serverCardPath, JSON.stringify(serverCard, null, 2) + '\n')
-console.log(`Generated ${serverCardPath}`)
+emit(serverCardPath, JSON.stringify(serverCard, null, 2) + '\n')
+if (!CHECK) {
+  console.log(`Generated ${serverCardPath}`)
+}
 
 // The digest is COMPUTED from the served bytes, never hardcoded. A literal here
 // desyncs the moment SKILL.md is edited, and nothing catches it: audits/checks/
@@ -209,8 +232,10 @@ const agentSkills = {
 }
 
 const agentSkillsPath = join(publicDir, '.well-known', 'agent-skills', 'index.json')
-writeFileSync(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n')
-console.log(`Generated ${agentSkillsPath}`)
+emit(agentSkillsPath, JSON.stringify(agentSkills, null, 2) + '\n')
+if (!CHECK) {
+  console.log(`Generated ${agentSkillsPath}`)
+}
 
 // Generate ai-catalog.json — ARD AI Catalog specVersion 1.0 (normative source:
 // ards-project/ard-spec spec/schemas/ai-catalog.schema.json). Prose comes from
@@ -249,5 +274,19 @@ const aiCatalog = {
 }
 
 const aiCatalogPath = join(publicDir, '.well-known', 'ai-catalog.json')
-writeFileSync(aiCatalogPath, JSON.stringify(aiCatalog, null, 2) + '\n')
-console.log(`Generated ${aiCatalogPath}`)
+emit(aiCatalogPath, JSON.stringify(aiCatalog, null, 2) + '\n')
+if (!CHECK) {
+  console.log(`Generated ${aiCatalogPath}`)
+}
+
+if (CHECK) {
+  if (drifted.length > 0) {
+    console.error('[generate-webmcp --check] FAIL: committed files differ from the generator output:')
+    for (const path of drifted) {
+      console.error('  -', path)
+    }
+    console.error('Run `pnpm run generate:webmcp` and commit the result.')
+    process.exit(1)
+  }
+  console.log('[generate-webmcp --check] OK: every generated file matches the generator output.')
+}

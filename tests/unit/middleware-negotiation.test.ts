@@ -13,10 +13,10 @@ vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => lo
 
 // Both inits carry an AbortSignal: every network attempt the proxy makes is bounded by a
 // per-operation deadline drawn from the request's total budget (functions/_lib/proxy.ts).
-const FETCH_CACHE_INIT = expect.objectContaining({
-  cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}},
-  signal: expect.any(AbortSignal)
-})
+// Gated fetches are no-store with no `cf` cache options (atlas decision 0160, PR 0b); a gated 200
+// is admitted only with CloudFront's `x-amz-cf-id`, and its copy only with a composition stamp.
+const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', redirect: 'manual', signal: expect.any(AbortSignal)})
+const CLOUDFRONT = (extra: Record<string, string> = {}) => ({'x-amz-cf-id': 'cf', 'x-amz-meta-composed-at': new Date().toISOString(), ...extra})
 const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
 const FOCUS_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
 const LLMS_FULL_UPSTREAM = `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
@@ -31,7 +31,7 @@ function makeContext(path = '/', init: RequestInit = {}) {
 
 function stubFetch(artifactBody = '# full profile', currentFocus = 'Personal') {
   const mock = vi.fn().mockImplementation((url: string) =>
-    Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus})) : new Response(artifactBody))
+    Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus})) : new Response(artifactBody, {headers: CLOUDFRONT()}))
   )
   vi.stubGlobal('fetch', mock)
   return mock
@@ -155,7 +155,8 @@ describe('negotiated homepage markdown', () => {
     // The SAME machinery as the explicit /llms-full.txt route: focus gate first,
     // then the retried origin-cached upstream fetch -- not an independent bare fetch.
     expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
-    expect(mock).toHaveBeenCalledWith(LLMS_FULL_UPSTREAM, FETCH_CACHE_INIT)
+    expect(mock).toHaveBeenCalledWith(LLMS_FULL_UPSTREAM, GATED_FETCH_INIT)
+    expect(mock.mock.calls.every(([, init]) => !('cf' in init))).toBe(true)
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('# full profile')
     expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
@@ -217,11 +218,16 @@ describe('negotiated homepage markdown', () => {
 
   it('serves the warm last-known-good copy with no-store when the upstream fails', async () => {
     vi.useFakeTimers()
-    vi.stubGlobal('fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 503}))
-      ))
-    stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800'}}))
+    // Three CloudFront 502s, then a gate probe that answers 200: only a 200 proves the gate is open.
+    let artifactCalls = 0
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'})))
+      }
+      artifactCalls++
+      return Promise.resolve(new Response(artifactCalls <= 3 ? 'upstream down' : 'probe', {status: artifactCalls <= 3 ? 502 : 200, headers: CLOUDFRONT()}))
+    }))
+    stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800', 'X-Proxy-Lkg-Composed-At': new Date().toISOString()}}))
     const {context} = makeContext('/', {headers: MARKDOWN})
 
     const pending = onRequest(context)
@@ -260,7 +266,7 @@ describe('negotiated homepage markdown', () => {
         return Promise.resolve(new Response(JSON.stringify({currentFocus})))
       }
       artifactCalls++
-      return Promise.resolve(new Response(`content-${artifactCalls}`))
+      return Promise.resolve(new Response(`content-${artifactCalls}`, {headers: CLOUDFRONT()}))
     }))
     const cache = stubCache(new Response('pre-focus LKG'))
 

@@ -37,8 +37,9 @@ The feed is composed by the `ComposeFeed` Lambda on every `BroadcastUpdate`
 EventBridge trigger (plus a 30-minute safety-net schedule), writing
 `feed.xml` and `feed.json` to CloudFront. The Cloudflare Pages Functions
 `functions/feed.xml.ts` and `functions/feed.json.ts` proxy those
-CloudFront artifacts with edge caching (`public, max-age=0, s-maxage=60`),
-exposing them at the canonical root paths.
+CloudFront artifacts at the canonical root paths. Both routes are gated by the
+backend focus gate and send `no-store` on every cache header (atlas decision
+0160, PR 0b).
 
 This mirrors the `llms.txt` composition pattern exactly. The alternative —
 build-time composition — was rejected because the feed's freshness
@@ -50,31 +51,52 @@ composition would make the feed stale by definition.
 
 - Backend composes on EventBridge trigger (any source update) + 30-minute schedule
 - CloudFront origin object TTL: 5 minutes (`max-age=300, s-maxage=300`, stamped by `ComposeFeed`)
-- Pages Function origin fetch cache: 60 seconds (`FRESH_CACHE_SECONDS`, `functions/_lib/proxy.ts:14`)
-- Pages Function response policy: `public, max-age=0, s-maxage=60`
-  (`EDGE_CACHED_POLICY`, `functions/_lib/proxy.ts:63`). No route emits
-  `stale-while-revalidate`; see the comment at `functions/_lib/proxy.ts:364`.
-- Last-known-good fallback copy: `public, max-age=10800`, three hours
-  (`LKG_CACHE_POLICY`, `functions/_lib/proxy.ts:73`). Served only when the
-  upstream fetch fails, and stamped `X-Proxy-Stale: true`.
-- **Cloudflare account-level override.** A catch-all Edge Cache TTL rule
-  rewrites the browser-facing `max-age` to 600 on every non-trio path. The
-  header a client actually observes on `/feed.xml` and `/feed.json` is
-  therefore `public, max-age=600, s-maxage=60`. The 600 comes from
-  Cloudflare, not from the worker. Curl the URL to read the served policy;
-  do not infer it from `functions/_lib/proxy.ts`.
+- Pages Function origin fetch: no cache. Every artifact fetch is
+  `cache: 'no-store'` with no `cf` cache options (`GATED_FETCH_INIT` in
+  `functions/_lib/proxy.ts`), so each one passes the backend focus gate
+  (atlas decision 0160, PR 0b). The former 60-second origin fetch cache sat in
+  front of that gate and is gone.
+- Pages Function response policy: `no-store` on `Cache-Control`,
+  `CDN-Cache-Control` and `Cloudflare-CDN-Cache-Control`, the factory default
+  in `functions/_lib/proxy.ts`. Until atlas decision 0160 PR 0b the feeds sent
+  `public, max-age=0, s-maxage=60`; that header did not bound the edge window
+  (see below).
+- Last-known-good fallback copy: stored with `public, max-age=10800`
+  (`LKG_CACHE_POLICY`). Served only when the upstream fetch fails retryably,
+  the copy's upstream composition stamp is at most three hours old, and the
+  same request observed the gate open; stamped `X-Proxy-Stale: true`. See
+  the llms-txt spec requirement "Gated artifacts are admitted only through
+  the CloudFront gate".
+- **Cloudflare zone edge cache.** A catch-all Edge Cache TTL rule applies to
+  every non-trio path. It rewrote the browser-facing `max-age` to 600 and held
+  the feeds at the edge far longer than the 60 s the old header asked for.
+  Measured with read-only `HEAD` requests:
+  - 2026-08-30: `/feed.xml` served at `Age: 1775` (29.6 minutes).
+  - 2026-10-08 (review of PR #351): `/feed.xml` `cf-cache-status: HIT`, `Age`
+    rising 33, 83, 165, 247, 315, 396, 477, 569 and 610 s over ten minutes.
+  - 2026-10-08 16:53 UTC: `/feed.xml` `HIT` at `Age: 796`, `/feed.json` `HIT`
+    at `Age: 776`, both still sending `s-maxage=60`.
+  A stored feed is answered by the zone edge cache, ahead of the Pages
+  Function, so the replay has no focus probe and no gate check. The window is
+  therefore set by the zone rule, not by any header this repository sends.
+  Whether the routes' `no-store` ends it depends on the rule's mode: a rule
+  that respects origin cache headers stops caching, one that overrides them
+  does not. `audits/checks/b2-check-cloudflare-llms-cache-rules.mjs` measures
+  the rule's mode and TTL for both feed paths. The zone change (a Cache Rule
+  bypass for both paths, as "Homepage bypass for content negotiation" does for
+  `/`, or a written exception) is an owner decision. Curl the URL to read the
+  served policy; do not infer it from `functions/_lib/proxy.ts`.
 - Expected staleness for a live event: the 30-minute compose cadence, plus
-  the 5-minute CloudFront TTL, plus the 60-second worker fetch cache, plus
-  however long the Cloudflare edge holds its copy. That last term is set by
-  the account-level rule above and is not visible from this repository, so
-  the total has no ceiling this document can state from source. Measured
-  2026-08-30: the edge served `/feed.xml` at `Age: 1775` (29.6 minutes) and
-  the site plane advertised a `<lastBuildDate>` 30.0 minutes behind the
-  origin's `x-amz-meta-composed-at`. That figure is a single measurement, not
-  a bound. No check measures the origin/site feed gap today: the
-  `feed-xml-origin-site-coherence` check lived in `scripts/audit/serving-probe.mjs`,
-  which never ran and was deleted under atlas decision 0110. Re-measure with
-  curl before citing a number here.
+  the 5-minute CloudFront TTL, plus however long the Cloudflare zone edge
+  holds its copy. The Pages Function adds no cache of its own. The last term
+  is set by the zone rule above and is not visible from this repository, so
+  the total has no ceiling this document can state from source. On
+  2026-08-30 the site plane advertised a `<lastBuildDate>` 30.0 minutes
+  behind the origin's `x-amz-meta-composed-at`. That figure is a single
+  measurement, not a bound. No check measures the origin/site feed gap today:
+  the `feed-xml-origin-site-coherence` check lived in
+  `scripts/audit/serving-probe.mjs`, which never ran and was deleted under
+  atlas decision 0110. Re-measure with curl before citing a number here.
 
 ## Included Domains
 

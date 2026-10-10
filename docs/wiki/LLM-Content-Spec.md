@@ -63,14 +63,19 @@ be returned. Both facts are normative and owned elsewhere:
   the headers and the response classes they apply to.
 - `openspec/specs/llms-txt/spec.md`, requirement "Canonical llms responses always
   pass through the privacy gate", states the behavior and its verification.
-- `openspec/specs/llms-txt/spec.md`, requirement "Cache policy is per route, and
-  the feed routes stay edge-cached", states why `/feed.xml` and `/feed.json` carry
-  a different policy. They are a different surface (`rss-feed`); see
+- `openspec/specs/llms-txt/spec.md`, requirement "Every proxy route is no-store,
+  the feed routes included", states why `/feed.xml` and `/feed.json` now carry the
+  same policy. They are a different surface (`rss-feed`) behind the same gate; see
   [Feed-Spec.md](Feed-Spec.md).
 
-The internal caches the proxy does keep -- a short CloudFront fetch cache and a
-last-known-good copy in the edge Cache API -- sit behind the privacy gate and are
-declared in `LLM_FRESHNESS_CONFIG.layers.portfolioServing.internalCaches`.
+The proxy keeps one internal cache: a last-known-good copy in the edge Cache API,
+behind the privacy gate and admitted only under the rules of the requirement
+"Gated artifacts are admitted only through the CloudFront gate". It keeps no
+CloudFront fetch cache: since atlas decision 0160 PR 0b every artifact fetch is
+`cache: 'no-store'`. `LLM_FRESHNESS_CONFIG.layers.portfolioServing.internalCaches`
+in `@j0nathan-ll0yd/estate-contracts` still declares a 60 s
+`cloudFrontFetchFreshness`; that contract is atlas-owned and moves in a paired
+change.
 
 ## Content Granularity
 

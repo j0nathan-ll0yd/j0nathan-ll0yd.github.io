@@ -124,8 +124,10 @@ Configured via `@vite-pwa/astro` in `astro.config.mjs`:
 - **Register type**: `autoUpdate` (service worker updates automatically)
 - **Manifest**: App name, description, theme/background colors, display standalone
 - **Icons**: 192x192 and 512x512 PNG icons in `/assets/`
-- **Workbox**: Caches `*.{css,js,html,svg,png,ico,txt,webmanifest}`
-- **Service worker**: Registered in Dashboard.astro via inline script
+- **Precache**: static assets `*.{css,js,svg,png,ico,txt,webmanifest,woff2}` plus ONE HTML document, the data-free `/offline` page (`src/pages/offline.astro`). No other HTML document is precached (atlas decision 0160, PR 0b).
+- **Navigations**: NetworkOnly. A navigation always reaches the network and is never stored. When the network fails, the worker answers with the precached `/offline` page (Workbox `precacheFallback`), which holds no gated value, no fixture value and no live widget. `navigateFallback` stays `null`.
+- **Gated data**: no runtime route caches the focus signal, a CloudFront JSON export or a site-origin proxy route. `scripts/check-sw-precache.mjs` enforces every rule above on each build; the behavior is specified in `openspec/specs/client-privacy/spec.md`.
+- **Service worker**: Registered by `public/js/sw-register.js`, which Dashboard.astro loads
 
 ## Accessibility (WCAG 2.2 AA)
 

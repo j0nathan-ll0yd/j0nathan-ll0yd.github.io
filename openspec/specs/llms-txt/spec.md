@@ -20,8 +20,9 @@ only as true as its covering tests.
   llms-full.txt representation, served by `functions/_middleware.ts` through the same factory; see
   "Markdown negotiation applies only to the homepage and honors Accept q-values" below.
 - All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`. That factory
-  also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) and carry a
-  different cache policy; see "Cache policy is per route" below.
+  also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) behind the same
+  gate and under the same no-store policy; see "Every proxy route is no-store, the feed routes
+  included" below.
 - Upstream producer: mantle-LifegamesPortal `llm-content` capability, then CloudFront, then these proxies.
 
 ## Shape contract
@@ -172,7 +173,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 The system SHALL serve /llms.txt, /llms-full.txt, and /index.md, each with its declared
 content-type. /llms-full.txt and /index.md SHALL resolve from `LLM_CONTENT_PATHS`; /llms.txt SHALL
 resolve from the portal contract's generated discovery distribution.
-Verified by `tests/unit/cloudfront-proxy.test.ts:432` (all five proxy routes: upstream URL, status,
+Verified by `tests/unit/cloudfront-proxy.test.ts:554` (all five proxy routes: upstream URL, status,
 content-type, including the registry-derived discovery path).
 
 #### Scenario: Advertised path resolves
@@ -221,15 +222,15 @@ The portfolio SHALL NOT permit a browser, a generic downstream CDN, or the Cloud
 to retain a canonical llms response and answer a later request without executing the Pages
 Function's focus-mode privacy transition check. Every public success, stale fallback, suppression,
 and error response SHALL therefore carry `Cache-Control: no-store`, `CDN-Cache-Control: no-store`,
-and `Cloudflare-CDN-Cache-Control: no-store`. The CloudFront fetch cache (60 seconds) and the
-explicit Cache API last-known-good entry (3 hours) are separate origin-side caches behind the
-privacy check; the stored LKG representation SHALL NOT retain the public CDN no-store headers.
-The CloudFront fetch cache's 60 seconds is CONDITIONAL -- see "Every proxy network attempt is
-bounded in time" below -- and no behavior depends on the number.
+and `Cloudflare-CDN-Cache-Control: no-store`. The explicit Cache API last-known-good entry
+(3 hours of storage) is the only origin-side cache, and it sits behind the privacy check AND
+behind the gate-admission rules below; the stored LKG representation SHALL NOT retain the public
+CDN no-store headers. There is no origin fetch cache: every artifact fetch is `no-store` (see
+"Gated artifacts are admitted only through the CloudFront gate").
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:94` (proxy response policy: three-layer no-store
+Verified by `tests/unit/cloudfront-proxy.test.ts:145` (proxy response policy: three-layer no-store
 headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
-`audits/__tests__/cloudflare-llms-cache-rules.test.ts:37` (external rule audit: applicability,
+`audits/__tests__/cloudflare-llms-cache-rules.test.ts:39` (external rule audit: applicability,
 GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
 
 Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
@@ -249,7 +250,7 @@ or purge endpoint and SHALL emit an uploadable credential-free evidence file.
 
 #### Scenario: A focus transition cannot be bypassed by a public cache hit
 
-- **GIVEN** a visible request has populated the origin fetch cache and internal LKG
+- **GIVEN** a visible request has populated the internal LKG
 - **WHEN** the focus state changes to a hiding mode before the next canonical request
 - **THEN** the next request SHALL execute the privacy probe and return suppression, not retained content
 
@@ -270,17 +271,27 @@ status of a response whose body never arrived: a retained 2xx would read as a de
 non-retryable answer and withhold the fallback. Timeout responses stay behind the privacy gate and
 keep the route's own cache policy.
 
-The origin fetch cache SHALL NOT be load-bearing. `cf.cacheEverything` makes a subrequest eligible
-for the edge cache and leaves the TTL to the origin's `Cache-Control`; the 60-second number comes
-from `cf.cacheTtlByStatus`, whose plan availability Cloudflare's own documentation does not settle
-(the property description states no restriction, while Community threads assert Enterprise-only).
-The TTL is therefore CONDITIONAL, and the public cache policy, the privacy gate, and the
-last-known-good TTL are each decided elsewhere.
+The gate probe of "Gated artifacts are admitted only through the CloudFront gate" draws from the
+same budget. When the artifact attempts spend it, the probe has none, and no last-known-good copy
+is served: a hung origin gives no gate observation, and no observation is no permission.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:300` (never-resolving fetch, stalled body,
+The last-known-good cache read and the read of the copy's body SHALL also draw from that budget,
+each under its own deadline. The artifact attempts SHALL NOT spend a reserved share of the budget
+(`PROXY_TIMEOUTS.lkgReadReserveMs`), so a stalled upstream body still leaves time to read the copy.
+A cache read or copy body that does not arrive inside what remains SHALL serve no copy: the request
+answers 502 inside the budget. The copy SHALL be read whole before it is served, so no admitted
+copy can stall the response after the deadline.
+
+A focus answer that is valid JSON but not an object holding a string `currentFocus` -- `null`, a
+number, a string, a boolean, an array, or an object without the field -- SHALL be a malformed answer
+and SHALL deny with the controlled 502, never with an unhandled error.
+
+Verified by `tests/unit/cloudfront-proxy.test.ts:346` (never-resolving fetch, stalled body,
+stalled last-known-good cache read, stalled copy body, a copy found after the budget is spent,
 never-resolving focus probe, bounded focus retry -- each asserted to settle inside the budget read
-from the module's own constants) and `tests/unit/cloudfront-proxy.test.ts:394` (every uncertain
-focus answer denies, and a malformed one is not retried).
+from the module's own constants) and `tests/unit/cloudfront-proxy.test.ts:508` (every uncertain
+focus answer denies, a JSON root that is not a focus object included, and a malformed one is not
+retried).
 
 #### Scenario: An artifact body stalls after its headers arrive
 
@@ -295,6 +306,101 @@ focus answer denies, and a malformed one is not retried).
 - **WHEN** the proxy applies the privacy gate
 - **THEN** it SHALL deny with 502 inside the budget, without fetching the artifact and without
   reading last-known-good
+
+#### Scenario: The last-known-good cache read never settles
+
+- **GIVEN** a retryable artifact failure and a Cache API read that never resolves
+- **WHEN** the proxy looks for a last-known-good copy
+- **THEN** it SHALL answer 502 inside the request budget and serve no copy
+
+### Requirement: Gated artifacts are admitted only through the CloudFront gate
+
+All five proxied artifacts are `SUPPRESSIBLE_PATHS` of the backend focus gate
+(mantle-LifegamesPortal `src/edge/focus-gate.js`), a CloudFront Function that runs on
+viewer-request BEFORE CloudFront's cache. The gate is authoritative; the focus signal is not. The
+backend closes the gate before it publishes a hiding signal, and its `focus-privacy` spec leaves a
+gate shut over a visible signal after a failed publication "deliberately NOT repaired". A visible
+focus probe is therefore necessary but never sufficient (atlas decision 0160, PR 0b; adversarial
+finding H01).
+
+This requirement also covers the `rss-feed` surface: /feed.xml and /feed.json are built by the same
+factory, are gated by the same function, and are held to every rule below.
+
+- Every artifact fetch SHALL use `cache: 'no-store'` and SHALL carry no `cf` cache options, so
+  each one reaches CloudFront and passes the gate. A Cloudflare cache in front of the gate served
+  gated content without asking it, for up to the 60-second success TTL. Every fetch SHALL also use
+  `redirect: 'manual'`, so a redirect never carries a gated request to a URL the gate does not
+  guard; a 3xx is a non-retryable failure.
+- Only a 200 SHALL be admitted, and only when it carries `x-amz-cf-id` and its `cf-cache-status`
+  is not `HIT`, `STALE`, `UPDATING` or `REVALIDATED`. Any other 200, and any other 2xx (203, 204,
+  206), is refused, is logged as `cloudfront_proxy_unproven_response`, answers 502 with
+  `X-Proxy-Refused`, and admits no last-known-good copy.
+- A 403 whose body is the gate's `{"suppressed":true}` SHALL produce the route's 503 suppression
+  response, even when the focus probe read visible. The gate wins every disagreement.
+- The last-known-good copy SHALL be served only when (a) the failure was retryable and was not a
+  refusal, (b) its stored upstream composition stamp (`x-amz-meta-composed-at`, kept as
+  `X-Proxy-Lkg-Composed-At`) is at most 3 hours old -- the registry's `audit.error` for these
+  artifacts -- and (c) this request holds fresh evidence that the gate is open. Evidence is a 200
+  that carries `x-amz-cf-id` and was not served from the Cloudflare cache. No error status is
+  evidence: AWS documents that with CloudFront Functions "an HTTP 503 status code can indicate that
+  your function returned an execution error" and "an HTTP 502 status code can indicate that the
+  CloudFront function is trying to add, delete, or change a read-only header", and no documented
+  header separates a function failure from an origin failure. When no attempt produced evidence (a
+  timeout, DNS, a Cloudflare 52x without `x-amz-cf-id`, or any CloudFront error status), the proxy
+  SHALL make one bounded `no-store` gate probe of the same path and admit the copy only on a 200
+  from it. A suppression body from
+  the probe produces the 503 suppression response; any other answer, or none, admits nothing.
+  Storage time is not source age: a copy with no readable stamp, or one more than 5 minutes in
+  the future, is refused, and a 200 without a stamp writes no copy.
+
+Residual disclosure windows after this requirement, which no proxy rule can close: KeyValueStore
+propagation (the backend spec records about 30 s to first denial and about 75 s to convergence,
+with no SLA), and a response that passed the gate before a flip and is still in flight.
+
+One further window sits in front of this Function and is set by the Cloudflare zone, not by any
+header this repo sends: the zone edge cache. On 2026-10-08 /feed.xml and /feed.json answered
+`cf-cache-status: HIT` with `Age` up to 796 s while they sent `s-maxage=60`, so a zone Edge Cache
+TTL rule, not the response header, set how long a stored feed replays with no focus probe and no
+gate check. The routes now send no-store (see "Every proxy route is no-store, the feed routes
+included"); whether that ends the replay depends on the rule's mode, which
+`audits/checks/b2-check-cloudflare-llms-cache-rules.mjs` measures for all five paths. The zone
+change is an owner decision.
+
+Verified by `tests/unit/cloudfront-proxy.test.ts:688` (gate shut over a visible signal, every
+Cloudflare cache status, an unattributed 200, a 203, 204 and 206, a redirect that is not followed,
+CloudFront 500, 502, 503 and 504 that are not evidence until a probe returns 200, a stale, an
+unstamped and a loosely stamped copy, and a transport failure with an open, a suppressing and a
+failing gate probe; every gated fetch asserted `no-store` with no `cf` options).
+
+#### Scenario: The gate is shut over a visible focus signal
+
+- **GIVEN** the focus probe reads a visible value and a warm last-known-good copy exists
+- **WHEN** the artifact request answers 403 with the gate's suppression body
+- **THEN** the proxy SHALL return its 503 suppression response and SHALL NOT read the copy
+
+#### Scenario: Cloudflare answers from its own cache
+
+- **GIVEN** an artifact 200 whose `cf-cache-status` is `HIT`
+- **WHEN** the proxy reads it
+- **THEN** the proxy SHALL refuse it with 502 and SHALL NOT serve or read a last-known-good copy
+
+#### Scenario: CloudFront answers an error and the gate probe answers 200
+
+- **GIVEN** every attempt answers a CloudFront 502, the gate probe answers 200, and the copy was composed 30 minutes ago
+- **WHEN** the proxy falls back
+- **THEN** it SHALL serve the copy, because the probe's 200 passed the gate in this request
+
+#### Scenario: CloudFront answers errors only
+
+- **GIVEN** every attempt and the gate probe answer a CloudFront 500, 502, 503 or 504
+- **WHEN** the proxy falls back
+- **THEN** it SHALL answer 502 and SHALL NOT serve the copy, because a failed gate function also answers 502 or 503
+
+#### Scenario: A transport failure with no gate observation
+
+- **GIVEN** every attempt fails in transport and the gate probe also fails
+- **WHEN** the proxy falls back
+- **THEN** it SHALL answer 502 and SHALL NOT serve the copy
 
 ### Requirement: Raw and canonical llms artifacts stay coherent
 
@@ -454,36 +560,38 @@ read only the body. Each is internally consistent, and neither can see the other
 - **WHEN** weekly B2 examines that side of that artifact
 - **THEN** it SHALL emit no wire-skew finding, because an absent wire is not a disagreeing one
 
-### Requirement: Cache policy is per route, and the feed routes stay edge-cached
+### Requirement: Every proxy route is no-store, the feed routes included
 
-`makeCloudfrontProxy` builds FIVE routes, not three. The no-store policy the requirement above
-mandates SHALL be carried by the llm-outputs trio ONLY. /feed.xml and /feed.json are the `rss-feed`
-surface, and their success and stale responses SHALL carry `public, max-age=0, s-maxage=60` with NO
-`CDN-Cache-Control` and NO `Cloudflare-CDN-Cache-Control`. The policy SHALL therefore be a per-route
-`CachePolicy` on `CloudfrontProxyConfig`, never a constant shared by every route.
+`makeCloudfrontProxy` builds FIVE routes, and all five are gated paths of the backend focus gate.
+Atlas decision 0160 (plan D3) forbids a Cloudflare artifact cache on any gated path, so the success
+and stale responses of every route -- /llms.txt, /llms-full.txt, /index.md, /feed.xml and
+/feed.json -- SHALL carry `Cache-Control: no-store`, `CDN-Cache-Control: no-store` and
+`Cloudflare-CDN-Cache-Control: no-store`. That policy is the factory default. The stale path SHALL
+write the route's policy over whatever headers the stored copy carries.
 
 Responses no route may ever have cached -- suppression, focus-error, terminal-error and
-method-not-allowed -- remain unconditionally no-store regardless of the route's artifact policy.
+method-not-allowed -- remain unconditionally no-store as before.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:457` (per route, both paths, both directions: the
-trio no-store, the feeds edge-cached, and the last-known-good copy).
+Verified by `tests/unit/cloudfront-proxy.test.ts:580` (per route, all five, both paths, and the
+last-known-good copy).
 
-This requirement exists because a shared constant is exactly how the two surfaces got conflated
-once already: a factory-level change intended for the canonical llms responses silently retagged
-both feeds as no-store, and the factory-level tests could not see it because they exercise one
-synthetic path. The feed assertions are per route for that reason.
+This requirement replaced "Cache policy is per route, and the feed routes stay edge-cached". The
+feeds carried `public, max-age=0, s-maxage=60`, and on 2026-10-08 Cloudflare's zone edge cache
+served both with `cf-cache-status: HIT` and `Age` up to 796 s, ahead of this Function: a stored feed
+replayed with no focus probe and no gate check. The headers alone may not end that replay; see the
+zone-edge-cache window in "Gated artifacts are admitted only through the CloudFront gate".
 
-#### Scenario: A feed route keeps its edge cache
+#### Scenario: A feed route sends no-store
 
 - **GIVEN** a client fetches /feed.xml or /feed.json
 - **WHEN** the proxy returns upstream content or a stale last-known-good copy
-- **THEN** the response SHALL carry `public, max-age=0, s-maxage=60` and no CDN cache header
+- **THEN** the response SHALL carry `no-store` on all three cache headers
 
-#### Scenario: A stale feed response does not inherit the cached entry's headers
+#### Scenario: A stale response does not inherit the cached entry's headers
 
-- **GIVEN** a last-known-good entry whose stored headers say `no-store`
-- **WHEN** the feed route serves it as a stale fallback
-- **THEN** the response SHALL carry the route's own edge-cached policy, not the stored headers
+- **GIVEN** a last-known-good entry whose stored headers say `public, max-age=600, s-maxage=60`
+- **WHEN** any route serves it as a stale fallback
+- **THEN** the response SHALL carry the route's no-store policy, not the stored headers
 
 ### Requirement: Markdown negotiation applies only to the homepage and honors Accept q-values
 
@@ -513,7 +621,7 @@ representation SHALL carry `Vary: Accept`, merged into any existing `Vary`. A ne
 response SHALL carry no body.
 
 Verified by `tests/unit/middleware-negotiation.test.ts:58` (decision table, scope, response classes),
-and verified by `tests/unit/cloudfront-proxy.test.ts:553` (explicit routes ignore Accept).
+and verified by `tests/unit/cloudfront-proxy.test.ts:642` (explicit routes ignore Accept).
 
 #### Scenario: An agent asks the homepage for markdown
 
@@ -673,6 +781,7 @@ in the catalog checks its clause as quoted.
 | ------------------------ | ------------------------------------------ | ------------------------------------ | ------------------------------ | ------------------------ |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | raw/canonical coherence evaluator    | weekly B2 llms (coherence arm) | portal contract          |
 | Privacy/cache transition | `cloudfront-proxy.test.ts`                 | response headers + `CF-Cache-Status` | weekly B2 llms (coherence arm) | Cloudflare docs          |
+| Gate admission           | `cloudfront-proxy.test.ts`                 | —                                    | —                              | LP `focus-privacy` spec  |
 | Homepage negotiation     | `middleware-negotiation.test.ts`           | — (middleware unit-only)             | —                              | RFC 9110 Accept          |
 | Origin/site coherence    | pure snapshots + issue-outcome fold        | six live responses                   | weekly B2 llms issue_outcome   | contract coherence       |
 | Structural profile       | spec-cases + property test                 | — (external consumer)                | weekly B2 llms (structure arm) | —                        |

@@ -85,6 +85,11 @@ jobs:
       - name: lint
         run: pnpm run lint
 
+      # public/js/webmcp.js and the .well-known agent files are generated. The build regenerates them,
+      # so a committed copy that drifts from the generator would ship unreviewed.
+      - name: Generated WebMCP files match the generator
+        run: pnpm run check:webmcp
+
   spec-cases:
     runs-on: [self-hosted, linux, arm64, node]
     timeout-minutes: 15

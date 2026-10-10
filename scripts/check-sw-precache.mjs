@@ -21,19 +21,25 @@
 // app shell, and we derive the expected floor from the actual built assets.
 import {readdirSync, readFileSync, statSync} from 'node:fs'
 import {join, resolve} from 'node:path'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {PURGE_SCRIPT, sameOriginPathMatcherAt, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from './lib/sw-privacy.mjs'
 
 const distDir = resolve(process.cwd(), 'dist')
 const swPath = join(distDir, 'sw.js')
 
 // Workbox globPatterns / globIgnores from astro.config.mjs. Kept in sync there;
 // if the PWA glob config changes, update this list too.
-const PRECACHE_EXT_RE = /\.(css|js|html|svg|png|ico|txt|webmanifest|woff2)$/
+// HTML is deliberately absent: the only precached document is the data-free
+// /offline page (OFFLINE_DOCUMENT below), atlas decision 0160, PR 0b.
+const PRECACHE_EXT_RE = /\.(css|js|svg|png|ico|txt|webmanifest|woff2)$/
+const OFFLINE_DOCUMENT_RE = /[\\/]offline[\\/]index\.html$/
 const GLOB_IGNORE_RE = /\/images\/(books|theatre)\//
 // sw.js and the workbox-<hash>.js runtime are never self-precached.
 const SW_RUNTIME_RE = /\/(sw|workbox-[^/]+)\.js$/
 
-// App-shell URLs that MUST be precached for the offline experience to work.
-const REQUIRED_URLS = ['/', 'manifest.webmanifest']
+// URLs that MUST be precached. `/` is NOT one of them: navigations are
+// NetworkOnly, and an offline navigation gets the data-free /offline page.
+const REQUIRED_URLS = ['offline', 'manifest.webmanifest']
 
 let sw
 try {
@@ -75,7 +81,7 @@ function walk(dir) {
   }
   return out
 }
-const globbed = walk(distDir).filter((f) => PRECACHE_EXT_RE.test(f) && !GLOB_IGNORE_RE.test(f) && !SW_RUNTIME_RE.test(f))
+const globbed = walk(distDir).filter((f) => (PRECACHE_EXT_RE.test(f) || OFFLINE_DOCUMENT_RE.test(f)) && !GLOB_IGNORE_RE.test(f) && !SW_RUNTIME_RE.test(f))
 const floor = globbed.length
 // Allow modest slack (route/file URL transforms, dedup) but fail on an
 // empty or gutted manifest. Baseline (Astro 6 and Astro 7) is a clean 38/38.
@@ -112,18 +118,22 @@ function runtimeRoute(cacheName) {
   return start >= 0 ? sw.slice(start, next >= 0 ? next : sw.length) : null
 }
 
-const localImagesRoute = runtimeRoute('local-images')
+// The local image route classifies by origin and pathname only: a same-origin pathname test, never
+// a whole-URL regex a query string can satisfy. Its cache name is versioned; the retired
+// "local-images" name may hold gated responses and is purged (scripts/lib/sw-privacy.mjs).
+const localImagesRoute = runtimeRoute('local-images-v2')
 if (!localImagesRoute) {
-  problems.push('missing local-images runtime route')
+  problems.push('missing local-images-v2 runtime route')
 } else {
-  if (!localImagesRoute.includes('/\\/images\\/(books|theatre)\\//')) {
-    problems.push('local-images runtime route no longer matches /images/(books|theatre)/')
+  const pathTest = sameOriginPathMatcherAt(localImagesRoute, 'registerRoute('.length)
+  if (!pathTest || pathTest.source !== String.raw`^\/images\/(books|theatre)\/`) {
+    problems.push('local-images-v2 runtime route is not the same-origin pathname test for ^/images/(books|theatre)/')
   }
   if (!localImagesRoute.includes('CacheFirst')) {
-    problems.push('local-images runtime route is not CacheFirst')
+    problems.push('local-images-v2 runtime route is not CacheFirst')
   }
   if (!/["']?maxEntries["']?\s*:\s*200/.test(localImagesRoute) || !/["']?maxAgeSeconds["']?\s*:\s*(2592000|2592e3)/.test(localImagesRoute)) {
-    problems.push('local-images runtime route lost maxEntries=200 or maxAgeSeconds=2592000')
+    problems.push('local-images-v2 runtime route lost maxEntries=200 or maxAgeSeconds=2592000')
   }
 }
 
@@ -142,6 +152,26 @@ if (!cloudfrontImagesRoute) {
   }
 }
 
+// ── Gated-data privacy (atlas decision 0160, PR 0b) ──────────────────
+// No service-worker path may cache, or answer from a cache, a gated response:
+// the focus signal, any CloudFront JSON export, or one of the five site-origin
+// proxy routes. The scan lives in scripts/lib/sw-privacy.mjs, shared with the
+// build test and unit-tested against synthetic workers. It reads the worker,
+// its precache manifest, and every script the worker imports, recursively. The
+// purge script is also checked by RUNNING it in a sandboxed worker scope.
+function readWorkerFile(path) {
+  try {
+    return readFileSync(join(distDir, path), 'utf-8')
+  } catch {
+    return null
+  }
+}
+problems.push(...scanWorkerTree({entry: '/sw.js', readWorkerFile, gatedUrls: siteGatedProbeUrls(), siteUrl: SITE_URL}))
+const purgeSource = readWorkerFile(PURGE_SCRIPT)
+if (purgeSource) {
+  problems.push(...(await verifyPurgeScript(purgeSource)).map((problem) => `dist${PURGE_SCRIPT}: ${problem}`))
+}
+
 if (problems.length > 0) {
   console.error('[check-sw-precache] FAIL:')
   for (const p of problems) {
@@ -151,7 +181,10 @@ if (problems.length > 0) {
   console.error('Likely cause: Workbox generateSW did not glob dist assets — check that')
   console.error('@vite-pwa/astro + vite-plugin-pwa ran and that Vite/Rolldown emitted the bundle')
   console.error('graph before the PWA build hook. See astro.config.mjs workbox.globPatterns.')
+  console.error('For a gated-route, retired-cache or purge failure, see astro.config.mjs workbox.runtimeCaching')
+  console.error('and workbox.importScripts, and public/js/sw-purge.js (atlas decision 0160, PR 0b).')
   process.exit(1)
 }
 
-console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');', 'app shell, activation, and image runtime routes present.')
+console.log('[check-sw-precache] OK —', entryCount, 'precache entries (floor', floor + ');',
+  '/offline precached as the only document, NetworkOnly navigations, activation, image runtime routes, no gated route (query and fragment forms included) or unrouted handler, and a working purge of the retired caches.')

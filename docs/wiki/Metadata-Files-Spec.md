@@ -183,12 +183,12 @@ and completes — and carry identical items with the same guids and pubDates.
 Backend-composed by the `ComposeFeed` Lambda on EventBridge triggers (plus
 a 30-minute safety-net schedule); the Cloudflare Pages Functions
 `functions/feed.xml.ts` and `functions/feed.json.ts` proxy the
-CloudFront-hosted canonicals with edge caching. The directives are not restated
-here: the feeds are the `rss-feed` surface and carry the shared
-`EDGE_CACHED_POLICY`, documented with its account-level override in
+CloudFront-hosted canonicals. The directives are not restated here: the feeds
+are the `rss-feed` surface, are gated like the llms trio, and send `no-store`,
+documented with the Cloudflare zone edge cache that sits in front of them in
 [Feed-Spec.md](Feed-Spec.md) and stated normatively in
-`openspec/specs/llms-txt/spec.md`, requirement "Cache policy is per route, and
-the feed routes stay edge-cached". No route emits `stale-while-revalidate`.
+`openspec/specs/llms-txt/spec.md`, requirement "Every proxy route is no-store,
+the feed routes included". No route emits `stale-while-revalidate`.
 
 Five included domains: theatre reviews (first-party, cap 10), meaningful
 GitHub activity (merged PRs + issues, cap 12), starred repositories (cap
