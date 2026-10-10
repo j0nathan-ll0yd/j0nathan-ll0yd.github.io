@@ -14,13 +14,17 @@ export default defineConfig({
   site: SITE_URL,
   output: 'static',
   trailingSlash: 'never',
+  // `file` builds privacy.html, not privacy/index.html, to match trailingSlash: 'never'. Cloudflare
+  // serves x.html at /x with a 200 and answers /x.html and /x/ with a redirect to /x. A directory
+  // index (x/index.html) is served only at /x/, so /x, the canonical URL, would redirect.
+  // tests/build/canonical-urls.test.ts fails if any canonical or sitemap URL needs a redirect.
+  build: {format: 'file', inlineStylesheets: 'always'},
   // Astro 7 changed the compressHTML default to 'jsx', which collapses whitespace
   // between inline elements differently and subtly reflows text-heavy widgets (the
   // bio terminal + movement-rings labels shifted 1-3% of pixels vs the committed
   // baselines). Pin to `true` to keep Astro 6's HTML-aware whitespace behavior so
   // the upgrade is visually identical and the CI-parity baselines stay valid.
   compressHTML: true,
-  build: {inlineStylesheets: 'always'},
   vite: {
     // Fails the build when any module resolves to @j0nathan-ll0yd/fixtures, directly or through
     // another module or package (atlas decision 0160, plan Step 6.7). Production pages carry no
@@ -42,12 +46,13 @@ export default defineConfig({
       // guard so a future non-canonical route can never leak in. lastmod is the
       // build time: content is data-driven and can change on every deploy, so a
       // per-build timestamp is honest and avoids a bespoke per-page mtime pipeline.
-      filter: (page) => !page.includes('/404') && !page.includes('/offline'),
+      // Matched on the exact pathname: /offline is the noindex service-worker fallback.
+      filter: (page) => !['/404', '/offline'].includes(new URL(page).pathname),
       changefreq: 'weekly',
       priority: 0.7,
       lastmod: new Date(),
       serialize(item) {
-        const path = new URL(item.url).pathname.replace(/\/$/, '') || '/'
+        const path = new URL(item.url).pathname
         if (path === '/') {
           item.changefreq = 'daily'
           item.priority = 1.0
@@ -86,7 +91,9 @@ export default defineConfig({
         // online until the next worker update. Navigations now go to the network
         // (the NetworkOnly route below) and fall back to /offline only when the
         // network fails. scripts/check-sw-precache.mjs enforces both rules.
-        globPatterns: ['**/*.{css,js,svg,png,ico,txt,webmanifest,woff2}', 'offline/index.html'],
+        // @vite-pwa/astro rewrites the offline.html entry to the URL `offline`, so the
+        // worker precaches /offline, which the host answers with a 200 and no redirect.
+        globPatterns: ['**/*.{css,js,svg,png,ico,txt,webmanifest,woff2}', 'offline.html'],
         globIgnores: ['images/books/**', 'images/theatre/**'],
         navigateFallback: null,
         // Immediate activation so fix deploys reach returning visitors on next

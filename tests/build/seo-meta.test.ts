@@ -165,7 +165,7 @@ describe('LLM content alternates', () => {
 
   // Dashboard.astro is the layout for /, /privacy and /404 alike. These alternates describe the
   // homepage datastream, so every other page advertising them was over-advertising.
-  it.each(['404.html', path.join('privacy', 'index.html')])('does not advertise them on %s', (page) => {
+  it.each(['404.html', 'privacy.html'])('does not advertise them on %s', (page) => {
     const $page = loadPage(page)
     expect($page(markdownSelector).length).toBe(0)
     expect($page(plainSelector).length).toBe(0)

@@ -238,7 +238,7 @@ if [ -n "$BUILD_DIR" ]; then
   fi
 else
   usage_failures=()
-  for usage_path in "/" "/privacy/" "/robots.txt"; do
+  for usage_path in "/" "/privacy" "/robots.txt"; do
     headers=$(fetch_headers "${BASE_URL}${usage_path}")
     usage_value=$(echo "$headers" | grep -i '^content-usage:' | head -1 | cut -d: -f2- | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' || true)
     if [ "$usage_value" != "$EXPECTED_CONTENT_USAGE" ]; then

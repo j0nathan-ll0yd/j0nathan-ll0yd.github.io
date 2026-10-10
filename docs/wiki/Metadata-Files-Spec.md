@@ -156,11 +156,20 @@ vocabulary defines `train-ai` and `search` only.
 
 ### `/sitemap-index.xml` — `@astrojs/sitemap` integration
 
-Auto-generated at build time by `@astrojs/sitemap`. Lists the single canonical
-URL `https://jonathanlloyd.me/`. `lastmod` is omitted (config: no `lastmod`
-option set) to avoid the deploy-timestamp anti-pattern. The index/child split
-is `@astrojs/sitemap`'s default output shape; it is protocol-valid and harmless
-at this scale.
+Auto-generated at build time by `@astrojs/sitemap`. Lists the two canonical
+URLs, `https://jonathanlloyd.me` (daily, priority 1.0) and
+`https://jonathanlloyd.me/privacy` (monthly, priority 0.3). The filter in
+`astro.config.mjs` excludes `/404` and the noindex `/offline` page by exact
+pathname. `lastmod` is the build time, because the content is data-driven and
+can change on every deploy. Every listed URL answers 200 with no redirect:
+pages build as files (`build.format: 'file'`), and
+`tests/build/canonical-urls.test.ts` fails if a listed URL would come from a
+directory index. The index/child split is `@astrojs/sitemap`'s default output
+shape; it is protocol-valid and harmless at this scale.
+
+Open conflict: the build-time `lastmod` is the "deploy date" pattern that
+"Honest metadata" above names as an anti-pattern. The code and this section
+describe what ships; which one changes is an owner decision.
 
 ### `/llms.txt` — backend-composed live
 

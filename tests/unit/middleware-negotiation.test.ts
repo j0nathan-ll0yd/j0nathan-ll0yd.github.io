@@ -96,7 +96,7 @@ describe('prefersMarkdown', () => {
 describe('negotiation scope', () => {
   it('never negotiates on explicit artifact, page, API, or feed paths, whatever the Accept', async () => {
     const mock = stubFetch()
-    for (const path of ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json', '/api/csp-report', '/privacy/']) {
+    for (const path of ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json', '/api/csp-report', '/privacy']) {
       const {context, next} = makeContext(path, {headers: MARKDOWN})
       const response = await onRequest(context)
 

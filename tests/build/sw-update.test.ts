@@ -67,7 +67,7 @@ describe('SW gated-data privacy', () => {
 // The built /offline document itself: data-free, and carrying none of the live-data plumbing. The
 // real-Chromium navigation behavior is tests/behavioral/offline-navigation.spec.ts.
 describe('the data-free /offline page', () => {
-  const html = () => readFileSync(path.join(distDir, 'offline', 'index.html'), 'utf-8')
+  const html = () => readFileSync(path.join(distDir, 'offline.html'), 'utf-8')
 
   it('is built, marked, and kept out of search', () => {
     expect(html()).toContain('data-offline-page')
