@@ -11,6 +11,9 @@ import type {HealthExport, SleepExport} from '@j0nathan-ll0yd/portal-contract/sc
 import type {ArtifactValues} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@j0nathan-ll0yd/web/runtime/adapters'
+import {exportDomainState, exportFreshness} from '@j0nathan-ll0yd/web/runtime/freshness'
+import {releaseSuppression, renderWidgetUnavailable} from '@j0nathan-ll0yd/web/runtime/updater-empty'
+import {sleepScoreSource} from '@j0nathan-ll0yd/web/runtime/widget-rules'
 import {WSClient} from './ws-client'
 import {
   updateBookshelf,
@@ -31,6 +34,7 @@ const LIVE_CARDS = [
   'cardMovement',
   'cardSleep',
   'cardHydration',
+  'cardWorkouts',
   'cardBooks',
   'cardDevLog',
   'cardReading',
@@ -49,8 +53,8 @@ let ws: WSClient | null = null
 
 // ── Focus-mode suppression (companion to the backend CloudFront edge gate) ──
 // While focus is a hiding mode the gate denies every suppressible artifact (403). The
-// client mirrors that: overlay immediately, pause suppressible polling, and expose the SSR
-// shell instead of leaving the live cards behind permanent loading overlays.
+// client mirrors that: overlay immediately, pause suppressible polling, and clear the skeletons
+// over the value-free cards instead of leaving them behind permanent loading overlays.
 // HIDING_FOCUS_MODES is the cross-platform single source of truth (@j0nathan-ll0yd/portal-contract),
 // shared with the backend gate + the DS overlay so the three layers can never drift. The edge
 // gate is the real privacy boundary. This layer must still never SHOW what the gate now denies:
@@ -165,8 +169,23 @@ function enterSuppression(): void {
   clearGatedData()
 }
 
+/**
+ * The focus gate's own word that the page is visible. A card or System Status row a server
+ * rendered `suppressed` refuses every data update until it is released (`@j0nathan-ll0yd/web` 4).
+ * Two moments carry that word: leaving a hiding mode this tab observed (`liftSuppression`, before
+ * its refetch), and a startup whose focus read decoded visible with no gated path suppressed
+ * (`startFetch`, before its first writes), which covers a page rendered during hiding and opened
+ * after it ended. The data-free page renders none suppressed today; a server-rendered page (atlas
+ * decision 0160, PR B) does.
+ */
+function releaseSuppressedCards(): void {
+  LIVE_CARDS.forEach((id) => releaseSuppression(document.getElementById(id)))
+  document.querySelectorAll('#systemStatus .sys-line').forEach((row) => releaseSuppression(row))
+}
+
 function liftSuppression(): void {
   suppression = {kind: 'none'}
+  releaseSuppressedCards()
   cancelGateRecheck()
   engine?.setSuppressed(false)
   // Leaving suppression: the DOM holds no gated value (it was cleared, or none was ever applied),
@@ -261,25 +280,21 @@ function applySuppression(result: EndpointSuppressed): void {
 const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void } = {
   health: (data) => {
     lastHealth = data
-    const health = adaptHealth(data, lastSleep ?? null)
-    updateHeartRate(health)
-    updateHeartRateFooter(health)
-    updateMovementRings(health)
-    updateHydration(health)
+    applyHealth(data, lastSleep ?? null)
+    // The health export lends NightSummary its sleep score: a new one refreshes the score.
+    applyNightSummary()
   },
   sleep: (data) => {
     lastSleep = data
-    updateNightSummary(adaptSleep(data, lastHealth ?? null))
+    applyNightSummary()
     if (lastHealth) {
-      const health = adaptHealth(lastHealth, data)
-      updateHeartRate(health)
-      updateHeartRateFooter(health)
+      applyHealth(lastHealth, data)
     }
   },
-  workouts: (data) => updateWorkouts(adaptWorkouts(data)),
-  books: (data) => updateBookshelf(adaptBooks(data)),
-  githubEvents: (data) => updateDevActivityLog(adaptGithubEvents(data)),
-  articles: (data) => updateReadingFeed(adaptArticles(data)),
+  workouts: (data) => updateWorkouts(adaptWorkouts(data), exportFreshness('workouts', data)),
+  books: (data) => updateBookshelf(adaptBooks(data), exportFreshness('books', data)),
+  githubEvents: (data) => updateDevActivityLog(adaptGithubEvents(data), exportFreshness('githubEvents', data)),
+  articles: (data) => updateReadingFeed(adaptArticles(data), exportFreshness('articles', data)),
   focus: (data) => {
     // Route through applyFocus so a focus change detected by polling (e.g. the WS is down)
     // also transitions client-side suppression, not just the overlay. But within the
@@ -292,9 +307,50 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
     }
     applyFocus(data.currentFocus)
   },
-  theatreReviews: (data) => updateTheatreReviews(data),
-  starredRepos: (data) => updateStarredRepos(adaptStarredRepos(data))
+  theatreReviews: (data) => updateTheatreReviews(data, exportFreshness('theatreReviews', data)),
+  starredRepos: (data) => updateStarredRepos(adaptStarredRepos(data), exportFreshness('starredRepos', data))
 }
+
+/**
+ * The four health cards from one health export. Its freshness (`live` up to the registry
+ * `audit.warn` age, `stale` beyond it, `@j0nathan-ll0yd/web` 4.1 `exportFreshness`) is computed once,
+ * so the four cards can never disagree about it.
+ */
+function applyHealth(health: HealthExport, sleep: SleepExport | null): void {
+  const freshness = exportFreshness('health', health)
+  const adapted = adaptHealth(health, sleep)
+  updateHeartRate(adapted, freshness)
+  updateHeartRateFooter(adapted, freshness)
+  updateMovementRings(adapted, freshness)
+  updateHydration(adapted, freshness)
+}
+
+/**
+ * NightSummary follows the sleep export alone (owner decision Q3): its state and "as of" time are
+ * the sleep export's. The health export lends only its sleep score, and only while it is `live`
+ * (`sleepScoreSource`); a stale or missing health export renders the score as the no-reading mark.
+ * Runs whenever either export arrives. No sleep export yet: nothing to render.
+ */
+function applyNightSummary(): void {
+  if (!lastSleep) {
+    return
+  }
+  const healthState = exportDomainState('health', lastHealth ?? null).state
+  updateNightSummary(adaptSleep(lastSleep, sleepScoreSource(lastHealth ?? null, healthState)), exportFreshness('sleep', lastSleep))
+}
+
+/** The live cards each export feeds, for a failed first read (`renderWidgetUnavailable`). */
+const CARDS_BY_EXPORT: readonly {key: Exclude<ResourceKey, 'focus'>; cards: readonly string[]}[] = [
+  // NightSummary follows the sleep export alone, so a failed health read leaves it to sleep.
+  {key: 'health', cards: ['cardHR', 'cardMovement', 'cardHydration']},
+  {key: 'sleep', cards: ['cardSleep']},
+  {key: 'workouts', cards: ['cardWorkouts']},
+  {key: 'books', cards: ['cardBooks']},
+  {key: 'githubEvents', cards: ['cardDevLog']},
+  {key: 'articles', cards: ['cardReading']},
+  {key: 'starredRepos', cards: ['cardStarredRepos']},
+  {key: 'theatreReviews', cards: ['cardTheatreReviews']}
+]
 
 function handleResourceUpdate<K extends ResourceKey>(key: K, data: ArtifactValues[K]): void {
   // A gated read that was in flight when suppression began can still resolve `ok`. Drop it: no
@@ -349,6 +405,23 @@ const startFetch = async () => {
   if (initialSuppression) {
     applySuppression(initialSuppression)
   }
+  // A decoded visible focus value with no gated path suppressed is the gate's word that the page
+  // is visible: release what a server rendered suppressed, before the first writes below.
+  if (!isSuppressed() && data.focus.status === 'ok' && !isHiding(data.focus.data.currentFocus)) {
+    releaseSuppressedCards()
+  }
+  // A failed first read: each card that export feeds shows the server's `unavailable` state
+  // instead of a `loading` card that will never load. An unreadable focus value fails every gated
+  // read (fail-closed), so it lands here too. A suppressed page renders nothing new: the gate wins,
+  // and `renderWidgetUnavailable` refuses a suppressed card in any case. A later successful read
+  // fills the card through its updater.
+  if (!isSuppressed()) {
+    for (const {key, cards} of CARDS_BY_EXPORT) {
+      if (data[key].status === 'failed') {
+        cards.forEach((id) => renderWidgetUnavailable(document.getElementById(id)))
+      }
+    }
+  }
 
   // Any suppression -- from the focus read above or from ANY gated path -- withholds EVERY gated
   // value. During a gate transition one path can answer 403 while a sibling still answers 200;
@@ -373,30 +446,26 @@ const startFetch = async () => {
   }
   Object.assign(timestamps, isSuppressed() ? {focus: data.timestamps.focus} : data.timestamps)
 
-  // ── Initial DOM updates (identical to previous one-shot behavior) ──
+  // ── Initial DOM updates: each export with its freshness (`live` or `stale`) ──
   if (health) {
     try {
-      const adaptedHealth = adaptHealth(health, sleep)
-      updateHeartRate(adaptedHealth)
-      updateHeartRateFooter(adaptedHealth)
-      updateMovementRings(adaptedHealth)
-      updateHydration(adaptedHealth)
+      applyHealth(health, sleep)
     } catch (e) {
       console.warn('[live-data] Health update failed:', e)
     }
   }
 
-  if (sleep) {
-    try {
-      updateNightSummary(adaptSleep(sleep, health))
-    } catch (e) {
-      console.warn('[live-data] Sleep update failed:', e)
-    }
+  // NightSummary renders from the sleep export, also when the health read failed (the score alone
+  // then shows the no-reading mark).
+  try {
+    applyNightSummary()
+  } catch (e) {
+    console.warn('[live-data] Sleep update failed:', e)
   }
 
   if (workouts) {
     try {
-      updateWorkouts(adaptWorkouts(workouts))
+      updateWorkouts(adaptWorkouts(workouts), exportFreshness('workouts', workouts))
     } catch (e) {
       console.warn('[live-data] Workouts update failed:', e)
     }
@@ -404,7 +473,7 @@ const startFetch = async () => {
 
   if (books) {
     try {
-      updateBookshelf(adaptBooks(books))
+      updateBookshelf(adaptBooks(books), exportFreshness('books', books))
     } catch (e) {
       console.warn('[live-data] Books update failed:', e)
     }
@@ -412,7 +481,7 @@ const startFetch = async () => {
 
   if (githubEvents) {
     try {
-      updateDevActivityLog(adaptGithubEvents(githubEvents))
+      updateDevActivityLog(adaptGithubEvents(githubEvents), exportFreshness('githubEvents', githubEvents))
     } catch (e) {
       console.warn('[live-data] GitHub events update failed:', e)
     }
@@ -420,7 +489,7 @@ const startFetch = async () => {
 
   if (articles) {
     try {
-      updateReadingFeed(adaptArticles(articles))
+      updateReadingFeed(adaptArticles(articles), exportFreshness('articles', articles))
     } catch (e) {
       console.warn('[live-data] Articles update failed:', e)
     }
@@ -428,7 +497,7 @@ const startFetch = async () => {
 
   if (starredRepos) {
     try {
-      updateStarredRepos(adaptStarredRepos(starredRepos))
+      updateStarredRepos(adaptStarredRepos(starredRepos), exportFreshness('starredRepos', starredRepos))
     } catch (e) {
       console.warn('[live-data] Starred repos update failed:', e)
     }
@@ -436,7 +505,7 @@ const startFetch = async () => {
 
   if (theatreReviews) {
     try {
-      updateTheatreReviews(theatreReviews)
+      updateTheatreReviews(theatreReviews, exportFreshness('theatreReviews', theatreReviews))
     } catch (e) {
       console.warn('[live-data] Theatre reviews update failed:', e)
     }
@@ -444,7 +513,7 @@ const startFetch = async () => {
 
   updateSystemStatus(timestamps)
 
-  // Clean up every loading overlay, including during suppression: the SSR shell is the
+  // Clean up every loading overlay, including during suppression: the value-free cards are the
   // honest fallback presentation and must not remain hidden behind permanent skeletons.
   LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
   if (fallbackTimer) {

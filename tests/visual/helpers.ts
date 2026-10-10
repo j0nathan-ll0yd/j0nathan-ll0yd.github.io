@@ -110,7 +110,7 @@ export async function interceptRoutes(page: Page, scenario: ScenarioName): Promi
 }
 
 export interface NavigateOptions {
-  /** Wait for #cardWorkouts to become visible. Set true when the scenario includes non-empty workouts data. */
+  /** Assert #cardWorkouts is visible. Set true when the scenario includes non-empty workouts data. */
   waitForWorkouts?: boolean
   /** Wait for documentElement.scrollHeight to stabilize. Only needed for fullPage screenshots. */
   waitForScrollHeight?: boolean
@@ -152,8 +152,8 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
     // We continue rather than fail the test.
   })
 
-  // If the scenario has workouts data, wait for the card to become visible
-  // (#cardWorkouts starts display: none and is shown by updateWorkouts())
+  // @j0nathan-ll0yd/web 4 renders #cardWorkouts visible in every state, so this is a layout
+  // check only: the `.is-loading` wait above already covers updateWorkouts, which runs first.
   if (options.waitForWorkouts) {
     await page.locator('#cardWorkouts').waitFor({state: 'visible', timeout: 10000})
   }

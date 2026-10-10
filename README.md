@@ -25,10 +25,10 @@ All UI widgets come from the Design System package (`@j0nathan-ll0yd/web/product
 
 ## Architecture
 
-Astro renders static HTML at build time from the Design System fixtures package, then hydrates client-side from CloudFront.
+Astro renders a data-free static page at build time: authored identity copy plus every live widget in its honest `loading` state. The client then fills live data from CloudFront.
 
 ```text
-@j0nathan-ll0yd/fixtures ──► index.astro (build time) ──► static HTML ──► Cloudflare Pages
+@j0nathan-ll0yd/copy ──► index.astro (build time) ──► static HTML ──► Cloudflare Pages
                                                   │
                                   client hydration │ runtime polling
                                                   ▼
@@ -58,7 +58,7 @@ pnpm run test:visual      # Playwright visual regression in Docker (arm64-native
 pnpm run test:behavioral  # Playwright behavioral and a11y suite in Docker
 ```
 
-- **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD and image integrity against `dist/`.
+- **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, image integrity and the data-free `/` (no fixture value, every live card `loading`, identity copy present) against `dist/`.
 - **Visual regression** ([Playwright](https://playwright.dev)) screenshots the dashboard across the viewport matrix in `playwright.config.ts`. Baselines stay byte-stable only when generated inside the `linux/arm64` Docker image the CI runner is built from, so a runtime guard refuses host-side `--update-snapshots`. To regenerate in CI, dispatch `.github/workflows/visual-tests.yml` with the `update_snapshots` input.
 - **Production smoke check** runs `pnpm run test:smoke` against the live site after each deploy (`.github/workflows/smoke-check.yml`). It asserts the site hydrated -- widget containers present, `.is-loading` skeletons cleared, bio terminal typed, service worker registered, no CSP or console errors. On regression it files a `smoke-failure` issue rather than failing the run.
 - **CI runs on self-hosted runners only.** Every `runs-on` in `.github/workflows/` targets the self-hosted `linux, arm64` fleet from `ci-runners-private`. No job uses a GitHub-hosted runner.
@@ -67,10 +67,10 @@ pnpm run test:behavioral  # Playwright behavioral and a11y suite in Docker
 
 Two data paths feed the dashboard:
 
-- **Build-time** -- `src/lib/load-dashboard-data.ts` returns the Design-System-owned SSR shell from `@j0nathan-ll0yd/fixtures` (`getDashboardFixture()`). This repository bakes no fixtures of its own. `import.meta.env.FIXTURE_VARIATION` (wired in `astro.config.mjs`) selects a named variation; the default is `baseline`.
+- **Build-time** -- `src/lib/load-dashboard-data.ts` returns no data (atlas decision 0160, PR 0a). The page carries only authored identity content from `@j0nathan-ll0yd/copy` (`src/lib/identity-profile.ts`). Every live widget renders its `loading` state with a `<noscript>` note, so a client without JavaScript sees no fabricated value.
 - **Runtime** -- the client polls the CloudFront JSON endpoints through `src/lib/runtime/live-data.ts` once the page loads.
 
-Consumer-side fixtures are forbidden (Invariant I2, enforced by `pnpm run audit:fixtures` in the `prebuild` gate). Visual tests render reproducible snapshots by intercepting the CloudFront endpoints and serving raw fixtures from `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json`.
+`@j0nathan-ll0yd/fixtures` is a devDependency for tests only. `pnpm run audit:fixtures` (prebuild) fails on a direct import from `src/` or `functions/` and on consumer-side fixture JSON (Invariant I2). The `forbid-fixtures` Vite plugin fails the production build when any module resolves to the package, directly or transitively. Visual and behavioral tests render reproducible snapshots by intercepting the CloudFront endpoints and serving raw fixtures from `@j0nathan-ll0yd/fixtures/generated/<domain>/<variation>.json`.
 
 ## Deploy
 

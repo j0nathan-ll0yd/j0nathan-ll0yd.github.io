@@ -237,3 +237,34 @@ re-check).
 - **GIVEN** a page suppressed by a gate 403 while focus read visible
 - **WHEN** 25 s pass and the gate answers 200 on one gated path
 - **THEN** suppression SHALL lift and every gated resource SHALL be applied again
+
+### Requirement: Leaving a hiding mode releases every suppressed card and System Status row
+
+A card or System Status row that a server rendered `suppressed` (`data-ssr-state="suppressed"`)
+refuses every data update in `@j0nathan-ll0yd/web` 4: only the focus gate may release it, with
+`releaseSuppression`. When the page learns that hiding ended, it SHALL release every suppressed
+live card and every suppressed System Status row BEFORE it asks the poll engine to refetch, so
+the refetch can fill them. At startup, a focus read that decodes to a visible value with no gated
+path suppressed SHALL release them the same way, before the first writes: a page rendered during
+hiding and opened after it ended never sees a hiding value to leave. An unreadable or hiding first
+read SHALL release nothing, and while a hiding mode continues nothing is released. A card that was
+never suppressed keeps its own state. The data-free `/` renders nothing suppressed today; a
+server-rendered `/` (decision 0160, PR B) does.
+
+Verified by `tests/unit/live-data.web4.test.ts:121` (release before the refetch; nothing released
+during a Work-to-Do-Not-Disturb swap; release at a visible startup and none at an unreadable or
+hiding one; a released row takes live status again).
+
+#### Scenario: Focus turns visible over a server-suppressed page
+
+- **GIVEN** a page whose cards and System Status rows render `suppressed`
+- **WHEN** a visible focus value arrives
+- **THEN** each SHALL read `unavailable` when the refetch starts, and the next update SHALL fill
+  it
+
+#### Scenario: A page rendered during hiding opens after hiding ended
+
+- **GIVEN** a page whose cards render `suppressed`
+- **WHEN** its first focus read decodes a visible value and no gated path answers with a
+  suppression body
+- **THEN** each suppressed card and row SHALL be released before the first data write

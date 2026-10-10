@@ -35,13 +35,14 @@ async function expectSuppressedDashboard(
   await expect(page.locator(hiddenOverlay)).toBeHidden()
   expect(gatedRuntimeFetches, 'focus suppression must not fetch gated live-data endpoints').toEqual([])
 
-  // Suppression exposes the build-time SSR shell instead of leaving opaque
-  // loading skeletons. The conditional workouts card remains unpopulated and
-  // hidden because its gated endpoint was never requested.
+  // Suppression clears the skeletons but applies nothing: the page is data-free
+  // (atlas decision 0160), so every live card keeps its value-free `loading`
+  // state under the overlay, Workouts included (web 4 renders it visible).
   await expect(page.locator('.is-loading')).toHaveCount(0)
-  await expect(page.locator('#cardHR')).toHaveCount(1)
-  await expect(page.locator('#cardHR #pulseBpm')).toHaveText(/\S/)
-  await expect(page.locator('#cardWorkouts')).toBeHidden()
+  await expect(page.locator('#cardHR')).toHaveAttribute('data-ssr-state', 'loading')
+  await expect(page.locator('#cardHR #pulseBpm')).toHaveText('')
+  await expect(page.locator('#cardWorkouts')).toHaveAttribute('data-ssr-state', 'loading')
+  await expect(page.locator('[data-ssr-state="live"], [data-ssr-state="empty"]')).toHaveCount(0)
 }
 
 // ---------------------------------------------------------------------------

@@ -69,7 +69,7 @@ export async function interceptDashboard(page: Page, overrides: Readonly<Record<
  * Load the dashboard with `overrides` in place and wait until `settledCard` has hydrated.
  *
  * Waiting on the loading class is what makes the later assertions read live-data output rather than
- * the build-time SSR shell. live-data.ts clears `is-loading` for every live card only after each
+ * the data-free `loading` shell the build renders. live-data.ts clears `is-loading` for every live card only after each
  * updater has run, so settling on one live card also guarantees the non-live cards it shares a
  * payload with (workouts, system status) have already been written.
  */
