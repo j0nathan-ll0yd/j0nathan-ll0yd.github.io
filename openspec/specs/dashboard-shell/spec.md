@@ -71,6 +71,84 @@ card visible, its note visible; the overlays hidden).
 - **THEN** each live card SHALL read `data-ssr-state="loading"`, and its "Live data needs
   JavaScript." note SHALL be visible
 
+### Requirement: A failed first read renders the unavailable state
+
+When the client's first read of an export fails, each live card that export feeds SHALL leave
+`loading` and render the server's `unavailable` state (`renderWidgetUnavailable`,
+`@j0nathan-ll0yd/web` 4.1): `data-ssr-state="unavailable"`, the "Data unavailable" notice, no
+header label and no value. The health export feeds Heart Rate, Movement and Hydration. The sleep
+export alone feeds Night Summary: a failed health read leaves it to render from sleep, with only
+its score as the no-reading mark (owner decision Q3). An unreadable focus value fails every gated
+read (fail-closed), so every card renders `unavailable`. A suppressed page renders nothing new,
+and a suppressed card is never written. A later successful read fills the card through its
+updater.
+
+Verified by `tests/behavioral/client-states.test.ts:39` (a failed health read and a failed sleep
+read, in the browser), `tests/behavioral/data-free-shell.test.ts:116` (the whole data plane down)
+and `tests/unit/live-data.web4.test.ts:247` (the card mapping, and nothing new on a suppressed
+page).
+
+#### Scenario: The health read fails
+
+- **GIVEN** every export but health is served
+- **WHEN** the dashboard finishes its first read
+- **THEN** Heart Rate, Movement and Hydration SHALL read `unavailable` with a visible notice, and
+  Night Summary SHALL render from the sleep export
+
+### Requirement: An export older than its warning age renders stale with an as-of time
+
+Every client data update SHALL pass the export's freshness (`exportFreshness`): `live` while the
+export's age is at most its registry `audit.warn` age (`EXPORT_FRESHNESS`: health 45 min; sleep and
+workouts 12 h; books, articles and GitHub events 7 d; starred repositories and theatre reviews
+18 h), `stale` beyond it. A stale card SHALL record `data-ssr-state="stale"`, carry the export's
+`data-generated-at`, and show an absolute "as of" time in its header. The four health cards share
+one freshness value per export. Night Summary takes the sleep export's freshness, and the health
+export lends its score only while `live`.
+
+Verified by `tests/behavioral/client-states.test.ts:73` (a health export 75 min old renders
+`stale` with "as of"; a 5 min old one renders `live`, the control) and
+`tests/unit/live-data.web4.test.ts:234` (Night Summary's freshness and score source).
+
+#### Scenario: A health export older than 45 minutes
+
+- **GIVEN** a health export whose `generatedAt` is 75 minutes before the browser's clock
+- **WHEN** the dashboard finishes loading
+- **THEN** the Heart Rate card SHALL read `stale`, carry that `data-generated-at`, show "as of" in
+  its header, and still render its reading
+
+### Requirement: Hydration draws its target-range bands in the browser
+
+When the client fills the Hydration card, it SHALL draw both target-range bands, water and
+caffeine, with the server's markup and the export's scale (`updateHydration`,
+`@j0nathan-ll0yd/web` 4.1). Before 4.1 only server markup drew them, so the data-free page showed
+no bands.
+
+Verified by `tests/behavioral/client-states.test.ts:102`.
+
+#### Scenario: The health export arrives
+
+- **GIVEN** the health baseline export
+- **WHEN** the dashboard finishes loading
+- **THEN** the Hydration card SHALL hold two visible range bands, one water and one caffeine
+
+### Requirement: A mirrored cover loads from the same origin
+
+The page SHALL pass Bookshelf `localCovers`: the root-relative path of every file under
+`public/images/books/`, exactly as the contract cover URLs name them, version token included. The
+card carries the list in every state, `loading` included. A cover whose localized contract path is
+on the list SHALL load from the same origin; every other cover SHALL keep its CloudFront URL and the
+W6 fallback.
+
+Verified by `tests/behavioral/client-states.test.ts:116`.
+
+#### Scenario: One mirrored and one unmirrored cover
+
+- **GIVEN** a books export with one cover whose versioned path is mirrored and one whose version
+  token the mirror does not hold
+- **WHEN** the Bookshelf card renders
+- **THEN** the mirrored cover's source SHALL be same-origin and the other SHALL be its CloudFront
+  URL
+
 ### Requirement: The identity content is authored copy and renders without JavaScript
 
 The identity card and the bio terminal SHALL render, with scripts off, the name, job title and bio

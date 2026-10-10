@@ -18,6 +18,7 @@
     {"key": "bookshelf/allReading", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
     {"key": "bookshelf/noCovers", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
     {"key": "bookshelf/full", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
+    {"key": "bookshelf/mirroredCovers", "selector": "#cardBooks", "expectsWcagApplicableNodes": true},
     {
       "key": "theatre-reviews/loading",
       "selector": "#cardTheatreReviews",
@@ -83,6 +84,15 @@
     },
     {"key": "health/systemStatus", "selector": "#cardSystem", "expectsWcagApplicableNodes": true},
     {"key": "health/contractViolation", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/unavailable", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {"key": "health/sleepUnavailable", "selector": "#cardSleep", "expectsWcagApplicableNodes": true},
+    {"key": "health/stale", "selector": "#cardHR", "expectsWcagApplicableNodes": true},
+    {
+      "key": "health/hydrationBands",
+      "selector": "#cardHydration",
+      "expectsWcagApplicableNodes": false,
+      "sparseReason": "Measured 2026-10-10 (Chromium, axe-core 4.13, @j0nathan-ll0yd/web 4.1.0): the card with both client-drawn range bands renders one h3.widget-label, two decorative vessels built from unlabelled divs, the band label divs and two numeric text spans. No link, image, control or landmark, so every WCAG-tagged rule is inapplicable, as for health/hydrationZero."
+    },
     {
       "key": "articles/loading",
       "selector": "#cardReading",

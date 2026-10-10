@@ -28,8 +28,8 @@ importers:
         specifier: ^2.2.1
         version: 2.2.1
       '@j0nathan-ll0yd/web':
-        specifier: ^4.0.1
-        version: 4.0.1
+        specifier: ^4.1.0
+        version: 4.1.0
       astro:
         specifier: ~7.2.8
         version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -53,8 +53,8 @@ importers:
         specifier: 0.14.1
         version: 0.14.1(typescript@5.9.3)
       '@j0nathan-ll0yd/fixtures':
-        specifier: ^1.5.0
-        version: 1.5.0
+        specifier: ^1.5.1
+        version: 1.5.1
       '@lhci/cli':
         specifier: ^0.15.1
         version: 0.15.1(supports-color@10.2.2)
@@ -2006,8 +2006,8 @@ packages:
     peerDependencies:
       typescript: 5.9.2 || 5.9.3 || 6.0.3
 
-  '@j0nathan-ll0yd/fixtures@1.5.0':
-    resolution: {integrity: sha512-F47v596AJExycn4MdXmO/A+mV01SK9ShhuIqbdt7RfmAEmhk7xq3Plgj3OSenPKyI18DCFyMZUrCJX9mOFStew==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.5.0/466bfbdb502b9be605ccdf35d8643eea629025ba}
+  '@j0nathan-ll0yd/fixtures@1.5.1':
+    resolution: {integrity: sha512-4QMXoAmvM7hS4xY/Qtex61jZfDw9sUkv88241c0Er8kN1yf4Wbk5+wc2al6056cnmviQqkz99vUHAE4PxPPF4A==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.5.1/126a209742fa6d319b16aeeda7cb783f19319a21}
 
   '@j0nathan-ll0yd/observability@1.0.0':
     resolution: {integrity: sha512-RXrWGD7E3uFxZJj4XdtHf3Po5kkxV5ajQIkY8J9F+uZ1q/iVeeq0BkZMabbFcq5oX4nK3N2NVlwMqa4LOSvLjQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/observability/1.0.0/4f802427590ea9ba6964a49427faf2c43a75f464}
@@ -2024,8 +2024,8 @@ packages:
   '@j0nathan-ll0yd/tokens@2.2.1':
     resolution: {integrity: sha512-yc0tl7jbA71yShjQtpanTdwfPSEJbvAfjvQQH0BH21ZnyFO9L9c8xMA8y+y4kLjrqjSLxaqzvCVK11jdcIvzfQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.2.1/6f3f5f1ae54b9133461f8fc2af275a8cc5bada2b}
 
-  '@j0nathan-ll0yd/web@4.0.1':
-    resolution: {integrity: sha512-5PTN7rD9DTgYbT6cIllX6QIy9WNaInAaFi8tknRT1Rf34clfa41V+MzoaR8WS+8TB0ei6gBa74PkS2M3D0AiLw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.0.1/ab5f1f799ef8aae4a84b89b62fbf8640437cabde}
+  '@j0nathan-ll0yd/web@4.1.0':
+    resolution: {integrity: sha512-1nKVFSaThWU0moilSmXuh+tRqyKE8EosLunjO3LWNE+uGY2BegoZ+LLAr9HWkKpcBor7Rh8XCCZlU7F2pYRDag==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.1.0/28f7e532ff8e951f60e6266ff7c8ce455fd23c5e}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -8096,12 +8096,12 @@ snapshots:
       typescript: 5.9.3
       zod: 4.4.3
 
-  '@j0nathan-ll0yd/fixtures@1.5.0':
+  '@j0nathan-ll0yd/fixtures@1.5.1':
     dependencies:
       '@j0nathan-ll0yd/copy': 3.3.0
       '@j0nathan-ll0yd/portal-contract': 2.7.0
       '@j0nathan-ll0yd/schemas': 2.3.0
-      '@j0nathan-ll0yd/web': 4.0.1
+      '@j0nathan-ll0yd/web': 4.1.0
 
   '@j0nathan-ll0yd/observability@1.0.0':
     dependencies:
@@ -8131,7 +8131,7 @@ snapshots:
 
   '@j0nathan-ll0yd/tokens@2.2.1': {}
 
-  '@j0nathan-ll0yd/web@4.0.1':
+  '@j0nathan-ll0yd/web@4.1.0':
     dependencies:
       '@j0nathan-ll0yd/copy': 3.3.0
       '@j0nathan-ll0yd/portal-contract': 2.7.0

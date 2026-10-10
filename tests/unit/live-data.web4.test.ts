@@ -65,6 +65,8 @@ vi.mock('../../src/lib/runtime/poll-engine', () => ({
 const failed = {status: 'failed', reason: 'unit test'}
 // The focus result the startup read (`fetchAllEndpoints`) reports; a test may set a decoded value.
 const bootFocus = vi.hoisted(() => ({value: null as unknown}))
+// Per-export startup results a test may set; every export not named here failed.
+const bootResults = vi.hoisted(() => ({value: {} as Record<string, unknown>}))
 vi.mock('../../src/lib/runtime/api',
   async (importActual) => ({
     ...await importActual<typeof import('../../src/lib/runtime/api')>(),
@@ -80,7 +82,8 @@ vi.mock('../../src/lib/runtime/api',
         articles: failed,
         focus: bootFocus.value ?? failed,
         theatreReviews: failed,
-        timestamps: {}
+        timestamps: {},
+        ...bootResults.value
       })
     )
   }))
@@ -105,6 +108,7 @@ describe('live-data → the focus gate releases suppressed cards and System Stat
     wsOpts = null
     stateAtPollNow.value = null
     bootFocus.value = null
+    bootResults.value = {}
     vi.resetModules()
     vi.useFakeTimers()
     document.body.innerHTML = SUPPRESSED_PAGE
@@ -130,8 +134,9 @@ describe('live-data → the focus gate releases suppressed cards and System Stat
       health: 'unavailable',
       books: 'unavailable'
     })
-    // A card that was never suppressed keeps its own state.
-    expect(stateAtPollNow.value?.cardReading).toBe('loading')
+    // A card that was never suppressed is not the gate's to release: its own failed first read (every
+    // export fails in this mock) already rendered it `unavailable`.
+    expect(stateAtPollNow.value?.cardReading).toBe('unavailable')
   })
 
   it('releases nothing while a hiding mode continues', async () => {
@@ -155,7 +160,8 @@ describe('live-data → the focus gate releases suppressed cards and System Stat
     const row = document.querySelector<HTMLElement>('.sys-line[data-source="health"]')
     expect(row?.dataset.ssrState).toBeUndefined()
     expect(row?.textContent).toContain('OFFLINE')
-    expect(document.getElementById('cardReading')?.dataset.ssrState).toBe('loading')
+    // Never suppressed; its failed first read renders `unavailable`.
+    expect(document.getElementById('cardReading')?.dataset.ssrState).toBe('unavailable')
   })
 
   it.each([
@@ -197,6 +203,9 @@ describe('live-data → NightSummary takes its score from a live health export o
   beforeEach(() => {
     vi.resetModules()
     vi.useFakeTimers()
+    // Freshness is clock-relative: 5 min after the health export, inside its 45 min warning age.
+    vi.setSystemTime(Date.parse('2026-10-10T07:10:00Z'))
+    bootResults.value = {}
     document.body.innerHTML = ''
     updaterSpies.updateNightSummary.mockClear()
   })
@@ -220,5 +229,95 @@ describe('live-data → NightSummary takes its score from a live health export o
 
     expect(updaterSpies.updateNightSummary).toHaveBeenCalledTimes(2)
     expect(updaterSpies.updateNightSummary.mock.calls[1]?.[0]).toMatchObject({sleepScore: 83, sleepDurationFormatted: '6h 30m'})
+  })
+
+  // covers: dashboard-shell#An export older than its warning age renders stale with an as-of time
+  it("passes the sleep export's own freshness, and drops the score of a stale health export", async () => {
+    await bootLiveData()
+    engineCapture.onUpdate?.('sleep', sleep)
+    // 2 h 10 min old at the pinned clock: beyond health's 45 min warning age, so stale.
+    engineCapture.onUpdate?.('health', {...health, generatedAt: '2026-10-10T05:00:00Z'})
+
+    const [adapted, freshness] = updaterSpies.updateNightSummary.mock.calls[1] ?? []
+    expect(adapted).toMatchObject({sleepScore: null})
+    expect(freshness).toEqual({state: 'live', generatedAt: sleep.generatedAt})
+  })
+})
+
+// covers: dashboard-shell#A failed first read renders the unavailable state
+describe('live-data → a failed first read renders the unavailable state', () => {
+  const card = (id: string, state = 'loading') =>
+    `<div id="${id}" class="tri-card is-loading" data-ssr-state="${state}"><div class="widget-header"><h3 class="widget-label">x</h3>` +
+    `<div class="widget-header-right"><span class="widget-timestamp" data-live-label="live"></span></div></div>` +
+    `<div class="widget-body"><div class="skeleton-state"></div><div data-state-scaffold></div></div></div>`
+  const ALL = [
+    'cardHR',
+    'cardMovement',
+    'cardHydration',
+    'cardSleep',
+    'cardWorkouts',
+    'cardBooks',
+    'cardDevLog',
+    'cardReading',
+    'cardStarredRepos',
+    'cardTheatreReviews'
+  ]
+  const ok = (data: unknown) => ({status: 'ok', data})
+  const sleep = {
+    date: '2026-10-09',
+    generatedAt: '2026-10-10T07:00:00Z',
+    core: {seconds: 14400},
+    deep: {seconds: 3600},
+    rem: {seconds: 5400},
+    awake: {seconds: 900}
+  }
+  const states = () => Object.fromEntries(ALL.map((id) => [id, document.getElementById(id)?.dataset.ssrState]))
+
+  beforeEach(() => {
+    wsOpts = null
+    bootFocus.value = {status: 'ok', data: {generatedAt: '2026-10-10T07:00:00Z', currentFocus: 'Personal'}}
+    bootResults.value = {}
+    vi.resetModules()
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-10-10T07:10:00Z'))
+    document.body.innerHTML = ALL.map((id) => card(id)).join('')
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('marks every card unavailable when every read failed', async () => {
+    await bootLiveData()
+    expect(Object.values(states())).toEqual(ALL.map(() => 'unavailable'))
+    expect(document.querySelectorAll('[data-state-notice="unavailable"]')).toHaveLength(ALL.length)
+  })
+
+  it('takes down the health cards, but not Night Summary, when only health failed', async () => {
+    bootResults.value = {sleep: ok(sleep)}
+    await bootLiveData()
+    const s = states()
+    expect([s.cardHR, s.cardMovement, s.cardHydration]).toEqual(['unavailable', 'unavailable', 'unavailable'])
+    // NightSummary follows the sleep export alone (its updater is a spy here, so it stays loading).
+    expect(s.cardSleep).toBe('loading')
+    expect(updaterSpies.updateNightSummary).toHaveBeenCalled()
+  })
+
+  it('takes down Night Summary alone when only sleep failed', async () => {
+    bootResults.value = {health: {status: 'failed', reason: 'unit test'}}
+    for (const key of ['workouts', 'books', 'githubEvents', 'articles', 'starredRepos', 'theatreReviews']) {
+      bootResults.value[key] = {status: 'failed', reason: 'unit test'}
+    }
+    bootResults.value.health = ok({date: '2026-10-09', generatedAt: '2026-10-10T07:05:00Z', quantities: {}})
+    await bootLiveData()
+    expect(states().cardSleep).toBe('unavailable')
+    expect(states().cardHR).not.toBe('unavailable')
+  })
+
+  it('renders nothing new on a page the gate suppressed', async () => {
+    bootFocus.value = {status: 'ok', data: {generatedAt: '2026-10-10T07:00:00Z', currentFocus: 'Do Not Disturb'}}
+    bootResults.value = {health: {status: 'suppressed', reason: 'focus mode active', currentFocus: 'Do Not Disturb'}}
+    await bootLiveData()
+    expect(Object.values(states())).toEqual(ALL.map(() => 'loading'))
   })
 })

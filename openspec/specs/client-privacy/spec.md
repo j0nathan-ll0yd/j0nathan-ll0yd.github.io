@@ -251,7 +251,7 @@ read SHALL release nothing, and while a hiding mode continues nothing is release
 never suppressed keeps its own state. The data-free `/` renders nothing suppressed today; a
 server-rendered `/` (decision 0160, PR B) does.
 
-Verified by `tests/unit/live-data.web4.test.ts:117` (release before the refetch; nothing released
+Verified by `tests/unit/live-data.web4.test.ts:121` (release before the refetch; nothing released
 during a Work-to-Do-Not-Disturb swap; release at a visible startup and none at an unreadable or
 hiding one; a released row takes live status again).
 

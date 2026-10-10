@@ -76,6 +76,7 @@ describe('a11y scan targets', () => {
       'health/sleepEmpty',
       'health/workoutsMulti',
       'health/workoutsRestDay',
+      'health/hydrationBands',
       'articles/loading',
       'articles/empty',
       'devlog/loading',

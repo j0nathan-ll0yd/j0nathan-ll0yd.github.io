@@ -138,7 +138,10 @@ The loading state shown before data arrives — a **render state**, not a fixtur
   JavaScript. It MUST render no data value: production `/` carries no fixture data (atlas
   decision 0160, PR 0a; `openspec/specs/dashboard-shell`)
 - The `.is-loading` class is removed by updater functions when data arrives, and
-  `revealLiveData` records the card's new state (`live` or `empty`)
+  `revealLiveData` records the card's new state: `live` or `stale` (with an "as of" time) from the
+  export's freshness (`exportFreshness`, the registry `audit.warn` age), or `empty`
+- A failed first read leaves `loading` for the server's `unavailable` state
+  (`renderWidgetUnavailable`, `@j0nathan-ll0yd/web` 4.1); a card never stays `loading` forever
 
 ```html
 <div class="tri-card tri-card-accent-pink is-loading" id="cardSteps">

@@ -34,16 +34,33 @@ test.describe('Health Render Conformance', () => {
   })
 
   // covers: health-render#Absent health quantities render the no-data dash rather than a zero
-  test('renders the no-data dash for every absent quantity', async ({page}) => {
-    await loadDashboard(page, {[ENDPOINTS.health]: fixture('health', 'empty')}, '#cardHR')
-
-    // An absent quantity must never render as 0 -- a zero reads as a measured resting value.
-    await expect(page.locator('#pulseBpm')).toHaveText('—')
-    await expect(page.locator('#hrZoneBadge')).toHaveText('—')
+  test('renders the no-data dash for every absent quantity, and the empty state for none', async ({page}) => {
+    // A heart rate and nothing else: every other slot is the dash, never a 0.
+    await interceptDashboard(page)
+    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`,
+      (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({date: '2026-03-17', generatedAt: '2026-03-18T12:00:00.000Z', quantities: {heartRate: {value: 63, unit: 'count/min'}}})
+        }))
+    await page.goto('/')
+    await expect(page.locator('#cardHR')).not.toHaveClass(/is-loading/)
+    await expect(page.locator('#pulseBpm')).toHaveText('63')
     await expect(page.locator('#hrHrvValue')).toHaveText('—')
     await expect(page.locator('#hrFooterRhr')).toHaveText('—')
     await expect(page.locator('#hrFooterRr')).toHaveText('—')
     await expect(page.locator('#hrFooterTemp')).toHaveText('—')
+
+    // No quantity at all is the empty state with its notice (@j0nathan-ll0yd/web 4.1, heartRateState),
+    // and still no 0 anywhere a reading would sit.
+    await page.unrouteAll({behavior: 'ignoreErrors'})
+    await loadDashboard(page, {[ENDPOINTS.health]: fixture('health', 'empty')}, '#cardHR')
+    await expect(page.locator('#cardHR')).toHaveAttribute('data-ssr-state', 'empty')
+    await expect(page.locator('#cardHR [data-state-notice="empty"]')).toBeVisible()
+    for (const id of ['pulseBpm', 'hrZoneBadge', 'hrHrvValue', 'hrFooterRhr', 'hrFooterRr', 'hrFooterTemp']) {
+      await expect(page.locator(`#${id}`), `#${id}`).not.toHaveText(/^0/)
+    }
 
     await expectNoNewAxeViolations(page, 'health/empty')
   })
@@ -189,7 +206,8 @@ test.describe('Health Render Conformance', () => {
     await expect(page.locator('#cardSleep [data-phase="deep"] .sleep-moon-pill-val')).toHaveText('--')
     await expect(page.locator('#cardSleep [data-phase="awake"] .sleep-moon-pill-val')).toHaveText('--')
     await expect(page.locator('#sleepInsight')).toHaveText('No sleep data')
-    await expect(page.locator('#sleepTimestamp')).toHaveText('no data')
+    // The empty card keeps its "last night" header label, as the server renders it (web 4.1).
+    await expect(page.locator('#sleepTimestamp')).toHaveText('last night')
 
     await expectNoNewAxeViolations(page, 'health/sleepEmpty')
   })
@@ -290,7 +308,8 @@ test.describe('Health Render Conformance', () => {
     // The page is data-free (atlas decision 0160), so the card keeps its value-free `loading`
     // scaffold: an empty readout proves the live update never ran at all. 199 with its "Peak Zone"
     // badge is what the page displayed while arriving JSON was taken on trust.
-    await expect(page.locator('#cardHR')).toHaveAttribute('data-ssr-state', 'loading')
+    // A refused export is a failed read: the card renders `unavailable`, value-free.
+    await expect(page.locator('#cardHR')).toHaveAttribute('data-ssr-state', 'unavailable')
     await expect(page.locator('#pulseBpm')).toHaveText('')
     await expect(page.locator('#hrZoneBadge')).toHaveText('')
     await expect(page.locator('#cardHR')).not.toContainText('199')

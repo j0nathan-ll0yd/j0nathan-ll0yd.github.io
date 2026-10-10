@@ -40,13 +40,13 @@ const { profile, system, localCovers } = loadDashboardData();
 <Bookshelf state="loading" localCovers={localCovers} />
 ```
 
-Every live widget renders `state="loading"`: its skeleton, `data-ssr-state="loading"` and a `<noscript>` note that live data needs JavaScript. The client runtime (`src/lib/runtime/live-data.ts`) then fetches the CloudFront exports and fills each card through the design-system updaters. With JavaScript off, a visitor sees the identity content and honest loading cards, never a fabricated value.
+Every live widget renders `state="loading"`: its skeleton, `data-ssr-state="loading"` and a `<noscript>` note that live data needs JavaScript. The client runtime (`src/lib/runtime/live-data.ts`) then fetches the CloudFront exports. The client runtime fills each card through the design-system updaters (`@j0nathan-ll0yd/web` 4.1), with the export's freshness: `live` up to its registry `audit.warn` age, `stale` beyond it with an absolute "as of" time (`exportFreshness`). A failed first read renders each card that export feeds `unavailable` (`renderWidgetUnavailable`); Night Summary follows the sleep export alone. Hydration draws its target bands in the browser, and a cover mirrored under `public/images/books/` (listed by its versioned contract path) loads from the same origin. With JavaScript off, a visitor sees the identity content and honest loading cards, never a fabricated value.
 
 `@j0nathan-ll0yd/fixtures` is a devDependency for tests only. The `forbid-fixtures` Vite plugin (`scripts/vite-forbid-fixtures.mjs`, registered in `astro.config.mjs`) fails the build when any module resolves to it, directly or through another module or package.
 
 ## Component Catalog
 
-Every widget comes from `@j0nathan-ll0yd/web/production`; this repo has no `src/components/`. Live widgets take an optional `state` and `generatedAt` (`@j0nathan-ll0yd/web` 4).
+Every widget comes from `@j0nathan-ll0yd/web/production`; this repo has no `src/components/`. Live widgets take an optional `state` and `generatedAt` (`@j0nathan-ll0yd/web` 4); every browser updater takes an optional trailing freshness (4.1).
 
 ### Left Panel
 

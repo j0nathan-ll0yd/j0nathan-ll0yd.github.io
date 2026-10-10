@@ -113,7 +113,8 @@ test.describe('Data-free dashboard with JavaScript enabled', () => {
     }
   })
 
-  test('keeps every card value-free when the data plane is down', async ({page}) => {
+  // covers: dashboard-shell#A failed first read renders the unavailable state
+  test('renders every card unavailable, value-free, when the data plane is down', async ({page}) => {
     await stayLocal(page)
     await page.route(`${CLOUDFRONT_BASE}/**`, (route) => route.abort())
     await page.goto('/')
@@ -121,11 +122,13 @@ test.describe('Data-free dashboard with JavaScript enabled', () => {
     await expect(page.locator('.is-loading')).toHaveCount(0, {timeout: 15_000})
 
     await expectNoFixtureValue(page)
-    // No card claims data it never read. (Which non-data state a failed read should show is not
-    // decided here: the design system has no client writer for `unavailable` yet, so the cards keep
-    // their value-free `loading` scaffold. The server-rendered page of decision 0160 PR B renders
-    // `unavailable` itself.)
-    await expect(page.locator('[data-ssr-state="live"], [data-ssr-state="stale"], [data-ssr-state="empty"]')).toHaveCount(0)
+    // The focus read failed too, so every gated read is unreadable: each card shows the server's
+    // `unavailable` state, never a `loading` card that will not load.
+    for (const id of LIVE_CARD_IDS) {
+      const card = page.locator(`#${id}`)
+      await expect(card, `#${id}`).toHaveAttribute('data-ssr-state', 'unavailable')
+      await expect(card.locator('[data-state-notice="unavailable"]'), `#${id} notice`).toBeVisible()
+    }
     await expect(page.locator('#systemStatus')).not.toContainText('ACTIVE')
   })
 })
