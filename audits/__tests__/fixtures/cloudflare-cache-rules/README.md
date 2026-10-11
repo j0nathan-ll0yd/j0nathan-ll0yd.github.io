@@ -15,7 +15,7 @@ Omitted or invented fields:
 - `messages` is `[]` and `result` is `null` in every error body. The real bodies may hold more.
 - No response headers, `result_info`, or request IDs are recorded.
 - `zone-request-entrypoint.200.json`: the ruleset envelope (`id: ruleset-id`, `version: 14`,
-  timestamps, rule `id`, `ref`, `version`) is placeholder data. Rules 3 and 6 are rebuilt from
+  timestamps, rule `id`, `ref`, `version`) is placeholder data. The rules at index 3 (4th rule) and index 6 (7th rule) are rebuilt from
   the measured facts (catch-all `true` with edge and browser TTL overrides, later a bypass of the
   five gated paths). The other five rules are plausible disjoint neighbours, not verbatim.
 - `page-rules-empty.200.json`: a plausible empty success body, not a measured one.

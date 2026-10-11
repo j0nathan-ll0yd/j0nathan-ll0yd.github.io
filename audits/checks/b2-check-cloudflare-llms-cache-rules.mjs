@@ -552,6 +552,10 @@ function bypassState(chain) {
 function requestRuleFindings(orderedRules, target) {
   const findings = []
   const chains = Object.fromEntries(REQUEST_SETTINGS.map((setting) => [setting, []]))
+  // Set once a rule this evaluator does not model (`execute`, `skip`, a future action) definitely
+  // or possibly matches. What it did to the later rules is unknown (a `skip` can stop them from
+  // running), so no later rule is definite for this target and its findings are UNKNOWN.
+  let opaque = false
   for (const [source, rule] of orderedRules) {
     if (rule.enabled === false) {
       continue
@@ -564,11 +568,13 @@ function requestRuleFindings(orderedRules, target) {
       // The executed ruleset is not expanded, so what it sets is unknown even when this rule
       // definitely matches. Never failed: a wrong definite answer is the failure mode.
       findings.push(findingFor(source, rule, target, applicability, 'executes another cache ruleset that this response did not expand', 'unknown'))
+      opaque = true
       continue
     }
     if (rule.action !== 'set_cache_settings') {
       // `skip` or a future action. Not modelled, so not silently ignored.
       findings.push(findingFor(source, rule, target, applicability, `action "${rule.action}" is not modelled`, 'unknown'))
+      opaque = true
       continue
     }
     const parameters = rule.action_parameters ?? {}
@@ -576,7 +582,7 @@ function requestRuleFindings(orderedRules, target) {
       if (parameters[setting] === undefined) {
         continue
       }
-      const definite = applicability === 'matches'
+      const definite = applicability === 'matches' && !opaque
       if (definite) {
         chains[setting].length = 0
       }
@@ -941,7 +947,8 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
     observedAt,
     targets: [...CLOUDFLARE_GATED_TARGETS],
     // specVersion 3 added `notApplicable`: reads Cloudflare answered with "phase not allowed at
-    // account level". They count in `held` and cannot alone lift a run out of darkness.
+    // account level". `held` INCLUDES them; the published `measured` (measurementDeclaration)
+    // SUBTRACTS them, because they hold no artifact.
     // specVersion 2 added this block (atlas decision 0142 step 5.4). It is what lets a
     // reader of the uploaded artifact answer "did this run reach Cloudflare at all?"
     // without inferring it from a prose evidence string, and it is the input to

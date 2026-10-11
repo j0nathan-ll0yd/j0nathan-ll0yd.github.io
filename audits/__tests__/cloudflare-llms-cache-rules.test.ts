@@ -451,8 +451,8 @@ describe('Cloudflare cache-rule measurement declaration', () => {
 //
 // Measured 2026-10-11 with an account-owned read-all token against the live zone. The
 // status codes and messages are the recorded evidence. The 7-rule zone ruleset is
-// reconstructed from the measured facts (ruleset version 14; rule 3 "HTML pages
-// (catch-all)" with expression `true` and edge and browser TTL overrides; rule 6 "TTL for
+// reconstructed from the measured facts (ruleset version 14; the rule at index 3 (4th) "HTML pages
+// (catch-all)" with expression `true` and edge and browser TTL overrides; the rule at index 6 (7th) "TTL for
 // llms.txt & index.md" later, bypassing the five gated paths with `cache: false` and browser
 // TTL `respect_origin`); the other five rules are plausible disjoint neighbours, not
 // verbatim. Cloudflare documents no error code for the two ruleset answers, so those
@@ -829,6 +829,18 @@ describe('Cloudflare cache-rule expression evaluator certainty', () => {
       expect(evaluation.status).toBe('failed')
       expect(evaluation.results.some(({id, status: s}) => id === 'zone-cache-rule-skip' && s === 'unknown')).toBe(true)
       expect(evaluateCloudflareLlmsCacheRules({zoneRequestRules: [rule('skip', 'true', {}, 'skip')]}).status).toBe('unknown')
+    })
+
+    it('makes every later rule UNKNOWN once a skip matches: skip then a catch-all Edge TTL is not failed', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [rule('skip', 'true', {ruleset: 'current'}, 'skip'), CATCH_ALL]})
+      expect(evaluation.status).toBe('unknown')
+      expect(evaluation.results.every(({status: s}) => s === 'unknown')).toBe(true)
+      expect(evaluation.results.some(({id}) => id === 'zone-cache-rule-catch-all')).toBe(true)
+    })
+
+    it('does the same after an execute rule, and leaves rules before the opaque rule definite', () => {
+      expect(status([rule('exec', 'true', {id: 'other'}, 'execute'), CATCH_ALL])).toBe('unknown')
+      expect(status([CATCH_ALL, rule('skip', 'true', {}, 'skip')])).toBe('failed')
     })
 
     it('reports an unmodelled response-phase action as UNKNOWN', () => {
