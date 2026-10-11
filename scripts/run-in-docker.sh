@@ -63,6 +63,14 @@ export GITHUB_TOKEN
 # sanctioned path for regenerating baselines. Keeping dist off the bind mount
 # fixes it outright. The host does not need the container's dist: baselines and
 # test-results are written under tests/, which stays bind-mounted.
+#
+# .astro/ gets a shadow volume too. `astro preview` (the suites' webServer) writes a lock,
+# .astro/preview.json, holding the server's PID, and refuses to start while that PID is alive.
+# Playwright kills the server without removing the lock, so on the bind mount it outlived its
+# container, and the next container refused to start whenever one of its own processes held the
+# recorded PID: "Another astro preview server is already running", before any test ran. A PID
+# means nothing outside its container, so the lock must not outlive it. `astro build` regenerates
+# everything else in .astro/ inside the container.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
@@ -71,6 +79,7 @@ docker run --rm --ipc=host --platform linux/arm64 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
   -v /work/dist \
+  -v /work/.astro \
   -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "corepack enable pnpm \
