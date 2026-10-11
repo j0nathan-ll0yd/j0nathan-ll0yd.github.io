@@ -149,4 +149,32 @@ test.describe('Client card states', () => {
 
     await expectNoNewAxeViolations(page, 'bookshelf/mirroredCovers')
   })
+
+  // covers: dashboard-shell#An open tab re-judges freshness as an export ages
+  test("turns an open tab's live card stale, with its reading, when its export ages while polls fail", async ({page}) => {
+    // The browser's clock is installed, so the tab can age without the test waiting on a wall clock.
+    await page.clock.install({time: Date.now()})
+    // Live at load, and past the warning age 5 min later.
+    const old = healthAged(HEALTH_WARN_MS - 5 * MINUTE)
+    await interceptDashboard(page)
+    await serve(page, ENDPOINTS.health, old)
+    await page.goto('/')
+    await settle(page)
+
+    const card = page.locator('#cardHR')
+    await expect(card).toHaveAttribute('data-ssr-state', 'live')
+    const reading = await page.locator('#pulseBpm').textContent()
+    expect(reading).not.toBe('')
+
+    // Every later health poll fails. 6 min on, the export is past its 45 min warning age.
+    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`, (route) => route.abort())
+    await page.clock.fastForward(6 * MINUTE)
+
+    await expect(card).toHaveAttribute('data-ssr-state', 'stale')
+    await expect(card).toHaveAttribute('data-generated-at', String(old.generatedAt))
+    await expect(card.locator('.widget-header')).toContainText(/as of /)
+    // A failed poll never blanks a card that shows a reading.
+    await expect(page.locator('#pulseBpm')).toHaveText(reading ?? '')
+    await expect(card.locator('[data-state-notice="unavailable"]')).toHaveCount(0)
+  })
 })
