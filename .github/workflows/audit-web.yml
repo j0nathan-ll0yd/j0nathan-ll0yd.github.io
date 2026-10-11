@@ -307,14 +307,11 @@ jobs:
         id: llms_cache_rules
         continue-on-error: true
         env:
-          # A dedicated account-owned read-all token. NEVER the deploy token: the deploy
-          # workflows use that secret to publish, and it got HTTP 403 on every rule read here
-          # (run 38076794320). An unset secret leaves this empty; the runner then publishes no
-          # `measured` and the tier wedges as crashed-before-measuring.
-          CLOUDFLARE_ACCOUNT_READALL: ${{ secrets.CLOUDFLARE_ACCOUNT_READALL }}
-          # Optional. Page Rules reject account-owned tokens (HTTP 400, code 1011), so that one
-          # read needs a USER-owned token. Unset, Page Rules stay unmeasured with that reason.
-          CLOUDFLARE_PAGE_RULES_TOKEN: ${{ secrets.CLOUDFLARE_PAGE_RULES_TOKEN }}
+          # The existing CLOUDFLARE_API_TOKEN (no new secret). The deploy workflows publish with
+          # it too, so reading rules needs read permissions added to it; see the runner header
+          # for the exact permission names. Until it can read, the runner publishes the real
+          # count (0) and the tier wedges, which is the intended signal.
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: >-
@@ -586,41 +583,15 @@ jobs:
           # hide behind healthy siblings. Setup steps (chrome, focus_mode) are not checks and
           # never appear here.
           #
-          # `llms_cache_rules` is DEFERRED, and THE STEP ITSELF SAYS SO (atlas decision 0142 step
-          # 5.4). This field used to be the literal string `deferred`, which is the falsified-record
-          # shape the binding gate rejects everywhere else: a constant is not a reading, so the
-          # step's real state was never consulted and ANY outcome inherited the waiver. A run that
-          # crashed before reaching Cloudflare at all published the same `deferred` as the recorded
-          # 403s (runs 34086625518 and 34164468115), so the waiver laundered the crash.
-          #
-          # The runner now classifies its own run and publishes one of three things
-          # (audits/checks/b2-check-cloudflare-llms-cache-rules.mjs):
-          #   deferred  every one of the five reads was REFUSED (HTTP 401 or 403). That is exactly
-          #             the state atlas decision 0120 D2 waives -- the read permissions are
-          #             corrected BEFORE the channel lands, so the tile does not go permanently red
-          #             on a known-open owner action -- and the reason and `until=` below apply to
-          #             it.
-          #   <n>       n of the five rule collections were held and judged. The channel has
-          #             landed; the waiver is moot and is never consulted.
-          #   0         the reads reached nothing for a reason that is NOT the recorded permission
-          #             gap. Not waived: the ping script wedges the tier.
-          # A run that dies before classifying publishes NOTHING, and an empty field with a
-          # non-benign outcome wedges as `crashed-before-measuring`. Crash and waiver are now
-          # distinguishable, which is the whole point. The record is still written rather than
-          # omitted, so the gap stays visible here and to atlas A19.
-          #
-          # AND IT EXPIRES. `until=2026-12-08` is the date the deferral stops being accepted;
-          # past it the ping script wedges this tier exactly as it would on an unreasoned
-          # declaration. Without the date, "visible" and "indefinite" are the same state -- the
-          # green job / no issue / no wedge shape here was byte-identical to run 34086625518, the
-          # receipt decision 0122 opened with. 90 days from the channel landing (2026-09-09) is
-          # the budget for one owner action: correct five Cloudflare read permissions. Moving the
-          # date is a reviewed edit to this file; letting it lapse is not a decision anyone makes.
-          # `n/a` carries no date on purpose -- a tool run holding no artifact set is structural,
-          # and no owner action will change it.
+          # `llms_cache_rules` publishes its REAL count (audits/checks/b2-check-cloudflare-llms-cache-rules.mjs):
+          # n rule collections held and judged, or 0 when the token reads nothing (HTTP 401 or
+          # 403 included). 0 wedges this tier. That is the honest "unmeasured" signal until the
+          # token can read; it is never waived, so the record carries no reason and no `until=`.
+          # A run that dies before classifying publishes nothing and wedges as
+          # `crashed-before-measuring`.
           MEASURED_STEPS: |
             llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
-            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}|atlas 0120 D2 owner action -- five Cloudflare reads return 403 until the dedicated CLOUDFLARE_ACCOUNT_READALL secret is set; the channel lands with it|until=2026-12-08
+            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}

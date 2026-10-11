@@ -256,7 +256,7 @@ describe('Cloudflare cache-rule API audit', () => {
       environment: {
         CLOUDFLARE_ACCOUNT_ID: 'account-id',
         CLOUDFLARE_ZONE_ID: 'zone-id',
-        CLOUDFLARE_ACCOUNT_READALL: 'secret-token',
+        CLOUDFLARE_API_TOKEN: 'secret-token',
         GITHUB_OUTPUT: githubOutputPath
       },
       fetchImpl,
@@ -272,11 +272,9 @@ describe('Cloudflare cache-rule API audit', () => {
     expect(JSON.stringify(evidence)).not.toContain('secret-token')
     expect(JSON.stringify(evidence)).not.toContain('account-id')
     expect(JSON.stringify(evidence)).not.toContain('zone-id')
-    // Five refusals is exactly the state atlas decision 0120 D2 waives, so the step declares
-    // `deferred` alongside the indeterminate issue outcome. The two answer different
-    // questions: the issue outcome is "was the artifact healthy", the declaration is "did
-    // the transport work at all".
-    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\nmeasured=deferred\n')
+    // Five refusals measured nothing, so the step publishes the real count, 0, which wedges
+    // the tier. It is never waived as `deferred`.
+    expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\nmeasured=0\n')
   })
 
   it.each([
@@ -299,7 +297,7 @@ describe('Cloudflare cache-rule API audit', () => {
 
     const exitCode = await runCloudflareLlmsCacheRuleCli({
       arguments_: ['--evidence-out', outputPath],
-      environment: {CLOUDFLARE_ACCOUNT_ID: 'account', CLOUDFLARE_ZONE_ID: 'zone', CLOUDFLARE_ACCOUNT_READALL: 'token', GITHUB_OUTPUT: githubOutputPath},
+      environment: {CLOUDFLARE_ACCOUNT_ID: 'account', CLOUDFLARE_ZONE_ID: 'zone', CLOUDFLARE_API_TOKEN: 'token', GITHUB_OUTPUT: githubOutputPath},
       fetchImpl,
       now: () => new Date('2026-08-29T22:00:00.000Z'),
       logger: {log: vi.fn(), error: vi.fn()}
@@ -314,22 +312,13 @@ describe('Cloudflare cache-rule API audit', () => {
   })
 })
 
-// THE CRASH AND THE WAIVER MUST NOT LOOK ALIKE (atlas decision 0142 step 5.4).
-//
-// `.github/workflows/audit-web.yml` waives this step's measurement channel under atlas
-// decision 0120 D2: five Cloudflare reads return 403 because the token lacks read
-// permissions, the permissions fix is an open owner action, and the tile must not go
-// permanently red on it. That waiver used to be a LITERAL `deferred` in the workflow's
-// MEASURED_STEPS record, so it was published on every run regardless of what the step did.
-// A run that never reached Cloudflare at all -- an absent credential, a usage error, a
-// runner that died -- published the same `deferred` and inherited the same waiver. The
-// crash hid behind a legitimate recorded exemption, which is the exact laundering shape the
-// measurement channel exists to end.
-//
-// So the runner classifies its own run and the workflow forwards what it published. These
-// cases pin the four answers apart from each other.
+// THE DECLARATION IS THE REAL COUNT (atlas decision 0142 step 5.4). There is no waiver: an
+// all-refused run publishes 0, which wedges the tier until the token can read. A run that
+// never reached Cloudflare at all (an absent credential, a usage error) publishes nothing,
+// and the ping script reads that as crashed-before-measuring. These cases pin the answers
+// apart from each other.
 describe('Cloudflare cache-rule measurement declaration', () => {
-  const CREDENTIALS = {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_ZONE_ID: 'zone-id', CLOUDFLARE_ACCOUNT_READALL: 'secret-token'}
+  const CREDENTIALS = {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_ZONE_ID: 'zone-id', CLOUDFLARE_API_TOKEN: 'secret-token'}
 
   /** Run the CLI against `fetchImpl` and return the raw `$GITHUB_OUTPUT` it wrote. */
   async function runAndReadOutput(fetchImpl: unknown, environment: Record<string, string> = CREDENTIALS): Promise<{exitCode: number; output: string}> {
@@ -348,20 +337,48 @@ describe('Cloudflare cache-rule measurement declaration', () => {
 
   const refuse = (status: number) => vi.fn(async () => new Response(JSON.stringify({success: false, errors: [{message: 'nope'}]}), {status}))
 
-  // THE WAIVED STATE, and the only one the workflow's reason and `until=2026-12-08`
-  // describe: every read refused. 401 as well as 403 -- a revoked token and an unscoped one
-  // are the same open owner action.
-  it.each([403, 401])('declares deferred when every read is refused with HTTP %s', async (status) => {
+  // EVERY READ REFUSED. 401 as well as 403: a revoked token and an unscoped one both measure
+  // nothing. The count is a literal 0, never `deferred`.
+  it.each([403, 401])('declares the real count 0, not deferred, when every read is refused with HTTP %s', async (status) => {
     const {exitCode, output} = await runAndReadOutput(refuse(status))
     expect(exitCode).toBe(1)
-    expect(output).toBe('issue_outcome=indeterminate\nmeasured=deferred\n')
+    expect(output).toBe('issue_outcome=indeterminate\nmeasured=0\n')
+    expect(output).not.toContain('deferred')
   })
 
-  // THE CRASH. `CLOUDFLARE_ACCOUNT_READALL` is absent, so the audit throws before a single
-  // request leaves the runner. It reached nothing and it cannot say why in the waived
-  // vocabulary, so it declares NOTHING -- and an empty `measured` with a `failure` outcome
-  // is `crashed-before-measuring` in audits/healthchecks-ping.sh, which wedges the tier.
-  // The waiver is never consulted, which is the whole point of this change.
+  // Each refusal names the permission THAT read needs, so an owner can act on the finding.
+  it.each([403, 401])('names the missing permission for each refused read (HTTP %s)', async (status) => {
+    const evidence = await auditCloudflareLlmsCacheRules({
+      accountId: 'account-id',
+      zoneId: 'zone-id',
+      apiToken: 'secret-token',
+      fetchImpl: refuse(status),
+      observedAt: '2026-10-11T00:00:00.000Z'
+    })
+    const byId = Object.fromEntries(evidence.results.map(({id, evidence: text}: {id: string; evidence: string}) => [id, text]))
+    expect(byId['cloudflare-zoneRequestRules-unavailable']).toContain('"Zone > Cache Rules > Read"')
+    expect(byId['cloudflare-zoneResponseRules-unavailable']).toContain('"Zone > Cache Rules > Read"')
+    expect(byId['cloudflare-accountRequestRules-unavailable']).toContain('"Account > Account Rulesets > Read"')
+    expect(byId['cloudflare-accountResponseRules-unavailable']).toContain('"Account > Account Rulesets > Read"')
+    expect(byId['cloudflare-pageRules-unavailable']).toContain('"Zone > Page Rules > Read"')
+    expect(Object.values(byId).every((text) => text.includes('unmeasured'))).toBe(true)
+  })
+
+  it('does not name a permission for a failure that is not a refusal', async () => {
+    const evidence = await auditCloudflareLlmsCacheRules({
+      accountId: 'account-id',
+      zoneId: 'zone-id',
+      apiToken: 'secret-token',
+      fetchImpl: refuse(500),
+      observedAt: '2026-10-11T00:00:00.000Z'
+    })
+    expect(evidence.results.every(({evidence: text}: {evidence: string}) => !text.includes('permission'))).toBe(true)
+  })
+
+  // THE CRASH. `CLOUDFLARE_API_TOKEN` is absent, so the audit throws before a single
+  // request leaves the runner. It declares NOTHING -- and an empty `measured` with a
+  // `failure` outcome is `crashed-before-measuring` in audits/healthchecks-ping.sh, which
+  // wedges the tier.
   it('publishes no declaration at all when the run crashes before classifying', async () => {
     const fetchImpl = vi.fn(async () => new Response('{}', {status: 200}))
     const {exitCode, output} = await runAndReadOutput(fetchImpl, {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_ZONE_ID: 'zone-id'})
@@ -371,10 +388,8 @@ describe('Cloudflare cache-rule measurement declaration', () => {
     expect(output).not.toContain('measured=')
   })
 
-  // A FAILURE THAT IS NOT THE WAIVED ONE. Five HTTP 500s reach nothing either, but nothing
-  // about them is the permission gap 0120 D2 waives, so widening `deferred` to cover them
-  // would widen the waiver to "any total transport failure". It declares a literal 0, which
-  // the ping script wedges on as `measured-nothing`.
+  // Five HTTP 500s reach nothing either. A literal 0, which the ping script wedges on as
+  // `measured-nothing`.
   it('declares a literal zero when every read fails for a reason that is not a refusal', async () => {
     const {exitCode, output} = await runAndReadOutput(refuse(500))
     expect(exitCode).toBe(1)
@@ -384,7 +399,7 @@ describe('Cloudflare cache-rule measurement declaration', () => {
   // THE CHANNEL LANDING, which needs no workflow edit when the owner grants the reads. Two
   // of the five answer, so the transport demonstrably worked; the three that did not are
   // already `unknown` findings the managed-issue reconciler raises on their own.
-  it('declares the count once any read answers, so a partial read never defers', async () => {
+  it('declares the count once any read answers, so a partial read reports its count', async () => {
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/pagerules?')) {
         return new Response(JSON.stringify({success: true, result: [], result_info: {total_pages: 1}}), {status: 200})
@@ -411,7 +426,7 @@ describe('Cloudflare cache-rule measurement declaration', () => {
     })
     expect(evidence.specVersion).toBe(3)
     expect(evidence.measurement).toEqual({sources: 5, held: 0, refused: 5, notApplicable: 0})
-    expect(measurementDeclaration(evidence)).toBe('deferred')
+    expect(measurementDeclaration(evidence)).toBe(0)
   })
 
   // Evidence built by the CLI's outer catch has no census at all. `null` is what makes the
@@ -523,7 +538,7 @@ describe('Cloudflare cache-rule recorded answers', () => {
       expect(gap.id).toBe('cloudflare-pageRules-unavailable')
       expect(gap.status).toBe('unknown')
       expect(gap.evidence).toContain('Page Rules endpoint does not support account owned tokens')
-      expect(gap.evidence).toContain('CLOUDFLARE_PAGE_RULES_TOKEN')
+      expect(gap.evidence).toContain('only a user-owned CLOUDFLARE_API_TOKEN can read them')
       // Not a refusal and not held: the other four reads were held, two of them not applicable.
       expect(evidence.measurement).toEqual({sources: 5, held: 4, refused: 0, notApplicable: 2})
       expect(measurementDeclaration(evidence)).toBe(4)
@@ -532,25 +547,16 @@ describe('Cloudflare cache-rule recorded answers', () => {
     it('matches Page Rules on code 1011 even when the message wording changes', async () => {
       const reworded = {status: 400, body: {success: false, errors: [{code: 1011, message: 'unsupported credential'}]}}
       const evidence = await audit(recordedFetch({pageRules: reworded}))
-      expect(evidence.results[0].evidence).toContain('CLOUDFLARE_PAGE_RULES_TOKEN')
+      expect(evidence.results[0].evidence).toContain('only a user-owned CLOUDFLARE_API_TOKEN can read them')
     })
 
-    it('uses a user-owned token for the Page Rules read only, and then measures all five', async () => {
-      const fetchImpl = recordedFetch({pageRules: pageRulesEmpty200})
-      const evidence = await audit(fetchImpl, {pageRulesToken: 'user-owned-token'})
+    it('measures Page Rules when the token is permitted to read them (user-owned token)', async () => {
+      const evidence = await audit(recordedFetch({pageRules: pageRulesEmpty200}))
       expect(evidence.status).toBe('passed')
       expect(measurementDeclaration(evidence)).toBe(5)
-      const authorization = new Map(
-        fetchImpl.mock.calls.map((
-          [url, init]
-        ) => [url.includes('/pagerules?') ? 'pagerules' : 'ruleset', (init?.headers as Record<string, string>).Authorization])
-      )
-      expect(authorization.get('pagerules')).toBe('Bearer user-owned-token')
-      expect(authorization.get('ruleset')).toBe('Bearer readall-token')
-      expect(JSON.stringify(evidence)).not.toContain('user-owned-token')
     })
 
-    it('keeps HTTP 403 unmeasured and deferred, with the redacted Cloudflare message', async () => {
+    it('keeps HTTP 403 unmeasured with count 0, with the redacted Cloudflare message and the permission', async () => {
       const refused = {status: 403, body: auth403.body}
       const evidence = await audit(
         recordedFetch({accountRequest: refused, accountResponse: refused, zoneRequest: refused, zoneResponse: refused, pageRules: refused})
@@ -558,17 +564,18 @@ describe('Cloudflare cache-rule recorded answers', () => {
       expect(evidence.status).toBe('unknown')
       expect(evidence.results).toHaveLength(5)
       expect(evidence.results[0].evidence).toContain('HTTP 403: Authentication error')
+      expect(evidence.results[0].evidence).toContain('the token needs the permission')
       expect(evidence.measurement).toEqual({sources: 5, held: 0, refused: 5, notApplicable: 0})
-      expect(measurementDeclaration(evidence)).toBe('deferred')
+      expect(measurementDeclaration(evidence)).toBe(0)
     })
 
     it('does not let two not-applicable answers hide a refused zone token', async () => {
       const refused = {status: 403, body: auth403.body}
       const evidence = await audit(recordedFetch({zoneRequest: refused, zoneResponse: refused, pageRules: refused}))
       expect(evidence.measurement).toEqual({sources: 5, held: 2, refused: 3, notApplicable: 2})
-      expect(measurementDeclaration(evidence)).toBe('deferred')
-      const crashed = await audit(recordedFetch({zoneRequest: refused, zoneResponse: refused}))
-      expect(measurementDeclaration(crashed)).toBe(0)
+      expect(measurementDeclaration(evidence)).toBe(0)
+      const partial = await audit(recordedFetch({zoneRequest: refused, zoneResponse: refused}))
+      expect(measurementDeclaration(partial)).toBe(0)
     })
   })
 
@@ -634,7 +641,7 @@ describe('Cloudflare cache-rule recorded answers', () => {
   })
 
   describe('credentials', () => {
-    it('reads the dedicated CLOUDFLARE_ACCOUNT_READALL token and ignores the deploy token', async () => {
+    it('reads CLOUDFLARE_API_TOKEN for every request, Page Rules included', async () => {
       const fetchImpl = recordedFetch({pageRules: pageRulesEmpty200})
       const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
       scratchDirectories.push(scratch)
@@ -644,8 +651,7 @@ describe('Cloudflare cache-rule recorded answers', () => {
         environment: {
           CLOUDFLARE_ACCOUNT_ID: 'account-id',
           CLOUDFLARE_ZONE_ID: 'zone-id',
-          CLOUDFLARE_ACCOUNT_READALL: 'readall-token',
-          CLOUDFLARE_API_TOKEN: 'deploy-token',
+          CLOUDFLARE_API_TOKEN: 'api-token',
           GITHUB_OUTPUT: githubOutputPath
         },
         fetchImpl,
@@ -653,18 +659,19 @@ describe('Cloudflare cache-rule recorded answers', () => {
         logger: {log: vi.fn(), error: vi.fn()}
       })
       expect(exitCode).toBe(0)
-      expect(fetchImpl.mock.calls.every(([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer readall-token')).toBe(true)
+      expect(fetchImpl.mock.calls.length).toBe(5)
+      expect(fetchImpl.mock.calls.every(([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer api-token')).toBe(true)
       expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\nmeasured=5\n')
     })
 
-    it('publishes no declaration when only the deploy token is present (secret unset)', async () => {
+    it('publishes no declaration when the token is absent', async () => {
       const fetchImpl = recordedFetch()
       const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
       scratchDirectories.push(scratch)
       const githubOutputPath = join(scratch, 'github-output.txt')
       const exitCode = await runCloudflareLlmsCacheRuleCli({
         arguments_: ['--evidence-out', join(scratch, 'evidence.json')],
-        environment: {CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_ZONE_ID: 'z', CLOUDFLARE_API_TOKEN: 'deploy-token', GITHUB_OUTPUT: githubOutputPath},
+        environment: {CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_ZONE_ID: 'z', GITHUB_OUTPUT: githubOutputPath},
         fetchImpl,
         now: () => new Date('2026-10-11T00:00:00.000Z'),
         logger: {log: vi.fn(), error: vi.fn()}

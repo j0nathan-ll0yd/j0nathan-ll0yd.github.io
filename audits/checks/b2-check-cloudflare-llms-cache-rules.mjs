@@ -6,7 +6,7 @@ import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/const
 import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
 import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
-import {MEASURED_DEFERRED, publishMeasured} from '../lib/measurement.mjs'
+import {publishMeasured} from '../lib/measurement.mjs'
 
 // The three canonical URLs, derived from the portal contract rather than
 // restated (atlas decision 0119 D2): the site origin plus the same paths the
@@ -43,11 +43,31 @@ export const ARTIFACTS = [{surfaceId: 'llm-outputs'}, {surfaceId: 'rss-feed'}]
 const API_BASE = 'https://api.cloudflare.com/client/v4'
 const UNKNOWN = Symbol('unknown')
 
-// The two HTTP statuses that mean CLOUDFLARE REFUSED THE READ, which is the permission
-// gap atlas decision 0120 D2 waives. Everything else -- a 5xx, a timeout, a DNS failure,
-// a malformed body -- is a transport failure of a different kind and is NOT waived. The
-// set is deliberately narrow: widening it widens the waiver.
+// The two HTTP statuses that mean CLOUDFLARE REFUSED THE READ. A refused read is
+// UNMEASURED, never waived: the finding names the missing token permission, and the run
+// publishes the real count (0 when every read is refused), which wedges the tier.
 const REFUSAL_STATUSES = new Set([401, 403])
+
+// The Cloudflare API token permission groups each read needs, named as the permissions
+// reference lists them (https://developers.cloudflare.com/fundamentals/api/reference/permissions/).
+//
+//   Zone > Cache Rules > Read        zone http_request_cache_settings and
+//                                    http_response_cache_settings entrypoints. The API-side name
+//                                    is "Cache Settings Read". Cloudflare documents "Cache Rules"
+//                                    for WRITING these phases (create-api pages) and lists the
+//                                    group as granting read access to Cache Rules; the entrypoint
+//                                    GET operation page does not list it, so it is the documented
+//                                    group, not a measured guarantee.
+//   Account > Account Rulesets > Read  account-level phase entrypoints. Listed on the phase
+//                                    entrypoint GET operation page
+//                                    (https://developers.cloudflare.com/api/resources/rulesets/subresources/phases/methods/get/).
+//                                    Both cache phases answer "not allowed at account level"
+//                                    regardless, so this permission does not change the count.
+//   Zone > Page Rules > Read         GET /zones/{zone_id}/pagerules
+//                                    (https://developers.cloudflare.com/api/resources/page_rules/methods/list/).
+export const PERMISSION_ZONE_CACHE_RULES_READ = 'Zone > Cache Rules > Read'
+export const PERMISSION_ACCOUNT_RULESETS_READ = 'Account > Account Rulesets > Read'
+export const PERMISSION_ZONE_PAGE_RULES_READ = 'Zone > Page Rules > Read'
 
 function tri(value) {
   return value === UNKNOWN ? UNKNOWN : Boolean(value)
@@ -631,12 +651,13 @@ const ENTRYPOINT_NOT_FOUND = /could not find entrypoint/i
 // marks Page Rules unsupported). Only a user-owned token can read them.
 const PAGE_RULES_ACCOUNT_TOKEN_CODE = 1011
 const PAGE_RULES_ACCOUNT_TOKEN_MESSAGE = /does not support account owned tokens/i
+const PAGE_RULES_ACCOUNT_TOKEN_REASON = 'Page Rules endpoint does not support account owned tokens; only a user-owned CLOUDFLARE_API_TOKEN can read them'
 
 function errorMessages(payload) {
   return [...(payload?.errors ?? []), ...(payload?.messages ?? [])].map((entry) => String(entry?.message ?? '')).filter(Boolean).join('; ')
 }
 
-async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
+async function apiGet(path, label, permission, token, sensitiveValues, fetchImpl) {
   const response = await fetchImpl(`${API_BASE}${path}`, {method: 'GET', headers: {Accept: 'application/json', Authorization: `Bearer ${token}`}})
   let payload = null
   try {
@@ -653,13 +674,12 @@ async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
   }
   if (!response.ok || payload?.success !== true) {
     const detail = safeApiMessage(payload, sensitiveValues)
-    // The STATUS travels with the error, not just inside its message. The measurement
-    // declaration below turns on whether a read was REFUSED (401/403 -- the permission gap
-    // atlas decision 0120 D2 waives) or failed some other way, and re-reading that back out
-    // of a redacted, truncated, prose message would be a guess.
+    // The STATUS travels with the error, not just inside its message: the census counts
+    // refusals, and re-reading that out of a redacted, truncated, prose message would be a guess.
     const accountOwnedTokenRejected = response.status === 400 &&
       ((payload?.errors ?? []).some((entry) => entry?.code === PAGE_RULES_ACCOUNT_TOKEN_CODE) || PAGE_RULES_ACCOUNT_TOKEN_MESSAGE.test(rawMessage))
-    throw Object.assign(new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`), {
+    const missingPermission = REFUSAL_STATUSES.has(response.status) ? `; unmeasured: the token needs the permission "${permission}"` : ''
+    throw Object.assign(new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}${missingPermission}`), {
       status: response.status,
       accountOwnedTokenRejected
     })
@@ -669,7 +689,8 @@ async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
 
 async function rulesetRules(scope, identifier, phase, token, sensitiveValues, fetchImpl) {
   const label = `${scope === 'accounts' ? 'account' : 'zone'} ${phase} entrypoint`
-  const response = await apiGet(`/${scope}/${identifier}/rulesets/phases/${phase}/entrypoint`, label, token, sensitiveValues, fetchImpl)
+  const permission = scope === 'accounts' ? PERMISSION_ACCOUNT_RULESETS_READ : PERMISSION_ZONE_CACHE_RULES_READ
+  const response = await apiGet(`/${scope}/${identifier}/rulesets/phases/${phase}/entrypoint`, label, permission, token, sensitiveValues, fetchImpl)
   if (response.kind !== 'held') {
     return {rules: [], notApplicable: response.kind === 'not-applicable'}
   }
@@ -685,15 +706,14 @@ async function activePageRules(zoneId, token, sensitiveValues, fetchImpl) {
   while (true) {
     let response
     try {
-      response = await apiGet(`/zones/${zoneId}/pagerules?status=active&per_page=50&page=${page}`, 'active Page Rules', token, sensitiveValues, fetchImpl)
+      response = await apiGet(`/zones/${zoneId}/pagerules?status=active&per_page=50&page=${page}`, 'active Page Rules', PERMISSION_ZONE_PAGE_RULES_READ,
+        token, sensitiveValues, fetchImpl)
     } catch (error) {
       if (error?.accountOwnedTokenRejected) {
         // UNMEASURED, with the reason an owner can act on. Not a refusal: the token is valid
-        // and the zone is reachable; Cloudflare simply serves this one endpoint to
-        // user-owned tokens only.
-        throw Object.assign(new Error(`${error.message}; supply a user-owned token as CLOUDFLARE_PAGE_RULES_TOKEN to measure Page Rules`), {
-          status: error.status
-        })
+        // and the zone is reachable; Cloudflare serves this one endpoint to user-owned
+        // tokens only.
+        throw Object.assign(new Error(`${error.message}; ${PAGE_RULES_ACCOUNT_TOKEN_REASON}`), {status: error.status})
       }
       throw error
     }
@@ -709,18 +729,14 @@ async function activePageRules(zoneId, token, sensitiveValues, fetchImpl) {
   }
 }
 
-export async function auditCloudflareLlmsCacheRules(
-  {accountId, zoneId, apiToken, pageRulesToken, fetchImpl = fetchStable, observedAt = new Date().toISOString()}
-) {
-  // Page Rules answer only a user-owned token, so that one read may carry its own.
-  const pageRulesCredential = pageRulesToken || apiToken
-  const sensitiveValues = [apiToken, pageRulesToken, accountId, zoneId]
+export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken, fetchImpl = fetchStable, observedAt = new Date().toISOString()}) {
+  const sensitiveValues = [apiToken, accountId, zoneId]
   const requests = [
     ['accountRequestRules', () => rulesetRules('accounts', accountId, 'http_request_cache_settings', apiToken, sensitiveValues, fetchImpl)],
     ['zoneRequestRules', () => rulesetRules('zones', zoneId, 'http_request_cache_settings', apiToken, sensitiveValues, fetchImpl)],
     ['accountResponseRules', () => rulesetRules('accounts', accountId, 'http_response_cache_settings', apiToken, sensitiveValues, fetchImpl)],
     ['zoneResponseRules', () => rulesetRules('zones', zoneId, 'http_response_cache_settings', apiToken, sensitiveValues, fetchImpl)],
-    ['pageRules', () => activePageRules(zoneId, pageRulesCredential, sensitiveValues, fetchImpl)]
+    ['pageRules', () => activePageRules(zoneId, apiToken, sensitiveValues, fetchImpl)]
   ]
   const settled = await Promise.allSettled(requests.map(([, request]) => request()))
   const inventory = {gaps: []}
@@ -769,46 +785,30 @@ export async function auditCloudflareLlmsCacheRules(
 
 /**
  * The step's own `measured` declaration, or `null` when the run never got far enough to
- * make one (atlas decision 0142 step 5.4).
+ * make one.
  *
- * WHY THE STEP DECLARES THIS AND THE WORKFLOW DOES NOT. `.github/workflows/audit-web.yml`
- * used to hard-code the literal `deferred` in this step's `MEASURED_STEPS` record. A
- * constant is not a reading: the step's real state was never consulted, so a run that
- * crashed before reaching Cloudflare published exactly the same `deferred` as the recorded
- * 403s and inherited the atlas 0120 D2 waiver. The four answers are now distinct:
+ * It is the REAL count, never a waiver:
  *
- *   `held` > 0            the count. n rule collections were held and judged; the channel
- *                         has landed and the waiver is never consulted. "Not allowed at
- *                         account level" answers are in the count but cannot be the only
- *                         ones: at least one real collection must have been held.
- *   every other read REFUSED  `deferred`. This is precisely the state 0120 D2 waives -- the
- *                         read permissions are an open owner action -- and the workflow
- *                         record supplies the reason and the `until=` deadline for it.
- *   reached nothing else  `0`. Not the recorded permission gap, so not waived: the ping
- *                         script wedges the tier on a literal zero.
+ *   held > 0 (net of not-applicable)  the count. n rule collections were held and judged.
+ *                         "Not allowed at account level" answers are in the count but cannot
+ *                         be the only ones: at least one real collection must have been held,
+ *                         or two such answers would hide a refused zone token.
+ *   otherwise             `0`. Every read was refused (HTTP 401 or 403), or failed some other
+ *                         way. The ping script wedges the tier on a literal zero, which is the
+ *                         honest "unmeasured" signal until the token can read. Each refused
+ *                         read's finding names the permission it lacks.
  *   never classified      `null`, so the step publishes NOTHING. An empty field with a
  *                         non-benign outcome is `crashed-before-measuring` in
- *                         audits/healthchecks-ping.sh, which is the correct reading of a
- *                         usage error, an absent credential, or a runner that died.
- *
- * A partial read (`held` between 1 and 4) reports its count rather than deferring: the
- * transport demonstrably worked, and the collections it could not hold are already
- * `unknown` findings that the managed-issue reconciler raises on their own.
+ *                         audits/healthchecks-ping.sh, the correct reading of a usage error,
+ *                         an absent credential, or a runner that died.
  */
 export function measurementDeclaration(evidence) {
   const measurement = evidence?.measurement
   if (!measurement || !Number.isInteger(measurement.held) || !Number.isInteger(measurement.sources)) {
     return null
   }
-  // A phase that cannot exist at the account level (HTTP 400 "not allowed at account level")
-  // is an answer and counts in `held`, but it holds no rule collection. If it were allowed to
-  // stand alone, two such answers would hide a refused zone token behind a non-zero count.
   const notApplicable = Number.isInteger(measurement.notApplicable) ? measurement.notApplicable : 0
-  if (measurement.held - notApplicable > 0) {
-    return measurement.held
-  }
-  const reachable = measurement.sources - notApplicable
-  return reachable > 0 && measurement.refused === reachable ? MEASURED_DEFERRED : 0
+  return measurement.held - notApplicable > 0 ? measurement.held : 0
 }
 
 function requiredEnvironment(environment, name) {
@@ -858,8 +858,7 @@ export async function runCloudflareLlmsCacheRuleCli(
     evidence = await auditCloudflareLlmsCacheRules({
       accountId: requiredEnvironment(environment, 'CLOUDFLARE_ACCOUNT_ID'),
       zoneId: requiredEnvironment(environment, 'CLOUDFLARE_ZONE_ID'),
-      apiToken: requiredEnvironment(environment, 'CLOUDFLARE_ACCOUNT_READALL'),
-      pageRulesToken: environment.CLOUDFLARE_PAGE_RULES_TOKEN,
+      apiToken: requiredEnvironment(environment, 'CLOUDFLARE_API_TOKEN'),
       fetchImpl,
       observedAt
     })
