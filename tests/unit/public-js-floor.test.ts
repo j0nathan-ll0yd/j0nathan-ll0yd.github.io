@@ -48,4 +48,31 @@ describe('public/js syntax floor (ES2017)', () => {
     const found = await messages('public/js/probe.js', 'process.exit(1);\n')
     expect(found.map((m) => m.ruleId)).toContain('no-undef')
   })
+
+  it('applies the floor to .mjs and .cjs files too', async () => {
+    for (const file of ['public/js/probe.mjs', 'public/js/probe.cjs']) {
+      const found = await messages(file, 'var a = window.x?.y;\n')
+      expect(found.some((m) => m.fatal === true)).toBe(true)
+    }
+  })
+
+  it('parses .mjs as a module and .js as a script', async () => {
+    expect(await messages('public/js/probe.mjs', 'import x from "y";\nwindow.x = x;\n')).toEqual([])
+  })
+
+  it('flags unused variables and functions but tolerates unused catch bindings', async () => {
+    const unused = await messages('public/js/probe.js', 'var a = 1;\nfunction f() {}\n')
+    expect(unused.map((m) => m.ruleId)).toEqual(['no-unused-vars', 'no-unused-vars'])
+    expect(await messages('public/js/probe.js', 'try { window.x() } catch (e) {}\n')).toEqual([])
+  })
+
+  it('flags empty blocks except an empty catch', async () => {
+    const found = await messages('public/js/probe.js', 'if (window.x) {}\n')
+    expect(found.map((m) => m.ruleId)).toEqual(['no-empty'])
+  })
+
+  it('flags a redeclared var', async () => {
+    const found = await messages('public/js/probe.js', 'var a = 1;\nvar a = 2;\nwindow.a = a;\n')
+    expect(found.map((m) => m.ruleId)).toContain('no-redeclare')
+  })
 })
