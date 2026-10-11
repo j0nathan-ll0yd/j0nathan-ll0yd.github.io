@@ -287,7 +287,13 @@ describe('Cloudflare cache-rule API audit', () => {
     const githubOutputPath = join(scratch, 'github-output.txt')
     const result = status === 'passed'
       ? []
-      : [{id: 'conflict', enabled: true, action: 'set_cache_settings', expression: 'true', action_parameters: {edge_ttl: {mode: 'override_origin'}}}]
+      : [{
+        id: 'conflict',
+        enabled: true,
+        action: 'set_cache_settings',
+        expression: 'true',
+        action_parameters: {cache: true, edge_ttl: {mode: 'override_origin'}}
+      }]
     const fetchImpl = vi.fn(async (url: string) => {
       if (url.includes('/pagerules?')) {
         return new Response(JSON.stringify({success: true, result: [], result_info: {total_pages: 1}}))
@@ -356,8 +362,13 @@ describe('Cloudflare cache-rule measurement declaration', () => {
       observedAt: '2026-10-11T00:00:00.000Z'
     })
     const byId = Object.fromEntries(evidence.results.map(({id, evidence: text}: {id: string; evidence: string}) => [id, text]))
-    expect(byId['cloudflare-zoneRequestRules-unavailable']).toContain('"Zone > Cache Rules > Read"')
-    expect(byId['cloudflare-zoneResponseRules-unavailable']).toContain('"Zone > Cache Rules > Read"')
+    // No Cloudflare doc names the read group for the zone entrypoint GET, so BOTH groups of the
+    // documented write set are named, and the finding says the docs do not confirm it.
+    for (const id of ['cloudflare-zoneRequestRules-unavailable', 'cloudflare-zoneResponseRules-unavailable']) {
+      expect(byId[id]).toContain('"Zone > Cache Rules > Read" and "Account > Account Rulesets > Read"')
+      expect(byId[id]).toContain('docs do not confirm')
+      expect(byId[id]).not.toContain('Cache Settings Read')
+    }
     expect(byId['cloudflare-accountRequestRules-unavailable']).toContain('"Account > Account Rulesets > Read"')
     expect(byId['cloudflare-accountResponseRules-unavailable']).toContain('"Account > Account Rulesets > Read"')
     expect(byId['cloudflare-pageRules-unavailable']).toContain('"Zone > Page Rules > Read"')
@@ -509,7 +520,8 @@ describe('Cloudflare cache-rule recorded answers', () => {
       const evidence = await audit(recordedFetch({pageRules: pageRulesEmpty200}))
       expect(evidence.measurement).toEqual({sources: 5, held: 5, refused: 0, notApplicable: 2})
       expect(evidence.status).toBe('passed')
-      expect(measurementDeclaration(evidence)).toBe(5)
+      // Five reads answered, two of them "not allowed at account level": they hold no artifact.
+      expect(measurementDeclaration(evidence)).toBe(3)
     })
 
     it('treats "could not find entrypoint ruleset" (HTTP 404) as measured and empty', async () => {
@@ -541,7 +553,7 @@ describe('Cloudflare cache-rule recorded answers', () => {
       expect(gap.evidence).toContain('only a user-owned CLOUDFLARE_API_TOKEN can read them')
       // Not a refusal and not held: the other four reads were held, two of them not applicable.
       expect(evidence.measurement).toEqual({sources: 5, held: 4, refused: 0, notApplicable: 2})
-      expect(measurementDeclaration(evidence)).toBe(4)
+      expect(measurementDeclaration(evidence)).toBe(2)
     })
 
     it('matches Page Rules on code 1011 even when the message wording changes', async () => {
@@ -553,7 +565,7 @@ describe('Cloudflare cache-rule recorded answers', () => {
     it('measures Page Rules when the token is permitted to read them (user-owned token)', async () => {
       const evidence = await audit(recordedFetch({pageRules: pageRulesEmpty200}))
       expect(evidence.status).toBe('passed')
-      expect(measurementDeclaration(evidence)).toBe(5)
+      expect(measurementDeclaration(evidence)).toBe(3)
     })
 
     it('keeps HTTP 403 unmeasured with count 0, with the redacted Cloudflare message and the permission', async () => {
@@ -661,7 +673,7 @@ describe('Cloudflare cache-rule recorded answers', () => {
       expect(exitCode).toBe(0)
       expect(fetchImpl.mock.calls.length).toBe(5)
       expect(fetchImpl.mock.calls.every(([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer api-token')).toBe(true)
-      expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\nmeasured=5\n')
+      expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\nmeasured=3\n')
     })
 
     it('publishes no declaration when the token is absent', async () => {
@@ -679,6 +691,198 @@ describe('Cloudflare cache-rule recorded answers', () => {
       expect(exitCode).toBe(1)
       expect(fetchImpl).not.toHaveBeenCalled()
       expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\n')
+    })
+  })
+})
+
+// EXPRESSION EVALUATOR: A DEFINITE ANSWER ONLY WHEN IT IS SURE. A wrong definite answer is the
+// failure mode (a bypass rule hiding a caching finding), so every construct the evaluator cannot
+// decide for EVERY request to the gated path is UNKNOWN.
+describe('Cloudflare cache-rule expression evaluator certainty', () => {
+  const LLMS = CLOUDFLARE_LLMS_TARGETS[0]
+  const apply = (expression: string) => expressionApplicability(expression, LLMS)
+  const rule = (id: string, expression: string, parameters: Record<string, unknown>, action = 'set_cache_settings') => ({
+    id,
+    enabled: true,
+    action,
+    expression,
+    action_parameters: parameters
+  })
+  const CATCH_ALL = rule('catch-all', 'true', {cache: true, edge_ttl: {mode: 'override_origin', default: 14400}})
+  const bypassOn = (expression: string) => rule('bypass', expression, {cache: false})
+  const status = (rules: unknown[]) => evaluateCloudflareLlmsCacheRules({zoneRequestRules: rules}).status
+
+  describe('wildcard operators (H1, H2)', () => {
+    it('keeps `wildcard` case-insensitive and makes `strict wildcard` case-sensitive', () => {
+      expect(apply('http.request.uri.path wildcard "/LLMS*"')).toBe('matches')
+      expect(apply('http.request.uri.path strict wildcard "/LLMS*"')).toBe('disjoint')
+      expect(apply('http.request.uri.path strict wildcard "/llms*"')).toBe('matches')
+    })
+
+    it('does not let a case-mismatched strict wildcard bypass hide a catch-all caching finding', () => {
+      const upperCaseBypass = ['/LLMS*', '/INDEX*', '/FEED*'].map((pattern) => `http.request.uri.path strict wildcard "${pattern}"`).join(' or ')
+      expect(status([CATCH_ALL, bypassOn(upperCaseBypass)])).toBe('failed')
+    })
+
+    it('reads `\\*` as a literal star and `\\\\` as a literal backslash', () => {
+      expect(apply('http.request.uri.path wildcard "/llms.tx\\\\*"')).toBe('disjoint')
+      expect(apply('http.request.uri.path wildcard r"/llms.tx\\*"')).toBe('disjoint')
+      expect(apply('http.request.uri.path wildcard r"/llms.tx\\\\*"')).toBe('disjoint')
+    })
+
+    it.each(['r"/llms\\.txt"', 'r"/llms\\q*"', 'r"/llms**"', 'r"/llms\\"'])('returns UNKNOWN for the wildcard %s', (pattern) => {
+      expect(apply(`http.request.uri.path wildcard ${pattern}`)).toBe('unknown')
+    })
+  })
+
+  describe('string literals (H3)', () => {
+    it('takes a raw string verbatim: no escape sequences', () => {
+      // The regex `^/llms\\.txt$` is a literal backslash then any character, so it misses `/llms.txt`.
+      expect(apply('http.request.uri.path matches r"^/llms\\\\.txt$"')).toBe('disjoint')
+      expect(apply('http.request.uri.path matches r"^/llms\\.txt$"')).toBe('matches')
+    })
+
+    it('supports r#"..."# raw strings, which may hold a double quote', () => {
+      expect(apply('http.request.uri.path matches r#"^/llms\.txt$"#')).toBe('matches')
+      expect(apply('http.request.uri.path ne r#"a"b"#')).toBe('matches')
+    })
+
+    it('allows only \\" and \\\\ escapes in a quoted string', () => {
+      expect(apply('http.request.uri.path eq "\\n"')).toBe('unknown')
+      expect(apply('http.request.uri.path eq "/llms\\u002etxt"')).toBe('unknown')
+      expect(apply('http.request.uri.path ne "a\\"b"')).toBe('matches')
+    })
+  })
+
+  describe('matches uses a Rust-compatible regex subset (H4)', () => {
+    it.each(['^/llms\\.txt\\z', '\\A/llms\\.txt', '(?i)^/LLMS', '(?x)^/llms', '^/\\d+', '^/\\w+', '\\bllms', '(?P<n>llms)', '[[:alpha:]]+', '^/llms{'])(
+      'returns UNKNOWN for the pattern %s',
+      (pattern) => {
+        expect(apply(`http.request.uri.path matches r"${pattern}"`)).toBe('unknown')
+      }
+    )
+
+    it('decides a pattern built only from the shared subset', () => {
+      expect(apply('http.request.uri.path matches r"^/llms\.(txt|md)$"')).toBe('matches')
+      expect(apply('http.request.uri.path matches r"^/[a-z]{4}\.txt$"')).toBe('matches')
+      expect(apply('http.request.uri.path matches r"^/feed\.xml$"')).toBe('disjoint')
+    })
+  })
+
+  describe('fields that vary between requests are UNKNOWN (H6, M2)', () => {
+    it.each([
+      'http.request.uri eq "/llms.txt"',
+      'http.request.uri.query eq ""',
+      'http.request.full_uri eq "https://jonathanlloyd.me/llms.txt"',
+      'ssl',
+      'http.request.method eq "GET"',
+      'http.response.code eq 200'
+    ])('returns UNKNOWN for %s', (expression) => {
+      expect(apply(expression)).toBe('unknown')
+    })
+
+    it('still decides the path, host and extension, which are the same for every request', () => {
+      expect(apply('http.request.uri.path eq "/llms.txt"')).toBe('matches')
+      expect(apply('http.host eq "jonathanlloyd.me"')).toBe('matches')
+      expect(apply('http.request.uri.path.extension eq "txt"')).toBe('matches')
+    })
+
+    it('does not let a bypass on http.request.uri hide a catch-all: /llms.txt?x=1 is cached', () => {
+      expect(status([CATCH_ALL, bypassOn('http.request.uri in {"/llms.txt" "/llms-full.txt" "/index.md" "/feed.xml" "/feed.json"}')])).not.toBe('passed')
+    })
+
+    it('does not pass an Edge TTL rule written on http.request.uri.query', () => {
+      expect(status([rule('query-ttl', 'http.request.uri.query ne ""', {cache: true, edge_ttl: {mode: 'override_origin', default: 60}})])).not.toBe('passed')
+    })
+  })
+
+  describe('operators outside the modelled forms are UNKNOWN (L2)', () => {
+    it('rejects a comma-separated set', () => {
+      expect(apply('http.request.uri.path in {"/a", "/llms.txt"}')).toBe('unknown')
+      expect(apply('http.request.uri.path in {"/a" "/llms.txt"}')).toBe('matches')
+    })
+
+    it('does not order strings', () => {
+      expect(apply('http.request.uri.path gt "/a"')).toBe('unknown')
+      expect(apply('http.request.uri.path lt "/z"')).toBe('unknown')
+    })
+
+    it('does not coerce non-string function arguments', () => {
+      expect(apply('starts_with(http.request.uri.path, 5)')).toBe('unknown')
+      expect(apply('ends_with(5, "x")')).toBe('unknown')
+    })
+
+    it('does not compare a string with a number', () => {
+      expect(apply('http.request.uri.path eq 5')).toBe('unknown')
+    })
+  })
+
+  describe('actions the evaluator does not expand (M1)', () => {
+    it('reports an execute rule that definitely matches as UNKNOWN, not failed', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [rule('exec', 'true', {id: 'other'}, 'execute')]})
+      expect(evaluation.status).toBe('unknown')
+      expect(evaluation.results.every(({status: s}) => s === 'unknown')).toBe(true)
+    })
+
+    it('reports a skip action (or any future action) as UNKNOWN instead of ignoring it', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [CATCH_ALL, rule('skip', 'true', {ruleset: 'current'}, 'skip')]})
+      expect(evaluation.status).toBe('failed')
+      expect(evaluation.results.some(({id, status: s}) => id === 'zone-cache-rule-skip' && s === 'unknown')).toBe(true)
+      expect(evaluateCloudflareLlmsCacheRules({zoneRequestRules: [rule('skip', 'true', {}, 'skip')]}).status).toBe('unknown')
+    })
+
+    it('reports an unmodelled response-phase action as UNKNOWN', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneResponseRules: [rule('future', 'true', {}, 'future_action')]})
+      expect(evaluation.status).toBe('unknown')
+    })
+  })
+
+  describe('Edge TTL needs a definite cache-eligibility rule (L1)', () => {
+    // https://developers.cloudflare.com/cache/how-to/cache-rules/settings/ lists Edge TTL under
+    // "Eligible for cache settings"; it does not say an Edge TTL alone makes a response eligible.
+    it('reports an Edge TTL override with no `cache: true` as UNKNOWN', () => {
+      expect(status([rule('ttl-only', 'true', {edge_ttl: {mode: 'override_origin', default: 60}})])).toBe('unknown')
+    })
+
+    it('reports the same override with `cache: true` as failed', () => {
+      expect(status([rule('ttl', 'true', {cache: true, edge_ttl: {mode: 'override_origin', default: 60}})])).toBe('failed')
+    })
+  })
+
+  describe('Page Rule URL patterns (H5)', () => {
+    const pageRule = (pattern: string, actions: unknown[] = [{id: 'edge_cache_ttl', value: 3600}]) => ({
+      id: 'pr',
+      status: 'active',
+      targets: [{target: 'url', constraint: {operator: 'matches', value: pattern}}],
+      actions
+    })
+    const judge = (pattern: string) => evaluateCloudflareLlmsCacheRules({pageRules: [pageRule(pattern)]}).status
+
+    it('matches a scheme-less pattern against the URL without its scheme', () => {
+      expect(judge('jonathanlloyd.me/*')).toBe('failed')
+      expect(judge('jonathanlloyd.me/llms.txt')).toBe('failed')
+    })
+
+    it('matches an https pattern against the full URL', () => {
+      expect(judge('https://jonathanlloyd.me/*')).toBe('failed')
+    })
+
+    it('is UNKNOWN when only a scheme swap, a case change or a query suffix could match', () => {
+      expect(judge('http://jonathanlloyd.me/*')).toBe('unknown')
+      expect(judge('JonathanLloyd.me/*')).toBe('unknown')
+      expect(judge('jonathanlloyd.me/llms.txt*')).toBe('failed')
+    })
+
+    it('is disjoint for another host', () => {
+      expect(judge('example.com/*')).toBe('passed')
+    })
+  })
+
+  describe('measured excludes not-applicable answers (M4)', () => {
+    it('publishes held minus not-applicable and keeps the not-applicable count in the evidence', async () => {
+      const evidence = {measurement: {sources: 5, held: 4, refused: 0, notApplicable: 2}}
+      expect(measurementDeclaration(evidence)).toBe(2)
+      expect(measurementDeclaration({measurement: {sources: 5, held: 2, refused: 3, notApplicable: 2}})).toBe(0)
     })
   })
 })
