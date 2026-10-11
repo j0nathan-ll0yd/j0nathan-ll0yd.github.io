@@ -118,12 +118,17 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).not.toContain('llms-assurance-b2-spoke-evidence')
   })
 
-  it('wires a fail-closed read-only Cloudflare rule audit with existing secret names', () => {
+  it('wires a fail-closed read-only Cloudflare rule audit with a dedicated read-only secret', () => {
     const auditStep =
       executable.match(/      - name: B2 -- Cloudflare llms cache rules \(read-only\)\n[\s\S]*?(?=\n      - name: Upload Cloudflare)/)?.[0] ?? ''
     expect(auditStep).toContain('id: llms_cache_rules')
     expect(auditStep).toContain('continue-on-error: true')
-    expect(auditStep).toContain('CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}')
+    // The dedicated read-all secret, and NEVER the deploy token (deploy.yml and
+    // preview-deploy.yml publish with secrets.CLOUDFLARE_API_TOKEN, which got HTTP 403 on every
+    // rule read: run 38076794320).
+    expect(auditStep).toContain('CLOUDFLARE_ACCOUNT_READALL: ${{ secrets.CLOUDFLARE_ACCOUNT_READALL }}')
+    expect(auditStep).toContain('CLOUDFLARE_PAGE_RULES_TOKEN: ${{ secrets.CLOUDFLARE_PAGE_RULES_TOKEN }}')
+    expect(auditStep).not.toContain('CLOUDFLARE_API_TOKEN')
     expect(auditStep).toContain('CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}')
     expect(auditStep).toContain('CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}')
     expect(auditStep).toContain('node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs')

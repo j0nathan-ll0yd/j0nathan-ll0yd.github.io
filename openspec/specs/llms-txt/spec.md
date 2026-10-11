@@ -230,8 +230,15 @@ CDN no-store headers. There is no origin fetch cache: every artifact fetch is `n
 
 Verified by `tests/unit/cloudfront-proxy.test.ts:145` (proxy response policy: three-layer no-store
 headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
-`audits/__tests__/cloudflare-llms-cache-rules.test.ts:39` (external rule audit: applicability,
+`audits/__tests__/cloudflare-llms-cache-rules.test.ts:48` (external rule audit: applicability,
 GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
+The audit reads the zone rules with a dedicated read-all token (`CLOUDFLARE_ACCOUNT_READALL`,
+never the deploy token) and judges the five gated URLs with last-match-wins per cache setting,
+so a later bypass rule overrides an earlier catch-all caching rule. An expression it cannot
+evaluate is unknown, never a match or a miss. An account-level phase Cloudflare refuses
+("not allowed at account level") is not applicable, a missing zone entrypoint is measured and
+empty, and Page Rules stay unmeasured under an account-owned token unless a user-owned
+`CLOUDFLARE_PAGE_RULES_TOKEN` is supplied.
 
 Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
 `CDN-Cache-Control` and `Cache-Control`, and treats `no-store` as BYPASS. An account-level Edge

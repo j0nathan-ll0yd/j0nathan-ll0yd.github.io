@@ -342,43 +342,114 @@ export function expressionApplicability(expression, url) {
   }
 }
 
-function requestRuleRisks(rule) {
-  if (rule.action === 'execute') {
-    return ['executes another cache ruleset that this response did not expand']
-  }
-  if (rule.action !== 'set_cache_settings') {
-    return []
-  }
-  const parameters = rule.action_parameters ?? {}
+// Cache Rule settings, each judged on its own because the last matching rule wins PER
+// SETTING. Cloudflare: "If several matching rules set a value for the same setting, the
+// value in the last matching rule wins"
+// (https://developers.cloudflare.com/cache/how-to/cache-rules/order/); cache settings are
+// non-terminating, so "the last change made by rules in the same phase will win"
+// (https://developers.cloudflare.com/ruleset-engine/about/rules/). Rules at the account
+// level run before the zone's rules for the same phase
+// (https://developers.cloudflare.com/ruleset-engine/about/phases/).
+const REQUEST_SETTINGS = Object.freeze(['cache', 'edge_ttl', 'browser_ttl', 'cache_key'])
+
+function requestSettingRisks(setting, parameters) {
   const risks = []
-  if (parameters.edge_ttl?.mode === 'override_origin') {
-    // The mode and the TTL are the two numbers an owner needs to size the replay window, so
-    // the evidence carries both rather than a bare verdict.
-    const ttl = parameters.edge_ttl.default === undefined ? 'unset' : `${parameters.edge_ttl.default}s`
-    risks.push(`Edge Cache TTL ignores origin cache-control (mode=override_origin, ttl=${ttl})`)
-  }
-  const successStatusTtl = parameters.edge_ttl?.status_code_ttl?.find((setting) => {
-    if (Number(setting.value) <= 0) {
-      return false
+  if (setting === 'edge_ttl') {
+    if (parameters.edge_ttl?.mode === 'override_origin') {
+      // The mode and the TTL are the two numbers an owner needs to size the replay window, so
+      // the evidence carries both rather than a bare verdict.
+      const ttl = parameters.edge_ttl.default === undefined ? 'unset' : `${parameters.edge_ttl.default}s`
+      risks.push(`Edge Cache TTL ignores origin cache-control (mode=override_origin, ttl=${ttl})`)
     }
-    if (Number.isInteger(setting.status_code)) {
-      return setting.status_code === 200
+    const successStatusTtl = parameters.edge_ttl?.status_code_ttl?.find((entry) => {
+      if (Number(entry.value) <= 0) {
+        return false
+      }
+      if (Number.isInteger(entry.status_code)) {
+        return entry.status_code === 200
+      }
+      const from = Number(entry.status_code_range?.from ?? 100)
+      const to = Number(entry.status_code_range?.to ?? 599)
+      return from <= 200 && to >= 200
+    })
+    if (successStatusTtl) {
+      risks.push(`Edge Cache TTL status override caches HTTP 200 for ${successStatusTtl.value} seconds`)
     }
-    const from = Number(setting.status_code_range?.from ?? 100)
-    const to = Number(setting.status_code_range?.to ?? 599)
-    return from <= 200 && to >= 200
-  })
-  if (successStatusTtl) {
-    risks.push(`Edge Cache TTL status override caches HTTP 200 for ${successStatusTtl.value} seconds`)
-  }
-  if (parameters.browser_ttl?.mode === 'override_origin' && Number(parameters.browser_ttl.default) > 0) {
-    risks.push('Browser Cache TTL overrides origin cache-control')
-  }
-  const customKey = parameters.cache_key?.custom_key
-  if (customKey?.header || customKey?.cookie || customKey?.user || parameters.cache_key?.cache_by_device_type) {
-    risks.push('custom cache key prevents a complete bare-URL purge')
+  } else if (setting === 'browser_ttl') {
+    if (parameters.browser_ttl?.mode === 'override_origin' && Number(parameters.browser_ttl.default) > 0) {
+      risks.push('Browser Cache TTL overrides origin cache-control')
+    }
+  } else if (setting === 'cache_key') {
+    const customKey = parameters.cache_key?.custom_key
+    if (customKey?.header || customKey?.cookie || customKey?.user || parameters.cache_key?.cache_by_device_type) {
+      risks.push('custom cache key prevents a complete bare-URL purge')
+    }
   }
   return risks
+}
+
+// Whether the request is bypassed from the cache. `yes`: every possible outcome is
+// `cache: false`. `no`: none is. `maybe`: a rule whose expression this evaluator cannot
+// decide could flip it.
+function bypassState(chain) {
+  if (chain.length === 0 || !chain.some((candidate) => candidate.parameters.cache === false)) {
+    return 'no'
+  }
+  return chain[0].definite && chain.every((candidate) => candidate.parameters.cache === false) ? 'yes' : 'maybe'
+}
+
+// Judge the request-phase rules (account rules first, then zone rules, each in ruleset
+// order) for one URL with last-match-wins per setting. A chain holds the candidates that
+// could still be the effective rule for a setting: a rule that definitely matches resets
+// the chain, a rule this evaluator cannot decide is appended to it.
+function requestRuleFindings(orderedRules, target) {
+  const findings = []
+  const chains = Object.fromEntries(REQUEST_SETTINGS.map((setting) => [setting, []]))
+  for (const [source, rule] of orderedRules) {
+    if (rule.enabled === false) {
+      continue
+    }
+    const applicability = expressionApplicability(rule.expression, target)
+    if (applicability === 'disjoint') {
+      continue
+    }
+    if (rule.action === 'execute') {
+      findings.push(findingFor(source, rule, target, applicability, 'executes another cache ruleset that this response did not expand'))
+      continue
+    }
+    if (rule.action !== 'set_cache_settings') {
+      continue
+    }
+    const parameters = rule.action_parameters ?? {}
+    for (const setting of REQUEST_SETTINGS) {
+      if (parameters[setting] === undefined) {
+        continue
+      }
+      const definite = applicability === 'matches'
+      if (definite) {
+        chains[setting].length = 0
+      }
+      chains[setting].push({source, rule, definite, parameters})
+    }
+  }
+  const bypass = bypassState(chains.cache)
+  for (const setting of REQUEST_SETTINGS.filter((name) => name !== 'cache')) {
+    const chain = chains[setting]
+    // A bypassed response is never stored, so its Edge TTL and cache key cannot replay it.
+    // Browser TTL is a different header on a different cache, so bypass does not excuse it.
+    if (bypass === 'yes' && setting !== 'browser_ttl') {
+      continue
+    }
+    const everyOutcomeRisky = chain.length > 0 && chain[0].definite &&
+      chain.every((candidate) => requestSettingRisks(setting, candidate.parameters).length > 0)
+    for (const candidate of chain) {
+      for (const risk of requestSettingRisks(setting, candidate.parameters)) {
+        const decided = everyOutcomeRisky && bypass === 'no'
+        findings.push(findingFor(candidate.source, candidate.rule, target, candidate.definite ? 'matches' : 'unknown', risk, decided ? 'failed' : 'unknown'))
+      }
+    }
+  }
+  return findings
 }
 
 function responseRuleRisks(rule) {
@@ -438,12 +509,12 @@ function pageRuleApplicability(rule, url) {
   }
 }
 
-function findingFor(source, rule, target, applicability, risk) {
+function findingFor(source, rule, target, applicability, risk, status = applicability === 'matches' ? 'failed' : 'unknown') {
   const identifier = rule.id ?? rule.ref ?? 'unidentified-rule'
   const description = rule.description ? ` (${rule.description})` : ''
   return {
     id: `${source}-${identifier}`,
-    status: applicability === 'matches' ? 'failed' : 'unknown',
+    status,
     target,
     evidence: `${source} rule ${identifier}${description}: ${risk}; applicability=${applicability}; expression=${JSON.stringify(rule.expression ?? null)}`
   }
@@ -451,18 +522,26 @@ function findingFor(source, rule, target, applicability, risk) {
 
 export function evaluateCloudflareLlmsCacheRules(inventory) {
   const results = []
-  const ruleSources = [
-    ['account-cache-rule', inventory.accountRequestRules ?? [], requestRuleRisks],
-    ['zone-cache-rule', inventory.zoneRequestRules ?? [], requestRuleRisks],
-    ['account-cache-response-rule', inventory.accountResponseRules ?? [], responseRuleRisks],
-    ['zone-cache-response-rule', inventory.zoneResponseRules ?? [], responseRuleRisks]
+  const orderedRequestRules = [
+    ...(inventory.accountRequestRules ?? []).map((rule) => ['account-cache-rule', rule]),
+    ...(inventory.zoneRequestRules ?? []).map((rule) => ['zone-cache-rule', rule])
   ]
-  for (const [source, rules, risksFor] of ruleSources) {
+  for (const target of CLOUDFLARE_GATED_TARGETS) {
+    results.push(...requestRuleFindings(orderedRequestRules, target))
+  }
+  // Response rules are judged rule by rule, conservatively: any applicable risky rule is
+  // reported. Modelling set/remove sequencing per directive is not needed while the zone
+  // has no http_response_cache_settings entrypoint (HTTP 404, measured 2026-10-11).
+  const responseSources = [
+    ['account-cache-response-rule', inventory.accountResponseRules ?? []],
+    ['zone-cache-response-rule', inventory.zoneResponseRules ?? []]
+  ]
+  for (const [source, rules] of responseSources) {
     for (const rule of rules) {
       if (rule.enabled === false) {
         continue
       }
-      const risks = risksFor(rule)
+      const risks = responseRuleRisks(rule)
       if (risks.length === 0) {
         continue
       }
@@ -529,6 +608,34 @@ function safeApiMessage(payload, sensitiveValues) {
   return redactSensitive(messages, sensitiveValues)
 }
 
+// How Cloudflare answers the reads that are NOT a rule collection and NOT a refusal. Each
+// is matched on HTTP status AND message, because the documented evidence is the message:
+//
+//   not-applicable  HTTP 400 `phase "<phase>" not allowed at account level`. Measured
+//                   2026-10-11 for http_request_cache_settings and
+//                   http_response_cache_settings on the account. The entrypoint cannot
+//                   exist, so there is nothing to hold and nothing to be blind to.
+//   empty           HTTP 404 `could not find entrypoint ruleset`. The zone has no rule in
+//                   that phase. The Rulesets API documents the 404 for a missing entrypoint
+//                   (https://developers.cloudflare.com/ruleset-engine/rulesets-api/view/),
+//                   an authoritative "nothing there".
+//
+// Cloudflare documents no error code for either, so no code is matched; matching an
+// invented one would be a guess. Any other 400 or 404 is an error, never an empty set.
+const NOT_ALLOWED_AT_ACCOUNT_LEVEL = /not allowed at account level/i
+const ENTRYPOINT_NOT_FOUND = /could not find entrypoint/i
+
+// Page Rules reject account-owned tokens: HTTP 400, code 1011, "Page Rules endpoint does not
+// support account owned tokens" (cloudflare/cloudflare-docs issue 23256; the compatibility
+// matrix at https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/
+// marks Page Rules unsupported). Only a user-owned token can read them.
+const PAGE_RULES_ACCOUNT_TOKEN_CODE = 1011
+const PAGE_RULES_ACCOUNT_TOKEN_MESSAGE = /does not support account owned tokens/i
+
+function errorMessages(payload) {
+  return [...(payload?.errors ?? []), ...(payload?.messages ?? [])].map((entry) => String(entry?.message ?? '')).filter(Boolean).join('; ')
+}
+
 async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
   const response = await fetchImpl(`${API_BASE}${path}`, {method: 'GET', headers: {Accept: 'application/json', Authorization: `Bearer ${token}`}})
   let payload = null
@@ -537,8 +644,12 @@ async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
   } catch {
     // A status-only error is sufficient and avoids logging an untrusted body.
   }
-  if (response.status === 404) {
-    return {missing: true, result: null, resultInfo: null}
+  const rawMessage = errorMessages(payload)
+  if (response.status === 404 && ENTRYPOINT_NOT_FOUND.test(rawMessage)) {
+    return {kind: 'empty', result: null, resultInfo: null}
+  }
+  if (response.status === 400 && NOT_ALLOWED_AT_ACCOUNT_LEVEL.test(rawMessage)) {
+    return {kind: 'not-applicable', result: null, resultInfo: null}
   }
   if (!response.ok || payload?.success !== true) {
     const detail = safeApiMessage(payload, sensitiveValues)
@@ -546,54 +657,76 @@ async function apiGet(path, label, token, sensitiveValues, fetchImpl) {
     // declaration below turns on whether a read was REFUSED (401/403 -- the permission gap
     // atlas decision 0120 D2 waives) or failed some other way, and re-reading that back out
     // of a redacted, truncated, prose message would be a guess.
-    throw Object.assign(new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`), {status: response.status})
+    const accountOwnedTokenRejected = response.status === 400 &&
+      ((payload?.errors ?? []).some((entry) => entry?.code === PAGE_RULES_ACCOUNT_TOKEN_CODE) || PAGE_RULES_ACCOUNT_TOKEN_MESSAGE.test(rawMessage))
+    throw Object.assign(new Error(`${label} failed with HTTP ${response.status}${detail ? `: ${detail}` : ''}`), {
+      status: response.status,
+      accountOwnedTokenRejected
+    })
   }
-  return {missing: false, result: payload.result, resultInfo: payload.result_info ?? null}
+  return {kind: 'held', result: payload.result, resultInfo: payload.result_info ?? null}
 }
 
 async function rulesetRules(scope, identifier, phase, token, sensitiveValues, fetchImpl) {
   const label = `${scope === 'accounts' ? 'account' : 'zone'} ${phase} entrypoint`
   const response = await apiGet(`/${scope}/${identifier}/rulesets/phases/${phase}/entrypoint`, label, token, sensitiveValues, fetchImpl)
-  if (response.missing) {
-    return []
+  if (response.kind !== 'held') {
+    return {rules: [], notApplicable: response.kind === 'not-applicable'}
   }
   if (!response.result || !Array.isArray(response.result.rules)) {
     throw new Error(`${scope} ${phase} response had no rules array`)
   }
-  return response.result.rules
+  return {rules: response.result.rules, notApplicable: false}
 }
 
 async function activePageRules(zoneId, token, sensitiveValues, fetchImpl) {
   const rules = []
   let page = 1
   while (true) {
-    const response = await apiGet(`/zones/${zoneId}/pagerules?status=active&per_page=50&page=${page}`, 'active Page Rules', token, sensitiveValues,
-      fetchImpl)
-    if (!Array.isArray(response.result)) {
+    let response
+    try {
+      response = await apiGet(`/zones/${zoneId}/pagerules?status=active&per_page=50&page=${page}`, 'active Page Rules', token, sensitiveValues, fetchImpl)
+    } catch (error) {
+      if (error?.accountOwnedTokenRejected) {
+        // UNMEASURED, with the reason an owner can act on. Not a refusal: the token is valid
+        // and the zone is reachable; Cloudflare simply serves this one endpoint to
+        // user-owned tokens only.
+        throw Object.assign(new Error(`${error.message}; supply a user-owned token as CLOUDFLARE_PAGE_RULES_TOKEN to measure Page Rules`), {
+          status: error.status
+        })
+      }
+      throw error
+    }
+    if (response.kind !== 'held' || !Array.isArray(response.result)) {
       throw new Error('Page Rules response was not an array')
     }
     rules.push(...response.result)
     const totalPages = Number(response.resultInfo?.total_pages ?? 1)
     if (page >= totalPages) {
-      return rules
+      return {rules, notApplicable: false}
     }
     page++
   }
 }
 
-export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken, fetchImpl = fetchStable, observedAt = new Date().toISOString()}) {
-  const sensitiveValues = [apiToken, accountId, zoneId]
+export async function auditCloudflareLlmsCacheRules(
+  {accountId, zoneId, apiToken, pageRulesToken, fetchImpl = fetchStable, observedAt = new Date().toISOString()}
+) {
+  // Page Rules answer only a user-owned token, so that one read may carry its own.
+  const pageRulesCredential = pageRulesToken || apiToken
+  const sensitiveValues = [apiToken, pageRulesToken, accountId, zoneId]
   const requests = [
     ['accountRequestRules', () => rulesetRules('accounts', accountId, 'http_request_cache_settings', apiToken, sensitiveValues, fetchImpl)],
     ['zoneRequestRules', () => rulesetRules('zones', zoneId, 'http_request_cache_settings', apiToken, sensitiveValues, fetchImpl)],
     ['accountResponseRules', () => rulesetRules('accounts', accountId, 'http_response_cache_settings', apiToken, sensitiveValues, fetchImpl)],
     ['zoneResponseRules', () => rulesetRules('zones', zoneId, 'http_response_cache_settings', apiToken, sensitiveValues, fetchImpl)],
-    ['pageRules', () => activePageRules(zoneId, apiToken, sensitiveValues, fetchImpl)]
+    ['pageRules', () => activePageRules(zoneId, pageRulesCredential, sensitiveValues, fetchImpl)]
   ]
   const settled = await Promise.allSettled(requests.map(([, request]) => request()))
   const inventory = {gaps: []}
   let held = 0
   let refused = 0
+  let notApplicable = 0
   for (let index = 0; index < requests.length; index++) {
     const [name] = requests[index]
     const result = settled[index]
@@ -602,7 +735,10 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
       // absent ruleset (HTTP 404) counts: the API answered authoritatively that there is
       // nothing there, and that answer is judged like any other.
       held++
-      inventory[name] = result.value
+      if (result.value.notApplicable) {
+        notApplicable++
+      }
+      inventory[name] = result.value.rules
     } else {
       if (REFUSAL_STATUSES.has(Number(result.reason?.status))) {
         refused++
@@ -615,16 +751,18 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
   }
   const evaluation = evaluateCloudflareLlmsCacheRules(inventory)
   return {
-    specVersion: 2,
+    specVersion: 3,
     checkId: 'cloudflare-llms-cache-rules',
     status: evaluation.status,
     observedAt,
     targets: [...CLOUDFLARE_GATED_TARGETS],
+    // specVersion 3 added `notApplicable`: reads Cloudflare answered with "phase not allowed at
+    // account level". They count in `held` and cannot alone lift a run out of darkness.
     // specVersion 2 added this block (atlas decision 0142 step 5.4). It is what lets a
     // reader of the uploaded artifact answer "did this run reach Cloudflare at all?"
     // without inferring it from a prose evidence string, and it is the input to
     // `measurementDeclaration` below.
-    measurement: {sources: requests.length, held, refused},
+    measurement: {sources: requests.length, held, refused, notApplicable},
     results: evaluation.results
   }
 }
@@ -640,8 +778,10 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
  * 403s and inherited the atlas 0120 D2 waiver. The four answers are now distinct:
  *
  *   `held` > 0            the count. n rule collections were held and judged; the channel
- *                         has landed and the waiver is never consulted.
- *   every read REFUSED    `deferred`. This is precisely the state 0120 D2 waives -- the
+ *                         has landed and the waiver is never consulted. "Not allowed at
+ *                         account level" answers are in the count but cannot be the only
+ *                         ones: at least one real collection must have been held.
+ *   every other read REFUSED  `deferred`. This is precisely the state 0120 D2 waives -- the
  *                         read permissions are an open owner action -- and the workflow
  *                         record supplies the reason and the `until=` deadline for it.
  *   reached nothing else  `0`. Not the recorded permission gap, so not waived: the ping
@@ -660,10 +800,15 @@ export function measurementDeclaration(evidence) {
   if (!measurement || !Number.isInteger(measurement.held) || !Number.isInteger(measurement.sources)) {
     return null
   }
-  if (measurement.held > 0) {
+  // A phase that cannot exist at the account level (HTTP 400 "not allowed at account level")
+  // is an answer and counts in `held`, but it holds no rule collection. If it were allowed to
+  // stand alone, two such answers would hide a refused zone token behind a non-zero count.
+  const notApplicable = Number.isInteger(measurement.notApplicable) ? measurement.notApplicable : 0
+  if (measurement.held - notApplicable > 0) {
     return measurement.held
   }
-  return measurement.sources > 0 && measurement.refused === measurement.sources ? MEASURED_DEFERRED : 0
+  const reachable = measurement.sources - notApplicable
+  return reachable > 0 && measurement.refused === reachable ? MEASURED_DEFERRED : 0
 }
 
 function requiredEnvironment(environment, name) {
@@ -713,7 +858,8 @@ export async function runCloudflareLlmsCacheRuleCli(
     evidence = await auditCloudflareLlmsCacheRules({
       accountId: requiredEnvironment(environment, 'CLOUDFLARE_ACCOUNT_ID'),
       zoneId: requiredEnvironment(environment, 'CLOUDFLARE_ZONE_ID'),
-      apiToken: requiredEnvironment(environment, 'CLOUDFLARE_API_TOKEN'),
+      apiToken: requiredEnvironment(environment, 'CLOUDFLARE_ACCOUNT_READALL'),
+      pageRulesToken: environment.CLOUDFLARE_PAGE_RULES_TOKEN,
       fetchImpl,
       observedAt
     })

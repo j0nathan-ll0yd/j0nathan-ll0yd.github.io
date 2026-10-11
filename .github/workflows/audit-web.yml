@@ -307,7 +307,14 @@ jobs:
         id: llms_cache_rules
         continue-on-error: true
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # A dedicated account-owned read-all token. NEVER the deploy token: the deploy
+          # workflows use that secret to publish, and it got HTTP 403 on every rule read here
+          # (run 38076794320). An unset secret leaves this empty; the runner then publishes no
+          # `measured` and the tier wedges as crashed-before-measuring.
+          CLOUDFLARE_ACCOUNT_READALL: ${{ secrets.CLOUDFLARE_ACCOUNT_READALL }}
+          # Optional. Page Rules reject account-owned tokens (HTTP 400, code 1011), so that one
+          # read needs a USER-owned token. Unset, Page Rules stay unmeasured with that reason.
+          CLOUDFLARE_PAGE_RULES_TOKEN: ${{ secrets.CLOUDFLARE_PAGE_RULES_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: >-
@@ -613,7 +620,7 @@ jobs:
           # and no owner action will change it.
           MEASURED_STEPS: |
             llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
-            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}|atlas 0120 D2 owner action -- five Cloudflare reads return 403; the channel lands with the permissions fix|until=2026-12-08
+            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}|atlas 0120 D2 owner action -- five Cloudflare reads return 403 until the dedicated CLOUDFLARE_ACCOUNT_READALL secret is set; the channel lands with it|until=2026-12-08
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}

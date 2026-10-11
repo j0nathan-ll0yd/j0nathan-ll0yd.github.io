@@ -2,6 +2,13 @@ import {mkdtemp, readFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
+import accountRequest400 from './fixtures/cloudflare-cache-rules/account-http_request_cache_settings.400.json'
+import accountResponse400 from './fixtures/cloudflare-cache-rules/account-http_response_cache_settings.400.json'
+import auth403 from './fixtures/cloudflare-cache-rules/auth.403.json'
+import pageRulesAccountToken400 from './fixtures/cloudflare-cache-rules/page-rules-account-token.400.json'
+import pageRulesEmpty200 from './fixtures/cloudflare-cache-rules/page-rules-empty.200.json'
+import zoneRequest200 from './fixtures/cloudflare-cache-rules/zone-request-entrypoint.200.json'
+import zoneResponse404 from './fixtures/cloudflare-cache-rules/zone-response-entrypoint.404.json'
 import {
   auditCloudflareLlmsCacheRules,
   CLOUDFLARE_FEED_TARGETS,
@@ -14,6 +21,8 @@ import {
 } from '../checks/b2-check-cloudflare-llms-cache-rules.mjs'
 
 const scratchDirectories: string[] = []
+
+const ENTRYPOINT_NOT_FOUND_BODY = zoneResponse404.body
 
 afterEach(async () => {
   await Promise.all(scratchDirectories.splice(0).map((path) => rm(path, {recursive: true, force: true})))
@@ -168,7 +177,7 @@ describe('Cloudflare cache-rule API audit', () => {
       if (url.includes('/pagerules?')) {
         return new Response(JSON.stringify({success: true, result: [], result_info: {total_pages: 1}}), {status: 200})
       }
-      return new Response(JSON.stringify({success: false, errors: []}), {status: 404})
+      return new Response(JSON.stringify(ENTRYPOINT_NOT_FOUND_BODY), {status: 404})
     })
 
     const evidence = await auditCloudflareLlmsCacheRules({
@@ -222,7 +231,7 @@ describe('Cloudflare cache-rule API audit', () => {
           {status: 200}
         )
       }
-      return new Response(JSON.stringify({success: false, errors: []}), {status: 404})
+      return new Response(JSON.stringify(ENTRYPOINT_NOT_FOUND_BODY), {status: 404})
     })
 
     const evidence = await auditCloudflareLlmsCacheRules({accountId: 'a', zoneId: 'z', apiToken: 't', fetchImpl, observedAt: '2026-10-08T00:00:00.000Z'})
@@ -247,7 +256,7 @@ describe('Cloudflare cache-rule API audit', () => {
       environment: {
         CLOUDFLARE_ACCOUNT_ID: 'account-id',
         CLOUDFLARE_ZONE_ID: 'zone-id',
-        CLOUDFLARE_API_TOKEN: 'secret-token',
+        CLOUDFLARE_ACCOUNT_READALL: 'secret-token',
         GITHUB_OUTPUT: githubOutputPath
       },
       fetchImpl,
@@ -290,7 +299,7 @@ describe('Cloudflare cache-rule API audit', () => {
 
     const exitCode = await runCloudflareLlmsCacheRuleCli({
       arguments_: ['--evidence-out', outputPath],
-      environment: {CLOUDFLARE_ACCOUNT_ID: 'account', CLOUDFLARE_ZONE_ID: 'zone', CLOUDFLARE_API_TOKEN: 'token', GITHUB_OUTPUT: githubOutputPath},
+      environment: {CLOUDFLARE_ACCOUNT_ID: 'account', CLOUDFLARE_ZONE_ID: 'zone', CLOUDFLARE_ACCOUNT_READALL: 'token', GITHUB_OUTPUT: githubOutputPath},
       fetchImpl,
       now: () => new Date('2026-08-29T22:00:00.000Z'),
       logger: {log: vi.fn(), error: vi.fn()}
@@ -320,7 +329,7 @@ describe('Cloudflare cache-rule API audit', () => {
 // So the runner classifies its own run and the workflow forwards what it published. These
 // cases pin the four answers apart from each other.
 describe('Cloudflare cache-rule measurement declaration', () => {
-  const CREDENTIALS = {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_ZONE_ID: 'zone-id', CLOUDFLARE_API_TOKEN: 'secret-token'}
+  const CREDENTIALS = {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_ZONE_ID: 'zone-id', CLOUDFLARE_ACCOUNT_READALL: 'secret-token'}
 
   /** Run the CLI against `fetchImpl` and return the raw `$GITHUB_OUTPUT` it wrote. */
   async function runAndReadOutput(fetchImpl: unknown, environment: Record<string, string> = CREDENTIALS): Promise<{exitCode: number; output: string}> {
@@ -348,7 +357,7 @@ describe('Cloudflare cache-rule measurement declaration', () => {
     expect(output).toBe('issue_outcome=indeterminate\nmeasured=deferred\n')
   })
 
-  // THE CRASH. `CLOUDFLARE_API_TOKEN` is absent, so the audit throws before a single
+  // THE CRASH. `CLOUDFLARE_ACCOUNT_READALL` is absent, so the audit throws before a single
   // request leaves the runner. It reached nothing and it cannot say why in the waived
   // vocabulary, so it declares NOTHING -- and an empty `measured` with a `failure` outcome
   // is `crashed-before-measuring` in audits/healthchecks-ping.sh, which wedges the tier.
@@ -392,7 +401,7 @@ describe('Cloudflare cache-rule measurement declaration', () => {
 
   // The evidence artifact carries the same three numbers the declaration is derived from,
   // so a reader of the upload can check the declaration rather than trust it.
-  it('records the held/refused census in the evidence artifact under specVersion 2', async () => {
+  it('records the held/refused census in the evidence artifact under specVersion 3', async () => {
     const evidence = await auditCloudflareLlmsCacheRules({
       accountId: 'account-id',
       zoneId: 'zone-id',
@@ -400,8 +409,8 @@ describe('Cloudflare cache-rule measurement declaration', () => {
       fetchImpl: refuse(403),
       observedAt: '2026-08-29T22:00:00.000Z'
     })
-    expect(evidence.specVersion).toBe(2)
-    expect(evidence.measurement).toEqual({sources: 5, held: 0, refused: 5})
+    expect(evidence.specVersion).toBe(3)
+    expect(evidence.measurement).toEqual({sources: 5, held: 0, refused: 5, notApplicable: 0})
     expect(measurementDeclaration(evidence)).toBe('deferred')
   })
 
@@ -409,5 +418,260 @@ describe('Cloudflare cache-rule measurement declaration', () => {
   // step publish nothing, so it is pinned rather than left to the writer's discretion.
   it.each([[undefined], [{}], [{measurement: {sources: 5}}]])('returns null for evidence carrying no usable census (%j)', (evidence) => {
     expect(measurementDeclaration(evidence)).toBeNull()
+  })
+})
+
+// RECORDED CLOUDFLARE ANSWERS (fixtures/cloudflare-cache-rules/).
+//
+// Measured 2026-10-11 with an account-owned read-all token against the live zone. The
+// status codes and messages are the recorded evidence. The 7-rule zone ruleset is
+// reconstructed from the measured facts (ruleset version 14; rule 3 "HTML pages
+// (catch-all)" with expression `true` and edge and browser TTL overrides; rule 6 "TTL for
+// llms.txt & index.md" later, bypassing the five gated paths with `cache: false` and browser
+// TTL `respect_origin`); the other five rules are plausible disjoint neighbours, not
+// verbatim. Cloudflare documents no error code for the two ruleset answers, so those
+// fixtures carry none and the check matches on status plus message. Page Rules carries
+// code 1011 (cloudflare/cloudflare-docs issue 23256).
+describe('Cloudflare cache-rule recorded answers', () => {
+  type Recorded = {status: number; body: unknown}
+  const respond = ({status, body}: Recorded) => new Response(JSON.stringify(body), {status})
+  const ZONE_REQUEST_RULES = zoneRequest200.body.result.rules
+
+  /** Route each of the five reads to a recorded answer; the rest of the matrix is overridable. */
+  function recordedFetch(overrides: Partial<Record<'accountRequest' | 'accountResponse' | 'zoneRequest' | 'zoneResponse' | 'pageRules', Recorded>> = {}) {
+    const answers: Record<string, Recorded> = {
+      accountRequest: accountRequest400,
+      accountResponse: accountResponse400,
+      zoneRequest: zoneRequest200,
+      zoneResponse: zoneResponse404,
+      pageRules: pageRulesAccountToken400,
+      ...overrides
+    }
+    return vi.fn(async (url: string, _init?: RequestInit) => {
+      const account = url.includes('/accounts/')
+      const request = url.includes('http_request_cache_settings')
+      if (url.includes('/pagerules?')) {
+        return respond(answers.pageRules)
+      }
+      return respond(answers[`${account ? 'account' : 'zone'}${request ? 'Request' : 'Response'}`])
+    })
+  }
+
+  const audit = (fetchImpl: ReturnType<typeof recordedFetch>, extra: Record<string, string> = {}) =>
+    auditCloudflareLlmsCacheRules({
+      accountId: 'account-id',
+      zoneId: 'zone-id',
+      apiToken: 'readall-token',
+      ...extra,
+      fetchImpl,
+      observedAt: '2026-10-11T00:00:00.000Z'
+    })
+
+  const rule = (id: string, expression: string, parameters: Record<string, unknown>) => ({
+    id,
+    enabled: true,
+    action: 'set_cache_settings',
+    expression,
+    action_parameters: parameters
+  })
+  const CATCH_ALL = rule('catch-all', 'true', {
+    cache: true,
+    edge_ttl: {mode: 'override_origin', default: 14400},
+    browser_ttl: {mode: 'override_origin', default: 600}
+  })
+  const GATED_PATHS = 'http.request.uri.path in {"/llms.txt" "/llms-full.txt" "/index.md" "/feed.xml" "/feed.json"}'
+  const BYPASS = rule('bypass', GATED_PATHS, {cache: false, browser_ttl: {mode: 'respect_origin'}})
+
+  describe('classification of each answer', () => {
+    it('reads the live 7-rule zone ruleset as bypassed for all five gated URLs', async () => {
+      expect(ZONE_REQUEST_RULES).toHaveLength(7)
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: ZONE_REQUEST_RULES})
+      expect(evaluation.status).toBe('passed')
+      expect(evaluation.results).toHaveLength(1)
+    })
+
+    it('treats "not allowed at account level" (HTTP 400) as not applicable: measured, no gap, no finding', async () => {
+      const evidence = await audit(recordedFetch({pageRules: pageRulesEmpty200}))
+      expect(evidence.measurement).toEqual({sources: 5, held: 5, refused: 0, notApplicable: 2})
+      expect(evidence.status).toBe('passed')
+      expect(measurementDeclaration(evidence)).toBe(5)
+    })
+
+    it('treats "could not find entrypoint ruleset" (HTTP 404) as measured and empty', async () => {
+      const evidence = await audit(recordedFetch({zoneRequest: zoneResponse404, pageRules: pageRulesEmpty200}))
+      expect(evidence.measurement).toEqual({sources: 5, held: 5, refused: 0, notApplicable: 2})
+      expect(evidence.status).toBe('passed')
+    })
+
+    it('does not treat an unexplained 404 or 400 as an empty or inapplicable ruleset', async () => {
+      const bare404 = {status: 404, body: {success: false, errors: [{message: 'not found'}]}}
+      const bare400 = {status: 400, body: {success: false, errors: [{message: 'bad request'}]}}
+      const evidence = await audit(recordedFetch({zoneResponse: bare404, accountResponse: bare400, pageRules: pageRulesEmpty200}))
+      expect(evidence.measurement).toEqual({sources: 5, held: 3, refused: 0, notApplicable: 1})
+      expect(evidence.status).toBe('unknown')
+      expect(evidence.results.map(({id}: {id: string}) => id).sort()).toEqual([
+        'cloudflare-accountResponseRules-unavailable',
+        'cloudflare-zoneResponseRules-unavailable'
+      ])
+    })
+
+    it('reports Page Rules with an account-owned token as UNMEASURED with the Cloudflare reason', async () => {
+      const evidence = await audit(recordedFetch())
+      expect(evidence.status).toBe('unknown')
+      const [gap] = evidence.results
+      expect(evidence.results).toHaveLength(1)
+      expect(gap.id).toBe('cloudflare-pageRules-unavailable')
+      expect(gap.status).toBe('unknown')
+      expect(gap.evidence).toContain('Page Rules endpoint does not support account owned tokens')
+      expect(gap.evidence).toContain('CLOUDFLARE_PAGE_RULES_TOKEN')
+      // Not a refusal and not held: the other four reads were held, two of them not applicable.
+      expect(evidence.measurement).toEqual({sources: 5, held: 4, refused: 0, notApplicable: 2})
+      expect(measurementDeclaration(evidence)).toBe(4)
+    })
+
+    it('matches Page Rules on code 1011 even when the message wording changes', async () => {
+      const reworded = {status: 400, body: {success: false, errors: [{code: 1011, message: 'unsupported credential'}]}}
+      const evidence = await audit(recordedFetch({pageRules: reworded}))
+      expect(evidence.results[0].evidence).toContain('CLOUDFLARE_PAGE_RULES_TOKEN')
+    })
+
+    it('uses a user-owned token for the Page Rules read only, and then measures all five', async () => {
+      const fetchImpl = recordedFetch({pageRules: pageRulesEmpty200})
+      const evidence = await audit(fetchImpl, {pageRulesToken: 'user-owned-token'})
+      expect(evidence.status).toBe('passed')
+      expect(measurementDeclaration(evidence)).toBe(5)
+      const authorization = new Map(
+        fetchImpl.mock.calls.map((
+          [url, init]
+        ) => [url.includes('/pagerules?') ? 'pagerules' : 'ruleset', (init?.headers as Record<string, string>).Authorization])
+      )
+      expect(authorization.get('pagerules')).toBe('Bearer user-owned-token')
+      expect(authorization.get('ruleset')).toBe('Bearer readall-token')
+      expect(JSON.stringify(evidence)).not.toContain('user-owned-token')
+    })
+
+    it('keeps HTTP 403 unmeasured and deferred, with the redacted Cloudflare message', async () => {
+      const refused = {status: 403, body: auth403.body}
+      const evidence = await audit(
+        recordedFetch({accountRequest: refused, accountResponse: refused, zoneRequest: refused, zoneResponse: refused, pageRules: refused})
+      )
+      expect(evidence.status).toBe('unknown')
+      expect(evidence.results).toHaveLength(5)
+      expect(evidence.results[0].evidence).toContain('HTTP 403: Authentication error')
+      expect(evidence.measurement).toEqual({sources: 5, held: 0, refused: 5, notApplicable: 0})
+      expect(measurementDeclaration(evidence)).toBe('deferred')
+    })
+
+    it('does not let two not-applicable answers hide a refused zone token', async () => {
+      const refused = {status: 403, body: auth403.body}
+      const evidence = await audit(recordedFetch({zoneRequest: refused, zoneResponse: refused, pageRules: refused}))
+      expect(evidence.measurement).toEqual({sources: 5, held: 2, refused: 3, notApplicable: 2})
+      expect(measurementDeclaration(evidence)).toBe('deferred')
+      const crashed = await audit(recordedFetch({zoneRequest: refused, zoneResponse: refused}))
+      expect(measurementDeclaration(crashed)).toBe(0)
+    })
+  })
+
+  describe('last-match ordering for the five gated URLs', () => {
+    it('judges a catch-all cache rule followed by a later bypass rule as bypassed', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [CATCH_ALL, BYPASS]})
+      expect(evaluation.status).toBe('passed')
+    })
+
+    it('judges the reverse order as cached: a finding for every gated URL, Edge TTL and Browser TTL', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [BYPASS, CATCH_ALL]})
+      expect(evaluation.status).toBe('failed')
+      const failed = evaluation.results.filter(({status}) => status === 'failed')
+      expect([...new Set(failed.map(({target}) => target))].sort()).toEqual([...CLOUDFLARE_GATED_TARGETS].sort())
+      expect(failed.every(({id}) => id === 'zone-cache-rule-catch-all')).toBe(true)
+      expect(failed.some(({evidence}) => evidence.includes('mode=override_origin, ttl=14400s'))).toBe(true)
+      expect(failed.some(({evidence}) => evidence.includes('Browser Cache TTL overrides origin cache-control'))).toBe(true)
+    })
+
+    it('lets a later rule override only the settings it sets: browser TTL respect_origin does not excuse Edge TTL', () => {
+      const browserOnly = rule('browser-only', GATED_PATHS, {browser_ttl: {mode: 'respect_origin'}})
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [CATCH_ALL, browserOnly]})
+      expect(evaluation.status).toBe('failed')
+      expect(evaluation.results.every(({evidence}) => !evidence.includes('Browser Cache TTL'))).toBe(true)
+      expect(evaluation.results.every(({evidence}) => evidence.includes('Edge Cache TTL'))).toBe(true)
+    })
+
+    it('orders account rules before zone rules', () => {
+      const evaluation = evaluateCloudflareLlmsCacheRules({accountRequestRules: [CATCH_ALL], zoneRequestRules: [BYPASS]})
+      expect(evaluation.status).toBe('passed')
+      expect(evaluateCloudflareLlmsCacheRules({accountRequestRules: [BYPASS], zoneRequestRules: [CATCH_ALL]}).status).toBe('failed')
+    })
+
+    it('reports UNKNOWN, never pass or fail, when a later bypass rule has an expression the evaluator cannot decide', () => {
+      const undecidable = rule('bot-bypass', 'cf.bot_management.score gt 20', {cache: false, browser_ttl: {mode: 'respect_origin'}})
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [CATCH_ALL, undecidable]})
+      expect(evaluation.status).toBe('unknown')
+      expect(evaluation.results.every(({status}) => status === 'unknown')).toBe(true)
+      expect(evaluation.results.map(({target}) => target).sort()).toEqual(expect.arrayContaining([...CLOUDFLARE_GATED_TARGETS].sort()))
+    })
+
+    it('reports UNKNOWN when only an undecidable rule could cache the URL', () => {
+      const undecidable = rule('bot-cache', 'cf.bot_management.score gt 20', {cache: true, edge_ttl: {mode: 'override_origin', default: 60}})
+      expect(evaluateCloudflareLlmsCacheRules({zoneRequestRules: [undecidable]}).status).toBe('unknown')
+    })
+
+    it('lets a later definite match reset an earlier undecidable one', () => {
+      const undecidable = rule('bot-bypass', 'cf.bot_management.score gt 20', {cache: false})
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [undecidable, CATCH_ALL]})
+      expect(evaluation.status).toBe('failed')
+    })
+
+    it('treats an unparseable expression as unknown, never as a match or a miss', () => {
+      const garbled = rule('garbled', 'http.request.uri.path eq (', {cache: false})
+      const evaluation = evaluateCloudflareLlmsCacheRules({zoneRequestRules: [CATCH_ALL, garbled]})
+      expect(evaluation.status).toBe('unknown')
+    })
+
+    it('judges the full recorded run end to end: unknown only because Page Rules are unmeasured', async () => {
+      const evidence = await audit(recordedFetch())
+      expect(evidence.results.every(({id}: {id: string}) => id === 'cloudflare-pageRules-unavailable')).toBe(true)
+    })
+  })
+
+  describe('credentials', () => {
+    it('reads the dedicated CLOUDFLARE_ACCOUNT_READALL token and ignores the deploy token', async () => {
+      const fetchImpl = recordedFetch({pageRules: pageRulesEmpty200})
+      const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
+      scratchDirectories.push(scratch)
+      const githubOutputPath = join(scratch, 'github-output.txt')
+      const exitCode = await runCloudflareLlmsCacheRuleCli({
+        arguments_: ['--evidence-out', join(scratch, 'evidence.json')],
+        environment: {
+          CLOUDFLARE_ACCOUNT_ID: 'account-id',
+          CLOUDFLARE_ZONE_ID: 'zone-id',
+          CLOUDFLARE_ACCOUNT_READALL: 'readall-token',
+          CLOUDFLARE_API_TOKEN: 'deploy-token',
+          GITHUB_OUTPUT: githubOutputPath
+        },
+        fetchImpl,
+        now: () => new Date('2026-10-11T00:00:00.000Z'),
+        logger: {log: vi.fn(), error: vi.fn()}
+      })
+      expect(exitCode).toBe(0)
+      expect(fetchImpl.mock.calls.every(([, init]) => (init?.headers as Record<string, string>).Authorization === 'Bearer readall-token')).toBe(true)
+      expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=success\nmeasured=5\n')
+    })
+
+    it('publishes no declaration when only the deploy token is present (secret unset)', async () => {
+      const fetchImpl = recordedFetch()
+      const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
+      scratchDirectories.push(scratch)
+      const githubOutputPath = join(scratch, 'github-output.txt')
+      const exitCode = await runCloudflareLlmsCacheRuleCli({
+        arguments_: ['--evidence-out', join(scratch, 'evidence.json')],
+        environment: {CLOUDFLARE_ACCOUNT_ID: 'a', CLOUDFLARE_ZONE_ID: 'z', CLOUDFLARE_API_TOKEN: 'deploy-token', GITHUB_OUTPUT: githubOutputPath},
+        fetchImpl,
+        now: () => new Date('2026-10-11T00:00:00.000Z'),
+        logger: {log: vi.fn(), error: vi.fn()}
+      })
+      expect(exitCode).toBe(1)
+      expect(fetchImpl).not.toHaveBeenCalled()
+      expect(await readFile(githubOutputPath, 'utf8')).toBe('issue_outcome=indeterminate\n')
+    })
   })
 })
