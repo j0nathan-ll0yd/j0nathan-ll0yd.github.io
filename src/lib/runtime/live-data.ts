@@ -11,7 +11,8 @@ import type {HealthExport, SleepExport} from '@j0nathan-ll0yd/portal-contract/sc
 import type {ArtifactValues} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {HIDING_FOCUS_MODES, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {adaptArticles, adaptBooks, adaptGithubEvents, adaptHealth, adaptSleep, adaptStarredRepos, adaptWorkouts} from '@j0nathan-ll0yd/web/runtime/adapters'
-import {exportDomainState, exportFreshness} from '@j0nathan-ll0yd/web/runtime/freshness'
+import {EXPORT_FRESHNESS, exportDomainState, exportFreshness} from '@j0nathan-ll0yd/web/runtime/freshness'
+import type {Freshness} from '@j0nathan-ll0yd/web/runtime/freshness'
 import {releaseSuppression, renderWidgetUnavailable} from '@j0nathan-ll0yd/web/runtime/updater-empty'
 import {sleepScoreSource} from '@j0nathan-ll0yd/web/runtime/widget-rules'
 import {WSClient} from './ws-client'
@@ -43,8 +44,11 @@ const LIVE_CARDS = [
 ]
 
 // ── Module-scoped state for cross-resource dependencies ──────────────
-let lastHealth: HealthExport | undefined
-let lastSleep: SleepExport | undefined
+// The last export applied for each gated resource. Health and Sleep read each other's export, and
+// the freshness re-judgement (`rejudgeFreshness`) re-renders a card from its cached export when the
+// export ages past its warning age.
+type GatedKey = Exclude<ResourceKey, 'focus'>
+let lastExports: { [K in GatedKey]?: ArtifactValues[K] } = {}
 const timestamps: Record<string, string | null> = {}
 let engine: PollEngine | null = null
 // ws is hoisted to module scope so pagehide/pageshow lifecycle handlers can
@@ -72,7 +76,7 @@ let lastFocusPushAtMs = 0
 
 // ── Clearing gated values on suppression (atlas decision 0160, PR 0b) ──
 // The overlay only COVERS the cards; the values stay in the DOM, in canvas buffers, in the book
-// modal, in the system-status timestamps, and in this module's own `lastHealth`/`lastSleep`. A
+// modal, in the system-status timestamps, and in this module's own `lastExports`. A
 // hiding mode must remove them, not hide them. A reload is the one mechanism that clears every one
 // of those places at once: the page is static, so the reloaded document holds no gated value, and
 // its startup reads focus first and applies nothing while hiding. Restoring each card's captured
@@ -165,6 +169,11 @@ function applyFocus(currentFocus: string | null): void {
 function enterSuppression(): void {
   LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
   engine?.setSuppressed(true)
+  // The freshness re-judgement re-renders cards from these caches. Drop them, so no timer tick can
+  // bring a value back after this transition: only a read made after suppression lifts fills a
+  // card again.
+  forgetGatedExports()
+  cancelRejudge()
   // Covering is not clearing: remove the values themselves (see clearGatedData).
   clearGatedData()
 }
@@ -279,22 +288,33 @@ function applySuppression(result: EndpointSuppressed): void {
 // without an entry here is still a compile error.
 const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void } = {
   health: (data) => {
-    lastHealth = data
-    applyHealth(data, lastSleep ?? null)
+    lastExports.health = data
+    renderCard('health')
     // The health export lends NightSummary its sleep score: a new one refreshes the score.
-    applyNightSummary()
+    renderCard('nightSummary')
   },
   sleep: (data) => {
-    lastSleep = data
-    applyNightSummary()
-    if (lastHealth) {
-      applyHealth(lastHealth, data)
-    }
+    lastExports.sleep = data
+    renderCard('nightSummary')
+    // adaptHealth reads the sleep export too.
+    renderCard('health')
   },
-  workouts: (data) => updateWorkouts(adaptWorkouts(data), exportFreshness('workouts', data)),
-  books: (data) => updateBookshelf(adaptBooks(data), exportFreshness('books', data)),
-  githubEvents: (data) => updateDevActivityLog(adaptGithubEvents(data), exportFreshness('githubEvents', data)),
-  articles: (data) => updateReadingFeed(adaptArticles(data), exportFreshness('articles', data)),
+  workouts: (data) => {
+    lastExports.workouts = data
+    renderCard('workouts')
+  },
+  books: (data) => {
+    lastExports.books = data
+    renderCard('books')
+  },
+  githubEvents: (data) => {
+    lastExports.githubEvents = data
+    renderCard('githubEvents')
+  },
+  articles: (data) => {
+    lastExports.articles = data
+    renderCard('articles')
+  },
   focus: (data) => {
     // Route through applyFocus so a focus change detected by polling (e.g. the WS is down)
     // also transitions client-side suppression, not just the overlay. But within the
@@ -307,8 +327,14 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
     }
     applyFocus(data.currentFocus)
   },
-  theatreReviews: (data) => updateTheatreReviews(data, exportFreshness('theatreReviews', data)),
-  starredRepos: (data) => updateStarredRepos(adaptStarredRepos(data), exportFreshness('starredRepos', data))
+  theatreReviews: (data) => {
+    lastExports.theatreReviews = data
+    renderCard('theatreReviews')
+  },
+  starredRepos: (data) => {
+    lastExports.starredRepos = data
+    renderCard('starredRepos')
+  }
 }
 
 /**
@@ -316,8 +342,8 @@ const RESOURCE_UPDATERS: { [K in ResourceKey]: (data: ArtifactValues[K]) => void
  * `audit.warn` age, `stale` beyond it, `@j0nathan-ll0yd/web` 4.1 `exportFreshness`) is computed once,
  * so the four cards can never disagree about it.
  */
-function applyHealth(health: HealthExport, sleep: SleepExport | null): void {
-  const freshness = exportFreshness('health', health)
+function applyHealth(health: HealthExport, sleep: SleepExport | null, now: number): void {
+  const freshness = exportFreshness('health', health, now)
   const adapted = adaptHealth(health, sleep)
   updateHeartRate(adapted, freshness)
   updateHeartRateFooter(adapted, freshness)
@@ -329,14 +355,173 @@ function applyHealth(health: HealthExport, sleep: SleepExport | null): void {
  * NightSummary follows the sleep export alone (owner decision Q3): its state and "as of" time are
  * the sleep export's. The health export lends only its sleep score, and only while it is `live`
  * (`sleepScoreSource`); a stale or missing health export renders the score as the no-reading mark.
- * Runs whenever either export arrives. No sleep export yet: nothing to render.
  */
-function applyNightSummary(): void {
-  if (!lastSleep) {
+function applyNightSummary(sleep: SleepExport, health: HealthExport | null, now: number): void {
+  const healthState = exportDomainState('health', health, now).state
+  updateNightSummary(adaptSleep(sleep, sleepScoreSource(health, healthState)), exportFreshness('sleep', sleep, now))
+}
+
+// ── Freshness re-judgement for an open tab (atlas decision 0160) ──────
+//
+// An update renders an export with its freshness at that moment. An export that stops changing,
+// or polls that keep failing, would otherwise leave a card `live` for as long as the tab stays
+// open. So each card's freshness is judged again on a timer and after every poll outcome, from the
+// export the card shows. When the judgement differs from the one the card was rendered with, the
+// card is rendered again through its updater with the new freshness: the values stay, and the
+// state and "as of" time become true. A failed poll never blanks a card; only the first read
+// renders `unavailable`.
+//
+// The updaters are the only way to write a card's state: `@j0nathan-ll0yd/web` 4.1 keeps the state
+// writers internal, and some cards add header markup of their own for `stale` (Theatre's "as of"
+// slot), so writing the state attributes by hand would diverge from the server's markup.
+
+/** One unit of rendering: the export(s) a group of cards reads, and how to render it. */
+interface CardRender {
+  /** The freshness judgement the card is rendered with at `now`, or null with no export to show. */
+  judge(now: number): string | null
+  render(now: number): void
+}
+
+function exportCard<K extends Exclude<GatedKey, 'health' | 'sleep'>>(key: K, update: (data: ArtifactValues[K], freshness: Freshness) => void): CardRender {
+  return {
+    judge: (now) => {
+      const data = lastExports[key]
+      return data ? exportFreshness(key, data, now).state : null
+    },
+    render: (now) => {
+      const data = lastExports[key]
+      if (data) {
+        update(data, exportFreshness(key, data, now))
+      }
+    }
+  }
+}
+
+const CARD_RENDERS = {
+  health: {
+    judge: (now: number) => lastExports.health ? exportFreshness('health', lastExports.health, now).state : null,
+    render: (now: number) => {
+      if (lastExports.health) {
+        applyHealth(lastExports.health, lastExports.sleep ?? null, now)
+      }
+    }
+  },
+  // Night Summary turns on two judgements: its own sleep export's, and whether the health export
+  // that lends its score is still live.
+  nightSummary: {
+    judge: (now: number) =>
+      lastExports.sleep
+        ? `${exportFreshness('sleep', lastExports.sleep, now).state}/${exportDomainState('health', lastExports.health ?? null, now).state}`
+        : null,
+    render: (now: number) => {
+      if (lastExports.sleep) {
+        applyNightSummary(lastExports.sleep, lastExports.health ?? null, now)
+      }
+    }
+  },
+  workouts: exportCard('workouts', (data, freshness) => updateWorkouts(adaptWorkouts(data), freshness)),
+  books: exportCard('books', (data, freshness) => updateBookshelf(adaptBooks(data), freshness)),
+  githubEvents: exportCard('githubEvents', (data, freshness) => updateDevActivityLog(adaptGithubEvents(data), freshness)),
+  articles: exportCard('articles', (data, freshness) => updateReadingFeed(adaptArticles(data), freshness)),
+  starredRepos: exportCard('starredRepos', (data, freshness) => updateStarredRepos(adaptStarredRepos(data), freshness)),
+  theatreReviews: exportCard('theatreReviews', (data, freshness) => updateTheatreReviews(data, freshness))
+} satisfies Record<string, CardRender>
+
+type CardKey = keyof typeof CARD_RENDERS
+// Object.keys widens to string[]; CARD_RENDERS is a literal object, so its keys are exactly CardKey.
+const CARD_KEYS = Object.keys(CARD_RENDERS) as CardKey[]
+
+/** The judgement each card was last rendered with. */
+const renderedJudgement = new Map<CardKey, string>()
+
+/** Render one card from its cached export, with its freshness now. No export: nothing to render. */
+function renderCard(key: CardKey, now: number = Date.now()): void {
+  const judgement = CARD_RENDERS[key].judge(now)
+  if (judgement === null) {
     return
   }
-  const healthState = exportDomainState('health', lastHealth ?? null).state
-  updateNightSummary(adaptSleep(lastSleep, sleepScoreSource(lastHealth ?? null, healthState)), exportFreshness('sleep', lastSleep))
+  // Recorded before rendering, so an updater that throws is not retried on every tick.
+  renderedJudgement.set(key, judgement)
+  CARD_RENDERS[key].render(now)
+}
+
+/** Drops every cached gated export, its System Status timestamp, and every judgement made from one. */
+function forgetGatedExports(): void {
+  lastExports = {}
+  renderedJudgement.clear()
+  for (const key of Object.keys(timestamps)) {
+    if (key !== 'focus') {
+      delete timestamps[key]
+    }
+  }
+}
+
+/** setTimeout holds a signed 32-bit delay; a longer one fires at once. */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1
+let rejudgeTimer: ReturnType<typeof setTimeout> | null = null
+// Set while a page restored from the back/forward cache has not yet read focus. A hiding mode may
+// have begun while the page was frozen, so nothing is re-judged until the restore's focus-first
+// poll answers, exactly as the startup read writes nothing before its focus read.
+let awaitingFocusAfterRestore = false
+
+function cancelRejudge(): void {
+  if (rejudgeTimer !== null) {
+    clearTimeout(rejudgeTimer)
+    rejudgeTimer = null
+  }
+}
+
+/**
+ * The first instant after `now` at which a cached export now `live` turns `stale`: one
+ * millisecond past its `audit.warn` age. Null when no cached export is live.
+ */
+function nextFreshnessChange(now: number): number | null {
+  let next: number | null = null
+  // Object.keys widens to string[]; lastExports holds only GatedKey keys by its type.
+  for (const key of Object.keys(lastExports) as GatedKey[]) {
+    const data = lastExports[key]
+    if (!data || exportFreshness(key, data, now).state !== 'live') {
+      continue
+    }
+    const at = Date.parse(data.generatedAt) + EXPORT_FRESHNESS[key].warnMs + 1
+    next = next === null ? at : Math.min(next, at)
+  }
+  return next
+}
+
+/**
+ * Judges every card's freshness again, now, and re-renders each card whose judgement changed;
+ * then arms one timer for the next change. A poll outcome calls it too, so a tab whose timers a
+ * browser delayed (a hidden tab, a sleeping laptop) catches up on its next poll.
+ * A suppressed page writes nothing and arms nothing: no gated value reaches the DOM while
+ * suppressed, and the poll that follows a lift re-judges again. An unreadable focus value does not
+ * stop it: it reads nothing, and re-renders only an export read while focus decoded, so a card
+ * still turns `stale` while the focus signal is down.
+ */
+function rejudgeFreshness(): void {
+  cancelRejudge()
+  if (isSuppressed() || awaitingFocusAfterRestore) {
+    return
+  }
+  const now = Date.now()
+  for (const key of CARD_KEYS) {
+    const judgement = CARD_RENDERS[key].judge(now)
+    if (judgement === null || judgement === renderedJudgement.get(key)) {
+      continue
+    }
+    try {
+      renderCard(key, now)
+    } catch (e) {
+      // One card's failure must not stop the others. reportError surfaces it as an uncaught error.
+      reportError(e)
+    }
+  }
+  // System Status shows each export's age, which moves with the clock too.
+  updateSystemStatus(timestamps, now)
+  const next = nextFreshnessChange(now)
+  if (next !== null) {
+    rejudgeTimer = setTimeout(rejudgeFreshness, Math.min(Math.max(next - now, 0), MAX_TIMER_DELAY_MS))
+  }
 }
 
 /** The live cards each export feeds, for a failed first read (`renderWidgetUnavailable`). */
@@ -437,19 +622,24 @@ const startFetch = async () => {
   const theatreReviews = gated(data.theatreReviews)
   gatedDataApplied = [health, sleep, workouts, books, githubEvents, starredRepos, articles, theatreReviews].some((value) => value !== null)
 
-  // Cache raw data for cross-resource dependencies
-  if (health) {
-    lastHealth = health
-  }
-  if (sleep) {
-    lastSleep = sleep
+  // Cache each export: Health and Sleep read each other's, and the freshness re-judgement renders
+  // a card again from its cached export.
+  lastExports = {
+    ...(health && {health}),
+    ...(sleep && {sleep}),
+    ...(workouts && {workouts}),
+    ...(books && {books}),
+    ...(githubEvents && {githubEvents}),
+    ...(starredRepos && {starredRepos}),
+    ...(articles && {articles}),
+    ...(theatreReviews && {theatreReviews})
   }
   Object.assign(timestamps, isSuppressed() ? {focus: data.timestamps.focus} : data.timestamps)
 
   // ── Initial DOM updates: each export with its freshness (`live` or `stale`) ──
   if (health) {
     try {
-      applyHealth(health, sleep)
+      renderCard('health')
     } catch (e) {
       console.warn('[live-data] Health update failed:', e)
     }
@@ -458,14 +648,14 @@ const startFetch = async () => {
   // NightSummary renders from the sleep export, also when the health read failed (the score alone
   // then shows the no-reading mark).
   try {
-    applyNightSummary()
+    renderCard('nightSummary')
   } catch (e) {
     console.warn('[live-data] Sleep update failed:', e)
   }
 
   if (workouts) {
     try {
-      updateWorkouts(adaptWorkouts(workouts), exportFreshness('workouts', workouts))
+      renderCard('workouts')
     } catch (e) {
       console.warn('[live-data] Workouts update failed:', e)
     }
@@ -473,7 +663,7 @@ const startFetch = async () => {
 
   if (books) {
     try {
-      updateBookshelf(adaptBooks(books), exportFreshness('books', books))
+      renderCard('books')
     } catch (e) {
       console.warn('[live-data] Books update failed:', e)
     }
@@ -481,7 +671,7 @@ const startFetch = async () => {
 
   if (githubEvents) {
     try {
-      updateDevActivityLog(adaptGithubEvents(githubEvents), exportFreshness('githubEvents', githubEvents))
+      renderCard('githubEvents')
     } catch (e) {
       console.warn('[live-data] GitHub events update failed:', e)
     }
@@ -489,7 +679,7 @@ const startFetch = async () => {
 
   if (articles) {
     try {
-      updateReadingFeed(adaptArticles(articles), exportFreshness('articles', articles))
+      renderCard('articles')
     } catch (e) {
       console.warn('[live-data] Articles update failed:', e)
     }
@@ -497,7 +687,7 @@ const startFetch = async () => {
 
   if (starredRepos) {
     try {
-      updateStarredRepos(adaptStarredRepos(starredRepos), exportFreshness('starredRepos', starredRepos))
+      renderCard('starredRepos')
     } catch (e) {
       console.warn('[live-data] Starred repos update failed:', e)
     }
@@ -505,7 +695,7 @@ const startFetch = async () => {
 
   if (theatreReviews) {
     try {
-      updateTheatreReviews(theatreReviews, exportFreshness('theatreReviews', theatreReviews))
+      renderCard('theatreReviews')
     } catch (e) {
       console.warn('[live-data] Theatre reviews update failed:', e)
     }
@@ -525,13 +715,20 @@ const startFetch = async () => {
     onUpdate: handleResourceUpdate,
     onSuppressed: applySuppression,
     onError: (key, err) => console.warn(`[poll] ${key} error:`, err.message),
-    onStatusChange: updatePollStatus
+    // Every poll outcome re-judges freshness: a failed poll and an unchanged export both leave the
+    // cards as they were, and each emits its status here, where no update reaches the cards.
+    onStatusChange: (status) => {
+      updatePollStatus(status)
+      rejudgeFreshness()
+    }
   })
   engine.seed(timestamps)
   // Propagate the load-time suppression intent set by applyFocus() (engine was null then).
   engine.setSuppressed(isSuppressed())
   engine.setFocusReadable(data.focus.status === 'ok')
   engine.start()
+  // Arm the first freshness timer here, rather than rely on engine.start emitting a status.
+  rejudgeFreshness()
 
   // Nudge the service worker to check for a new build now. The graceful,
   // state-preserving reload is owned entirely by the web app's sw-register.js
@@ -588,7 +785,9 @@ if ('requestIdleCallback' in window) {
 // (an open WebSocket is a hard Chromium BFCache blocker).
 window.addEventListener('pagehide', (event) => {
   if ((event as PageTransitionEvent).persisted) {
+    cancelRejudge()
     if (engine) {
+      awaitingFocusAfterRestore = true
       engine.stop()
     }
     if (ws) {
@@ -607,7 +806,11 @@ window.addEventListener('pageshow', (event) => {
   if ((event as PageTransitionEvent).persisted) {
     if (engine) {
       engine.start()
-      void engine.pollNow()
+      // pollNow reads focus first. Re-judge only after it answers (awaitingFocusAfterRestore).
+      void engine.pollNow().finally(() => {
+        awaitingFocusAfterRestore = false
+        rejudgeFreshness()
+      })
     }
     if (ws) {
       ws.connect()
