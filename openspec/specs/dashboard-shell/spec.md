@@ -116,6 +116,53 @@ Verified by `tests/behavioral/client-states.test.ts:73` (a health export 75 min 
 - **THEN** the Heart Rate card SHALL read `stale`, carry that `data-generated-at`, show "as of" in
   its header, and still render its reading
 
+### Requirement: An open tab re-judges freshness as an export ages
+
+A card's freshness SHALL stay true while the tab stays open, not only at the moment of an update.
+The client SHALL judge each card's freshness again (`exportFreshness(domain, lastData, now)`) from
+the export the card shows, on a timer armed for the next instant a `live` export passes its
+`audit.warn` age, and after every poll outcome: a success, an unchanged export the poll engine
+skips, and a failure. A card whose judgement changed SHALL be rendered again through its updater
+with the new freshness, so a card whose export ages past its warning age turns `stale` with its
+"as of" time whether the polls fail or keep returning the same export. Night Summary turns on two
+judgements: its sleep export's, and whether the health export that lends its score is still
+`live`. A failed poll SHALL keep the card's values: only the first read renders `unavailable`. A
+fresh export SHALL return the card to `live`.
+
+A suppressed page SHALL write nothing, and entering suppression, by a hiding focus value or by a
+gate denial, SHALL drop every cached export, so no re-judgement brings a value back after a hiding
+transition (`client-privacy`). A page restored from the back/forward cache SHALL re-judge nothing
+until its focus-first poll answers, because a hiding mode may have begun while it was frozen. An
+unreadable focus value does not stop the re-judgement: it reads nothing, and re-renders only an
+export read while focus decoded.
+
+Verified by `tests/unit/live-data.freshness.test.ts:140` (polls fail: `stale`, "as of", values
+kept, no `unavailable`), `tests/unit/live-data.freshness.test.ts:157` (polls return the same
+export), `tests/unit/live-data.freshness.test.ts:170` (a poll outcome re-judges when the timer is
+late), `tests/unit/live-data.freshness.test.ts:184` (the timer re-judges when no poll runs),
+`tests/unit/live-data.freshness.test.ts:199` (a fresh export returns the card to `live`, and it
+stays `live`), `tests/unit/live-data.freshness.test.ts:221` (a hiding focus push during the ageing
+writes nothing and brings nothing back), `tests/unit/live-data.freshness.test.ts:244` (Night
+Summary drops the score of a health export that turns stale),
+`tests/unit/live-data.freshness.test.ts:269` (a gate denial during the ageing writes nothing and
+brings nothing back), `tests/unit/live-data.freshness.test.ts:287` (a restored page re-judges only
+after its focus read) and `tests/behavioral/client-states.test.ts:153` (an open tab in the browser
+turns `stale` while its polls fail).
+
+#### Scenario: A live health export ages while every poll fails
+
+- **GIVEN** a health export 40 minutes old when the dashboard loads, so Heart Rate reads `live`
+- **WHEN** every later health poll fails and the tab stays open for 6 more minutes
+- **THEN** the Heart Rate card SHALL read `stale`, carry that export's `data-generated-at`, show
+  "as of" in its header, and still render its reading
+
+#### Scenario: A hiding mode begins while the export ages
+
+- **GIVEN** a `live` card and a hiding focus push
+- **WHEN** the export passes its warning age, and later the hiding mode ends with every gated read
+  failing
+- **THEN** no updater SHALL write the card in either period
+
 ### Requirement: Hydration draws its target-range bands in the browser
 
 When the client fills the Hydration card, it SHALL draw both target-range bands, water and
