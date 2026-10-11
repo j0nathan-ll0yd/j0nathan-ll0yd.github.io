@@ -192,7 +192,10 @@ JSON, a body without a decodable `currentFocus` -- SHALL NOT be treated as permi
 artifact SHALL be fetched or applied on its strength: not by the startup read
 (`fetchAllEndpoints`), not by the poll engine, which reads focus first in each tier and reads
 nothing gated until a focus read decodes, and not by the WebMCP reading tool. A suppression body on
-the focus path suppresses every gated artifact. The next poll retries.
+the focus path suppresses every gated artifact. The next poll retries. Re-judging the freshness of
+an export the page read while focus decoded applies nothing on the unreadable value's strength: it
+reads nothing and renders no new value (`dashboard-shell`, "An open tab re-judges freshness as an
+export ages").
 
 Verified by `tests/unit/api.test.ts:374` (the startup read, three unreadable forms),
 `tests/unit/poll-engine.test.ts:417` (the engine, including focus-first ordering) and
