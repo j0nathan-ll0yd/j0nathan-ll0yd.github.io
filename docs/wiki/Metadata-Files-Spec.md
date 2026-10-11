@@ -160,16 +160,16 @@ Auto-generated at build time by `@astrojs/sitemap`. Lists the two canonical
 URLs, `https://jonathanlloyd.me` (daily, priority 1.0) and
 `https://jonathanlloyd.me/privacy` (monthly, priority 0.3). The filter in
 `astro.config.mjs` excludes `/404` and the noindex `/offline` page by exact
-pathname. `lastmod` is the build time, because the content is data-driven and
-can change on every deploy. Every listed URL answers 200 with no redirect:
+pathname. The sitemap emits no `lastmod`: no verifiable per-page content date
+exists. CI checks out with `actions/checkout` at its default depth of 1, so git
+history would give every page the same wrong date, `/` is live client-side data
+plus authored copy, and `/privacy` has no authored date. `changefreq` and
+`priority` are emitted but Google ignores them. `tests/build/sitemap.test.ts`
+fails if any `lastmod` appears. Every listed URL answers 200 with no redirect:
 pages build as files (`build.format: 'file'`), and
 `tests/build/canonical-urls.test.ts` fails if a listed URL would come from a
 directory index. The index/child split is `@astrojs/sitemap`'s default output
 shape; it is protocol-valid and harmless at this scale.
-
-Open conflict: the build-time `lastmod` is the "deploy date" pattern that
-"Honest metadata" above names as an anti-pattern. The code and this section
-describe what ships; which one changes is an owner decision.
 
 ### `/llms.txt` — backend-composed live
 

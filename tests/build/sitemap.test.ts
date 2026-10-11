@@ -1,10 +1,11 @@
 import {beforeAll, describe, expect, it} from 'vitest'
-import {readFileSync} from 'fs'
+import {readdirSync, readFileSync} from 'fs'
 import path from 'path'
 
 // Asserts the enriched sitemap (astro.config.mjs sitemap() options) ships the
-// per-page SEO signals it is configured for. Without this, the changefreq /
-// priority / lastmod enrichment could silently regress to bare <loc> entries.
+// per-page SEO signals it is configured for (changefreq, priority) and no lastmod.
+// lastmod is omitted because no verifiable per-page content date exists: CI checks out
+// with depth 1 and / is live client-side data. See docs/wiki/Metadata-Files-Spec.md.
 const distDir = path.resolve(process.cwd(), 'dist')
 
 let xml: string
@@ -33,11 +34,12 @@ describe('Enriched sitemap', () => {
     expect(locs.some((l) => l.includes('/404'))).toBe(false)
   })
 
-  it('every url carries a lastmod', () => {
-    const urls = xml.match(/<url>[\s\S]*?<\/url>/g) ?? []
-    expect(urls.length).toBeGreaterThan(0)
-    for (const u of urls) {
-      expect(u, `missing <lastmod> in ${u}`).toMatch(/<lastmod>[^<]+<\/lastmod>/)
+  it('no sitemap file carries a lastmod (no verifiable content date; never the build date)', () => {
+    const files = readdirSync(distDir).filter((f) => /^sitemap.*\.xml$/.test(f))
+    expect(files).toContain('sitemap-0.xml')
+    expect(files).toContain('sitemap-index.xml')
+    for (const f of files) {
+      expect(readFileSync(path.join(distDir, f), 'utf-8'), `${f} must not emit <lastmod>`).not.toMatch(/<lastmod>/)
     }
   })
 
