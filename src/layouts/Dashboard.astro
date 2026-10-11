@@ -18,7 +18,10 @@ const {
   dataFree = false,
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
-const canonicalURL = siteUrl + (Astro.url.pathname === '/' ? '' : Astro.url.pathname);
+// build.format 'file' puts the output file name in Astro.url.pathname at build time
+// (/privacy.html, /index.html). The page's URL drops it: the host serves privacy.html at /privacy.
+const pagePath = Astro.url.pathname.replace(/(?:\/index)?\.html$/, '') || '/';
+const canonicalURL = siteUrl + (pagePath === '/' ? '' : pagePath);
 const ogImage = new URL('/assets/og-image.png', Astro.site);
 // Cloudflare Web Analytics site token (public — appears in the page markup). The
 // beacon is served first-party via /cf-insights.js; see the tag before </body>.
@@ -30,7 +33,7 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
 // Dataset are gated to it; other pages emit a plain WebPage instead. WebSite and
 // the full Person are site-wide entities and appear on every page (WebSite is
 // slimmed on non-home pages so the full node is not repeated per page).
-const isHome = Astro.url.pathname === '/';
+const isHome = pagePath === '/';
 
 // Profile's last content-modification date. This is a STATIC literal, not the
 // build time: the ProfilePage content (bio, job title, links) changes rarely and

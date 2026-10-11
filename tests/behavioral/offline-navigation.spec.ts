@@ -1,7 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
 import {createRequire} from 'node:module'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
-import {decodeLikeOrigin, type DistServer, startDistServer} from './dist-server'
+import {decodeLikeOrigin, type DistServer, readDist, startDistServer} from './dist-server'
 import {siteGatedProbeUrls, traversalProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
 
 // The authored notice the page shows. Read from the copy package's JSON export, the same value
@@ -172,10 +172,12 @@ test('a navigation while the browser is offline gets the data-free /offline page
   await context.setOffline(false)
 })
 
-// Production answers `/offline` with a 308 to `/offline/` (as it does for `/privacy`). Workbox
-// follows the redirect when it precaches, and the fallback must still find the page.
+// The host answers `/offline` with a 200 since the build emits offline.html, but a host that
+// redirects it (the Pages 308 to `/offline/` that a directory-format build caused) must not break
+// the fallback: Workbox follows the redirect when it precaches, and the fallback still finds the page.
 test('the fallback works when the host redirects /offline to /offline/', async ({page}) => {
   server.overrides.set('/offline', {status: 308, type: 'text/plain', body: '', location: '/offline/'})
+  server.overrides.set('/offline/', {status: 200, type: 'text/html; charset=utf-8', body: await readDist('offline.html')})
   await installWorker(page)
   server.down = true
 
