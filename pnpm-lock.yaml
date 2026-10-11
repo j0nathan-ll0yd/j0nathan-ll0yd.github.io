@@ -85,6 +85,9 @@ importers:
       eslint:
         specifier: ^10.7.0
         version: 10.7.0(supports-color@10.2.2)
+      espree:
+        specifier: ^11.2.0
+        version: 11.2.0
       fast-check:
         specifier: 4.9.0
         version: 4.9.0

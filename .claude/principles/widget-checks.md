@@ -85,7 +85,7 @@ For full context, read the spec. For the new-widget workflow, use `/new-widget`.
 
 **Production constraint:** CSP `script-src 'self'` rejects inline JS in production. `<script is:inline>` blocks WITH content (not `src=`) and inline `on*=` event handlers ARE forbidden in markup — they silently fail at runtime. Use `<script is:inline src="/js/..." defer>` to reference an external file under `public/js/`, and attach event listeners in those files (never as `on*=` attributes). The `npm run audit:inline-scripts` prebuild gate enforces this externalization/CSP rule — it checks _where_ scripts load and forbids `on*=` handlers, and does NOT constrain syntax; bundled `<script>` (no `is:inline`) and `type="application/ld+json"` data scripts are exempt.
 
-**Check:** Run `npm run audit:inline-scripts` to confirm no inline `<script is:inline>` bodies or inline event handlers exist in `src/**/*.{astro,html}`. Syntax is not gated — ES2017 features are fine in externalized `public/js/*.js`.
+**Check:** Run `npm run audit:inline-scripts` to confirm no inline `<script is:inline>` bodies or inline event handlers exist in `src/**/*.{astro,html}`. Syntax in `public/js/**/*.js` IS gated: `pnpm run lint` parses those files with espree at `ecmaVersion: 2017` (`sourceType: 'script'`), so post-ES2017 syntax is a parse error. `audit:inline-scripts` itself does not check syntax.
 
 **Fix:** Extract any inline `<script is:inline>` body or `on*=` handler to a `public/js/*.js` file referenced via `<script is:inline src="..." defer>`. Modern ES2017 syntax (`const`/`let`, arrow functions, template literals, `async`/`await`) may be used freely in that externalized file.
 
