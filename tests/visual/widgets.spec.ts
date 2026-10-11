@@ -474,18 +474,44 @@ test.describe('System status — open popover with caret', () => {
     // render is what the committed baseline already holds.
     await waitForStableBox(popover)
 
+    // Place the popover on whole CSS pixels. Its production placement is
+    // `right: anchor(right); top: anchor(bottom)`, so its left/top inherit the
+    // fractional x/y of the (i) button, which flex layout and font metrics move
+    // by a sub-pixel run-to-run. A fractional left/top changes the sub-pixel
+    // phase at which the text rasterises (a ~1px glyph shift, ~2% of the clip),
+    // and rounding only the CLIP cannot fix that: the clip moves, the glyphs
+    // do not. An earlier `translate` snap also failed: translate is a compositor
+    // transform, so the popover text was rasterised in its own layer and
+    // resampled, which broke local-to-CI byte parity. Inline left/top rewrite the
+    // layout position itself, so the text is laid out and painted at an integer
+    // origin in the normal paint path. `right`/`bottom: auto` drop the anchor()
+    // insets; the used margins (caret gap) are kept.
+    await popover.evaluate((el) => {
+      const node = el as HTMLElement
+      const rect = node.getBoundingClientRect()
+      const cs = getComputedStyle(node)
+      node.style.right = 'auto'
+      node.style.bottom = 'auto'
+      node.style.left = `${Math.round(rect.left) - parseFloat(cs.marginLeft)}px`
+      node.style.top = `${Math.round(rect.top) - parseFloat(cs.marginTop)}px`
+    })
+    await waitForStableBox(popover)
+
     const box = await popover.boundingBox()
     if (!box) {
       throw new Error('health popover has no bounding box')
     }
+    if (!Number.isInteger(box.x) || !Number.isInteger(box.y)) {
+      throw new Error(`health popover is not on whole pixels: x=${box.x} y=${box.y}`)
+    }
 
-    // Fixed integer clip anchored to the (now-stable) box origin. Fixed
+    // Fixed integer clip anchored to the (now integer) box origin. Fixed
     // width/height avoid any dependence on the fractional box size; the pad
     // covers the caret (~8px above the top edge, in the margin) and the layered
     // drop-shadow (~20px). No transform, so parity with the other captures holds.
     const padX = 16
     const padTop = 16
-    const clip = {x: Math.round(box.x) - padX, y: Math.round(box.y) - padTop, width: 280 + padX * 2, height: 120}
+    const clip = {x: box.x - padX, y: box.y - padTop, width: 280 + padX * 2, height: 120}
 
     await expect(page).toHaveScreenshot('system-status-popover-open.png', {clip, stylePath})
   })
