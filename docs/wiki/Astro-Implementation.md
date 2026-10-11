@@ -118,7 +118,7 @@ Showcase pages live in `src/showcase/` (not `src/pages/`) and import the real `.
 - **OpenGraph**: title, description, type, URL, image, site_name
 - **Twitter Cards**: summary card with title, description, image
 - **JSON-LD**: `@type: Person` with name, jobTitle, URL, sameAs (LinkedIn, GitHub), description
-- **Canonical URL**: Derived from `Astro.url.pathname` and `Astro.site`
+- **Canonical URL**: Derived from `Astro.site` and `Astro.url.pathname`, with the build-time `.html` / `/index.html` suffix stripped. Pages build as files (`build.format: 'file'`, `trailingSlash: 'never'`), so every canonical, sitemap and internal URL answers 200 at its extensionless path with no redirect. `tests/build/canonical-urls.test.ts` enforces this.
 
 ## Progressive Web App
 
@@ -127,7 +127,7 @@ Configured via `@vite-pwa/astro` in `astro.config.mjs`:
 - **Register type**: `autoUpdate` (service worker updates automatically)
 - **Manifest**: App name, description, theme/background colors, display standalone
 - **Icons**: 192x192 and 512x512 PNG icons in `/assets/`
-- **Precache**: static assets `*.{css,js,svg,png,ico,txt,webmanifest,woff2}` plus ONE HTML document, the data-free `/offline` page (`src/pages/offline.astro`). No other HTML document is precached (atlas decision 0160, PR 0b).
+- **Precache**: static assets `*.{css,js,svg,png,ico,txt,webmanifest,woff2}` plus ONE HTML document, the data-free `/offline` page (`src/pages/offline.astro`, built as `dist/offline.html`; `@vite-pwa/astro` rewrites the entry to the URL `offline`, which the host answers with a 200). No other HTML document is precached (atlas decision 0160, PR 0b).
 - **Navigations**: NetworkOnly. A navigation always reaches the network and is never stored. When the network fails, the worker answers with the precached `/offline` page (Workbox `precacheFallback`), which holds no gated value, no fixture value and no live widget. `navigateFallback` stays `null`.
 - **Gated data**: no runtime route caches the focus signal, a CloudFront JSON export or a site-origin proxy route. `scripts/check-sw-precache.mjs` enforces every rule above on each build; the behavior is specified in `openspec/specs/client-privacy/spec.md`.
 - **Service worker**: Registered by `public/js/sw-register.js`, which Dashboard.astro loads

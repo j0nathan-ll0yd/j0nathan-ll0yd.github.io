@@ -82,7 +82,7 @@ function wildcardBlock(): Record<string, string> {
 }
 
 async function functionResponse(): Promise<Response> {
-  return onRequest({request: new Request('https://jonathanlloyd.me/privacy/'), next: async () => new Response('privacy'), waitUntil: () => {}})
+  return onRequest({request: new Request('https://jonathanlloyd.me/privacy'), next: async () => new Response('privacy'), waitUntil: () => {}})
 }
 
 describe('two-plane response-header parity', () => {
@@ -118,7 +118,7 @@ describe('Content-Usage response header', () => {
 
   it('is added to normal site responses', async () => {
     const response = await onRequest({
-      request: new Request('https://jonathanlloyd.me/privacy/'),
+      request: new Request('https://jonathanlloyd.me/privacy'),
       next: async () => new Response('privacy'),
       waitUntil: () => {}
     })

@@ -52,16 +52,28 @@ export interface DistServer {
 export const javascript = (body: string): Answer => ({status: 200, type: MIME['.js'], body})
 export const notFound: Answer = {status: 404, type: 'text/plain', body: 'not found'}
 
+/** Reads a file from the built site, for a test that serves a page at a path of its own. */
+export const readDist = (relative: string): Promise<Buffer> => readFile(join(DIST, relative))
+
+const redirect = (location: string): Answer => ({status: 308, type: 'text/plain', body: '', location})
+
 async function fromDist(pathname: string): Promise<Answer> {
+  // Astro builds `/privacy` and `/offline` as `<name>.html` (build.format 'file', trailingSlash
+  // 'never'). The host serves `<name>.html` at `/<name>` and redirects `/<name>.html`,
+  // `/index.html` and `/<name>/` to the extensionless URL. No directory index is served, so a page
+  // built as `<name>/index.html` 404s here instead of passing on a URL the host redirects.
+  if (pathname.endsWith('.html')) {
+    return redirect(pathname.replace(/(?:\/index)?\.html$/, '') || '/')
+  }
+  if (pathname !== '/' && pathname.endsWith('/')) {
+    return redirect(pathname.replace(/\/+$/, ''))
+  }
   const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '')
   const file = normalize(join(DIST, relative))
   if (!file.startsWith(DIST)) {
     return {status: 403, type: 'text/plain', body: 'forbidden'}
   }
-  // Astro builds `/privacy` and `/offline` as `<name>/index.html` and `/404` as `404.html`
-  // (trailingSlash: 'never'), and Workbox precaches them by their extensionless URLs, so resolve
-  // the way the production host does.
-  for (const candidate of [file, `${file}.html`, join(file, 'index.html')]) {
+  for (const candidate of [file, `${file}.html`]) {
     try {
       return {status: 200, type: MIME[extname(candidate)] ?? 'application/octet-stream', body: await readFile(candidate)}
     } catch {

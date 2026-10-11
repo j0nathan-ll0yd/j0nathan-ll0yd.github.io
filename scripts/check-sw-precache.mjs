@@ -41,7 +41,7 @@ const swPath = join(distDir, 'sw.js')
 // HTML is deliberately absent: the only precached document is the data-free
 // /offline page (OFFLINE_DOCUMENT below), atlas decision 0160, PR 0b.
 const PRECACHE_EXT_RE = /\.(css|js|svg|png|ico|txt|webmanifest|woff2)$/
-const OFFLINE_DOCUMENT_RE = /[\\/]offline[\\/]index\.html$/
+const OFFLINE_DOCUMENT_RE = /[\\/]offline\.html$/
 const GLOB_IGNORE_RE = /\/images\/(books|theatre)\//
 // sw.js and the workbox-<hash>.js runtime are never self-precached.
 const SW_RUNTIME_RE = /\/(sw|workbox-[^/]+)\.js$/
