@@ -48,6 +48,12 @@ describe('served portfolio-expert SKILL.md', () => {
       expect(skill).not.toContain(`${CLOUDFRONT_BASE}${path}`)
     }
   })
+
+  // Owner answer, 2026-10-12: developer documentation stays linkable from an LLM-facing file.
+  it('links the developer documentation at /openapi.json, which the build serves', () => {
+    expect(skill).toContain(`<${SITE_URL}${AGENT_PATHS.openapi}>`)
+    expect(fs.existsSync(path.join(distDir, AGENT_PATHS.openapi))).toBe(true)
+  })
 })
 
 describe('API catalog and OpenAPI', () => {

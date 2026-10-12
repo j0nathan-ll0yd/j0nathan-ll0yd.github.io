@@ -85,8 +85,8 @@ jobs:
       - name: lint
         run: pnpm run lint
 
-      # public/js/webmcp.js, the .well-known agent files, public/openapi.json, and the SKILL.md data
-      # table are generated. The build regenerates them,
+      # public/js/webmcp.js, the .well-known agent files, public/openapi.json, and the SKILL.md generated
+      # blocks are generated. The build regenerates them,
       # so a committed copy that drifts from the generator would ship unreviewed.
       - name: Generated WebMCP files match the generator
         run: pnpm run check:webmcp

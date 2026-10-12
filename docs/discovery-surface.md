@@ -34,9 +34,9 @@ WebMCP script, and every discovery JSON file read it, so the surfaces cannot dis
 `scripts/generate-webmcp.mjs` emits the static outputs during `prebuild`:
 `public/js/webmcp.js`, `mcp/server-card.json`, `agent-skills/index.json`,
 `ai-catalog.json`, `ard.json`, `api-catalog` and `public/openapi.json`. Do not hand-edit
-those outputs. `agent-skills/portfolio-expert/SKILL.md` is hand-written except its
-generated Live Data Sources table; the generator renders that table, then computes the
-digest.
+those outputs. `agent-skills/portfolio-expert/SKILL.md` is hand-written except two
+generated blocks, the Live Data Sources table and the Developer Documentation links; the
+generator renders both, then computes the digest.
 
 - Prose comes from `@j0nathan-ll0yd/copy` (`identity` + `llm` namespaces).
 - URLs and identifiers come from `@j0nathan-ll0yd/portal-contract` (`SITE_URL`,
@@ -92,6 +92,13 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   `resources/list`, `resources/read`, or `tools/call` answer. `tests/unit/skill-md.test.ts`
   and `tests/build/agent-discovery.test.ts` red if the source or served `SKILL.md` names one. The owner applied this on
   2026-10-07 and can reverse it.
+- **Developer documentation stays linkable (owner answer, 2026-10-12):** an LLM-facing file
+  may link the developer documentation, `/openapi.json` and `/developers`, but never the raw
+  `health.json`, `sleep.json`, or `workouts.json`. `SKILL.md` carries a generated Developer
+  Documentation block from the `llm.txt.whenToUseApi` and `llm.txt.whenToUseDevelopers` copy
+  keys. It names `/developers` only once `src/pages/developers.astro` exists, the same rule as
+  the api-catalog `service-doc`. `tests/unit/skill-md.test.ts` holds the block to that rule, and
+  its raw-URL test still covers the whole file.
 - **Focus gate:** every artifact read goes through `functions/_lib/proxy.ts`, the same
   fail-closed gate as the llms routes. During a hiding focus mode a suppressible artifact
   returns the suppression document `{"suppressed":true,"reason":"focus mode active"}`,
@@ -167,8 +174,9 @@ included: `/openapi.json` and the homepage JSON-LD `Dataset` (its `distribution`
 LLM-channel data policy above does not govern them: they document the public API, the same
 JSON a browser already fetches from the CloudFront host. They are not LLM content. The
 boundary is the channel. The LLM channels (MCP, WebMCP, `SKILL.md`, and the llms trio) carry
-only the coarsened band; the public data documentation describes the exports that exist. The
-owner can reverse this choice.
+only the coarsened band; the public data documentation describes the exports that exist. An
+LLM channel may link that documentation (owner answer, 2026-10-12) but never a raw export
+URL. The owner can reverse this choice.
 
 Known risk: the CloudFront/S3 origin answers a key that does not exist with an XML or HTML
 403, not JSON. If an agent-readiness scorer starts treating the site as an API, its
