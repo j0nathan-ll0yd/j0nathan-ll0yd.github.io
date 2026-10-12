@@ -35,12 +35,12 @@ const CF_BEACON_TOKEN = '4816323971ac433eb5450e8b0534acfc';
 // slimmed on non-home pages so the full node is not repeated per page).
 const isHome = pagePath === '/';
 
-// Profile's last content-modification date. This is a STATIC literal, not the
-// build time: the ProfilePage content (bio, job title, links) changes rarely and
-// a build-time date would be non-deterministic and dishonest. Bump this by hand
-// whenever the profile content in @j0nathan-ll0yd/copy identity.person changes. The
-// legitimately-live surface is the Dataset (temporalCoverage), not this page.
-const PROFILE_MODIFIED = '2026-07-20T00:00:00Z';
+// No dateModified on the ProfilePage: Google lists it as recommended "if
+// applicable", and no verifiable edit date exists for the profile content. It
+// comes from @j0nathan-ll0yd/copy, which was yalc-linked (no version) when a
+// date was last hand-set and has since moved to a registry version. Same
+// omit-when-unverifiable rule as the sitemap lastmod. tests/build/json-ld.test.ts
+// fails if a dateModified returns.
 
 const websiteId = siteUrl + '#website';
 const personId = siteUrl + '#person';
@@ -111,7 +111,6 @@ const profilePageNode = {
   mainEntity: { '@id': personId },
   url: canonicalURL.toString(),
   dateCreated: '2026-03-04T00:00:00Z',
-  dateModified: PROFILE_MODIFIED,
   inLanguage: 'en-US',
 };
 
