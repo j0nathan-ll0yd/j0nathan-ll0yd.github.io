@@ -233,8 +233,8 @@ export async function onRequest(context: PagesContext): Promise<Response> {
     headers.set('Content-Type', 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"')
   }
 
-  // ai-catalog.json carries the ARD media type of a catalog of entries. ard.json stays
-  // application/json: ARD defines its path and shape, not a media type for it.
+  // ai-catalog.json carries the ARD catalog media type (see AI_CATALOG_MEDIA_TYPE). ard.json
+  // keeps application/json until the owner decides; ARD names no Content-Type for either file.
   if (url.pathname === AGENT_PATHS.aiCatalog) {
     headers.set('Content-Type', AI_CATALOG_MEDIA_TYPE)
   }

@@ -17,7 +17,7 @@ import {
   TOOLS
 } from '../../functions/_lib/agent-catalog.mjs'
 import {DISCOVERY_CACHE_SECONDS, LLM_CHANNEL_POLICY, LLM_WITHHELD_URLS} from '../../functions/_lib/agent-catalog.mjs'
-import {allowedHostnames, MAX_REQUEST_BODY_BYTES, PAGES_PROJECT_HOST, readGated, STALE_META_KEY} from '../../functions/_lib/mcp-server'
+import {allowedHostnames, MAX_REQUEST_BODY_BYTES, PAGES_PROJECT_HOST, readGated, STALE_META_KEY, withheldLinks} from '../../functions/_lib/mcp-server'
 import type {ReadMemo} from '../../functions/_lib/mcp-server'
 import {onRequest as mcpRoute} from '../../functions/mcp/index'
 import {onRequest as serverCardRoute} from '../../functions/mcp/server-card'
@@ -218,15 +218,24 @@ describe('request bounds', () => {
     )
   const call = (id: number) => ({jsonrpc: '2.0', id, method: 'tools/call', params: {name: 'get_current_reading', arguments: {}, _meta: META}})
 
+  /** A tools/call body padded to exactly `size` bytes. */
+  const padded = (size: number) => {
+    const base = JSON.stringify({...call(1), params: {...call(1).params, pad: ''}})
+    return base.replace('"pad":""', `"pad":"${'x'.repeat(size - base.length)}"`)
+  }
+  const headers = {'MCP-Protocol-Version': MCP_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_current_reading'}
+
+  // The message is this module's, not the SDK's ("Payload Too Large: ..."), so the test reds if
+  // the local bound is removed and only the SDK's maxRequestBodySize remains.
   it.each([
-    ['one byte over the bound', 'x'.repeat(MAX_REQUEST_BODY_BYTES - 120)],
-    ['a 3.5 MiB junk parameter', 'x'.repeat(3.5 * 1024 * 1024)]
-  ])('answers 413 for %s, before any upstream read', async (_label, junk) => {
-    const body = JSON.stringify({...call(1), params: {...call(1).params, junk}})
-    expect(body.length).toBeGreaterThan(MAX_REQUEST_BODY_BYTES)
-    const response = await rpc(body, {'MCP-Protocol-Version': MCP_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_current_reading'})
+    ['one byte over the bound', MAX_REQUEST_BODY_BYTES + 1],
+    ['a 3.5 MiB junk parameter', 3.5 * 1024 * 1024]
+  ])('answers 413 for %s, before any upstream read', async (_label, size) => {
+    const body = padded(size)
+    expect(body.length).toBe(size)
+    const response = await rpc(body, headers)
     expect(response.status).toBe(413)
-    expect((await response.json()).error.code).toBe(-32000)
+    expect((await response.json()).error).toEqual({code: -32000, message: `Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`})
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -236,11 +245,26 @@ describe('request bounds', () => {
   })
 
   it('serves a body at the bound', async () => {
-    const base = JSON.stringify({...call(1), params: {...call(1).params, pad: ''}})
-    const body = base.replace('"pad":""', `"pad":"${'x'.repeat(MAX_REQUEST_BODY_BYTES - base.length)}"`)
+    const body = padded(MAX_REQUEST_BODY_BYTES)
     expect(body.length).toBe(MAX_REQUEST_BODY_BYTES)
-    const response = await rpc(body, {'MCP-Protocol-Version': MCP_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_current_reading'})
-    expect(response.status).toBe(200)
+    expect((await rpc(body, headers)).status).toBe(200)
+  })
+
+  it('answers an unreadable body with 400 -32700, not an uncaught error', async () => {
+    const body = new ReadableStream({pull: (controller) => controller.error(new TypeError('client aborted'))})
+    const response = await mcpRoute(
+      context(
+        new Request(`${SITE_URL}/mcp`,
+          {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', host: SITE_HOST},
+            body,
+            duplex: 'half'
+          } as RequestInit)
+      )
+    )
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.code).toBe(-32700)
   })
 
   // The reviewer's 100-call batch no longer fits the body bound at all.
@@ -528,12 +552,43 @@ describe('llms-full.txt passthrough', () => {
     expect(JSON.stringify(body)).not.toContain('Human Datastream (Complete)')
   })
 
-  it.each(RAW_HEALTH_PATHS)('fails closed on any link form of %s: relative, code span, or another origin', async (path) => {
-    for (const form of [`see ${path}`, `\`https://mirror.example${path}\``, `[raw](${path})`]) {
+  it.each(RAW_HEALTH_PATHS)('fails closed on any link form of %s: relative, encoded, code span, or another origin', async (path) => {
+    const name = path.slice(1)
+    const encoded = path.replace('.', '%2E')
+    for (
+      const form of [
+        `see ${path}`,
+        `\`https://mirror.example${path}\``,
+        `[raw](${path})`,
+        `[raw](${name})`,
+        `[raw](./${name})`,
+        `[raw](${encoded})`,
+        `https://mirror.example${encoded}`,
+        `<https://mirror.example${encoded}>`,
+        `[raw]: ${name}`
+      ]
+    ) {
       serving(`# Jonathan Lloyd\n\n${form}\n`)
       const {body} = await modern('resources/read', {uri: LLMS_FULL_URI}, LLMS_FULL_URI)
       expect(body.result, form).toBeUndefined()
     }
+  })
+
+  it('matches links, not disclosures: the freshness table and plain file names pass', () => {
+    expect(withheldLinks('| health.json | 2026-10-12T23:19:04.462Z |\nhealth.json, sleep.json and workouts.json', LLMS_FULL_URI)).toEqual([])
+    expect(withheldLinks('<SYSTEM>profile</SYSTEM> [books](https://d1pfm520aduift.cloudfront.net/books.json)', LLMS_FULL_URI)).toEqual([])
+    expect(withheldLinks(LLMS_FULL_2026_10_12, LLMS_FULL_URI).sort()).toEqual([...RAW_HEALTH_PATHS].sort())
+  })
+
+  // The check guards republished backend prose only. A JSON export carries third-party text (commit
+  // titles, starred-repo descriptions) and is served as data, so a title that names a path does not
+  // break it.
+  it('does not scan a JSON export: a commit title that names /health.json is served', async () => {
+    const events = JSON.stringify({events: [{title: 'fix(api): drop the /health.json link'}]})
+    fetchMock.mockImplementation((url: string) => url === FOCUS_URL ? fromCloudfront(JSON.stringify({currentFocus})) : fromCloudfront(events))
+    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.githubEvents}`
+    const {body} = await modern('resources/read', {uri}, uri)
+    expect((body.result?.contents as Array<{text: string}>)[0]!.text).toBe(events)
   })
 
   it('serves the post-#379 document verbatim: freshness rows stay, raw links are gone', async () => {

@@ -54,8 +54,11 @@ export const ARTIFACTS = []
 // stateless legacy leg.
 export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
 
-// The ARD media type of a catalog of entries (ARD §3.3). functions/_middleware.ts
-// serves ai-catalog.json as it.
+// The media type ai-catalog.json is served as. A local choice: ARD §3.3 lists
+// `application/ai-catalog+json` as the entry `type` for a "nested manifest / catalog of
+// entries" (ards-project/ard-spec spec/ard.md at 9d33ea17, newer than the b76f235a pin).
+// Restated here rather than imported from functions/_lib/agent-paths.mjs, so the measurer
+// does not share the value it measures.
 export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'
 
 // The MCP resources the live server must list: every JSON export except the three the
@@ -73,6 +76,10 @@ export const EXPECTED_RESOURCE_URIS = Object.freeze([
 // resource that republishes backend text, behind the withheld-link check.
 export const FOCUS_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
 export const LLMS_FULL_RESOURCE_URI = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+
+// A withheld export the probe asks for by URI. The server must refuse it: listing it is a
+// fail, and so is reading it.
+export const WITHHELD_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.health}`
 export const PROBE_PROTOCOL_VERSION = '2025-11-25'
 
 // The modern revision, which the WebMCP script speaks: no handshake, a per-request
@@ -337,7 +344,9 @@ export function judgeModernExchange({discover, calls, card}) {
  *   gates it, so a suppression document there is a fail too.
  * - llms-full.txt must read as text, or as the suppression document during a hiding focus
  *   mode. An error fails, which includes the server refusing a copy that links a withheld
- *   export.
+ *   export. Text that names a withheld path fails too: the probe does not trust the
+ *   server's own refusal.
+ * - A read of a withheld export must answer an error, never content.
  */
 export function judgeResourceExchange({list, reads}) {
   const findings = []
@@ -351,6 +360,16 @@ export function judgeResourceExchange({list, reads}) {
     })
   }
   for (const {uri, response} of reads) {
+    if (uri === WITHHELD_RESOURCE_URI) {
+      if (response?.error === undefined) {
+        findings.push({
+          severity: 'fail',
+          id: 'mcp-withheld-readable',
+          message: `resources/read ${uri} did not answer an error: ${JSON.stringify(response).slice(0, 300)}`
+        })
+      }
+      continue
+    }
     const content = response?.result?.contents?.[0]
     const text = typeof content?.text === 'string' ? content.text : undefined
     let problem
@@ -368,6 +387,8 @@ export function judgeResourceExchange({list, reads}) {
       }
     } else if (text.trim() === '') {
       problem = `${uri} read empty`
+    } else if ([...WITHHELD_EXPORTS].some((path) => text.includes(path))) {
+      problem = `${uri} names a withheld export (${[...WITHHELD_EXPORTS].filter((path) => text.includes(path)).join(', ')})`
     }
     if (problem) {
       findings.push({
@@ -428,7 +449,7 @@ export async function probeMcpRemotes(card, post = postMcp) {
       const listRequest = modernRequest(100, 'resources/list')
       const list = await post(url, listRequest.message, listRequest.headers)
       const reads = []
-      for (const [index, uri] of [FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI].entries()) {
+      for (const [index, uri] of [FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI, WITHHELD_RESOURCE_URI].entries()) {
         const readRequest = modernRequest(101 + index, 'resources/read', {uri}, uri)
         reads.push({uri, response: await post(url, readRequest.message, readRequest.headers)})
       }

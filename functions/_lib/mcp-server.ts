@@ -14,11 +14,18 @@
 // suppressible artifact yields the suppression document, never data.
 //
 // Amplification bounds: a POST body over MAX_REQUEST_BODY_BYTES answers 413 before
-// anything is parsed, a JSON-RPC batch array answers 400 (both supported revisions
-// require one message per POST), and every inbound request carries one read memo, so
-// repeated reads of one path share one gated read.
+// anything is parsed, and a JSON-RPC batch array answers 400 (see boundedRequest). Every
+// inbound request also carries one read memo, so repeated reads of one path would share
+// one gated read.
 
-import {createMcpHandler, McpServer, validateHostHeader, validateOriginHeader} from '@modelcontextprotocol/server'
+import {
+  createMcpHandler,
+  localhostAllowedHostnames,
+  McpServer,
+  readRequestBody,
+  validateHostHeader,
+  validateOriginHeader
+} from '@modelcontextprotocol/server'
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/server'
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -49,10 +56,11 @@ export const PAGES_PROJECT_HOST = `${MCP_SERVER_SLUG}.pages.dev`
 const PUBLIC_HOSTNAMES = [new URL(SITE_URL).hostname, PAGES_PROJECT_HOST]
 
 /**
- * The `wrangler pages dev` hostnames. Cloudflare routes a request to this project by its Host, so a
- * request whose Host is one of these never reached a deploy: it is local development.
+ * The `wrangler pages dev` hostnames (`localhost`, `127.0.0.1`, `[::1]`). Cloudflare routes a request
+ * to this project by its Host, so a request whose Host is one of these never reached a deploy: it is
+ * local development.
  */
-const DEVELOPMENT_HOSTNAMES = ['localhost', '127.0.0.1']
+const DEVELOPMENT_HOSTNAMES = localhostAllowedHostnames()
 
 /** The largest POST body /mcp reads. One request with an empty `arguments` object is well under 1 KiB. */
 export const MAX_REQUEST_BODY_BYTES = 8 * 1024
@@ -96,9 +104,13 @@ type GatedRead = {status: 'ok'; text: string; staleSince?: string} | {status: 's
   status: 'unavailable'
   httpStatus: number
   text: string
-} | {status: 'withheld'}
+}
 
-/** One memo per inbound request: repeated reads of one path share one gated read. */
+/**
+ * One memo per inbound request: repeated reads of one path share one gated read. Defense in depth:
+ * with batches rejected, one POST carries one message and each message reads at most one path, so
+ * no inbound request reaches a second read today. The memo keeps that bound if that ever changes.
+ */
 export type ReadMemo = Map<string, Promise<GatedRead>>
 
 /** Result `_meta` key that marks data served from the last-known-good copy (reverse-DNS prefix, per the MCP `_meta` rules). */
@@ -132,14 +144,6 @@ async function readGatedOnce(path: string, context: CloudfrontProxyContext): Pro
   const response = await reader({request: new Request(new URL(path, context.request.url), {method: 'GET'}), waitUntil: context.waitUntil})
   const text = await response.text()
   if (response.status === 200) {
-    // FAIL CLOSED on a withheld export link. llms-full.txt is backend text republished verbatim, so
-    // the LLM-channel data policy holds for it only while the backend omits those links. A copy
-    // that names one is never served on this channel.
-    const linked = LLM_WITHHELD_PATHS.filter((withheld: string) => text.includes(withheld))
-    if (linked.length > 0) {
-      logger.error('mcp_withheld_link_refused', {artifact: path, withheld: linked})
-      return {status: 'withheld'}
-    }
     return response.headers.get('X-Proxy-Stale') === 'true'
       ? {status: 'ok', text, staleSince: response.headers.get('X-Proxy-Lkg-Stored-At') ?? 'unknown'}
       : {status: 'ok', text}
@@ -160,6 +164,42 @@ function textResult(value: unknown, {isError = false, staleSince}: {isError?: bo
 
 /** The fixed answer for an artifact the policy check refused. */
 const WITHHELD_REASON = 'artifact withheld: it links a raw health, sleep, or workouts export'
+
+/** The withheld exports' file names (`health.json`, ...), for matching a resolved link target. */
+const WITHHELD_NAMES = new Set(LLM_WITHHELD_PATHS.map((path: string) => path.slice(1)))
+
+/** Link targets in markdown: inline `](target)`, autolinks `<target>`, reference definitions, and bare URLs. */
+const LINK_TARGETS = [/\]\(\s*<?([^)\s>]+)/g, /<([^>\s]+)>/g, /^\s*\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)/gm, /\bhttps?:\/\/[^\s)>\]|`'"]+/g]
+
+/**
+ * The withheld exports a text links, in any form an agent could follow:
+ *
+ * - any occurrence of `/health.json`, `/sleep.json`, or `/workouts.json`: absolute and root-relative
+ *   links, code spans, and an unresolved `{cloudfrontBase}` placeholder all contain it;
+ * - any link target that resolves, against the document URL and after percent-decoding, to a path
+ *   whose last segment is a withheld file name: `[raw](health.json)`, `/health%2Ejson`.
+ *
+ * A bare file name in prose with no slash, such as the freshness table's `| health.json |`, is a
+ * disclosure, not a link, and does not match. The backend tests its llms documents with the same
+ * slash rule (mantle-LifegamesPortal PR #379).
+ */
+export function withheldLinks(text: string, documentUrl: string): string[] {
+  const found = new Set<string>(LLM_WITHHELD_PATHS.filter((path: string) => text.includes(path)))
+  for (const pattern of LINK_TARGETS) {
+    for (const match of text.matchAll(pattern)) {
+      let name: string | undefined
+      try {
+        name = decodeURIComponent(new URL(match[1] ?? match[0], documentUrl).pathname).split('/').pop()
+      } catch {
+        continue
+      }
+      if (name !== undefined && WITHHELD_NAMES.has(name)) {
+        found.add(`/${name}`)
+      }
+    }
+  }
+  return [...found]
+}
 
 /**
  * The server factory. One instance per request, so nothing is shared between callers. `memo` is
@@ -186,9 +226,6 @@ export function buildMcpServer(context: CloudfrontProxyContext, memo: ReadMemo =
       if (read.status === 'suppressed') {
         return textResult(read.text)
       }
-      if (read.status === 'withheld') {
-        return textResult({failed: true, reason: WITHHELD_REASON}, {isError: true})
-      }
       if (read.status === 'unavailable') {
         return textResult({failed: true, status: read.httpStatus, reason: read.text}, {isError: true})
       }
@@ -211,7 +248,12 @@ export function buildMcpServer(context: CloudfrontProxyContext, memo: ReadMemo =
         if (read.status === 'unavailable') {
           throw new Error(`${resource.path} unavailable (HTTP ${read.httpStatus})`)
         }
-        if (read.status === 'withheld') {
+        // FAIL CLOSED on a withheld export link in republished backend text. llms-full.txt reaches
+        // agents verbatim, so the LLM-channel data policy holds for it only while the backend omits
+        // those links. A copy that links one is never served on this channel.
+        const linked = read.status === 'ok' && resource.republished ? withheldLinks(read.text, resource.uri) : []
+        if (linked.length > 0) {
+          logger.error('mcp_withheld_link_refused', {artifact: resource.path, withheld: linked})
           throw new Error(`${resource.path} ${WITHHELD_REASON}`)
         }
         // A suppressed read returns the suppression document in place of the artifact.
@@ -222,34 +264,6 @@ export function buildMcpServer(context: CloudfrontProxyContext, memo: ReadMemo =
   }
 
   return server
-}
-
-/** The body, or undefined when it exceeds MAX_REQUEST_BODY_BYTES. Stops reading at the bound. */
-async function readBoundedBody(request: Request): Promise<string | undefined> {
-  if (Number(request.headers.get('content-length') ?? 0) > MAX_REQUEST_BODY_BYTES) {
-    return undefined
-  }
-  if (!request.body) {
-    return ''
-  }
-  const reader = request.body.getReader()
-  const chunks: Uint8Array[] = []
-  let size = 0
-  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
-    size += chunk.value.byteLength
-    if (size > MAX_REQUEST_BODY_BYTES) {
-      await reader.cancel()
-      return undefined
-    }
-    chunks.push(chunk.value)
-  }
-  const body = new Uint8Array(size)
-  let offset = 0
-  for (const chunk of chunks) {
-    body.set(chunk, offset)
-    offset += chunk.byteLength
-  }
-  return new TextDecoder().decode(body)
 }
 
 /** True when the body parses as a JSON array: a JSON-RPC batch. Anything unparseable is the SDK's to answer. */
@@ -263,23 +277,38 @@ function isBatch(body: string): boolean {
 
 /**
  * Bounds a POST before the SDK sees it. A body over the bound answers 413 and a batch array 400.
- * MCP 2025-06-18 removed JSON-RPC batching; 2025-11-25 requires "The body of the POST request MUST
- * be a single JSON-RPC request, notification, or response", and 2026-07-28 "The body of the HTTP
- * POST MUST be a single JSON-RPC request or notification". Neither revision this server speaks
- * needs batch support, and a batch is the fan-out that multiplies upstream reads.
+ *
+ * Batches: 2026-07-28 says "The body of the HTTP POST MUST be a single JSON-RPC request or
+ * notification", 2025-11-25 "The body of the POST request MUST be a single JSON-RPC request,
+ * notification, or response", and 2025-06-18 removed batching. Neither revision this server serves
+ * as current needs batch support, and a batch is the fan-out that multiplies upstream reads. This
+ * is a deliberate deviation for one older revision: the SDK's legacy leg still negotiates
+ * 2025-03-26, which says implementations "MUST support receiving JSON-RPC batches". A 2025-03-26
+ * client that batches gets 400.
+ *
+ * The body is decoded as UTF-8 (RFC 8259 requires it of JSON) and forwarded as text with the
+ * client's abort signal; the runtime sets the new Content-Length.
  */
 async function boundedRequest(request: Request): Promise<Request | Response> {
   if (request.method !== 'POST') {
     return request
   }
-  const body = await readBoundedBody(request)
-  if (body === undefined) {
+  let body: Awaited<ReturnType<typeof readRequestBody>>
+  try {
+    body = await readRequestBody(request, MAX_REQUEST_BODY_BYTES)
+  } catch (error) {
+    logger.warn('mcp_request_body_unreadable', {error_class: error instanceof Error ? error.name : 'unknown'})
+    return jsonRpcError(400, -32700, 'The request body could not be read')
+  }
+  if (body.tooLarge || body.text === undefined) {
     return jsonRpcError(413, -32000, `Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`)
   }
-  if (isBatch(body)) {
+  if (isBatch(body.text)) {
     return jsonRpcError(400, -32600, 'JSON-RPC batch requests are not supported: send one message per POST')
   }
-  return new Request(request.url, {method: 'POST', headers: request.headers, body})
+  const headers = new Headers(request.headers)
+  headers.delete('content-length')
+  return new Request(request.url, {method: 'POST', headers, body: body.text, signal: request.signal})
 }
 
 /** The /mcp request handler: validation and bounds first, then the SDK entry with a per-request factory. */

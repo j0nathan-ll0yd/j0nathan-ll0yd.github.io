@@ -23,7 +23,8 @@ import {
   validateApiCatalogShape,
   validateArdManifest,
   validateMcpServerCard,
-  validateWebfingerShape
+  validateWebfingerShape,
+  WITHHELD_RESOURCE_URI
 } from '../checks/b2-check-wellknown.mjs'
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -210,7 +211,12 @@ describe('MCP liveness probe', () => {
     const post = async (_url: string, message: {method: string; params?: {_meta?: unknown; uri?: string}}, headers?: Record<string, string>) => {
       calls.push({method: message.method, headers, meta: message.params?._meta, uri: message.params?.uri})
       if (message.method === 'resources/read') {
-        return message.params?.uri === FOCUS_RESOURCE_URI ? focusRead : llmsRead
+        const uri = message.params?.uri
+        return uri === FOCUS_RESOURCE_URI
+          ? focusRead
+          : uri === LLMS_FULL_RESOURCE_URI
+          ? llmsRead
+          : {jsonrpc: '2.0', id: 103, error: {code: -32602, message: 'Resource not found'}}
       }
       return ({initialize, 'tools/list': toolsList, 'server/discover': discover, 'resources/list': resourcesList} as Record<string, unknown>)[
         message.method
@@ -224,9 +230,10 @@ describe('MCP liveness probe', () => {
       'tools/call',
       'resources/list',
       'resources/read',
+      'resources/read',
       'resources/read'
     ])
-    expect(calls.slice(5).map((c) => c.uri)).toEqual([FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI])
+    expect(calls.slice(5).map((c) => c.uri)).toEqual([FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI, WITHHELD_RESOURCE_URI])
     expect(calls[5]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'resources/read', 'Mcp-Name': FOCUS_RESOURCE_URI})
     expect(calls[1]!.headers).toEqual({'MCP-Protocol-Version': '2025-11-25'})
     expect(calls[3]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_profile'})
@@ -267,6 +274,22 @@ describe('MCP liveness probe', () => {
       reads: [{uri: FOCUS_RESOURCE_URI, response: gatedFocus}, {uri: LLMS_FULL_RESOURCE_URI, response: refused}]
     })
     expect(findings.map((f) => f.id)).toEqual(['mcp-resource-read', 'mcp-resource-read'])
+  })
+
+  it('fails llms-full.txt text that names a withheld export, even when the server serves it', () => {
+    const leaked = readOf(LLMS_FULL_RESOURCE_URI, '# Streams\n- https://d1pfm520aduift.cloudfront.net/health.json')
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: LLMS_FULL_RESOURCE_URI, response: leaked}]}).map((f) => f.id)).toEqual([
+      'mcp-resource-read'
+    ])
+  })
+
+  it('a withheld export that reads as content fails; a refusal passes', () => {
+    const served = readOf(WITHHELD_RESOURCE_URI, '{"heartRate":60}')
+    const refused = {jsonrpc: '2.0', id: 103, error: {code: -32602, message: 'Resource not found'}}
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: WITHHELD_RESOURCE_URI, response: served}]}).map((f) => f.id)).toEqual([
+      'mcp-withheld-readable'
+    ])
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: WITHHELD_RESOURCE_URI, response: refused}]})).toEqual([])
   })
 
   it('ai-catalog.json served as plain JSON fails the media-type assertion', () => {

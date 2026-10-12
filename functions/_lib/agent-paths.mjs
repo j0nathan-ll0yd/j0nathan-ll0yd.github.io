@@ -14,7 +14,11 @@ export const AGENT_PATHS = Object.freeze({
   developers: '/developers'
 })
 
-/** The ARD media type of a catalog of entries (ARD §3.3, "nested manifest / catalog of entries"); the middleware serves ai-catalog.json as it. */
+/**
+ * The media type the middleware serves ai-catalog.json as. A local choice: ARD §3.3 lists
+ * `application/ai-catalog+json` as the entry `type` for a "nested manifest / catalog of entries"
+ * (ards-project/ard-spec spec/ard.md at 9d33ea17, newer than the b76f235a pin).
+ */
 export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'
 
 /** The OpenAPI media type the api-catalog advertises and the middleware serves /openapi.json as. */

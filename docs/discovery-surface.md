@@ -66,16 +66,19 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   2025-era clients (`initialize`, then any request). GET and DELETE answer 405 with
   `Allow: POST`. No session id is minted, and a sent `Mcp-Session-Id` is ignored.
 - **Validation:** Host and Origin are checked against `jonathanlloyd.me`,
-  `human-datastream.pages.dev`, and its preview subdomains. `localhost` and `127.0.0.1` are
-  allowed as an Origin only when the Host is one of them, which is `wrangler pages dev`:
+  `human-datastream.pages.dev`, and its preview subdomains. `localhost`, `127.0.0.1`, and
+  `[::1]` are allowed as an Origin only when the Host is one of them, which is `wrangler pages dev`:
   Cloudflare never routes a localhost Host to a deploy. An invalid Host or Origin answers 403
   with a fixed message that never echoes the header.
-- **Bounds:** a POST body over 8 KiB answers 413 before anything is parsed. A JSON-RPC batch
-  array answers 400: both revisions require one message per POST (2026-07-28: "The body of
-  the HTTP POST **MUST** be a single JSON-RPC _request_ or _notification_"; 2025-11-25: "The
-  body of the POST request **MUST** be a single JSON-RPC _request_, _notification_, or
-  _response_"), and 2025-06-18 removed batching. Each inbound request carries one read memo,
-  so repeated reads of one path share one gated read. A tool that cannot parse or summarize
+- **Bounds:** a POST body over 8 KiB answers 413 before anything is parsed, and an unreadable
+  body answers 400 `-32700`. A JSON-RPC batch array answers 400 `-32600`. 2026-07-28 says "The
+  body of the HTTP POST **MUST** be a single JSON-RPC _request_ or _notification_", 2025-11-25
+  "The body of the POST request **MUST** be a single JSON-RPC _request_, _notification_, or
+  _response_", and 2025-06-18 removed batching. This is a deliberate deviation for one older
+  revision: the SDK's legacy leg still negotiates 2025-03-26, which says implementations "MUST
+  support receiving JSON-RPC batches", so a 2025-03-26 client that batches gets 400. Each
+  inbound request carries one read memo, defense in depth: with batches rejected, no request
+  reaches a second read today. A tool that cannot parse or summarize
   its artifact answers `{"failed": true, "reason": "artifact unreadable"}`, never engine
   error text.
 - **No authorization.** The server is public and read-only, which the revision allows.
@@ -91,9 +94,12 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   decision 0096 (LLM channels carry only a coarsened health band, "no raw point-in-time
   values in output"). No MCP resource or tool lists or reads `health.json`, `sleep.json`, or
   `workouts.json`, and no answer the server composes names them. `llms-full.txt` is backend
-  text the server republishes verbatim, so its resource read FAILS CLOSED: a copy that contains
-  `/health.json`, `/sleep.json`, or `/workouts.json` in any link form is refused with an error
-  and logged as `mcp_withheld_link_refused`. The live document links all three until
+  text the server republishes verbatim, so its resource read FAILS CLOSED. A copy is refused with
+  an error, and logged as `mcp_withheld_link_refused`, when it contains `/health.json`,
+  `/sleep.json`, or `/workouts.json` anywhere, or a link target (markdown link, autolink,
+  reference definition, or bare URL) that resolves, percent-decoded, to one of those file names.
+  The check runs on `llms-full.txt` only: the JSON exports carry third-party text such as commit
+  titles and are served as data. The live document links all three until
   mantle-LifegamesPortal PR #379 deploys, so until then `resources/read` of `llms-full.txt`
   answers an error, never the links. Deploy order: the website first, then backend #379 right
   after it. The freshness table's bare file names (`| health.json |`) are a disclosure, not a
