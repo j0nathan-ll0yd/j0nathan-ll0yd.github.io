@@ -1,7 +1,9 @@
 ---
 import { SITE_URL } from '@j0nathan-ll0yd/portal-contract/constants';
 import { llm } from '@j0nathan-ll0yd/copy';
+import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
+import { AGENT_PATHS } from '../../functions/_lib/agent-paths.mjs';
 import { DATA_SOURCES, TOOLS, fillTemplate } from '../../functions/_lib/agent-catalog.mjs';
 import { linkSegments } from '../lib/link-segments';
 
@@ -22,24 +24,22 @@ const sections: Section[] = [
   { id: 'usage', heading: d.usageHeading, body: d.usageBody },
 ];
 ---
-<InfoPage title={d.title} description={d.metaDescription}>
-  <p class="info-lede">{d.intro}</p>
+<InfoPage title={d.title} description={d.metaDescription} path={AGENT_PATHS.developers} lede={d.intro}>
   {sections.map((s) => (
-    <section class="info-section" id={s.id} aria-labelledby={`${s.id}-heading`}>
-      <h2 id={`${s.id}-heading`} class="info-section-heading">{s.heading}</h2>
-      <p class="info-section-body">
+    <TextPageSection heading={s.heading} id={s.id}>
+      <p>
         {linkSegments(s.body).map((seg) => (seg.href ? <a href={seg.href}>{seg.text}</a> : seg.text))}
       </p>
       {s.items && (
-        <ul class="info-list">
+        <ul>
           {s.items.map((item) => (
-            <li class="info-list-item">
+            <li>
               {item.href ? <a href={item.href}>{item.name}</a> : <code>{item.name}</code>}
-              <span class="info-list-note">{item.note}</span>
+              <small>{item.note}</small>
             </li>
           ))}
         </ul>
       )}
-    </section>
+    </TextPageSection>
   ))}
 </InfoPage>

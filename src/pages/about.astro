@@ -1,6 +1,8 @@
 ---
 import { getEntry } from 'astro:content';
+import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
+import { SITE_PAGE_PATHS } from '../../functions/_lib/site-paths';
 
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[about.astro] @j0nathan-ll0yd/copy identity entry missing');
@@ -14,11 +16,10 @@ const sections = [
   { heading: a.outsideHeading, body: a.outside },
 ];
 ---
-<InfoPage title={a.title} description={a.metaDescription} pageType="AboutPage">
+<InfoPage title={a.title} description={a.metaDescription} path={SITE_PAGE_PATHS.about} pageType="AboutPage">
   {sections.map((s) => (
-    <section class="info-section" aria-label={s.heading}>
-      <h2 class="info-section-heading">{s.heading}</h2>
-      <p class="info-section-body">{s.body}</p>
-    </section>
+    <TextPageSection heading={s.heading}>
+      <p>{s.body}</p>
+    </TextPageSection>
   ))}
 </InfoPage>

@@ -1,6 +1,8 @@
 ---
 import { getEntry } from 'astro:content';
+import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
+import { SITE_PAGE_PATHS } from '../../functions/_lib/site-paths';
 
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[contact.astro] @j0nathan-ll0yd/copy identity entry missing');
@@ -16,27 +18,24 @@ function profile(host: string): string {
 const linkedinUrl = profile('linkedin.com');
 const githubUrl = profile('github.com');
 ---
-<InfoPage title={c.title} description={c.metaDescription} pageType="ContactPage">
-  <p class="info-lede">{c.intro}</p>
-  <section class="info-section" aria-labelledby="contact-channels">
-    <h2 id="contact-channels" class="info-section-heading">{c.channelsHeading}</h2>
-    <ul class="info-list">
-      <li class="info-list-item" data-channel="email">
-        <span class="info-list-label">{c.emailLabel}</span> <a href={`mailto:${id.person.email}`}>{id.person.email}</a>
-        <span class="info-list-note">{c.emailNote}</span>
+<InfoPage title={c.title} description={c.metaDescription} path={SITE_PAGE_PATHS.contact} pageType="ContactPage" lede={c.intro}>
+  <TextPageSection heading={c.channelsHeading} id="contact-channels">
+    <ul>
+      <li data-channel="email">
+        <b>{c.emailLabel}</b> <a href={`mailto:${id.person.email}`}>{id.person.email}</a>
+        <small>{c.emailNote}</small>
       </li>
-      <li class="info-list-item" data-channel="linkedin">
+      <li data-channel="linkedin">
         <a href={linkedinUrl} rel="me noopener">{c.linkedinLabel}</a>
-        <span class="info-list-note">{c.linkedinNote}</span>
+        <small>{c.linkedinNote}</small>
       </li>
-      <li class="info-list-item" data-channel="github">
+      <li data-channel="github">
         <a href={githubUrl} rel="me noopener">{c.githubLabel}</a>
-        <span class="info-list-note">{c.githubNote}</span>
+        <small>{c.githubNote}</small>
       </li>
     </ul>
-  </section>
-  <section class="info-section" aria-labelledby="contact-security">
-    <h2 id="contact-security" class="info-section-heading">{c.securityHeading}</h2>
-    <p class="info-section-body">{c.security}</p>
-  </section>
+  </TextPageSection>
+  <TextPageSection heading={c.securityHeading} id="contact-security">
+    <p>{c.security}</p>
+  </TextPageSection>
 </InfoPage>
