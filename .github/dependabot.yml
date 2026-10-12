@@ -1,8 +1,9 @@
 version: 2
 
-# The seven @j0nathan-ll0yd/* dependencies (copy, fixtures, portal-contract,
-# schemas, tokens, web, config) resolve from GitHub Packages, which requires
-# authentication even though every one of them is public -- an unauthenticated
+# The nine @j0nathan-ll0yd/* dependencies (config, copy, estate-contracts,
+# fixtures, observability, portal-contract, schemas, tokens, web) resolve from
+# GitHub Packages, which requires authentication even though every one of them
+# is public -- an unauthenticated
 # GET of https://npm.pkg.github.com/@j0nathan-ll0yd%2fconfig returns 401.
 # Without this block Dependabot cannot see the internal packages at all, so a
 # published bump never reaches this consumer and the site silently keeps

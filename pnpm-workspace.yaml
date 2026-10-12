@@ -34,22 +34,25 @@ overrides:
   # Security: qs < 6.16.0 is GHSA-q8mj-m7cp-5q26 (6.11.1-6.15.1, the Dependabot
   # alert), GHSA-x5fp-wj9c-mxmx (6.14.2-6.15.3) and GHSA-4mjr-xmp4-gh2g
   # (2.2.5-6.15.x); pnpm audit reports all three and 6.16.0 is the only release
-  # clearing every one. Two parents hold qs below it: typed-rest-client 2.3.1
+  # clearing every one. Three parents hold qs below it: typed-rest-client 2.3.1
   # (via @stryker-mutator/core 9.6.1, `~2.3.0`; Stryker 10.0.0 keeps that range)
-  # pins `qs: 6.15.1` exactly, and express 4.22.2 (via @lhci/cli) declares
-  # `~6.15.1`. 6.16.0 is a semver minor of the same 6.x API. Drop once both
-  # parents declare a range that admits >=6.16.0.
+  # pins `qs: 6.15.1` exactly, and express 4.22.2 and its body-parser 1.20.6
+  # (via @lhci/cli) both declare `~6.15.1`. 6.16.0 is a semver minor of the same
+  # 6.x API. Drop once `pnpm why qs` resolves >=6.16.0 without this entry, i.e.
+  # typed-rest-client, express and body-parser all admit it.
   qs@<6.16.0: ^6.16.0
   # Security: basic-ftp <= 6.2.0 is GHSA-c475-qrg2-pj4r (reported by pnpm audit;
-  # no Dependabot alert yet). Pulled by get-uri < pac-proxy-agent < proxy-agent
-  # (@lhci/cli, @puppeteer/browsers). Even the latest get-uri (8.0.1) declares
-  # `^5.3.1`, so this is a forced major: 6.0.0's only breaking change disables
-  # separate FTP transfer hosts by default (a security default), and the
-  # Client methods get-uri calls (access, lastMod, list, downloadTo, close)
-  # keep identical signatures in 6.2.3's Client.d.ts. Drop once get-uri
-  # declares basic-ftp >=6.2.1.
+  # no Dependabot alert yet). Pulled by get-uri 6.0.5 (`^5.0.2`) < pac-proxy-agent
+  # < proxy-agent (@lhci/cli, @puppeteer/browsers); even the latest get-uri
+  # (8.0.1) declares `^5.3.1`, so this is a forced major. 6.0.0's only breaking
+  # change disables separate FTP transfer hosts by default (a security default),
+  # and the Client methods get-uri calls (access, lastMod, list, downloadTo,
+  # close) keep identical signatures in 6.2.3's Client.d.ts. Drop once
+  # `pnpm why basic-ftp` resolves >=6.2.1 without this entry (a get-uri release
+  # alone is not enough until pac-proxy-agent's range admits it).
   basic-ftp@<6.2.1: ^6.2.1
-  # Security: tmp <= 0.2.5 is GHSA-52f5-9888-hmc6 and GHSA-ph9p-34f9-6g65. Pulled
+  # Security: tmp <= 0.2.3 is GHSA-52f5-9888-hmc6; tmp < 0.2.6 is
+  # GHSA-ph9p-34f9-6g65. Pulled
   # by @lhci/cli 0.15.1 (`^0.1.0`, `tmp.fileSync` in `lhci open`) and by
   # inquirer 6 > external-editor 3.1.0 (`^0.0.33`, `tmpNameSync` in the
   # interactive `lhci wizard`). Both calls exist unchanged in 0.2.x. @lhci/cli
@@ -59,8 +62,9 @@ overrides:
   # Security: uuid < 11.1.1 is GHSA-w5hq-g745-h8pq (v3/v5/v6 with a caller
   # buffer). @lhci/cli 0.15.1 declares `^8.3.1` and calls only `uuid.v4()`
   # (src/collect/node-runner.js), which 11.x still exports through its CJS
-  # entry. Major jump verified by the require check in the PR. Drop under the
-  # same @lhci/cli condition as tmp.
+  # entry. Major jump verified: `require('@lhci/cli/src/collect/node-runner.js')`
+  # loads and `uuid.v4()` returns a UUID on 11.1.1, and `lhci collect` runs.
+  # Drop under the same @lhci/cli condition as tmp.
   uuid@<11.1.1: ^11.1.1
 
 # Translated from the npm-only `.npmrc` `legacy-peer-deps=true`. @vite-pwa/astro
@@ -77,10 +81,10 @@ strictPeerDependencies: false
 minimumReleaseAge: 1440
 
 # Same-day first-party releases must bypass minimumReleaseAge or frozen production deploys fail
-# for 24 hours. Only the eight @j0nathan-ll0yd packages are excluded; third-party dependencies
+# for 24 hours. Only the nine @j0nathan-ll0yd packages are excluded; third-party dependencies
 # retain the supply-chain age floor. Bare names keep future internal versions deployable.
 #
-# @j0nathan-ll0yd/estate-contracts is the eighth (atlas decision 0079 item 4 wave 2b). Its source of
+# @j0nathan-ll0yd/estate-contracts was the eighth (atlas decision 0079 item 4 wave 2b). Its source of
 # truth is `j0nathan-ll0yd/atlas`, and it carries the normative cross-repo contracts this repo used
 # to vendor verbatim. A rule change lands as an atlas release plus a lockfile bump here, so blocking
 # that bump for 24 hours would reintroduce the coordination lag the published package exists to
