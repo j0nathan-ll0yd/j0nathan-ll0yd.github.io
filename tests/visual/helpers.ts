@@ -360,4 +360,7 @@ export async function waitForStableBox(locator: Locator, {
     stableFrames = settled ? stableFrames + 1 : 0
     prev = box
   }
+  if (stableFrames < framesRequired) {
+    throw new Error(`waitForStableBox: ${locator} did not hold still for ${framesRequired} frames within ${timeoutMs}ms`)
+  }
 }

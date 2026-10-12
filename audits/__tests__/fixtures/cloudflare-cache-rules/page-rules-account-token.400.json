@@ -1,0 +1,14 @@
+{
+  "status": 400,
+  "body": {
+    "success": false,
+    "errors": [
+      {
+        "code": 1011,
+        "message": "Page Rules endpoint does not support account owned tokens"
+      }
+    ],
+    "messages": [],
+    "result": null
+  }
+}

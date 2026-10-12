@@ -1,0 +1,13 @@
+{
+  "status": 404,
+  "body": {
+    "success": false,
+    "errors": [
+      {
+        "message": "could not find entrypoint ruleset in the http_response_cache_settings phase"
+      }
+    ],
+    "messages": [],
+    "result": null
+  }
+}
