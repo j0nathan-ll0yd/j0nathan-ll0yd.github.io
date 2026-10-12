@@ -93,7 +93,7 @@ function wildcardBlock(): Record<string, string> {
 }
 
 async function functionResponse(): Promise<Response> {
-  return onRequest({request: new Request('https://jonathanlloyd.me/privacy/'), next: async () => new Response('privacy'), waitUntil: () => {}})
+  return onRequest({request: new Request('https://jonathanlloyd.me/privacy'), next: async () => new Response('privacy'), waitUntil: () => {}})
 }
 
 describe('two-plane response-header parity', () => {
@@ -129,7 +129,7 @@ describe('Content-Usage response header', () => {
 
   it('is added to normal site responses', async () => {
     const response = await onRequest({
-      request: new Request('https://jonathanlloyd.me/privacy/'),
+      request: new Request('https://jonathanlloyd.me/privacy'),
       next: async () => new Response('privacy'),
       waitUntil: () => {}
     })
@@ -139,8 +139,11 @@ describe('Content-Usage response header', () => {
   })
 
   it('is retained on the negotiated homepage markdown representation', async () => {
-    vi.stubGlobal('fetch',
-      vi.fn(async (url: string) => url.endsWith('/focus.json') ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('# full profile')))
+    vi.stubGlobal('fetch', vi.fn(async (url: string) =>
+      url.endsWith('/focus.json')
+        ? new Response(JSON.stringify({currentFocus: 'Personal'}))
+        : new Response('# full profile', {headers: {'x-amz-cf-id': 'cf'}})
+    ))
     const next = vi.fn(async () => new Response('html'))
 
     const response = await onRequest({request: new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/markdown'}}), next, waitUntil: () => {}})

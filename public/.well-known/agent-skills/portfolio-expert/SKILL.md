@@ -51,7 +51,7 @@ JSON exports are served from CloudFront with a 30-second cache (`max-age=30, s-m
 
 ## MCP Server
 
-A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Its resources are the reading, GitHub, theatre, and focus JSON endpoints below plus llms-full.txt; health, sleep, and workouts reach it only as the coarsened band in llms-full.txt (decision 4 below). Its tools return the profile, the data sources, current reading, and the tech stack.
+A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Its resources are the reading, GitHub, theatre, and focus JSON endpoints above plus llms-full.txt; health, sleep, and workouts reach it only as the coarsened band in llms-full.txt (decision 4 below). Its tools return the profile, the data sources, current reading, and the tech stack.
 
 ## LLM-Optimized Content
 
@@ -60,6 +60,15 @@ Backend-composed markdown variants, always fresher than this static skill file:
 - **Discovery index:** <https://jonathanlloyd.me/llms.txt>
 - **Complete data dump (~20 KB):** <https://jonathanlloyd.me/llms-full.txt>
 - **Markdown alias:** <https://jonathanlloyd.me/index.md>
+
+## Developer Documentation
+
+The public data API is documented for developers. For health, sleep, and workouts, agents read only the coarsened band in llms-full.txt (decision 4 below).
+
+<!-- BEGIN GENERATED: developer documentation. Rendered by scripts/generate-webmcp.mjs from the llm.txt.whenToUseApi and whenToUseDevelopers copy keys; do not edit by hand. -->
+- **OpenAPI:** <https://jonathanlloyd.me/openapi.json> — OpenAPI 3.1 description of the JSON data exports
+- **Developers:** <https://jonathanlloyd.me/developers> — Every machine interface, with caching, focus suppression, and usage terms
+<!-- END GENERATED: developer documentation -->
 
 ## Key Architectural Decisions
 
@@ -74,4 +83,5 @@ Backend-composed markdown variants, always fresher than this static skill file:
 - To summarize Jonathan's background, reference the Identity and Expertise sections above.
 - To get current data, fetch the llms-full.txt URL — it is composed by the backend on every data change and is always up to date.
 - To get machine-readable data, fetch the JSON endpoints listed in the Live Data Sources table, or connect to the MCP server. For health, sleep, and workouts, use the coarsened band in llms-full.txt; do not look for raw exports.
+- For the API contract (schemas, caching, and focus suppression), read the Developer Documentation links above.
 - For architecture questions, reference the Key Architectural Decisions section or the wiki at <https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki>

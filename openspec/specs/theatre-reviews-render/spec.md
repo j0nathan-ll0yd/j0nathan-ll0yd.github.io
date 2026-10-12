@@ -26,14 +26,15 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:81`.
 ### Requirement: Empty state presents the theatre empty message without cards
 
 When the theatre export contains no reviews, the system SHALL display the Theatre Reviews empty
-message, display a zero review count, and SHALL NOT render review cards.
+message, name no review count (the bare "reviews" link, as `@j0nathan-ll0yd/web` 4 renders an
+empty export), and SHALL NOT render review cards.
 Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:96`.
 
-#### Scenario: An empty export shows the empty message and a zero count
+#### Scenario: An empty export shows the empty message and no count
 
 - **GIVEN** a theatre export that contains no reviews
 - **WHEN** the Theatre Reviews card finishes loading
-- **THEN** it SHALL show the "No reviews yet" empty message, SHALL read "0 reviews" in its count,
+- **THEN** it SHALL show the "No reviews yet" empty message, SHALL read "reviews" with no count,
   and SHALL render zero review cards
 
 ### Requirement: Baseline reviews render every source title and count

@@ -25,6 +25,7 @@ import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constan
 import {
   AGENT_PATHS,
   DATA_SOURCES,
+  fillTemplate,
   FOCUS_SIGNAL_PATH,
   LLM_DATA_SOURCE_DIRECTORY,
   MCP_PROTOCOL_VERSION,
@@ -42,10 +43,26 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const publicDir = join(root, 'public')
 const req = createRequire(import.meta.url)
 
-function write(relativePath, content) {
-  const outPath = join(publicDir, relativePath)
+// `--check` compares instead of writing: every generated file must already equal what this script
+// would write, or the run exits 1 naming the drifted files. CI runs it (static-checks.yml, lint job)
+// so a hand edit to a generated file, or a generator change committed without regenerating,
+// cannot merge. The build regenerates anyway (prebuild), so drift would otherwise ship unreviewed.
+const CHECK = process.argv.includes('--check')
+const drifted = []
+
+function emit(outPath, content) {
+  if (CHECK) {
+    if (!existsSync(outPath) || readFileSync(outPath, 'utf8') !== content) {
+      drifted.push(outPath)
+    }
+    return
+  }
   writeFileSync(outPath, content)
   console.log(`Generated ${outPath}`)
+}
+
+function write(relativePath, content) {
+  emit(join(publicDir, relativePath), content)
 }
 
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`
@@ -110,34 +127,49 @@ write(join('js', 'webmcp.js'), webmcp)
 write(AGENT_PATHS.serverCardCompat.slice(1), SERVER_CARD_JSON)
 
 // ---------------------------------------------------------------------------
-// Agent Skills index. SKILL.md is HAND-WRITTEN apart from its generated data-source table
-// (rendered below); this script computes the digest from the resulting served bytes. A literal digest desyncs the moment SKILL.md is
-// edited, and audits/checks/b2-check-wellknown.mjs validates the digest's FORMAT, not
-// its match, so a stale one would ship green.
+// Agent Skills index. SKILL.md is HAND-WRITTEN apart from two generated blocks (rendered
+// below); this script computes the digest from the resulting served bytes. A literal digest
+// desyncs the moment SKILL.md is edited, and audits/checks/b2-check-wellknown.mjs validates the
+// digest's FORMAT, not its match, so a stale one would ship green.
 // ---------------------------------------------------------------------------
 const skillMdPath = join(publicDir, '.well-known', 'agent-skills', 'portfolio-expert', 'SKILL.md')
 
-// SKILL.md is hand-written EXCEPT its Live Data Sources table, which is rendered here from
-// LLM_DATA_SOURCE_DIRECTORY, the same list get_data_sources serves. The LLM-channel data policy
-// (LLM_CHANNEL_POLICY) therefore governs the skill too, and the table cannot drift from it. The
-// block is regenerated before the digest is computed, so the digest covers the served bytes.
-const DIRECTORY_BEGIN = /<!-- BEGIN GENERATED: data-source directory\.[^>]*-->\n/
-const DIRECTORY_END = '<!-- END GENERATED: data-source directory -->'
-const cell = (value) => String(value).replace(/\|/g, '\\|')
-const skillSource = readFileSync(skillMdPath, 'utf8')
-const begin = DIRECTORY_BEGIN.exec(skillSource)
-const end = skillSource.indexOf(DIRECTORY_END)
-if (!begin || end < begin.index) {
-  throw new Error(`${skillMdPath} lost its generated data-source directory markers`)
+// ADVERTISE ONLY WHAT WORKS: /developers is named (in SKILL.md and as the api-catalog
+// service-doc) only once that page exists in this tree, so no deploy can link a 404.
+const developersPage = ['developers.astro', join('developers', 'index.astro')].some((file) => existsSync(join(root, 'src', 'pages', file)))
+
+/** Replace the body of one `BEGIN GENERATED: <name>` ... `END GENERATED: <name>` block. */
+function renderBlock(source, name, body) {
+  const begin = new RegExp(`<!-- BEGIN GENERATED: ${name}\\.[^>]*-->\n`).exec(source)
+  const endMarker = `<!-- END GENERATED: ${name} -->`
+  const end = source.indexOf(endMarker)
+  if (!begin || end < begin.index) {
+    throw new Error(`${skillMdPath} lost its generated ${name} markers`)
+  }
+  return `${source.slice(0, begin.index + begin[0].length)}${body}\n${source.slice(end)}`
 }
+
+// The Live Data Sources table is rendered from LLM_DATA_SOURCE_DIRECTORY, the same list
+// get_data_sources serves. The LLM-channel data policy (LLM_CHANNEL_POLICY) therefore governs the
+// skill too, and the table cannot drift from it.
+const cell = (value) => String(value).replace(/\|/g, '\\|')
 const directoryTable = [
   '| Data | Where to read it | Description |',
   '| --- | --- | --- |',
   ...LLM_DATA_SOURCE_DIRECTORY.map((s) => `| ${cell(s.name)} | <${s.url}> | ${cell(s.description)} |`)
 ].join('\n')
-writeFileSync(skillMdPath, `${skillSource.slice(0, begin.index + begin[0].length)}${directoryTable}\n${skillSource.slice(end)}`)
 
-const skillMdDigest = createHash('sha256').update(readFileSync(skillMdPath)).digest('hex')
+// The developer documentation links (owner answer, 2026-10-12): an LLM-facing file may link the
+// developer documentation, /openapi.json and /developers, but never a raw health, sleep, or
+// workouts export. Labels, URLs, and notes come from the same copy keys llms.txt uses.
+const developerDocs = [llm.txt.whenToUseApi, ...(developersPage ? [llm.txt.whenToUseDevelopers] : [])]
+const developerLinks = developerDocs.map((link) => `- **${link.label}:** <${fillTemplate(link.url, 'siteUrl', SITE_URL)}> — ${link.notes}`).join('\n')
+
+const withDirectory = renderBlock(readFileSync(skillMdPath, 'utf8'), 'data-source directory', directoryTable)
+const skillMd = renderBlock(withDirectory, 'developer documentation', developerLinks)
+emit(skillMdPath, skillMd)
+
+const skillMdDigest = createHash('sha256').update(skillMd).digest('hex')
 write(AGENT_PATHS.agentSkillsIndex.slice(1), json({
   $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
   skills: [
@@ -190,10 +222,9 @@ write(AGENT_PATHS.ard.slice(1), catalog)
 
 // ---------------------------------------------------------------------------
 // RFC 9727 API catalog. The anchor is the catalog's own URL; each API is an item,
-// described by its own linkset entry. ADVERTISE ONLY WHAT WORKS: service-doc names
-// /developers only once that page exists in this tree, so no deploy can link a 404.
+// described by its own linkset entry. service-doc names /developers only once that
+// page exists (developersPage, above).
 // ---------------------------------------------------------------------------
-const developersPage = ['developers.astro', join('developers', 'index.astro')].some((file) => existsSync(join(root, 'src', 'pages', file)))
 const dataApi = `${CLOUDFRONT_BASE}/`
 write(AGENT_PATHS.apiCatalog.slice(1), json({
   linkset: [
@@ -294,3 +325,15 @@ write(AGENT_PATHS.openapi.slice(1),
       }
     }
   }))
+
+if (CHECK) {
+  if (drifted.length > 0) {
+    console.error('[generate-webmcp --check] FAIL: committed files differ from the generator output:')
+    for (const path of drifted) {
+      console.error('  -', path)
+    }
+    console.error('Run `pnpm run generate:webmcp` and commit the result.')
+    process.exit(1)
+  }
+  console.log('[generate-webmcp --check] OK: every generated file matches the generator output.')
+}

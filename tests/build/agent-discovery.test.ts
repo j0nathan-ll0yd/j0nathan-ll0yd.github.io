@@ -48,6 +48,12 @@ describe('served portfolio-expert SKILL.md', () => {
       expect(skill).not.toContain(`${CLOUDFRONT_BASE}${path}`)
     }
   })
+
+  // Owner answer, 2026-10-12: developer documentation stays linkable from an LLM-facing file.
+  it('links the developer documentation at /openapi.json, which the build serves', () => {
+    expect(skill).toContain(`<${SITE_URL}${AGENT_PATHS.openapi}>`)
+    expect(fs.existsSync(path.join(distDir, AGENT_PATHS.openapi))).toBe(true)
+  })
 })
 
 describe('API catalog and OpenAPI', () => {
@@ -99,6 +105,7 @@ describe('API catalog and OpenAPI', () => {
 describe('WebMCP script placement', () => {
   // Scanners read only the first few same-origin scripts (the 2026-10-07 is-agentic scan read
   // 8 of 17 and missed webmcp.js at position 15), so it must be the first script, and deferred.
+  // Pages build as files (build.format 'file'), so /privacy is privacy.html.
   it.each(['index.html', '404.html', 'privacy.html', 'about.html', 'contact.html', 'developers.html'])('%s loads /js/webmcp.js first, deferred, from <head>',
     (page) => {
       const $ = cheerio.load(read(page))
@@ -108,4 +115,9 @@ describe('WebMCP script placement', () => {
       expect(first.parent().is('head')).toBe(true)
       expect($('script[src="/js/webmcp.js"]')).toHaveLength(1)
     })
+
+  // client-privacy: /offline carries no WebMCP script (the data-free Dashboard).
+  it('offline.html loads no WebMCP script', () => {
+    expect(cheerio.load(read('offline.html'))('script[src="/js/webmcp.js"]')).toHaveLength(0)
+  })
 })

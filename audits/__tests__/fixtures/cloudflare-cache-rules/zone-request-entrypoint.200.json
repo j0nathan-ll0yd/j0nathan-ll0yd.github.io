@@ -1,0 +1,153 @@
+{
+  "status": 200,
+  "body": {
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result": {
+      "id": "ruleset-id",
+      "name": "default",
+      "kind": "zone",
+      "version": "14",
+      "phase": "http_request_cache_settings",
+      "rules": [
+        {
+          "id": "rule0",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": true,
+            "edge_ttl": {
+              "mode": "override_origin",
+              "default": 31536000
+            },
+            "browser_ttl": {
+              "mode": "override_origin",
+              "default": 31536000
+            }
+          },
+          "expression": "starts_with(http.request.uri.path, \"/_astro/\") or starts_with(http.request.uri.path, \"/images/\")",
+          "description": "Static assets",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref0",
+          "enabled": true
+        },
+        {
+          "id": "rule1",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": true,
+            "edge_ttl": {
+              "mode": "override_origin",
+              "default": 31536000
+            },
+            "browser_ttl": {
+              "mode": "override_origin",
+              "default": 31536000
+            }
+          },
+          "expression": "http.request.uri.path.extension in {\"woff\" \"woff2\"}",
+          "description": "Fonts",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref1",
+          "enabled": true
+        },
+        {
+          "id": "rule2",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": false,
+            "browser_ttl": {
+              "mode": "respect_origin"
+            }
+          },
+          "expression": "http.request.uri.path eq \"/sw.js\"",
+          "description": "Service worker",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref2",
+          "enabled": true
+        },
+        {
+          "id": "rule3",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": true,
+            "edge_ttl": {
+              "mode": "override_origin",
+              "default": 14400
+            },
+            "browser_ttl": {
+              "mode": "override_origin",
+              "default": 600
+            }
+          },
+          "expression": "true",
+          "description": "HTML pages (catch-all)",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref3",
+          "enabled": true
+        },
+        {
+          "id": "rule4",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": true,
+            "edge_ttl": {
+              "mode": "override_origin",
+              "default": 3600
+            },
+            "browser_ttl": {
+              "mode": "respect_origin"
+            }
+          },
+          "expression": "starts_with(http.request.uri.path, \"/.well-known/\")",
+          "description": "Well-known files",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref4",
+          "enabled": true
+        },
+        {
+          "id": "rule5",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": true,
+            "edge_ttl": {
+              "mode": "override_origin",
+              "default": 3600
+            },
+            "browser_ttl": {
+              "mode": "respect_origin"
+            }
+          },
+          "expression": "http.request.uri.path eq \"/sitemap-index.xml\"",
+          "description": "Sitemap",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref5",
+          "enabled": true
+        },
+        {
+          "id": "rule6",
+          "version": "1",
+          "action": "set_cache_settings",
+          "action_parameters": {
+            "cache": false,
+            "browser_ttl": {
+              "mode": "respect_origin"
+            }
+          },
+          "expression": "http.request.uri.path in {\"/llms.txt\" \"/llms-full.txt\" \"/index.md\" \"/feed.xml\" \"/feed.json\"}",
+          "description": "TTL for llms.txt & index.md",
+          "last_updated": "2026-10-08T00:00:00.000000Z",
+          "ref": "ref6",
+          "enabled": true
+        }
+      ],
+      "last_updated": "2026-10-08T00:00:00.000000Z"
+    }
+  }
+}

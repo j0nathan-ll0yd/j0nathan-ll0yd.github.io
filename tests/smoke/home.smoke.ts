@@ -71,9 +71,9 @@ async function skipSuppressedArtifact(label: string): Promise<void> {
 }
 
 // Statically server-rendered containers that must always be present. These are
-// structural — present in SSR HTML regardless of live data. `#cardWorkouts` is
-// intentionally excluded: it starts `display: none` in SSR and is only shown by
-// the workouts updater, so its presence is data-dependent, not structural.
+// structural — present in the data-free HTML regardless of live data. Every live
+// card ships in its `loading` state (atlas decision 0160); `@j0nathan-ll0yd/web` 4
+// renders `#cardWorkouts` visible in every state, so it is structural too.
 const REQUIRED_CONTAINERS = [
   '#identityCard',
   '#cardBio',

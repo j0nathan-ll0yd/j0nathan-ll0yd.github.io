@@ -236,6 +236,11 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
           expect(pageGraph.some((n) => n['@type'] === 'Dataset')).toBe(true)
         })
 
+        it('ProfilePage carries no dateModified (no verifiable profile edit date exists)', () => {
+          const profilePage = pageGraph.find((n) => n['@type'] === 'ProfilePage')
+          expect(profilePage).not.toHaveProperty('dateModified')
+        })
+
         it('home page does NOT emit a WebPage node', () => {
           expect(pageGraph.some((n) => n['@type'] === 'WebPage')).toBe(false)
         })

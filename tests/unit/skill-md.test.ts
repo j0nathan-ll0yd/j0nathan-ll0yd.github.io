@@ -6,13 +6,22 @@
 // LLM_DATA_SOURCE_DIRECTORY by scripts/generate-webmcp.mjs, the same list get_data_sources serves.
 
 import {createHash} from 'node:crypto'
-import {readFileSync} from 'node:fs'
-import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {existsSync, readFileSync} from 'node:fs'
+import {CLOUDFRONT_BASE, ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {describe, expect, it} from 'vitest'
-import {LLM_DATA_SOURCE_DIRECTORY} from '../../functions/_lib/agent-catalog.mjs'
+import {AGENT_PATHS, LLM_DATA_SOURCE_DIRECTORY} from '../../functions/_lib/agent-catalog.mjs'
 
 const SKILL_PATH = 'public/.well-known/agent-skills/portfolio-expert/SKILL.md'
 const SKILL = readFileSync(SKILL_PATH, 'utf8')
+
+/** The body of one generated block, markers excluded. */
+function generated(name: string): string {
+  const begin = SKILL.indexOf(`<!-- BEGIN GENERATED: ${name}`)
+  const end = SKILL.indexOf(`<!-- END GENERATED: ${name} -->`)
+  expect(begin, name).toBeGreaterThanOrEqual(0)
+  expect(end, name).toBeGreaterThan(begin)
+  return SKILL.slice(SKILL.indexOf('\n', begin) + 1, end)
+}
 
 // Stated independently of the catalog policy, so one policy edit cannot both re-expose an
 // export and drop it from this list.
@@ -27,13 +36,22 @@ describe('portfolio-expert SKILL.md', () => {
   })
 
   it('renders its data-source table from LLM_DATA_SOURCE_DIRECTORY, row for row', () => {
-    const block = SKILL.slice(SKILL.indexOf('<!-- BEGIN GENERATED: data-source directory'), SKILL.indexOf('<!-- END GENERATED: data-source directory -->'))
+    const block = generated('data-source directory')
     const rows = block.split('\n').filter((line) => line.startsWith('| ') && !line.startsWith('| Data ') && !line.startsWith('| ---'))
     expect(rows).toHaveLength(LLM_DATA_SOURCE_DIRECTORY.length)
     for (const [index, source] of LLM_DATA_SOURCE_DIRECTORY.entries()) {
       expect(rows[index]).toContain(`<${source.url}>`)
       expect(rows[index]).toContain(source.name)
     }
+  })
+
+  // Owner answer, 2026-10-12: an LLM-facing file may link the developer documentation, but never a
+  // raw export. The first test above still holds the whole file to the second half.
+  it('links the developer documentation: /openapi.json always, /developers once that page exists', () => {
+    const block = generated('developer documentation')
+    expect(block).toContain(`<${SITE_URL}${AGENT_PATHS.openapi}>`)
+    const developersPage = ['developers.astro', 'developers/index.astro'].some((file) => existsSync(`src/pages/${file}`))
+    expect(block.includes(`<${SITE_URL}${AGENT_PATHS.developers}>`)).toBe(developersPage)
   })
 
   it('is described by an agent-skills index digest computed from these exact bytes', () => {
