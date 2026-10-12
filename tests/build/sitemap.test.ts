@@ -86,6 +86,7 @@ describe('Enriched sitemap', () => {
     const index = readFileSync(path.join(distDir, 'sitemap-index.xml'), 'utf-8')
     const latest = STATIC_PAGE_DATES.map(([, d]) => contentLastModified(d)).sort().at(-1)
     const stamps = [...index.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1])
-    expect(stamps.every((v) => v === latest)).toBe(true)
+    // Exactly one child sitemap, stamped once: an index with no lastmod cannot pass this.
+    expect(stamps).toEqual([latest])
   })
 })

@@ -80,7 +80,10 @@ describe('/about', () => {
 
 describe('/contact', () => {
   const $ = page('contact.html')
-  const [linkedin, github] = identity.person.sameAs
+  // By host, as the page selects them: sameAs order is not a contract.
+  const byHost = (host: string) => identity.person.sameAs.find((u: string) => new URL(u).hostname.replace(/^www\./, '') === host)!
+  const linkedin = byHost('linkedin.com')
+  const github = byHost('github.com')
 
   it('shows only the channels the site already publishes: the email, LinkedIn, and GitHub', () => {
     const hrefs = $('main section a').map((_, a) => $(a).attr('href')).get()

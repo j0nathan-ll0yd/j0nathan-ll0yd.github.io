@@ -3,6 +3,9 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {AGENT_PATHS} from '../../functions/_lib/agent-paths.mjs'
+import {onRequest as mcpOnRequest} from '../../functions/mcp/index'
+import {onRequest as serverCardOnRequest} from '../../functions/mcp/server-card'
 
 // Every canonical URL, sitemap URL and internal link must answer 200 directly, with no redirect.
 // The host maps a URL to the static output by these rules, which Cloudflare Pages and the Workers
@@ -15,22 +18,17 @@ import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 // With trailingSlash: 'never' the site's URLs have no trailing slash, so a page must build as
 // x.html (build.format 'file'). A page built as x/index.html makes its own canonical URL redirect.
 const distDir = path.resolve(process.cwd(), 'dist')
-const functionsDir = path.resolve(process.cwd(), 'functions')
 const site = new URL(SITE_URL)
 
 /**
- * True when a Pages Function answers `pathname` (file-based routing: /x is functions/x.ts or
- * functions/x/index.ts). An extensionless Function route such as /mcp is served directly, with no
- * redirect, even though it has no file in the static output. Files whose name starts with `_`
- * (_middleware, _lib) are not routes, and neither are dynamic [param] segments, which this
- * site does not use for pages.
+ * The extensionless Pages Function routes a page may link to, each with the status its handler
+ * gives a plain GET. An allow-list, not "any functions/x.ts": a new extensionless Function route
+ * must be added here with its status, so a link to an unreviewed endpoint fails this test.
+ * /mcp answers JSON-RPC over POST only, so a GET is 405 (the MCP Streamable HTTP transport).
  */
-function isFunctionRoute(pathname: string): boolean {
-  const relative = decodeURIComponent(pathname).replace(/^\/+/, '')
-  if (relative === '' || relative.split('/').some((segment) => segment.startsWith('_'))) {
-    return false
-  }
-  return existsSync(path.join(functionsDir, `${relative}.ts`)) || existsSync(path.join(functionsDir, relative, 'index.ts'))
+const FUNCTION_ROUTES: Record<string, {file: string; getStatus: number; onRequest: (context: never) => Promise<Response>}> = {
+  [AGENT_PATHS.mcp]: {file: 'functions/mcp/index.ts', getStatus: 405, onRequest: mcpOnRequest as never},
+  [AGENT_PATHS.serverCard]: {file: 'functions/mcp/server-card.ts', getStatus: 200, onRequest: serverCardOnRequest as never}
 }
 
 type Resolution = {ok: true; file: string} | {ok: false; reason: string}
@@ -57,8 +55,8 @@ function resolve(pathname: string): Resolution {
   if (existsSync(file) && statSync(file).isFile()) {
     return {ok: true, file: relative}
   }
-  if (isFunctionRoute(pathname)) {
-    return {ok: true, file: `functions/${relative}`}
+  if (pathname in FUNCTION_ROUTES) {
+    return {ok: true, file: FUNCTION_ROUTES[pathname].file}
   }
   return {ok: false, reason: 'is not in the static output'}
 }
@@ -97,13 +95,19 @@ beforeAll(() => {
 })
 
 describe('URLs answer 200 with no redirect', () => {
-  it('resolves an extensionless Pages Function route as served, and nothing else outside the output', () => {
-    // /mcp is functions/mcp/index.ts and /mcp/server-card is functions/mcp/server-card.ts.
-    expect(resolve('/mcp')).toEqual({ok: true, file: 'functions/mcp'})
-    expect(resolve('/mcp/server-card')).toEqual({ok: true, file: 'functions/mcp/server-card'})
+  it.each(Object.entries(FUNCTION_ROUTES))('allow-lists the Function route %s, whose handler gives a GET its expected status', async (pathname, route) => {
+    expect(existsSync(path.resolve(process.cwd(), route.file)), route.file).toBe(true)
+    expect(resolve(pathname)).toEqual({ok: true, file: route.file})
+    // A real request carries Host; the MCP server's DNS-rebinding guard answers 403 without it.
+    const request = new Request(`${SITE_URL}${pathname}`, {headers: {Host: site.host}})
+    const response = await route.onRequest({request, waitUntil: () => {}, next: async () => new Response(null, {status: 404})} as never)
+    expect(response.status).toBe(route.getStatus)
+  })
+
+  it('resolves no other path outside the static output, Function file or not', () => {
     expect(resolve('/no-such-page')).toEqual({ok: false, reason: 'is not in the static output'})
     expect(resolve('/_middleware')).toEqual({ok: false, reason: 'is not in the static output'})
-    expect(resolve('/_lib/proxy')).toEqual({ok: false, reason: 'is not in the static output'})
+    expect(resolve('/api/csp-report')).toEqual({ok: false, reason: 'is not in the static output'})
   })
 
   it('builds every page as <name>.html, never as a directory index', () => {
