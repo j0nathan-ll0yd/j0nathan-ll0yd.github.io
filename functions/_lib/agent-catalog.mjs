@@ -119,6 +119,14 @@ export const LLM_DATA_SOURCES = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHA
 /** The raw export URLs no LLM channel may serve or name. Tests assert their absence from every MCP and WebMCP answer. */
 export const LLM_WITHHELD_URLS = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.coarsenedOnly.includes(s.key)).map((s) => s.url))
 
+/**
+ * The withheld exports' paths (`/health.json`, ...). Text an LLM channel republishes must contain
+ * none of them, on any origin and in any link form: absolute, relative, or code span. A bare file
+ * name with no slash (the llms-full.txt freshness table's `| health.json |`) is a disclosure, not
+ * a link, and does not match. The backend holds its llms documents to the same substring rule.
+ */
+export const LLM_WITHHELD_PATHS = Object.freeze(LLM_CHANNEL_POLICY.coarsenedOnly.map((key) => ENDPOINTS[key]))
+
 /** MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate. */
 export const RESOURCES = Object.freeze([
   ...LLM_DATA_SOURCES.map((s) =>

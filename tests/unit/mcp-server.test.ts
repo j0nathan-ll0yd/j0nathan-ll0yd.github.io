@@ -17,7 +17,8 @@ import {
   TOOLS
 } from '../../functions/_lib/agent-catalog.mjs'
 import {DISCOVERY_CACHE_SECONDS, LLM_CHANNEL_POLICY, LLM_WITHHELD_URLS} from '../../functions/_lib/agent-catalog.mjs'
-import {allowedHostnames, PAGES_PROJECT_HOST, STALE_META_KEY} from '../../functions/_lib/mcp-server'
+import {allowedHostnames, MAX_REQUEST_BODY_BYTES, PAGES_PROJECT_HOST, readGated, STALE_META_KEY} from '../../functions/_lib/mcp-server'
+import type {ReadMemo} from '../../functions/_lib/mcp-server'
 import {onRequest as mcpRoute} from '../../functions/mcp/index'
 import {onRequest as serverCardRoute} from '../../functions/mcp/server-card'
 
@@ -169,9 +170,10 @@ describe('MCP lifecycle', () => {
     expect(response.headers.get('mcp-session-id')).toBeNull()
   })
 
-  it.each(['GET', 'DELETE'])('answers %s with 405', async (method) => {
+  it.each(['GET', 'DELETE'])('answers %s with 405 and Allow: POST', async (method) => {
     const response = await mcpRoute(context(new Request(`${SITE_URL}/mcp`, {method, headers: {host: SITE_HOST, Accept: 'text/event-stream'}})))
     expect(response.status).toBe(405)
+    expect(response.headers.get('Allow')).toBe('POST')
   })
 
   it('marks every response no-store, rejections included', async () => {
@@ -201,10 +203,105 @@ describe('MCP lifecycle', () => {
   })
 })
 
+// The amplification bounds (independent review M1). Unbounded, a 100-call batch fanned out to 200
+// upstream fetches and a 3.5 MiB junk parameter was accepted.
+describe('request bounds', () => {
+  const rpc = (body: string, headers: Record<string, string> = {}) =>
+    mcpRoute(
+      context(
+        new Request(`${SITE_URL}/mcp`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', host: SITE_HOST, ...headers},
+          body
+        })
+      )
+    )
+  const call = (id: number) => ({jsonrpc: '2.0', id, method: 'tools/call', params: {name: 'get_current_reading', arguments: {}, _meta: META}})
+
+  it.each([
+    ['one byte over the bound', 'x'.repeat(MAX_REQUEST_BODY_BYTES - 120)],
+    ['a 3.5 MiB junk parameter', 'x'.repeat(3.5 * 1024 * 1024)]
+  ])('answers 413 for %s, before any upstream read', async (_label, junk) => {
+    const body = JSON.stringify({...call(1), params: {...call(1).params, junk}})
+    expect(body.length).toBeGreaterThan(MAX_REQUEST_BODY_BYTES)
+    const response = await rpc(body, {'MCP-Protocol-Version': MCP_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_current_reading'})
+    expect(response.status).toBe(413)
+    expect((await response.json()).error.code).toBe(-32000)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('answers 413 from a declared Content-Length over the bound without reading the body', async () => {
+    const response = await rpc(JSON.stringify(call(1)), {'Content-Length': String(MAX_REQUEST_BODY_BYTES + 1)})
+    expect(response.status).toBe(413)
+  })
+
+  it('serves a body at the bound', async () => {
+    const base = JSON.stringify({...call(1), params: {...call(1).params, pad: ''}})
+    const body = base.replace('"pad":""', `"pad":"${'x'.repeat(MAX_REQUEST_BODY_BYTES - base.length)}"`)
+    expect(body.length).toBe(MAX_REQUEST_BODY_BYTES)
+    const response = await rpc(body, {'MCP-Protocol-Version': MCP_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_current_reading'})
+    expect(response.status).toBe(200)
+  })
+
+  // The reviewer's 100-call batch no longer fits the body bound at all.
+  it('answers the 100-call batch with 413 and makes no upstream read', async () => {
+    const response = await rpc(JSON.stringify(Array.from({length: 100}, (_, i) => call(i))))
+    expect(response.status).toBe(413)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  // MCP 2025-11-25 and 2026-07-28 both require one JSON-RPC message per POST, so a batch that fits
+  // the bound is rejected outright and makes no upstream read at all.
+  it.each([
+    ['modern', Array.from({length: 10}, (_, i) => call(i))],
+    ['legacy', Array.from({length: 10}, (_, i) => ({jsonrpc: '2.0', id: i, method: 'tools/call', params: {name: 'get_current_reading', arguments: {}}}))]
+  ])('rejects a %s JSON-RPC batch with 400 and makes no upstream read', async (_label, batch) => {
+    const body = JSON.stringify(batch)
+    expect(body.length).toBeLessThan(MAX_REQUEST_BODY_BYTES)
+    const response = await rpc(body)
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.code).toBe(-32600)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  // One memo per inbound request: repeated reads of one path share one gated read, so the
+  // fan-out is one focus probe and one artifact read per path, however many reads ask.
+  it('shares one gated read per path across repeated reads in one request', async () => {
+    const memo: ReadMemo = new Map()
+    const ctx = context(new Request(`${SITE_URL}/mcp`, {method: 'POST', headers: {host: SITE_HOST}}))
+    const reads = await Promise.all([
+      ...Array.from({length: 50}, () => readGated(ENDPOINTS.books, ctx, memo)),
+      ...Array.from({length: 50}, () => readGated(ENDPOINTS.articles, ctx, memo))
+    ])
+    expect(reads.every((read) => read.status === 'ok')).toBe(true)
+    const upstream = fetchMock.mock.calls.map(([url]) => url as string)
+    expect(upstream.filter((url) => url === `${CLOUDFRONT_BASE}${ENDPOINTS.books}`)).toHaveLength(1)
+    expect(upstream.filter((url) => url === `${CLOUDFRONT_BASE}${ENDPOINTS.articles}`)).toHaveLength(1)
+    expect(upstream.filter((url) => url === FOCUS_URL)).toHaveLength(2)
+  })
+})
+
 describe('Host and Origin validation', () => {
-  it('rejects a foreign Origin with 403', async () => {
-    const {response} = await modern('tools/list', {}, undefined, {origin: 'https://evil.example'})
+  it('rejects a foreign Origin with 403 and a fixed message that does not echo the header', async () => {
+    const hostile = 'https://evil.example/<script>'
+    const {response, body} = await modern('tools/list', {}, undefined, {origin: hostile})
     expect(response.status).toBe(403)
+    expect(body.error?.message).toBe('Invalid Origin header')
+  })
+
+  it('rejects a foreign Host with a fixed message that does not echo the header', async () => {
+    const {response, body} = await modern('tools/list', {}, undefined, {host: 'evil.example'})
+    expect(response.status).toBe(403)
+    expect(body.error?.message).toBe('Invalid Host header')
+  })
+
+  // A localhost Origin is a page on the caller's own machine. Only `wrangler pages dev`, whose
+  // Host is localhost, accepts one; a deployed host never does.
+  it.each(['http://localhost:4321', 'http://127.0.0.1:8788'])('accepts the Origin %s in development only', async (origin) => {
+    expect((await modern('tools/list', {}, undefined, {origin})).response.status).toBe(403)
+    expect((await modern('tools/list', {}, undefined, {host: `${PAGES_PROJECT_HOST}`, origin})).response.status).toBe(403)
+    expect((await modern('tools/list', {}, undefined, {host: 'localhost:8788', origin})).response.status).toBe(200)
+    expect((await modern('tools/list', {}, undefined, {host: '127.0.0.1:8788', origin})).response.status).toBe(200)
   })
 
   it('accepts the site origin and a preview origin of this Pages project', async () => {
@@ -224,6 +321,8 @@ describe('Host and Origin validation', () => {
       expect(readFileSync(workflow, 'utf8')).toContain(`--project-name=${project}`)
     }
     expect(allowedHostnames(undefined)).toContain(SITE_HOST)
+    expect(allowedHostnames(undefined)).not.toContain('localhost')
+    expect(allowedHostnames(undefined, {development: true})).toEqual(expect.arrayContaining(['localhost', '127.0.0.1']))
   })
 })
 
@@ -271,6 +370,25 @@ describe('tools', () => {
     const {body} = await modern('tools/call', {name: 'get_current_reading', arguments: {}}, 'get_current_reading')
     expect(body.result?.isError).toBe(true)
     expect(JSON.stringify(body.result)).not.toContain('Reading A')
+  })
+})
+
+describe('tool failures', () => {
+  // The engine's JSON.parse message can quote the upstream body; it never reaches the client.
+  it('answers a non-JSON artifact with a structured failure, not the engine error text', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url === FOCUS_URL ? fromCloudfront(JSON.stringify({currentFocus})) : fromCloudfront('<html>SECRET-UPSTREAM-PAGE</html>')
+    )
+    const {body} = await modern('tools/call', {name: 'get_current_reading', arguments: {}}, 'get_current_reading')
+    expect(body.result?.isError).toBe(true)
+    expect(toolText(body.result)).toEqual({failed: true, reason: 'artifact unreadable'})
+    expect(JSON.stringify(body)).not.toMatch(/SECRET-UPSTREAM-PAGE|Unexpected token|JSON/)
+  })
+
+  it('answers an artifact whose summary throws with the same structured failure', async () => {
+    fetchMock.mockImplementation((url: string) => url === FOCUS_URL ? fromCloudfront(JSON.stringify({currentFocus})) : fromCloudfront('{"books":[null]}'))
+    const {body} = await modern('tools/call', {name: 'get_current_reading', arguments: {}}, 'get_current_reading')
+    expect(toolText(body.result)).toEqual({failed: true, reason: 'artifact unreadable'})
   })
 })
 
@@ -378,6 +496,56 @@ describe('resources', () => {
 // health, sleep, and workouts exports never reach an agent through MCP: not listed, not readable,
 // not named, not fetched. These tests are the enforcement: a catalog edit that reintroduces one
 // reds here, whichever surface it touches.
+// A realistic llms-full.txt: the production document of 2026-10-12, which still links the three raw
+// exports in its Streams section (backend PR #379 removes them). Its freshness table names every
+// source as a bare file name, which is a disclosure and not a link.
+const LLMS_FULL_2026_10_12 = readFileSync('tests/unit/fixtures/llms-full-2026-10-12.txt', 'utf8')
+const LLMS_FULL_UPSTREAM = `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
+const LLMS_FULL_URI = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+
+describe('llms-full.txt passthrough', () => {
+  const serving = (text: string) =>
+    fetchMock.mockImplementation((url: string) =>
+      url === FOCUS_URL ? fromCloudfront(JSON.stringify({currentFocus})) : url === LLMS_FULL_UPSTREAM ? fromCloudfront(text) : fromCloudfront('{}')
+    )
+
+  it('the fixture is the pre-#379 document: it links all three raw exports and names them in the freshness table', () => {
+    for (const path of RAW_HEALTH_PATHS) {
+      expect(LLMS_FULL_2026_10_12).toContain(`${CLOUDFRONT_BASE}${path}`)
+      expect(LLMS_FULL_2026_10_12).toContain(`| ${path.slice(1)} |`)
+    }
+  })
+
+  it('fails closed on a document that links a withheld export: no text reaches the agent', async () => {
+    serving(LLMS_FULL_2026_10_12)
+    const {body} = await modern('resources/read', {uri: LLMS_FULL_URI}, LLMS_FULL_URI)
+    expect(body.result).toBeUndefined()
+    expect(body.error).toBeDefined()
+    expect(JSON.stringify(body)).not.toContain(RAW_SENTINEL)
+    for (const path of RAW_HEALTH_PATHS) {
+      expect(JSON.stringify(body)).not.toContain(`${CLOUDFRONT_BASE}${path}`)
+    }
+    expect(JSON.stringify(body)).not.toContain('Human Datastream (Complete)')
+  })
+
+  it.each(RAW_HEALTH_PATHS)('fails closed on any link form of %s: relative, code span, or another origin', async (path) => {
+    for (const form of [`see ${path}`, `\`https://mirror.example${path}\``, `[raw](${path})`]) {
+      serving(`# Jonathan Lloyd\n\n${form}\n`)
+      const {body} = await modern('resources/read', {uri: LLMS_FULL_URI}, LLMS_FULL_URI)
+      expect(body.result, form).toBeUndefined()
+    }
+  })
+
+  it('serves the post-#379 document verbatim: freshness rows stay, raw links are gone', async () => {
+    const fixed = LLMS_FULL_2026_10_12.split('\n').filter((line) => !RAW_HEALTH_PATHS.some((path) => line.includes(`${CLOUDFRONT_BASE}${path}`))).join('\n')
+    expect(fixed).toContain('| health.json |')
+    serving(fixed)
+    const {body} = await modern('resources/read', {uri: LLMS_FULL_URI}, LLMS_FULL_URI)
+    const contents = body.result?.contents as Array<{text: string; mimeType: string}>
+    expect(contents[0]).toEqual(expect.objectContaining({mimeType: 'text/markdown', text: fixed}))
+  })
+})
+
 describe('LLM-channel data policy', () => {
   function expectNoRawHealth(text: string) {
     for (const url of RAW_HEALTH_URLS) {

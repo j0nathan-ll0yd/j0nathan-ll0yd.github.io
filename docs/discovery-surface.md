@@ -63,11 +63,21 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
 - **Protocol:** revision 2026-07-28, stateless Streamable HTTP. POST carries JSON-RPC.
   `server/discover` answers with the supported versions, capabilities and the same
   `serverInfo` name and version as the card. The SDK's stateless legacy leg answers
-  2025-era clients (`initialize`, then any request). GET and DELETE answer 405. No session
-  id is minted, and a sent `Mcp-Session-Id` is ignored.
+  2025-era clients (`initialize`, then any request). GET and DELETE answer 405 with
+  `Allow: POST`. No session id is minted, and a sent `Mcp-Session-Id` is ignored.
 - **Validation:** Host and Origin are checked against `jonathanlloyd.me`,
-  `human-datastream.pages.dev`, its preview subdomains, and localhost (for
-  `wrangler pages dev`). An invalid Origin answers 403.
+  `human-datastream.pages.dev`, and its preview subdomains. `localhost` and `127.0.0.1` are
+  allowed as an Origin only when the Host is one of them, which is `wrangler pages dev`:
+  Cloudflare never routes a localhost Host to a deploy. An invalid Host or Origin answers 403
+  with a fixed message that never echoes the header.
+- **Bounds:** a POST body over 8 KiB answers 413 before anything is parsed. A JSON-RPC batch
+  array answers 400: both revisions require one message per POST (2026-07-28: "The body of
+  the HTTP POST **MUST** be a single JSON-RPC _request_ or _notification_"; 2025-11-25: "The
+  body of the POST request **MUST** be a single JSON-RPC _request_, _notification_, or
+  _response_"), and 2025-06-18 removed batching. Each inbound request carries one read memo,
+  so repeated reads of one path share one gated read. A tool that cannot parse or summarize
+  its artifact answers `{"failed": true, "reason": "artifact unreadable"}`, never engine
+  error text.
 - **No authorization.** The server is public and read-only, which the revision allows.
 - **Resources:** the six policy-exposed JSON exports (books, articles, GitHub events,
   starred repositories, theatre reviews, focus) and `llms-full.txt`. **Tools:**
@@ -79,8 +89,15 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   only, so the owner's recorded policy governs them: `SKILL.md` decision 4 ("LLM content
   uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.") and atlas
   decision 0096 (LLM channels carry only a coarsened health band, "no raw point-in-time
-  values in output"). No agent channel lists, reads, names, or returns `health.json`,
-  `sleep.json`, or `workouts.json`. `get_data_sources` and the `SKILL.md` Live Data Sources
+  values in output"). No MCP resource or tool lists or reads `health.json`, `sleep.json`, or
+  `workouts.json`, and no answer the server composes names them. `llms-full.txt` is backend
+  text the server republishes verbatim, so its resource read FAILS CLOSED: a copy that contains
+  `/health.json`, `/sleep.json`, or `/workouts.json` in any link form is refused with an error
+  and logged as `mcp_withheld_link_refused`. The live document links all three until
+  mantle-LifegamesPortal PR #379 deploys, so until then `resources/read` of `llms-full.txt`
+  answers an error, never the links. Deploy order: the website first, then backend #379 right
+  after it. The freshness table's bare file names (`| health.json |`) are a disclosure, not a
+  link, and pass. `get_data_sources` and the `SKILL.md` Live Data Sources
   table both name `llms-full.txt` for those three domains, because its Body section carries
   the coarsened band. Both render from one list, `LLM_DATA_SOURCE_DIRECTORY`; the generator
   writes the `SKILL.md` table between its `BEGIN GENERATED` and `END GENERATED` markers, then

@@ -12,20 +12,19 @@
 // llms routes (functions/_lib/proxy.ts): the fail-closed focus gate first, then
 // the bounded retry and the last-known-good fallback. During a hiding focus mode a
 // suppressible artifact yields the suppression document, never data.
+//
+// Amplification bounds: a POST body over MAX_REQUEST_BODY_BYTES answers 413 before
+// anything is parsed, a JSON-RPC batch array answers 400 (both supported revisions
+// require one message per POST), and every inbound request carries one read memo, so
+// repeated reads of one path share one gated read.
 
-import {
-  createMcpHandler,
-  hostHeaderValidationResponse,
-  McpServer,
-  originValidationResponse,
-  validateHostHeader,
-  validateOriginHeader
-} from '@modelcontextprotocol/server'
+import {createMcpHandler, McpServer, validateHostHeader, validateOriginHeader} from '@modelcontextprotocol/server'
 import type {CallToolResult, ReadResourceResult} from '@modelcontextprotocol/server'
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {
   DISCOVERY_CACHE_SECONDS,
+  LLM_WITHHELD_PATHS,
   MCP_INSTRUCTIONS,
   MCP_SERVER_NAME,
   MCP_SERVER_SLUG,
@@ -46,19 +45,47 @@ const logger = createEdgeLogger({service: 'mcp-server'})
  */
 export const PAGES_PROJECT_HOST = `${MCP_SERVER_SLUG}.pages.dev`
 
-/** Hostnames always allowed. Localhost serves `wrangler pages dev`; Cloudflare never routes a localhost Host to this project. */
-const FIXED_HOSTNAMES = [new URL(SITE_URL).hostname, PAGES_PROJECT_HOST, 'localhost', '127.0.0.1']
+/** The deployed hostnames. */
+const PUBLIC_HOSTNAMES = [new URL(SITE_URL).hostname, PAGES_PROJECT_HOST]
 
-/** The allowlist for one candidate hostname: the fixed set, plus the candidate itself when it is a preview host of this project. */
-export function allowedHostnames(candidate: string | undefined): string[] {
-  return candidate !== undefined && candidate.endsWith(`.${PAGES_PROJECT_HOST}`) ? [...FIXED_HOSTNAMES, candidate] : FIXED_HOSTNAMES
+/**
+ * The `wrangler pages dev` hostnames. Cloudflare routes a request to this project by its Host, so a
+ * request whose Host is one of these never reached a deploy: it is local development.
+ */
+const DEVELOPMENT_HOSTNAMES = ['localhost', '127.0.0.1']
+
+/** The largest POST body /mcp reads. One request with an empty `arguments` object is well under 1 KiB. */
+export const MAX_REQUEST_BODY_BYTES = 8 * 1024
+
+/**
+ * The allowlist for one candidate hostname: the deployed hostnames, the candidate itself when it is
+ * a preview host of this project, and the localhost names in development only.
+ */
+export function allowedHostnames(candidate: string | undefined, {development = false}: {development?: boolean} = {}): string[] {
+  const preview = candidate !== undefined && candidate.endsWith(`.${PAGES_PROJECT_HOST}`) ? [candidate] : []
+  return [...PUBLIC_HOSTNAMES, ...preview, ...(development ? DEVELOPMENT_HOSTNAMES : [])]
 }
 
-/** Host (DNS rebinding) and Origin validation. An invalid Origin answers 403, as the transport requires. */
+/** A JSON-RPC error with no request id, the shape the transport uses for a rejected HTTP request. */
+function jsonRpcError(status: number, code: number, message: string): Response {
+  return Response.json({jsonrpc: '2.0', error: {code, message}, id: null}, {status})
+}
+
+/**
+ * Host (DNS rebinding) and Origin validation. An invalid Origin answers 403, as the transport
+ * requires. The messages are fixed: a rejection never echoes the header it rejected.
+ */
 export function guardResponse(request: Request): Response | undefined {
   const host = validateHostHeader(request.headers.get('host'), [])
+  const development = host.hostname !== undefined && DEVELOPMENT_HOSTNAMES.includes(host.hostname)
+  if (!validateHostHeader(request.headers.get('host'), allowedHostnames(host.hostname, {development: true})).ok) {
+    return jsonRpcError(403, -32000, 'Invalid Host header')
+  }
   const origin = validateOriginHeader(request.headers.get('origin'), [])
-  return hostHeaderValidationResponse(request, allowedHostnames(host.hostname)) ?? originValidationResponse(request, allowedHostnames(origin.hostname))
+  if (!validateOriginHeader(request.headers.get('origin'), allowedHostnames(origin.hostname, {development})).ok) {
+    return jsonRpcError(403, -32000, 'Invalid Origin header')
+  }
+  return undefined
 }
 
 /**
@@ -69,7 +96,10 @@ type GatedRead = {status: 'ok'; text: string; staleSince?: string} | {status: 's
   status: 'unavailable'
   httpStatus: number
   text: string
-}
+} | {status: 'withheld'}
+
+/** One memo per inbound request: repeated reads of one path share one gated read. */
+export type ReadMemo = Map<string, Promise<GatedRead>>
 
 /** Result `_meta` key that marks data served from the last-known-good copy (reverse-DNS prefix, per the MCP `_meta` rules). */
 export const STALE_META_KEY = `${new URL(SITE_URL).hostname.split('.').reverse().join('.')}/lastKnownGoodSince`
@@ -80,8 +110,21 @@ const readers = new Map<string, ReturnType<typeof makeCloudfrontProxy>>(RESOURCE
   makeCloudfrontProxy({path: resource.path, contentType: resource.mimeType, cachePolicy: LLM_OUTPUT_CACHE_POLICY})
 ]))
 
-/** Read one artifact through the focus gate, and classify the answer. */
-export async function readGated(path: string, context: CloudfrontProxyContext): Promise<GatedRead> {
+/**
+ * Read one artifact through the focus gate, and classify the answer. With a memo, a second read of
+ * the same path in the same inbound request reuses the first read and makes no upstream request.
+ */
+export function readGated(path: string, context: CloudfrontProxyContext, memo?: ReadMemo): Promise<GatedRead> {
+  const shared = memo?.get(path)
+  if (shared) {
+    return shared
+  }
+  const read = readGatedOnce(path, context)
+  memo?.set(path, read)
+  return read
+}
+
+async function readGatedOnce(path: string, context: CloudfrontProxyContext): Promise<GatedRead> {
   const reader = readers.get(path)
   if (!reader) {
     throw new Error(`no gated reader for ${path}`)
@@ -89,6 +132,14 @@ export async function readGated(path: string, context: CloudfrontProxyContext): 
   const response = await reader({request: new Request(new URL(path, context.request.url), {method: 'GET'}), waitUntil: context.waitUntil})
   const text = await response.text()
   if (response.status === 200) {
+    // FAIL CLOSED on a withheld export link. llms-full.txt is backend text republished verbatim, so
+    // the LLM-channel data policy holds for it only while the backend omits those links. A copy
+    // that names one is never served on this channel.
+    const linked = LLM_WITHHELD_PATHS.filter((withheld: string) => text.includes(withheld))
+    if (linked.length > 0) {
+      logger.error('mcp_withheld_link_refused', {artifact: path, withheld: linked})
+      return {status: 'withheld'}
+    }
     return response.headers.get('X-Proxy-Stale') === 'true'
       ? {status: 'ok', text, staleSince: response.headers.get('X-Proxy-Lkg-Stored-At') ?? 'unknown'}
       : {status: 'ok', text}
@@ -107,8 +158,14 @@ function textResult(value: unknown, {isError = false, staleSince}: {isError?: bo
   }
 }
 
-/** The server factory. One instance per request, so nothing is shared between callers. */
-export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
+/** The fixed answer for an artifact the policy check refused. */
+const WITHHELD_REASON = 'artifact withheld: it links a raw health, sleep, or workouts export'
+
+/**
+ * The server factory. One instance per request, so nothing is shared between callers. `memo` is
+ * the inbound request's read memo; the handler creates one per request.
+ */
+export function buildMcpServer(context: CloudfrontProxyContext, memo: ReadMemo = new Map()): McpServer {
   const cacheHint = {ttlMs: DISCOVERY_CACHE_SECONDS * 1000, cacheScope: 'public' as const}
   const server = new McpServer({name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION, title: SERVER_CARD.title}, {
     // The lists change only on deploy, so the server emits no list-change notifications.
@@ -125,23 +182,37 @@ export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
       if (!('select' in tool)) {
         return textResult(tool.payload)
       }
-      const read = await readGated(tool.path, context)
+      const read = await readGated(tool.path, context, memo)
       if (read.status === 'suppressed') {
         return textResult(read.text)
+      }
+      if (read.status === 'withheld') {
+        return textResult({failed: true, reason: WITHHELD_REASON}, {isError: true})
       }
       if (read.status === 'unavailable') {
         return textResult({failed: true, status: read.httpStatus, reason: read.text}, {isError: true})
       }
-      return textResult(tool.select(JSON.parse(read.text)), {staleSince: read.staleSince})
+      // The engine's parse error text never reaches the client: it can quote the upstream body.
+      let selected: unknown
+      try {
+        selected = tool.select(JSON.parse(read.text))
+      } catch (error) {
+        logger.error('mcp_tool_artifact_unreadable', {tool: tool.name, artifact: tool.path, error_class: error instanceof Error ? error.name : 'unknown'})
+        return textResult({failed: true, reason: 'artifact unreadable'}, {isError: true})
+      }
+      return textResult(selected, {staleSince: read.staleSince})
     })
   }
 
   for (const resource of RESOURCES) {
     server.registerResource(resource.name, resource.uri, {title: resource.title, description: resource.description, mimeType: resource.mimeType},
       async (uri): Promise<ReadResourceResult> => {
-        const read = await readGated(resource.path, context)
+        const read = await readGated(resource.path, context, memo)
         if (read.status === 'unavailable') {
           throw new Error(`${resource.path} unavailable (HTTP ${read.httpStatus})`)
+        }
+        if (read.status === 'withheld') {
+          throw new Error(`${resource.path} ${WITHHELD_REASON}`)
         }
         // A suppressed read returns the suppression document in place of the artifact.
         const mimeType = read.status === 'suppressed' ? 'application/json' : resource.mimeType
@@ -153,13 +224,78 @@ export function buildMcpServer(context: CloudfrontProxyContext): McpServer {
   return server
 }
 
-/** The /mcp request handler: validation first, then the SDK entry with a per-request factory. */
+/** The body, or undefined when it exceeds MAX_REQUEST_BODY_BYTES. Stops reading at the bound. */
+async function readBoundedBody(request: Request): Promise<string | undefined> {
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_REQUEST_BODY_BYTES) {
+    return undefined
+  }
+  if (!request.body) {
+    return ''
+  }
+  const reader = request.body.getReader()
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+    size += chunk.value.byteLength
+    if (size > MAX_REQUEST_BODY_BYTES) {
+      await reader.cancel()
+      return undefined
+    }
+    chunks.push(chunk.value)
+  }
+  const body = new Uint8Array(size)
+  let offset = 0
+  for (const chunk of chunks) {
+    body.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return new TextDecoder().decode(body)
+}
+
+/** True when the body parses as a JSON array: a JSON-RPC batch. Anything unparseable is the SDK's to answer. */
+function isBatch(body: string): boolean {
+  try {
+    return Array.isArray(JSON.parse(body))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Bounds a POST before the SDK sees it. A body over the bound answers 413 and a batch array 400.
+ * MCP 2025-06-18 removed JSON-RPC batching; 2025-11-25 requires "The body of the POST request MUST
+ * be a single JSON-RPC request, notification, or response", and 2026-07-28 "The body of the HTTP
+ * POST MUST be a single JSON-RPC request or notification". Neither revision this server speaks
+ * needs batch support, and a batch is the fan-out that multiplies upstream reads.
+ */
+async function boundedRequest(request: Request): Promise<Request | Response> {
+  if (request.method !== 'POST') {
+    return request
+  }
+  const body = await readBoundedBody(request)
+  if (body === undefined) {
+    return jsonRpcError(413, -32000, `Request body exceeds ${MAX_REQUEST_BODY_BYTES} bytes`)
+  }
+  if (isBatch(body)) {
+    return jsonRpcError(400, -32600, 'JSON-RPC batch requests are not supported: send one message per POST')
+  }
+  return new Request(request.url, {method: 'POST', headers: request.headers, body})
+}
+
+/** The /mcp request handler: validation and bounds first, then the SDK entry with a per-request factory. */
 export async function handleMcpRequest(context: CloudfrontProxyContext): Promise<Response> {
-  const response = guardResponse(context.request) ??
-    await createMcpHandler(() => buildMcpServer(context), {
+  const bounded = guardResponse(context.request) ?? await boundedRequest(context.request)
+  const memo: ReadMemo = new Map()
+  const response = bounded instanceof Response
+    ? bounded
+    : await createMcpHandler(() => buildMcpServer(context, memo), {
+      maxRequestBodySize: MAX_REQUEST_BODY_BYTES,
       onerror: (error) => logger.error('mcp_handler_error', {error_class: error.name, message: error.message})
-    }).fetch(context.request)
+    }).fetch(bounded)
   const headers = new Headers(response.headers)
   headers.set('Cache-Control', 'no-store')
+  if (response.status === 405) {
+    headers.set('Allow', 'POST')
+  }
   return new Response(response.body, {status: response.status, statusText: response.statusText, headers})
 }
