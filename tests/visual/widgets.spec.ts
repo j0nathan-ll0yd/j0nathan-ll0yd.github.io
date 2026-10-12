@@ -450,11 +450,13 @@ test.describe('System status — open popover with caret', () => {
     // there, the ~81px popover has no room below it, so placement flips it above
     // the button through a position-try fallback, and that fallback re-anchors
     // after the inline snap below (measured: y=24.515625 after the snap, with the
-    // button at y=875.95 inside a 900px viewport). The click's own scroll is
-    // smooth and skipped when the button is already visible, so the layout also
-    // varied run to run. Centre the button with an instant scroll and wait for it
-    // to stop: the popover always has room below, the default placement always
-    // wins, and the click has nothing left to scroll.
+    // button at y=875.95 inside a 900px viewport). This flip was the measured
+    // intermittent cause. Scroll toward the centre, instantly, and wait for the
+    // button to stop. The panel clamps at its maximum scroll, so it scrolls as far
+    // as it can. Measured: that is scrollTop 482 and the
+    // button lands at y=628.95, which leaves 157px of margin before a flip. The
+    // click has nothing left to scroll. A placement guard below fails loud if a
+    // flip ever happens again.
     await button.evaluate((el) => el.scrollIntoView({block: 'center', behavior: 'instant'}))
     await waitForStableBox(button, {epsilonPx: 0, framesRequired: 10, timeoutMs: 5000})
     await button.click()
@@ -493,18 +495,20 @@ test.describe('System status — open popover with caret', () => {
     // Place the popover on whole CSS pixels. Its production placement is
     // `right: anchor(right); top: anchor(bottom)`, so its left/top inherit the
     // fractional x/y of the (i) button, which flex layout and font metrics move
-    // by a sub-pixel run-to-run. A fractional left/top changes the sub-pixel
+    // by a sub-pixel amount. A fractional left/top changes the sub-pixel
     // phase at which the text rasterises (a ~1px glyph shift, ~2% of the clip),
     // and rounding only the CLIP cannot fix that: the clip moves, the glyphs
-    // do not. An earlier `translate` snap also failed: translate is a compositor
+    // do not. The snap makes the raster phase independent of the button's
+    // fractional position (defence in depth; the flip above was the measured
+    // intermittent cause). An earlier `translate` snap also failed: translate is a compositor
     // transform, so the popover text was rasterised in its own layer and
     // resampled, which broke local-to-CI byte parity. Inline left/top rewrite the
     // layout position itself, so the text is laid out and painted at an integer
     // origin in the normal paint path. `right`/`bottom: auto` drop the anchor()
     // insets; the used margins (caret gap) are kept.
-    // The popover also has an opacity + `scale` entry transition. A rect read
-    // mid-transition includes the scale, so the rounded value would not be the
-    // layout position (measured: y=24.515625 after the snap). Let it finish.
+    // Guard only: screenshot.css zeroes transition durations, so no animation
+    // is running here. If one ever runs, a mid-transition rect would include its
+    // scale, so wait for it to finish before reading the layout position.
     await popover.evaluate(async (el) => {
       const node = el as HTMLElement
       await Promise.all(node.getAnimations().map((a) => a.finished))
@@ -518,8 +522,12 @@ test.describe('System status — open popover with caret', () => {
     await waitForStableBox(popover)
 
     const box = await popover.boundingBox()
-    if (!box) {
-      throw new Error('health popover has no bounding box')
+    const buttonBox = await button.boundingBox()
+    if (!box || !buttonBox) {
+      throw new Error('health popover or its button has no bounding box')
+    }
+    if (box.y < buttonBox.y + buttonBox.height) {
+      throw new Error(`health popover flipped above its button: popover y=${box.y}, button bottom=${buttonBox.y + buttonBox.height}`)
     }
     if (!Number.isInteger(box.x) || !Number.isInteger(box.y)) {
       throw new Error(`health popover is not on whole pixels: x=${box.x} y=${box.y}`)
