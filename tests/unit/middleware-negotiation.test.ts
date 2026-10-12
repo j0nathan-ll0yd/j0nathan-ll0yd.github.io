@@ -328,6 +328,7 @@ describe('markdown 404', () => {
       expect(body, path).toContain(`- [${link.label}](${SITE_URL}${path}): ${link.notes}`)
     }
     expect(response.headers.get('Vary')).toBe('Accept')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
     expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
     expect(response.headers.get('Content-Security-Policy')).toBe(CSP)
     expect(response.headers.get('Content-Usage')).toBe(CONTENT_USAGE)

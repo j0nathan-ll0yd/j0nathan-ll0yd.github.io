@@ -19,6 +19,9 @@ only as true as its covering tests.
 - `https://jonathanlloyd.me/` under an `Accept` that negotiates markdown (GET/HEAD only) — the same
   llms-full.txt representation, served by `functions/_middleware.ts` through the same factory; see
   "Markdown negotiation applies only to the homepage and honors Accept q-values" below.
+- Any path that resolves to 404 under the same markdown `Accept` — a short markdown 404 body, generated
+  at prebuild into `functions/_lib/not-found-markdown.mjs` by `scripts/generate-not-found.mjs`; see the
+  404 exception in that same requirement.
 - All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`. That factory
   also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) behind the same
   gate and under the same no-store policy; see "Every proxy route is no-store, the feed routes
@@ -603,7 +606,7 @@ zone-edge-cache window in "Gated artifacts are admitted only through the CloudFr
 ### Requirement: Markdown negotiation applies only to the homepage and honors Accept q-values
 
 Markdown content negotiation SHALL apply only to `GET`/`HEAD` requests for `/`, decided in
-`functions/_middleware.ts`. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
+`functions/_middleware.ts`, except the 404 exception below. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
 pages, API routes, and feeds SHALL NOT negotiate: each keeps its own bytes and content type for
 every `Accept` value. This requirement replaced a middleware that negotiated on every path and
 method via an `Accept` substring test, which served llms-full bytes for an explicit GET /llms.txt
@@ -631,8 +634,10 @@ response SHALL carry no body.
 the same `prefersMarkdown` decision selects markdown, the middleware SHALL replace the HTML 404
 page with a short markdown body: a heading and an explanation of at least 20 characters from
 copy `llm.notFound`, and links to /llms.txt, /index.md, /sitemap-index.xml, and /developers. The
-status SHALL stay 404, the `Content-Type` SHALL be `text/markdown; charset=utf-8`, and the
-response SHALL pass through the same header pipeline. Every other `Accept` value, an absent
+status SHALL stay 404, the `Content-Type` SHALL be `text/markdown; charset=utf-8`, the markdown
+404 SHALL carry `Cache-Control: no-store`, and the response SHALL pass through the same header
+pipeline. The body SHALL be generated at build time, so a copy defect fails the build and never
+the middleware's start. Every other `Accept` value, an absent
 `Accept`, and an unsafe method SHALL keep the HTML 404. Both 404 representations SHALL carry
 `Vary: Accept` and `CDN-Cache-Control: no-store`, so an edge cache HIT cannot answer without the
 negotiation. A markdown 404 HEAD response SHALL carry no body. Paths that `public/_routes.json`

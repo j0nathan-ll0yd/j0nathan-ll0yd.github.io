@@ -2,12 +2,11 @@
 // Cloudflare applies public/_headers only to static asset responses, so this
 // middleware carries the same cross-cutting policy on Function responses.
 
-import llmCopy from '@j0nathan-ll0yd/copy/llm.flat.json'
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, SITE_URL, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {AGENT_PATHS, OPENAPI_MEDIA_TYPE} from './_lib/agent-paths.mjs'
 import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
-import {SITEMAP_INDEX_PATH} from './_lib/site-paths'
+import {NOT_FOUND_MARKDOWN} from './_lib/not-found-markdown.mjs'
 
 // WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
 // already an origin. Sourcing both from the contract keeps the CSP in sync with
@@ -165,27 +164,10 @@ const serveLlmsFull = makeCloudfrontProxy({
   cachePolicy: LLM_OUTPUT_CACHE_POLICY
 })
 
-/**
- * The markdown 404 body: a heading, a short explanation, and links to the documents an
- * agent can use instead. Labels and notes come from @j0nathan-ll0yd/copy (llm.notFound);
- * each URL is built from the contract path, and tests/unit/middleware-negotiation.test.ts
- * tethers it to the copy link's own `{siteUrl}` template.
- */
-const notFoundLinks = [
-  [llmCopy.notFound.linkLlmsTxt, LLMS_TXT_PATH],
-  [llmCopy.notFound.linkIndexMd, LLM_CONTENT_PATHS.indexMarkdown],
-  [llmCopy.notFound.linkSitemap, SITEMAP_INDEX_PATH],
-  [llmCopy.notFound.linkDevelopers, AGENT_PATHS.developers]
-] as const
-
-export const NOT_FOUND_MARKDOWN = [
-  `# ${llmCopy.notFound.heading}`,
-  '',
-  llmCopy.notFound.body,
-  '',
-  ...notFoundLinks.map(([link, path]) => `- [${link.label}](${SITE_URL}${path}): ${link.notes}`),
-  ''
-].join('\n')
+// The markdown 404 body is generated at prebuild by scripts/generate-not-found.mjs from
+// @j0nathan-ll0yd/copy (llm.notFound) and the contract paths. The import is one constant string:
+// a copy change can fail the build, never this Worker's start.
+export { NOT_FOUND_MARKDOWN }
 
 /** Merge `Accept` into Vary so every cache layer keys negotiated representations on it. */
 function mergeVaryAccept(headers: Headers): void {
@@ -221,7 +203,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // stays 404; the body points at the documents an agent can read instead.
   const notFoundMarkdown = routed.status === 404 && wantsMarkdown
   const response = notFoundMarkdown
-    ? new Response(NOT_FOUND_MARKDOWN, {status: 404, headers: {'Content-Type': 'text/markdown; charset=utf-8'}})
+    ? new Response(NOT_FOUND_MARKDOWN, {status: 404, headers: {'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store'}})
     : routed
   const headers = new Headers(response.headers)
 
