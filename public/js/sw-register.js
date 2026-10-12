@@ -189,6 +189,7 @@
   // handlers never call preventDefault, and touch/scroll are passive by default
   // in modern engines, so the third argument is unnecessary.
   var activityEvents = ['pointerdown', 'keydown', 'scroll', 'touchstart'];
+  // eslint-disable-next-line no-redeclare -- ES5 'var' is function-scoped; this second loop reuses the earlier 'i' by design
   for (var i = 0; i < activityEvents.length; i++) {
     window.addEventListener(activityEvents[i], onUserActivity);
   }
