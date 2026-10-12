@@ -1,0 +1,13 @@
+{
+  "status": 403,
+  "body": {
+    "success": false,
+    "errors": [
+      {
+        "message": "Authentication error"
+      }
+    ],
+    "messages": [],
+    "result": null
+  }
+}
