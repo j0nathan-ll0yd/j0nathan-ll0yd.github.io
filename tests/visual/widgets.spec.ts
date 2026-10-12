@@ -439,13 +439,16 @@ test.describe('System status — open popover with caret', () => {
     await setupPage(page, 'populated')
 
     const button = page.locator('#systemStatus .sys-line[data-source="health"] .sys-info')
-    // The button starts below the fold of the scrolling left panel, and the click
-    // scrolls it into view. That scroll is smooth, so the popover could open (and
-    // anchor, and measure) while the panel was still moving: runs measured the
-    // button at y=875.95 instead of the settled 628.95, a ~247px different
-    // layout whose popover flipped above and re-anchored. Scroll first and wait
-    // for the button to stop; the click then has nothing left to scroll.
-    await button.scrollIntoViewIfNeeded()
+    // The button starts at the bottom edge of the scrolling left panel. Left
+    // there, the ~81px popover has no room below it, so placement flips it above
+    // the button through a position-try fallback, and that fallback re-anchors
+    // after the inline snap below (measured: y=24.515625 after the snap, with the
+    // button at y=875.95 inside a 900px viewport). The click's own scroll is
+    // smooth and skipped when the button is already visible, so the layout also
+    // varied run to run. Centre the button with an instant scroll and wait for it
+    // to stop: the popover always has room below, the default placement always
+    // wins, and the click has nothing left to scroll.
+    await button.evaluate((el) => el.scrollIntoView({block: 'center', behavior: 'instant'}))
     await waitForStableBox(button, {epsilonPx: 0, framesRequired: 10, timeoutMs: 5000})
     await button.click()
 
