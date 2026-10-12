@@ -437,6 +437,13 @@ test.describe('System status — open popover with caret', () => {
     test.skip(testInfo.project.name !== 'desktop-1400', 'Chromium single-viewport guard — one deterministic baseline, no cross-engine fallback')
 
     await setupPage(page, 'populated')
+    // Apply the stabilization stylesheet (screenshot.css) before anything scrolls
+    // or measures. It reflows the left panel and shortens its scroll range, so
+    // scrolling first let the panel re-clamp afterwards: the button then sat at
+    // y=875.95 (panel scrollTop 235, bottom edge of a 900px viewport) and the
+    // popover flipped above it. Style first, then scroll, gives one layout.
+    await page.addStyleTag({path: stylePath})
+    await stabilizeForLocatorScreenshot(page)
 
     const button = page.locator('#systemStatus .sys-line[data-source="health"] .sys-info')
     // The button starts at the bottom edge of the scrolling left panel. Left
@@ -463,7 +470,7 @@ test.describe('System status — open popover with caret', () => {
     await popover.evaluate((el) => {
       ;(el as HTMLElement).style.width = '280px'
     })
-    // Apply the stabilization stylesheet (screenshot.css) BEFORE measuring the
+    // The stabilization stylesheet (screenshot.css) is applied above, BEFORE measuring the
     // box -- this is the crux of the popover's determinism. toHaveScreenshot
     // injects that same stylesheet at capture time; it reflows the panel and
     // freezes the sys-line reveal animation, settling the popover at its final
@@ -475,8 +482,6 @@ test.describe('System status — open popover with caret', () => {
     // with the capture; verified byte-identical across 10 consecutive workers=1
     // renders (an element screenshot is also stable but would clip off the caret,
     // and an earlier `translate` grid-snap broke local<->CI byte parity).
-    await page.addStyleTag({path: stylePath})
-    await stabilizeForLocatorScreenshot(page)
     // The native popover's anchor-positioned placement can settle a frame or two
     // after open; on loaded CI runners the fixed clip below was measured (and the
     // page captured) mid-settle, so the clip disagreed with the settled popover
