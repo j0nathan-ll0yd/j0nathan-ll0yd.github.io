@@ -43,9 +43,10 @@ export default defineConfig({
     sitemap({
       // Enrich the sitemap with per-page SEO signals. The built surface is small
       // (home + privacy); 404 is excluded by Astro automatically, the filter is a
-      // guard so a future non-canonical route can never leak in. No lastmod: no verifiable per-page content date exists
-      // (CI checks out with depth 1, so git history gives a wrong date; / is live data). A
-      // build-date lastmod is the anti-pattern docs/wiki/Metadata-Files-Spec.md names.
+      // guard so a future non-canonical route can never leak in. No lastmod: no
+      // verifiable per-page content date exists (CI checks out with depth 1, so
+      // git history gives a wrong date; / is live data). A build-date lastmod is
+      // the anti-pattern docs/wiki/Metadata-Files-Spec.md names.
       // tests/build/sitemap.test.ts fails if any lastmod returns.
       // Matched on the exact pathname: /offline is the noindex service-worker fallback.
       filter: (page) => !['/404', '/offline'].includes(new URL(page).pathname),

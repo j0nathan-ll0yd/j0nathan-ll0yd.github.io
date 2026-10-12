@@ -109,6 +109,12 @@ this site avoids:
   `new Date().toISOString().slice(0, 10)` at build time. This is honest: the
   file IS regenerated on every deploy (because it is a prerendered endpoint),
   so the build date accurately reflects the file's state.
+- **A hand-set `dateModified`.** The home page JSON-LD `ProfilePage` once carried
+  a hand-maintained `dateModified` (`2026-07-20`). It went stale: the profile
+  copy (`@j0nathan-ll0yd/copy`) was yalc-linked then and is now pinned at a
+  registry version, so no baseline exists to prove the date still holds. Google
+  lists `dateModified` as recommended "if applicable", so the node omits it.
+  `tests/build/json-ld.test.ts` fails if it returns.
 
 ## Privacy Stance
 
