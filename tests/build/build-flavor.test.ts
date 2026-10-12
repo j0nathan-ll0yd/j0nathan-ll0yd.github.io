@@ -15,6 +15,6 @@ describe('build-test output flavour', () => {
   })
 
   it('carries the import.meta.env.PROD-only scripts', () => {
-    expect(scripts).toEqual(expect.arrayContaining(['/js/sa-stub.js', '/js/sa-loader.js']))
+    expect(scripts).toEqual(expect.arrayContaining(['/js/sa-stub.js', '/js/sa-loader.js', '/js/scroll-depth.js', '/js/social-click-track.js']))
   })
 })

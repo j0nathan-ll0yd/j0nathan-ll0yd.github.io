@@ -145,6 +145,17 @@ describe('generated WebMCP script', () => {
     expect(dataReads.every((url) => url === FOCUS_URL)).toBe(true)
   })
 
+  it('returns the suppression document when the gate answers 403 over a visible focus value', async () => {
+    const modelContext = fakeModelContext()
+    run({document: {modelContext}, navigator: {}})
+    vi.stubGlobal('fetch', (input: string, init?: RequestInit) =>
+      input.startsWith(CLOUDFRONT_BASE) && input !== FOCUS_URL
+        ? Promise.resolve(new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403, headers: {'x-amz-cf-id': 'test'}}))
+        : browserFetch(input, init))
+    const tool = modelContext.registered.find((t) => t.name === 'get_current_reading')!
+    expect(await tool.execute({})).toEqual({suppressed: true, reason: 'focus mode active'})
+  })
+
   it('rejects, rather than returning data, when the server reports a tool error', async () => {
     const modelContext = fakeModelContext()
     run({document: {modelContext}, navigator: {}})

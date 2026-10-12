@@ -51,7 +51,7 @@ JSON exports are served from CloudFront with a 30-second cache (`max-age=30, s-m
 
 ## MCP Server
 
-A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Its resources are the reading, GitHub, theatre, and focus JSON endpoints below plus llms-full.txt; health, sleep, and workouts reach it only as the coarsened band in llms-full.txt (decision 4 below). Its tools return the profile, the data sources, current reading, and the tech stack.
+A read-only MCP server answers at <https://jonathanlloyd.me/mcp> (stateless Streamable HTTP, no authentication). Its server card is at <https://jonathanlloyd.me/mcp/server-card>. Its resources are the reading, GitHub, theatre, and focus JSON endpoints above plus llms-full.txt; health, sleep, and workouts reach it only as the coarsened band in llms-full.txt (decision 4 below). Its tools return the profile, the data sources, current reading, and the tech stack.
 
 ## LLM-Optimized Content
 

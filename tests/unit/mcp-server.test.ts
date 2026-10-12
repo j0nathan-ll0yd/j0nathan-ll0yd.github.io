@@ -44,8 +44,6 @@ const RAW_SENTINEL = 'RAW-POINT-IN-TIME-SENTINEL'
 const RAW_HEALTH_PATHS: readonly string[] = [ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts]
 const RAW_HEALTH_URLS = RAW_HEALTH_PATHS.map((path) => `${CLOUDFRONT_BASE}${path}`)
 
-const LLMS_FULL_UPSTREAM = `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
-
 /** A response CloudFront served in this request. The proxy admits no 200 without `x-amz-cf-id`. */
 function fromCloudfront(body: string, init: ResponseInit = {}): Promise<Response> {
   const headers = new Headers(init.headers)
@@ -65,7 +63,7 @@ beforeEach(() => {
     if (url === `${CLOUDFRONT_BASE}${ENDPOINTS.books}`) {
       return fromCloudfront(JSON.stringify(BOOKS))
     }
-    if (url === LLMS_FULL_UPSTREAM) {
+    if (url === `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`) {
       return fromCloudfront('# llms-full')
     }
     if (RAW_HEALTH_URLS.includes(url)) {
@@ -301,20 +299,39 @@ describe('resources', () => {
   })
 
   // The gate runs before the last-known-good fallback, so a stale copy cannot outlive a hiding transition.
-  it('never serves a stale copy while hiding, even when the edge cache holds one', async () => {
-    vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(new Response(JSON.stringify(BOOKS))), put: vi.fn()}})
+  it('never serves a stale copy while hiding, even when the edge cache holds an admissible one', async () => {
+    const match = vi.fn().mockResolvedValue(new Response(JSON.stringify(BOOKS), {headers: {'X-Proxy-Lkg-Composed-At': new Date().toISOString()}}))
+    vi.stubGlobal('caches', {default: {match, put: vi.fn()}})
     currentFocus = HIDING_FOCUS_MODES[0]
     const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
     const {body} = await modern('resources/read', {uri}, uri)
     const contents = body.result?.contents as Array<{text: string}>
     expect(JSON.parse(contents[0]!.text)).toEqual({suppressed: true, reason: 'focus mode active'})
+    expect(match).not.toHaveBeenCalled()
   })
 
-  // llms-full.txt is the one stamped resource. The proxy serves its copy only with a fresh
-  // composition stamp and gate-open evidence from this request: here, a gate probe answering 200
-  // after three CloudFront 503s.
+  // The backend gate is the authority, not the focus signal: it can be shut over a visible value,
+  // and its 403 suppression body wins over a visible focus probe (functions/_lib/proxy.ts, rule 2).
+  // That body reaches an agent as the suppression document, never as an error or data.
+  it('returns the suppression document when the gate answers 403 over a visible focus value', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url === FOCUS_URL
+        ? fromCloudfront(JSON.stringify({currentFocus}))
+        : fromCloudfront(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403})
+    )
+    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
+    const read = await modern('resources/read', {uri}, uri)
+    const contents = read.body.result?.contents as Array<{text: string}>
+    expect(JSON.parse(contents[0]!.text)).toEqual({suppressed: true, reason: 'focus mode active'})
+    const call = await modern('tools/call', {name: 'get_current_reading', arguments: {}}, 'get_current_reading')
+    expect(call.body.result?.isError).toBeUndefined()
+    expect(toolText(call.body.result)).toEqual({suppressed: true, reason: 'focus mode active'})
+  })
+
+  // The proxy serves a stored copy only with a composition stamp at most 3 hours old and gate-open
+  // evidence from this request: here, a gate probe answering 200 after three CloudFront 503s.
   it('marks data served from the last-known-good copy with the time it was stored', async () => {
-    const stored = new Response('# llms-full (known good)', {
+    const stored = new Response(JSON.stringify(BOOKS), {
       headers: {'X-Proxy-Lkg-Stored-At': '2026-10-07T00:00:00.000Z', 'X-Proxy-Lkg-Composed-At': new Date().toISOString()}
     })
     vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(stored), put: vi.fn()}})
@@ -326,24 +343,11 @@ describe('resources', () => {
       artifactAttempts += 1
       return artifactAttempts <= 3 ? fromCloudfront('down', {status: 503}) : fromCloudfront('gate probe body, never served')
     })
-    const uri = RESOURCES.find((r) => r.path === LLM_CONTENT_PATHS.llmsFull)!.uri
+    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
     const {body} = await modern('resources/read', {uri}, uri)
     const contents = body.result?.contents as Array<{text: string; _meta?: Record<string, string>}>
-    expect(contents[0]!.text).toBe('# llms-full (known good)')
+    expect(contents[0]!.text).toBe(JSON.stringify(BOOKS))
     expect(contents[0]!._meta?.[STALE_META_KEY]).toBe('2026-10-07T00:00:00.000Z')
-  })
-
-  // The JSON exports carry no composition stamp, so the proxy could never admit a stored copy.
-  it('keeps no last-known-good copy of an unstamped JSON export', async () => {
-    const match = vi.fn().mockResolvedValue(new Response(JSON.stringify(BOOKS)))
-    const put = vi.fn()
-    vi.stubGlobal('caches', {default: {match, put}})
-    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
-    expect((await modern('resources/read', {uri}, uri)).body.result).toBeDefined()
-    fetchMock.mockImplementation((url: string) => url === FOCUS_URL ? fromCloudfront(JSON.stringify({currentFocus})) : fromCloudfront('down', {status: 503}))
-    expect((await modern('resources/read', {uri}, uri)).body.error).toBeDefined()
-    expect(match).not.toHaveBeenCalled()
-    expect(put).not.toHaveBeenCalled()
   })
 
   it('reads the focus signal like the gate does: no edge cache, no last-known-good copy', async () => {

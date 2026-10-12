@@ -106,6 +106,10 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   reads it: no edge cache, no last-known-good copy. An unreadable focus state fails closed.
   When the origin fails and the proxy answers from its last-known-good copy, the result
   carries `_meta["me.jonathanlloyd/lastKnownGoodSince"]` with the time the copy was stored.
+  Since #351 the proxy admits that copy only with gate-open evidence from the same request and a
+  composition stamp (`x-amz-meta-composed-at`) at most 3 hours old. An export the backend
+  republishes only on change, such as `books.json`, is often older than that, so an origin
+  failure then ends in an error, not stale data.
 - **Caching:** `server/discover`, `tools/list` and `resources/list` carry a one-hour public
   cache hint; `resources/read` keeps the default (ttl 0, private).
 - **No list-change notifications:** the tools and resources change only on deploy, so the

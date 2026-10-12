@@ -178,12 +178,6 @@ export interface CloudfrontProxyConfig {
   contentType: string
   /** Cache directives for the success and stale paths. Defaults to no-store, which every gated route needs. */
   cachePolicy?: CachePolicy
-  /**
-   * Whether to keep a last-known-good copy. Defaults to true. Set false for an artifact the backend
-   * publishes with no composition stamp (the JSON exports): the source-age bound could never admit
-   * its copy, so storing one would only log `cloudfront_proxy_lkg_unstamped` on every read.
-   */
-  lastKnownGood?: boolean
 }
 
 interface UpstreamSuccess {
@@ -798,7 +792,7 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
 
 /** Builds an onRequest handler that proxies one CloudFront artifact resiliently. */
 export function makeCloudfrontProxy(
-  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY, lastKnownGood = true}: CloudfrontProxyConfig
+  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY}: CloudfrontProxyConfig
 ): (context: CloudfrontProxyContext) => Promise<Response> {
   const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
@@ -834,7 +828,7 @@ export function makeCloudfrontProxy(
     // The focus signal has no last-known-good copy. Like the gate's own probe, it is read fresh
     // (GATED_FETCH_INIT is no-store), so a stored copy could disagree with the probe that a
     // sibling read just consulted.
-    const cache = isFocusSignal || !lastKnownGood ? undefined : defaultCache()
+    const cache = isFocusSignal ? undefined : defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
     const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS))
 

@@ -982,9 +982,8 @@ describe('gate admission', () => {
   })
 })
 
-// The MCP server (atlas decision 0158) reads the JSON exports through this factory. Two of its
-// readers differ from the five llm routes: the focus signal, which the edge gate never gates, and
-// the unstamped JSON exports, which can hold no last-known-good copy.
+// The MCP server (atlas decision 0158) reads the JSON exports through this factory. One of its
+// readers differs from the five llm routes: the focus signal, which the edge gate never gates.
 describe('MCP readers', () => {
   it('serves the focus signal without asking the focus gate, and keeps no copy of it', async () => {
     const hiding = JSON.stringify({currentFocus: HIDING_FOCUS_MODES[0]})
@@ -998,22 +997,6 @@ describe('MCP readers', () => {
     expect(await res.text()).toBe(hiding)
     expect(mock).toHaveBeenCalledOnce()
     expect(mock).toHaveBeenCalledWith(FOCUS_URL, GATED_FETCH_INIT)
-    expect(cache.match).not.toHaveBeenCalled()
-    expect(cache.put).not.toHaveBeenCalled()
-  })
-
-  it('with lastKnownGood false, neither stores nor serves a copy, and logs no unstamped write', async () => {
-    const cache = stubCache(lkgCopy('known good'))
-    stubFetch(fromCloudfront('fresh', {headers: {[COMPOSED_AT]: ''}}))
-    const proxy = makeCloudfrontProxy({path: '/thing.txt', contentType: 'text/plain', lastKnownGood: false})
-    expect((await proxy(makeContext().context)).status).toBe(200)
-    expect(logger.warn).not.toHaveBeenCalledWith('cloudfront_proxy_lkg_unstamped', expect.anything())
-
-    stubOutageWithOpenProbe()
-    vi.useFakeTimers()
-    const pending = proxy(makeContext().context)
-    await vi.runAllTimersAsync()
-    expect((await pending).status).toBe(502)
     expect(cache.match).not.toHaveBeenCalled()
     expect(cache.put).not.toHaveBeenCalled()
   })

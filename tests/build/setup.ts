@@ -4,7 +4,9 @@ import {execSync} from 'child_process'
  * The variables Vitest sets in its own process for `import.meta.env`. Measured in a globalSetup:
  * `TEST`, `VITEST`, `NODE_ENV=test`, `MODE=test`, `DEV=1`, `PROD=''`, `BASE_URL=/`. Vite reads
  * `DEV`, `PROD`, and `MODE` from the environment it inherits, so a build that inherits them
- * renders the `import.meta.env.DEV` branches and drops the `PROD` ones.
+ * renders the `import.meta.env.DEV` branches and drops the `PROD` ones. A globalSetup sees the
+ * environment only after Vitest has written these, so the filter is by name: a variable of the same
+ * name set by the shell or CI is dropped too. None of these names configures this build.
  */
 const VITEST_ENV = /^(TEST|VITEST.*|MODE|DEV|PROD|SSR|BASE_URL)$/
 
