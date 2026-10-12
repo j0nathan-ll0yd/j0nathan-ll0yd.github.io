@@ -4,20 +4,28 @@
 // re-verification chore documented in docs/discovery-surface.md ("A recurring
 // issue tracks re-verification of all of the above on a monthly cadence").
 //
-// Assertions are deliberately STRUCTURAL (field presence / shape), not full
-// JSON Schema conformance against the upstream specs -- those specs are young
-// and moving (see docs/discovery-surface.md "Spec-drift watch"). Pinned
-// spec-version constants below are re-verified by the monthly T3
-// audit-spec-checklist skill (Phase 5 of the monorepo audit plan), not by
-// this script.
+// Two kinds of assertion:
 //
-// Each surface's assertions are a pure `validateXShape(json, contentType)`
-// function (testable without network); main() below is just fetch-and-call.
+// - FULL JSON Schema conformance for the documents whose upstream schema is
+//   vendored under audits/vendor/agent-discovery/ (byte-identical to commit-pinned
+//   blobs, digests in SOURCES.json): ai-catalog.json and ard.json against the ARD
+//   schemas, and the MCP server card against the SEP-2127 extension schema.
+//   b2-check-spec-currency.mjs watches those upstreams for revisions.
+// - STRUCTURAL assertions (field presence, shape, served media type) for the rest
+//   (webfinger, agent-skills/index.json, api-catalog), whose specs publish no
+//   schema this repo vendors, plus the media types a schema cannot see.
+//
+// Then a live MCP exchange against every remote the card declares: both protocol
+// eras, a tools/call per tool, resources/list, and resources/read of the ungated
+// focus signal and llms-full.txt (see probeMcpRemotes).
+//
+// Each surface's assertions are a pure `validateX(json, contentType)` function
+// (testable without network); main() below is just fetch-and-call.
 
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import Ajv2020 from 'ajv/dist/2020.js'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
 
@@ -45,6 +53,26 @@ export const ARTIFACTS = []
 // what every deployed MCP client still sends first, and the server answers it on the
 // stateless legacy leg.
 export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
+
+// The ARD media type of a catalog of entries (ARD §3.3). functions/_middleware.ts
+// serves ai-catalog.json as it.
+export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'
+
+// The MCP resources the live server must list: every JSON export except the three the
+// LLM-channel policy withholds (health, sleep, workouts), plus llms-full.txt. Stated here
+// from the contract, independently of functions/_lib/agent-catalog.mjs, so a catalog edit
+// that exposes a withheld export, or drops one, reds the probe.
+const WITHHELD_EXPORTS = new Set([ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts])
+export const EXPECTED_RESOURCE_URIS = Object.freeze([
+  ...Object.values(ENDPOINTS).filter((path) => !WITHHELD_EXPORTS.has(path)).map((path) => `${CLOUDFRONT_BASE}${path}`),
+  `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+])
+
+// The resources the probe reads. No tool reads focus.json, so without this read the
+// ungated focus reader never runs in the deployed runtime; llms-full.txt is the one
+// resource that republishes backend text, behind the withheld-link check.
+export const FOCUS_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
+export const LLMS_FULL_RESOURCE_URI = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
 export const PROBE_PROTOCOL_VERSION = '2025-11-25'
 
 // The modern revision, which the WebMCP script speaks: no handshake, a per-request
@@ -116,9 +144,19 @@ export function validateWebfingerShape(json, contentType) {
   return findings
 }
 
-/** ai-catalog.json (ARD -- Agentic Resource Discovery). Pure -- testable without network. */
-export function validateAiCatalogShape(json) {
+/**
+ * ai-catalog.json (ARD -- Agentic Resource Discovery). Pure -- testable without network.
+ * The served media type is checked when `contentType` is given.
+ */
+export function validateAiCatalogShape(json, contentType) {
   const findings = schemaFindings(validators.aiCatalog, json, 'wellknown-ai-catalog-schema', 'ai-catalog.json')
+  if (contentType !== undefined && !contentType.includes(AI_CATALOG_MEDIA_TYPE)) {
+    findings.push({
+      severity: 'fail',
+      id: 'wellknown-ai-catalog-content-type',
+      message: `expected Content-Type ${AI_CATALOG_MEDIA_TYPE}, got "${contentType}"`
+    })
+  }
   assertFields(json, ['specVersion', 'entries'], 'wellknown-ai-catalog-shape', `ai-catalog.json (ARD specVersion ${PINNED_ARD_SPEC_VERSION})`, findings)
   if (json.specVersion !== undefined && String(json.specVersion) !== PINNED_ARD_SPEC_VERSION) {
     findings.push({
@@ -291,6 +329,58 @@ export function judgeModernExchange({discover, calls, card}) {
 }
 
 /**
+ * Judge resources/list and the resources/read answers. Pure -- testable without network.
+ *
+ * - The list must be exactly EXPECTED_RESOURCE_URIS: a missing resource, and above all a
+ *   withheld export that appears, both fail.
+ * - focus.json must read as a focus document (a string `currentFocus`). The edge never
+ *   gates it, so a suppression document there is a fail too.
+ * - llms-full.txt must read as text, or as the suppression document during a hiding focus
+ *   mode. An error fails, which includes the server refusing a copy that links a withheld
+ *   export.
+ */
+export function judgeResourceExchange({list, reads}) {
+  const findings = []
+  const listed = Array.isArray(list?.result?.resources) ? list.result.resources.map((resource) => resource.uri) : undefined
+  const expected = [...EXPECTED_RESOURCE_URIS].sort()
+  if (!listed || JSON.stringify([...listed].sort()) !== JSON.stringify(expected)) {
+    findings.push({
+      severity: 'fail',
+      id: 'mcp-resources-list',
+      message: `resources/list returned ${JSON.stringify(listed ?? list).slice(0, 400)}; expected the ${expected.length} URIs ${expected.join(', ')}`
+    })
+  }
+  for (const {uri, response} of reads) {
+    const content = response?.result?.contents?.[0]
+    const text = typeof content?.text === 'string' ? content.text : undefined
+    let problem
+    if (text === undefined || content.uri !== uri) {
+      problem = `no content for ${uri}`
+    } else if (uri === FOCUS_RESOURCE_URI) {
+      let focus
+      try {
+        focus = JSON.parse(text)
+      } catch {
+        focus = undefined
+      }
+      if (typeof focus?.currentFocus !== 'string') {
+        problem = 'focus.json did not read as a focus document'
+      }
+    } else if (text.trim() === '') {
+      problem = `${uri} read empty`
+    }
+    if (problem) {
+      findings.push({
+        severity: 'fail',
+        id: 'mcp-resource-read',
+        message: `resources/read ${uri} failed: ${problem}: ${JSON.stringify(response).slice(0, 300)}`
+      })
+    }
+  }
+  return findings
+}
+
+/**
  * The live MCP exchange, against every streamable-http remote the card declares, in
  * both protocol eras the server answers:
  *
@@ -298,7 +388,9 @@ export function judgeModernExchange({discover, calls, card}) {
  *   deployed MCP clients send first.
  * - 2026-07-28: server/discover, then tools/call for every listed tool. This is the
  *   path public/js/webmcp.js uses, and the calls run a focus-gated read in the
- *   deployed runtime.
+ *   deployed runtime. Then resources/list (exactly the expected URIs) and
+ *   resources/read of focus.json and llms-full.txt: no tool reads focus.json, so this
+ *   read is the only one that runs the ungated focus reader in the deployed runtime.
  *
  * `measured` counts each era's exchange that returned parseable JSON-RPC, judged or not.
  */
@@ -333,8 +425,16 @@ export async function probeMcpRemotes(card, post = postMcp) {
         const callRequest = modernRequest(4 + index, 'tools/call', {name, arguments: {}}, name)
         calls.push({name, response: await post(url, callRequest.message, callRequest.headers)})
       }
+      const listRequest = modernRequest(100, 'resources/list')
+      const list = await post(url, listRequest.message, listRequest.headers)
+      const reads = []
+      for (const [index, uri] of [FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI].entries()) {
+        const readRequest = modernRequest(101 + index, 'resources/read', {uri}, uri)
+        reads.push({uri, response: await post(url, readRequest.message, readRequest.headers)})
+      }
       measured++
       findings.push(...judgeModernExchange({discover, calls, card}).map(tag(url)))
+      findings.push(...judgeResourceExchange({list, reads}).map(tag(url)))
     } catch (err) {
       findings.push({severity: 'fail', id: 'mcp-modern-unreachable', message: `${url}: ${err instanceof Error ? err.message : String(err)}`})
     }

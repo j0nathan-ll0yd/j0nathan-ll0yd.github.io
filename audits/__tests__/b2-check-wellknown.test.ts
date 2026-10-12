@@ -3,8 +3,13 @@ import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {
+  AI_CATALOG_MEDIA_TYPE,
+  EXPECTED_RESOURCE_URIS,
+  FOCUS_RESOURCE_URI,
   judgeMcpExchange,
   judgeModernExchange,
+  judgeResourceExchange,
+  LLMS_FULL_RESOURCE_URI,
   MODERN_PROTOCOL_VERSION,
   parseMcpBody,
   PINNED_AGENT_SKILLS_SCHEMA,
@@ -63,6 +68,7 @@ describe('validateAiCatalogShape', () => {
 
   it(`a conformant ARD specVersion ${PINNED_ARD_SPEC_VERSION} catalog produces zero findings`, () => {
     expect(validateAiCatalogShape(valid)).toEqual([])
+    expect(validateAiCatalogShape(valid, AI_CATALOG_MEDIA_TYPE)).toEqual([])
   })
 
   it('the SERVED catalog conforms to the vendored ai-catalog schema and names no unresolvable host identifier', () => {
@@ -194,19 +200,78 @@ describe('MCP liveness probe', () => {
     result: {supportedVersions: [MODERN_PROTOCOL_VERSION], _meta: {'io.modelcontextprotocol/serverInfo': {name: card.name, version: card.version}}}
   }
   const called = {jsonrpc: '2.0', id: 4, result: {content: [{type: 'text', text: '{}'}]}}
+  const resourcesList = {jsonrpc: '2.0', id: 100, result: {resources: EXPECTED_RESOURCE_URIS.map((uri) => ({uri}))}}
+  const readOf = (uri: string, text: string) => ({jsonrpc: '2.0', id: 101, result: {contents: [{uri, text}]}})
+  const focusRead = readOf(FOCUS_RESOURCE_URI, '{"generatedAt":"x","currentFocus":"None"}')
+  const llmsRead = readOf(LLMS_FULL_RESOURCE_URI, '# Jonathan Lloyd')
 
   it('runs both eras: initialize and tools/list, then server/discover and a tools/call per tool', async () => {
-    const calls: Array<{method: string; headers?: Record<string, string>; meta?: unknown}> = []
-    const post = async (_url: string, message: {method: string; params?: {_meta?: unknown}}, headers?: Record<string, string>) => {
-      calls.push({method: message.method, headers, meta: message.params?._meta})
-      return ({initialize, 'tools/list': toolsList, 'server/discover': discover} as Record<string, unknown>)[message.method] ?? called
+    const calls: Array<{method: string; headers?: Record<string, string>; meta?: unknown; uri?: string}> = []
+    const post = async (_url: string, message: {method: string; params?: {_meta?: unknown; uri?: string}}, headers?: Record<string, string>) => {
+      calls.push({method: message.method, headers, meta: message.params?._meta, uri: message.params?.uri})
+      if (message.method === 'resources/read') {
+        return message.params?.uri === FOCUS_RESOURCE_URI ? focusRead : llmsRead
+      }
+      return ({initialize, 'tools/list': toolsList, 'server/discover': discover, 'resources/list': resourcesList} as Record<string, unknown>)[
+        message.method
+      ] ?? called
     }
     const result = await probeMcpRemotes(card, post)
-    expect(calls.map((c) => c.method)).toEqual(['initialize', 'tools/list', 'server/discover', 'tools/call'])
+    expect(calls.map((c) => c.method)).toEqual([
+      'initialize',
+      'tools/list',
+      'server/discover',
+      'tools/call',
+      'resources/list',
+      'resources/read',
+      'resources/read'
+    ])
+    expect(calls.slice(5).map((c) => c.uri)).toEqual([FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI])
+    expect(calls[5]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'resources/read', 'Mcp-Name': FOCUS_RESOURCE_URI})
     expect(calls[1]!.headers).toEqual({'MCP-Protocol-Version': '2025-11-25'})
     expect(calls[3]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_profile'})
     expect(calls[3]!.meta).toEqual(expect.objectContaining({'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION}))
     expect(result).toEqual({measured: 2, findings: []})
+  })
+
+  it('expects exactly seven resources: the six policy-exposed exports and llms-full.txt, no raw health export', () => {
+    expect(EXPECTED_RESOURCE_URIS).toHaveLength(7)
+    expect(EXPECTED_RESOURCE_URIS).toContain(LLMS_FULL_RESOURCE_URI)
+    expect(EXPECTED_RESOURCE_URIS.join(' ')).not.toMatch(/health\.json|sleep\.json|workouts\.json/)
+  })
+
+  it('a full resource exchange produces zero findings; a suppressed llms-full.txt read is valid', () => {
+    expect(
+      judgeResourceExchange({
+        list: resourcesList,
+        reads: [{uri: FOCUS_RESOURCE_URI, response: focusRead}, {uri: LLMS_FULL_RESOURCE_URI, response: llmsRead}]
+      })
+    ).toEqual([])
+    const suppressed = readOf(LLMS_FULL_RESOURCE_URI, '{"suppressed":true,"reason":"focus mode active"}')
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: LLMS_FULL_RESOURCE_URI, response: suppressed}]})).toEqual([])
+  })
+
+  it('a resource list that exposes a withheld export, or drops one, fails', () => {
+    const health = 'https://d1pfm520aduift.cloudfront.net/health.json'
+    const exposed = {...resourcesList, result: {resources: [...EXPECTED_RESOURCE_URIS, health].map((uri) => ({uri}))}}
+    const dropped = {...resourcesList, result: {resources: EXPECTED_RESOURCE_URIS.slice(1).map((uri) => ({uri}))}}
+    expect(judgeResourceExchange({list: exposed, reads: []}).map((f) => f.id)).toEqual(['mcp-resources-list'])
+    expect(judgeResourceExchange({list: dropped, reads: []}).map((f) => f.id)).toEqual(['mcp-resources-list'])
+  })
+
+  it('a refused llms-full.txt read, and a focus read that is not a focus document, fail', () => {
+    const refused = {jsonrpc: '2.0', id: 102, error: {code: -32603, message: 'withheld'}}
+    const gatedFocus = readOf(FOCUS_RESOURCE_URI, '{"suppressed":true,"reason":"focus mode active"}')
+    const findings = judgeResourceExchange({
+      list: resourcesList,
+      reads: [{uri: FOCUS_RESOURCE_URI, response: gatedFocus}, {uri: LLMS_FULL_RESOURCE_URI, response: refused}]
+    })
+    expect(findings.map((f) => f.id)).toEqual(['mcp-resource-read', 'mcp-resource-read'])
+  })
+
+  it('ai-catalog.json served as plain JSON fails the media-type assertion', () => {
+    const catalog = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'public', '.well-known', 'ai-catalog.json'), 'utf8'))
+    expect(validateAiCatalogShape(catalog, 'application/json').map((f) => f.id)).toEqual(['wellknown-ai-catalog-content-type'])
   })
 
   it('a discover that does not offer the modern revision fails', () => {

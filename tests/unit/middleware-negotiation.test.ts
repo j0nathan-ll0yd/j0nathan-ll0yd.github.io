@@ -289,3 +289,15 @@ describe('negotiated homepage markdown', () => {
     expect(artifactCalls).toBe(2)
   })
 })
+
+describe('agent-discovery media types', () => {
+  it.each([
+    ['/.well-known/ai-catalog.json', 'application/ai-catalog+json'],
+    ['/.well-known/ard.json', 'application/json'],
+    ['/openapi.json', 'application/vnd.oai.openapi+json;version=3.1']
+  ])('serves %s as %s', async (path, type) => {
+    const {context, next} = makeContext(path)
+    next.mockImplementation(async () => new Response('{}', {headers: {'Content-Type': 'application/json'}}))
+    expect((await onRequest(context)).headers.get('Content-Type')).toBe(type)
+  })
+})
