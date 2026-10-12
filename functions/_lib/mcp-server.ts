@@ -77,7 +77,7 @@ export const STALE_META_KEY = `${new URL(SITE_URL).hostname.split('.').reverse()
 /** One proxy handler per artifact path, built once per isolate. The no-store policy matches the gated reads they serve. */
 const readers = new Map<string, ReturnType<typeof makeCloudfrontProxy>>(RESOURCES.map((resource) => [
   resource.path,
-  makeCloudfrontProxy({path: resource.path, contentType: resource.mimeType, cachePolicy: LLM_OUTPUT_CACHE_POLICY})
+  makeCloudfrontProxy({path: resource.path, contentType: resource.mimeType, cachePolicy: LLM_OUTPUT_CACHE_POLICY, lastKnownGood: resource.stamped})
 ]))
 
 /** Read one artifact through the focus gate, and classify the answer. */

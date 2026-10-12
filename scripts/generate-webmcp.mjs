@@ -42,10 +42,26 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const publicDir = join(root, 'public')
 const req = createRequire(import.meta.url)
 
-function write(relativePath, content) {
-  const outPath = join(publicDir, relativePath)
+// `--check` compares instead of writing: every generated file must already equal what this script
+// would write, or the run exits 1 naming the drifted files. CI runs it (static-checks.yml, lint job)
+// so a hand edit to a generated file, or a generator change committed without regenerating,
+// cannot merge. The build regenerates anyway (prebuild), so drift would otherwise ship unreviewed.
+const CHECK = process.argv.includes('--check')
+const drifted = []
+
+function emit(outPath, content) {
+  if (CHECK) {
+    if (!existsSync(outPath) || readFileSync(outPath, 'utf8') !== content) {
+      drifted.push(outPath)
+    }
+    return
+  }
   writeFileSync(outPath, content)
   console.log(`Generated ${outPath}`)
+}
+
+function write(relativePath, content) {
+  emit(join(publicDir, relativePath), content)
 }
 
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`
@@ -135,9 +151,10 @@ const directoryTable = [
   '| --- | --- | --- |',
   ...LLM_DATA_SOURCE_DIRECTORY.map((s) => `| ${cell(s.name)} | <${s.url}> | ${cell(s.description)} |`)
 ].join('\n')
-writeFileSync(skillMdPath, `${skillSource.slice(0, begin.index + begin[0].length)}${directoryTable}\n${skillSource.slice(end)}`)
+const skillMd = `${skillSource.slice(0, begin.index + begin[0].length)}${directoryTable}\n${skillSource.slice(end)}`
+emit(skillMdPath, skillMd)
 
-const skillMdDigest = createHash('sha256').update(readFileSync(skillMdPath)).digest('hex')
+const skillMdDigest = createHash('sha256').update(skillMd).digest('hex')
 write(AGENT_PATHS.agentSkillsIndex.slice(1), json({
   $schema: 'https://schemas.agentskills.io/discovery/0.2.0/schema.json',
   skills: [
@@ -294,3 +311,15 @@ write(AGENT_PATHS.openapi.slice(1),
       }
     }
   }))
+
+if (CHECK) {
+  if (drifted.length > 0) {
+    console.error('[generate-webmcp --check] FAIL: committed files differ from the generator output:')
+    for (const path of drifted) {
+      console.error('  -', path)
+    }
+    console.error('Run `pnpm run generate:webmcp` and commit the result.')
+    process.exit(1)
+  }
+  console.log('[generate-webmcp --check] OK: every generated file matches the generator output.')
+}

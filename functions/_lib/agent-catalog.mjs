@@ -119,10 +119,15 @@ export const LLM_DATA_SOURCES = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHA
 /** The raw export URLs no LLM channel may serve or name. Tests assert their absence from every MCP and WebMCP answer. */
 export const LLM_WITHHELD_URLS = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.coarsenedOnly.includes(s.key)).map((s) => s.url))
 
-/** MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate. */
+/**
+ * MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate.
+ * `stamped` is true when the backend publishes the artifact with a composition stamp
+ * (`x-amz-meta-composed-at`), which the proxy's last-known-good path requires. The JSON exports
+ * carry none, so they have no last-known-good copy.
+ */
 export const RESOURCES = Object.freeze([
   ...LLM_DATA_SOURCES.map((s) =>
-    Object.freeze({name: s.key, uri: s.url, path: s.path, title: s.name, description: s.description, mimeType: 'application/json'})
+    Object.freeze({name: s.key, uri: s.url, path: s.path, title: s.name, description: s.description, mimeType: 'application/json', stamped: false})
   ),
   Object.freeze({
     name: 'llmsFull',
@@ -130,7 +135,8 @@ export const RESOURCES = Object.freeze([
     path: LLM_CONTENT_PATHS.llmsFull,
     title: llm.dashboard.alternateLinkMarkdown,
     description: llm.dashboard.datasetDescription,
-    mimeType: 'text/markdown'
+    mimeType: 'text/markdown',
+    stamped: true
   })
 ])
 

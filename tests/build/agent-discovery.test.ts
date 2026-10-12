@@ -99,12 +99,18 @@ describe('API catalog and OpenAPI', () => {
 describe('WebMCP script placement', () => {
   // Scanners read only the first few same-origin scripts (the 2026-10-07 is-agentic scan read
   // 8 of 17 and missed webmcp.js at position 15), so it must be the first script, and deferred.
-  it.each(['index.html', '404.html', 'privacy/index.html'])('%s loads /js/webmcp.js first, deferred, from <head>', (page) => {
+  // Pages build as files (build.format 'file'), so /privacy is privacy.html.
+  it.each(['index.html', '404.html', 'privacy.html'])('%s loads /js/webmcp.js first, deferred, from <head>', (page) => {
     const $ = cheerio.load(read(page))
     const first = $('script').first()
     expect(first.attr('src')).toBe('/js/webmcp.js')
     expect(first.attr('defer')).toBeDefined()
     expect(first.parent().is('head')).toBe(true)
     expect($('script[src="/js/webmcp.js"]')).toHaveLength(1)
+  })
+
+  // client-privacy: /offline carries no WebMCP script (the data-free Dashboard).
+  it('offline.html loads no WebMCP script', () => {
+    expect(cheerio.load(read('offline.html'))('script[src="/js/webmcp.js"]')).toHaveLength(0)
   })
 })

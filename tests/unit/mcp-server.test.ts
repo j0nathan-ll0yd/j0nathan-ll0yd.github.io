@@ -44,6 +44,15 @@ const RAW_SENTINEL = 'RAW-POINT-IN-TIME-SENTINEL'
 const RAW_HEALTH_PATHS: readonly string[] = [ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts]
 const RAW_HEALTH_URLS = RAW_HEALTH_PATHS.map((path) => `${CLOUDFRONT_BASE}${path}`)
 
+const LLMS_FULL_UPSTREAM = `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
+
+/** A response CloudFront served in this request. The proxy admits no 200 without `x-amz-cf-id`. */
+function fromCloudfront(body: string, init: ResponseInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers)
+  headers.set('x-amz-cf-id', 'test-request')
+  return Promise.resolve(new Response(body, {...init, headers}))
+}
+
 let currentFocus = 'Personal'
 let fetchMock: ReturnType<typeof vi.fn>
 
@@ -51,18 +60,18 @@ beforeEach(() => {
   currentFocus = 'Personal'
   fetchMock = vi.fn().mockImplementation((url: string) => {
     if (url === FOCUS_URL) {
-      return Promise.resolve(new Response(JSON.stringify({currentFocus})))
+      return fromCloudfront(JSON.stringify({currentFocus}))
     }
     if (url === `${CLOUDFRONT_BASE}${ENDPOINTS.books}`) {
-      return Promise.resolve(new Response(JSON.stringify(BOOKS)))
+      return fromCloudfront(JSON.stringify(BOOKS))
     }
-    if (url === `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`) {
-      return Promise.resolve(new Response('# llms-full'))
+    if (url === LLMS_FULL_UPSTREAM) {
+      return fromCloudfront('# llms-full')
     }
     if (RAW_HEALTH_URLS.includes(url)) {
-      return Promise.resolve(new Response(JSON.stringify({generatedAt: 'x', heartRate: RAW_SENTINEL})))
+      return fromCloudfront(JSON.stringify({generatedAt: 'x', heartRate: RAW_SENTINEL}))
     }
-    return Promise.resolve(new Response(JSON.stringify({generatedAt: 'x', from: url})))
+    return fromCloudfront(JSON.stringify({generatedAt: 'x', from: url}))
   })
   vi.stubGlobal('fetch', fetchMock)
   vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(undefined), put: vi.fn().mockResolvedValue(undefined)}})
@@ -260,9 +269,7 @@ describe('tools', () => {
   })
 
   it('fails closed when the focus state cannot be read', async () => {
-    fetchMock.mockImplementation((url: string) =>
-      Promise.resolve(url === FOCUS_URL ? new Response('nope', {status: 404}) : new Response(JSON.stringify(BOOKS)))
-    )
+    fetchMock.mockImplementation((url: string) => url === FOCUS_URL ? fromCloudfront('nope', {status: 404}) : fromCloudfront(JSON.stringify(BOOKS)))
     const {body} = await modern('tools/call', {name: 'get_current_reading', arguments: {}}, 'get_current_reading')
     expect(body.result?.isError).toBe(true)
     expect(JSON.stringify(body.result)).not.toContain('Reading A')
@@ -303,17 +310,40 @@ describe('resources', () => {
     expect(JSON.parse(contents[0]!.text)).toEqual({suppressed: true, reason: 'focus mode active'})
   })
 
+  // llms-full.txt is the one stamped resource. The proxy serves its copy only with a fresh
+  // composition stamp and gate-open evidence from this request: here, a gate probe answering 200
+  // after three CloudFront 503s.
   it('marks data served from the last-known-good copy with the time it was stored', async () => {
-    const stored = new Response(JSON.stringify(BOOKS), {headers: {'X-Proxy-Lkg-Stored-At': '2026-10-07T00:00:00.000Z'}})
+    const stored = new Response('# llms-full (known good)', {
+      headers: {'X-Proxy-Lkg-Stored-At': '2026-10-07T00:00:00.000Z', 'X-Proxy-Lkg-Composed-At': new Date().toISOString()}
+    })
     vi.stubGlobal('caches', {default: {match: vi.fn().mockResolvedValue(stored), put: vi.fn()}})
-    fetchMock.mockImplementation((url: string) =>
-      Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus})) : new Response('down', {status: 503}))
-    )
-    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
+    let artifactAttempts = 0
+    fetchMock.mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return fromCloudfront(JSON.stringify({currentFocus}))
+      }
+      artifactAttempts += 1
+      return artifactAttempts <= 3 ? fromCloudfront('down', {status: 503}) : fromCloudfront('gate probe body, never served')
+    })
+    const uri = RESOURCES.find((r) => r.path === LLM_CONTENT_PATHS.llmsFull)!.uri
     const {body} = await modern('resources/read', {uri}, uri)
     const contents = body.result?.contents as Array<{text: string; _meta?: Record<string, string>}>
-    expect(contents[0]!.text).toBe(JSON.stringify(BOOKS))
+    expect(contents[0]!.text).toBe('# llms-full (known good)')
     expect(contents[0]!._meta?.[STALE_META_KEY]).toBe('2026-10-07T00:00:00.000Z')
+  })
+
+  // The JSON exports carry no composition stamp, so the proxy could never admit a stored copy.
+  it('keeps no last-known-good copy of an unstamped JSON export', async () => {
+    const match = vi.fn().mockResolvedValue(new Response(JSON.stringify(BOOKS)))
+    const put = vi.fn()
+    vi.stubGlobal('caches', {default: {match, put}})
+    const uri = `${CLOUDFRONT_BASE}${ENDPOINTS.books}`
+    expect((await modern('resources/read', {uri}, uri)).body.result).toBeDefined()
+    fetchMock.mockImplementation((url: string) => url === FOCUS_URL ? fromCloudfront(JSON.stringify({currentFocus})) : fromCloudfront('down', {status: 503}))
+    expect((await modern('resources/read', {uri}, uri)).body.error).toBeDefined()
+    expect(match).not.toHaveBeenCalled()
+    expect(put).not.toHaveBeenCalled()
   })
 
   it('reads the focus signal like the gate does: no edge cache, no last-known-good copy', async () => {

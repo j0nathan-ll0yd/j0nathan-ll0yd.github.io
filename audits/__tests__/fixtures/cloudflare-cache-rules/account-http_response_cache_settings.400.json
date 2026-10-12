@@ -1,0 +1,13 @@
+{
+  "status": 400,
+  "body": {
+    "success": false,
+    "errors": [
+      {
+        "message": "phase \"http_response_cache_settings\" not allowed at account level"
+      }
+    ],
+    "messages": [],
+    "result": null
+  }
+}

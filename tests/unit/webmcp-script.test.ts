@@ -40,7 +40,8 @@ afterEach(() => {
 /** The browser's fetch: same-origin requests go to the /mcp Function, data-plane requests to a stub. */
 function browserFetch(input: string, init?: RequestInit): Promise<Response> {
   if (input.startsWith(CLOUDFRONT_BASE)) {
-    return Promise.resolve(new Response(JSON.stringify(input === FOCUS_URL ? {currentFocus} : BOOKS)))
+    // CloudFront stamps x-amz-cf-id on every answer; the proxy admits no 200 without it.
+    return Promise.resolve(new Response(JSON.stringify(input === FOCUS_URL ? {currentFocus} : BOOKS), {headers: {'x-amz-cf-id': 'test'}}))
   }
   const url = new URL(input, SITE_URL)
   const headers = new Headers(init?.headers)
@@ -117,6 +118,31 @@ describe('generated WebMCP script', () => {
     expect(await tool.execute({})).toEqual({reading: [{title: 'Reading A', status: 'reading'}], upNext: [], recentlyFinished: []})
     currentFocus = HIDING_FOCUS_MODES[1]
     expect(await tool.execute({})).toEqual({suppressed: true, reason: 'focus mode active'})
+  })
+
+  // covers: client-privacy#An unreadable focus value applies no gated data
+  // The tool once fetched books.json whenever focusRes.ok was false. It now reads through /mcp,
+  // whose focus gate fails closed, so the tool rejects and the bookshelf is never requested.
+  it.each<[string, () => Promise<Response>]>([
+    ['an HTTP error', () => Promise.resolve(new Response('{}', {status: 503}))],
+    ['a network failure', () => Promise.reject(new TypeError('offline'))],
+    ['a body that is not JSON', () => Promise.resolve(new Response('<html>'))],
+    ['a body with no focus value', () => Promise.resolve(new Response(JSON.stringify({generatedAt: 'x'})))]
+  ])('fails closed on %s and never reads the bookshelf', async (_label, focusAnswer) => {
+    const modelContext = fakeModelContext()
+    run({document: {modelContext}, navigator: {}})
+    const dataReads: string[] = []
+    vi.stubGlobal('fetch', (input: string, init?: RequestInit) => {
+      if (input.startsWith(CLOUDFRONT_BASE)) {
+        dataReads.push(input)
+        return input === FOCUS_URL ? focusAnswer() : browserFetch(input, init)
+      }
+      return browserFetch(input, init)
+    })
+    const tool = modelContext.registered.find((t) => t.name === 'get_current_reading')!
+    await expect(tool.execute({})).rejects.toThrow(/failed/)
+    expect(dataReads.length).toBeGreaterThan(0)
+    expect(dataReads.every((url) => url === FOCUS_URL)).toBe(true)
   })
 
   it('rejects, rather than returning data, when the server reports a tool error', async () => {

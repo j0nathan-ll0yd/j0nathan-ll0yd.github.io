@@ -173,7 +173,7 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
 describe('JSON-LD @graph per-page shape and @id resolution', () => {
   const pages = [
     {label: 'home', file: 'index.html', isHome: true},
-    {label: 'privacy', file: 'privacy/index.html', isHome: false},
+    {label: 'privacy', file: 'privacy.html', isHome: false},
     {label: '404', file: '404.html', isHome: false}
   ]
 
@@ -204,6 +204,11 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
         it('home page defines ProfilePage and Dataset', () => {
           expect(pageGraph.some((n) => n['@type'] === 'ProfilePage')).toBe(true)
           expect(pageGraph.some((n) => n['@type'] === 'Dataset')).toBe(true)
+        })
+
+        it('ProfilePage carries no dateModified (no verifiable profile edit date exists)', () => {
+          const profilePage = pageGraph.find((n) => n['@type'] === 'ProfilePage')
+          expect(profilePage).not.toHaveProperty('dateModified')
         })
 
         it('home page does NOT emit a WebPage node', () => {
