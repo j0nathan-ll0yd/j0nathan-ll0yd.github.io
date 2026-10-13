@@ -376,6 +376,133 @@ describe('PollEngine', () => {
       expect(onError).not.toHaveBeenCalled()
       expect(onUpdate.mock.calls.map((call) => call[0]).sort()).toEqual([...RESOURCE_KEYS].sort())
     })
+
+    // Atlas decision 0160, PR 0b: a gated read that was in flight when suppression began must not
+    // dispatch, and must not set a fingerprint for a value that never reached the page.
+    it('drops a gated answer that resolves after suppression began, without fingerprinting it', async () => {
+      const late = body('books', '2024-01-02T00:00:00Z')
+      let resolveFetch: (value: unknown) => void = () => {}
+      vi.stubGlobal('fetch', vi.fn().mockImplementation(() => new Promise((resolve) => (resolveFetch = resolve))))
+
+      const pending = engine.pollResource('books')
+      engine.setSuppressed(true)
+      resolveFetch(makeFetchResponse(late))
+      await pending
+      expect(onUpdate).not.toHaveBeenCalled()
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(late)))
+      engine.setSuppressed(false)
+      await engine.pollResource('books')
+      expect(onUpdate).toHaveBeenCalledWith('books', late)
+    })
+  })
+
+  describe('focus while suppressed', () => {
+    it('dispatches an unchanged focus answer while suppressed, so a visible value can lift suppression', async () => {
+      const unchanged = body('focus', '2024-01-01T00:00:00Z')
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(unchanged)))
+      engine.seed({focus: '2024-01-01T00:00:00Z'})
+
+      await engine.pollResource('focus')
+      expect(onUpdate).not.toHaveBeenCalled()
+
+      engine.setSuppressed(true)
+      await engine.pollResource('focus')
+      await engine.pollResource('focus')
+      expect(onUpdate).toHaveBeenCalledTimes(2)
+      expect(onUpdate).toHaveBeenCalledWith('focus', unchanged)
+    })
+  })
+
+  // covers: client-privacy#An unreadable focus value applies no gated data
+  // An unreadable focus value is never permission to read a gated resource.
+  describe('focus readability', () => {
+    it('reads nothing gated while focus is unreadable, and resumes once a focus read decodes', async () => {
+      const failing = vi.fn().mockImplementation((url: string) =>
+        Promise.resolve(url.includes('/focus.json') ? makeFetchResponse(null, false, 503) : makeFetchResponse(body('books', '2024-01-02T00:00:00Z')))
+      )
+      vi.stubGlobal('fetch', failing)
+
+      await engine.pollNow()
+      expect(failing.mock.calls.map(([url]) => url)).toEqual([expect.stringContaining('/focus.json')])
+      await engine.pollResource('books')
+      expect(failing).toHaveBeenCalledOnce()
+
+      const healthy = fetchEveryResource('2024-01-02T00:00:00Z')
+      vi.stubGlobal('fetch', healthy)
+      await engine.pollNow()
+      expect(healthy.mock.calls.length).toBe(RESOURCE_KEYS.length)
+    })
+
+    it('drops a gated answer that resolves after focus became unreadable, without fingerprinting it', async () => {
+      const late = body('books', '2024-01-02T00:00:00Z')
+      let resolveBooks: (value: unknown) => void = () => {}
+      vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) =>
+        url.includes('/focus.json')
+          ? Promise.resolve(makeFetchResponse(null, false, 503))
+          : new Promise((resolve) => (resolveBooks = resolve))
+      ))
+
+      const pending = engine.pollResource('books')
+      await engine.pollResource('focus') // the focus read fails while books is in flight
+      resolveBooks(makeFetchResponse(late))
+      await pending
+      expect(onUpdate).not.toHaveBeenCalledWith('books', expect.anything())
+
+      vi.stubGlobal('fetch', fetchEveryResource('2024-01-02T00:00:00Z'))
+      await engine.pollResource('focus')
+      await engine.pollResource('books')
+      expect(onUpdate).toHaveBeenCalledWith('books', late)
+    })
+
+    it('honors a startup readability of false until focus is read', async () => {
+      const mock = fetchEveryResource('2024-01-02T00:00:00Z')
+      vi.stubGlobal('fetch', mock)
+      engine.setFocusReadable(false)
+
+      await engine.pollResource('health')
+      expect(mock).not.toHaveBeenCalled()
+    })
+
+    it('reads focus before any gated resource in a tier, so a hiding answer stops the gated reads', async () => {
+      const mock = fetchEveryResource('2024-01-02T00:00:00Z')
+      vi.stubGlobal('fetch', mock)
+      onUpdate.mockImplementation((key: ResourceKey) => {
+        if (key === 'focus') {
+          engine.setSuppressed(true) // what live-data does on a hiding value
+        }
+      })
+
+      await engine.pollNow()
+
+      expect(mock.mock.calls.map(([url]) => url)).toEqual([expect.stringContaining('/focus.json')])
+    })
+  })
+
+  describe('forgetFingerprints()', () => {
+    it('re-applies an unchanged export after every fingerprint is forgotten', async () => {
+      const unchanged = body('health', '2024-01-01T00:00:00Z')
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeFetchResponse(unchanged)))
+      engine.seed({health: '2024-01-01T00:00:00Z'})
+
+      await engine.pollResource('health')
+      expect(onUpdate).not.toHaveBeenCalled()
+
+      engine.forgetFingerprints()
+      await engine.pollResource('health')
+      expect(onUpdate).toHaveBeenCalledWith('health', unchanged)
+    })
+
+    it('forgets only the named keys', async () => {
+      vi.stubGlobal('fetch', fetchEveryResource('2024-01-01T00:00:00Z'))
+      engine.seed({health: '2024-01-01T00:00:00Z', focus: '2024-01-01T00:00:00Z'})
+
+      engine.forgetFingerprints(['focus'])
+      await engine.pollResource('health')
+      await engine.pollResource('focus')
+
+      expect(onUpdate.mock.calls.map((call) => call[0])).toEqual(['focus'])
+    })
   })
 
   describe('getStatus()', () => {

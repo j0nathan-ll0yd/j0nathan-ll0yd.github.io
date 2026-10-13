@@ -1,8 +1,9 @@
 version: 2
 
-# The seven @j0nathan-ll0yd/* dependencies (copy, fixtures, portal-contract,
-# schemas, tokens, web, config) resolve from GitHub Packages, which requires
-# authentication even though every one of them is public -- an unauthenticated
+# The nine @j0nathan-ll0yd/* dependencies (config, copy, estate-contracts,
+# fixtures, observability, portal-contract, schemas, tokens, web) resolve from
+# GitHub Packages, which requires authentication even though every one of them
+# is public -- an unauthenticated
 # GET of https://npm.pkg.github.com/@j0nathan-ll0yd%2fconfig returns 401.
 # Without this block Dependabot cannot see the internal packages at all, so a
 # published bump never reaches this consumer and the site silently keeps
@@ -77,6 +78,16 @@ updates:
       playwright:
         patterns:
           - "@playwright/*"
+      # Security updates only (the groups above apply to version updates by
+      # default). One PR per run instead of one per advisory, so a batch of
+      # transitive advisories lands as one reviewed lockfile change and the
+      # Docker visual suite runs once. Advisories Dependabot cannot resolve
+      # (a parent pins the vulnerable version) still need a pnpm-workspace.yaml
+      # override; see the drop conditions there.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
     ignore:
       # Astro major bumps require manual testing of every page and widget.
       - dependency-name: astro

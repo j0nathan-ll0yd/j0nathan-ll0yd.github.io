@@ -50,12 +50,15 @@
           description: 'Fetches the current bookshelf from the live API and returns books being read, up next, and recently finished.',
           inputSchema: { type: 'object', properties: {}, required: [] },
           execute: async function() {
-            var focusRes = await fetch('https://d1pfm520aduift.cloudfront.net/focus.json', { cache: 'no-store' });
-            if (focusRes.ok) {
-              var focusData = await focusRes.json();
-              if (['Work', 'Do Not Disturb'].includes(focusData.currentFocus)) {
-                return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
-              }
+            // Fail closed (atlas decision 0160, PR 0b): a focus state this tool could not
+            // read is never permission to read the gated bookshelf.
+            var focusRes = await fetch('https://d1pfm520aduift.cloudfront.net/focus.json', { cache: 'no-store' }).catch(function() { return null; });
+            var focusData = focusRes && focusRes.ok ? await focusRes.json().catch(function() { return null; }) : null;
+            if (!focusData || typeof focusData.currentFocus !== 'string') {
+              return { content: [{ type: 'text', text: JSON.stringify({ failed: true, reason: 'focus state unreadable' }) }] };
+            }
+            if (['Work', 'Do Not Disturb'].includes(focusData.currentFocus)) {
+              return { content: [{ type: 'text', text: JSON.stringify({ suppressed: true, reason: 'focus mode active' }) }] };
             }
             var res = await fetch('https://d1pfm520aduift.cloudfront.net/books.json', { cache: 'no-store' });
             var data = await res.json().catch(function() { return null; });

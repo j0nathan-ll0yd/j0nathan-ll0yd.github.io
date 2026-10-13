@@ -19,6 +19,7 @@
 ## Fixtures (Invariant I2)
 
 - [ ] No consumer-side fixtures added (`data/`, `test/fixtures/`, `src/**/fixtures/`); fixtures are DS-owned in `@j0nathan-ll0yd/fixtures` (`pnpm run audit:fixtures` passes).
+- [ ] No production module imports `@j0nathan-ll0yd/fixtures`, directly or transitively (devDependency for tests only; the `forbid-fixtures` Vite plugin fails `pnpm build`).
 
 ## Test plan
 

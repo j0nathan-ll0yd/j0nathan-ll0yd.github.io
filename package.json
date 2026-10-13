@@ -14,6 +14,7 @@
     "doctor:install": "node scripts/doctor-install.mjs",
     "dev": "astro dev",
     "generate:webmcp": "node scripts/generate-webmcp.mjs",
+    "check:webmcp": "node scripts/generate-webmcp.mjs --check",
     "prebuild": "pnpm run generate:webmcp && LIFEGAMES_VALIDATE_CWD=$PWD pnpm exec tsx node_modules/@j0nathan-ll0yd/schemas/scripts/validate.ts && pnpm run audit:fixtures && pnpm run audit:inline-scripts && pnpm run audit:sa-path",
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
@@ -41,13 +42,12 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@j0nathan-ll0yd/copy": "3.0.0",
-    "@j0nathan-ll0yd/fixtures": "^1.3.5",
+    "@j0nathan-ll0yd/copy": "3.3.0",
     "@j0nathan-ll0yd/observability": "^1.0.0",
     "@j0nathan-ll0yd/portal-contract": "2.7.0",
-    "@j0nathan-ll0yd/schemas": "^2.1.0",
+    "@j0nathan-ll0yd/schemas": "^2.3.1",
     "@j0nathan-ll0yd/tokens": "^2.2.1",
-    "@j0nathan-ll0yd/web": "^3.2.0",
+    "@j0nathan-ll0yd/web": "^4.1.0",
     "astro": "~7.2.8",
     "fast-xml-validator": "^1.4.0"
   },
@@ -56,7 +56,8 @@
     "@astrojs/sitemap": "^3.7.3",
     "@axe-core/playwright": "^4.13.0",
     "@j0nathan-ll0yd/config": "^1.1.0",
-    "@j0nathan-ll0yd/estate-contracts": "0.14.1",
+    "@j0nathan-ll0yd/estate-contracts": "0.16.0",
+    "@j0nathan-ll0yd/fixtures": "^1.5.1",
     "@lhci/cli": "^0.15.1",
     "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
@@ -67,6 +68,7 @@
     "cheerio": "^1.2.0",
     "dprint": "^0.55.1",
     "eslint": "^10.7.0",
+    "espree": "^11.2.0",
     "fast-check": "4.9.0",
     "fast-xml-parser": "^5.10.1",
     "globals": "^17.7.0",
@@ -79,7 +81,7 @@
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.64.0",
-    "vitest": "^4.1.8",
-    "wrangler": "^4.98.0"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.149.0"
   }
 }

@@ -200,13 +200,10 @@ function reportCallArgs(source: string, from: number): string[] {
  * `status: unknown`) and that atlas decision 0120 D2 corrects the read permissions BEFORE
  * the channel lands, so the tile does not go permanently red on a known-open owner action.
  *
- * The reasoning held; the implementation did not. A constant is not a reading, so a run
- * that crashed before reaching Cloudflare at all published the same `deferred` and
- * inherited the same waiver -- a crash hiding behind a legitimate recorded exemption. The
- * runner now publishes its own three-way declaration
- * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs), so
- * it is an ordinary member of the census below and the waiver lives only in the workflow
- * record's trailing `until=` field.
+ * The owner rejected the waiver. The runner now publishes its real count
+ * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs): 0
+ * when every read is refused, which wedges the tier. It is an ordinary member of the census
+ * below, and its workflow record carries no reason and no `until=` field.
  *
  * Kept as an empty set rather than deleted: it is the seam a future exemption would have
  * to reopen, with its reason, in review.

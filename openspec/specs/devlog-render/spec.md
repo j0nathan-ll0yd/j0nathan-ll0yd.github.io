@@ -18,8 +18,8 @@ they are computed against the reader's clock.
 ### Requirement: Loading state keeps the dev log in its loading presentation
 
 While the GitHub events request is pending, the system SHALL keep the Dev Log card in its loading
-presentation. The server-rendered lines may remain underneath that presentation until fresh data
-arrives.
+presentation. The server renders no items (`dashboard-shell`), so the card shows only its skeleton and a
+hidden, empty scaffold until fresh data arrives.
 Verified by `tests/behavioral/devlog-matrix.test.ts:16`.
 
 #### Scenario: The log stays in its loading presentation while github-events.json is outstanding

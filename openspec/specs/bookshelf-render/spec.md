@@ -11,8 +11,8 @@ real web runtime. Render proof is behavioral DOM assertion, never screenshot com
 ### Requirement: Loading state keeps the shelf in its loading presentation
 
 While the books request is pending, the system SHALL keep the Bookshelf card in its loading
-presentation. Server-rendered shelf cards may remain underneath that presentation until fresh data
-arrives.
+presentation. The server renders no items (`dashboard-shell`), so the card shows only its skeleton and a
+hidden, empty scaffold until fresh data arrives.
 Verified by `tests/behavioral/bookshelf-matrix.test.ts:51`.
 
 #### Scenario: The shelf stays in its loading presentation while books.json is outstanding

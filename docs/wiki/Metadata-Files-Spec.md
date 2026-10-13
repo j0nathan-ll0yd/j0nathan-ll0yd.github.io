@@ -109,6 +109,12 @@ this site avoids:
   `new Date().toISOString().slice(0, 10)` at build time. This is honest: the
   file IS regenerated on every deploy (because it is a prerendered endpoint),
   so the build date accurately reflects the file's state.
+- **A hand-set `dateModified`.** The home page JSON-LD `ProfilePage` once carried
+  a hand-maintained `dateModified` (`2026-07-20`). It went stale: the profile
+  copy (`@j0nathan-ll0yd/copy`) was yalc-linked then and is now pinned at a
+  registry version, so no baseline exists to prove the date still holds. Google
+  lists `dateModified` as recommended "if applicable", so the node omits it.
+  `tests/build/json-ld.test.ts` fails if it returns.
 
 ## Privacy Stance
 
@@ -156,11 +162,20 @@ vocabulary defines `train-ai` and `search` only.
 
 ### `/sitemap-index.xml` — `@astrojs/sitemap` integration
 
-Auto-generated at build time by `@astrojs/sitemap`. Lists the single canonical
-URL `https://jonathanlloyd.me/`. `lastmod` is omitted (config: no `lastmod`
-option set) to avoid the deploy-timestamp anti-pattern. The index/child split
-is `@astrojs/sitemap`'s default output shape; it is protocol-valid and harmless
-at this scale.
+Auto-generated at build time by `@astrojs/sitemap`. Lists the two canonical
+URLs, `https://jonathanlloyd.me` (daily, priority 1.0) and
+`https://jonathanlloyd.me/privacy` (monthly, priority 0.3). The filter in
+`astro.config.mjs` excludes `/404` and the noindex `/offline` page by exact
+pathname. The sitemap emits no `lastmod`: no verifiable per-page content date
+exists. CI checks out with `actions/checkout` at its default depth of 1, so git
+history would give every page the same wrong date, `/` is live client-side data
+plus authored copy, and `/privacy` has no authored date. `changefreq` and
+`priority` are emitted but Google ignores them. `tests/build/sitemap.test.ts`
+fails if any `lastmod` appears. Every listed URL answers 200 with no redirect:
+pages build as files (`build.format: 'file'`), and
+`tests/build/canonical-urls.test.ts` fails if a listed URL would come from a
+directory index. The index/child split is `@astrojs/sitemap`'s default output
+shape; it is protocol-valid and harmless at this scale.
 
 ### `/llms.txt` — backend-composed live
 
@@ -183,12 +198,12 @@ and completes — and carry identical items with the same guids and pubDates.
 Backend-composed by the `ComposeFeed` Lambda on EventBridge triggers (plus
 a 30-minute safety-net schedule); the Cloudflare Pages Functions
 `functions/feed.xml.ts` and `functions/feed.json.ts` proxy the
-CloudFront-hosted canonicals with edge caching. The directives are not restated
-here: the feeds are the `rss-feed` surface and carry the shared
-`EDGE_CACHED_POLICY`, documented with its account-level override in
+CloudFront-hosted canonicals. The directives are not restated here: the feeds
+are the `rss-feed` surface, are gated like the llms trio, and send `no-store`,
+documented with the Cloudflare zone edge cache that sits in front of them in
 [Feed-Spec.md](Feed-Spec.md) and stated normatively in
-`openspec/specs/llms-txt/spec.md`, requirement "Cache policy is per route, and
-the feed routes stay edge-cached". No route emits `stale-while-revalidate`.
+`openspec/specs/llms-txt/spec.md`, requirement "Every proxy route is no-store,
+the feed routes included". No route emits `stale-while-revalidate`.
 
 Five included domains: theatre reviews (first-party, cap 10), meaningful
 GitHub activity (merged PRs + issues, cap 12), starred repositories (cap

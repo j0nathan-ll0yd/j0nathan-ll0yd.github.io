@@ -88,7 +88,9 @@ while the full node (with `description`, `image`, and `alternateName`) stays on 
 home page; the full `Person` remains on every page as the site publisher, as he
 recommends. We also stopped faking a date: `ProfilePage.dateModified` was
 `new Date().toISOString()` (the build clock -- non-deterministic and dishonest) and
-is now a static, hand-maintained content-modification constant. We pointed
+was then a hand-maintained constant. That constant went stale and is now
+removed: the ProfilePage omits `dateModified` because no verifiable edit date
+exists (Google lists it as recommended "if applicable"). We pointed
 `Dataset.license` at the real `/privacy` page (it had pointed meaninglessly at the
 site root), enriched the `Person` node with `givenName`/`familyName`,
 `disambiguatingDescription`, a real 200x200 avatar `ImageObject` (the OG card stays
