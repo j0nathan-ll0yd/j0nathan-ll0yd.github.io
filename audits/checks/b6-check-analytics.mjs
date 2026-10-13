@@ -469,7 +469,8 @@ function announceUnjudged(findings, {env, logger, append}) {
     logger.log(`::warning title=${title}::${annotationValue(finding.message)}`)
   }
   if (unjudged.length > 0 && env.GITHUB_STEP_SUMMARY) {
-    append(env.GITHUB_STEP_SUMMARY, `- B6 SA ingestion: UNMEASURED (measured=0) -- ${unjudged.map((finding) => finding.message).join(' | ')}\n`, 'utf8')
+    const state = unjudged.some((finding) => finding.unmeasured === true) ? 'UNMEASURED' : 'SKIPPED'
+    append(env.GITHUB_STEP_SUMMARY, `- B6 SA ingestion: ${state} (measured=0) -- ${unjudged.map((finding) => finding.message).join(' | ')}\n`, 'utf8')
   }
 }
 
@@ -537,8 +538,14 @@ export async function runIngestionArm({
   }
 
   const exitCode = report('check-analytics-ingestion', findings, ingestionMeasured(findings))
-  announceUnjudged(findings, {env, logger, append})
   publishIssueOutcome(issueOutcome(findings), {outputPath: env.GITHUB_OUTPUT})
+  // AFTER both channels, and never fatal: a summary file that cannot be written must not reach
+  // main()'s crash path, which would publish `failure` and file #149 for a run that judged nothing.
+  try {
+    announceUnjudged(findings, {env, logger, append})
+  } catch (err) {
+    console.error(`could not announce the unjudged ingestion arm: ${err?.message || err}`)
+  }
   return exitCode
 }
 

@@ -250,7 +250,7 @@ describe('concludeIngestion (M2: "not observed" needs a read near the deadline)'
   })
 })
 
-// ---- The real paths: readEventTotal, checkSaIngestion, runAnalyticsCheck ----
+// ---- The real paths: readEventTotal, checkSaIngestion, runIngestionArm ----
 
 const QUERY = 'https://simpleanalytics.com/jonathanlloyd.me.json?x=1'
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {status})
@@ -477,7 +477,25 @@ describe('the two B6 arms end to end', () => {
     expect(r.exitCode).toBe(0)
     expect(r.outputs).toEqual({measured: '0', issue_outcome: 'indeterminate'})
     expect(r.annotations).toEqual([expect.stringMatching(/^::warning title=B6 SA ingestion SKIPPED::SKIPPED/)])
+    expect(r.summary).toMatch(/^- B6 SA ingestion: SKIPPED \(measured=0\) -- SKIPPED/)
     expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('ingestion arm: a summary file that cannot be written never turns an unjudged run into a filed failure', async () => {
+    const outputPath = path.join(dir, 'append-fails.output')
+    vi.stubEnv('GITHUB_OUTPUT', outputPath)
+    const exitCode = await runIngestionArm({
+      env: {GITHUB_OUTPUT: outputPath, GITHUB_STEP_SUMMARY: path.join(dir, 'summary'), SA_API_KEY: 'k'},
+      fetchImpl: scripted([reset()]),
+      postImpl: postOk,
+      ...fakeClock(),
+      logger: {log: () => undefined},
+      append: () => {
+        throw Object.assign(new Error('ENOSPC: no space left on device'), {code: 'ENOSPC'})
+      }
+    })
+    expect(exitCode).toBe(0)
+    expect(readOutputs(outputPath)).toEqual({measured: '0', issue_outcome: 'indeterminate'})
   })
 })
 
@@ -534,12 +552,16 @@ describe('the daily tier with both B6 arms (owner decision 2026-10-13, option A)
     vi.unstubAllEnvs()
   })
 
-  async function day(ingestionFetch: ReturnType<typeof scripted>, ingestionEnv: Record<string, string> = {SA_API_KEY: 'k'}) {
+  async function day(
+    ingestionFetch: ReturnType<typeof scripted>,
+    ingestionEnv: Record<string, string> = {SA_API_KEY: 'k'},
+    collectBeacons: () => Promise<Map<string, {status: number; url: string}>> = async () => fullSeen()
+  ) {
     const dir = mkdtempSync(path.join(tmpdir(), 'b6split-day-'))
     const beaconsOut = path.join(dir, 'beacons')
     const ingestionOut = path.join(dir, 'ingestion')
     vi.stubEnv('GITHUB_OUTPUT', beaconsOut)
-    const beaconsExit = await runBeaconsArm({env: {GITHUB_OUTPUT: beaconsOut}, collectBeacons: async () => fullSeen()})
+    const beaconsExit = await runBeaconsArm({env: {GITHUB_OUTPUT: beaconsOut}, collectBeacons})
     vi.stubEnv('GITHUB_OUTPUT', ingestionOut)
     const ingestionExit = await runIngestionArm({
       env: {GITHUB_OUTPUT: ingestionOut, ...ingestionEnv},
@@ -586,9 +608,63 @@ describe('the daily tier with both B6 arms (owner decision 2026-10-13, option A)
     expect(issue).toBe('failure')
   })
 
+  it('a missing beacon beside an UNMEASURED ingestion arm: the issue files, and the ingestion 0 still wedges the tile', async () => {
+    const seen = fullSeen()
+    seen.delete('sa-script')
+    const {records, pinged, issue} = await day(scripted([reset()]), {SA_API_KEY: 'k'}, async () => seen)
+    expect(records).toContain('analytics_beacons|failure|3\n')
+    expect(records).toContain('analytics_ingestion|success|0\n')
+    expect(pinged).toEqual([`${PING_URL}/fail`])
+    expect(issue).toBe('failure')
+  })
+
+  it('a page that never loads beside a confirmed ingestion: the beacons 0 wedges the tile and the issue files', async () => {
+    const {records, pinged, issue} = await day(scripted([count(4), count(5)]), {SA_API_KEY: 'k'}, async () => Promise.reject(new Error('net::ERR_FAILED')))
+    expect(records).toContain('analytics_beacons|failure|0\n')
+    expect(records).toContain('analytics_ingestion|success|1\n')
+    expect(pinged).toEqual([`${PING_URL}/fail`])
+    expect(issue).toBe('failure')
+  })
+
   it('confirmed ingestion: the tile stays green and the issue closes', async () => {
     const {pinged, issue} = await day(scripted([count(4), count(5)]))
     expect(pinged).toEqual([PING_URL])
     expect(issue).toBe('success')
+  })
+})
+
+// ---- The CLI: what each workflow step actually executes ----
+
+const RUNNER = path.resolve('audits/checks/b6-check-analytics.mjs')
+
+/** Run the real runner as its workflow step does, minus the network: no key, no browser. */
+function cli(args: string[]) {
+  const dir = mkdtempSync(path.join(tmpdir(), 'b6split-cli-'))
+  const outputPath = path.join(dir, 'output')
+  const env: Record<string, string | undefined> = {...process.env, GITHUB_OUTPUT: outputPath, GITHUB_STEP_SUMMARY: path.join(dir, 'summary')}
+  delete env.SA_API_KEY
+  let status = 0
+  try {
+    execFileSync('node', [RUNNER, ...args], {encoding: 'utf8', env, stdio: 'pipe'})
+  } catch (err) {
+    status = (err as {status: number}).status
+  }
+  return {status, raw: readText(outputPath)}
+}
+
+describe('b6-check-analytics.mjs as a process', () => {
+  it('no --arm: exits 1, publishes NO count and issue_outcome=failure, and the dead-man wedges', () => {
+    const r = cli([])
+    expect(r.status).toBe(1)
+    expect(r.raw).toBe('issue_outcome=failure\n')
+    expect(ping(`analytics_ingestion|failure|\n`)).toEqual([`${PING_URL}/fail`])
+  })
+
+  it('an unknown arm is the same wiring defect', () => {
+    expect(cli(['--arm', 'both'])).toEqual({status: 1, raw: 'issue_outcome=failure\n'})
+  })
+
+  it('--arm ingestion with no SA_API_KEY: exits 0, publishes measured=0 and indeterminate', () => {
+    expect(cli(['--arm', 'ingestion'])).toEqual({status: 0, raw: 'measured=0\nissue_outcome=indeterminate\n'})
   })
 })
