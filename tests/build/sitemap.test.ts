@@ -6,8 +6,9 @@ import {contentLastModified} from '../../src/lib/content-date'
 
 // Asserts the enriched sitemap (astro.config.mjs sitemap() options) ships the
 // per-page SEO signals it is configured for (changefreq, priority, lastmod).
-// lastmod appears only where an authored content date exists: the four static text pages
-// carry their copy lastModified key. / carries none: it is live client-side data with no
+// It lists only indexable pages: /privacy is noindex, so it is absent. lastmod appears only
+// where an authored content date exists: the three static text pages carry their copy
+// lastModified key. / carries none: it is live client-side data with no
 // verifiable content date, and CI checks out with depth 1, so git history gives a wrong
 // date (website #360, docs/wiki/Metadata-Files-Spec.md).
 const distDir = path.resolve(process.cwd(), 'dist')
@@ -30,21 +31,20 @@ function urlBlock(locSuffix: string): string {
 }
 
 describe('Enriched sitemap', () => {
-  it('contains only the five canonical pages (home + four text pages), no 404', () => {
+  it('lists only the four indexable pages (home, /about, /contact, /developers)', () => {
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs.sort()).toEqual(['', '/about', '/contact', '/developers', '/privacy'].map((p) => `https://jonathanlloyd.me${p}`))
+    expect(locs.sort()).toEqual(['', '/about', '/contact', '/developers'].map((p) => `https://jonathanlloyd.me${p}`))
+  })
+
+  it.each(['/privacy', '/offline', '/404'])('omits the noindex page %s', (page) => {
+    const pathnames = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
+    expect(pathnames).not.toContain(page)
   })
 
   it('home page has priority 1.0 and daily changefreq', () => {
     const home = urlBlock('/')
     expect(home).toMatch(/<priority>1(\.0)?<\/priority>/)
     expect(home).toMatch(/<changefreq>daily<\/changefreq>/)
-  })
-
-  it('privacy page has priority 0.3 and monthly changefreq', () => {
-    const privacy = urlBlock('/privacy')
-    expect(privacy).toMatch(/<priority>0\.3<\/priority>/)
-    expect(privacy).toMatch(/<changefreq>monthly<\/changefreq>/)
   })
 
   it.each(['/about', '/contact', '/developers'])('%s has priority 0.5 and monthly changefreq', (page) => {
@@ -58,7 +58,6 @@ describe('Enriched sitemap', () => {
   // carries none. A build-time stamp on any URL is the defect this guards.
   const lastmodOf = (page: string) => urlBlock(page).match(/<lastmod>([^<]+)<\/lastmod>/)?.[1] ?? null
   const STATIC_PAGE_DATES: Array<[string, string]> = [
-    ['/privacy', identity.privacy.lastModified],
     ['/about', identity.about.lastModified],
     ['/contact', identity.contact.lastModified],
     ['/developers', llm.developers.lastModified]

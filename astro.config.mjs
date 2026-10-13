@@ -52,17 +52,19 @@ export default defineConfig({
   },
   integrations: [
     sitemap({
-      // Enrich the sitemap with per-page SEO signals. The built surface is small
-      // (home + four text pages); 404 is excluded by Astro automatically, the filter is a
-      // guard so a future non-canonical route can never leak in.
+      // Enrich the sitemap with per-page SEO signals. It lists only indexable pages: the home
+      // page, /about, /contact, and /developers. The filter drops /404, the noindex /offline
+      // service-worker fallback, and the noindex /privacy (a sitemap entry for a noindex page
+      // is a contradiction search engines report); crawlers and the trust-anchor check still
+      // reach /privacy by path and through every page's rel="privacy-policy" link.
       // lastmod means "content last changed", and it is emitted only where an authored date
-      // exists. The four static text pages carry their copy lastModified key (serialize()
+      // exists. The three static text pages carry their copy lastModified key (serialize()
       // below). / carries NONE: it is live data with no verifiable content date, CI checks out
       // with depth 1 so git history gives a wrong date, and a build-date lastmod is the
       // anti-pattern docs/wiki/Metadata-Files-Spec.md names (website #360).
       // tests/build/sitemap.test.ts asserts both halves.
-      // Matched on the exact pathname: /offline is the noindex service-worker fallback.
-      filter: (page) => !['/404', '/offline'].includes(new URL(page).pathname),
+      // Matched on the exact pathname.
+      filter: (page) => !['/404', '/offline', SITE_PAGE_PATHS.privacy].includes(new URL(page).pathname),
       changefreq: 'weekly',
       priority: 0.7,
       serialize(item) {
@@ -70,10 +72,6 @@ export default defineConfig({
         if (path === '/') {
           item.changefreq = 'daily'
           item.priority = 1.0
-        } else if (path === SITE_PAGE_PATHS.privacy) {
-          item.changefreq = 'monthly'
-          item.priority = 0.3
-          item.lastmod = contentLastModified(identity.privacy.lastModified)
         } else if (path in COPY_PAGE_LASTMOD) {
           // Copy-driven pages: they change only when a @j0nathan-ll0yd/copy release does.
           item.changefreq = 'monthly'
