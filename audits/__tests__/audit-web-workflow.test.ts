@@ -174,12 +174,33 @@ describe('audit-web issue reconciliation wiring', () => {
   it('routes B6 analytics to the reconciler through its tri-state issue_outcome, never the step outcome', () => {
     // An UNMEASURED Stats API read exits 0, so the step outcome is `success` and used to close
     // issue #149 as "Recovery confirmed" although the ingestion arm never ran (atlas 0104, 0142).
-    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_ISSUE_OUTCOME}")
-    expect(workflow).toContain('ANALYTICS_ISSUE_OUTCOME: ${{ steps.analytics.outputs.issue_outcome }}')
+    // Both arms are rows of the ONE `analytics` bucket, under the title #149 is matched by.
+    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_BEACONS_ISSUE_OUTCOME}")
+    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_INGESTION_ISSUE_OUTCOME}")
+    expect(workflow).toContain('ANALYTICS_BEACONS_ISSUE_OUTCOME: ${{ steps.analytics_beacons.outputs.issue_outcome }}')
+    expect(workflow).toContain('ANALYTICS_INGESTION_ISSUE_OUTCOME: ${{ steps.analytics_ingestion.outputs.issue_outcome }}')
+    expect(countOccurrences(reconcilerScript, "{id: 'analytics', ")).toBe(2)
     // A missing output must reach the reconciler as empty (indeterminate), never be defaulted.
-    expect(workflow).not.toMatch(/steps\.analytics\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
-    // The dead-man ping reads `steps.analytics.outcome` on purpose; the reconciler must not.
-    expect(reconcilerScript).not.toMatch(/steps\.analytics\.outcome\b/)
+    expect(workflow).not.toMatch(/steps\.analytics_[a-z]+\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+    // The dead-man ping reads `steps.<id>.outcome` on purpose; the reconciler must not.
+    expect(reconcilerScript).not.toMatch(/steps\.analytics(_[a-z]+)?\.outcome\b/)
+    // The single combined step is gone: no record, binding or row may still name it.
+    expect(workflow).not.toMatch(/steps\.analytics\./)
+  })
+
+  it('splits B6 into two report-only steps of one runner, each naming its arm', () => {
+    const daily = parseJobs(workflow).find((job) => job.key === 'daily')!
+    const beacons = daily.steps.find((s) => s.id === 'analytics_beacons')!
+    const ingestion = daily.steps.find((s) => s.id === 'analytics_ingestion')!
+    expect(beacons.name).toBe('B6 -- analytics beacons (CF + SA)')
+    expect(ingestion.name).toBe('B6 -- SA ingestion (synthetic event -> Stats API)')
+    expect(runBlock(beacons.body)).toBe('node audits/checks/b6-check-analytics.mjs --arm beacons')
+    expect(runBlock(ingestion.body)).toBe('node audits/checks/b6-check-analytics.mjs --arm ingestion')
+    expect(beacons.reportOnly && ingestion.reportOnly).toBe(true)
+    // Only the ingestion arm reads the Stats API, so only it holds the key.
+    expect(ingestion.body).toContain('SA_API_KEY: ${{ secrets.SA_API_KEY }}')
+    expect(beacons.body).not.toContain('secrets.SA_API_KEY')
+    expect(countOccurrences(workflow, 'secrets.SA_API_KEY')).toBe(1)
   })
 })
 
