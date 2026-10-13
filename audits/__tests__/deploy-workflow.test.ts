@@ -7,11 +7,22 @@ import {describe, expect, it} from 'vitest'
 // CloudFront only from the cfedge egress lane (ci-runners-private #130, atlas decisions 0085
 // and 0088), and every fetch failed. A direct `issues.create` call then filed 65 duplicate
 // issues. These assertions keep the lane and the managed-issue reconciler in place.
+//
+// The production smoke check had the same blind spot until 2026-10-13. Its gated-artifact tests
+// read the backend's focus.json on CloudFront to skip while a focus mode hides the data. Without
+// the lane that read always failed, the tests never skipped, and every deploy during a Work or
+// Do Not Disturb focus appended a false failure to issue #201 through a direct `issues.create`
+// path that never closed it. So every job that reads CloudFront from the runner is held to the
+// lane, and no workflow files an issue directly.
 
 const WORKFLOWS_DIR = resolve('.github/workflows')
 const IMAGE_AUDIT_SCRIPT = 'scripts/fetch-images.mjs'
 // The script path or its package.json alias; either one puts the job on the image audit.
 const IMAGE_AUDIT_INVOCATION = /scripts\/fetch-images\.mjs|\bfetch:images\b/
+// The smoke suite's package.json alias or its config. Its focus probe reads CloudFront.
+const SMOKE_INVOCATION = /\btest:smoke\b|playwright\.smoke\.config/
+// Every invocation that reads the backend's CloudFront from the runner.
+const CLOUDFRONT_INVOCATIONS = [IMAGE_AUDIT_INVOCATION, SMOKE_INVOCATION]
 
 interface Job {
   workflow: string
@@ -69,13 +80,14 @@ function runsOnLabels(jobBody: string): string[] | null {
   return /^[A-Za-z0-9_-]+$/.test(value) ? [value] : null
 }
 
-/** Jobs that run the image audit and lack the cfedge lane, as `workflow:job` strings. */
+/** Jobs that read CloudFront from the runner (image audit, smoke suite) and lack the cfedge lane, as `workflow:job` strings. */
 export function jobsMissingCfedge(workflows: Record<string, string>): {auditJobs: string[]; missing: string[]} {
   const auditJobs: string[] = []
   const missing: string[] = []
   for (const [name, text] of Object.entries(workflows)) {
     for (const job of parseJobs(name, text)) {
-      if (!IMAGE_AUDIT_INVOCATION.test(executable(job.body))) {
+      const code = executable(job.body)
+      if (!CLOUDFRONT_INVOCATIONS.some((invocation) => invocation.test(code))) {
         continue
       }
       auditJobs.push(`${name}:${job.key}`)
@@ -114,13 +126,21 @@ function readWorkflows(): Record<string, string> {
 
 const workflows = readWorkflows()
 const deploy = workflows['deploy.yml']
+const smoke = workflows['smoke-check.yml']
 
-describe('image mirror audit lane', () => {
-  it('runs every image-audit job on the cfedge egress lane', () => {
+describe('CloudFront egress lane', () => {
+  it('runs every job that reads CloudFront on the cfedge egress lane', () => {
     const {auditJobs, missing} = jobsMissingCfedge(workflows)
-    // Guards against a vacuous pass: renaming the script or deleting the job must red here.
+    // Guards against a vacuous pass: renaming a script or deleting a job must red here.
     expect(auditJobs).toContain('deploy.yml:check-images')
+    expect(auditJobs).toContain('smoke-check.yml:smoke-check')
     expect(missing).toEqual([])
+  })
+
+  it('reds when the smoke job loses the cfedge label', () => {
+    const mutated = smoke.replace('[self-hosted, linux, arm64, playwright, cfedge]', '[self-hosted, linux, arm64, playwright]')
+    expect(mutated).not.toBe(smoke)
+    expect(jobsMissingCfedge({'smoke-check.yml': mutated}).missing).toEqual(['smoke-check.yml:smoke-check'])
   })
 
   it('reds when the cfedge label is removed', () => {
@@ -138,6 +158,8 @@ describe('image mirror audit lane', () => {
     const aliased =
       'jobs:\n  first:\n    runs-on: [self-hosted, cfedge]\n    steps:\n      - run: echo\n  audit: # trailing comment\n    runs-on: [self-hosted]\n    steps:\n      - run: pnpm run fetch:images -- --check-only\n'
     expect(jobsMissingCfedge({'a.yml': aliased}).missing).toEqual(['a.yml:audit'])
+    const smokeJob = 'jobs:\n  smoke:\n    runs-on: [self-hosted, playwright]\n    steps:\n      - run: pnpm run test:smoke\n'
+    expect(jobsMissingCfedge({'b.yml': smokeJob}).missing).toEqual(['b.yml:smoke'])
   })
 })
 
@@ -172,5 +194,20 @@ describe('image mirror issue filing', () => {
     expect(callsIssuesCreateDirectly("await github.request('POST /repos/{owner}/{repo}/issues', {})")).toBe(true)
     expect(callsIssuesCreateDirectly('        run: gh issue create --title x')).toBe(true)
     expect(callsIssuesCreateDirectly("await github.request('POST /repos/{owner}/{repo}/issues/1/comments', {})")).toBe(false)
+  })
+})
+
+describe('workflow issue filing', () => {
+  it('files no issue directly from any workflow', () => {
+    const direct = Object.entries(workflows).filter(([, text]) => callsIssuesCreateDirectly(text)).map(([name]) => name)
+    expect(direct).toEqual([])
+  })
+
+  it('reconciles the smoke check through one managed issue on every non-cancelled run', () => {
+    const reconcile = stepBody(smoke, 'Reconcile managed smoke issue')
+    expect(reconcile).toContain('if: ${{ !cancelled() }}')
+    expect(reconcile).toContain('SMOKE_ISSUE_OUTCOME: ${{ steps.smoke.outcome }}')
+    expect(reconcile).toContain("{id: 'smoke', title: 'Production smoke check (after deploy)', outcome: process.env.SMOKE_ISSUE_OUTCOME || 'failure'}")
+    expect(reconcile).toContain('client: reconciler.createGithubClient(github)')
   })
 })

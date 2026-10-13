@@ -12,18 +12,20 @@
 # hydration failure (a blocked island still renders its SSR shell at the right
 # pixels). This check asserts hydration RAN instead.
 #
-# Runs on a NATIVE ubuntu-latest runner -- no Playwright Docker container, no
-# SwiftShader/GPU determinism flags. It takes no screenshots and needs no
-# cross-OS pixel determinism, so it is immune to the QEMU/SwiftShader failure
-# that constrains the visual-regression Docker path.
+# Runs on the self-hosted runner-playwright image (Chromium preinstalled), on the
+# cfedge egress lane -- see the runs-on comment. No SwiftShader/GPU determinism
+# flags: it takes no screenshots and needs no cross-OS pixel determinism, so it is
+# immune to the QEMU/SwiftShader failure that constrains the visual-regression path.
 #
 # Also supports manual trigger via workflow_dispatch for testing.
 #
 # THRESHOLD TIER: INFORMATIONAL (initial bake-in)
-#   Non-blocking: a failure files a GitHub issue rather than failing CI. Unlike
-#   pixel-drift, smoke failures are high-signal / near-zero false positive (an
-#   HTTP error, a CSP-blocked external script, or a dead hydration is never a
-#   false positive), so this will not reproduce the ignore-the-noise problem.
+#   Non-blocking: a failure opens or updates one managed issue rather than failing
+#   CI, and the next passing run closes it. Unlike pixel-drift, smoke failures are
+#   high-signal / near-zero false positive (an HTTP error, a CSP-blocked external
+#   script, or a dead hydration is never a false positive), so this will not
+#   reproduce the ignore-the-noise problem. A gated artifact's focus-suppression
+#   answer is not a failure: those tests skip while a focus mode hides the data.
 #   Promote to blocking after a bake-in period of confidence.
 
 name: Production Smoke Check
@@ -46,7 +48,15 @@ jobs:
     # playwright label: the runner-playwright image (FROM mcr.microsoft.com/playwright)
     # ships Chromium + system deps preinstalled. The node label cannot `playwright install
     # --with-deps` -- apt-get to ports.ubuntu.com is blocked by the runner's egress isolation.
-    runs-on: [self-hosted, linux, arm64, playwright]
+    # cfedge label: the self-hosted Linux fleet reaches CloudFront only from the cfedge
+    # egress lane (ci-runners-private #130, atlas decisions 0085 and 0088). The gated-artifact
+    # tests read the backend's focus.json on CloudFront so they can skip while a focus mode
+    # hides the data. Without the lane that read always failed and no test ever skipped:
+    # issue #201 collected 14 failures from 2026-08-23 to 2026-10-12, and every retained
+    # report shows the gated paths answering 503 with `X-Source: cloudfront-proxy-suppressed`,
+    # the site working as designed during a Work or Do Not Disturb focus.
+    # audits/__tests__/deploy-workflow.test.ts keeps the label.
+    runs-on: [self-hosted, linux, arm64, playwright, cfedge]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,67 +113,28 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
-      - name: File issue on smoke failure
-        if: steps.smoke.outcome == 'failure'
+      # ONE managed issue, through the reconciler the audit lanes and the deploy image check
+      # use (audits/lib/file-check-issues.mjs): a failed smoke step opens or updates it, a
+      # passing run closes it, and a run whose smoke step never ran (an earlier step failed,
+      # so the job is already red) leaves it unchanged. The direct issues.create this
+      # replaces appended to issue #201 on every failure and never closed it.
+      - name: Reconcile managed smoke issue
+        if: ${{ !cancelled() }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          # Passed through the environment, never interpolated into the script body (atlas
+          # decision 0142 step 5.4). `skipped` is neither success nor failure, so the
+          # reconciler leaves the issue as it is; an empty value means nothing ran at all.
+          SMOKE_ISSUE_OUTCOME: ${{ steps.smoke.outcome }}
         with:
           script: |
-            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const title = 'Production smoke check failed after deploy';
-
-            // Ensure the label exists — issues.create returns 422 if a referenced
-            // label is missing. Idempotent: ignore the 422 if it already exists.
-            await github.rest.issues.createLabel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              name: 'smoke-failure',
-              color: 'd93f0b',
-              description: 'Production smoke check failure',
-            }).catch(() => {});
-
-            const existing = await github.rest.issues.listForRepo({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              state: 'open',
-              labels: 'smoke-failure',
-              per_page: 100,
-            });
-            const dup = existing.data.find((i) => i.title === title);
-            if (dup) {
-              core.info(`Open smoke-failure issue already exists (#${dup.number}); appending run link instead of creating a duplicate.`);
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: dup.number,
-                body: `Another smoke run failed: [View workflow run](${runUrl})`,
-              });
-              return;
-            }
-
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title,
-              labels: ['smoke-failure', 'automated'],
-              assignees: ['j0nathan-ll0yd'],
-              body: [
-                '## Production Smoke Check Failed',
-                '',
-                'The post-deploy smoke check found a problem with the live site at https://jonathanlloyd.me.',
-                '',
-                'Unlike the retired pixel-drift check, a smoke failure is high-signal — it means one of:',
-                '- the page did not return HTTP 200, or a widget container is missing (broken deploy / SSR);',
-                '- a widget did not hydrate (e.g. a CSP-blocked or 404ing `_astro/*.js` chunk — the #50 class);',
-                '- the bio terminal did not type its content;',
-                '- the service worker failed to register;',
-                '- a CSP violation on an external script, or a JS chunk-load / console error fired.',
-                '',
-                `**Triggered by:** \`${context.eventName}\``,
-                `**Run:** [View workflow run](${runUrl})`,
-                '',
-                '### Next Steps',
-                '1. Open the `smoke-playwright-report` artifact in the run above to see which assertion failed.',
-                '2. Reproduce locally (native, no Docker): `pnpm run test:smoke`.',
-                '3. Fix the deploy/hydration regression, or — if a new inline script was added intentionally — externalise it so CSP `self` allows it and update the baseline in `tests/smoke/fixtures.ts`.',
-              ].join('\n'),
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'smoke', title: 'Production smoke check (after deploy)', outcome: process.env.SMOKE_ISSUE_OUTCOME || 'failure'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
             });
