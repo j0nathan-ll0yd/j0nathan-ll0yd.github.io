@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {evaluateBeacons, evaluateIngestion, eventTotal, saEventsQueryUrl, syntheticEventPayload} from '../checks/b6-check-analytics.mjs'
+import {evaluateBeacons, evaluateIngestion, eventTotal, saEventsQueryUrl, statsApiUnreachable, syntheticEventPayload} from '../checks/b6-check-analytics.mjs'
 
 function fullSeen(overrides: Record<string, {status: number; url: string}> = {}): Map<string, {status: number; url: string}> {
   const base = new Map([
@@ -104,5 +104,20 @@ describe('evaluateIngestion', () => {
   it('a failed synthetic POST is surfaced as post-failed (never a silent pass)', () => {
     const findings = evaluateIngestion({...base, error: {id: 'analytics-sa-ingestion-post-failed', message: 'could not POST'}})
     expect(findings).toEqual([expect.objectContaining({severity: 'fail', id: 'analytics-sa-ingestion-post-failed'})])
+  })
+
+  it('known-answer: an unreachable Stats API (run 38356590370) reads UNMEASURED as a warn, never a fail', () => {
+    const err = Object.assign(new TypeError('fetch failed'), {cause: Object.assign(new Error('read ECONNRESET'), {code: 'ECONNRESET'})})
+    const findings = evaluateIngestion({...base, error: statsApiUnreachable(err)})
+    expect(findings).toHaveLength(1)
+    expect(findings[0]).toEqual(expect.objectContaining({severity: 'warn', id: 'analytics-sa-stats-api-unreachable'}))
+    expect(findings[0].message).toMatch(/^UNMEASURED: /)
+    expect(findings[0].message).toContain('fetch failed')
+    expect(findings[0].message).toContain('cause: ECONNRESET')
+  })
+
+  it('an unreachable Stats API without a cause code still names a reason', () => {
+    const err = Object.assign(new Error('The operation was aborted due to timeout'), {name: 'TimeoutError'})
+    expect(statsApiUnreachable(err).message).toContain('cause: TimeoutError')
   })
 })

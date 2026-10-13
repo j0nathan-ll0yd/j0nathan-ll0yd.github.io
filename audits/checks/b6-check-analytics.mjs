@@ -175,8 +175,33 @@ export function syntheticEventPayload(hostname, eventName, ua) {
 }
 
 /**
+ * Pure: classify a Stats API request that threw before any HTTP response arrived.
+ *
+ * UNMEASURED, NOT FAIL. A thrown fetch means the runner never reached simpleanalytics.com
+ * (connection reset/refused, DNS, TLS, or budget timeout), so the run holds no evidence
+ * about the site or its SA pipeline. Daily runs 37102564954, 37580690736 and 38356590370
+ * failed this way in ~36ms: the self-hosted runner's egress allowlist had dropped SA's
+ * address after a transient DNS miss (ci-runners-private #163), while all four site beacons
+ * were observed. Reporting that as a site failure reopened issue #149 three times. An HTTP
+ * answer (401, 5xx, bad JSON) is a measurement and stays a fail.
+ *
+ * @param {Error & {cause?: {code?: string, message?: string}}} err
+ * @returns {{id: string, message: string, unmeasured: true}}
+ */
+export function statsApiUnreachable(err) {
+  const cause = err?.cause?.code ?? err?.cause?.message ?? err?.name ?? 'unknown'
+  return {
+    id: 'analytics-sa-stats-api-unreachable',
+    unmeasured: true,
+    message: `UNMEASURED: the runner could not reach the SA Stats API (${err?.message ?? err}; cause: ${cause}). ` +
+      'SA ingestion was not judged; this is runner egress or an SA outage, not a site finding.'
+  }
+}
+
+/**
  * Pure decision -> findings[]. Testable without network. Given the resolved
  * outcome of the trigger-then-confirm flow, decide pass/fail:
+ *   - an `unmeasured` error (Stats API unreachable) -> warn, never fail
  *   - a pre-resolved I/O `error` -> fail (surfaced with its own id)
  *   - after > before -> confirmed (info finding carrying the measured latency)
  *   - otherwise -> the delta was never observed within the timeout -> fail
@@ -187,10 +212,13 @@ export function syntheticEventPayload(hostname, eventName, ua) {
  * @param {number} [r.after]
  * @param {number} [r.elapsedMs]
  * @param {number} [r.timeoutMs]
- * @param {{id: string, message: string}} [r.error]
+ * @param {{id: string, message: string, unmeasured?: boolean}} [r.error]
  * @returns {Array<{severity: string, id: string, message: string}>}
  */
 export function evaluateIngestion({eventName, before, after, elapsedMs, timeoutMs, error}) {
+  if (error?.unmeasured) {
+    return [{severity: 'warn', id: error.id, message: error.message}]
+  }
   if (error) {
     return [{severity: 'fail', id: error.id, message: error.message}]
   }
@@ -218,7 +246,7 @@ async function readEventTotal(queryUrl, apiKey, eventName) {
   try {
     res = await fetchStable(queryUrl, {headers: {'Api-Key': apiKey}})
   } catch (err) {
-    return {ok: false, error: {id: 'analytics-sa-stats-api-fetch', message: `Stats API fetch failed: ${err.message}`}}
+    return {ok: false, error: statsApiUnreachable(err)}
   }
   let json
   try {
@@ -271,6 +299,8 @@ async function checkSaIngestion(apiKey) {
 
   let after = before
   let polls = 0
+  let anyPollRead = false
+  let lastPollError
   const deadline = startedAt + INGESTION_POLL_TIMEOUT_MS
   progress(`polling the Stats API every ${INGESTION_POLL_INTERVAL_MS / 1000}s for up to ${INGESTION_POLL_TIMEOUT_MS / 1000}s`)
   while (Date.now() < deadline) {
@@ -285,11 +315,19 @@ async function checkSaIngestion(apiKey) {
     // between consecutive lines is an order of magnitude inside the ~600s deadline.
     progress(`poll ${polls} at +${Math.round((Date.now() - startedAt) / 1000)}s -- ${read.ok ? `count ${read.total}` : `read failed (${read.error.id})`}`)
     if (read.ok) {
+      anyPollRead = true
       after = read.total
       if (after > before) {
         break
       }
+    } else {
+      lastPollError = read.error
     }
+  }
+  // No poll got an answer, so "count did not increase" would be a claim without evidence.
+  // Surface the read error instead: unreachable stays UNMEASURED, an HTTP error stays a fail.
+  if (!anyPollRead && lastPollError) {
+    return evaluateIngestion({eventName: INGESTION_EVENT_NAME, error: lastPollError})
   }
   return evaluateIngestion({eventName: INGESTION_EVENT_NAME, before, after, elapsedMs: Date.now() - startedAt, timeoutMs: INGESTION_POLL_TIMEOUT_MS})
 }
