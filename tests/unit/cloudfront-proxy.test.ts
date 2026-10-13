@@ -1,13 +1,13 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LKG_ADMISSION, LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy, PROXY_TIMEOUTS} from '../../functions/_lib/proxy'
-import type {CloudfrontProxyContext} from '../../functions/_lib/proxy'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
-import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
-import {onRequest as feedXmlRoute} from '../../functions/feed.xml.ts'
-import {onRequest as indexMdRoute} from '../../functions/index.md.ts'
-import {onRequest as llmsFullRoute} from '../../functions/llms-full.txt.ts'
-import {onRequest as llmsTxtRoute} from '../../functions/llms.txt.ts'
+import {LKG_ADMISSION, LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy, PROXY_TIMEOUTS} from '../../src/lib/edge/proxy'
+import type {CloudfrontProxyContext} from '../../src/lib/edge/proxy'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
+import {onRequest as feedJsonRoute} from '../../src/pages/feed.json.ts'
+import {onRequest as feedXmlRoute} from '../../src/pages/feed.xml.ts'
+import {onRequest as indexMdRoute} from '../../src/pages/index.md.ts'
+import {onRequest as llmsFullRoute} from '../../src/pages/llms-full.txt.ts'
+import {onRequest as llmsTxtRoute} from '../../src/pages/llms.txt.ts'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))

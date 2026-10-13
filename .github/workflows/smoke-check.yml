@@ -1,6 +1,6 @@
 # Production Smoke Check Workflow
 #
-# Triggers after the "Deploy to Cloudflare Pages" workflow completes successfully
+# Triggers after the "Deploy to Cloudflare Workers" workflow completes successfully
 # on main. Uses GitHub's native workflow_run event -- no PAT, no Cloudflare-side
 # configuration. The smoke check loads the deployed site and asserts it actually
 # HYDRATED: widget containers present, the live-data runtime cleared its skeleton
@@ -32,7 +32,7 @@ name: Production Smoke Check
 
 on:
   workflow_run:
-    workflows: ["Deploy to Cloudflare Pages"]
+    workflows: ["Deploy to Cloudflare Workers"]
     types: [completed]
     branches: [main]
   workflow_dispatch:

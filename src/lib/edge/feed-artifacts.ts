@@ -1,14 +1,13 @@
 // Shared registry for the syndication feed artifacts (/feed.xml, /feed.json).
 //
-// The same role functions/_lib/llms-artifacts.ts plays for the llm-outputs
+// The same role src/lib/edge/llms-artifacts.ts plays for the llm-outputs
 // trio: ONE place that owns each artifact's path and content type, so the
 // route file, the origin URL a probe fetches, and the URL the proxy actually
 // fetches cannot drift apart. makeCloudfrontProxy builds its upstream as
-// `${CLOUDFRONT_BASE}${path}` (functions/_lib/proxy.ts), and `originUrl` below
+// `${CLOUDFRONT_BASE}${path}` (src/lib/edge/proxy.ts), and `originUrl` below
 // is derived by that identical rule.
 //
-// Not itself a route: Pages Functions only creates routes for modules that
-// export an onRequest* handler.
+// Not itself a route: the routes are the endpoints under src/pages/.
 
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 
@@ -42,7 +41,7 @@ export type FeedArtifactId = FeedArtifact['id']
  * key is declared by the llms-assurance contract
  * (layers.originComposition.timestampMetadata).
  *
- * Observable on the CLOUDFRONT ORIGIN plane only. The Pages Functions proxy
+ * Observable on the CLOUDFRONT ORIGIN plane only. The site's proxy
  * builds a fresh Response from a fixed header set and does not forward it, so
  * a site-plane observation can never read it.
  */

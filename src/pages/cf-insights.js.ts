@@ -1,6 +1,6 @@
-// Pages Function: serve the Cloudflare Web Analytics beacon first-party at
-// /cf-insights.js (Cloudflare Pages strips the .ts extension, so
-// functions/cf-insights.js.ts → route /cf-insights.js).
+// On-demand route: serve the Cloudflare Web Analytics beacon first-party at
+// /cf-insights.js (Astro strips the .ts extension, so
+// src/pages/cf-insights.js.ts → route /cf-insights.js).
 //
 // Why: Safari's Advanced Tracking & Fingerprinting Protection triggers the
 // "reduce protections" banner on a *domain* blocklist match — static.cloudflare
@@ -14,11 +14,13 @@
 //
 // On upstream failure: returns a harmless empty 200 JS no-op so the page is
 // never affected — never a 5xx (which would trip the smoke console-error check).
-// Mirrors functions/sa.ts (the Simple Analytics first-party proxy).
+// Mirrors src/pages/sa.ts (the Simple Analytics first-party proxy).
+
+import {edgeRoute} from '../lib/edge/routes'
 
 const BEACON_URL = 'https://static.cloudflareinsights.com/beacon.min.js'
 
-// Minimal Cloudflare Pages Function fetch options — only the cf cache fields used here.
+// Minimal Cloudflare Workers fetch options — only the cf cache fields used here.
 interface CfRequestInit extends RequestInit {
   cf?: {cacheTtl?: number; cacheEverything?: boolean}
 }
@@ -49,3 +51,7 @@ export async function onRequest(): Promise<Response> {
     headers: {'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=86400, stale-while-revalidate=86400'}
   })
 }
+
+// On-demand: this route runs in the Worker on every request (atlas decision 0160, PR A).
+export const prerender = false
+export const ALL = edgeRoute(onRequest)

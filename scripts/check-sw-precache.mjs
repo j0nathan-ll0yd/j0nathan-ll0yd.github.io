@@ -20,7 +20,7 @@
 // every entry; we require the manifest to be POPULATED and to contain the
 // app shell, and we derive the expected floor from the actual built assets.
 import {readdirSync, readFileSync, statSync} from 'node:fs'
-import {join, resolve} from 'node:path'
+import {join} from 'node:path'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {
   cloudfrontImageUrlSource,
@@ -32,8 +32,9 @@ import {
   siteGatedProbeUrls,
   verifyPurgeScript
 } from './lib/sw-privacy.mjs'
+import {clientDir} from './lib/build-paths.mjs'
 
-const distDir = resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 const swPath = join(distDir, 'sw.js')
 
 // Workbox globPatterns / globIgnores from astro.config.mjs. Kept in sync there;

@@ -1,4 +1,4 @@
-// Pages Function: catch-all reverse proxy for Simple Analytics collection.
+// On-demand route: catch-all reverse proxy for Simple Analytics collection.
 // Forwards GET/POST /simple/<rest> → https://queue.simpleanalyticscdn.com/<rest>
 // with the /simple prefix stripped, so:
 //   /simple/simple.gif  → queue/.../simple.gif  (pageview pixel)
@@ -10,6 +10,8 @@
 //
 // On upstream failure: returns a silent 2xx no-op (204, or a 1×1 transparent GIF
 // for *.gif paths) — NEVER a 5xx, which would trip the smoke console-error check.
+
+import {edgeRoute} from '../../lib/edge/routes'
 
 const UPSTREAM_BASE = 'https://queue.simpleanalyticscdn.com'
 
@@ -60,10 +62,10 @@ const TRANSPARENT_GIF = new Uint8Array([
   0x3b
 ])
 
-// Minimal Cloudflare Pages Function context — only the fields used here.
+// The route context — only the fields used here (src/lib/edge/routes.ts EdgeContext).
 interface PagesContext {
   request: Request
-  params: Record<string, string | string[]>
+  params: Record<string, string | string[] | undefined>
 }
 
 // Minimal CF fetch extensions — only the cf cache fields used here.
@@ -81,7 +83,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
 
   // Strip the /simple prefix: the catch-all param captures everything after /simple/
   // e.g. pathname=/simple/simple.gif → upstreamPath=/simple.gif
-  // The [[path]] param may be undefined for bare /simple requests.
+  // The [...path] param is undefined for bare /simple requests (Pages: [[path]]).
   const rawParam = context.params['path']
   const suffix = rawParam
     ? '/' + (Array.isArray(rawParam) ? rawParam.join('/') : rawParam)
@@ -150,3 +152,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
 
   return new Response(upstream.body, {status: upstream.status, headers: responseHeaders})
 }
+
+// On-demand: this route runs in the Worker on every request (atlas decision 0160, PR A).
+export const prerender = false
+export const ALL = edgeRoute(onRequest)

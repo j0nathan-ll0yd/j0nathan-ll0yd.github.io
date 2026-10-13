@@ -13,13 +13,13 @@ only as true as its covering tests.
 
 ## Context boundary — served artifacts
 
-- `https://jonathanlloyd.me/llms.txt` — `text/plain; charset=utf-8` — proxy `functions/llms.txt.ts`
-- `https://jonathanlloyd.me/llms-full.txt` — `text/markdown; charset=utf-8` — proxy `functions/llms-full.txt.ts`
-- `https://jonathanlloyd.me/index.md` — byte-identical alias of llms-full.txt — proxy `functions/index.md.ts`
+- `https://jonathanlloyd.me/llms.txt` — `text/plain; charset=utf-8` — proxy `src/pages/llms.txt.ts`
+- `https://jonathanlloyd.me/llms-full.txt` — `text/markdown; charset=utf-8` — proxy `src/pages/llms-full.txt.ts`
+- `https://jonathanlloyd.me/index.md` — byte-identical alias of llms-full.txt — proxy `src/pages/index.md.ts`
 - `https://jonathanlloyd.me/` under an `Accept` that negotiates markdown (GET/HEAD only) — the same
-  llms-full.txt representation, served by `functions/_middleware.ts` through the same factory; see
+  llms-full.txt representation, served by `src/lib/edge/middleware.ts` through the same factory; see
   "Markdown negotiation applies only to the homepage and honors Accept q-values" below.
-- All three are built by one factory, `makeCloudfrontProxy` — `functions/_lib/proxy.ts`. That factory
+- All three are built by one factory, `makeCloudfrontProxy` — `src/lib/edge/proxy.ts`. That factory
   also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) behind the same
   gate and under the same no-store policy; see "Every proxy route is no-store, the feed routes
   included" below.
@@ -33,7 +33,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
 - Served paths: `LLM_CONTENT_PATHS` and `DATASET_DISTRIBUTIONS` —
   `@j0nathan-ll0yd/portal-contract/constants`. `LLM_CONTENT_PATHS` covers `llmsFull` and
   `indexMarkdown`; `LLMS_TXT_PATH` derives the discovery path from the generated
-  `LLM discovery index` distribution in `functions/_lib/llms-artifacts.ts`. No proxy owns a second
+  `LLM discovery index` distribution in `src/lib/edge/llms-artifacts.ts`. No proxy owns a second
   hard-coded `/llms.txt` upstream path.
 - Structural rules: `checkLlmsStructure(rawText)` — `@j0nathan-ll0yd/estate-contracts/llms-structure`.
   A network-free module carrying exactly ONE dependency, `zod`, pinned and asserted (atlas decision
@@ -186,7 +186,7 @@ content-type, including the registry-derived discovery path).
 
 Every address the portfolio ADVERTISES for its LLM content SHALL resolve on the site plane
 (`SITE_URL`), never on the CloudFront origin. The address IS the policy: the privacy gate and the
-cache rules live in the Pages Functions, so an advertised origin URL is an address that inherits
+cache rules live in the site's Worker routes, so an advertised origin URL is an address that inherits
 none of them, and the origin serves selectively (on 2026-09-22 `location.json` returned 403
 AccessDenied while `focus.json` returned 200).
 
@@ -263,7 +263,7 @@ or purge endpoint and SHALL emit an uploadable credential-free evidence file.
 
 ### Requirement: Every proxy network attempt is bounded in time
 
-The Pages Function proxy SHALL bound the DURATION of every network attempt it makes, not only the
+The site proxy SHALL bound the DURATION of every network attempt it makes, not only the
 COUNT of them. The focus probe, each artifact attempt, each retry delay, and every response-body
 read SHALL draw from ONE total request budget, and each SHALL additionally carry its own
 per-operation deadline. A never-resolving fetch, or a response whose body stalls after its headers
@@ -603,7 +603,7 @@ zone-edge-cache window in "Gated artifacts are admitted only through the CloudFr
 ### Requirement: Markdown negotiation applies only to the homepage and honors Accept q-values
 
 Markdown content negotiation SHALL apply only to `GET`/`HEAD` requests for `/`, decided in
-`functions/_middleware.ts`. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
+`src/lib/edge/middleware.ts`. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
 pages, API routes, and feeds SHALL NOT negotiate: each keeps its own bytes and content type for
 every `Accept` value. This requirement replaced a middleware that negotiated on every path and
 method via an `Accept` substring test, which served llms-full bytes for an explicit GET /llms.txt

@@ -11,7 +11,7 @@ Two Playwright projects guard the quality of `jonathanlloyd.me`:
 | Project                    | Config                       | What it tests                                    | Trigger                                                         | Assertion style                              | Outcome on failure                                         |
 | -------------------------- | ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
 | **Visual regression**      | `playwright.config.ts`       | Locally-built static dashboard with fixture data | PR + push to `main`                                             | Pixel diff `maxDiffPixelRatio: 0.025` (2.5%) | Blocks PR; runs across 4 viewports × 4 shards              |
-| **Production smoke check** | `playwright.smoke.config.ts` | Live `https://jonathanlloyd.me`                  | After every successful Cloudflare Pages deploy (`workflow_run`) | DOM/hydration assertions (no pixel diff)     | Files a GitHub issue (`smoke-failure` label), non-blocking |
+| **Production smoke check** | `playwright.smoke.config.ts` | Live `https://jonathanlloyd.me`                  | After every successful Cloudflare Workers deploy (`workflow_run`) | DOM/hydration assertions (no pixel diff)     | Files a GitHub issue (`smoke-failure` label), non-blocking |
 
 The two suites serve different purposes: regression is a **gate** (pixel-exact correctness of fixture-driven builds), smoke is a **sensor** (real hydration, runtime health, and CSP integrity of the live site).
 
@@ -285,7 +285,7 @@ There is no `resolve-version` job because the runner image's `FROM` tag is the v
 
 ### 5.3 `smoke-check.yml` — production smoke sensor
 
-Triggers: `workflow_run` after a successful `Deploy to Cloudflare Pages` run; `workflow_dispatch` for manual probes.
+Triggers: `workflow_run` after a successful `Deploy to Cloudflare Workers` run; `workflow_dispatch` for manual probes.
 
 Jobs:
 

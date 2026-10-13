@@ -4,9 +4,10 @@ import path from 'path'
 import {createRequire} from 'module'
 import {load} from 'cheerio'
 import {isAllowedImageUrl, srcsetCandidates} from '../image-url-allowlist'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 const rootDir = process.cwd()
-const distDir = path.resolve(rootDir, 'dist')
+const distDir = clientDir(rootDir)
 
 function htmlFilesUnder(dir: string): string[] {
   return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {

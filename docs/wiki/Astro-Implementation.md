@@ -14,11 +14,11 @@ This is Astro's **islands architecture**: the page is static HTML with selective
 
 - **`astro.config.mjs`** -- Defines `site` URL, `static` output mode, `@vite-pwa/astro` integration, and `showcase-dev-only` integration for dev-only component showcase routes
 - **`tsconfig.json`** -- Extends `astro/tsconfigs/strict`
-- **`package.json`** -- Two scripts: `dev` (Astro dev server) and `build` (static output to `dist/`)
+- **`package.json`** -- Two scripts: `dev` (Astro dev server) and `build` (static assets to `dist/client/`, the Worker to `dist/server/`)
 
 ### GitHub Actions Deployment
 
-`.github/workflows/deploy.yml` builds with `pnpm run build` and deploys to Cloudflare Pages via `cloudflare/wrangler-action@v3` on every push to `main`.
+`.github/workflows/deploy.yml` builds with `pnpm run build` and deploys the `human-datastream` Cloudflare Worker with `pnpm exec wrangler deploy` on every push to `main`.
 
 ## Data Flow
 
@@ -127,7 +127,7 @@ Configured via `@vite-pwa/astro` in `astro.config.mjs`:
 - **Register type**: `autoUpdate` (service worker updates automatically)
 - **Manifest**: App name, description, theme/background colors, display standalone
 - **Icons**: 192x192 and 512x512 PNG icons in `/assets/`
-- **Precache**: static assets `*.{css,js,svg,png,ico,txt,webmanifest,woff2}` plus ONE HTML document, the data-free `/offline` page (`src/pages/offline.astro`, built as `dist/offline.html`; `@vite-pwa/astro` rewrites the entry to the URL `offline`, which the host answers with a 200). No other HTML document is precached (atlas decision 0160, PR 0b).
+- **Precache**: static assets `*.{css,js,svg,png,ico,txt,webmanifest,woff2}` plus ONE HTML document, the data-free `/offline` page (`src/pages/offline.astro`, built as `dist/client/offline.html`; `@vite-pwa/astro` rewrites the entry to the URL `offline`, which the host answers with a 200). No other HTML document is precached (atlas decision 0160, PR 0b).
 - **Navigations**: NetworkOnly. A navigation always reaches the network and is never stored. When the network fails, the worker answers with the precached `/offline` page (Workbox `precacheFallback`), which holds no gated value, no fixture value and no live widget. `navigateFallback` stays `null`.
 - **Gated data**: no runtime route caches the focus signal, a CloudFront JSON export or a site-origin proxy route. `scripts/check-sw-precache.mjs` enforces every rule above on each build; the behavior is specified in `openspec/specs/client-privacy/spec.md`.
 - **Service worker**: Registered by `public/js/sw-register.js`, which Dashboard.astro loads

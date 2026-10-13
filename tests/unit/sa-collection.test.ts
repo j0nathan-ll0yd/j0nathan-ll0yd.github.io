@@ -10,7 +10,7 @@ const fetchMock = vi.fn<typeof fetch>()
 vi.stubGlobal('fetch', fetchMock)
 
 // Dynamic import after stubbing so the module picks up the mocked fetch.
-const {onRequest} = await import('../../functions/simple/[[path]]')
+const {onRequest} = await import('../../src/pages/simple/[...path]')
 
 function makeContext(pathname: string, method = 'GET') {
   // Derive the [[path]] param from the pathname (strip leading /simple/)

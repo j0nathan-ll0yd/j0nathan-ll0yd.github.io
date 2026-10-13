@@ -1,10 +1,12 @@
-// Pages Function: CSP violation report collector.
+// On-demand route: CSP violation report collector.
 // Accepts reports from the browser Reporting API (application/reports+json)
 // and the legacy report-uri mechanism (application/csp-report). Always returns
 // 204 so the browser does not retry. Logs a single structured line per invocation
-// visible in `wrangler pages deployment tail`.
+// visible in `wrangler tail`.
 
-// Minimal Cloudflare Pages Function context -- only the fields this handler reads.
+import {edgeRoute} from '../../lib/edge/routes'
+
+// The route context -- only the fields this handler reads (src/lib/edge/routes.ts EdgeContext).
 interface PagesContext {
   request: Request
 }
@@ -43,3 +45,9 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
 
   return new Response(null, {status: 204})
 }
+
+// On-demand, POST only, like the Pages onRequestPost it was (atlas decision 0160, PR A).
+// src/worker.ts sends every other method where Pages sent it: GET and HEAD to the 404 page,
+// the rest to a 405.
+export const prerender = false
+export const POST = edgeRoute(onRequestPost)

@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import path from 'path'
-import {CSP} from '../../functions/_middleware'
+import {CSP} from '../../src/lib/edge/middleware'
 
 // audits/checks/b7-check-headers.mjs diffs the golden against the LIVE site, which
 // only reports after a deploy. These tests bind the golden to the middleware
