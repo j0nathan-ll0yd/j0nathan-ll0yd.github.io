@@ -138,7 +138,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download dist artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: visual-tests-ds-dist
           # upload-artifact flattens a single-dir `path: dist` to the artifact
@@ -215,7 +215,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download dist artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: visual-tests-ds-dist
           # upload-artifact flattens a single-dir `path: dist` to the artifact
@@ -287,7 +287,7 @@ jobs:
         # last-write-wins across those full trees, so a mass 1x->2x regen could
         # commit whichever copy landed last -- a nondeterministic 1x/2x mix. Keeping
         # shards isolated lets us pick, per file, the single shard that changed it.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: /tmp/shards
           pattern: regenerated-baselines-shard-*
@@ -369,7 +369,7 @@ jobs:
       - name: Install dependencies (Playwright CLI only)
         run: pnpm install --frozen-lockfile
       - name: Download blob reports
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: all-blob-reports
           pattern: blob-report-*
