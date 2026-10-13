@@ -19,8 +19,8 @@ importers:
   .:
     dependencies:
       '@j0nathan-ll0yd/copy':
-        specifier: 3.3.0
-        version: 3.3.0
+        specifier: 4.0.0
+        version: 4.0.0
       '@j0nathan-ll0yd/observability':
         specifier: ^1.0.0
         version: 1.0.0
@@ -1867,6 +1867,9 @@ packages:
 
   '@j0nathan-ll0yd/copy@3.3.0':
     resolution: {integrity: sha512-Ct/xjBy8kXPs5qHDHV4r1qk2hcpi1lHUWbRvD7ZHjJblF6RktGgfKESjXX4hcm5vgAuLe4PzsH7sRSEHg1NJfw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/3.3.0/6fe0558c15296b038e1d19111ef1b7f7fa90f99b}
+
+  '@j0nathan-ll0yd/copy@4.0.0':
+    resolution: {integrity: sha512-PudjvEkj3a6VJyyn0MDiq7x5y8VKSpCRvA2OMuTLEJs3ZLTIted4Qkx54IZHkUK/yp62V+8oi+m8pJLc8JDjnQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/4.0.0/cdcb6dadb4b72dce68f35185c0476805840ea75f}
 
   '@j0nathan-ll0yd/env@1.0.0':
     resolution: {integrity: sha512-thYcCx5oYJ0ReIfSSTdVM7FsUNJBnmkTkoq5/YywA7ly19nuSwzcJh/U+TRtGpMRtrbmvtkiZl2W/+nr1JMMHA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/env/1.0.0/abd9389d100f1263395c1a1ae3e85b9be9b625ad}
@@ -7904,6 +7907,8 @@ snapshots:
       - typescript
 
   '@j0nathan-ll0yd/copy@3.3.0': {}
+
+  '@j0nathan-ll0yd/copy@4.0.0': {}
 
   '@j0nathan-ll0yd/env@1.0.0': {}
 
