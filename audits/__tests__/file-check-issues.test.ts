@@ -15,7 +15,7 @@ import {
 type Label = {name: string}
 type Issue = {number: number; title: string; state: string; body: string; labels: Label[]}
 type Comment = {body: string}
-type Check = {id: string; title: string; outcome: string}
+type Check = {id: string; title: string; outcome: string; note?: string}
 
 const REPO = 'j0nathan-ll0yd/j0nathan-ll0yd.github.io'
 const RUN_1 = `https://github.com/${REPO}/actions/runs/200`
@@ -245,6 +245,102 @@ describe('mixed and incomplete results', () => {
     expect(client.find(61).state).toBe('OPEN')
     expect(client.called('listIssues')).toHaveLength(0)
     expect(client.called('close')).toHaveLength(0)
+  })
+})
+
+// A note is what an indeterminate bucket has to say about its blind spot (B5: links the
+// runner egress floor refused). It reaches the open managed issue once per run and never
+// moves an issue's state, so the indeterminate lifecycle above stays exactly as it was.
+describe('run notes', () => {
+  const LYCHEE = {id: 'lychee', title: 'B5 lychee link check'}
+  const NOTE = 'B5 link check: 15 unmeasured (connection-refused).'
+
+  it('posts an indeterminate note on the open managed issue without changing its state', async () => {
+    const client = new FixtureClient([managedIssue(71, LYCHEE)])
+
+    await reconcile(client, [{...LYCHEE, outcome: 'success'}, {...LYCHEE, outcome: 'indeterminate', note: NOTE}])
+
+    expect(client.find(71).state).toBe('OPEN')
+    expect(client.called('close')).toHaveLength(0)
+    expect(client.called('reopen')).toHaveLength(0)
+    expect(client.called('createIssue')).toHaveLength(0)
+    const [comment] = client.comments.get(71) ?? []
+    expect(comment.body.split('\n')).toContain(transitionMarker(LYCHEE.id, 'note', RUN_2))
+    expect(comment.body).toContain(NOTE)
+  })
+
+  it('posts the note once per run, however often the reconciler runs', async () => {
+    const client = new FixtureClient([managedIssue(72, LYCHEE)])
+    const checks = [{...LYCHEE, outcome: 'indeterminate', note: NOTE}]
+
+    await reconcile(client, checks, RUN_2)
+    await reconcile(client, checks, RUN_2)
+    expect(client.comments.get(72)).toHaveLength(1)
+
+    await reconcile(client, checks, RUN_1)
+    expect(client.comments.get(72)).toHaveLength(2)
+  })
+
+  it('files nothing and reopens nothing for an indeterminate note', async () => {
+    const client = new FixtureClient([managedIssue(73, LYCHEE, 'CLOSED')])
+
+    await reconcile(client, [{...LYCHEE, outcome: 'indeterminate', note: NOTE}])
+
+    expect(client.find(73).state).toBe('CLOSED')
+    expect(client.called('createIssue')).toHaveLength(0)
+    expect(client.called('comment')).toHaveLength(0)
+  })
+
+  it('never adopts a legacy issue on an indeterminate note', async () => {
+    const client = new FixtureClient(loadIssues('manual-collisions'))
+
+    await reconcile(client, [{...FEEDS, outcome: 'indeterminate', note: NOTE}])
+
+    expect(client.called('addManagedLabel')).toHaveLength(0)
+    expect(client.called('addManagedMarker')).toHaveLength(0)
+    expect(client.called('comment')).toHaveLength(0)
+  })
+
+  it('stays silent on an indeterminate bucket that carries no note', async () => {
+    const client = new FixtureClient([managedIssue(74, LYCHEE)])
+
+    await reconcile(client, [{...LYCHEE, outcome: 'indeterminate'}, {...LYCHEE, outcome: 'indeterminate', note: '  '}])
+
+    expect(client.called('listIssues')).toHaveLength(0)
+    expect(client.comments.get(74)).toBeUndefined()
+  })
+
+  it('writes the note into a newly filed issue and onto an issue that stays open', async () => {
+    const client = new FixtureClient()
+
+    await reconcile(client, [{...LYCHEE, outcome: 'failure', note: NOTE}], RUN_1)
+    expect(client.issues[0].body).toContain(NOTE)
+    expect(client.comments.get(client.issues[0].number)).toBeUndefined()
+
+    await reconcile(client, [{...LYCHEE, outcome: 'failure', note: NOTE}], RUN_2)
+    expect(client.comments.get(client.issues[0].number)?.[0].body).toContain(NOTE)
+  })
+
+  it('posts the note after the regression comment when a failure reopens the issue', async () => {
+    const client = new FixtureClient([managedIssue(75, LYCHEE, 'CLOSED')])
+
+    await reconcile(client, [{...LYCHEE, outcome: 'failure', note: NOTE}])
+
+    expect(client.find(75).state).toBe('OPEN')
+    expect(client.comments.get(75)?.map(({body}) => body.split('\n')[0])).toEqual([
+      transitionMarker(LYCHEE.id, 'regressed', RUN_2),
+      transitionMarker(LYCHEE.id, 'note', RUN_2)
+    ])
+  })
+
+  it('keeps reconciling later buckets when posting a note fails', async () => {
+    const client = new FixtureClient([managedIssue(76, LYCHEE), managedIssue(77)])
+    client.failNext('comment')
+
+    await reconcile(client, [{...LYCHEE, outcome: 'indeterminate', note: NOTE}, {...FEEDS, outcome: 'success'}])
+
+    expect(client.find(76).state).toBe('OPEN')
+    expect(client.find(77).state).toBe('CLOSED')
   })
 })
 
