@@ -196,14 +196,16 @@ workouts exports are listed too. Each item has its own linkset entry (RFC 9727 A
 with `service-desc` (`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
 `service-doc` (`/developers` once that page exists in the tree, the wiki before, so no deploy
 links a 404). Until 2026-10-12 the one item was the CloudFront root, which answers an S3 XML
-`AccessDenied` 403 (review M4, orchestrator default; the owner may override). The weekly
-`b2-check-wellknown` fetches every item: each must answer a 2xx JSON body, or the focus gate's
-403 JSON suppression body while a hiding mode is active, and never S3 XML. `/openapi.json`
+`AccessDenied` 403. The monthly `b2-check-wellknown` fetches every item without following
+redirects: each must answer a 2xx `application/json` object, or, while a hiding mode is active,
+the edge focus gate's 403 `application/json` suppression body with a `reason` (never for
+`focus.json`, which the edge never gates). S3 XML fails. `/openapi.json`
 describes the nine GET endpoints on `CLOUDFRONT_BASE`, their response schemas, and the
 focus-suppression 403 on every export except `focus.json`.
 
 The public data documentation still describes all nine exports, health, sleep and workouts
-included: `/openapi.json` and the homepage JSON-LD `Dataset` (its `distribution` list). The
+included: `/openapi.json`, `/.well-known/api-catalog` (one `item` per export), and the homepage
+JSON-LD `Dataset` (its `distribution` list). The
 LLM-channel data policy above does not govern them: they document the public API, the same
 JSON a browser already fetches from the CloudFront host. They are not LLM content. The
 boundary is the channel. The LLM channels (MCP, WebMCP, `SKILL.md`, and the llms trio) carry
@@ -293,7 +295,7 @@ What re-verifies them automatically:
   server-card extension's `docs/discovery.md`, the ARD v0.91 specification, and the three
   vendored schemas. A revision is reported as
   `spec-source-moved` and escalates to `fail` after the re-pin grace window.
-- `audits/checks/b2-check-wellknown.mjs` (weekly) validates the served card, `ai-catalog.json`
+- `audits/checks/b2-check-wellknown.mjs` (monthly tier of `audit-web.yml`) validates the served card, `ai-catalog.json`
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
   `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then
   `server/discover` and a `tools/call` per tool (2026-07-28). `--base <url>` audits a

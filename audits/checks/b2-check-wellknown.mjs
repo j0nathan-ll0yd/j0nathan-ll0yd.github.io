@@ -15,10 +15,11 @@
 //   (webfinger, agent-skills/index.json, api-catalog), whose specs publish no
 //   schema this repo vendors, plus the media types a schema cannot see.
 //
-// Then a live GET of every api-catalog item, which must answer JSON (or the focus
-// gate's JSON suppression body), and a live MCP exchange against every remote the card declares: both protocol
-// eras, a tools/call per tool, resources/list, and resources/read of the ungated
-// focus signal and llms-full.txt (see probeMcpRemotes).
+// Then a live GET of every api-catalog item, which must answer a JSON object (or,
+// while hiding, the edge focus gate's JSON suppression body), and a live MCP
+// exchange against every remote the card declares: both protocol eras, a
+// tools/call per tool, resources/list, and resources/read of the ungated focus
+// signal and llms-full.txt (see probeMcpRemotes).
 //
 // Each surface's assertions are a pure `validateX(json, contentType)` function
 // (testable without network); main() below is just fetch-and-call.
@@ -45,8 +46,9 @@ export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discov
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
 // this runner holds is the agent-discovery surface (webfinger, ai-catalog.json,
 // ard.json, the MCP server card at its canonical and compatibility URLs,
-// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item and one live MCP exchange, none of which the
-// surface registry registers. Metadata only -- the hub reads it statically.
+// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item
+// and one live MCP exchange, none of which the surface registry registers.
+// Metadata only -- the hub reads it statically.
 export const ARTIFACTS = []
 
 // The MCP server card media type (SEP-2127) and the 2025-era protocol revision the
@@ -540,9 +542,6 @@ export function validateApiCatalogShape(json, contentType) {
   return findings
 }
 
-// Never throws -- every expected failure mode (network error, non-2xx, bad
-// JSON) resolves to `{ error }`. main() also uses Promise.allSettled so an
-// unexpected validator rejection cannot discard the other checks (C77).
 /** The `item` hrefs of an api-catalog linkset, in document order. */
 export function apiCatalogItems(json) {
   return Array.isArray(json?.linkset) ? json.linkset.flatMap((entry) => (Array.isArray(entry.item) ? entry.item : [])).map((item) => item?.href) : []
@@ -579,9 +578,14 @@ export function judgeApiCatalogItems(json) {
 
 /**
  * Judge one item's live answer. Pure -- testable without network. An item must answer JSON:
- * a 2xx JSON body, or, while a hiding focus mode is active, the focus gate's 403 JSON
- * suppression body (`{"suppressed": true, ...}`). Anything else fails: above all the S3 XML
- * `AccessDenied` 403 the CloudFront root answered when it was the item.
+ *
+ * - a 2xx `application/json` body that is a JSON object (every export is one); or
+ * - while a hiding focus mode is active, the edge focus gate's suppression answer: 403,
+ *   `application/json`, `{"suppressed": true, "reason": "<string>"}`. Never for focus.json,
+ *   which the edge gate never suppresses (mantle-LifegamesPortal src/edge/focus-gate.js).
+ *
+ * Anything else fails: above all the S3 XML `AccessDenied` 403 the CloudFront root answered
+ * when it was the item, and any redirect (the exports are direct S3 keys).
  */
 export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
   let json
@@ -590,27 +594,32 @@ export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
   } catch {
     json = undefined
   }
-  if (status >= 200 && status < 300 && json !== undefined) {
+  const jsonType = /^application\/json\b/i.test(contentType)
+  const object = json !== null && typeof json === 'object'
+  if (status >= 200 && status < 300 && jsonType && object) {
     return []
   }
-  if (status === 403 && json?.suppressed === true) {
+  if (status === 403 && jsonType && href !== FOCUS_RESOURCE_URI && json?.suppressed === true && typeof json.reason === 'string') {
     return []
   }
   return [{
     severity: 'fail',
     id: 'wellknown-api-catalog-item-not-json',
-    message: `api-catalog item ${href} answered HTTP ${status} ${contentType || '(no Content-Type)'}, not JSON: ${String(body).slice(0, 120)}`
+    message: `api-catalog item ${href} answered HTTP ${status} ${contentType || '(no Content-Type)'}, not a JSON export or suppression: ${
+      String(body).slice(0, 120)
+    }`
   }]
 }
 
-/** Fetch every api-catalog item and judge its answer. `measured` counts the items that answered. */
+/** Fetch every api-catalog item and judge its answer. `measured` counts the items whose answer was held. */
 export async function probeApiCatalogItems(json, get = fetchStable) {
   const findings = judgeApiCatalogItems(json)
   let measured = 0
   for (const href of apiCatalogItems(json)) {
-    let res
+    let answer
     try {
-      res = await get(href, {headers: {Accept: 'application/json'}})
+      const res = await get(href, {headers: {Accept: 'application/json'}, redirect: 'manual'})
+      answer = {href, status: res.status, contentType: res.headers.get('content-type') || '', body: await res.text()}
     } catch (err) {
       findings.push({
         severity: 'fail',
@@ -620,7 +629,7 @@ export async function probeApiCatalogItems(json, get = fetchStable) {
       continue
     }
     measured++
-    findings.push(...judgeApiCatalogItemAnswer({href, status: res.status, contentType: res.headers.get('content-type') || '', body: await res.text()}))
+    findings.push(...judgeApiCatalogItemAnswer(answer))
   }
   return {measured, findings}
 }
@@ -635,6 +644,9 @@ async function checkApiCatalog(base) {
   return {measured: 1 + items.measured, findings: [...validateApiCatalogShape(catalog.json, catalog.contentType), ...items.findings]}
 }
 
+// Never throws -- every expected failure mode (network error, non-2xx, bad
+// JSON) resolves to `{ error }`. main() also uses Promise.allSettled so an
+// unexpected validator rejection cannot discard the other checks (C77).
 async function fetchJson(url, headers) {
   let res
   try {
@@ -751,9 +763,10 @@ async function main() {
     const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
-  // One per discovery artifact held and judged, plus one per api-catalog item that answered,
-  // plus one per MCP remote and protocol era that answered. A partial sweep is a finding; reaching none of them is the darkness
-  // the dead-man reports.
+  // One per discovery artifact held and judged, plus one per api-catalog item whose
+  // answer was held and judged, plus one per MCP remote and protocol era that answered.
+  // A partial sweep is a finding; reaching none of them is the darkness the dead-man
+  // reports.
   const measured = results.reduce((total, r) => total + r.measured, 0)
   process.exit(report('check-wellknown', results.flatMap((r) => r.findings), measured))
 }

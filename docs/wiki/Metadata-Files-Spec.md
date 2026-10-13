@@ -228,8 +228,9 @@ on every deploy).
 
 Generated into `public/.well-known/api-catalog` by `scripts/generate-webmcp.mjs`
 during `prebuild` (atlas decision 0158); do not hand-edit it. RFC 9727 linkset
-format: the first entry anchors on the catalog URL and lists the CloudFront data
-API as its one `item`; the second describes that API with `service-desc`
+format: the first entry anchors on the catalog URL and lists one `item` per
+public JSON export (all nine, `CLOUDFRONT_BASE` plus `ENDPOINTS`, typed
+`application/json`). Each item then has its own entry with `service-desc`
 (`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
 `service-doc` (`/developers` once `src/pages/developers.astro` exists, the wiki
 before). `Content-Type: application/linkset+json` is set by the middleware

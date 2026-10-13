@@ -43,6 +43,8 @@ diff <(curl -s https://jonathanlloyd.me/mcp/server-card) <(curl -s https://jonat
 #   - ai-catalog.json (ARD schema, served as application/ai-catalog+json) and ard.json
 #     (ArdManifest schema); the card at both URLs (SEP-2127 schema; the canonical URL
 #     served as application/mcp-server-card+json);
+#   - every api-catalog item (the nine JSON exports): a 2xx application/json object,
+#     or the edge focus gate's 403 JSON suppression body while hiding; never S3 XML;
 #   - per remote, 2025-11-25 initialize then tools/list (every tool readOnlyHint: true);
 #   - 2026-07-28 server/discover, a tools/call per tool (none isError);
 #   - resources/list, which must be exactly 7 URIs: the six JSON exports other than
