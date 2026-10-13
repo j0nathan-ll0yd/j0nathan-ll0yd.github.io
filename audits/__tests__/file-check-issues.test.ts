@@ -292,7 +292,8 @@ describe('run notes', () => {
   })
 
   it('never adopts a legacy issue on an indeterminate note', async () => {
-    const client = new FixtureClient(loadIssues('manual-collisions'))
+    // legacy-open holds a genuinely adoptable auto-filed issue: a failure here WOULD adopt it.
+    const client = new FixtureClient(loadIssues('legacy-open'))
 
     await reconcile(client, [{...FEEDS, outcome: 'indeterminate', note: NOTE}])
 

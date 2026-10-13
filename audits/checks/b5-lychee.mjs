@@ -45,8 +45,20 @@ export const UNMEASURED_REASON = 'connection refused before any HTTP exchange. T
 
 export const EXCLUDED_REASON = 'declared in .lycheeignore (or a lychee built-in exclusion); never fetched'
 
-/** Upper bound on the links listed in the managed-issue note. Counts are always complete. */
+/** Upper bound on the links listed per note section. Counts are always complete. */
 const NOTE_LINK_LIMIT = 60
+
+/**
+ * Upper bound on the note's length. GitHub rejects an issue body or comment over 65,536
+ * characters, and the note travels to the reconciler as one environment string. URL length
+ * is unbounded, so a per-section entry cap alone does not bound the note.
+ */
+export const NOTE_CHAR_LIMIT = 60_000
+
+/** A value inside a markdown code span. A backtick (legal, unencoded, in a URL query) would close the span. */
+function code(value) {
+  return `\`${String(value).replaceAll('`', '%60')}\``
+}
 
 /**
  * lychee's process exit codes that mean "the run completed": 0 with no link errors, 2 with
@@ -55,9 +67,16 @@ const NOTE_LINK_LIMIT = 60
  */
 export const COMPLETED_EXIT_CODES = new Set(['0', '2'])
 
-/** Throws unless the fetcher completed. An absent code (a local run outside Actions) is accepted. */
-export function assertCompletedRun(exitCode) {
-  if (exitCode !== undefined && exitCode !== '' && !COMPLETED_EXIT_CODES.has(exitCode)) {
+/**
+ * Throws unless the fetcher completed. An absent code is accepted only outside Actions (a
+ * local run): under Actions the workflow always binds it, so an empty value means the
+ * action stopped publishing `exit_code`, and judging that run would silently drop the guard.
+ */
+export function assertCompletedRun(exitCode, {inActions = process.env.GITHUB_ACTIONS === 'true'} = {}) {
+  if ((exitCode === undefined || exitCode === '') && !inActions) {
+    return
+  }
+  if (!COMPLETED_EXIT_CODES.has(exitCode)) {
     throw new Error(`lychee exited ${exitCode}, not 0 or 2: the run did not complete, so its report cannot be judged`)
   }
 }
@@ -175,8 +194,10 @@ export function findingsFor(result) {
   return findings
 }
 
-function linkLines(list) {
-  const lines = list.slice(0, NOTE_LINK_LIMIT).map((entry) => `- \`${entry.url}\` (in \`${entry.source}\`)`)
+function linkLines(list, withStatus = false) {
+  const lines = list.slice(0, NOTE_LINK_LIMIT).map((entry) =>
+    `- ${code(entry.url)} (in ${code(entry.source)})${withStatus ? `: ${code(entry.status?.text ?? 'no status')}` : ''}`
+  )
   if (list.length > NOTE_LINK_LIMIT) {
     lines.push(`- ... and ${list.length - NOTE_LINK_LIMIT} more (see the run's step summary)`)
   }
@@ -184,18 +205,25 @@ function linkLines(list) {
 }
 
 /**
- * Markdown for the managed issue and the step summary. Empty when nothing needs saying:
- * a wholly measured run with no exclusions has no blind spot to declare.
+ * Markdown for the managed issue and the step summary. Empty when no link failed and none
+ * went unmeasured: exclusions alone are declared by the step's findings and need no note.
+ *
+ * A run with a broken link LEADS with it. While the egress floor refuses some links every
+ * week, the bucket never goes wholly green, so the managed issue stays open and a new
+ * failure arrives as one more note on it rather than as a reopen. The heading is what
+ * separates that failure from the weekly refusal note.
  */
 export function issueNote(result) {
   if (result.refused.length === 0 && result.otherUnmeasured === 0 && result.failing.length === 0) {
     return ''
   }
-  const lines = [`B5 link check: ${tally(result)}.`]
+  const lines = []
   if (result.failing.length > 0) {
-    lines.push('', `**Failing (${result.failing.length}):**`, ...result.failing.slice(0, NOTE_LINK_LIMIT).map((entry) =>
-      `- \`${entry.url}\` (in \`${entry.source}\`): ${entry.status?.text ?? 'no status'}`
-    ))
+    lines.push(`**B5 FAILING: ${result.failing.length} broken link(s).**`, '')
+  }
+  lines.push(`B5 link check: ${tally(result)}.`)
+  if (result.failing.length > 0) {
+    lines.push('', `**Failing (${result.failing.length}):**`, ...linkLines(result.failing, true))
   }
   if (result.refused.length > 0) {
     lines.push('',
@@ -205,7 +233,12 @@ export function issueNote(result) {
   if (result.excluded > 0) {
     lines.push('', `**Excluded (${result.excluded}):** ${EXCLUDED_REASON}.`, ...linkLines(result.excludedLinks))
   }
-  return lines.join('\n')
+  const note = lines.join('\n')
+  if (note.length <= NOTE_CHAR_LIMIT) {
+    return note
+  }
+  const marker = `\n\n... note truncated at ${NOTE_CHAR_LIMIT} characters; the counts above are complete, and the run's step summary lists every link.`
+  return note.slice(0, NOTE_CHAR_LIMIT - marker.length) + marker
 }
 
 function summaryMarkdown(result) {

@@ -505,6 +505,10 @@ jobs:
       # code under `fail: false`, so the judge reads `exit_code` and rejects anything but 0
       # (no link errors) or 2 (link errors). `failIfEmpty` greps the markdown table and never
       # matches JSON, so the judge also owns the empty run: 0 measured wedges the tier.
+      # lychee exits 1 when an INPUT (/, /privacy, /llms.txt, /feed.xml) cannot be read;
+      # the judge then throws, publishes nothing, and the tier wedges as
+      # crashed-before-measuring. The B2 llms and feeds checks own those inputs' health
+      # and file their own managed issues.
       #
       # No `--cache`: a weekly lane always finds the 1-day cache expired (run 38428346533:
       # "Cache is too old (age: 1d 10h 17m 1s)"), and a cache hit would replace a refusal's

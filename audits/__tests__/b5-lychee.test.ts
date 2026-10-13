@@ -9,6 +9,7 @@ import {
   isConnectionRefused,
   issueNote,
   issueOutcome,
+  NOTE_CHAR_LIMIT,
   writeIssueOutputs
 } from '../checks/b5-lychee.mjs'
 
@@ -161,6 +162,36 @@ describe('issueOutcome', () => {
   })
 })
 
+describe('issueNote bounds', () => {
+  it('leads with the failure, so a real broken link stands out from the weekly refusal note', () => {
+    const note = issueNote(
+      classifyLycheeReport(
+        synthetic([refused('https://a.example/'), {url: 'https://b.example/', status: {text: 'Rejected status code: 410 Gone', code: 410}}])
+      )
+    )
+    expect(note.split('\n')[0]).toBe('**B5 FAILING: 1 broken link(s).**')
+    expect(note).toContain('`https://b.example/` (in `https://jonathanlloyd.me/`): `Rejected status code: 410 Gone`')
+  })
+
+  it('keeps a backtick in a URL from closing its code span', () => {
+    const note = issueNote(classifyLycheeReport(synthetic([refused('https://a.example/?q=`x`')])))
+    expect(note).toContain('`https://a.example/?q=%60x%60`')
+  })
+
+  it('states truncation of a long failing list', () => {
+    const many = Array.from({length: 70}, (_, i) => ({url: `https://b.example/${i}`, status: {text: 'Rejected status code: 404 Not Found', code: 404}}))
+    expect(issueNote(classifyLycheeReport(synthetic(many)))).toContain('... and 10 more')
+  })
+
+  it('caps the note below the GitHub body limit however long the URLs are', () => {
+    const long = Array.from({length: 50}, (_, i) => refused(`https://a.example/${'x'.repeat(5_000)}/${i}`))
+    const note = issueNote(classifyLycheeReport(synthetic(long)))
+    expect(note.length).toBeLessThanOrEqual(NOTE_CHAR_LIMIT)
+    expect(note).toContain('note truncated at 60000 characters')
+    expect(note.startsWith('B5 link check: 53 links')).toBe(true)
+  })
+})
+
 describe('report integrity', () => {
   it('throws when a map disagrees with its total', () => {
     expect(() => classifyLycheeReport({...synthetic([refused('https://a.example/')]), errors: 2, total: 5})).toThrow(/disagree/)
@@ -178,13 +209,19 @@ describe('report integrity', () => {
 describe('assertCompletedRun', () => {
   it('accepts 0 and 2, and an absent code outside Actions', () => {
     for (const code of ['0', '2', '', undefined]) {
-      expect(() => assertCompletedRun(code)).not.toThrow()
+      expect(() => assertCompletedRun(code, {inActions: false})).not.toThrow()
     }
+    expect(() => assertCompletedRun('2', {inActions: true})).not.toThrow()
+  })
+
+  it('rejects an absent code under Actions, where the workflow always binds one', () => {
+    expect(() => assertCompletedRun('', {inActions: true})).toThrow(/lychee exited/)
+    expect(() => assertCompletedRun(undefined, {inActions: true})).toThrow(/lychee exited/)
   })
 
   it('rejects a configuration error and a panic', () => {
-    expect(() => assertCompletedRun('1')).toThrow(/lychee exited 1/)
-    expect(() => assertCompletedRun('101')).toThrow(/lychee exited 101/)
+    expect(() => assertCompletedRun('1', {inActions: false})).toThrow(/lychee exited 1/)
+    expect(() => assertCompletedRun('101', {inActions: true})).toThrow(/lychee exited 101/)
   })
 })
 
