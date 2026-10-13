@@ -119,10 +119,17 @@ export const LLM_DATA_SOURCES = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHA
 /** The raw export URLs no LLM channel may serve or name. Tests assert their absence from every MCP and WebMCP answer. */
 export const LLM_WITHHELD_URLS = Object.freeze(DATA_SOURCES.filter((s) => LLM_CHANNEL_POLICY.coarsenedOnly.includes(s.key)).map((s) => s.url))
 
-/** MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate. */
+/** The withheld exports' paths (`/health.json`, ...). See `withheldLinks` in functions/_lib/mcp-server.ts. */
+export const LLM_WITHHELD_PATHS = Object.freeze(LLM_CHANNEL_POLICY.coarsenedOnly.map((key) => ENDPOINTS[key]))
+
+/**
+ * MCP resources: the exposed JSON exports plus llms-full.txt, each read through the focus gate.
+ * `republished` marks backend prose the server serves verbatim (llms-full.txt): its read fails
+ * closed on a withheld export link (functions/_lib/mcp-server.ts `withheldLinks`).
+ */
 export const RESOURCES = Object.freeze([
   ...LLM_DATA_SOURCES.map((s) =>
-    Object.freeze({name: s.key, uri: s.url, path: s.path, title: s.name, description: s.description, mimeType: 'application/json'})
+    Object.freeze({name: s.key, uri: s.url, path: s.path, title: s.name, description: s.description, mimeType: 'application/json', republished: false})
   ),
   Object.freeze({
     name: 'llmsFull',
@@ -130,7 +137,8 @@ export const RESOURCES = Object.freeze([
     path: LLM_CONTENT_PATHS.llmsFull,
     title: llm.dashboard.alternateLinkMarkdown,
     description: llm.dashboard.datasetDescription,
-    mimeType: 'text/markdown'
+    mimeType: 'text/markdown',
+    republished: true
   })
 ])
 

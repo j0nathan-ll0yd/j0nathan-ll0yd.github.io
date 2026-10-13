@@ -3,7 +3,7 @@
 // middleware carries the same cross-cutting policy on Function responses.
 
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {AGENT_PATHS, OPENAPI_MEDIA_TYPE} from './_lib/agent-paths.mjs'
+import {AGENT_PATHS, AI_CATALOG_MEDIA_TYPE, OPENAPI_MEDIA_TYPE} from './_lib/agent-paths.mjs'
 import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
 import {NOT_FOUND_MARKDOWN} from './_lib/not-found-markdown.mjs'
@@ -255,6 +255,12 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   // API catalog Content-Type override for RFC 9727 compliance
   if (url.pathname === '/.well-known/api-catalog') {
     headers.set('Content-Type', 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"')
+  }
+
+  // ai-catalog.json carries the ARD catalog media type (see AI_CATALOG_MEDIA_TYPE). ard.json
+  // keeps application/json until the owner decides; ARD names no Content-Type for either file.
+  if (url.pathname === AGENT_PATHS.aiCatalog) {
+    headers.set('Content-Type', AI_CATALOG_MEDIA_TYPE)
   }
 
   // /openapi.json carries the media type the api-catalog advertises for it.

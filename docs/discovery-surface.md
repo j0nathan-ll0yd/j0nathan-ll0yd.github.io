@@ -63,11 +63,24 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
 - **Protocol:** revision 2026-07-28, stateless Streamable HTTP. POST carries JSON-RPC.
   `server/discover` answers with the supported versions, capabilities and the same
   `serverInfo` name and version as the card. The SDK's stateless legacy leg answers
-  2025-era clients (`initialize`, then any request). GET and DELETE answer 405. No session
-  id is minted, and a sent `Mcp-Session-Id` is ignored.
+  2025-era clients (`initialize`, then any request). GET and DELETE answer 405 with
+  `Allow: POST`. No session id is minted, and a sent `Mcp-Session-Id` is ignored.
 - **Validation:** Host and Origin are checked against `jonathanlloyd.me`,
-  `human-datastream.pages.dev`, its preview subdomains, and localhost (for
-  `wrangler pages dev`). An invalid Origin answers 403.
+  `human-datastream.pages.dev`, and its preview subdomains. `localhost`, `127.0.0.1`, and
+  `[::1]` are allowed as an Origin only when the Host is one of them, which is `wrangler pages dev`:
+  Cloudflare never routes a localhost Host to a deploy. An invalid Host or Origin answers 403
+  with a fixed message that never echoes the header.
+- **Bounds:** a POST body over 8 KiB answers 413 before anything is parsed, and an unreadable
+  body answers 400 `-32700`. A JSON-RPC batch array answers 400 `-32600`. 2026-07-28 says "The
+  body of the HTTP POST **MUST** be a single JSON-RPC _request_ or _notification_", 2025-11-25
+  "The body of the POST request **MUST** be a single JSON-RPC _request_, _notification_, or
+  _response_", and 2025-06-18 removed batching. This is a deliberate deviation for one older
+  revision: the SDK's legacy leg still negotiates 2025-03-26, which says implementations "MUST
+  support receiving JSON-RPC batches", so a 2025-03-26 client that batches gets 400. Each
+  inbound request carries one read memo, defense in depth: with batches rejected, no request
+  reaches a second read today. A tool that cannot parse or summarize
+  its artifact answers `{"failed": true, "reason": "artifact unreadable"}`, never engine
+  error text.
 - **No authorization.** The server is public and read-only, which the revision allows.
 - **Resources:** the six policy-exposed JSON exports (books, articles, GitHub events,
   starred repositories, theatre reviews, focus) and `llms-full.txt`. **Tools:**
@@ -79,8 +92,18 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   only, so the owner's recorded policy governs them: `SKILL.md` decision 4 ("LLM content
   uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.") and atlas
   decision 0096 (LLM channels carry only a coarsened health band, "no raw point-in-time
-  values in output"). No agent channel lists, reads, names, or returns `health.json`,
-  `sleep.json`, or `workouts.json`. `get_data_sources` and the `SKILL.md` Live Data Sources
+  values in output"). No MCP resource or tool lists or reads `health.json`, `sleep.json`, or
+  `workouts.json`, and no answer the server composes names them. `llms-full.txt` is backend
+  text the server republishes verbatim, so its resource read FAILS CLOSED. A copy is refused with
+  an error, and logged as `mcp_withheld_link_refused`, when it contains `/health.json`,
+  `/sleep.json`, or `/workouts.json` anywhere, or a link target (markdown link, autolink,
+  reference definition, or bare URL) that resolves, percent-decoded, to one of those file names.
+  The check runs on `llms-full.txt` only: the JSON exports carry third-party text such as commit
+  titles and are served as data. The live document links all three until
+  mantle-LifegamesPortal PR #379 deploys, so until then `resources/read` of `llms-full.txt`
+  answers an error, never the links. Deploy order: the website first, then backend #379 right
+  after it. The freshness table's bare file names (`| health.json |`) are a disclosure, not a
+  link, and pass. `get_data_sources` and the `SKILL.md` Live Data Sources
   table both name `llms-full.txt` for those three domains, because its Body section carries
   the coarsened band. Both render from one list, `LLM_DATA_SOURCE_DIRECTORY`; the generator
   writes the `SKILL.md` table between its `BEGIN GENERATED` and `END GENERATED` markers, then
@@ -166,15 +189,23 @@ The catalog carries two resources, each with a domain-anchored `urn:air:` identi
 
 ### API catalog and OpenAPI — RFC 9727
 
-`/.well-known/api-catalog` anchors on its own URL and lists the CloudFront data API as its
-one `item`. The API's entry carries `service-desc` (`/openapi.json`,
-`application/vnd.oai.openapi+json;version=3.1`) and `service-doc` (`/developers` once
-that page exists in the tree, the wiki before, so no deploy links a 404). `/openapi.json`
+`/.well-known/api-catalog` anchors on its own URL and lists one `item` per public JSON
+export: all nine, from portal-contract `CLOUDFRONT_BASE` plus `ENDPOINTS`, typed
+`application/json`. The catalog is developer documentation, so the raw health, sleep and
+workouts exports are listed too. Each item has its own linkset entry (RFC 9727 Appendix A.1)
+with `service-desc` (`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
+`service-doc` (`/developers` once that page exists in the tree, the wiki before, so no deploy
+links a 404). Until 2026-10-12 the one item was the CloudFront root, which answers an S3 XML
+`AccessDenied` 403. The monthly `b2-check-wellknown` fetches every item without following
+redirects: each must answer a 2xx `application/json` object, or, while a hiding mode is active,
+the edge focus gate's 403 `application/json` suppression body with a `reason` (never for
+`focus.json`, which the edge never gates). S3 XML fails. `/openapi.json`
 describes the nine GET endpoints on `CLOUDFRONT_BASE`, their response schemas, and the
 focus-suppression 403 on every export except `focus.json`.
 
 The public data documentation still describes all nine exports, health, sleep and workouts
-included: `/openapi.json` and the homepage JSON-LD `Dataset` (its `distribution` list). The
+included: `/openapi.json`, `/.well-known/api-catalog` (one `item` per export), and the homepage
+JSON-LD `Dataset` (its `distribution` list). The
 LLM-channel data policy above does not govern them: they document the public API, the same
 JSON a browser already fetches from the CloudFront host. They are not LLM content. The
 boundary is the channel. The LLM channels (MCP, WebMCP, `SKILL.md`, and the llms trio) carry
@@ -185,7 +216,8 @@ URL. The owner can reverse this choice.
 Known risk: the CloudFront/S3 origin answers a key that does not exist with an XML or HTML
 403, not JSON. If an agent-readiness scorer starts treating the site as an API, its
 `openapi-spec` and `json-error-responses` checks join the essential pool and that answer
-would count against it.
+would count against it. No discovery document links such a key: every api-catalog item is an
+export that exists.
 
 ### A2A — not advertised
 
@@ -263,7 +295,7 @@ What re-verifies them automatically:
   server-card extension's `docs/discovery.md`, the ARD v0.91 specification, and the three
   vendored schemas. A revision is reported as
   `spec-source-moved` and escalates to `fail` after the re-pin grace window.
-- `audits/checks/b2-check-wellknown.mjs` (weekly) validates the served card, `ai-catalog.json`
+- `audits/checks/b2-check-wellknown.mjs` (monthly tier of `audit-web.yml`) validates the served card, `ai-catalog.json`
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
   `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then
   `server/discover` and a `tools/call` per tool (2026-07-28). `--base <url>` audits a

@@ -13,12 +13,13 @@
 // that the upstream document has been revised. Both probes are correct; they ask
 // different questions of the same corpus, and nothing else in the estate asks this one.
 //
-// MEASURED RECEIPT. The llms.txt rules pin AnswerDotAI/llms-txt at c7178b9d with
-// retrieved 2026-07-30. Upstream main now serves a v2 of that document dated
+// MEASURED RECEIPT. The llms.txt rules pinned AnswerDotAI/llms-txt at c7178b9d with
+// retrieved 2026-07-30. Upstream main then served a v2 of that document dated
 // 2026-08-10: path-scope semantics, the "Optional" section rewritten, a new
 // rel="alternate"/rel="describedby" recommendation, an RFC 8615 rationale. The five
-// normative Format bullets are byte-identical, so no rule is wrong and no rule change
-// is due. The point is that a month passed and the estate had no way to know.
+// normative Format bullets were byte-identical, so no rule was wrong and no rule change
+// was due. The point is that a month passed and the estate had no way to know. (The
+// rules were re-pinned to v2 at 6e55a65a on 2026-10-07, after this check escalated.)
 //
 // SEVERITY, DELIBERATELY SPLIT THREE WAYS. An upstream editorial revision is a prompt to
 // re-read, not a defect, so a moved source whose quote SURVIVES is `warn` and exits 0. A

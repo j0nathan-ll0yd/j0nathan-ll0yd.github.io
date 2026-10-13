@@ -3,12 +3,22 @@ import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {
+  AI_CATALOG_MEDIA_TYPE,
+  apiCatalogItems,
+  EXPECTED_API_CATALOG_ITEMS,
+  EXPECTED_RESOURCE_URIS,
+  FOCUS_RESOURCE_URI,
+  judgeApiCatalogItemAnswer,
+  judgeApiCatalogItems,
   judgeMcpExchange,
   judgeModernExchange,
+  judgeResourceExchange,
+  LLMS_FULL_RESOURCE_URI,
   MODERN_PROTOCOL_VERSION,
   parseMcpBody,
   PINNED_AGENT_SKILLS_SCHEMA,
   PINNED_ARD_SPEC_VERSION,
+  probeApiCatalogItems,
   probeMcpRemotes,
   rebase,
   SERVER_CARD_MEDIA_TYPE,
@@ -18,7 +28,8 @@ import {
   validateApiCatalogShape,
   validateArdManifest,
   validateMcpServerCard,
-  validateWebfingerShape
+  validateWebfingerShape,
+  WITHHELD_RESOURCE_URI
 } from '../checks/b2-check-wellknown.mjs'
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -63,6 +74,7 @@ describe('validateAiCatalogShape', () => {
 
   it(`a conformant ARD specVersion ${PINNED_ARD_SPEC_VERSION} catalog produces zero findings`, () => {
     expect(validateAiCatalogShape(valid)).toEqual([])
+    expect(validateAiCatalogShape(valid, AI_CATALOG_MEDIA_TYPE)).toEqual([])
   })
 
   it('the SERVED catalog conforms to the vendored ai-catalog schema and names no unresolvable host identifier', () => {
@@ -194,19 +206,100 @@ describe('MCP liveness probe', () => {
     result: {supportedVersions: [MODERN_PROTOCOL_VERSION], _meta: {'io.modelcontextprotocol/serverInfo': {name: card.name, version: card.version}}}
   }
   const called = {jsonrpc: '2.0', id: 4, result: {content: [{type: 'text', text: '{}'}]}}
+  const resourcesList = {jsonrpc: '2.0', id: 100, result: {resources: EXPECTED_RESOURCE_URIS.map((uri) => ({uri}))}}
+  const readOf = (uri: string, text: string) => ({jsonrpc: '2.0', id: 101, result: {contents: [{uri, text}]}})
+  const focusRead = readOf(FOCUS_RESOURCE_URI, '{"generatedAt":"x","currentFocus":"None"}')
+  const llmsRead = readOf(LLMS_FULL_RESOURCE_URI, '# Jonathan Lloyd')
 
   it('runs both eras: initialize and tools/list, then server/discover and a tools/call per tool', async () => {
-    const calls: Array<{method: string; headers?: Record<string, string>; meta?: unknown}> = []
-    const post = async (_url: string, message: {method: string; params?: {_meta?: unknown}}, headers?: Record<string, string>) => {
-      calls.push({method: message.method, headers, meta: message.params?._meta})
-      return ({initialize, 'tools/list': toolsList, 'server/discover': discover} as Record<string, unknown>)[message.method] ?? called
+    const calls: Array<{method: string; headers?: Record<string, string>; meta?: unknown; uri?: string}> = []
+    const post = async (_url: string, message: {method: string; params?: {_meta?: unknown; uri?: string}}, headers?: Record<string, string>) => {
+      calls.push({method: message.method, headers, meta: message.params?._meta, uri: message.params?.uri})
+      if (message.method === 'resources/read') {
+        const uri = message.params?.uri
+        return uri === FOCUS_RESOURCE_URI
+          ? focusRead
+          : uri === LLMS_FULL_RESOURCE_URI
+          ? llmsRead
+          : {jsonrpc: '2.0', id: 103, error: {code: -32602, message: 'Resource not found'}}
+      }
+      return ({initialize, 'tools/list': toolsList, 'server/discover': discover, 'resources/list': resourcesList} as Record<string, unknown>)[
+        message.method
+      ] ?? called
     }
     const result = await probeMcpRemotes(card, post)
-    expect(calls.map((c) => c.method)).toEqual(['initialize', 'tools/list', 'server/discover', 'tools/call'])
+    expect(calls.map((c) => c.method)).toEqual([
+      'initialize',
+      'tools/list',
+      'server/discover',
+      'tools/call',
+      'resources/list',
+      'resources/read',
+      'resources/read',
+      'resources/read'
+    ])
+    expect(calls.slice(5).map((c) => c.uri)).toEqual([FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI, WITHHELD_RESOURCE_URI])
+    expect(calls[5]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'resources/read', 'Mcp-Name': FOCUS_RESOURCE_URI})
     expect(calls[1]!.headers).toEqual({'MCP-Protocol-Version': '2025-11-25'})
     expect(calls[3]!.headers).toEqual({'MCP-Protocol-Version': MODERN_PROTOCOL_VERSION, 'Mcp-Method': 'tools/call', 'Mcp-Name': 'get_profile'})
     expect(calls[3]!.meta).toEqual(expect.objectContaining({'io.modelcontextprotocol/protocolVersion': MODERN_PROTOCOL_VERSION}))
     expect(result).toEqual({measured: 2, findings: []})
+  })
+
+  it('expects exactly seven resources: the six policy-exposed exports and llms-full.txt, no raw health export', () => {
+    expect(EXPECTED_RESOURCE_URIS).toHaveLength(7)
+    expect(EXPECTED_RESOURCE_URIS).toContain(LLMS_FULL_RESOURCE_URI)
+    expect(EXPECTED_RESOURCE_URIS.join(' ')).not.toMatch(/health\.json|sleep\.json|workouts\.json/)
+  })
+
+  it('a full resource exchange produces zero findings; a suppressed llms-full.txt read is valid', () => {
+    expect(
+      judgeResourceExchange({
+        list: resourcesList,
+        reads: [{uri: FOCUS_RESOURCE_URI, response: focusRead}, {uri: LLMS_FULL_RESOURCE_URI, response: llmsRead}]
+      })
+    ).toEqual([])
+    const suppressed = readOf(LLMS_FULL_RESOURCE_URI, '{"suppressed":true,"reason":"focus mode active"}')
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: LLMS_FULL_RESOURCE_URI, response: suppressed}]})).toEqual([])
+  })
+
+  it('a resource list that exposes a withheld export, or drops one, fails', () => {
+    const health = 'https://d1pfm520aduift.cloudfront.net/health.json'
+    const exposed = {...resourcesList, result: {resources: [...EXPECTED_RESOURCE_URIS, health].map((uri) => ({uri}))}}
+    const dropped = {...resourcesList, result: {resources: EXPECTED_RESOURCE_URIS.slice(1).map((uri) => ({uri}))}}
+    expect(judgeResourceExchange({list: exposed, reads: []}).map((f) => f.id)).toEqual(['mcp-resources-list'])
+    expect(judgeResourceExchange({list: dropped, reads: []}).map((f) => f.id)).toEqual(['mcp-resources-list'])
+  })
+
+  it('a refused llms-full.txt read, and a focus read that is not a focus document, fail', () => {
+    const refused = {jsonrpc: '2.0', id: 102, error: {code: -32603, message: 'withheld'}}
+    const gatedFocus = readOf(FOCUS_RESOURCE_URI, '{"suppressed":true,"reason":"focus mode active"}')
+    const findings = judgeResourceExchange({
+      list: resourcesList,
+      reads: [{uri: FOCUS_RESOURCE_URI, response: gatedFocus}, {uri: LLMS_FULL_RESOURCE_URI, response: refused}]
+    })
+    expect(findings.map((f) => f.id)).toEqual(['mcp-resource-read', 'mcp-resource-read'])
+  })
+
+  it('fails llms-full.txt text that names a withheld export, even when the server serves it', () => {
+    const leaked = readOf(LLMS_FULL_RESOURCE_URI, '# Streams\n- https://d1pfm520aduift.cloudfront.net/health.json')
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: LLMS_FULL_RESOURCE_URI, response: leaked}]}).map((f) => f.id)).toEqual([
+      'mcp-resource-read'
+    ])
+  })
+
+  it('a withheld export that reads as content fails; a refusal passes', () => {
+    const served = readOf(WITHHELD_RESOURCE_URI, '{"heartRate":60}')
+    const refused = {jsonrpc: '2.0', id: 103, error: {code: -32602, message: 'Resource not found'}}
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: WITHHELD_RESOURCE_URI, response: served}]}).map((f) => f.id)).toEqual([
+      'mcp-withheld-readable'
+    ])
+    expect(judgeResourceExchange({list: resourcesList, reads: [{uri: WITHHELD_RESOURCE_URI, response: refused}]})).toEqual([])
+  })
+
+  it('ai-catalog.json served as plain JSON fails the media-type assertion', () => {
+    const catalog = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'public', '.well-known', 'ai-catalog.json'), 'utf8'))
+    expect(validateAiCatalogShape(catalog, 'application/json').map((f) => f.id)).toEqual(['wellknown-ai-catalog-content-type'])
   })
 
   it('a discover that does not offer the modern revision fails', () => {
@@ -348,5 +441,80 @@ describe('validateApiCatalogShape', () => {
   it('a linkset without a service-desc fails', () => {
     const findings = validateApiCatalogShape({linkset: [linkset[0]]}, 'application/linkset+json')
     expect(findings.map((f) => f.id)).toEqual(['wellknown-api-catalog-no-service-desc'])
+  })
+})
+
+describe('api-catalog items', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const served = JSON.parse(readFileSync(join(here, '..', '..', 'public', '.well-known', 'api-catalog'), 'utf8'))
+  const S3_ACCESS_DENIED = '<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>'
+  const SUPPRESSED = '{"suppressed":true,"reason":"focus mode active"}'
+  const json = {'content-type': 'application/json'}
+
+  it('the committed catalog lists all nine exports, raw health included, each with a service-desc', () => {
+    expect(EXPECTED_API_CATALOG_ITEMS).toHaveLength(9)
+    const raw = ['health', 'sleep', 'workouts'].map((name) => `https://d1pfm520aduift.cloudfront.net/${name}.json`)
+    expect(EXPECTED_API_CATALOG_ITEMS).toEqual(expect.arrayContaining(raw))
+    expect(apiCatalogItems(served).sort()).toEqual([...EXPECTED_API_CATALOG_ITEMS].sort())
+    expect(judgeApiCatalogItems(served)).toEqual([])
+  })
+
+  it('the old single CloudFront-root item fails the item set', () => {
+    const root = {linkset: [{anchor: 'https://jonathanlloyd.me/.well-known/api-catalog', item: [{href: 'https://d1pfm520aduift.cloudfront.net/'}]}]}
+    expect(judgeApiCatalogItems(root).map((f) => f.id)).toEqual(['wellknown-api-catalog-items', 'wellknown-api-catalog-item-no-service-desc'])
+  })
+
+  it('accepts a 2xx JSON object and the edge focus gate 403 JSON suppression body', () => {
+    expect(judgeApiCatalogItemAnswer({href: 'a', status: 200, contentType: 'application/json', body: '{"books":[]}'})).toEqual([])
+    expect(judgeApiCatalogItemAnswer({href: 'a', status: 200, contentType: 'application/json; charset=utf-8', body: '{}'})).toEqual([])
+    expect(judgeApiCatalogItemAnswer({href: 'a', status: 403, contentType: 'application/json', body: SUPPRESSED})).toEqual([])
+  })
+
+  // The receipt: the CloudFront root item answered S3 XML AccessDenied. focus.json is never gated
+  // at the edge, so a suppression 403 there means the signal is broken.
+  it.each([
+    ['S3 XML AccessDenied', 'a', 403, 'application/xml', S3_ACCESS_DENIED],
+    ['a 403 JSON body that is not a suppression', 'a', 403, 'application/json', '{"message":"Forbidden"}'],
+    ['a suppression body with no reason', 'a', 403, 'application/json', '{"suppressed":true}'],
+    ['a suppression body served as text/html', 'a', 403, 'text/html', SUPPRESSED],
+    ['a suppression 403 on focus.json', FOCUS_RESOURCE_URI, 403, 'application/json', SUPPRESSED],
+    ['an HTML 200', 'a', 200, 'text/html', '<html></html>'],
+    ['a JSON body served as text/html', 'a', 200, 'text/html', '{}'],
+    ['a JSON body served as octet-stream', 'a', 200, 'binary/octet-stream', '{}'],
+    ['a JSON null body', 'a', 200, 'application/json', 'null'],
+    ['a JSON scalar body', 'a', 200, 'application/json', '"oops"'],
+    ['a 404 JSON body', 'a', 404, 'application/json', '{}'],
+    ['a redirect', 'a', 302, '', ''],
+    ['a 304', 'a', 304, '', '']
+  ])('rejects %s', (_label, href, status, contentType, body) => {
+    expect(judgeApiCatalogItemAnswer({href, status, contentType, body}).map((f) => f.id)).toEqual(['wellknown-api-catalog-item-not-json'])
+  })
+
+  it('fetches every item without following redirects; an unreachable item is a fail and is not measured', async () => {
+    const asked: string[] = []
+    const inits: RequestInit[] = []
+    const get = async (href: string, init: RequestInit) => {
+      asked.push(href)
+      inits.push(init)
+      if (href.endsWith('/books.json')) {
+        throw new Error('ECONNRESET')
+      }
+      return href.endsWith('/health.json')
+        ? new Response(S3_ACCESS_DENIED, {status: 403, headers: {'content-type': 'application/xml'}})
+        : new Response('{}', {headers: json})
+    }
+    const result = await probeApiCatalogItems(served, get)
+    expect(asked.sort()).toEqual([...EXPECTED_API_CATALOG_ITEMS].sort())
+    expect(inits.every((init) => init.redirect === 'manual')).toBe(true)
+    expect(result.measured).toBe(8)
+    expect(result.findings.map((f) => f.id).sort()).toEqual(['wellknown-api-catalog-item-not-json', 'wellknown-api-catalog-item-unreachable'])
+  })
+
+  it("a body that fails mid-read is that item's finding, not a rejection of the whole check", async () => {
+    const stalled = {status: 200, headers: new Headers(json), text: () => Promise.reject(new Error('TimeoutError'))} as unknown as Response
+    const get = async (href: string) => (href.endsWith('/books.json') ? stalled : new Response('{}', {headers: json}))
+    const result = await probeApiCatalogItems(served, get)
+    expect(result.measured).toBe(8)
+    expect(result.findings.map((f) => f.id)).toEqual(['wellknown-api-catalog-item-unreachable'])
   })
 })

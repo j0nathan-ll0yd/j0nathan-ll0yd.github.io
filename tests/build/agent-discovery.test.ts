@@ -59,14 +59,19 @@ describe('served portfolio-expert SKILL.md', () => {
 describe('API catalog and OpenAPI', () => {
   const openapi = JSON.parse(read(AGENT_PATHS.openapi))
 
-  it('the RFC 9727 catalog anchors on itself and describes the data API with /openapi.json', () => {
+  // One item per public JSON export, all nine: the catalog is developer documentation, so the raw
+  // health exports are listed. Each item answers JSON, where the old CloudFront-root item answered
+  // an S3 XML 403 (audits/checks/b2-check-wellknown.mjs probes that live).
+  it('the RFC 9727 catalog anchors on itself, lists every JSON export, and describes each with /openapi.json', () => {
     const {linkset} = JSON.parse(read(AGENT_PATHS.apiCatalog))
     expect(linkset[0].anchor).toBe(`${SITE_URL}${AGENT_PATHS.apiCatalog}`)
     const items = linkset[0].item.map((i: {href: string}) => i.href)
-    expect(items).toHaveLength(1)
-    const api = linkset.find((entry: {anchor: string}) => entry.anchor === items[0])
-    expect(api['service-desc']).toEqual([{href: `${SITE_URL}${AGENT_PATHS.openapi}`, type: 'application/vnd.oai.openapi+json;version=3.1'}])
-    expect(api['service-doc']).toHaveLength(1)
+    expect(items.sort()).toEqual(Object.values(ENDPOINTS).map((path) => `${CLOUDFRONT_BASE}${path}`).sort())
+    for (const href of items) {
+      const api = linkset.find((entry: {anchor: string}) => entry.anchor === href)
+      expect(api['service-desc'], href).toEqual([{href: `${SITE_URL}${AGENT_PATHS.openapi}`, type: 'application/vnd.oai.openapi+json;version=3.1'}])
+      expect(api['service-doc'], href).toHaveLength(1)
+    }
   })
 
   it('is a valid OpenAPI 3.1 document', async () => {

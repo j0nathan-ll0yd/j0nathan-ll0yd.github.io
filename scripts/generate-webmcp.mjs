@@ -221,19 +221,22 @@ write(AGENT_PATHS.aiCatalog.slice(1), catalog)
 write(AGENT_PATHS.ard.slice(1), catalog)
 
 // ---------------------------------------------------------------------------
-// RFC 9727 API catalog. The anchor is the catalog's own URL; each API is an item,
-// described by its own linkset entry. service-doc names /developers only once that
-// page exists (developersPage, above).
+// RFC 9727 API catalog. The anchor is the catalog's own URL. Each public JSON export is
+// one `item` (all nine, from the contract's CLOUDFRONT_BASE plus ENDPOINTS): every item
+// answers JSON, where the CloudFront root this listed before answers an S3 XML 403. The
+// catalog is developer documentation, so the raw health exports are listed too. Each item
+// is described by its own linkset entry (RFC 9727 Appendix A.1): service-desc is
+// /openapi.json, and service-doc names /developers only once that page exists
+// (developersPage, above).
 // ---------------------------------------------------------------------------
-const dataApi = `${CLOUDFRONT_BASE}/`
+const serviceLinks = {
+  'service-desc': [{href: `${SITE_URL}${AGENT_PATHS.openapi}`, type: OPENAPI_MEDIA_TYPE}],
+  'service-doc': [{href: developersPage ? `${SITE_URL}${AGENT_PATHS.developers}` : WIKI_LLM_CONTENT_SPEC, type: 'text/html'}]
+}
 write(AGENT_PATHS.apiCatalog.slice(1), json({
   linkset: [
-    {anchor: `${SITE_URL}${AGENT_PATHS.apiCatalog}`, item: [{href: dataApi}]},
-    {
-      anchor: dataApi,
-      'service-desc': [{href: `${SITE_URL}${AGENT_PATHS.openapi}`, type: OPENAPI_MEDIA_TYPE}],
-      'service-doc': [{href: developersPage ? `${SITE_URL}${AGENT_PATHS.developers}` : WIKI_LLM_CONTENT_SPEC, type: 'text/html'}]
-    }
+    {anchor: `${SITE_URL}${AGENT_PATHS.apiCatalog}`, item: DATA_SOURCES.map((source) => ({href: source.url, type: 'application/json'}))},
+    ...DATA_SOURCES.map((source) => ({anchor: source.url, ...serviceLinks}))
   ]
 }))
 

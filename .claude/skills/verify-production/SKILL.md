@@ -39,8 +39,19 @@ curl -sI https://jonathanlloyd.me/.well-known/api-catalog | grep -i '^content-ty
 # MCP server card (SEP-2127) lists no resources; the server does, at runtime.
 # The canonical card and the compatibility copy must be the same bytes.
 diff <(curl -s https://jonathanlloyd.me/mcp/server-card) <(curl -s https://jonathanlloyd.me/.well-known/mcp/server-card.json) && echo "server card: IDENTICAL"
-# MCP resources/list must equal the portal-contract ENDPOINTS plus llms-full.txt
-# (functions/_lib/agent-catalog.mjs RESOURCES). The audit runner walks the full chain:
+# The audit runner walks the whole MCP chain against the live site:
+#   - ai-catalog.json (ARD schema, served as application/ai-catalog+json) and ard.json
+#     (ArdManifest schema); the card at both URLs (SEP-2127 schema; the canonical URL
+#     served as application/mcp-server-card+json);
+#   - every api-catalog item (the nine JSON exports): a 2xx application/json object,
+#     or the edge focus gate's 403 JSON suppression body while hiding; never S3 XML;
+#   - per remote, 2025-11-25 initialize then tools/list (every tool readOnlyHint: true);
+#   - 2026-07-28 server/discover, a tools/call per tool (none isError);
+#   - resources/list, which must be exactly 7 URIs: the six JSON exports other than
+#     health.json, sleep.json and workouts.json, plus llms-full.txt (EXPECTED_RESOURCE_URIS);
+#   - resources/read of focus.json (a focus document, never gated) and llms-full.txt
+#     (text, or the suppression document while hiding; an error fails, including the
+#     server refusing a copy that links a raw health export).
 node audits/checks/b2-check-wellknown.mjs
 # Expect: server card: IDENTICAL, and check-wellknown with 0 fail
 

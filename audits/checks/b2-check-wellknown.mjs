@@ -4,20 +4,30 @@
 // re-verification chore documented in docs/discovery-surface.md ("A recurring
 // issue tracks re-verification of all of the above on a monthly cadence").
 //
-// Assertions are deliberately STRUCTURAL (field presence / shape), not full
-// JSON Schema conformance against the upstream specs -- those specs are young
-// and moving (see docs/discovery-surface.md "Spec-drift watch"). Pinned
-// spec-version constants below are re-verified by the monthly T3
-// audit-spec-checklist skill (Phase 5 of the monorepo audit plan), not by
-// this script.
+// Two kinds of assertion:
 //
-// Each surface's assertions are a pure `validateXShape(json, contentType)`
-// function (testable without network); main() below is just fetch-and-call.
+// - FULL JSON Schema conformance for the documents whose upstream schema is
+//   vendored under audits/vendor/agent-discovery/ (byte-identical to commit-pinned
+//   blobs, digests in SOURCES.json): ai-catalog.json and ard.json against the ARD
+//   schemas, and the MCP server card against the SEP-2127 extension schema.
+//   b2-check-spec-currency.mjs watches those upstreams for revisions.
+// - STRUCTURAL assertions (field presence, shape, served media type) for the rest
+//   (webfinger, agent-skills/index.json, api-catalog), whose specs publish no
+//   schema this repo vendors, plus the media types a schema cannot see.
+//
+// Then a live GET of every api-catalog item, which must answer a JSON object (or,
+// while hiding, the edge focus gate's JSON suppression body), and a live MCP
+// exchange against every remote the card declares: both protocol eras, a
+// tools/call per tool, resources/list, and resources/read of the ungated focus
+// signal and llms-full.txt (see probeMcpRemotes).
+//
+// Each surface's assertions are a pure `validateX(json, contentType)` function
+// (testable without network); main() below is just fetch-and-call.
 
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import Ajv2020 from 'ajv/dist/2020.js'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
 
@@ -36,8 +46,9 @@ export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discov
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
 // this runner holds is the agent-discovery surface (webfinger, ai-catalog.json,
 // ard.json, the MCP server card at its canonical and compatibility URLs,
-// agent-skills/index.json, api-catalog) plus one live MCP exchange, none of which the
-// surface registry registers. Metadata only -- the hub reads it statically.
+// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item
+// and one live MCP exchange, none of which the surface registry registers.
+// Metadata only -- the hub reads it statically.
 export const ARTIFACTS = []
 
 // The MCP server card media type (SEP-2127) and the 2025-era protocol revision the
@@ -45,6 +56,37 @@ export const ARTIFACTS = []
 // what every deployed MCP client still sends first, and the server answers it on the
 // stateless legacy leg.
 export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
+
+// The media type ai-catalog.json is served as. A local choice: ARD §3.3 lists
+// `application/ai-catalog+json` as the entry `type` for a "nested manifest / catalog of
+// entries" (ards-project/ard-spec spec/ard.md at 9d33ea17, newer than the b76f235a pin).
+// Restated here rather than imported from functions/_lib/agent-paths.mjs, so the measurer
+// does not share the value it measures.
+export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'
+
+// The MCP resources the live server must list: every JSON export except the three the
+// LLM-channel policy withholds (health, sleep, workouts), plus llms-full.txt. Stated here
+// from the contract, independently of functions/_lib/agent-catalog.mjs, so a catalog edit
+// that exposes a withheld export, or drops one, reds the probe.
+const WITHHELD_EXPORTS = new Set([ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts])
+export const EXPECTED_RESOURCE_URIS = Object.freeze([
+  ...Object.values(ENDPOINTS).filter((path) => !WITHHELD_EXPORTS.has(path)).map((path) => `${CLOUDFRONT_BASE}${path}`),
+  `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+])
+
+// The resources the probe reads. No tool reads focus.json, so without this read the
+// ungated focus reader never runs in the deployed runtime; llms-full.txt is the one
+// resource that republishes backend text, behind the withheld-link check.
+export const FOCUS_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
+export const LLMS_FULL_RESOURCE_URI = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+
+// The api-catalog items: one per public JSON export, all nine (the catalog is developer
+// documentation, so the raw health exports are listed). Stated from the contract.
+export const EXPECTED_API_CATALOG_ITEMS = Object.freeze(Object.values(ENDPOINTS).map((path) => `${CLOUDFRONT_BASE}${path}`))
+
+// A withheld export the probe asks for by URI. The server must refuse it: listing it is a
+// fail, and so is reading it.
+export const WITHHELD_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.health}`
 export const PROBE_PROTOCOL_VERSION = '2025-11-25'
 
 // The modern revision, which the WebMCP script speaks: no handshake, a per-request
@@ -116,9 +158,19 @@ export function validateWebfingerShape(json, contentType) {
   return findings
 }
 
-/** ai-catalog.json (ARD -- Agentic Resource Discovery). Pure -- testable without network. */
-export function validateAiCatalogShape(json) {
+/**
+ * ai-catalog.json (ARD -- Agentic Resource Discovery). Pure -- testable without network.
+ * The served media type is checked when `contentType` is given.
+ */
+export function validateAiCatalogShape(json, contentType) {
   const findings = schemaFindings(validators.aiCatalog, json, 'wellknown-ai-catalog-schema', 'ai-catalog.json')
+  if (contentType !== undefined && !contentType.includes(AI_CATALOG_MEDIA_TYPE)) {
+    findings.push({
+      severity: 'fail',
+      id: 'wellknown-ai-catalog-content-type',
+      message: `expected Content-Type ${AI_CATALOG_MEDIA_TYPE}, got "${contentType}"`
+    })
+  }
   assertFields(json, ['specVersion', 'entries'], 'wellknown-ai-catalog-shape', `ai-catalog.json (ARD specVersion ${PINNED_ARD_SPEC_VERSION})`, findings)
   if (json.specVersion !== undefined && String(json.specVersion) !== PINNED_ARD_SPEC_VERSION) {
     findings.push({
@@ -291,6 +343,72 @@ export function judgeModernExchange({discover, calls, card}) {
 }
 
 /**
+ * Judge resources/list and the resources/read answers. Pure -- testable without network.
+ *
+ * - The list must be exactly EXPECTED_RESOURCE_URIS: a missing resource, and above all a
+ *   withheld export that appears, both fail.
+ * - focus.json must read as a focus document (a string `currentFocus`). The edge never
+ *   gates it, so a suppression document there is a fail too.
+ * - llms-full.txt must read as text, or as the suppression document during a hiding focus
+ *   mode. An error fails, which includes the server refusing a copy that links a withheld
+ *   export. Text that names a withheld path fails too: the probe does not trust the
+ *   server's own refusal.
+ * - A read of a withheld export must answer an error, never content.
+ */
+export function judgeResourceExchange({list, reads}) {
+  const findings = []
+  const listed = Array.isArray(list?.result?.resources) ? list.result.resources.map((resource) => resource.uri) : undefined
+  const expected = [...EXPECTED_RESOURCE_URIS].sort()
+  if (!listed || JSON.stringify([...listed].sort()) !== JSON.stringify(expected)) {
+    findings.push({
+      severity: 'fail',
+      id: 'mcp-resources-list',
+      message: `resources/list returned ${JSON.stringify(listed ?? list).slice(0, 400)}; expected the ${expected.length} URIs ${expected.join(', ')}`
+    })
+  }
+  for (const {uri, response} of reads) {
+    if (uri === WITHHELD_RESOURCE_URI) {
+      if (response?.error === undefined) {
+        findings.push({
+          severity: 'fail',
+          id: 'mcp-withheld-readable',
+          message: `resources/read ${uri} did not answer an error: ${JSON.stringify(response).slice(0, 300)}`
+        })
+      }
+      continue
+    }
+    const content = response?.result?.contents?.[0]
+    const text = typeof content?.text === 'string' ? content.text : undefined
+    let problem
+    if (text === undefined || content.uri !== uri) {
+      problem = `no content for ${uri}`
+    } else if (uri === FOCUS_RESOURCE_URI) {
+      let focus
+      try {
+        focus = JSON.parse(text)
+      } catch {
+        focus = undefined
+      }
+      if (typeof focus?.currentFocus !== 'string') {
+        problem = 'focus.json did not read as a focus document'
+      }
+    } else if (text.trim() === '') {
+      problem = `${uri} read empty`
+    } else if ([...WITHHELD_EXPORTS].some((path) => text.includes(path))) {
+      problem = `${uri} names a withheld export (${[...WITHHELD_EXPORTS].filter((path) => text.includes(path)).join(', ')})`
+    }
+    if (problem) {
+      findings.push({
+        severity: 'fail',
+        id: 'mcp-resource-read',
+        message: `resources/read ${uri} failed: ${problem}: ${JSON.stringify(response).slice(0, 300)}`
+      })
+    }
+  }
+  return findings
+}
+
+/**
  * The live MCP exchange, against every streamable-http remote the card declares, in
  * both protocol eras the server answers:
  *
@@ -298,7 +416,9 @@ export function judgeModernExchange({discover, calls, card}) {
  *   deployed MCP clients send first.
  * - 2026-07-28: server/discover, then tools/call for every listed tool. This is the
  *   path public/js/webmcp.js uses, and the calls run a focus-gated read in the
- *   deployed runtime.
+ *   deployed runtime. Then resources/list (exactly the expected URIs) and
+ *   resources/read of focus.json and llms-full.txt: no tool reads focus.json, so this
+ *   read is the only one that runs the ungated focus reader in the deployed runtime.
  *
  * `measured` counts each era's exchange that returned parseable JSON-RPC, judged or not.
  */
@@ -333,8 +453,16 @@ export async function probeMcpRemotes(card, post = postMcp) {
         const callRequest = modernRequest(4 + index, 'tools/call', {name, arguments: {}}, name)
         calls.push({name, response: await post(url, callRequest.message, callRequest.headers)})
       }
+      const listRequest = modernRequest(100, 'resources/list')
+      const list = await post(url, listRequest.message, listRequest.headers)
+      const reads = []
+      for (const [index, uri] of [FOCUS_RESOURCE_URI, LLMS_FULL_RESOURCE_URI, WITHHELD_RESOURCE_URI].entries()) {
+        const readRequest = modernRequest(101 + index, 'resources/read', {uri}, uri)
+        reads.push({uri, response: await post(url, readRequest.message, readRequest.headers)})
+      }
       measured++
       findings.push(...judgeModernExchange({discover, calls, card}).map(tag(url)))
+      findings.push(...judgeResourceExchange({list, reads}).map(tag(url)))
     } catch (err) {
       findings.push({severity: 'fail', id: 'mcp-modern-unreachable', message: `${url}: ${err instanceof Error ? err.message : String(err)}`})
     }
@@ -412,6 +540,108 @@ export function validateApiCatalogShape(json, contentType) {
     findings.push({severity: 'fail', id: 'wellknown-api-catalog-no-service-desc', message: 'api-catalog describes no API with a "service-desc" link'})
   }
   return findings
+}
+
+/** The `item` hrefs of an api-catalog linkset, in document order. */
+export function apiCatalogItems(json) {
+  return Array.isArray(json?.linkset) ? json.linkset.flatMap((entry) => (Array.isArray(entry.item) ? entry.item : [])).map((item) => item?.href) : []
+}
+
+/**
+ * Judge the item set. Pure -- testable without network. The items must be exactly
+ * EXPECTED_API_CATALOG_ITEMS, and each must carry a `service-desc` in its own linkset entry.
+ */
+export function judgeApiCatalogItems(json) {
+  const findings = []
+  const items = apiCatalogItems(json)
+  if (JSON.stringify([...items].sort()) !== JSON.stringify([...EXPECTED_API_CATALOG_ITEMS].sort())) {
+    findings.push({
+      severity: 'fail',
+      id: 'wellknown-api-catalog-items',
+      message: `api-catalog items are ${JSON.stringify(items)}; expected the ${EXPECTED_API_CATALOG_ITEMS.length} JSON exports ${
+        EXPECTED_API_CATALOG_ITEMS.join(', ')
+      }`
+    })
+  }
+  for (const href of items) {
+    const entry = json.linkset.find((candidate) => candidate.anchor === href)
+    if (!Array.isArray(entry?.['service-desc']) || entry['service-desc'].length === 0) {
+      findings.push({
+        severity: 'fail',
+        id: 'wellknown-api-catalog-item-no-service-desc',
+        message: `api-catalog item ${href} has no linkset entry with a "service-desc"`
+      })
+    }
+  }
+  return findings
+}
+
+/**
+ * Judge one item's live answer. Pure -- testable without network. An item must answer JSON:
+ *
+ * - a 2xx `application/json` body that is a JSON object (every export is one); or
+ * - while a hiding focus mode is active, the edge focus gate's suppression answer: 403,
+ *   `application/json`, `{"suppressed": true, "reason": "<string>"}`. Never for focus.json,
+ *   which the edge gate never suppresses (mantle-LifegamesPortal src/edge/focus-gate.js).
+ *
+ * Anything else fails: above all the S3 XML `AccessDenied` 403 the CloudFront root answered
+ * when it was the item, and any redirect (the exports are direct S3 keys).
+ */
+export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
+  let json
+  try {
+    json = JSON.parse(body)
+  } catch {
+    json = undefined
+  }
+  const jsonType = /^application\/json\b/i.test(contentType)
+  const object = json !== null && typeof json === 'object'
+  if (status >= 200 && status < 300 && jsonType && object) {
+    return []
+  }
+  if (status === 403 && jsonType && href !== FOCUS_RESOURCE_URI && json?.suppressed === true && typeof json.reason === 'string') {
+    return []
+  }
+  return [{
+    severity: 'fail',
+    id: 'wellknown-api-catalog-item-not-json',
+    message: `api-catalog item ${href} answered HTTP ${status} ${contentType || '(no Content-Type)'}, not a JSON export or suppression: ${
+      String(body).slice(0, 120)
+    }`
+  }]
+}
+
+/** Fetch every api-catalog item and judge its answer. `measured` counts the items whose answer was held. */
+export async function probeApiCatalogItems(json, get = fetchStable) {
+  const findings = judgeApiCatalogItems(json)
+  let measured = 0
+  for (const href of apiCatalogItems(json)) {
+    let answer
+    try {
+      const res = await get(href, {headers: {Accept: 'application/json'}, redirect: 'manual'})
+      answer = {href, status: res.status, contentType: res.headers.get('content-type') || '', body: await res.text()}
+    } catch (err) {
+      findings.push({
+        severity: 'fail',
+        id: 'wellknown-api-catalog-item-unreachable',
+        message: `api-catalog item ${href}: ${err instanceof Error ? err.message : String(err)}`
+      })
+      continue
+    }
+    measured++
+    findings.push(...judgeApiCatalogItemAnswer(answer))
+  }
+  return {measured, findings}
+}
+
+/** The api-catalog: its shape and media type, then a live answer from every item. */
+async function checkApiCatalog(base) {
+  const catalog = await fetchJson(`${base}/.well-known/api-catalog`)
+  if (catalog.error) {
+    return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-api-catalog-fetch', message: catalog.error}]}
+  }
+  const items = await probeApiCatalogItems(catalog.json)
+  return {measured: 1 + items.measured, findings: [...validateApiCatalogShape(catalog.json, catalog.contentType), ...items.findings]}
 }
 
 // Never throws -- every expected failure mode (network error, non-2xx, bad
@@ -523,7 +753,7 @@ async function main() {
     // The compatibility copy, judged on schema only: it is served as plain JSON.
     fetchAndValidate(`${base}/.well-known/mcp/server-card.json`, (json) => validateMcpServerCard(json), 'wellknown-mcp-server-card-compat-fetch'),
     fetchAndValidate(`${base}/.well-known/agent-skills/index.json`, validateAgentSkillsIndexShape, 'wellknown-agent-skills-fetch'),
-    fetchAndValidate(`${base}/.well-known/api-catalog`, validateApiCatalogShape, 'wellknown-api-catalog-fetch'),
+    checkApiCatalog(base),
     checkMcpChain(base)
   ])
   const results = settled.map((result) => {
@@ -533,9 +763,10 @@ async function main() {
     const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
-  // One per discovery artifact held and judged, plus one per MCP remote and protocol era
-  // that answered. A partial sweep is a finding; reaching none of them is the darkness
-  // the dead-man reports.
+  // One per discovery artifact held and judged, plus one per api-catalog item whose
+  // answer was held and judged, plus one per MCP remote and protocol era that answered.
+  // A partial sweep is a finding; reaching none of them is the darkness the dead-man
+  // reports.
   const measured = results.reduce((total, r) => total + r.measured, 0)
   process.exit(report('check-wellknown', results.flatMap((r) => r.findings), measured))
 }
