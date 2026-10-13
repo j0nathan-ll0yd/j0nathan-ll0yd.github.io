@@ -18,6 +18,11 @@ jobs:
   preview:
     # Same runner class as deploy.yml.
     runs-on: [self-hosted, linux, arm64, node]
+    # GitHub gives Dependabot-triggered and fork runs no Actions secrets. Gate the
+    # deploy on the token itself, not the actor name, so the build still runs for
+    # every actor and only the deploy is skipped.
+    env:
+      HAS_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
 
     steps:
       - name: Checkout
@@ -50,8 +55,13 @@ jobs:
         # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
         run: pnpm build --json
 
+      - name: Note skipped preview deploy
+        if: env.HAS_CF_TOKEN != 'true'
+        run: echo "Preview deploy skipped because the run has no CLOUDFLARE_API_TOKEN (GitHub gives Dependabot-triggered runs no Actions secrets)." >> "$GITHUB_STEP_SUMMARY"
+
       - name: Deploy preview to Cloudflare Pages
         id: deploy
+        if: env.HAS_CF_TOKEN == 'true'
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -59,4 +69,5 @@ jobs:
           command: pages deploy dist --project-name=human-datastream --branch=${{ github.head_ref }}
 
       - name: Echo preview URL
+        if: env.HAS_CF_TOKEN == 'true'
         run: echo "Preview deployed to ${{ steps.deploy.outputs.deployment-url }}"
