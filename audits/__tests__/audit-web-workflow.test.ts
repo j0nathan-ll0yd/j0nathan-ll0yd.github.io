@@ -87,17 +87,6 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).toContain('SECURITY_TXT_OUTCOME: ${{ steps.security_txt.outcome }}')
   })
 
-  it('routes B6 analytics to the reconciler through its tri-state issue_outcome, never the step outcome', () => {
-    // An UNMEASURED Stats API read exits 0, so the step outcome is `success` and used to close
-    // issue #149 as "Recovery confirmed" although the ingestion arm never ran (atlas 0104, 0142).
-    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_ISSUE_OUTCOME}")
-    expect(workflow).toContain('ANALYTICS_ISSUE_OUTCOME: ${{ steps.analytics.outputs.issue_outcome }}')
-    // A missing output must reach the reconciler as empty (indeterminate), never be defaulted.
-    expect(workflow).not.toMatch(/steps\.analytics\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
-    // The dead-man ping reads `steps.analytics.outcome` on purpose; the reconciler must not.
-    expect(reconcilerScript).not.toMatch(/steps\.analytics\.outcome\b/)
-  })
-
   // covers: llms-txt#Raw and canonical llms artifacts stay coherent
   it('preserves the merged llms command failure for its managed issue bucket', () => {
     const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- Cloudflare)/)?.[0] ??
@@ -180,6 +169,17 @@ describe('audit-web issue reconciliation wiring', () => {
       expect(runBlock(step.body)).toContain('if [ "$FOCUS_SUPPRESSED" = "true" ]; then')
       expect(runBlock(step.body)).toContain('$FOCUS_REASON')
     }
+  })
+
+  it('routes B6 analytics to the reconciler through its tri-state issue_outcome, never the step outcome', () => {
+    // An UNMEASURED Stats API read exits 0, so the step outcome is `success` and used to close
+    // issue #149 as "Recovery confirmed" although the ingestion arm never ran (atlas 0104, 0142).
+    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_ISSUE_OUTCOME}")
+    expect(workflow).toContain('ANALYTICS_ISSUE_OUTCOME: ${{ steps.analytics.outputs.issue_outcome }}')
+    // A missing output must reach the reconciler as empty (indeterminate), never be defaulted.
+    expect(workflow).not.toMatch(/steps\.analytics\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+    // The dead-man ping reads `steps.analytics.outcome` on purpose; the reconciler must not.
+    expect(reconcilerScript).not.toMatch(/steps\.analytics\.outcome\b/)
   })
 })
 
