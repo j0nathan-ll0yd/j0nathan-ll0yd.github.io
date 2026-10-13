@@ -171,6 +171,11 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
   if (url.pathname === '/sw.js' || url.pathname === '/version.json') {
     headers.set('Cache-Control', 'max-age=0, no-store')
   }
+  // Pages served sw.js as application/javascript. On Workers it runs the Worker (run_worker_first),
+  // and the ASSETS binding is not documented to apply the `_headers` `/*.js` rule, so set it here.
+  if (url.pathname === '/sw.js') {
+    headers.set('Content-Type', 'application/javascript')
+  }
 
   // Homepage: disable CDN caching so content negotiation always works
   // (Cloudflare edge cache bypasses Functions on cache HITs,
@@ -198,7 +203,8 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
 
   // The proxy machinery composes GET bodies; a negotiated HEAD must not carry one.
   // Suppression responses already null theirs; this covers the success and error paths.
-  // (Pass-through responses keep their body: context.next() already honors HEAD.)
+  // (Pass-through responses keep their body: src/worker.ts hands HEAD to the ASSETS binding and
+  // the Astro endpoints as HEAD, and both answer it without one.)
   const body = negotiated && request.method === 'HEAD' ? null : response.body
   return new Response(body, {status: response.status, statusText: response.statusText, headers})
 }

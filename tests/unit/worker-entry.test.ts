@@ -2,33 +2,52 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {CSP, LINK_HEADER} from '../../src/lib/edge/middleware'
 import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers'
 
-// src/worker.ts routes each request the way Pages routed it (atlas decision 0160, PR A). The Astro
-// handler is the adapter's, so it is replaced here by a stub that records the request it got and
-// answers like the ASSETS binding: 200 for a known file, the 404 page for anything else.
+// src/worker.ts routes each request the way Pages routed it (atlas decision 0160, PR A). Astro's
+// handler serves only the route endpoints, so it is replaced by a stub that records each request.
+// The ASSETS binding is a fake that answers like the static-asset plane: the file for a known path,
+// 404 otherwise, and the 404 page with the `_headers` CSP of its own path.
 
 const handled: Request[] = []
-const KNOWN_FILES = new Set(['/', '/privacy', '/llms.txt'])
+const assetRequests: Request[] = []
+const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js'])
 
 vi.mock('@astrojs/cloudflare/handler', () => ({
   handle: vi.fn(async (request: Request) => {
     handled.push(request)
-    const {pathname} = new URL(request.url)
-    if (KNOWN_FILES.has(pathname)) {
-      return new Response(`file ${pathname}`, {
-        status: 200,
-        headers: {'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=0, must-revalidate'}
-      })
-    }
-    // The 404 page comes back through the ASSETS binding with the `_headers` CSP of its own path.
-    return new Response('not found page', {status: 404, headers: {'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP}})
+    return new Response(`route ${new URL(request.url).pathname}`, {status: 200, headers: {'Content-Type': 'text/plain; charset=utf-8'}})
   })
 }))
 
 const {default: worker} = await import('../../src/worker')
 
+const ASSETS = {
+  async fetch(input: Request | URL | string): Promise<Response> {
+    const request = input instanceof Request ? input : new Request(input)
+    assetRequests.push(request)
+    const {pathname} = new URL(request.url)
+    if (pathname === '/404') {
+      return new Response('not found page', {
+        status: 200,
+        headers: {'Content-Type': 'text/html; charset=utf-8', ETag: '"page"', 'Content-Security-Policy': CSP}
+      })
+    }
+    if (!KNOWN_FILES.has(pathname)) {
+      return new Response(null, {status: 404})
+    }
+    if (request.headers.get('If-None-Match') === '"v1"') {
+      return new Response(null, {status: 304, headers: {ETag: '"v1"'}})
+    }
+    const body = request.method === 'HEAD' ? null : `file ${pathname}`
+    return new Response(body, {
+      status: 200,
+      headers: {'Content-Type': 'text/html; charset=utf-8', ETag: '"v1"', 'Cache-Control': 'public, max-age=0, must-revalidate'}
+    })
+  }
+}
+
 const context = {waitUntil: () => {}, passThroughOnException: () => {}, props: {}}
-// The stub ignores the environment; the Worker passes it through untouched.
-const env = {} as Parameters<typeof worker.fetch>[1]
+// The Worker reads only the ASSETS binding from its environment.
+const env = {ASSETS} as unknown as Parameters<typeof worker.fetch>[1]
 
 function request(path: string, init: RequestInit = {}): Promise<Response> {
   return worker.fetch(new Request(`https://jonathanlloyd.me${path}`, init), env, context as Parameters<typeof worker.fetch>[2])
@@ -36,6 +55,7 @@ function request(path: string, init: RequestInit = {}): Promise<Response> {
 
 beforeEach(() => {
   handled.length = 0
+  assetRequests.length = 0
 })
 
 afterEach(() => {
@@ -51,11 +71,46 @@ describe('static-asset plane, through the Worker', () => {
     expect(response.headers.get(SITE_RUNTIME_HEADER)).toBe(SITE_RUNTIME)
   })
 
-  it('answers an unknown path with the 404 page, no-store', async () => {
+  it('answers an unknown path with the 404 page body, status 404, no-store, no ETag', async () => {
     const response = await request('/no-such-page')
     expect(response.status).toBe(404)
+    expect(await response.text()).toBe('not found page')
     expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('ETag')).toBeNull()
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(handled).toHaveLength(0)
+  })
+
+  it('answers an unknown path with a trailing slash with the 404 page, never a redirect', async () => {
+    const response = await request('/no-such-page/')
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Location')).toBeNull()
+    expect(handled).toHaveLength(0)
+  })
+
+  it('answers HEAD on an unknown path with a bodiless 404', async () => {
+    const response = await request('/no-such-page', {method: 'HEAD'})
+    expect(response.status).toBe(404)
+    expect(await response.text()).toBe('')
+  })
+
+  it('passes the request itself to the ASSETS binding, so a conditional request can answer 304', async () => {
+    const response = await request('/', {headers: {'If-None-Match': '"v1"'}})
+    expect(response.status).toBe(304)
+    expect(assetRequests[0].headers.get('If-None-Match')).toBe('"v1"')
+  })
+
+  it('passes HEAD to the ASSETS binding as HEAD', async () => {
+    const response = await request('/privacy', {method: 'HEAD'})
+    expect(response.status).toBe(200)
+    expect(assetRequests.map((r) => r.method)).toEqual(['HEAD'])
+    expect(await response.text()).toBe('')
+  })
+
+  it('serves sw.js as application/javascript, no-store, as Pages did', async () => {
+    const response = await request('/sw.js')
+    expect(response.headers.get('Content-Type')).toBe('application/javascript')
+    expect(response.headers.get('Cache-Control')).toBe('max-age=0, no-store')
   })
 
   it.each(['POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])('answers %s on a page with an empty 405, never the file', async (method) => {
@@ -89,6 +144,7 @@ describe('static-asset plane, through the Worker', () => {
 describe('route paths, under the Pages matching rules', () => {
   it('hands a route request to Astro without the asset-plane CORS header', async () => {
     const response = await request('/llms.txt')
+    expect(assetRequests).toHaveLength(0)
     expect(handled.map((r) => new URL(r.url).pathname)).toEqual(['/llms.txt'])
     expect(response.headers.get('Access-Control-Allow-Origin')).toBeNull()
     expect(response.headers.get('Content-Security-Policy')).toBe(CSP)
@@ -108,6 +164,7 @@ describe('route paths, under the Pages matching rules', () => {
     const response = await request('/api/csp-report')
     expect(response.status).toBe(404)
     expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(handled).toHaveLength(0)
   })
 
   it('sends a PUT on the POST-only CSP collector to an empty 405, never to Astro', async () => {
@@ -119,5 +176,27 @@ describe('route paths, under the Pages matching rules', () => {
   it('hands a POST on the CSP collector to Astro', async () => {
     await request('/api/csp-report', {method: 'POST', headers: {'Content-Type': 'application/csp-report'}, body: '{}'})
     expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['POST /api/csp-report'])
+  })
+})
+
+describe('analytics routes on a local run', () => {
+  function local(path: string, init: RequestInit = {}): Promise<Response> {
+    return worker.fetch(new Request(`http://localhost:4321${path}`, init), env, context as Parameters<typeof worker.fetch>[2])
+  }
+
+  it.each(['/sa', '/cf-insights.js', '/cf-rum', '/simple', '/simple/simple.gif', '/simple/append'])(
+    'answers %s with a 404 on localhost and never reaches Astro',
+    async (path) => {
+      const response = await local(path, {method: path === '/simple/append' ? 'POST' : 'GET'})
+      expect(response.status).toBe(404)
+      expect(handled).toHaveLength(0)
+    }
+  )
+
+  it('still serves the other routes and every analytics route on a deployed hostname', async () => {
+    await local('/llms.txt')
+    await request('/sa')
+    await request('/simple/simple.gif')
+    expect(handled.map((r) => new URL(r.url).pathname)).toEqual(['/llms.txt', '/sa', '/simple/simple.gif'])
   })
 })

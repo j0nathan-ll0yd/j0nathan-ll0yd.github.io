@@ -7,7 +7,7 @@
 // had on Pages. The Worker does not need it: wrangler.jsonc sets `nodejs_compat`, which provides
 // `process`. This plugin clears the banner for the `client` environment only.
 //
-// tests/build/client-bundle.test.ts fails if any built client chunk starts with the banner again.
+// tests/build/worker-output.test.ts fails if any built client chunk starts with the banner again.
 
 export const PROCESS_BANNER_MARKER = 'globalThis.process'
 

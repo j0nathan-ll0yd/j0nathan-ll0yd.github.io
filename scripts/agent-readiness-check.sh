@@ -3,7 +3,7 @@
 # Tests all 12 checks from isitagentready.com against a target URL.
 # Usage: ./scripts/agent-readiness-check.sh [URL] [BUILD_DIR]
 #   URL       - Site to test (default: https://jonathanlloyd.me)
-#   BUILD_DIR - Local build output to test (default: none, uses live URL)
+#   BUILD_DIR - Local static-asset output to test, dist/client (default: none, uses live URL)
 #
 # When BUILD_DIR is provided, tests are run against local files via
 # a temporary HTTP server. This catches deployment issues before pushing.
@@ -78,7 +78,7 @@ if [ -n "$BUILD_DIR" ]; then
   echo -e "${BOLD}Testing local build: ${BUILD_DIR}${NC}"
   if [ ! -d "$BUILD_DIR" ]; then
     echo -e "${RED}Error: Build directory '${BUILD_DIR}' not found.${NC}"
-    echo "Run 'pnpm build' first, then: $0 https://example.com ./dist"
+    echo "Run 'pnpm build' first, then: $0 https://example.com ./dist/client"
     exit 1
   fi
   # Strip trailing slash
@@ -217,8 +217,9 @@ fi
 # --- Check 6: Content-Usage HTTP response header ---
 log_section "Check 6: Content-Usage HTTP response header"
 if [ -n "$BUILD_DIR" ]; then
-  middleware_path="${SCRIPT_DIR}/../functions/_middleware.ts"
-  static_headers_path="${SCRIPT_DIR}/../public/_headers"
+  # The one header-policy module (atlas decision 0160, PR A) and the _headers file the build writes from it.
+  middleware_path="${SCRIPT_DIR}/../src/lib/edge/security-headers.ts"
+  static_headers_path="${BUILD_DIR}/_headers"
   middleware_usage=$(sed -nE "s/^[[:space:]]*export const CONTENT_USAGE = ['\"]([^'\"]+)['\"][[:space:]]*$/\1/p" "$middleware_path" | head -1)
   static_usage=$(awk '
     $0 == "/*" { in_wildcard = 1; next }

@@ -7,19 +7,31 @@
 //    functions/_middleware.ts wrapped every response on the paths Pages routed to Functions.
 // 2. A route path reaches its Astro endpoint under the Pages matching rules (src/lib/edge/routes.ts):
 //    a trailing slash still matches, and the catch-all still answers its bare directory.
-// 3. Every other request goes where the Pages static-asset plane sent it. GET and HEAD reach the
-//    Astro handler, which serves the file or the 404 page. Any other method answers 405, empty.
-//    These responses carry the static-asset plane's header policy (src/lib/edge/security-headers.ts).
+// 3. Every other request goes where the Pages static-asset plane sent it. GET and HEAD go to the
+//    ASSETS binding, which serves the file, or the Worker serves the 404 page. Any other method
+//    answers 405, empty. Astro handles only the route endpoints. These responses carry the
+//    static-asset plane's header policy (src/lib/edge/security-headers.ts).
 // 4. A code-free path (public/_routes.json excluded it from Functions on Pages) skips the
 //    middleware and carries only the static-asset plane's policy, as it did on Pages.
+// 5. On a loopback host only (a local `astro preview` or `wrangler dev`), the analytics routes
+//    answer 404, as the static preview did before PR A, so no test run reaches an upstream.
 
 import {handle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
-import {matchEdgeRoute, routeHandles} from './lib/edge/routes'
+import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
 import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath} from './lib/edge/security-headers'
 
 type AstroEnv = Parameters<typeof handle>[1]
 type AstroContext = Parameters<typeof handle>[2]
+
+/** The static-asset binding: wrangler.jsonc `assets.binding`. */
+interface AssetsBinding {
+  fetch(input: Request | URL | string): Promise<Response>
+}
+type WorkerEnv = AstroEnv & {ASSETS: AssetsBinding}
+
+/** The 404 page, as the build writes it (src/pages/404.astro). */
+const NOT_FOUND_PAGE_PATH = '/404'
 
 /** The status and body Pages answered for a method its static-asset plane does not serve. */
 function methodNotAllowed(): Response {
@@ -27,8 +39,8 @@ function methodNotAllowed(): Response {
 }
 
 /**
- * Adds the static-asset plane's headers to a response that the Astro handler took from the
- * ASSETS binding or rendered as the 404 page. `_headers` does not apply to a Worker response.
+ * Adds the static-asset plane's headers to a response the Worker took from the ASSETS binding.
+ * Pages added them to every static-asset response; a Worker response gets none from `_headers`.
  */
 function withAssetPlaneHeaders(response: Response, codeFree: boolean): Response {
   const headers = new Headers(response.headers)
@@ -39,23 +51,44 @@ function withAssetPlaneHeaders(response: Response, codeFree: boolean): Response 
     for (const [name, value] of BASE_SECURITY_HEADERS) {
       headers.set(name, value)
     }
-    // The 404 page reaches here through the ASSETS binding, and `_headers` gave it the CSP trio
-    // for its own path. Pages served a code-free path without it.
+    // The 404 page comes through the ASSETS binding, which can apply `_headers` for its own path
+    // and so add the CSP trio. Pages served a code-free path without it.
     for (const [name] of CSP_HEADERS) {
       headers.delete(name)
     }
   }
-  // Pages answered its 404 page with no-store, so no cache keeps a 404 for a path that later exists.
-  if (response.status === 404) {
-    headers.set('Cache-Control', 'no-store')
-  }
   return new Response(response.body, {status: response.status, statusText: response.statusText, headers})
 }
 
+/**
+ * Serves a GET or HEAD the way the Pages static-asset plane did. The request itself goes to the
+ * ASSETS binding, so its method and its conditional and Range headers reach the asset server (a 304
+ * stays a 304, a HEAD stays bodiless). A path with no file gets the 404 page with status 404,
+ * no-store, and no ETag, as Pages answered it. Astro never sees these requests: its router would
+ * redirect an unknown `/x/` (trailing slash) and reject a malformed escape with 400, where Pages
+ * answered 404.
+ */
+async function fromAssets(request: Request, env: WorkerEnv, codeFree: boolean): Promise<Response> {
+  const asset = await env.ASSETS.fetch(request)
+  if (asset.status !== 404) {
+    return withAssetPlaneHeaders(asset, codeFree)
+  }
+  const page = await env.ASSETS.fetch(new URL(NOT_FOUND_PAGE_PATH, request.url))
+  const headers = new Headers(page.headers)
+  headers.delete('ETag')
+  headers.set('Cache-Control', 'no-store')
+  const body = request.method === 'HEAD' ? null : page.body
+  return withAssetPlaneHeaders(new Response(body, {status: 404, headers}), codeFree)
+}
+
 /** Routes one request the way Pages routed it, before the middleware wraps the response. */
-async function route(request: Request, env: AstroEnv, context: AstroContext, codeFree: boolean): Promise<Response> {
+async function route(request: Request, env: WorkerEnv, context: AstroContext, codeFree: boolean): Promise<Response> {
   const url = new URL(request.url)
   const edgeRoute = codeFree ? undefined : matchEdgeRoute(url.pathname)
+  if (edgeRoute && isLocalAnalyticsRequest(edgeRoute, url)) {
+    // Local runs only (see isLocalAnalyticsRequest): no test page may reach an analytics upstream.
+    return new Response('Not found', {status: 404, headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store'}})
+  }
   if (edgeRoute && routeHandles(edgeRoute, request.method)) {
     // Astro matches the route path exactly; Pages also matched it with a trailing slash.
     if (url.pathname.length > 1 && url.pathname.endsWith('/')) {
@@ -67,11 +100,11 @@ async function route(request: Request, env: AstroEnv, context: AstroContext, cod
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return withAssetPlaneHeaders(methodNotAllowed(), codeFree)
   }
-  return withAssetPlaneHeaders(await handle(request, env, context), codeFree)
+  return fromAssets(request, env, codeFree)
 }
 
 /** The Worker's request handler. */
-async function serve(request: Request, env: AstroEnv, context: AstroContext): Promise<Response> {
+async function serve(request: Request, env: WorkerEnv, context: AstroContext): Promise<Response> {
   const codeFree = isCodeFreePath(new URL(request.url).pathname)
   if (codeFree) {
     return route(request, env, context, true)

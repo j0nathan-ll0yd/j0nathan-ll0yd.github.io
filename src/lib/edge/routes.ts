@@ -16,6 +16,8 @@ export interface EdgeRoute {
   readonly catchAll?: boolean
   /** The methods the route handles. Absent: every method (a Pages `onRequest`). */
   readonly methods?: readonly string[]
+  /** True for a first-party analytics route: it forwards to Simple Analytics or Cloudflare RUM. */
+  readonly analytics?: boolean
 }
 
 export const EDGE_ROUTES: readonly EdgeRoute[] = Object.freeze([
@@ -24,12 +26,28 @@ export const EDGE_ROUTES: readonly EdgeRoute[] = Object.freeze([
   {path: '/index.md'},
   {path: '/feed.xml'},
   {path: '/feed.json'},
-  {path: '/sa'},
-  {path: '/cf-insights.js'},
-  {path: '/cf-rum'},
+  {path: '/sa', analytics: true},
+  {path: '/cf-insights.js', analytics: true},
+  {path: '/cf-rum', analytics: true},
   {path: '/api/csp-report', methods: ['POST']},
-  {path: '/simple', catchAll: true}
+  {path: '/simple', catchAll: true, analytics: true}
 ])
+
+/**
+ * Hostnames that only a local run serves: `astro preview` (the visual and behavioral suites) and
+ * `wrangler dev`. Cloudflare never serves one, so no deployed request reaches this branch.
+ */
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+
+/**
+ * True when a local run must not reach an analytics upstream. The Simple Analytics script is baked
+ * with the production hostname, so a test page that loaded it would record pageviews as
+ * jonathanlloyd.me. Before PR A the suites ran on a static preview, where these routes answered 404;
+ * src/worker.ts keeps that.
+ */
+export function isLocalAnalyticsRequest(route: EdgeRoute, url: URL): boolean {
+  return route.analytics === true && LOOPBACK_HOSTNAMES.has(url.hostname)
+}
 
 /** The route a pathname reaches under the Pages matching rules, or undefined. */
 export function matchEdgeRoute(pathname: string): EdgeRoute | undefined {

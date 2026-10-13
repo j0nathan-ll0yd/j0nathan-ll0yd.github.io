@@ -12,7 +12,8 @@
  * still sets the long cache on the production hostname).
  *
  * `_redirects` keeps the Pages 308 for the `.html` and trailing-slash forms of each page
- * (scripts/lib/redirects.mjs). tests/build/static-plane-rules.test.ts checks both files. */
+ * (scripts/lib/redirects.mjs). tests/unit/static-plane-rules.test.ts checks the rendering, and
+ * tests/build/worker-output.test.ts checks the written files. */
 import {readdirSync, writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {renderHeadersFile} from '../src/lib/edge/security-headers.ts'

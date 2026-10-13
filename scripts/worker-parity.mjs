@@ -17,6 +17,9 @@
  *     [--candidate-header 'CF-Access-Client-Id: ...'] [--json out.json]
  * Access credentials may come from CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET instead.
  *
+ * A loopback candidate (`wrangler dev`, `astro preview`) answers the analytics routes with 404 by
+ * design (src/lib/edge/routes.ts isLocalAnalyticsRequest), so compare those on a Version URL.
+ *
  * Exit 0 when every case matches, 1 otherwise. Read-only on the baseline: GET, HEAD, OPTIONS,
  * a POST and a PUT that the baseline rejects (405 or 415) without side effects. No request reaches
  * the Simple Analytics collector or the Web Analytics collector with a payload. */
@@ -53,6 +56,18 @@ const PER_REQUEST_HEADERS = new Set(['x-proxy-upstream-request-id'])
 /** The one intended difference (plan Step 3.1). */
 export const INTENDED_CANDIDATE_HEADERS = new Map([['x-site-runtime', 'workers']])
 
+/**
+ * Headers a Workers 304 carries and a Pages 304 omitted. RFC 9110 section 15.4.5 requires a 304 to
+ * send the Cache-Control a 200 would have sent; the Workers asset server sends it and the content
+ * type, Pages sent neither. The static plane answers these without the Worker, so the site cannot
+ * change them; they are a platform difference, reported as allowed, not as a match.
+ */
+export const ALLOWED_304_CANDIDATE_HEADERS = new Set(['cache-control', 'content-type'])
+
+/** Hostnames of a local candidate, which answers the analytics routes with 404 by design. */
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
+const ANALYTICS_PATHS = ['/sa', '/cf-insights.js', '/cf-rum', '/simple']
+
 const HTML = 'text/html'
 const MARKDOWN = 'text/markdown'
 
@@ -75,6 +90,16 @@ export const CASES = [
   {path: '/no-such-page', method: 'GET', accept: MARKDOWN, body: 'exact'},
   {path: '/no-such-page', method: 'HEAD', accept: HTML, body: 'none'},
   {path: '/_astro/no-such-file.js', method: 'GET', accept: HTML, body: 'exact'},
+  // An unknown path with a trailing slash, a malformed escape, and a slash after a file: Pages
+  // answered each with the 404 page, never a redirect or a 400.
+  {path: '/no-such-page/', method: 'GET', accept: HTML, body: 'exact'},
+  {path: '/no-such-page/', method: 'HEAD', accept: HTML, body: 'none'},
+  {path: '/%2561bc', method: 'GET', accept: HTML, body: 'exact'},
+  {path: '/sw.js/', method: 'GET', accept: HTML, body: 'none'},
+  // Revalidation: each side gets its own ETag back as If-None-Match and must answer 304.
+  {path: '/', method: 'GET', accept: HTML, body: 'none', conditional: true},
+  {path: '/privacy', method: 'GET', accept: HTML, body: 'none', conditional: true},
+  {path: '/js/clock.js', method: 'GET', accept: HTML, body: 'none', conditional: true},
   {path: '/focus.json', method: 'GET', accept: HTML, body: 'exact'},
   // Methods the static-asset plane does not serve.
   {path: '/', method: 'POST', accept: HTML, body: 'none'},
@@ -115,6 +140,7 @@ export const CASES = [
   // The CSP collector: POST only. GET falls through to the 404 page, PUT to a 405, and a POST
   // with an unaccepted content type answers 415 without logging a report.
   {path: '/api/csp-report', method: 'GET', accept: HTML, body: 'exact'},
+  {path: '/api/csp-report/', method: 'GET', accept: HTML, body: 'exact'},
   {path: '/api/csp-report', method: 'PUT', accept: HTML, body: 'none'},
   {path: '/api/csp-report', method: 'POST', accept: HTML, body: 'none', contentType: 'text/plain', payload: 'parity-probe'}
 ]
@@ -148,6 +174,15 @@ function headerMap(response) {
 
 async function probe(base, testCase, extraHeaders) {
   const headers = {Accept: testCase.accept, ...extraHeaders}
+  if (testCase.conditional) {
+    // The side's own validator: Pages and Workers hash files differently, so ETags never match across.
+    const first = await fetch(new URL(testCase.path, base), {headers, redirect: 'manual', cache: 'no-store'})
+    await first.arrayBuffer()
+    const etag = first.headers.get('etag')
+    if (etag) {
+      headers['If-None-Match'] = etag
+    }
+  }
   if (testCase.contentType) {
     headers['Content-Type'] = testCase.contentType
   }
@@ -179,6 +214,9 @@ export function compare(testCase, baseline, candidate) {
     const expected = baseline.headers.get(name)
     const actual = candidate.headers.get(name)
     if (expected === undefined && INTENDED_CANDIDATE_HEADERS.get(name) === actual) {
+      continue
+    }
+    if (expected === undefined && baseline.status === 304 && candidate.status === 304 && ALLOWED_304_CANDIDATE_HEADERS.has(name)) {
       continue
     }
     if (expected !== actual) {
@@ -226,11 +264,23 @@ async function main() {
   }
 
   const results = []
+  const loopback = LOOPBACK_HOSTNAMES.has(new URL(values.candidate).hostname)
   for (const testCase of CASES) {
+    if (loopback && ANALYTICS_PATHS.some((path) => testCase.path === path || testCase.path.startsWith(`${path}/`))) {
+      console.log(`SKIP  ${testCase.method.padEnd(7)} ${testCase.path} (loopback candidate: analytics routes answer 404 by design)`)
+      continue
+    }
     const [baseline, candidate] = await Promise.all([probe(values.baseline, testCase, {}), probe(values.candidate, testCase, candidateHeaders)])
     const differences = compare(testCase, baseline, candidate)
-    results.push({...testCase, payload: undefined, baselineStatus: baseline.status, candidateStatus: candidate.status, differences})
-    const label = `${testCase.method.padEnd(7)} ${testCase.path} [${testCase.accept}]`
+    results.push({
+      ...testCase,
+      payload: undefined,
+      conditional: testCase.conditional ?? false,
+      baselineStatus: baseline.status,
+      candidateStatus: candidate.status,
+      differences
+    })
+    const label = `${testCase.method.padEnd(7)} ${testCase.path} [${testCase.accept}]${testCase.conditional ? ' (If-None-Match)' : ''}`
     console.log(`${differences.length === 0 ? 'MATCH' : 'DIFF '} ${label} ${baseline.status}/${candidate.status}`)
     for (const difference of differences) {
       console.log(`        ${difference}`)

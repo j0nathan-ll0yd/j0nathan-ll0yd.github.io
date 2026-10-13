@@ -9,13 +9,13 @@ specifications carry a point-in-time verification date.
 | File                                               | Purpose                                                     | Produced by                                                             | Spec / version (verified)              |
 | -------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
 | `/robots.txt`                                      | Per-agent crawl policy                                      | `src/pages/robots.txt.ts`                                               | RFC 9309 directives + Sitemap           |
-| `Content-Usage` response header                    | Machine-readable content-use preference                     | `functions/_middleware.ts` + `public/_headers`                         | IETF WG drafts attach-05 / vocab-07     |
+| `Content-Usage` response header                    | Machine-readable content-use preference                     | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                         | IETF WG drafts attach-05 / vocab-07     |
 | `/sitemap-index.xml`                               | URL discovery for search engines                            | `@astrojs/sitemap` (`astro.config.mjs`)                                 | Sitemaps 0.9                           |
 | `/humans.txt`                                      | Human authorship credits                                    | `src/pages/humans.txt.ts`                                               | humanstxt.org                          |
-| `/feed.xml`, `/feed.json`                          | Content feeds                                               | `functions/feed.xml.ts`, `functions/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
-| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `functions/llms.txt.ts`, `functions/llms-full.txt.ts`, `functions/index.md.ts`, CloudFront compose, `functions/_middleware.ts` | llms.txt convention |
+| `/feed.xml`, `/feed.json`                          | Content feeds                                               | `src/pages/feed.xml.ts`, `src/pages/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
+| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `src/pages/llms.txt.ts`, `src/pages/llms-full.txt.ts`, `src/pages/index.md.ts`, CloudFront compose, `src/lib/edge/middleware.ts` | llms.txt convention |
 | `/.well-known/security.txt`                        | Security contact                                            | static                                                                  | RFC 9116                               |
-| `/.well-known/api-catalog`                         | API linkset                                                 | `functions/_middleware.ts` (content-type)                               | RFC 9727                               |
+| `/.well-known/api-catalog`                         | API linkset                                                 | `src/lib/edge/middleware.ts` (content-type)                               | RFC 9727                               |
 | `/.well-known/webfinger`                           | Fediverse alias (JRD)                                       | static + `_middleware.ts`                                               | RFC 7033                               |
 | `/.well-known/mcp/server-card.json`                | MCP server descriptor                                       | `scripts/generate-webmcp.mjs`                                           | MCP server card                        |
 | `/.well-known/agent-skills/index.json`             | Agent Skills discovery index                                | `scripts/generate-webmcp.mjs`                                           | agentskills.io discovery 0.2.0         |
@@ -86,15 +86,16 @@ unless a real conforming A2A endpoint is deployed.
 
 ### AI content-use preference
 
-Every site response carries a `Content-Usage` preference header. The root Pages Function
-middleware sets it on Function responses, including negotiated Markdown; the
-`public/_headers` wildcard sets it on static asset responses and cache hits. THOSE TWO
-FILES OWN THE EMITTED VALUE -- this page deliberately does not restate it, the discipline
+Every site response carries a `Content-Usage` preference header. The Worker middleware
+(`src/lib/edge/middleware.ts`) sets it on Worker responses, including negotiated Markdown;
+the generated `_headers` wildcard (`dist/client/_headers`) sets it on static asset responses
+and cache hits. Both take it from `src/lib/edge/security-headers.ts`, WHICH OWNS THE EMITTED
+VALUE -- this page deliberately does not restate it, the discipline
 `docs/wiki/LLM-Content-Spec.md` already applies (a restated clause is prose nothing
 measures, and this page restated it verbatim until atlas decision 0142 phase 7). The two
 planes are held byte-identical by `tests/unit/discovery-link-header.test.ts`.
 Cloudflare
-[does not apply `_headers` rules to Pages Functions](https://developers.cloudflare.com/pages/configuration/headers/),
+[does not apply `_headers` rules to Worker responses](https://developers.cloudflare.com/workers/static-assets/headers/),
 so both paths are required. This is the HTTP response-header form defined by the IETF
 AI Preferences Working Group drafts
 [`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)
