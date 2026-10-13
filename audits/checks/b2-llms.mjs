@@ -33,13 +33,12 @@
 // outcome.
 
 import {createHash} from 'node:crypto'
-import {appendFile} from 'node:fs/promises'
 import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'
 import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
-import {publishMeasured} from '../lib/measurement.mjs'
+import {publishIssueOutcome, publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
 import {emit, rules} from '../specs/load.mjs'
 
@@ -559,12 +558,13 @@ export function managedIssueOutcome(status) {
 // validators, the coherence evaluator and the tri-state fold above
 // (decisions/0011, UD1: the mutation gate scopes to the pure pilot validators).
 
-/** Append `issue_outcome=` to GITHUB_OUTPUT so the reconciler reads the measured tri-state. */
+/**
+ * Append `issue_outcome=` to GITHUB_OUTPUT so the reconciler reads the measured tri-state, through
+ * the one validated writer in `audits/lib/measurement.mjs`. `outputPath` is passed explicitly, as
+ * for `writeMeasurement` below, so an absent output path stays a no-op.
+ */
 async function writeIssueOutcome(outputPath, status) {
-  if (!outputPath) {
-    return
-  }
-  await appendFile(outputPath, `issue_outcome=${managedIssueOutcome(status)}\n`, 'utf8')
+  publishIssueOutcome(managedIssueOutcome(status), {outputPath})
 }
 
 /**
