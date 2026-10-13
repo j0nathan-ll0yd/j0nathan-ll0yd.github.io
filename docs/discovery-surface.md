@@ -189,10 +189,16 @@ The catalog carries two resources, each with a domain-anchored `urn:air:` identi
 
 ### API catalog and OpenAPI — RFC 9727
 
-`/.well-known/api-catalog` anchors on its own URL and lists the CloudFront data API as its
-one `item`. The API's entry carries `service-desc` (`/openapi.json`,
-`application/vnd.oai.openapi+json;version=3.1`) and `service-doc` (`/developers` once
-that page exists in the tree, the wiki before, so no deploy links a 404). `/openapi.json`
+`/.well-known/api-catalog` anchors on its own URL and lists one `item` per public JSON
+export: all nine, from portal-contract `CLOUDFRONT_BASE` plus `ENDPOINTS`, typed
+`application/json`. The catalog is developer documentation, so the raw health, sleep and
+workouts exports are listed too. Each item has its own linkset entry (RFC 9727 Appendix A.1)
+with `service-desc` (`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
+`service-doc` (`/developers` once that page exists in the tree, the wiki before, so no deploy
+links a 404). Until 2026-10-12 the one item was the CloudFront root, which answers an S3 XML
+`AccessDenied` 403 (review M4, orchestrator default; the owner may override). The weekly
+`b2-check-wellknown` fetches every item: each must answer a 2xx JSON body, or the focus gate's
+403 JSON suppression body while a hiding mode is active, and never S3 XML. `/openapi.json`
 describes the nine GET endpoints on `CLOUDFRONT_BASE`, their response schemas, and the
 focus-suppression 403 on every export except `focus.json`.
 
@@ -208,7 +214,8 @@ URL. The owner can reverse this choice.
 Known risk: the CloudFront/S3 origin answers a key that does not exist with an XML or HTML
 403, not JSON. If an agent-readiness scorer starts treating the site as an API, its
 `openapi-spec` and `json-error-responses` checks join the essential pool and that answer
-would count against it.
+would count against it. No discovery document links such a key: every api-catalog item is an
+export that exists.
 
 ### A2A — not advertised
 

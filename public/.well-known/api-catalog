@@ -4,12 +4,165 @@
       "anchor": "https://jonathanlloyd.me/.well-known/api-catalog",
       "item": [
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/"
+          "href": "https://d1pfm520aduift.cloudfront.net/health.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/sleep.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/workouts.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/books.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/github-events.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/articles.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/focus.json",
+          "type": "application/json"
+        },
+        {
+          "href": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json",
+          "type": "application/json"
         }
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/",
+      "anchor": "https://d1pfm520aduift.cloudfront.net/health.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/sleep.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/workouts.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/books.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/github-events.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/articles.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/focus.json",
+      "service-desc": [
+        {
+          "href": "https://jonathanlloyd.me/openapi.json",
+          "type": "application/vnd.oai.openapi+json;version=3.1"
+        }
+      ],
+      "service-doc": [
+        {
+          "href": "https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/wiki/LLM-Content-Spec",
+          "type": "text/html"
+        }
+      ]
+    },
+    {
+      "anchor": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",

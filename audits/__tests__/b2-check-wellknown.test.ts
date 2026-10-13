@@ -4,8 +4,12 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {
   AI_CATALOG_MEDIA_TYPE,
+  apiCatalogItems,
+  EXPECTED_API_CATALOG_ITEMS,
   EXPECTED_RESOURCE_URIS,
   FOCUS_RESOURCE_URI,
+  judgeApiCatalogItemAnswer,
+  judgeApiCatalogItems,
   judgeMcpExchange,
   judgeModernExchange,
   judgeResourceExchange,
@@ -14,6 +18,7 @@ import {
   parseMcpBody,
   PINNED_AGENT_SKILLS_SCHEMA,
   PINNED_ARD_SPEC_VERSION,
+  probeApiCatalogItems,
   probeMcpRemotes,
   rebase,
   SERVER_CARD_MEDIA_TYPE,
@@ -436,5 +441,56 @@ describe('validateApiCatalogShape', () => {
   it('a linkset without a service-desc fails', () => {
     const findings = validateApiCatalogShape({linkset: [linkset[0]]}, 'application/linkset+json')
     expect(findings.map((f) => f.id)).toEqual(['wellknown-api-catalog-no-service-desc'])
+  })
+})
+
+describe('api-catalog items', () => {
+  const here = dirname(fileURLToPath(import.meta.url))
+  const served = JSON.parse(readFileSync(join(here, '..', '..', 'public', '.well-known', 'api-catalog'), 'utf8'))
+  const S3_ACCESS_DENIED = '<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>'
+
+  it('the committed catalog lists all nine exports, raw health included, each with a service-desc', () => {
+    expect(EXPECTED_API_CATALOG_ITEMS).toHaveLength(9)
+    expect(EXPECTED_API_CATALOG_ITEMS.join(' ')).toMatch(/health\.json.*sleep\.json.*workouts\.json/s)
+    expect(apiCatalogItems(served).sort()).toEqual([...EXPECTED_API_CATALOG_ITEMS].sort())
+    expect(judgeApiCatalogItems(served)).toEqual([])
+  })
+
+  it('the old single CloudFront-root item fails the item set', () => {
+    const root = {linkset: [{anchor: 'https://jonathanlloyd.me/.well-known/api-catalog', item: [{href: 'https://d1pfm520aduift.cloudfront.net/'}]}]}
+    expect(judgeApiCatalogItems(root).map((f) => f.id)).toEqual(['wellknown-api-catalog-items', 'wellknown-api-catalog-item-no-service-desc'])
+  })
+
+  it('accepts a 2xx JSON body and the focus gate 403 JSON suppression body', () => {
+    expect(judgeApiCatalogItemAnswer({href: 'a', status: 200, contentType: 'application/json', body: '{"books":[]}'})).toEqual([])
+    expect(judgeApiCatalogItemAnswer({href: 'a', status: 403, contentType: 'application/json', body: '{"suppressed":true,"reason":"focus mode active"}'}))
+      .toEqual([])
+  })
+
+  // The receipt: the CloudFront root item answered S3 XML AccessDenied.
+  it.each([
+    ['S3 XML AccessDenied', 403, 'application/xml', S3_ACCESS_DENIED],
+    ['a 403 JSON body that is not a suppression', 403, 'application/json', '{"message":"Forbidden"}'],
+    ['an HTML 200', 200, 'text/html', '<html></html>'],
+    ['a 404 JSON body', 404, 'application/json', '{}']
+  ])('rejects %s', (_label, status, contentType, body) => {
+    expect(judgeApiCatalogItemAnswer({href: 'a', status, contentType, body}).map((f) => f.id)).toEqual(['wellknown-api-catalog-item-not-json'])
+  })
+
+  it('fetches every item and counts each answer; an unreachable item is a fail and is not measured', async () => {
+    const asked: string[] = []
+    const get = async (href: string) => {
+      asked.push(href)
+      if (href.endsWith('/books.json')) {
+        throw new Error('ECONNRESET')
+      }
+      return href.endsWith('/health.json')
+        ? new Response(S3_ACCESS_DENIED, {status: 403, headers: {'content-type': 'application/xml'}})
+        : new Response('{}', {headers: {'content-type': 'application/json'}})
+    }
+    const result = await probeApiCatalogItems(served, get)
+    expect(asked.sort()).toEqual([...EXPECTED_API_CATALOG_ITEMS].sort())
+    expect(result.measured).toBe(8)
+    expect(result.findings.map((f) => f.id).sort()).toEqual(['wellknown-api-catalog-item-not-json', 'wellknown-api-catalog-item-unreachable'])
   })
 })

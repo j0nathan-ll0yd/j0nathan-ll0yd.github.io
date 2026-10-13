@@ -15,7 +15,8 @@
 //   (webfinger, agent-skills/index.json, api-catalog), whose specs publish no
 //   schema this repo vendors, plus the media types a schema cannot see.
 //
-// Then a live MCP exchange against every remote the card declares: both protocol
+// Then a live GET of every api-catalog item, which must answer JSON (or the focus
+// gate's JSON suppression body), and a live MCP exchange against every remote the card declares: both protocol
 // eras, a tools/call per tool, resources/list, and resources/read of the ungated
 // focus signal and llms-full.txt (see probeMcpRemotes).
 //
@@ -44,7 +45,7 @@ export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discov
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
 // this runner holds is the agent-discovery surface (webfinger, ai-catalog.json,
 // ard.json, the MCP server card at its canonical and compatibility URLs,
-// agent-skills/index.json, api-catalog) plus one live MCP exchange, none of which the
+// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item and one live MCP exchange, none of which the
 // surface registry registers. Metadata only -- the hub reads it statically.
 export const ARTIFACTS = []
 
@@ -76,6 +77,10 @@ export const EXPECTED_RESOURCE_URIS = Object.freeze([
 // resource that republishes backend text, behind the withheld-link check.
 export const FOCUS_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
 export const LLMS_FULL_RESOURCE_URI = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
+
+// The api-catalog items: one per public JSON export, all nine (the catalog is developer
+// documentation, so the raw health exports are listed). Stated from the contract.
+export const EXPECTED_API_CATALOG_ITEMS = Object.freeze(Object.values(ENDPOINTS).map((path) => `${CLOUDFRONT_BASE}${path}`))
 
 // A withheld export the probe asks for by URI. The server must refuse it: listing it is a
 // fail, and so is reading it.
@@ -538,6 +543,98 @@ export function validateApiCatalogShape(json, contentType) {
 // Never throws -- every expected failure mode (network error, non-2xx, bad
 // JSON) resolves to `{ error }`. main() also uses Promise.allSettled so an
 // unexpected validator rejection cannot discard the other checks (C77).
+/** The `item` hrefs of an api-catalog linkset, in document order. */
+export function apiCatalogItems(json) {
+  return Array.isArray(json?.linkset) ? json.linkset.flatMap((entry) => (Array.isArray(entry.item) ? entry.item : [])).map((item) => item?.href) : []
+}
+
+/**
+ * Judge the item set. Pure -- testable without network. The items must be exactly
+ * EXPECTED_API_CATALOG_ITEMS, and each must carry a `service-desc` in its own linkset entry.
+ */
+export function judgeApiCatalogItems(json) {
+  const findings = []
+  const items = apiCatalogItems(json)
+  if (JSON.stringify([...items].sort()) !== JSON.stringify([...EXPECTED_API_CATALOG_ITEMS].sort())) {
+    findings.push({
+      severity: 'fail',
+      id: 'wellknown-api-catalog-items',
+      message: `api-catalog items are ${JSON.stringify(items)}; expected the ${EXPECTED_API_CATALOG_ITEMS.length} JSON exports ${
+        EXPECTED_API_CATALOG_ITEMS.join(', ')
+      }`
+    })
+  }
+  for (const href of items) {
+    const entry = json.linkset.find((candidate) => candidate.anchor === href)
+    if (!Array.isArray(entry?.['service-desc']) || entry['service-desc'].length === 0) {
+      findings.push({
+        severity: 'fail',
+        id: 'wellknown-api-catalog-item-no-service-desc',
+        message: `api-catalog item ${href} has no linkset entry with a "service-desc"`
+      })
+    }
+  }
+  return findings
+}
+
+/**
+ * Judge one item's live answer. Pure -- testable without network. An item must answer JSON:
+ * a 2xx JSON body, or, while a hiding focus mode is active, the focus gate's 403 JSON
+ * suppression body (`{"suppressed": true, ...}`). Anything else fails: above all the S3 XML
+ * `AccessDenied` 403 the CloudFront root answered when it was the item.
+ */
+export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
+  let json
+  try {
+    json = JSON.parse(body)
+  } catch {
+    json = undefined
+  }
+  if (status >= 200 && status < 300 && json !== undefined) {
+    return []
+  }
+  if (status === 403 && json?.suppressed === true) {
+    return []
+  }
+  return [{
+    severity: 'fail',
+    id: 'wellknown-api-catalog-item-not-json',
+    message: `api-catalog item ${href} answered HTTP ${status} ${contentType || '(no Content-Type)'}, not JSON: ${String(body).slice(0, 120)}`
+  }]
+}
+
+/** Fetch every api-catalog item and judge its answer. `measured` counts the items that answered. */
+export async function probeApiCatalogItems(json, get = fetchStable) {
+  const findings = judgeApiCatalogItems(json)
+  let measured = 0
+  for (const href of apiCatalogItems(json)) {
+    let res
+    try {
+      res = await get(href, {headers: {Accept: 'application/json'}})
+    } catch (err) {
+      findings.push({
+        severity: 'fail',
+        id: 'wellknown-api-catalog-item-unreachable',
+        message: `api-catalog item ${href}: ${err instanceof Error ? err.message : String(err)}`
+      })
+      continue
+    }
+    measured++
+    findings.push(...judgeApiCatalogItemAnswer({href, status: res.status, contentType: res.headers.get('content-type') || '', body: await res.text()}))
+  }
+  return {measured, findings}
+}
+
+/** The api-catalog: its shape and media type, then a live answer from every item. */
+async function checkApiCatalog(base) {
+  const catalog = await fetchJson(`${base}/.well-known/api-catalog`)
+  if (catalog.error) {
+    return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-api-catalog-fetch', message: catalog.error}]}
+  }
+  const items = await probeApiCatalogItems(catalog.json)
+  return {measured: 1 + items.measured, findings: [...validateApiCatalogShape(catalog.json, catalog.contentType), ...items.findings]}
+}
+
 async function fetchJson(url, headers) {
   let res
   try {
@@ -644,7 +741,7 @@ async function main() {
     // The compatibility copy, judged on schema only: it is served as plain JSON.
     fetchAndValidate(`${base}/.well-known/mcp/server-card.json`, (json) => validateMcpServerCard(json), 'wellknown-mcp-server-card-compat-fetch'),
     fetchAndValidate(`${base}/.well-known/agent-skills/index.json`, validateAgentSkillsIndexShape, 'wellknown-agent-skills-fetch'),
-    fetchAndValidate(`${base}/.well-known/api-catalog`, validateApiCatalogShape, 'wellknown-api-catalog-fetch'),
+    checkApiCatalog(base),
     checkMcpChain(base)
   ])
   const results = settled.map((result) => {
@@ -654,8 +751,8 @@ async function main() {
     const message = result.reason instanceof Error ? result.reason.message : String(result.reason)
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
-  // One per discovery artifact held and judged, plus one per MCP remote and protocol era
-  // that answered. A partial sweep is a finding; reaching none of them is the darkness
+  // One per discovery artifact held and judged, plus one per api-catalog item that answered,
+  // plus one per MCP remote and protocol era that answered. A partial sweep is a finding; reaching none of them is the darkness
   // the dead-man reports.
   const measured = results.reduce((total, r) => total + r.measured, 0)
   process.exit(report('check-wellknown', results.flatMap((r) => r.findings), measured))
