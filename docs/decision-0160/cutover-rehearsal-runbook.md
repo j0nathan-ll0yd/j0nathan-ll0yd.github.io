@@ -200,6 +200,22 @@ git worktree remove /tmp/pr-a-rehearsal-main
 Then revoke the rehearsal token. Verify: `dig +short $HOST` returns nothing, and
 `https://jonathanlloyd.me/` still answers 200 with no `X-Site-Runtime`.
 
+## Merge coupling (input to Steps 3.7 and 8.6, not part of the rehearsal)
+
+Merging PR A switches `deploy.yml` from `pages deploy` to `wrangler deploy`. From that merge until
+the cutover, every merge to `main` deploys the Worker, which serves no hostname, and production
+Pages receives nothing. A Pages deploy cannot run alongside it: the PR A build has no `functions/`,
+so a Pages upload of `dist/client` would serve production without the middleware, the proxies and
+the CSP. The post-deploy smoke check would also fail on that merge, because
+`https://jonathanlloyd.me/version.json` would still report the Pages build.
+
+The order that avoids both, for the owner to decide at Step 8.6:
+
+1. Deploy the PR A branch build to the `human-datastream` Worker (the G2 path), verify it at its
+   Version URL (Step 3.6), and run the rehearsed cutover so `jonathanlloyd.me` serves the Worker.
+2. Merge PR A. `deploy.yml` redeploys the same code from `main`, and the smoke check sees its build.
+3. Merge the atlas registry change at once (Step 7.1); the soak starts.
+
 ## Results (fill in)
 
 | Phase            | Mechanism                   | Error window (s) | Non-200 lines | Marker before → after | Notes |
