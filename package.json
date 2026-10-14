@@ -25,7 +25,7 @@
     "audit:spec-currency": "node audits/checks/b2-check-spec-currency.mjs",
     "check:covers": "node scripts/openspec-covers.mjs --blocking",
     "build": "astro build",
-    "postbuild": "node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
+    "postbuild": "node scripts/drop-dev-vars.mjs && node scripts/generate-static-plane-rules.mjs && node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "pnpm run test:unit && pnpm run test:build",
@@ -54,6 +54,7 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
+    "@astrojs/cloudflare": "14.2.6",
     "@astrojs/sitemap": "^3.7.3",
     "@axe-core/playwright": "^4.13.0",
     "@j0nathan-ll0yd/config": "^1.1.0",

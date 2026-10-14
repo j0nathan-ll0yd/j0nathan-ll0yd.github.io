@@ -64,10 +64,25 @@ async function headStable(request: APIRequestContext, url: string): Promise<APIR
   return res
 }
 
-async function skipSuppressedArtifact(label: string): Promise<void> {
+type SuppressionProbe = Awaited<ReturnType<typeof probeSuppression>>
+
+/**
+ * Skips while a focus mode hides gated artifacts, and returns the probe so a failed status
+ * assertion can name it. An `indeterminate` probe does not skip: absent evidence never grants a
+ * stand-down (atlas decision 0142). The probe reads the backend's focus.json on CloudFront, so it
+ * needs the cfedge runner lane; without it every probe was indeterminate and every deploy during
+ * a hiding focus failed here on the site's correct 503.
+ */
+async function skipSuppressedArtifact(label: string): Promise<SuppressionProbe> {
   const result = await probeSuppression()
   expect(result.status, suppressionMessage(result, label)).not.toBe('overdue')
   test.skip(result.status === 'suppressed', suppressionMessage(result, label))
+  return result
+}
+
+/** The status-assertion message for a gated artifact, naming the focus probe that let the test run. */
+function gatedStatusMessage(path: string, probe: SuppressionProbe): string {
+  return `${path} did not return 200 (focus probe ${probe.status}: ${probe.reason})`
 }
 
 // Statically server-rendered containers that must always be present. These are
@@ -202,43 +217,43 @@ test.describe('production home dashboard', () => {
   })
 
   test('feed.xml is reachable and RSS content-type', async ({page}) => {
-    await skipSuppressedArtifact('/feed.xml smoke assertion')
+    const probe = await skipSuppressedArtifact('/feed.xml smoke assertion')
     const res = await getStable(page.request, '/feed.xml')
-    expect(res.status(), '/feed.xml did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/feed.xml', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/feed.xml wrong content-type').toContain('application/rss+xml')
   })
 
   test('feed.json is reachable and JSON Feed content-type', async ({page}) => {
-    await skipSuppressedArtifact('/feed.json smoke assertion')
+    const probe = await skipSuppressedArtifact('/feed.json smoke assertion')
     const res = await getStable(page.request, '/feed.json')
-    expect(res.status(), '/feed.json did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/feed.json', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/feed.json wrong content-type').toContain('application/feed+json')
   })
 
   test('llms.txt is reachable and plain text', async ({page}) => {
-    await skipSuppressedArtifact('/llms.txt smoke assertion')
+    const probe = await skipSuppressedArtifact('/llms.txt smoke assertion')
     const res = await getStable(page.request, '/llms.txt')
-    expect(res.status(), '/llms.txt did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/llms.txt', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/llms.txt wrong content-type').toContain('text/plain')
   })
 
   test('llms-full.txt is reachable on the prod domain and markdown', async ({page}) => {
-    await skipSuppressedArtifact('/llms-full.txt smoke assertion')
+    const probe = await skipSuppressedArtifact('/llms-full.txt smoke assertion')
     // Regression guard: until 2026-07-17 only /llms.txt had a proxy route, so
     // the full dump the discovery index advertises 404'd on jonathanlloyd.me.
     const res = await getStable(page.request, '/llms-full.txt')
-    expect(res.status(), '/llms-full.txt did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/llms-full.txt', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/llms-full.txt wrong content-type').toContain('text/markdown')
   })
 
   test('index.md is reachable on the prod domain and markdown', async ({page}) => {
-    await skipSuppressedArtifact('/index.md smoke assertion')
+    const probe = await skipSuppressedArtifact('/index.md smoke assertion')
     const res = await getStable(page.request, '/index.md')
-    expect(res.status(), '/index.md did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/index.md', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/index.md wrong content-type').toContain('text/markdown')
   })
@@ -279,7 +294,7 @@ test.describe('production home dashboard', () => {
   test('Trusted Types telemetry ships as a report-only header', async ({page}) => {
     // The report-only policy is non-enforcing; it only drains DOM injection-sink
     // violations to /api/csp-report. Assert it reaches the browser on the live path
-    // (set unconditionally in functions/_middleware.ts alongside the enforced CSP).
+    // (set unconditionally in src/lib/edge/middleware.ts alongside the enforced CSP).
     const res = await getStable(page.request, '/')
     expect(res.status(), 'home page did not return 200').toBe(200)
     const reportOnly = res.headers()['content-security-policy-report-only'] || ''

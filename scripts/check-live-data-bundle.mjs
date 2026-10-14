@@ -20,8 +20,9 @@
 // the whole reachable graph).
 import {readdirSync, readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
+import {clientDir} from './lib/build-paths.mjs'
 
-const astroDir = resolve(process.cwd(), 'dist', '_astro')
+const astroDir = resolve(clientDir(), '_astro')
 const BUNDLE_RE = /^index\.astro_astro_type_script_index_\d+_lang\.[A-Za-z0-9_-]+\.js$/
 const REQUIRED = ['cardTheatreReviews', 'systemStatus', 'theatreReviews']
 // Matches a relative chunk reference (`"./updaters.fDuJCGys.js"`) in minified output,

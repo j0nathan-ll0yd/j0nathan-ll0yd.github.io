@@ -1,7 +1,7 @@
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 // /llms.txt has no dedicated LLM_CONTENT_PATHS constant. The path is derived once, in
-// functions/_lib/llms-artifacts.ts, from the contract's own distribution registry.
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
+// src/lib/edge/llms-artifacts.ts, from the contract's own distribution registry.
+import {LLMS_TXT_PATH} from '../lib/edge/llms-artifacts'
 
 export const prerender = true
 

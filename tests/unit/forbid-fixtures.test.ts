@@ -125,10 +125,10 @@ describe('forbid-fixtures build guard', () => {
     expect(plugin.configEnvironment('ssr', {resolve: {noExternal: true}})).toBeNull()
   })
 
-  it('finds no fixtures in the Pages Functions graph, which wrangler bundles outside Vite', async () => {
-    // functions/ is production code the Astro build never reads. Build every Function entry
+  it('finds no fixtures in the Worker edge graph (src/lib/edge and the endpoints under src/pages)', async () => {
+    // The Worker bundles these modules (atlas decision 0160, PR A). Build every one of them
     // through the same guard, server-side, with the first-party scope bundled.
-    const entries = globSync('functions/**/*.ts', {cwd: process.cwd()}).map((file) => resolve(process.cwd(), file))
+    const entries = globSync(['src/lib/edge/**/*.ts', 'src/pages/**/*.ts'], {cwd: process.cwd()}).map((file) => resolve(process.cwd(), file))
     expect(entries.length).toBeGreaterThan(5)
     await expect(
       viteBuild({

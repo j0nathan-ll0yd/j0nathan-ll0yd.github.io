@@ -3,6 +3,7 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // Every canonical URL, sitemap URL and internal link must answer 200 directly, with no redirect.
 // The host maps a URL to the static output by these rules, which Cloudflare Pages and the Workers
@@ -14,7 +15,7 @@ import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 //   /x/index.html redirects to /x/
 // With trailingSlash: 'never' the site's URLs have no trailing slash, so a page must build as
 // x.html (build.format 'file'). A page built as x/index.html makes its own canonical URL redirect.
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 const site = new URL(SITE_URL)
 
 type Resolution = {ok: true; file: string} | {ok: false; reason: string}

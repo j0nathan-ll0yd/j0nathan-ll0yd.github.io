@@ -9,17 +9,17 @@ specifications carry a point-in-time verification date.
 | File                                               | Purpose                                                     | Produced by                                                             | Spec / version (verified)              |
 | -------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
 | `/robots.txt`                                      | Per-agent crawl policy                                      | `src/pages/robots.txt.ts`                                               | RFC 9309 directives + Sitemap           |
-| `Content-Usage` response header                    | Machine-readable content-use preference                     | `functions/_middleware.ts` + `public/_headers`                         | IETF WG drafts attach-05 / vocab-07     |
+| `Content-Usage` response header                    | Machine-readable content-use preference                     | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                         | IETF WG drafts attach-05 / vocab-07     |
 | `/sitemap-index.xml`                               | URL discovery for search engines                            | `@astrojs/sitemap` (`astro.config.mjs`)                                 | Sitemaps 0.9                           |
 | `/humans.txt`                                      | Human authorship credits                                    | `src/pages/humans.txt.ts`                                               | humanstxt.org                          |
-| `/feed.xml`, `/feed.json`                          | Content feeds                                               | `functions/feed.xml.ts`, `functions/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
-| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `functions/llms.txt.ts`, `functions/llms-full.txt.ts`, `functions/index.md.ts`, CloudFront compose, `functions/_middleware.ts` | llms.txt convention |
+| `/feed.xml`, `/feed.json`                          | Content feeds                                               | `src/pages/feed.xml.ts`, `src/pages/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
+| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `src/pages/llms.txt.ts`, `src/pages/llms-full.txt.ts`, `src/pages/index.md.ts`, CloudFront compose, `src/lib/edge/middleware.ts` | llms.txt convention |
 | `/.well-known/security.txt`                        | Security contact                                            | static                                                                  | RFC 9116                               |
-| `/.well-known/api-catalog`                         | API linkset (`item` + `service-desc` to `/openapi.json`)    | `scripts/generate-webmcp.mjs` + `_middleware.ts` (content-type)         | RFC 9727                               |
-| `/openapi.json`                                    | OpenAPI document for the nine JSON exports                  | `scripts/generate-webmcp.mjs`                                           | OpenAPI 3.1.0                          |
-| `/.well-known/webfinger`                           | Fediverse alias (JRD)                                       | static + `_middleware.ts`                                               | RFC 7033                               |
-| `/mcp`                                             | Read-only MCP server                                        | `functions/mcp/index.ts`, `functions/_lib/mcp-server.ts`                | MCP 2026-07-28, also 2025-11-25        |
-| `/mcp/server-card`                                 | MCP server card (canonical)                                 | `functions/mcp/server-card.ts`                                          | SEP-2127 (ext-server-card `526201bb`)  |
+| `/.well-known/api-catalog`                         | API linkset (`item` + `service-desc` to `/openapi.json`)    | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type) | RFC 9727                               |
+| `/openapi.json`                                    | OpenAPI document for the nine JSON exports                  | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type) | OpenAPI 3.1.0                          |
+| `/.well-known/webfinger`                           | Fediverse alias (JRD)                                       | static + `src/lib/edge/middleware.ts`                                   | RFC 7033                               |
+| `/mcp`                                             | Read-only MCP server                                        | `src/pages/mcp/index.ts`, `src/lib/edge/mcp-server.ts`                | MCP 2026-07-28, also 2025-11-25        |
+| `/mcp/server-card`                                 | MCP server card (canonical)                                 | `src/pages/mcp/server-card.ts`                                          | SEP-2127 (ext-server-card `526201bb`)  |
 | `/.well-known/mcp/server-card.json`                | MCP server card (compatibility copy, same bytes)            | `scripts/generate-webmcp.mjs`                                           | SEP-2127                               |
 | `/js/webmcp.js`                                    | WebMCP browser tools                                        | `scripts/generate-webmcp.mjs`                                           | WebMCP Draft CG Report 2026-10-02      |
 | `/.well-known/agent-skills/index.json`             | Agent Skills discovery index                                | `scripts/generate-webmcp.mjs`                                           | agentskills.io discovery 0.2.0         |
@@ -28,7 +28,7 @@ specifications carry a point-in-time verification date.
 
 ## Source of truth
 
-ONE module holds the agent catalog: `functions/_lib/agent-catalog.mjs`. It defines the
+ONE module holds the agent catalog: `src/lib/edge/agent-catalog.mjs`. It defines the
 agent paths, the MCP tools and resources, and the server card. The MCP Function, the
 WebMCP script, and every discovery JSON file read it, so the surfaces cannot disagree.
 `scripts/generate-webmcp.mjs` emits the static outputs during `prebuild`:
@@ -58,17 +58,22 @@ pnpm run test:build   # OpenAPI 3.1 validity, catalog and card byte identity, sc
 ### MCP server — `/mcp`
 
 A real, read-only MCP server (atlas decision 0158, owner decision O2), served by the
-official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Function.
+official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from the site's Cloudflare Worker:
+on-demand Astro endpoints `src/pages/mcp/index.ts` and `src/pages/mcp/server-card.ts`, both
+listed in `wrangler.jsonc` `run_worker_first` and `src/lib/edge/routes.ts` `EDGE_ROUTES` (atlas
+decision 0160).
 
 - **Protocol:** revision 2026-07-28, stateless Streamable HTTP. POST carries JSON-RPC.
   `server/discover` answers with the supported versions, capabilities and the same
   `serverInfo` name and version as the card. The SDK's stateless legacy leg answers
   2025-era clients (`initialize`, then any request). GET and DELETE answer 405 with
   `Allow: POST`. No session id is minted, and a sent `Mcp-Session-Id` is ignored.
-- **Validation:** Host and Origin are checked against `jonathanlloyd.me`,
-  `human-datastream.pages.dev`, and its preview subdomains. `localhost`, `127.0.0.1`, and
-  `[::1]` are allowed as an Origin only when the Host is one of them, which is `wrangler pages dev`:
-  Cloudflare never routes a localhost Host to a deploy. An invalid Host or Origin answers 403
+- **Validation:** Host and Origin are checked against `jonathanlloyd.me` and the Worker's
+  preview hosts (`<version>-human-datastream.<account>.workers.dev` and the
+  `pr-<number>-human-datastream...` alias). A preview Origin passes only from the same preview
+  host. `localhost`, `127.0.0.1`, and `[::1]` are allowed as an Origin only when the Host is one of
+  them, which is a local run (`wrangler dev`, `astro preview`): Cloudflare never routes a
+  localhost Host to a deploy. An invalid Host or Origin answers 403
   with a fixed message that never echoes the header.
 - **Bounds:** a POST body over 8 KiB answers 413 before anything is parsed, and an unreadable
   body answers 400 `-32700`. A JSON-RPC batch array answers 400 `-32600`. 2026-07-28 says "The
@@ -108,7 +113,7 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   the coarsened band. Both render from one list, `LLM_DATA_SOURCE_DIRECTORY`; the generator
   writes the `SKILL.md` table between its `BEGIN GENERATED` and `END GENERATED` markers, then
   recomputes the digest. `LLM_CHANNEL_POLICY` in
-  `functions/_lib/agent-catalog.mjs` classifies every portal-contract endpoint as `exposed` or
+  `src/lib/edge/agent-catalog.mjs` classifies every portal-contract endpoint as `exposed` or
   `coarsenedOnly` and stops the build on an unclassified one, so a new export is withheld
   until someone classifies it. `tests/unit/mcp-server.test.ts` ("LLM-channel data policy") and
   `tests/unit/webmcp-script.test.ts` red if a raw export, its URL, or its values reach any
@@ -122,7 +127,7 @@ official SDK `@modelcontextprotocol/server` (`createMcpHandler`) from a Pages Fu
   keys. It names `/developers` only once `src/pages/developers.astro` exists, the same rule as
   the api-catalog `service-doc`. `tests/unit/skill-md.test.ts` holds the block to that rule, and
   its raw-URL test still covers the whole file.
-- **Focus gate:** every artifact read goes through `functions/_lib/proxy.ts`, the same
+- **Focus gate:** every artifact read goes through `src/lib/edge/proxy.ts`, the same
   fail-closed gate as the llms routes. During a hiding focus mode a suppressible artifact
   returns the suppression document `{"suppressed":true,"reason":"focus mode active"}`,
   never data. `focus.json` is never gated, as at the edge, and is read the way the gate
@@ -243,15 +248,16 @@ unless a real conforming A2A endpoint is deployed.
 
 ### AI content-use preference
 
-Every site response carries a `Content-Usage` preference header. The root Pages Function
-middleware sets it on Function responses, including negotiated Markdown; the
-`public/_headers` wildcard sets it on static asset responses and cache hits. THOSE TWO
-FILES OWN THE EMITTED VALUE -- this page deliberately does not restate it, the discipline
+Every site response carries a `Content-Usage` preference header. The Worker middleware
+(`src/lib/edge/middleware.ts`) sets it on Worker responses, including negotiated Markdown;
+the generated `_headers` wildcard (`dist/client/_headers`) sets it on static asset responses
+and cache hits. Both take it from `src/lib/edge/security-headers.ts`, WHICH OWNS THE EMITTED
+VALUE -- this page deliberately does not restate it, the discipline
 `docs/wiki/LLM-Content-Spec.md` already applies (a restated clause is prose nothing
 measures, and this page restated it verbatim until atlas decision 0142 phase 7). The two
 planes are held byte-identical by `tests/unit/discovery-link-header.test.ts`.
 Cloudflare
-[does not apply `_headers` rules to Pages Functions](https://developers.cloudflare.com/pages/configuration/headers/),
+[does not apply `_headers` rules to Worker responses](https://developers.cloudflare.com/workers/static-assets/headers/),
 so both paths are required. This is the HTTP response-header form defined by the IETF
 AI Preferences Working Group drafts
 [`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)

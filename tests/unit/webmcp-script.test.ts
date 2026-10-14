@@ -8,8 +8,8 @@ import {readFileSync} from 'node:fs'
 import ts from 'typescript'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {TOOLS} from '../../functions/_lib/agent-catalog.mjs'
-import {onRequest as mcpRoute} from '../../functions/mcp/index'
+import {TOOLS} from '../../src/lib/edge/agent-catalog.mjs'
+import {onRequest as mcpRoute} from '../../src/pages/mcp/index'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))

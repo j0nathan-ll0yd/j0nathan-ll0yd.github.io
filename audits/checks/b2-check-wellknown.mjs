@@ -60,13 +60,13 @@ export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
 // The media type ai-catalog.json is served as. A local choice: ARD §3.3 lists
 // `application/ai-catalog+json` as the entry `type` for a "nested manifest / catalog of
 // entries" (ards-project/ard-spec spec/ard.md at 9d33ea17, newer than the b76f235a pin).
-// Restated here rather than imported from functions/_lib/agent-paths.mjs, so the measurer
+// Restated here rather than imported from src/lib/edge/agent-paths.mjs, so the measurer
 // does not share the value it measures.
 export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'
 
 // The MCP resources the live server must list: every JSON export except the three the
 // LLM-channel policy withholds (health, sleep, workouts), plus llms-full.txt. Stated here
-// from the contract, independently of functions/_lib/agent-catalog.mjs, so a catalog edit
+// from the contract, independently of src/lib/edge/agent-catalog.mjs, so a catalog edit
 // that exposes a withheld export, or drops one, reds the probe.
 const WITHHELD_EXPORTS = new Set([ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts])
 export const EXPECTED_RESOURCE_URIS = Object.freeze([

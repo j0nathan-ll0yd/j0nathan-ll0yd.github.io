@@ -9,7 +9,7 @@ import {createHash} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
 import {CLOUDFRONT_BASE, ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {describe, expect, it} from 'vitest'
-import {AGENT_PATHS, LLM_DATA_SOURCE_DIRECTORY} from '../../functions/_lib/agent-catalog.mjs'
+import {AGENT_PATHS, LLM_DATA_SOURCE_DIRECTORY} from '../../src/lib/edge/agent-catalog.mjs'
 
 const SKILL_PATH = 'public/.well-known/agent-skills/portfolio-expert/SKILL.md'
 const SKILL = readFileSync(SKILL_PATH, 'utf8')

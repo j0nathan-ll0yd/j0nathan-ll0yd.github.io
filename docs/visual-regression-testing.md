@@ -11,7 +11,7 @@ Two Playwright projects guard the quality of `jonathanlloyd.me`:
 | Project                    | Config                       | What it tests                                    | Trigger                                                         | Assertion style                              | Outcome on failure                                         |
 | -------------------------- | ---------------------------- | ------------------------------------------------ | --------------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------- |
 | **Visual regression**      | `playwright.config.ts`       | Locally-built static dashboard with fixture data | PR + push to `main`                                             | Pixel diff `maxDiffPixelRatio: 0.025` (2.5%) | Blocks PR; runs across 4 viewports × 4 shards              |
-| **Production smoke check** | `playwright.smoke.config.ts` | Live `https://jonathanlloyd.me`                  | After every successful Cloudflare Pages deploy (`workflow_run`) | DOM/hydration assertions (no pixel diff)     | Files a GitHub issue (`smoke-failure` label), non-blocking |
+| **Production smoke check** | `playwright.smoke.config.ts` | Live `https://jonathanlloyd.me`                  | After every successful Cloudflare Workers deploy (`workflow_run`) | DOM/hydration assertions (no pixel diff)     | Files a GitHub issue (`smoke-failure` label), non-blocking |
 
 The two suites serve different purposes: regression is a **gate** (pixel-exact correctness of fixture-driven builds), smoke is a **sensor** (real hydration, runtime health, and CSP integrity of the live site).
 
@@ -66,7 +66,7 @@ scripts/
 
 .github/workflows/
 ├── visual-tests.yml                    # PR regression gate -- dispatches to self-hosted arm64 reusable workflow
-└── smoke-check.yml                     # Post-deploy production smoke sensor (native runner)
+└── smoke-check.yml                     # Post-deploy production smoke sensor (cfedge lane)
 
 # Reusable workflow (lives in ci-runners-private/.github/workflows/):
 # web-visual-tests.yml                  # 4-shard matrix on self-hosted arm64 runner-playwright image
@@ -151,7 +151,7 @@ export function truncateAtIEND(buf: Buffer): Buffer {
 
 ### 3.4 Production smoke check
 
-The smoke check (`playwright.smoke.config.ts`) runs on bare `ubuntu-latest` (no Docker, no SwiftShader, no determinism flags — none are needed for DOM assertions). Key config:
+The smoke check (`playwright.smoke.config.ts`) runs on the self-hosted `runner-playwright` image on the `cfedge` egress lane (no SwiftShader, no determinism flags — none are needed for DOM assertions). The lane matters: the gated-artifact tests read the backend's `focus.json` on CloudFront and skip while a focus mode hides the data, and the self-hosted fleet reaches CloudFront only from that lane. Key config:
 
 - `baseURL: https://jonathanlloyd.me`
 - `serviceWorkers: 'allow'`
@@ -285,13 +285,13 @@ There is no `resolve-version` job because the runner image's `FROM` tag is the v
 
 ### 5.3 `smoke-check.yml` — production smoke sensor
 
-Triggers: `workflow_run` after a successful `Deploy to Cloudflare Pages` run; `workflow_dispatch` for manual probes.
+Triggers: `workflow_run` after a successful `Deploy to Cloudflare Workers` run; `workflow_dispatch` for manual probes.
 
 Jobs:
 
-- `smoke-check` (bare `ubuntu-latest` — no Docker) — checkout → setup-node → `ppnpm install --frozen-lockfile` → `pnpm exec playwright install --with-deps chromium` → `pnpm run test:smoke` (`continue-on-error: true`) → upload `smoke-playwright-report` → on failure files a GitHub issue titled "Production smoke check failed after deploy" with labels `smoke-failure`, `automated` (deduped by title).
+- `smoke-check` (`[self-hosted, linux, arm64, playwright, cfedge]`) — checkout → setup pnpm and Node → authenticate to GitHub Packages → `pnpm install --frozen-lockfile` → pre-flight egress probe → `pnpm run test:smoke` (`continue-on-error: true`; Chromium is preinstalled in the runner image) → upload `smoke-playwright-report` → reconcile one managed issue, `[audit] Production smoke check (after deploy)`, through `audits/lib/file-check-issues.mjs`. A failed smoke step opens or updates it, a passing run closes it, and a run whose smoke step never ran leaves it unchanged.
 
-The smoke check is non-blocking (informational tier) during initial bake-in. Unlike the retired drift suite, it runs natively without Docker — no QEMU, no SwiftShader, no `--shm-size` workaround needed, and no baseline PNGs to maintain.
+The smoke check is non-blocking (informational tier) during initial bake-in. Unlike the retired drift suite, it runs without Docker — no QEMU, no SwiftShader, no `--shm-size` workaround needed, and no baseline PNGs to maintain. `audits/__tests__/deploy-workflow.test.ts` keeps the job on the `cfedge` lane and keeps every workflow's issue filing on the reconciler.
 
 ---
 
