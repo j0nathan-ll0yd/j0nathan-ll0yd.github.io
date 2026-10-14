@@ -111,8 +111,32 @@ export const ASSET_PATH_HEADERS: Readonly<Record<string, ReadonlyArray<readonly 
   '/robots.txt': [['Cache-Control', 'public, max-age=3600, s-maxage=86400']],
   // Pages served .js files as application/javascript; Workers static assets serve them as
   // text/javascript; charset=utf-8. A `_headers` Content-Type replaces the default.
-  '/*.js': [['Content-Type', 'application/javascript']]
+  '/*.js': [['Content-Type', 'application/javascript']],
+  // Pages served every text type with charset=utf-8; the deployed Workers asset server drops it
+  // (measured on the PR A Version URL, 2026-10-14). HTML pages are extensionless URLs, so
+  // renderHeadersFile adds one rule per built page.
+  '/*.css': [['Content-Type', 'text/css; charset=utf-8']],
+  '/*.txt': [['Content-Type', 'text/plain; charset=utf-8']],
+  '/*.md': [['Content-Type', 'text/markdown; charset=utf-8']]
 })
+
+/** The text media types Pages served with charset=utf-8 (see ASSET_PATH_HEADERS). */
+const UTF8_TEXT_TYPES = new Set(['text/html', 'text/plain', 'text/css', 'text/markdown'])
+
+/**
+ * A text Content-Type with `charset=utf-8` added when it names none, as Pages served it. For the
+ * responses the Worker takes from the ASSETS binding (`/` and the 404 page). Other types pass as is.
+ */
+export function withUtf8Charset(contentType: string | null): string | null {
+  if (contentType === null) {
+    return null
+  }
+  const [type = '', ...params] = contentType.split(';').map((part) => part.trim())
+  if (!UTF8_TEXT_TYPES.has(type.toLowerCase()) || params.some((param) => param.toLowerCase().startsWith('charset='))) {
+    return contentType
+  }
+  return `${type}; charset=utf-8`
+}
 
 /** True when a path never ran code on Pages (see CODE_FREE_PREFIXES). */
 export function isCodeFreePath(pathname: string): boolean {
@@ -124,7 +148,7 @@ export function isCodeFreePath(pathname: string): boolean {
  * CSP trio is detached again (`! Name`) under each code-free prefix, so those assets keep the
  * Pages header set exactly.
  */
-export function renderHeadersFile(): string {
+export function renderHeadersFile(pagePaths: readonly string[] = []): string {
   const blocks: string[] = []
   const all = [...ASSET_PLANE_HEADERS, ...BASE_SECURITY_HEADERS, ...CSP_HEADERS]
   blocks.push(['/*', ...all.map(([name, value]) => `  ${name}: ${value}`)].join('\n'))
@@ -133,6 +157,10 @@ export function renderHeadersFile(): string {
   }
   for (const [path, headers] of Object.entries(ASSET_PATH_HEADERS)) {
     blocks.push([path, ...headers.map(([name, value]) => `  ${name}: ${value}`)].join('\n'))
+  }
+  // One rule per built page (its canonical, extensionless URL): the charset rule above for HTML.
+  for (const path of pagePaths) {
+    blocks.push([path, '  Content-Type: text/html; charset=utf-8'].join('\n'))
   }
   return blocks.join('\n\n') + '\n'
 }

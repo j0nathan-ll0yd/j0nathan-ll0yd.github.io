@@ -65,6 +65,13 @@ export const INTENDED_CANDIDATE_HEADERS = new Map([['x-site-runtime', 'workers']
  */
 export const ALLOWED_304_CANDIDATE_HEADERS = new Set(['cache-control', 'content-type'])
 
+/**
+ * Headers Cloudflare adds on a Worker preview hostname (`*.workers.dev`), never set by site code.
+ * `X-Robots-Tag: noindex` keeps preview URLs out of search indexes. Allowed only when the candidate
+ * is a workers.dev host; on the production hostname it must be absent (scripts/check-worker-access-scope.mjs --url).
+ */
+export const PREVIEW_HOST_HEADERS = new Map([['x-robots-tag', 'noindex']])
+
 /** Hostnames of a local candidate, which answers the analytics routes with 404 by design. */
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 const ANALYTICS_PATHS = ['/sa', '/cf-insights.js', '/cf-rum', '/simple']
@@ -110,7 +117,6 @@ export const CASES = [
   // Static files.
   ...[
     '/robots.txt',
-    '/humans.txt',
     '/manifest.webmanifest',
     '/.well-known/api-catalog',
     '/.well-known/webfinger',
@@ -120,6 +126,9 @@ export const CASES = [
     '/js/clock.js',
     '/assets/icon-192.png'
   ].flatMap((path) => [{path, method: 'GET', accept: HTML, body: 'exact'}, {path, method: 'HEAD', accept: HTML, body: 'none'}]),
+  // humans.txt carries its build date ("Last update:"); the hosting line changes with the Step 1.7 copy release.
+  {path: '/humans.txt', method: 'GET', accept: HTML, body: 'dynamic'},
+  {path: '/humans.txt', method: 'HEAD', accept: HTML, body: 'none'},
   {path: '/sitemap-index.xml', method: 'GET', accept: HTML, body: 'exact'},
   {path: '/sitemap-0.xml', method: 'GET', accept: HTML, body: 'exact'},
   {path: '/sw.js', method: 'GET', accept: HTML, body: 'dynamic'},
@@ -162,6 +171,9 @@ export function normalizeBody(path, text) {
   // Composition and generation stamps in the proxy documents and feeds.
   out = out.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g, '<ts>')
   out = out.replace(/<lastBuildDate>[^<]*<\/lastBuildDate>/g, '<lastBuildDate/>')
+  if (path === '/humans.txt') {
+    out = out.replace(/^Last update: \d{4}-\d{2}-\d{2}$/m, 'Last update: <date>')
+  }
   // Workbox precache revisions in sw.js.
   if (path === '/sw.js') {
     out = out.replace(/revision:"[0-9a-f]+"/g, 'revision:"<r>"')
@@ -212,7 +224,7 @@ function digest(value) {
 }
 
 /** Compares one case. Returns a list of differences; an empty list is a match. */
-export function compare(testCase, baseline, candidate) {
+export function compare(testCase, baseline, candidate, candidateIsPreviewHost = false) {
   const differences = []
   if (baseline.status !== candidate.status) {
     differences.push(`status ${baseline.status} vs ${candidate.status}`)
@@ -225,6 +237,9 @@ export function compare(testCase, baseline, candidate) {
     const expected = baseline.headers.get(name)
     const actual = candidate.headers.get(name)
     if (expected === undefined && INTENDED_CANDIDATE_HEADERS.get(name) === actual) {
+      continue
+    }
+    if (expected === undefined && candidateIsPreviewHost && PREVIEW_HOST_HEADERS.get(name) === actual) {
       continue
     }
     if (expected === undefined && baseline.status === 304 && candidate.status === 304 && ALLOWED_304_CANDIDATE_HEADERS.has(name)) {
@@ -276,13 +291,14 @@ async function main() {
 
   const results = []
   const loopback = LOOPBACK_HOSTNAMES.has(new URL(values.candidate).hostname)
+  const previewHost = new URL(values.candidate).hostname.endsWith('.workers.dev')
   for (const testCase of CASES) {
     if (loopback && ANALYTICS_PATHS.some((path) => testCase.path === path || testCase.path.startsWith(`${path}/`))) {
       console.log(`SKIP  ${testCase.method.padEnd(7)} ${testCase.path} (loopback candidate: analytics routes answer 404 by design)`)
       continue
     }
     const [baseline, candidate] = await Promise.all([probe(values.baseline, testCase, {}), probe(values.candidate, testCase, candidateHeaders)])
-    const differences = compare(testCase, baseline, candidate)
+    const differences = compare(testCase, baseline, candidate, previewHost)
     results.push({
       ...testCase,
       payload: undefined,

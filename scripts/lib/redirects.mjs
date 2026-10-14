@@ -10,6 +10,15 @@
 // cannot name every slash count. The canonical-URL gate links to no such path.
 
 /**
+ * The canonical URL of each built page: `/` for index.html, `/x` for x.html.
+ * @param {string[]} htmlFiles the built HTML files, relative to the client directory, `/`-separated
+ * @returns {string[]}
+ */
+export function canonicalPagePaths(htmlFiles) {
+  return [...htmlFiles].sort().map((file) => (file === 'index.html' ? '/' : '/' + file.slice(0, -'.html'.length)))
+}
+
+/**
  * @param {string[]} htmlFiles the built HTML files, relative to the client directory, `/`-separated
  * @returns {string} the `_redirects` file
  */

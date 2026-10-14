@@ -13,7 +13,7 @@
  * Pass:
  *   1. API: at least one Access application destination names this Worker (so the Version URLs
  *      stay guarded), and every one that does is `preview_worker`;
- *   2. with --url: an anonymous GET answers 200 with X-Site-Runtime: workers.
+ *   2. with --url: an anonymous GET answers 200 with X-Site-Runtime: workers and no X-Robots-Tag.
  *
  * Usage (read-only; the token needs Access: Apps and Policies Read and Workers Scripts Read):
  *   CLOUDFLARE_ACCOUNT_ID=... CF_READ_TOKEN=... node scripts/check-worker-access-scope.mjs \
@@ -53,15 +53,22 @@ export function judgeAccessScope(apps, workerTag) {
   return failures
 }
 
-/** Judges one anonymous response from the Worker's production hostname. */
-export function judgeProductionResponse(status, runtime) {
+/**
+ * Judges one anonymous response from the Worker's production hostname. A preview hostname carries
+ * `X-Robots-Tag: noindex` from Cloudflare; on production it would drop the site from search.
+ */
+export function judgeProductionResponse(status, runtime, robots = null) {
   if (status !== 200) {
     return [`an anonymous GET answered ${status}, not 200: Access (or something else) gates production`]
   }
+  const failures = []
   if (runtime !== SITE_RUNTIME) {
-    return [`the 200 carries ${SITE_RUNTIME_HEADER}: ${JSON.stringify(runtime)}: the Worker did not answer`]
+    failures.push(`the 200 carries ${SITE_RUNTIME_HEADER}: ${JSON.stringify(runtime)}: the Worker did not answer`)
   }
-  return []
+  if (robots !== null) {
+    failures.push(`the 200 carries X-Robots-Tag: ${JSON.stringify(robots)}: production must not be noindex`)
+  }
+  return failures
 }
 
 async function api(path, token) {
@@ -90,7 +97,7 @@ async function main() {
   const failures = judgeAccessScope(await api(`/accounts/${account}/access/apps`, token), worker.tag)
   if (values.url) {
     const response = await fetch(values.url, {redirect: 'manual', signal: AbortSignal.timeout(15_000)})
-    failures.push(...judgeProductionResponse(response.status, response.headers.get(SITE_RUNTIME_HEADER)))
+    failures.push(...judgeProductionResponse(response.status, response.headers.get(SITE_RUNTIME_HEADER), response.headers.get('X-Robots-Tag')))
   }
   console.log(failures.length === 0 ? `PASS Access guards only the previews of ${values.worker}` : `FAIL ${values.worker}`)
   for (const failure of failures) {

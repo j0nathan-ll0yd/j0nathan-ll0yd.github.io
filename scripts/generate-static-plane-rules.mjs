@@ -18,14 +18,14 @@ import {readdirSync, writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {renderHeadersFile} from '../src/lib/edge/security-headers.ts'
 import {clientDir} from './lib/build-paths.mjs'
-import {renderRedirectsFile} from './lib/redirects.mjs'
+import {canonicalPagePaths, renderRedirectsFile} from './lib/redirects.mjs'
 
 const root = clientDir()
 const htmlFiles = readdirSync(root, {recursive: true, withFileTypes: true}).filter((entry) => entry.isFile() && entry.name.endsWith('.html')).map((entry) =>
   path.relative(root, path.join(entry.parentPath, entry.name)).split(path.sep).join('/')
 )
 
-for (const [name, content] of [['_headers', renderHeadersFile()], ['_redirects', renderRedirectsFile(htmlFiles)]]) {
+for (const [name, content] of [['_headers', renderHeadersFile(canonicalPagePaths(htmlFiles))], ['_redirects', renderRedirectsFile(htmlFiles)]]) {
   const outPath = path.join(root, name)
   writeFileSync(outPath, content)
   console.log(`[generate-static-plane-rules] wrote ${path.relative(process.cwd(), outPath)}`)

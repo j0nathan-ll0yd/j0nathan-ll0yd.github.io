@@ -219,7 +219,9 @@ start Step 3.7 until both hold:
    destination.
 2. **Production hostname, anonymously.** The moment the Worker answers the production hostname
    (the overlap route or the Custom Domain), run the same script with
-   `--url https://jonathanlloyd.me/`: an anonymous GET must answer 200 with `X-Site-Runtime: workers`.
+   `--url https://jonathanlloyd.me/`: an anonymous GET must answer 200 with `X-Site-Runtime: workers`
+   and no `X-Robots-Tag` (Cloudflare sends `X-Robots-Tag: noindex` on the Worker's preview
+   hostnames; on production it would drop the site from search).
    A 302 to `spring-fire-4d98.cloudflareaccess.com`, a 401 or a 403 means roll back at once
    (Rollback 2a or 4a). Run the same pair in the Step 0.4 rehearsal against `$HOST` first.
 

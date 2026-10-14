@@ -1,14 +1,18 @@
 import {describe, expect, it} from 'vitest'
-import {renderRedirectsFile} from '../../scripts/lib/redirects.mjs'
-import {CODE_FREE_PREFIXES, CSP, CSP_HEADERS, isCodeFreePath, renderHeadersFile} from '../../src/lib/edge/security-headers'
+import {canonicalPagePaths, renderRedirectsFile} from '../../scripts/lib/redirects.mjs'
+import {CODE_FREE_PREFIXES, CSP, CSP_HEADERS, isCodeFreePath, renderHeadersFile, withUtf8Charset} from '../../src/lib/edge/security-headers'
 
 // The `_headers` and `_redirects` files the Workers static-asset plane reads (atlas decision 0160,
 // PR A; plan Step 3.3). They must give each file exactly the headers and redirect status Pages did.
 
 /** The rendered `_headers` file as one map per path pattern. */
 function rules(): Map<string, string[]> {
+  return rulesFor(renderHeadersFile())
+}
+
+function rulesFor(file: string): Map<string, string[]> {
   const map = new Map<string, string[]>()
-  for (const block of renderHeadersFile().trim().split('\n\n')) {
+  for (const block of file.trim().split('\n\n')) {
     const [pattern = '', ...lines] = block.split('\n')
     map.set(pattern, lines.map((line) => line.trim()))
   }
@@ -61,5 +65,38 @@ describe('_redirects', () => {
 
   it('refuses a directory index, which build.format "file" never emits', () => {
     expect(() => renderRedirectsFile(['privacy/index.html'])).toThrow(/directory index/)
+  })
+})
+
+describe('UTF-8 charset (Pages parity, measured on the Version URL 2026-10-14)', () => {
+  it.each([
+    ['text/html', 'text/html; charset=utf-8'],
+    ['text/plain', 'text/plain; charset=utf-8'],
+    ['text/css', 'text/css; charset=utf-8'],
+    ['text/markdown', 'text/markdown; charset=utf-8'],
+    ['text/html; charset=utf-8', 'text/html; charset=utf-8'],
+    ['text/html; charset=ISO-8859-1', 'text/html; charset=ISO-8859-1'],
+    ['application/json', 'application/json'],
+    ['image/png', 'image/png']
+  ])('withUtf8Charset(%s) is %s', (input, expected) => {
+    expect(withUtf8Charset(input)).toBe(expected)
+  })
+
+  it('leaves a missing Content-Type missing', () => {
+    expect(withUtf8Charset(null)).toBeNull()
+  })
+
+  it('adds a charset rule for each text extension and each built page', () => {
+    const map = rulesFor(renderHeadersFile(['/', '/404', '/privacy']))
+    expect(map.get('/*.css')).toEqual(['Content-Type: text/css; charset=utf-8'])
+    expect(map.get('/*.txt')).toEqual(['Content-Type: text/plain; charset=utf-8'])
+    expect(map.get('/*.md')).toEqual(['Content-Type: text/markdown; charset=utf-8'])
+    for (const page of ['/', '/404', '/privacy']) {
+      expect(map.get(page)).toEqual(['Content-Type: text/html; charset=utf-8'])
+    }
+  })
+
+  it('maps built files to canonical page URLs', () => {
+    expect(canonicalPagePaths(['privacy.html', 'index.html', '404.html'])).toEqual(['/404', '/', '/privacy'])
   })
 })

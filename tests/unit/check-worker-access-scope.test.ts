@@ -34,6 +34,10 @@ describe('judgeProductionResponse', () => {
     expect(judgeProductionResponse(status, runtime)[0]).toMatch(/not 200/)
   })
 
+  it('fails a production 200 that carries the preview noindex header', () => {
+    expect(judgeProductionResponse(200, 'workers', 'noindex')[0]).toMatch(/must not be noindex/)
+  })
+
   it('fails a 200 that Pages answered', () => {
     expect(judgeProductionResponse(200, null)[0]).toMatch(/did not answer/)
   })

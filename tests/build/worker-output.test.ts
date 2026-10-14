@@ -2,7 +2,7 @@ import {existsSync, readdirSync, readFileSync} from 'node:fs'
 import path from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {clientDir, serverDir} from '../../scripts/lib/build-paths.mjs'
-import {renderRedirectsFile} from '../../scripts/lib/redirects.mjs'
+import {canonicalPagePaths, renderRedirectsFile} from '../../scripts/lib/redirects.mjs'
 import {PROCESS_BANNER_MARKER} from '../../scripts/vite-client-no-process-banner.mjs'
 import {renderHeadersFile} from '../../src/lib/edge/security-headers'
 
@@ -13,7 +13,8 @@ const server = serverDir()
 
 describe('static-asset plane files', () => {
   it('writes _headers from the shared header module, not the adapter default', () => {
-    expect(readFileSync(path.join(client, '_headers'), 'utf8')).toBe(renderHeadersFile())
+    const pages = readdirSync(client).filter((file) => file.endsWith('.html'))
+    expect(readFileSync(path.join(client, '_headers'), 'utf8')).toBe(renderHeadersFile(canonicalPagePaths(pages)))
   })
 
   it('writes a 308 _redirects rule for every built page', () => {

@@ -19,7 +19,7 @@
 import {handle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
 import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
-import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath} from './lib/edge/security-headers'
+import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath, withUtf8Charset} from './lib/edge/security-headers'
 
 type AstroEnv = Parameters<typeof handle>[1]
 type AstroContext = Parameters<typeof handle>[2]
@@ -44,6 +44,11 @@ function methodNotAllowed(): Response {
  */
 function withAssetPlaneHeaders(response: Response, codeFree: boolean): Response {
   const headers = new Headers(response.headers)
+  // Pages served text types with charset=utf-8; the Workers asset server drops it.
+  const contentType = withUtf8Charset(headers.get('Content-Type'))
+  if (contentType !== null) {
+    headers.set('Content-Type', contentType)
+  }
   for (const [name, value] of ASSET_PLANE_HEADERS) {
     headers.set(name, value)
   }
