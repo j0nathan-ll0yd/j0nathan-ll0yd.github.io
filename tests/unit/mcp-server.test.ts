@@ -1,6 +1,6 @@
 // @vitest-environment node
 //
-// The /mcp Pages Function end to end, in process: the request goes through the real
+// The /mcp route end to end, in process: the request goes through the real
 // Host/Origin guard, the real SDK entry, and the real focus-gated proxy machinery.
 // Only `fetch` (the CloudFront data plane) and the edge logger are stubbed.
 

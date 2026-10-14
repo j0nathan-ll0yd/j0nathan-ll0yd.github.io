@@ -29,8 +29,8 @@ specifications carry a point-in-time verification date.
 ## Source of truth
 
 ONE module holds the agent catalog: `src/lib/edge/agent-catalog.mjs`. It defines the
-agent paths, the MCP tools and resources, and the server card. The MCP Function, the
-WebMCP script, and every discovery JSON file read it, so the surfaces cannot disagree.
+agent paths, the MCP tools and resources, and the server card. The MCP server
+(`src/pages/mcp/`), the WebMCP script, and every discovery JSON file read it, so the surfaces cannot disagree.
 `scripts/generate-webmcp.mjs` emits the static outputs during `prebuild`:
 `public/js/webmcp.js`, `mcp/server-card.json`, `agent-skills/index.json`,
 `ai-catalog.json`, `ard.json`, `api-catalog` and `public/openapi.json`. Do not hand-edit
@@ -305,7 +305,9 @@ What re-verifies them automatically:
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
   `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then
   `server/discover` and a `tools/call` per tool (2026-07-28). `--base <url>` audits a
-  preview deploy.
+  preview deploy. A Worker preview Version URL sits behind Cloudflare Access, so set
+  `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`; the check sends them to the audited
+  origin only, never to production or CloudFront.
 
 DNS-AID, NLWeb, A2A and Agent Skills discovery have no automatic watch. Their dates above
 are as stale as they look, and re-verifying them is a manual task.

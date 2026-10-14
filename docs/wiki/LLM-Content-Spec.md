@@ -233,11 +233,12 @@ Cloudflare dashboard:
 - **Match:** `http.request.uri.path eq "/"`
 - **Action:** Bypass cache
 
-This is required because Cloudflare Pages caches HTML at the edge and bypasses Pages
-Functions on cache hits. Without the rule, `Accept: text/markdown` requests receive cached
-HTML instead of reaching the middleware. The middleware's `CDN-Cache-Control: no-store` on
-`/` is a secondary signal; Cloudflare Pages' built-in caching overrides it, so the Cache
-Rule is the authoritative bypass.
+On Cloudflare Pages this rule was required: Pages cached HTML at the edge and bypassed
+Functions on cache hits, so `Accept: text/markdown` requests received cached HTML instead of
+reaching the middleware. Since atlas decision 0160 the site is a Cloudflare Worker, and `/` is
+in `wrangler.jsonc` `run_worker_first`, so the Worker and its middleware run for every
+request to `/`. The rule stays as a backstop until the owner retires it; the middleware's
+`CDN-Cache-Control: no-store` on `/` remains a secondary signal.
 
 A second, account-level Edge Cache TTL rule is an external dependency this repo cannot
 assert: it can rewrite response cache headers on the way out. The contract records it as

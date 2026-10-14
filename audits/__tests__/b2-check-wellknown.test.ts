@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {
+  accessHeadersFor,
   AI_CATALOG_MEDIA_TYPE,
   apiCatalogItems,
   EXPECTED_API_CATALOG_ITEMS,
@@ -338,8 +339,10 @@ describe('MCP liveness probe', () => {
   })
 
   it('rebases production URLs onto an audited preview and leaves other origins alone', () => {
-    expect(rebase('https://jonathanlloyd.me/mcp', 'https://x.human-datastream.pages.dev')).toBe('https://x.human-datastream.pages.dev/mcp')
-    expect(rebase('https://d1pfm520aduift.cloudfront.net/a.json', 'https://x.human-datastream.pages.dev')).toBe(
+    expect(rebase('https://jonathanlloyd.me/mcp', 'https://abc12345-human-datastream.account.workers.dev')).toBe(
+      'https://abc12345-human-datastream.account.workers.dev/mcp'
+    )
+    expect(rebase('https://d1pfm520aduift.cloudfront.net/a.json', 'https://abc12345-human-datastream.account.workers.dev')).toBe(
       'https://d1pfm520aduift.cloudfront.net/a.json'
     )
   })
@@ -516,5 +519,30 @@ describe('api-catalog items', () => {
     const result = await probeApiCatalogItems(served, get)
     expect(result.measured).toBe(8)
     expect(result.findings.map((f) => f.id)).toEqual(['wellknown-api-catalog-item-unreachable'])
+  })
+})
+
+// A preview Version URL sits behind Cloudflare Access (atlas decision 0160). The service token may
+// reach the audited origin only, never production or CloudFront, which discovery documents name.
+describe('accessHeadersFor', () => {
+  const base = 'https://abc12345-human-datastream.account.workers.dev'
+  const env = {CF_ACCESS_CLIENT_ID: 'id', CF_ACCESS_CLIENT_SECRET: 'secret'}
+
+  it('sends the service token to the audited origin', () => {
+    expect(accessHeadersFor(`${base}/mcp`, base, env)).toEqual({'CF-Access-Client-Id': 'id', 'CF-Access-Client-Secret': 'secret'})
+  })
+
+  it.each([
+    'https://jonathanlloyd.me/mcp',
+    'https://d1pfm520aduift.cloudfront.net/books.json',
+    'https://abc12345-human-datastream.account.workers.dev.evil.example/mcp',
+    'http://abc12345-human-datastream.account.workers.dev/mcp'
+  ])('never sends it to %s', (url) => {
+    expect(accessHeadersFor(url, base, env)).toEqual({})
+  })
+
+  it('sends nothing without both credentials or without an audited base', () => {
+    expect(accessHeadersFor(`${base}/mcp`, base, {CF_ACCESS_CLIENT_ID: 'id'})).toEqual({})
+    expect(accessHeadersFor(`${base}/mcp`, undefined, env)).toEqual({})
   })
 })

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {CSP, LINK_HEADER} from '../../src/lib/edge/middleware'
 import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers'
@@ -176,6 +177,27 @@ describe('route paths, under the Pages matching rules', () => {
   it('hands a POST on the CSP collector to Astro', async () => {
     await request('/api/csp-report', {method: 'POST', headers: {'Content-Type': 'application/csp-report'}, body: '{}'})
     expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['POST /api/csp-report'])
+  })
+  // The MCP server (atlas decision 0158) answers every method itself: POST serves JSON-RPC, and GET,
+  // DELETE and OPTIONS answer 405 with `Allow: POST` from the handler, never the asset plane's empty 405.
+  it.each(['/mcp', '/mcp/'])('hands a POST on %s to Astro with its body intact', async (path) => {
+    const body = '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+    await request(path, {method: 'POST', headers: {'Content-Type': 'application/json'}, body})
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['POST /mcp'])
+    expect(await handled[0]!.text()).toBe(body)
+  })
+
+  it.each(['GET', 'DELETE', 'OPTIONS', 'PUT'])('hands %s on /mcp to Astro, never to the asset plane', async (method) => {
+    await request('/mcp', {method})
+    expect(handled.map((r) => r.method)).toEqual([method])
+    expect(assetRequests).toHaveLength(0)
+  })
+
+  it.each(['GET', 'HEAD', 'OPTIONS', 'POST'])('hands %s on the server card to Astro, with or without a trailing slash', async (method) => {
+    await request('/mcp/server-card', {method})
+    await request('/mcp/server-card/', {method})
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual([`${method} /mcp/server-card`, `${method} /mcp/server-card`])
+    expect(assetRequests).toHaveLength(0)
   })
 })
 

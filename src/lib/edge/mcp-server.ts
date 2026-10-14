@@ -94,6 +94,9 @@ function jsonRpcError(status: number, code: number, message: string): Response {
 export function guardResponse(request: Request): Response | undefined {
   const host = validateHostHeader(request.headers.get('host'), [])
   const development = host.hostname !== undefined && DEVELOPMENT_HOSTNAMES.includes(host.hostname)
+  // The Host check admits the localhost names unconditionally: Cloudflare routes a request to this
+  // Worker by its Host, so a localhost Host never reaches a deploy. Only the Origin check is gated
+  // on development (a localhost page calling a deployed server).
   if (!validateHostHeader(request.headers.get('host'), allowedHostnames(host.hostname, {development: true})).ok) {
     return jsonRpcError(403, -32000, 'Invalid Host header')
   }

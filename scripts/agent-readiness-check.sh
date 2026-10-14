@@ -313,7 +313,7 @@ else
     fi
   else
     log_fail "api-catalog returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_info "  Fix: Deploy latest code (the Cloudflare Worker, deploy.yml)"
   fi
 fi
 
@@ -459,7 +459,7 @@ else
     fi
   else
     log_fail "agent-skills/index.json returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_info "  Fix: Deploy latest code (the Cloudflare Worker, deploy.yml)"
   fi
   # Check SKILL.md
   skill_status=$(http_status "${BASE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md")
@@ -467,7 +467,7 @@ else
     log_pass "SKILL.md returns 200"
   else
     log_fail "SKILL.md returns HTTP $skill_status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_info "  Fix: Deploy latest code (the Cloudflare Worker, deploy.yml)"
   fi
 fi
 
@@ -541,7 +541,7 @@ if [ -z "$BUILD_DIR" ]; then
   wf_status=$(http_status "${BASE_URL}/.well-known/api-catalog")
   if [ "$wf_status" = "404" ]; then
     echo -e "  ${RED}WARNING: .well-known files are NOT deployed!${NC}"
-    echo -e "  .well-known files have not been deployed to Cloudflare Pages."
+    echo -e "  .well-known files have not been deployed to the Cloudflare Worker."
     echo -e "  Fix: Push to main to trigger deploy, or check GitHub Actions status."
   else
     echo -e "  ${GREEN}Deployment appears current.${NC}"
