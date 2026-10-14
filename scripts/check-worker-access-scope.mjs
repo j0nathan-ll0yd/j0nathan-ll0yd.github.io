@@ -3,9 +3,10 @@
  * plan Step 3.7 precondition).
  *
  * Gate G3 attached Access to the human-datastream Worker. Access destinations of type
- * `preview_worker` cover the Version URLs alone; type `worker` covers every request to the Worker,
- * its production hostname included. Measured 2026-10-14: the application carried a `worker`
- * destination. Cut over with that in place and every visitor of jonathanlloyd.me meets an Access
+ * `preview_worker` cover the Version URLs alone ("Previews only"); type `worker` covers
+ * "Production and preview deployments for one Worker" (Cloudflare API reference: "All requests
+ * routed to the specified Worker, including its preview deployments, will be protected").
+ * Measured 2026-10-14: the application carried a `worker` destination. Cut over with that in place and every visitor of jonathanlloyd.me meets an Access
  * login. So the cutover runbook runs this check first, and again on the production hostname as
  * soon as the Worker answers it.
  *

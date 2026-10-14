@@ -203,14 +203,20 @@ Then revoke the rehearsal token. Verify: `dig +short $HOST` returns nothing, and
 ## Pre-cutover checklist (BLOCKER for Step 3.7)
 
 Measured 2026-10-14 after gate G3: the Worker's Access application, "human-datastream - Cloudflare
-Workers", carries an Access destination of type `worker`, not `preview_worker`. A `worker`
-destination is expected to gate EVERY request to the Worker (the dashboard's "All traffic"), its
-production hostname included; Cloudflare's documentation is being confirmed. Cut over with it and
-every visitor of `jonathanlloyd.me` meets an Access login. Do not start Step 3.7 until both hold:
+Workers", carried an Access destination of type `worker`. Cloudflare documents that type as
+"Production and preview deployments for one Worker" (API reference: "All requests routed to the
+specified Worker, including its preview deployments, will be protected"); "Previews only" is type
+`preview_worker`. Cut over with a `worker` destination and every visitor of `jonathanlloyd.me` meets
+an Access login. The owner is recreating the application as Previews only (2026-10-14). Do not
+start Step 3.7 until both hold:
 
-1. **API.** `CLOUDFLARE_ACCOUNT_ID=... CF_READ_TOKEN=... node scripts/check-worker-access-scope.mjs`
-   passes: every Access destination on the `human-datastream` Worker is `preview_worker`, and at
-   least one exists. It FAILS today (2026-10-14).
+1. **API: destination type `preview_worker`.** `CLOUDFLARE_ACCOUNT_ID=... CF_READ_TOKEN=... node
+   scripts/check-worker-access-scope.mjs` passes. It asserts that at least one Access application
+   destination names the `human-datastream` Worker (by its tag) and that EVERY such destination has
+   `"type": "preview_worker"`. Any other type, `worker` above all, fails. Also confirm in the same
+   API read that the application keeps both policies: "Cloudflare account members" (allow) and
+   "site-ci-previews service auth" (Service Auth). It failed on 2026-10-14 against the `worker`
+   destination.
 2. **Production hostname, anonymously.** The moment the Worker answers the production hostname
    (the overlap route or the Custom Domain), run the same script with
    `--url https://jonathanlloyd.me/`: an anonymous GET must answer 200 with `X-Site-Runtime: workers`.
