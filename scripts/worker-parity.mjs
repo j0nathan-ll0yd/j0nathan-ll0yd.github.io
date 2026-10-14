@@ -21,7 +21,8 @@
  * design (src/lib/edge/routes.ts isLocalAnalyticsRequest), so compare those on a Version URL.
  *
  * Exit 0 when every case matches, 1 otherwise. Read-only on the baseline: GET, HEAD, OPTIONS,
- * a POST and a PUT that the baseline rejects (405 or 415) without side effects. No request reaches
+ * a POST and a PUT that the baseline rejects (405 or 415), and one CSP report that only writes a
+ * log line naming the probe. No request reaches
  * the Simple Analytics collector or the Web Analytics collector with a payload. */
 import {createHash} from 'node:crypto'
 import {writeFileSync} from 'node:fs'
@@ -142,7 +143,17 @@ export const CASES = [
   {path: '/api/csp-report', method: 'GET', accept: HTML, body: 'exact'},
   {path: '/api/csp-report/', method: 'GET', accept: HTML, body: 'exact'},
   {path: '/api/csp-report', method: 'PUT', accept: HTML, body: 'none'},
-  {path: '/api/csp-report', method: 'POST', accept: HTML, body: 'none', contentType: 'text/plain', payload: 'parity-probe'}
+  {path: '/api/csp-report', method: 'POST', accept: HTML, body: 'none', contentType: 'text/plain', payload: 'parity-probe'},
+  // An accepted report type answers 204 and logs one line naming the probe. No /cf-rum POST: it
+  // would forward a fabricated datapoint into production Web Analytics.
+  {
+    path: '/api/csp-report',
+    method: 'POST',
+    accept: HTML,
+    body: 'exact',
+    contentType: 'application/csp-report',
+    payload: JSON.stringify({'csp-report': {'document-uri': 'https://jonathanlloyd.me/', 'violated-directive': 'worker-parity-probe'}})
+  }
 ]
 
 /** Normalizes a dynamic body so two compositions of the same content compare equal. */

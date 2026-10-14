@@ -200,6 +200,23 @@ git worktree remove /tmp/pr-a-rehearsal-main
 Then revoke the rehearsal token. Verify: `dig +short $HOST` returns nothing, and
 `https://jonathanlloyd.me/` still answers 200 with no `X-Site-Runtime`.
 
+## Pre-cutover checklist (BLOCKER for Step 3.7)
+
+Measured 2026-10-14 after gate G3: the Worker's Access application, "human-datastream - Cloudflare
+Workers", carries an Access destination of type `worker`, not `preview_worker`. A `worker`
+destination is expected to gate EVERY request to the Worker (the dashboard's "All traffic"), its
+production hostname included; Cloudflare's documentation is being confirmed. Cut over with it and
+every visitor of `jonathanlloyd.me` meets an Access login. Do not start Step 3.7 until both hold:
+
+1. **API.** `CLOUDFLARE_ACCOUNT_ID=... CF_READ_TOKEN=... node scripts/check-worker-access-scope.mjs`
+   passes: every Access destination on the `human-datastream` Worker is `preview_worker`, and at
+   least one exists. It FAILS today (2026-10-14).
+2. **Production hostname, anonymously.** The moment the Worker answers the production hostname
+   (the overlap route or the Custom Domain), run the same script with
+   `--url https://jonathanlloyd.me/`: an anonymous GET must answer 200 with `X-Site-Runtime: workers`.
+   A 302 to `spring-fire-4d98.cloudflareaccess.com`, a 401 or a 403 means roll back at once
+   (Rollback 2a or 4a). Run the same pair in the Step 0.4 rehearsal against `$HOST` first.
+
 ## Merge coupling (input to Steps 3.7 and 8.6, not part of the rehearsal)
 
 Merging PR A switches `deploy.yml` from `pages deploy` to `wrangler deploy`. From that merge until

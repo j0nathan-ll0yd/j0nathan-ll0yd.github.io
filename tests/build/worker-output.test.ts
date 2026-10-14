@@ -56,9 +56,9 @@ describe('Worker bundle', () => {
     expect(generated.vars ?? {}).toEqual({})
   })
 
-  it('keeps Version URLs and workers.dev off', () => {
+  it('keeps workers.dev off and Version URLs on (behind Access since gate G3)', () => {
     expect(generated.workers_dev).toBe(false)
-    expect(generated.preview_urls).toBe(false)
+    expect(generated.preview_urls).toBe(true)
   })
 
   it('carries no local secrets file', () => {

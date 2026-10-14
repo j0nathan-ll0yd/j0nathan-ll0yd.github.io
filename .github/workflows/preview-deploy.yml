@@ -67,8 +67,7 @@ jobs:
         # version of the Worker WITHOUT deploying it: production keeps serving the active
         # deployment. The version gets a Version URL, and the PR a stable alias URL
         # (pr-<number>-human-datastream.<subdomain>.workers.dev), only while preview_urls is
-        # true. Cloudflare Access must guard both before preview_urls turns on (decision 0160
-        # D1, gate G3). Wrangler writes the URLs to its ND-JSON output file; the step reads them
+        # true. Cloudflare Access guards both (decision 0160 D1, gate G3, done 2026-10-14). Wrangler writes the URLs to its ND-JSON output file; the step reads them
         # from there, not from the human log.
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -93,9 +92,9 @@ jobs:
       - name: Check that Cloudflare Access guards the Version URLs
         if: env.HAS_CF_TOKEN == 'true'
         # Pass: an anonymous GET does not answer 200, a GET with the CI service token does, and it
-        # carries X-Site-Runtime: workers (scripts/check-preview-access.mjs). Until gate G3,
-        # wrangler.jsonc keeps preview_urls false, the upload returns no URL, and there is nothing
-        # to check; once preview_urls is true, a missing URL is a failure.
+        # carries X-Site-Runtime: workers (scripts/check-preview-access.mjs). With preview_urls
+        # false the upload returns no URL and there is nothing to check; with it true (since gate
+        # G3), a missing URL is a failure.
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
@@ -108,9 +107,31 @@ jobs:
               echo "::error::preview_urls is true, but the upload returned no Version URL"
               exit 1
             fi
-            echo "::notice::preview_urls is false (decision 0160 gate G3 pending): version ${{ steps.upload.outputs.version_id }} has no URL to check"
+            echo "::notice::preview_urls is false: version ${{ steps.upload.outputs.version_id }} has no URL to check"
             exit 0
           fi
           node scripts/check-preview-access.mjs "$PREVIEW_URL" ${ALIAS_URL:+"$ALIAS_URL"}
           echo "Version URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "Alias URL: $ALIAS_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compare the version with production Pages (decision 0160 Step 3.6, report only)
+        # The PR A parity report: scripts/worker-parity.mjs sends the same request matrix to the
+        # production Pages origin alias and to this version through the service token. Report
+        # only: a later PR that changes behavior on purpose differs by design, and the baseline
+        # retires with the Pages project (plan Step 8.9); remove this step then.
+        if: env.HAS_CF_TOKEN == 'true' && steps.upload.outputs.preview_url != ''
+        continue-on-error: true
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
+        run: |
+          set -o pipefail
+          node scripts/worker-parity.mjs --baseline https://human-datastream.pages.dev --candidate "$PREVIEW_URL" --json "$RUNNER_TEMP/worker-parity.json" | tee "$RUNNER_TEMP/worker-parity.txt"
+          {
+            echo '## Worker parity (decision 0160 Step 3.6)'
+            echo
+            echo '```'
+            grep -E '^(DIFF|SKIP)|^        |worker-parity:' "$RUNNER_TEMP/worker-parity.txt" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

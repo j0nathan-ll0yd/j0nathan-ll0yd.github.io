@@ -41,7 +41,9 @@
   },
   // No public workers.dev alias (decision 0160 D1).
   "workers_dev": false,
-  // Version URLs stay off until the owner puts Cloudflare Access on them (plan Step 3.5, gate G3).
-  "preview_urls": false,
+  // Version URLs on: the owner put Cloudflare Access on the Worker (gate G3, 2026-10-14), with the
+  // CI service-token policy. scripts/check-preview-access.mjs verifies it on every PR. Only
+  // `wrangler deploy` applies this setting; `wrangler versions upload` reads it.
+  "preview_urls": true,
   "observability": {"enabled": true}
 }

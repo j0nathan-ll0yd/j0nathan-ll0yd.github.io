@@ -49,9 +49,9 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('env')
   })
 
-  it('exposes no public hostname: no workers.dev alias, and no Version URL before gate G3', () => {
+  it('exposes no public hostname: no workers.dev alias; Version URLs only behind Access (gate G3)', () => {
     expect(config.workers_dev).toBe(false)
-    expect(config.preview_urls).toBe(false)
+    expect(config.preview_urls).toBe(true)
     expect(config).not.toHaveProperty('routes')
     expect(config).not.toHaveProperty('route')
   })
