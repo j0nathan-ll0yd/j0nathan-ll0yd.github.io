@@ -117,9 +117,19 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: visual-tests-ds-dist
-          path: dist
+          # `astro preview` (the SKIP_BUILD webServer) runs the built Worker through
+          # @astrojs/cloudflare, which refuses to start unless the build's redirect
+          # file .wrangler/deploy/config.json exists in the PROJECT ROOT (it points at
+          # dist/server/wrangler.json; adapter dist/entrypoints/preview.js). It lives
+          # outside dist/, so the artifact carries both paths. With two paths the
+          # artifact root is their common ancestor, the workspace, so each download
+          # extracts into `.` (atlas decision 0160, PR A).
+          path: |
+            dist
+            .wrangler/deploy/config.json
           retention-days: 1
           include-hidden-files: true
+          if-no-files-found: error
 
   visual-tests:
     needs: setup
@@ -141,10 +151,15 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: visual-tests-ds-dist
-          # upload-artifact flattens a single-dir `path: dist` to the artifact
-          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
-          # preview server expects.
-          path: dist
+          # The artifact holds dist/ and .wrangler/deploy/config.json relative to
+          # the workspace (see the upload step), so it extracts into `.`.
+          path: .
+
+      - name: Verify the restored build (SKIP_BUILD preview needs both)
+        run: |
+          for f in .wrangler/deploy/config.json dist/server/wrangler.json dist/client/index.html; do
+            [ -f "$f" ] || { echo "::error::the dist artifact did not restore $f; astro preview cannot start"; exit 1; }
+          done
 
       # The self-hosted playwright runner image carries Node but not pnpm; provision the
       # `packageManager`-pinned version before any pnpm invocation below.
@@ -218,10 +233,15 @@ jobs:
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: visual-tests-ds-dist
-          # upload-artifact flattens a single-dir `path: dist` to the artifact
-          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
-          # preview server expects.
-          path: dist
+          # The artifact holds dist/ and .wrangler/deploy/config.json relative to
+          # the workspace (see the upload step), so it extracts into `.`.
+          path: .
+
+      - name: Verify the restored build (SKIP_BUILD preview needs both)
+        run: |
+          for f in .wrangler/deploy/config.json dist/server/wrangler.json dist/client/index.html; do
+            [ -f "$f" ] || { echo "::error::the dist artifact did not restore $f; astro preview cannot start"; exit 1; }
+          done
 
       # The self-hosted playwright runner image carries Node but not pnpm; provision the
       # `packageManager`-pinned version before any pnpm invocation below.
