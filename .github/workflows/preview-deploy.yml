@@ -90,9 +90,14 @@ jobs:
           '
 
       - name: Check that Cloudflare Access guards the Version URLs
+        id: access
         if: env.HAS_CF_TOKEN == 'true'
         # Pass: an anonymous GET does not answer 200, a GET with the CI service token does, and it
-        # carries X-Site-Runtime: workers (scripts/check-preview-access.mjs). With preview_urls
+        # carries X-Site-Runtime: workers (scripts/check-preview-access.mjs). A host that answers
+        # wrongly fails the step. A host the runner cannot reach is UNMEASURED: a ::warning and a
+        # step-summary verdict naming host, addresses and error, never a pass. The runner egress
+        # stays closed to *.workers.dev by owner decision (decision 0160, 2026-10-14), so CI is
+        # UNMEASURED on every PR and the tokened checks run locally. With preview_urls
         # false the upload returns no URL and there is nothing to check; with it true (since gate
         # G3), a missing URL is a failure.
         env:
@@ -110,7 +115,7 @@ jobs:
             echo "::notice::preview_urls is false: version ${{ steps.upload.outputs.version_id }} has no URL to check"
             exit 0
           fi
-          node scripts/check-preview-access.mjs "$PREVIEW_URL" ${ALIAS_URL:+"$ALIAS_URL"}
+          node scripts/check-preview-access.mjs --unmeasured-ok "$PREVIEW_URL" ${ALIAS_URL:+"$ALIAS_URL"}
           echo "Version URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "Alias URL: $ALIAS_URL" >> "$GITHUB_STEP_SUMMARY"
 
@@ -119,7 +124,7 @@ jobs:
         # production Pages origin alias and to this version through the service token. Report
         # only: a later PR that changes behavior on purpose differs by design, and the baseline
         # retires with the Pages project (plan Step 8.9); remove this step then.
-        if: env.HAS_CF_TOKEN == 'true' && steps.upload.outputs.preview_url != ''
+        if: steps.access.outputs.outcome == 'pass'
         continue-on-error: true
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
@@ -135,3 +140,10 @@ jobs:
             grep -E '^(DIFF|SKIP)|^        |worker-parity:' "$RUNNER_TEMP/worker-parity.txt" || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record the parity run as UNMEASURED
+        # Parity needs the same Version URL the Access check could not reach.
+        if: steps.access.outputs.outcome == 'unmeasured'
+        run: |
+          echo "::warning title=Worker parity UNMEASURED::the runner cannot reach the Version URL (see the Access check); run scripts/worker-parity.mjs locally with the service token"
+          printf '%s\n' '## Worker parity (decision 0160 Step 3.6): UNMEASURED' '' 'The runner cannot reach the Version URL (see the Access check above). Run `scripts/worker-parity.mjs` locally with the service token.' >> "$GITHUB_STEP_SUMMARY"
