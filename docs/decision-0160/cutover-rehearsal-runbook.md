@@ -310,3 +310,41 @@ removed. Revoke `CF_REHEARSAL_API_TOKEN`.
 
 D7 outcome: the overlap route works (zero planned downtime) / does not (scheduled window of at
 most 5 minutes, using the measured Phase 4 window).
+
+## Production cutover: 2026-10-14 (Step 3.7, owner go "Switch over!")
+
+Mechanism: the rehearsed overlap route (D7). `wrangler.jsonc` declares
+`routes: [{pattern: "jonathanlloyd.me/*", zone_name: "jonathanlloyd.me"}]`; the apex CNAME to
+`human-datastream.pages.dev` is unchanged. Credentials: the owner's wrangler OAuth login.
+
+| Time (UTC) | Event |
+| ---------- | ----- |
+| 22:27:33 | Pre-cutover: version `1b1265d9` of `fd6b0711` passed Access and parity 85/85 through `site-local-parity`; Access scope `preview_worker`; production 200 from Pages; no route. |
+| 22:27:43 | Probe of `https://jonathanlloyd.me/` every 2 s (resolved through 1.1.1.1) started. |
+| 22:28:08–22:28:14 | `wrangler deploy`: route `jonathanlloyd.me/*` published; version `b9bccaf6-89e3-46b6-8b3d-5c039721ee18`. |
+| 22:28:16 | First Worker answer (2 s after the deploy ended); every answer from then on came from the Worker, none from Pages. |
+| 22:29:36–22:29:41 | Same code redeployed with the build stamped `fd6b0711968baa1733e8a66233fbd8f4834a160e` (the first deploy's local build said `dev`); version `79268c5f-4271-411b-a8fd-3d9bae35c4ee`. |
+| 22:39:18 | Probe stopped: 318 lines, 15 Pages answers before the cutover, 295 Worker answers after it, 0 HTTP errors, 4 connection timeouts (22:35:52–22:36:20) that coincide with this host's own network trouble (a `gh` TLS timeout to api.github.com) during the Docker suite; Cloudflare's edge recorded no visitor 5xx in those minutes. |
+
+Post-cutover checks: `X-Site-Runtime: workers`; `/version.json` = `fd6b0711`, `runtime: workers`; no
+`X-Robots-Tag`; anonymous 200, no Access redirect; `check-worker-access-scope.mjs --url
+https://jonathanlloyd.me/` PASS; `/llms.txt`, `/llms-full.txt`, `/index.md`, `/feed.xml`,
+`/feed.json` 200 through the CloudFront proxy; `/` negotiates Markdown; `/cf-insights.js` serves
+the beacon; smoke check run 38648144924 green (18 passed, smoke bucket green); `audit-web.yml`
+daily run 38648148453 green (B1 success, B6 measured 4).
+
+Zone rules after the cutover: production compared with `human-datastream.pages.dev` went from 12/85
+to 82/85 matching. The zone cache rule's browser TTL (`max-age=600`) and `Vary: accept-encoding` no
+longer reach Worker responses, so `/sw.js` and `/version.json` now carry the code's
+`max-age=0, no-store`, and revalidation answers 304. The three remaining differences are the zone's
+transform rules on `/_astro/*` and `/assets/*`, unchanged. Edge 504s with user agent
+`nginx-ssl early hints` (Cloudflare Early Hints subrequests, not visitor responses) appear before and
+after the cutover at the same rate per request.
+
+**Rollback (production):** `/tmp/pr-a-rollback.sh --execute` on the operator's Mac, or the
+equivalent API call: `DELETE /zones/{zone}/workers/routes/{id}` for pattern `jonathanlloyd.me/*`
+(script `human-datastream`), with any credential holding Workers Routes Edit on the zone. The CNAME
+still points at Pages, so the apex returns to Pages in about 2 s (rehearsal Rollback 2a: 0 errors).
+After the merge, CI's next `wrangler deploy` re-creates the route, so a lasting rollback also needs
+the route removed from `wrangler.jsonc`, or a revert.
+
