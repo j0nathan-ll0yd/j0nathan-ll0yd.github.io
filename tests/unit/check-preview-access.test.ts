@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {checkPreviewAccess} from '../../scripts/check-preview-access.mjs'
+import {checkPreviewAccess, describeTransportError} from '../../scripts/check-preview-access.mjs'
 
 // The Version URL Access check (atlas decision 0160 D1; plan Step 3.5). The fetch is injected,
 // so each verdict is pinned without a network.
@@ -43,5 +43,23 @@ describe('checkPreviewAccess', () => {
     const failures = await checkPreviewAccess(URL_UNDER_TEST, credentials, fake({error: 'TypeError: fetch failed'}, {error: 'TypeError: fetch failed'}))
     expect(failures).toHaveLength(2)
     expect(failures[0]).toMatch(/unreachable anonymously .*abc123-human-datastream\.example\.workers\.dev/)
+  })
+})
+
+describe('describeTransportError', () => {
+  it('names the cause, its code and address, and the resolved addresses', async () => {
+    const cause = Object.assign(new Error('connect ETIMEDOUT 104.21.1.1:443'), {code: 'ETIMEDOUT', syscall: 'connect', address: '104.21.1.1', port: 443})
+    const error = new TypeError('fetch failed', {cause})
+    const text = await describeTransportError(URL_UNDER_TEST, error, async () => [{address: '104.21.1.1', family: 4}])
+    expect(text).toBe(
+      'TypeError: fetch failed; cause: connect ETIMEDOUT 104.21.1.1:443 (code=ETIMEDOUT, syscall=connect, address=104.21.1.1, port=443); abc123-human-datastream.example.workers.dev resolves to 104.21.1.1'
+    )
+  })
+
+  it('reports a host that does not resolve', async () => {
+    const text = await describeTransportError(URL_UNDER_TEST, new TypeError('fetch failed'), async () => {
+      throw new Error('getaddrinfo ENOTFOUND')
+    })
+    expect(text).toMatch(/does not resolve \(getaddrinfo ENOTFOUND\)$/)
   })
 })

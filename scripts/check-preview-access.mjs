@@ -13,16 +13,38 @@
  *
  * Usage: CF_ACCESS_CLIENT_ID=... CF_ACCESS_CLIENT_SECRET=... node scripts/check-preview-access.mjs <url>...
  * Exit 0 when every URL passes, 1 otherwise. */
+import {lookup} from 'node:dns/promises'
 import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../src/lib/edge/security-headers.ts'
 
 const TIMEOUT_MS = 15_000
+
+/**
+ * A transport error with its cause (undici puts the socket or DNS error there) and the addresses the
+ * host resolves to, so an egress refusal names the host, the address and the error.
+ */
+export async function describeTransportError(url, error, resolve = (host) => lookup(host, {all: true})) {
+  const parts = [error instanceof Error ? `${error.name}: ${error.message}` : String(error)]
+  const cause = error instanceof Error ? error.cause : undefined
+  if (cause && typeof cause === 'object') {
+    const fields = ['code', 'syscall', 'address', 'port'].filter((key) => cause[key] !== undefined).map((key) => `${key}=${cause[key]}`)
+    parts.push(`cause: ${cause.message ?? ''}${fields.length > 0 ? ` (${fields.join(', ')})` : ''}`.trim())
+  }
+  const host = new URL(url).hostname
+  try {
+    const addresses = await resolve(host)
+    parts.push(`${host} resolves to ${addresses.map((entry) => entry.address).join(', ') || 'nothing'}`)
+  } catch (dnsError) {
+    parts.push(`${host} does not resolve (${dnsError instanceof Error ? dnsError.message : String(dnsError)})`)
+  }
+  return parts.join('; ')
+}
 
 /** One GET, without following redirects. Returns the response, or the transport error. */
 async function get(url, headers) {
   try {
     return {response: await fetch(url, {headers, redirect: 'manual', signal: AbortSignal.timeout(TIMEOUT_MS)})}
   } catch (error) {
-    return {error: error instanceof Error ? `${error.name}: ${error.message}` : String(error)}
+    return {error: await describeTransportError(url, error)}
   }
 }
 
