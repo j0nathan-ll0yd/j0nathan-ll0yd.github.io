@@ -72,6 +72,14 @@ export const ALLOWED_304_CANDIDATE_HEADERS = new Set(['cache-control', 'content-
  */
 export const PREVIEW_HOST_HEADERS = new Map([['x-robots-tag', 'noindex']])
 
+/**
+ * Owner-accepted (2026-10-14): the static plane's empty 405 for a non-GET on a page carries the
+ * page's `_headers` Content-Type rule (`text/html; charset=utf-8`), which keeps the Pages charset on
+ * every GET. Pages sent the 405 with no Content-Type. Harmless: the 405 body is empty, so there is
+ * nothing to decode. Allowed only for an empty-bodied 405 on both sides.
+ */
+export const ALLOWED_EMPTY_405_CONTENT_TYPE = 'text/html; charset=utf-8'
+
 /** Hostnames of a local candidate, which answers the analytics routes with 404 by design. */
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]'])
 const ANALYTICS_PATHS = ['/sa', '/cf-insights.js', '/cf-rum', '/simple']
@@ -240,6 +248,13 @@ export function compare(testCase, baseline, candidate, candidateIsPreviewHost = 
       continue
     }
     if (expected === undefined && candidateIsPreviewHost && PREVIEW_HOST_HEADERS.get(name) === actual) {
+      continue
+    }
+    if (
+      name === 'content-type' && expected === undefined && actual === ALLOWED_EMPTY_405_CONTENT_TYPE && baseline.status === 405 &&
+      candidate.status === 405 &&
+      baseline.body.length === 0 && candidate.body.length === 0
+    ) {
       continue
     }
     if (expected === undefined && baseline.status === 304 && candidate.status === 304 && ALLOWED_304_CANDIDATE_HEADERS.has(name)) {
