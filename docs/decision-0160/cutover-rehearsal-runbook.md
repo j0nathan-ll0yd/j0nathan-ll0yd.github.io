@@ -241,6 +241,62 @@ The order that avoids both, for the owner to decide at Step 8.6:
 2. Merge PR A. `deploy.yml` redeploys the same code from `main`, and the smoke check sees its build.
 3. Merge the atlas registry change at once (Step 7.1); the soak starts.
 
+## Results: rehearsal of 2026-10-14 (owner-supervised)
+
+Run by the PR A agent with the owner present, against the disposable names only. Token: the
+user-owned `CF_REHEARSAL_API_TOKEN` (status active). Probe: one HTTPS request a second, resolving
+the host through 1.1.1.1 each time (see "Deviations"). A second watch probed
+`https://jonathanlloyd.me/` every 5 s for the whole run: 181 probes from 20:56:57 to 21:12:44 UTC,
+every one 200 from Pages, no `X-Site-Runtime`.
+
+| Phase                    | Mechanism                     | Error window | Non-200 lines | Marker before → after | Notes |
+| ------------------------ | ----------------------------- | -----------: | ------------: | --------------------- | ----- |
+| 2 overlap route          | Route on, DNS at Pages        | 0 s | 0 | pages → workers | Route on 21:04:17; first Worker answer 21:04:23 (6 s); two Pages answers at 21:04:32–33 (an edge picking the route up late); steady Worker from 21:04:35. Mixed serving 18 s, every answer 200. |
+| 2 parity via the route   | `worker-parity.mjs`, baseline `pr-a-rehearsal.pages.dev` | — | — | — | 82/85; the 3 differences are `Cache-Control` on `/_astro/*` and `/assets/*`, set by the zone's transform rules on the zone hostname only. Production Pages sends the same values, so like-for-like with production it is 85/85. |
+| 2a rollback              | Route off                     | 0 s | 0 | workers → pages | Route off 21:06:03; Pages from 21:06:05 (2 s); no flap. |
+| 3 version switch         | `versions deploy` V2          | 0 s | 0 | v1 → v2 | 21:07:15; `/version.json` showed v2 within 10 s of the command start. |
+| 3 rollback               | `wrangler rollback` V1        | 0 s | 0 | v2 → v1 | 21:07:25; v1 within 5 s. `deployments list` shows v1, v2, v1. |
+| 4 custom domain          | CNAME off, Custom Domain on   | 0 s | 0 | pages → workers | CNAME deleted 21:08:04, Custom Domain attached 21:08:05 (Cloudflare created a proxied `AAAA 100::` record). Mixed Pages and Worker answers, all 200, until steady Worker from 21:09:37 (92 s). No TLS gap: the zone certificate covers the host. |
+| 4a rollback              | Custom Domain off, CNAME on   | 37 s, plus one straggler | 32 (`522`) | workers → pages | Domain off 21:10:28, CNAME back 21:10:29. Removing the CNAME in Phase 4 had **deactivated** the Pages custom domain; until Pages re-activated it on its own (21:11:11) the host answered 522 from 21:10:30 to 21:11:06, then one more 522 at 21:11:34. |
+
+Versions: V1 `52f66790-6f93-4367-ba06-48c789ad0dfa` (`rehearsal-v1`), V2
+`6e66c710-9edc-411f-a56d-b93578827a9c` (`rehearsal-v2`).
+
+**Custom Domain permission.** `PUT /accounts/:id/workers/domains` succeeded with the rehearsal
+token, and so did the route, DNS, Pages and Worker writes. The token cannot read its own permission
+groups (API 9109), so the exact group that the Custom Domain needed is not determined here; the owner
+knows the token's groups. The token had no Workers KV read (see "Deviations").
+
+**D7 recommendation: the overlap route.** A Workers Route on the proxied hostname, while its CNAME
+still points at Pages, moved traffic to the Worker in about 6 s (18 s until every edge agreed) with
+zero errors, and removing the route moved it back in 2 s with zero errors. So the cutover can run with
+zero planned downtime, and the rollback during the soak is "delete the route". Do NOT use the Custom
+Domain path as the first move: its cutover was error-free here, but its rollback cost 37 s of 522s,
+because deleting the CNAME deactivates the Pages custom domain. If the Custom Domain is wanted
+later (to retire the CNAME and then the Pages project, Step 8.9), attach it only after the soak,
+when rolling back to Pages is no longer the plan.
+
+**Deviations from the runbook text, and what they teach.**
+
+- This Mac's resolver cached an NXDOMAIN for the new host (the first probes ran seconds after the
+  record existed), so `curl` failed with exit 6 while 1.1.1.1 already answered. The probe and the
+  parity run resolved through 1.1.1.1 instead (`curl --resolve`; a `dns.lookup` override for the
+  one host). For the production cutover, probe through a public resolver too.
+- The throwaway Worker was deployed from the generated config with `name` set to `pr-a-rehearsal`
+  and `preview_urls: false`, not with `--name` alone: the PR A config has `preview_urls: true`, and
+  no Access application covers a throwaway Worker, so its Version URLs would have been public.
+- The Pages project was deployed from the root of a `main` worktree, so `functions/` shipped with it.
+- `wrangler delete pr-a-rehearsal --force` deleted the Worker but then failed listing KV namespaces
+  (the token has no KV read). The API confirmed the Worker gone (`10007`).
+
+**Teardown, verified through the API with the read-only token.** DNS records identical to the
+preflight snapshot (20 records); no Workers routes; no Workers custom domains; Pages projects
+`human-datastream` only; Workers `api-catalog-content-type` and `human-datastream` only; the host does
+not resolve at 1.1.1.1; `human-datastream` Pages domains unchanged; the `human-datastream` Worker
+unchanged (workers.dev off, previews on, active version `05779aa8`); Access apps unchanged
+(`preview_worker` on the Worker app). The rehearsal worktree, which held a copy of `.env.local`, is
+removed. Revoke `CF_REHEARSAL_API_TOKEN`.
+
 ## Results (fill in)
 
 | Phase            | Mechanism                   | Error window (s) | Non-200 lines | Marker before → after | Notes |
