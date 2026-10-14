@@ -42,8 +42,8 @@ export type LlmsArtifactId = LlmsArtifact['id']
 // The freshness/skew thresholds that lived here are gone (atlas decision 0119 D2):
 // audits/checks/b2-llms.mjs derives them from the packaged
 // @j0nathan-ll0yd/estate-contracts LLM_FRESHNESS_CONFIG. They are audit-layer
-// policy, and this module stays free of any estate-contracts import so the Pages
-// Functions runtime bundle never pulls the package in. (It DOES import
+// policy, and this module stays free of any estate-contracts import so the Worker
+// runtime bundle never pulls the package in. (It DOES import
 // @j0nathan-ll0yd/portal-contract above -- that one is the served-path contract and
 // belongs in the bundle. This comment said "no package import", which read as
 // forbidding both.)

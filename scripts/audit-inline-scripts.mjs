@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* audit-inline-scripts.mjs -- CSP regression gate (Plan #07).
  *
- * Production CSP is `script-src 'self'` (functions/_middleware.ts) -- no
+ * Production CSP is `script-src 'self'` (src/lib/edge/security-headers.ts) -- no
  * 'unsafe-inline', no 'unsafe-hashes'. Two markup patterns are therefore
  * rejected at runtime and must never ship:
  *

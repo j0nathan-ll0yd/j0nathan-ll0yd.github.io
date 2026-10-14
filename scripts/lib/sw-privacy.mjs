@@ -12,8 +12,8 @@
 import {types} from 'node:util'
 import {createContext, runInContext, runInNewContext} from 'node:vm'
 import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
-import {LLMS_ARTIFACTS, LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
+import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts.ts'
+import {LLMS_ARTIFACTS, LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts.ts'
 
 /**
  * Runtime caches a retired route wrote, deleted on activate by the purge script and on every page

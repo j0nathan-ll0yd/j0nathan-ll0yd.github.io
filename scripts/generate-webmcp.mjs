@@ -55,7 +55,7 @@ const dataSources = [
 const booksUrl = cf(ENDPOINTS.books)
 const focusUrl = cf(ENDPOINTS.focus)
 // llms-full.txt is advertised at its prod-domain path (proxied by
-// functions/llms-full.txt.ts), keeping agents on jonathanlloyd.me; the raw
+// src/pages/llms-full.txt.ts), keeping agents on jonathanlloyd.me; the raw
 // JSON dataSources above stay on CloudFront (no prod-domain proxy exists for them).
 const llmsFullUrl = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
 

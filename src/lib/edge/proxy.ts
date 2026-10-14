@@ -1,12 +1,12 @@
-// Shared factory for the CloudFront proxy Pages Functions (/llms.txt,
+// Shared factory for the CloudFront proxy routes (/llms.txt,
 // /llms-full.txt, /index.md, /feed.xml, /feed.json). The backend
 // (mantle-LifegamesPortal) owns the canonical artifacts; these routes ensure the
 // spec-required root paths resolve on jonathanlloyd.me without hand-maintained
-// static files. Responses are wrapped by functions/_middleware.ts, which injects
+// static files. Responses are wrapped by src/lib/edge/middleware.ts, which injects
 // the security headers.
 //
-// Not itself a route: Pages Functions only creates routes for modules that
-// export an onRequest* handler; this module exports a factory.
+// Not itself a route: the routes are the endpoints under src/pages/; this
+// module exports a factory.
 //
 // Disclosure model (atlas decision 0160, PR 0b). All five artifacts are
 // SUPPRESSIBLE_PATHS of the backend focus gate, a CloudFront Function that runs

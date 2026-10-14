@@ -3,8 +3,9 @@ import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {DATASET_DISTRIBUTIONS, DATASET_VARIABLES, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 /** Parse the single JSON-LD @graph emitted by a built HTML page. */
 function loadGraph(relPath: string): any[] {

@@ -4,7 +4,7 @@ A personal portfolio dashboard for Jonathan Lloyd, styled as a sci-fi "Human Dat
 
 > **WARNING: merging to `main` deploys production.** No manual gate, no staging environment, no promotion step. See [Deploy](#deploy).
 
-[![Deploy to Cloudflare Pages](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/workflows/deploy.yml)
+[![Deploy to Cloudflare Workers](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/workflows/deploy.yml/badge.svg)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/actions/workflows/deploy.yml)
 
 ![Human Datastream dashboard](docs/claude-design/screenshots/dashboard-desktop-1400.png)
 
@@ -15,7 +15,7 @@ This repository is pnpm-only. `package.json` pins `pnpm@11.22.0` through `packag
 ```bash
 pnpm install           # install dependencies
 pnpm dev               # dev server at http://localhost:4321
-pnpm build             # production build into dist/
+pnpm build             # production build: dist/client/ (assets) and dist/server/ (Worker)
 pnpm preview           # preview the production build
 ```
 
@@ -28,7 +28,7 @@ All UI widgets come from the Design System package (`@j0nathan-ll0yd/web/product
 Astro renders a data-free static page at build time: authored identity copy plus every live widget in its honest `loading` state. The client then fills live data from CloudFront.
 
 ```text
-@j0nathan-ll0yd/copy ──► index.astro (build time) ──► static HTML ──► Cloudflare Pages
+@j0nathan-ll0yd/copy ──► index.astro (build time) ──► static HTML ──► Cloudflare Worker (static assets)
                                                   │
                                   client hydration │ runtime polling
                                                   ▼
@@ -40,13 +40,13 @@ Astro renders a data-free static page at build time: authored identity copy plus
 - **Client data runtime** -- app-local under `src/lib/runtime/`, **not** in the Design System package. `src/pages/index.astro` pulls it in as `import '../lib/runtime/live-data'`. That module drives the poll engine, the CloudFront fetch layer and the WebSocket client. `scripts/check-live-data-bundle.mjs` runs in `postbuild` and fails the build if Rollup tree-shakes the side-effect-only import away. `src/lib/mobile-bg.ts` is app-local for the same reason.
 - **CloudFront data layer** -- the client polls after page load on two tiers: fast at 30s, slow at 120s. Once the WebSocket connects, the engine drops to its passive tiers (120s and 300s) and the WebSocket push becomes the authoritative focus-state source.
 
-## Edge Functions
+## Edge Routes
 
-`functions/` holds the Cloudflare Pages Functions that run at the edge in production:
+A Cloudflare Worker serves the site (atlas decision 0160, PR A; Cloudflare Pages before). `src/worker.ts` is its entry; the code routes are on-demand Astro endpoints under `src/pages/`, and `src/lib/edge/` holds the shared modules:
 
-- **LLM content proxies** -- `/llms.txt`, `/llms-full.txt` and `/index.md` proxy the canonical artifacts from the LifegamesPortal CloudFront origin, which owns the content. `functions/_lib/` holds the shared proxy factory and the artifact paths.
+- **LLM content proxies** -- `/llms.txt`, `/llms-full.txt` and `/index.md` proxy the canonical artifacts from the LifegamesPortal CloudFront origin, which owns the content. `src/lib/edge/` holds the shared proxy factory and the artifact paths.
 - **Feed endpoints** -- `/feed.json` and `/feed.xml` proxy the backend-owned JSON Feed and RSS with edge caching.
-- **Response headers** -- `functions/_middleware.ts` exports the CSP and applies the header policy to Function responses; `public/_headers` covers static assets only, so a policy change must touch both. `/api/csp-report` collects violation reports.
+- **Response headers** -- `src/lib/edge/security-headers.ts` is the one header policy. `src/lib/edge/middleware.ts` applies it to Worker responses, and the build writes `dist/client/_headers` from it for static assets. `/api/csp-report` collects violation reports.
 - **First-party analytics proxies** -- `/sa` and `/simple/*` front Simple Analytics; `/cf-insights.js` and `/cf-rum` front Cloudflare Web Analytics. Each keeps the request same-origin, so Safari tracking protection never sees a third-party host.
 
 ## Testing
@@ -58,7 +58,7 @@ pnpm run test:visual      # Playwright visual regression in Docker (arm64-native
 pnpm run test:behavioral  # Playwright behavioral and a11y suite in Docker
 ```
 
-- **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, image integrity and the data-free `/` (no fixture value, every live card `loading`, identity copy present) against `dist/`.
+- **Build tests** ([Vitest](https://vitest.dev)) assert SEO metadata, JSON-LD, image integrity and the data-free `/` (no fixture value, every live card `loading`, identity copy present) against `dist/client/`.
 - **Visual regression** ([Playwright](https://playwright.dev)) screenshots the dashboard across the viewport matrix in `playwright.config.ts`. Baselines stay byte-stable only when generated inside the `linux/arm64` Docker image the CI runner is built from, so a runtime guard refuses host-side `--update-snapshots`. To regenerate in CI, dispatch `.github/workflows/visual-tests.yml` with the `update_snapshots` input.
 - **Production smoke check** runs `pnpm run test:smoke` against the live site after each deploy (`.github/workflows/smoke-check.yml`). It asserts the site hydrated -- widget containers present, `.is-loading` skeletons cleared, bio terminal typed, service worker registered, no CSP or console errors. On regression it files a `smoke-failure` issue rather than failing the run.
 - **CI runs on self-hosted runners only.** Every `runs-on` in `.github/workflows/` targets the self-hosted `linux, arm64` fleet from `ci-runners-private`. No job uses a GitHub-hosted runner.
@@ -76,9 +76,9 @@ Two data paths feed the dashboard:
 
 > **WARNING: merging a pull request to `main` deploys production immediately.**
 
-`.github/workflows/deploy.yml` fires on every push to `main`. It builds with `pnpm build`, then `cloudflare/wrangler-action@v4` runs `pages deploy dist --project-name=human-datastream`, which serves [jonathanlloyd.me](https://jonathanlloyd.me). No approval step, no staging environment, no promotion. The `Production Smoke Check` workflow runs afterwards against the live site.
+`.github/workflows/deploy.yml` fires on every push to `main`. It builds with `pnpm build`, then runs `pnpm exec wrangler deploy` for the `human-datastream` Worker, which serves [jonathanlloyd.me](https://jonathanlloyd.me) once the decision 0160 cutover attaches the hostname. No approval step, no staging environment, no promotion. The `Production Smoke Check` workflow runs afterwards against the live site.
 
-Open a pull request to get an isolated preview deployment from `.github/workflows/preview-deploy.yml`. Verify there before you merge.
+Open a pull request to upload a Worker version from `.github/workflows/preview-deploy.yml` (a version, never a deployment). Its Version URL sits behind Cloudflare Access; send the CI service token headers to reach it. Verify there before you merge.
 
 ## Documentation
 
@@ -90,4 +90,4 @@ Open a pull request to get an isolated preview deployment from `.github/workflow
 
 ## Tech Stack
 
-Astro 7, Vitest, Playwright, Ajv, wrangler (Cloudflare Pages), `@vite-pwa/astro`, `@astrojs/sitemap`, and pngjs/pixelmatch for screenshot diffing. The Design System (`@j0nathan-ll0yd/*`) supplies visual styling, fonts, and interactive widgets. `package.json` holds the authoritative versions.
+Astro 7, Vitest, Playwright, Ajv, wrangler and `@astrojs/cloudflare` (Cloudflare Workers), `@vite-pwa/astro`, `@astrojs/sitemap`, and pngjs/pixelmatch for screenshot diffing. The Design System (`@j0nathan-ll0yd/*`) supplies visual styling, fonts, and interactive widgets. `package.json` holds the authoritative versions.

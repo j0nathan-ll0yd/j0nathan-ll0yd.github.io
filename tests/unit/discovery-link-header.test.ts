@@ -1,8 +1,7 @@
-import {existsSync, readFileSync} from 'node:fs'
-import {dirname, resolve} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
-import {CONTENT_USAGE, LINK_HEADER, onRequest} from '../../functions/_middleware'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
+import {CONTENT_USAGE, LINK_HEADER, onRequest} from '../../src/lib/edge/middleware'
+import {ASSET_PLANE_HEADERS, renderHeadersFile} from '../../src/lib/edge/security-headers'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -17,7 +16,7 @@ describe('discovery Link header', () => {
 
   // Nothing pinned rel="describedby" before atlas decision 0142, which is how the markdown
   // alternate in Dashboard.astro drifted to the raw CloudFront origin unnoticed. The address is
-  // SITE-RELATIVE on purpose: it resolves through the Pages Function that carries the privacy
+  // SITE-RELATIVE on purpose: it resolves through the Worker route that carries the privacy
   // gate, and the path is derived from the contract's distribution registry rather than spelled.
   it('advertises the llms.txt discovery index at its contract path, site-relative', () => {
     expect(LINK_HEADER).toContain(`<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`)
@@ -33,43 +32,22 @@ describe('discovery Link header', () => {
 })
 
 /**
- * THE TWO RESPONSE PLANES (atlas decision 0142 phase 7).
+ * THE TWO RESPONSE PLANES (atlas decision 0142 phase 7; Workers since decision 0160 PR A).
  *
- * Cloudflare applies `public/_headers` ONLY to static asset responses and cache hits;
- * `functions/_middleware.ts` carries the same cross-cutting policy on Pages Function responses.
- * `docs/wiki/Metadata-Files-Spec.md` says the two "must be kept in sync", and until this change
- * that discipline was prose with one header's worth of gate behind it: only Content-Usage was
- * asserted. Editing either plane alone drifted cache-HIT static responses from Function responses
- * with nothing to catch it. Per B10, a convention gets enforced at the highest available tier, and
- * the available tier here is this unit test.
+ * Cloudflare applies `_headers` ONLY to responses the static-asset plane serves without the
+ * Worker; `src/lib/edge/middleware.ts` carries the same cross-cutting policy on Worker responses.
+ * Both now come from `src/lib/edge/security-headers.ts`: scripts/generate-headers.mjs writes
+ * `_headers` from `renderHeadersFile()` at build time, and the middleware sets the same entries.
+ * Per B10 this unit test still binds the two planes, so a refactor that splits them reds here.
  *
- * The table is DERIVED from the committed `/*` block rather than restated, so a header added to
- * either plane and not the other reds here by construction: a new static header has no Function
- * counterpart to match, and a new Function header is caught by the count assertion below.
+ * The table is DERIVED from the rendered `/*` block rather than restated, so a header added to
+ * either plane and not the other reds here by construction.
  */
-/**
- * Walk up from the working directory to the checkout that owns `public/_headers`.
- *
- * NOT `readFileSync('public/_headers')`, and not `import.meta.url` either. The bare relative read
- * this replaces passed only when vitest happened to run from the repo root and threw ENOENT from
- * an editor runner or a subdirectory invocation -- a crash in place of a verdict. `import.meta.url`
- * is not an option here: this suite runs under the jsdom environment, where it resolves against
- * jsdom's http:// base and `fileURLToPath` rejects it.
- */
-function headersPath(): string {
-  let directory = process.cwd()
-  while (!existsSync(resolve(directory, 'public/_headers'))) {
-    const parent = dirname(directory)
-    expect(parent, 'no ancestor of the working directory contains public/_headers').not.toBe(directory)
-    directory = parent
-  }
-  return resolve(directory, 'public/_headers')
-}
-
 function wildcardBlock(): Record<string, string> {
-  const staticHeaders = readFileSync(headersPath(), 'utf-8')
-  const nextBlock = staticHeaders.indexOf('\n/robots.txt')
-  expect(nextBlock, 'public/_headers no longer starts with a /* block followed by /robots.txt').toBeGreaterThan(0)
+  const staticHeaders = renderHeadersFile()
+  const nextBlock = staticHeaders.indexOf('\n\n')
+  expect(nextBlock, 'the rendered _headers no longer starts with a /* block').toBeGreaterThan(0)
+  expect(staticHeaders.startsWith('/*\n'), 'the rendered _headers no longer starts with a /* block').toBe(true)
 
   const declared: Record<string, string> = {}
   for (const line of staticHeaders.slice(0, nextBlock).split('\n').slice(1)) {
@@ -81,39 +59,53 @@ function wildcardBlock(): Record<string, string> {
   return declared
 }
 
+/** The `/*` headers the static-asset plane alone carries: Pages added them to asset responses only. */
+const ASSET_PLANE_ONLY = new Set(ASSET_PLANE_HEADERS.map(([name]) => name))
+
 async function functionResponse(): Promise<Response> {
   return onRequest({request: new Request('https://jonathanlloyd.me/privacy'), next: async () => new Response('privacy'), waitUntil: () => {}})
 }
 
 describe('two-plane response-header parity', () => {
-  it('declares exactly the seven cross-cutting headers the middleware also sets', () => {
-    // Pinned so ADDING a header to the static plane without the Function plane is a visible diff
+  it('declares exactly the cross-cutting headers the middleware also sets, plus the asset-plane CORS header', () => {
+    // Pinned so ADDING a header to the static plane without the Worker plane is a visible diff
     // rather than a silent one-sided edit.
     expect(Object.keys(wildcardBlock()).sort()).toEqual([
+      'Access-Control-Allow-Origin',
+      'Content-Security-Policy',
+      'Content-Security-Policy-Report-Only',
       'Content-Usage',
       'Cross-Origin-Opener-Policy',
       'Permissions-Policy',
       'Referrer-Policy',
+      'Reporting-Endpoints',
       'Strict-Transport-Security',
       'X-Content-Type-Options',
       'X-Frame-Options'
     ])
   })
 
-  it('serves every one of them byte-identically on a Pages Function response', async () => {
+  it('serves every one of them byte-identically on a Worker response', async () => {
     const response = await functionResponse()
-    const drifted = Object.entries(wildcardBlock()).filter(([name, value]) => response.headers.get(name) !== value).map(([name, value]) =>
-      `${name}: static ${JSON.stringify(value)} vs function ${JSON.stringify(response.headers.get(name))}`
-    )
+    const drifted = Object.entries(wildcardBlock()).filter(([name]) => !ASSET_PLANE_ONLY.has(name)).filter(([name, value]) =>
+      response.headers.get(name) !== value
+    ).map(([name, value]) => `${name}: static ${JSON.stringify(value)} vs worker ${JSON.stringify(response.headers.get(name))}`)
 
-    expect(drifted, 'public/_headers and functions/_middleware.ts have drifted apart').toEqual([])
+    expect(drifted, 'the rendered _headers and src/lib/edge/middleware.ts have drifted apart').toEqual([])
+  })
+
+  it('keeps the asset-plane CORS header off Worker responses, as Pages kept it off Function responses', async () => {
+    const response = await functionResponse()
+    for (const name of ASSET_PLANE_ONLY) {
+      expect(response.headers.get(name)).toBeNull()
+    }
   })
 })
 
 describe('Content-Usage response header', () => {
   it('is declared for static asset responses and cache hits', () => {
     expect(wildcardBlock()['Content-Usage']).toBe('train-ai=n, search=y')
-    expect(readFileSync(headersPath(), 'utf-8')).not.toMatch(/Content-Signal/i)
+    expect(renderHeadersFile()).not.toMatch(/Content-Signal/i)
   })
 
   it('is added to normal site responses', async () => {

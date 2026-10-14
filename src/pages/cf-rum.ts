@@ -1,18 +1,20 @@
-// Pages Function: first-party collector for Cloudflare Web Analytics RUM data.
+// On-demand route: first-party collector for Cloudflare Web Analytics RUM data.
 // The beacon (loaded first-party via /cf-insights.js) is configured with
 // data-cf-beacon send.to="/cf-rum", so the browser POSTs RUM payloads here —
 // same-origin, so Safari's tracker blocklist never sees a cloudflareinsights.com
-// request. This Function forwards the payload SERVER-SIDE to the real collector
+// request. This route forwards the payload SERVER-SIDE to the real collector
 // at https://cloudflareinsights.com/cdn-cgi/rum. Mirrors the Simple Analytics
-// collector proxy (functions/simple/[[path]].ts).
+// collector proxy (src/pages/simple/[...path].ts).
 //
 // Response contract: ALWAYS a clean 2xx to the browser (upstream status when 2xx,
 // else 204) and Cache-Control: no-store — never a 4xx/5xx, which would surface as
 // a console error and trip the post-deploy smoke check.
 
+import {edgeRoute} from '../lib/edge/routes'
+
 const RUM_UPSTREAM = 'https://cloudflareinsights.com/cdn-cgi/rum'
 
-// Minimal Cloudflare Pages Function context — only the field used here.
+// The route context — only the field used here (src/lib/edge/routes.ts EdgeContext).
 interface PagesContext {
   request: Request
 }
@@ -61,3 +63,7 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   }
   return noContent()
 }
+
+// On-demand: this route runs in the Worker on every request (atlas decision 0160, PR A).
+export const prerender = false
+export const ALL = edgeRoute(onRequest)

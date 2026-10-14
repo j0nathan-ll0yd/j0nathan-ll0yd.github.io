@@ -15,7 +15,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
-import type {LlmsArtifact} from '../../functions/_lib/llms-artifacts'
+import type {LlmsArtifact} from '../../src/lib/edge/llms-artifacts'
 import {
   compositionTimestamp,
   compositionWireSkew,

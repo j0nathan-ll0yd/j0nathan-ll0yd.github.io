@@ -1,57 +1,24 @@
-// Pages Function middleware: content negotiation + response headers.
-// Cloudflare applies public/_headers only to static asset responses, so this
-// middleware carries the same cross-cutting policy on Function responses.
+// The site middleware: content negotiation + response headers. It wraps every response
+// the Worker builds (src/worker.ts). On Pages it was functions/_middleware.ts and ran on
+// every path that public/_routes.json routed to Functions. Cloudflare applies `_headers`
+// only to static-asset responses, so this middleware carries the same cross-cutting policy
+// on Worker responses. The policy itself lives in ./security-headers.ts, which also writes
+// `_headers` (atlas decision 0160, plan Step 3.3).
 
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LLMS_TXT_PATH} from './_lib/llms-artifacts'
-import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './_lib/proxy'
+import {LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_TXT_PATH} from './llms-artifacts'
+import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './proxy'
+import {BASE_SECURITY_HEADERS, CONTENT_USAGE, CSP, CSP_HEADERS, SITE_RUNTIME, SITE_RUNTIME_HEADER} from './security-headers'
 
-// WebSocket CSP source is the ORIGIN only (no /live path); CLOUDFRONT_BASE is
-// already an origin. Sourcing both from the contract keeps the CSP in sync with
-// the live addressing without hardcoded literals.
-const WEBSOCKET_ORIGIN = new URL(WEBSOCKET_URL).origin
+// Re-exported: the CSP golden test and the middleware tests read them from here.
+export { CONTENT_USAGE, CSP }
 
-// Exported so audits/__tests__/csp-golden.test.ts can diff it against
-// audits/fixtures/golden/csp.txt. audits/checks/b7-check-headers.mjs only catches that
-// drift against the LIVE site, which is after a deploy; the two must move in lockstep
-// here. (The check has lived at that path since the atlas decision 0111 phase 2b audit
-// migration; this comment still called it check-headers.mjs until 0142 phase 7. The
-// lockstep instruction it carries was and remains correct -- only the filename was stale.)
-export const CSP = [
-  "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com ${CLOUDFRONT_BASE}`,
-  `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
-  "worker-src 'self'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  'upgrade-insecure-requests',
-  // Violation reporting: report-to (Reporting API, modern) + report-uri (legacy fallback).
-  // The named endpoint matches the Reporting-Endpoints header set below.
-  'report-uri /api/csp-report; report-to csp-endpoint'
-].join('; ') + ';'
-
-// CSP violation reports are collected at /api/csp-report (functions/api/csp-report.ts).
-// The Reporting-Endpoints header names the endpoint; the CSP report-to directive references
-// that name. report-uri is retained as a fallback for older browsers (Firefox <130, Safari <17).
-const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/csp-report"'
-
-// Trusted Types telemetry, REPORT-ONLY (non-enforcing). Every script is first-party
-// (script-src 'self') with no user-input XSS surface, so this does NOT enforce
-// require-trusted-types-for -- it drains DOM injection-sink violations to the same
-// /api/csp-report collector to scope a possible future enforcement. Review the reports,
-// then remove this or promote the directive into the enforced CSP. Expect roughly one
-// report per innerHTML sink while it runs.
-const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint"
-
-// IETF AI Preferences Working Group drafts attach-05/vocab-07 define
-// Content-Usage as an HTTP Structured Field Dictionary. Keep this out of
-// robots.txt until consumers such as Lighthouse recognize that extension.
-export const CONTENT_USAGE = 'train-ai=n, search=y'
+/**
+ * Paths where this middleware sets a header beyond the shared policy. Each is a static file on
+ * Workers, so wrangler.jsonc lists it in `run_worker_first`, or the static-asset plane would
+ * answer it without these headers. tests/unit/worker-routing.test.ts pins that list.
+ */
+export const HEADER_OVERRIDE_PATHS = Object.freeze(['/', '/sw.js', '/version.json', '/.well-known/api-catalog', '/.well-known/webfinger'])
 
 export const LINK_HEADER = [
   `<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`,
@@ -63,9 +30,9 @@ export const LINK_HEADER = [
   '</feed.json>; rel="alternate"; type="application/feed+json"'
 ].join(', ')
 
-// Minimal Cloudflare Pages Function context -- only the fields this middleware reads.
-// Avoids pulling in @cloudflare/workers-types just for one signature.
-interface PagesContext {
+// The request context src/worker.ts passes in. It keeps the shape of the Pages Function
+// context, so the code below runs unchanged. Avoids pulling in @cloudflare/workers-types.
+export interface MiddlewareContext {
   request: Request
   next(): Promise<Response>
   waitUntil(promise: Promise<unknown>): void
@@ -152,7 +119,7 @@ export function prefersMarkdown(accept: string | null): boolean {
 }
 
 // The negotiated homepage markdown IS the /llms-full.txt representation, served
-// through the same proxy machinery as the explicit route (functions/llms-full.txt.ts):
+// through the same proxy machinery as the explicit route (src/pages/llms-full.txt.ts):
 // privacy gate, bounded retry, last-known-good fallback under the shared cache key,
 // and the llm-outputs no-store cache policy. No independent fetch path exists here.
 const serveLlmsFull = makeCloudfrontProxy({
@@ -174,7 +141,7 @@ function mergeVaryAccept(headers: Headers): void {
   }
 }
 
-export async function onRequest(context: PagesContext): Promise<Response> {
+export async function onRequest(context: MiddlewareContext): Promise<Response> {
   const {request} = context
   const url = new URL(request.url)
 
@@ -189,29 +156,25 @@ export async function onRequest(context: PagesContext): Promise<Response> {
   const headers = new Headers(response.headers)
 
   // Security headers
-  headers.set('Content-Security-Policy', CSP)
-  headers.set('Reporting-Endpoints', REPORTING_ENDPOINTS)
-  headers.set('Content-Security-Policy-Report-Only', CSP_REPORT_ONLY)
-  headers.set('X-Content-Type-Options', 'nosniff')
-  headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  headers.set('Content-Usage', CONTENT_USAGE)
-  // HSTS: 2-year max-age + subdomains. Preload intentionally omitted -- owner-gated process.
-  headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains')
-  headers.set('X-Frame-Options', 'DENY')
-  // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break the cross-origin Carto tile resources.
-  headers.set('Cross-Origin-Opener-Policy', 'same-origin-allow-popups')
-  headers.set('Permissions-Policy',
-    'accelerometer=(), ambient-light-sensor=(), autoplay=(), bluetooth=(), camera=(), compute-pressure=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), local-fonts=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-create=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), speaker-selection=(), usb=(), web-share=(), xr-spatial-tracking=()')
+  for (const [name, value] of [...CSP_HEADERS, ...BASE_SECURITY_HEADERS]) {
+    headers.set(name, value)
+  }
+  // The platform marker: the one intended header difference from Pages (plan Steps 3.1 and 3.6).
+  headers.set(SITE_RUNTIME_HEADER, SITE_RUNTIME)
 
   // sw.js and version.json must always revalidate so a new deploy is picked up
   // promptly: sw.js drives the update-check path in public/js/sw-register.js, and
   // version.json is the smoke check's freshness probe. Set here, not in
-  // public/_headers, because Cloudflare does not apply that file to Pages Function
-  // responses. Modern Chromium already bypasses the HTTP cache for sw.js via
+  // `_headers`, because these paths run the Worker (run_worker_first) and Cloudflare
+  // does not apply that file to Worker responses. Modern Chromium already bypasses the HTTP cache for sw.js via
   // updateViaCache:'imports'; this covers older engines and version.json defensively.
   if (url.pathname === '/sw.js' || url.pathname === '/version.json') {
     headers.set('Cache-Control', 'max-age=0, no-store')
+  }
+  // Pages served sw.js as application/javascript. On Workers it runs the Worker (run_worker_first),
+  // and the ASSETS binding is not documented to apply the `_headers` `/*.js` rule, so set it here.
+  if (url.pathname === '/sw.js') {
+    headers.set('Content-Type', 'application/javascript')
   }
 
   // Homepage: disable CDN caching so content negotiation always works
@@ -240,7 +203,8 @@ export async function onRequest(context: PagesContext): Promise<Response> {
 
   // The proxy machinery composes GET bodies; a negotiated HEAD must not carry one.
   // Suppression responses already null theirs; this covers the success and error paths.
-  // (Pass-through responses keep their body: context.next() already honors HEAD.)
+  // (Pass-through responses keep their body: src/worker.ts hands HEAD to the ASSETS binding and
+  // the Astro endpoints as HEAD, and both answer it without one.)
   const body = negotiated && request.method === 'HEAD' ? null : response.body
   return new Response(body, {status: response.status, statusText: response.statusText, headers})
 }
