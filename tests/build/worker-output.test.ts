@@ -57,6 +57,10 @@ describe('Worker bundle', () => {
     expect(generated.vars ?? {}).toEqual({})
   })
 
+  it('carries the production route into the deploy config', () => {
+    expect(generated.routes).toEqual([{pattern: 'jonathanlloyd.me/*', zone_name: 'jonathanlloyd.me'}])
+  })
+
   it('keeps workers.dev off and Version URLs on (behind Access since gate G3)', () => {
     expect(generated.workers_dev).toBe(false)
     expect(generated.preview_urls).toBe(true)

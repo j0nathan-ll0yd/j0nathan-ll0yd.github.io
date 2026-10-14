@@ -52,8 +52,11 @@ describe('wrangler.jsonc', () => {
   it('exposes no public hostname: no workers.dev alias; Version URLs only behind Access (gate G3)', () => {
     expect(config.workers_dev).toBe(false)
     expect(config.preview_urls).toBe(true)
-    expect(config).not.toHaveProperty('routes')
     expect(config).not.toHaveProperty('route')
+  })
+
+  it('declares exactly the production route, so every deploy re-asserts it (Step 3.7)', () => {
+    expect(config.routes).toEqual([{pattern: 'jonathanlloyd.me/*', zone_name: 'jonathanlloyd.me'}])
   })
 
   it('declares no binding beyond the static assets', () => {
