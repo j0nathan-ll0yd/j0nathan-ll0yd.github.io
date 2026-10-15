@@ -143,7 +143,7 @@ jobs:
           # so this is the channel being closed rather than a live escape; the point is
           # that no future output can reopen it.
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
-          ANALYTICS_OUTCOME: ${{ steps.analytics.outcome }}
+          ANALYTICS_ISSUE_OUTCOME: ${{ steps.analytics.outputs.issue_outcome }}
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
@@ -151,7 +151,7 @@ jobs:
             await reconciler.reconcileCheckIssues({
               checks: [
                 {id: 'smoke', title: 'B1 production smoke suite (scheduled)', outcome: process.env.SMOKE_OUTCOME},
-                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_OUTCOME},
+                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_ISSUE_OUTCOME},
               ],
               repo: `${context.repo.owner}/${context.repo.repo}`,
               runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
