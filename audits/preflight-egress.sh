@@ -19,8 +19,9 @@
 #
 # TWO HOSTS, DELIBERATELY, AND THE LIST DOES NOT GROW. This probe is structurally blind to
 # the hosts that actually hung the two 2026-09-28 jobs: `B2 -- external spec currency`
-# dials raw.githubusercontent.com and api.github.com, and `B6 -- analytics beacons` dials
-# simpleanalytics.com, none of which are named here. It PASSED in 0s in both runs that then
+# dials raw.githubusercontent.com and api.github.com, and B6's SA ingestion arm (then inside
+# `B6 -- analytics beacons`, now its own step) dials simpleanalytics.com, none of which are
+# named here. It PASSED in 0s in both runs that then
 # died at 600s. That gap is real, and it is answered with per-check bounded budgets and
 # progress output (audits/lib/progress.mjs), NOT by adding those hosts here. Four reasons,
 # in order of weight:

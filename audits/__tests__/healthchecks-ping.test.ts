@@ -7,11 +7,12 @@
 // selection and exit codes -- without touching the network.
 
 import {execFileSync} from 'node:child_process'
-import {chmodSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
+import {mkdtempSync, readFileSync} from 'node:fs'
 import {existsSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {beforeEach, describe, expect, it} from 'vitest'
+import {installCurlStub} from './audit-web-steps.ts'
 
 const SCRIPT = path.resolve('audits/healthchecks-ping.sh')
 const PING_URL = 'https://hc-ping.com/00000000-0000-0000-0000-000000000000'
@@ -31,9 +32,7 @@ beforeEach(() => {
 
 /** Install a fake `curl` that records the URL it was handed and exits `exitCode`. */
 function stubCurl(exitCode = 0): void {
-  const shim = path.join(scratch, 'curl')
-  writeFileSync(shim, `#!/usr/bin/env bash\nfor arg in "$@"; do :; done\necho "$arg" >> ${JSON.stringify(curlLog)}\nexit ${exitCode}\n`)
-  chmodSync(shim, 0o755)
+  installCurlStub(scratch, curlLog, exitCode)
 }
 
 function runPing(env: Record<string, string>): {status: number; stdout: string} {

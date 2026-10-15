@@ -120,12 +120,23 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
+      # B6 is TWO steps, one per arm, so each publishes its own `measured` (owner decision
+      # 2026-10-13, option A). One step used to publish the beacon count whatever happened to the
+      # SA ingestion arm, so a day the Stats API could not be read still pinged a green tile.
       - name: B6 -- analytics beacons (CF + SA)
-        id: analytics
+        id: analytics_beacons
+        continue-on-error: true
+        run: node audits/checks/b6-check-analytics.mjs --arm beacons
+
+      # measured=1 when the Stats API answered and ingestion was judged (pass or fail). 0 when the
+      # arm held no answer: UNMEASURED, SKIPPED (no SA_API_KEY), or every read threw. 0 wedges this
+      # tier the same day, like the weekly `llms_cache_rules` step.
+      - name: B6 -- SA ingestion (synthetic event -> Stats API)
+        id: analytics_ingestion
         continue-on-error: true
         env:
           SA_API_KEY: ${{ secrets.SA_API_KEY }}
-        run: node audits/checks/b6-check-analytics.mjs
+        run: node audits/checks/b6-check-analytics.mjs --arm ingestion
 
       - name: Reconcile managed audit issues
         if: >-
@@ -143,7 +154,8 @@ jobs:
           # so this is the channel being closed rather than a live escape; the point is
           # that no future output can reopen it.
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
-          ANALYTICS_ISSUE_OUTCOME: ${{ steps.analytics.outputs.issue_outcome }}
+          ANALYTICS_BEACONS_ISSUE_OUTCOME: ${{ steps.analytics_beacons.outputs.issue_outcome }}
+          ANALYTICS_INGESTION_ISSUE_OUTCOME: ${{ steps.analytics_ingestion.outputs.issue_outcome }}
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
@@ -151,7 +163,11 @@ jobs:
             await reconciler.reconcileCheckIssues({
               checks: [
                 {id: 'smoke', title: 'B1 production smoke suite (scheduled)', outcome: process.env.SMOKE_OUTCOME},
-                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_ISSUE_OUTCOME},
+                // ONE bucket for both B6 arms: issue #149 is matched by this title, so it stays.
+                // bucketOutcome: any failure files; both success closes; anything else, including
+                // an UNMEASURED ingestion arm, leaves the issue unchanged.
+                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_BEACONS_ISSUE_OUTCOME},
+                {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_INGESTION_ISSUE_OUTCOME},
               ],
               repo: `${context.repo.owner}/${context.repo.repo}`,
               runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
@@ -175,7 +191,8 @@ jobs:
           # Setup steps (chrome, focus_mode) are not checks and never appear here.
           MEASURED_STEPS: |
             smoke|${{ steps.smoke.outcome }}|n/a|third-party tool run (Playwright); the suite exit code is its verdict, it holds no artifact set to count
-            analytics|${{ steps.analytics.outcome }}|${{ steps.analytics.outputs.measured }}
+            analytics_beacons|${{ steps.analytics_beacons.outcome }}|${{ steps.analytics_beacons.outputs.measured }}
+            analytics_ingestion|${{ steps.analytics_ingestion.outcome }}|${{ steps.analytics_ingestion.outputs.measured }}
         run: bash audits/healthchecks-ping.sh
 
   weekly:

@@ -1,7 +1,19 @@
 #!/usr/bin/env node
-// Loads the live homepage in Playwright and requires both first-party analytics proxy chains to
-// fire. Browser-observed statuses avoid curl-shape false positives. With `SA_API_KEY`, it also
-// posts a synthetic event and polls the Stats API because headless pageviews are bot-filtered.
+// Two arms, one per workflow step, selected by `--arm` (owner decision 2026-10-13, option A).
+//
+//   --arm beacons    Loads the live homepage in Playwright and requires both first-party analytics
+//                    proxy chains to fire. Browser-observed statuses avoid curl-shape false
+//                    positives. `measured` = beacons observed (0..4).
+//   --arm ingestion  Posts a synthetic event through the first-party proxy and polls the SA Stats
+//                    API for the count to rise, because headless pageviews are bot-filtered.
+//                    `measured` = 1 when ingestion was judged (pass or fail), 0 when the arm was
+//                    UNMEASURED or SKIPPED.
+//
+// WHY TWO STEPS. One step used to run both arms and publish `measured=<beacons seen>`, so a day
+// the Stats API could not be read still published 4 and the dead-man ping stayed green. Each arm
+// now publishes its own count, and `audits/healthchecks-ping.sh` wedges the daily tier on any
+// step that claims 0. Both arms feed ONE managed-issue bucket (`analytics`, issue #149) through
+// their own `issue_outcome`, so an unmeasured arm still reads `indeterminate` and never closes it.
 //
 // THIS CHECK IS NARRATED FROM END TO END, AND THAT IS A CORRECTNESS PROPERTY, NOT LOGGING
 // TASTE. GitHub kills a self-hosted job at a ~600s INACTIVITY deadline, so silence is what
@@ -14,8 +26,8 @@
 // so 926.4s was a 26x outlier rather than the design cost. With every phase now bounded --
 // launch 60s, navigation 30s, beacon wait 15s, close 30s, each Stats API read
 // `DEFAULT_BUDGET_MS`, the ingestion poll 180s clamped to its own window -- the arithmetic worst
-// case is roughly 375s, comfortably inside one job budget, and no interval between two output
-// lines can exceed the 30s heartbeat.
+// case is roughly 375s across both arms, comfortably inside one job budget, and no interval
+// between two output lines can exceed the 30s heartbeat.
 
 import {appendFileSync} from 'node:fs'
 import {chromium} from '@playwright/test'
@@ -258,7 +270,7 @@ export function evaluateIngestion({eventName, before, after, elapsedMs, timeoutM
     return [{severity: 'warn', id: error.id, message: error.message, unmeasured: true}]
   }
   if (error) {
-    return [{severity: 'fail', id: error.id, message: error.message}]
+    return [{severity: 'fail', id: error.id, message: error.message, ...(error.noAnswer ? {noAnswer: true} : {})}]
   }
   if (typeof before === 'number' && typeof after === 'number' && after > before) {
     return [{
@@ -298,7 +310,9 @@ export function concludeIngestion({eventName, before, after, startedAt, endedAt,
     return evaluateIngestion({eventName, before, after, elapsedMs: endedAt - startedAt, timeoutMs})
   }
   if (definiteError) {
-    return evaluateIngestion({eventName, error: definiteError})
+    // The baseline read answered before the poll began, so this run held an answer: the error
+    // stays a fail and the arm counts as measured, whatever the poll-phase error carried.
+    return evaluateIngestion({eventName, error: {id: definiteError.id, message: definiteError.message}})
   }
   if (lastReadAt !== null && deadline - lastReadAt <= INGESTION_OBSERVED_TAIL_MS) {
     return evaluateIngestion({eventName, before, after, elapsedMs: endedAt - startedAt, timeoutMs})
@@ -314,6 +328,19 @@ export function concludeIngestion({eventName, before, after, startedAt, endedAt,
 }
 
 /**
+ * Pure: mark a read error that carried no HTTP answer -- a thrown request or a thrown body read.
+ *
+ * SEPARATE FROM `unmeasured` ON PURPOSE. `unmeasured` decides the ISSUE: a listed transport code
+ * reads `indeterminate`. `noAnswer` decides the COUNT: the arm reached none of its artifacts, so it
+ * measured 0 (AGENTS.md, "the count is artifacts held and judged"). An unlisted throw such as
+ * CERT_HAS_EXPIRED or ECONNABORTED stays a `fail` on the issue channel, as #374 intended, and now
+ * also turns the tile red, because a fail with no answer behind it judged nothing.
+ */
+function noAnswer(error) {
+  return {...error, noAnswer: true}
+}
+
+/**
  * Read the current SA count for `eventName`. Network I/O; returns {ok, total} or {ok:false, error}.
  * `fetchImpl` has the shared fetch helper's signature, so tests drive the real classification.
  */
@@ -322,7 +349,7 @@ export async function readEventTotal(queryUrl, apiKey, eventName, {fetchImpl = f
   try {
     res = await fetchImpl(queryUrl, {headers: {'Api-Key': apiKey}})
   } catch (err) {
-    return {ok: false, error: classifyStatsReadError(err)}
+    return {ok: false, error: noAnswer(classifyStatsReadError(err))}
   }
   if (res.status >= 500) {
     // SA served no answer after the helper's retries: the SA-outage rule in classifyStatsReadError.
@@ -336,7 +363,7 @@ export async function readEventTotal(queryUrl, apiKey, eventName, {fetchImpl = f
       return {ok: false, error: {id: 'analytics-sa-stats-api-parse', message: `Stats API did not return valid JSON: ${err.message}`}}
     }
     // The body stream itself failed (reset or timeout mid-body): the same classifier as the request.
-    return {ok: false, error: classifyStatsReadError(err)}
+    return {ok: false, error: noAnswer(classifyStatsReadError(err))}
   }
   if (!res.ok || json?.ok !== true) {
     return {ok: false, error: {id: 'analytics-sa-stats-api-error', message: `SA Stats API error (HTTP ${res.status}): ${json?.error ?? '(no error field)'}`}}
@@ -418,12 +445,16 @@ export async function checkSaIngestion(apiKey, {fetchImpl = fetchStable, postImp
 }
 
 /**
- * Pure: the managed-issue tri-state for bucket `analytics` (audits/lib/file-check-issues.mjs).
+ * Pure: one arm's managed-issue tri-state for bucket `analytics` (audits/lib/file-check-issues.mjs).
  * Any fail files or keeps the issue. An unmeasured arm or a skipped arm (no SA_API_KEY) is
- * `indeterminate`: the run judged only part of B6, so it may neither file nor close the issue
- * (atlas decisions 0104, 0142). The exit code alone cannot carry this; an unmeasured run exits 0.
+ * `indeterminate`: the arm judged nothing, so it may neither file nor close the issue (atlas
+ * decisions 0104, 0142). The reconciler folds both arms' outcomes into the one bucket. The exit
+ * code alone cannot carry this: an unmeasured run exits 0.
  *
- * Persistent UNMEASURED never escalates today (review item M5, held for an owner decision).
+ * RESIDUAL (review item M5): a persistent UNMEASURED still never escalates the ISSUE. The owner
+ * chose option A on 2026-10-13: the escalation lives on the dead-man tile instead, which goes red
+ * on each day this arm publishes `measured=0` (ingestionMeasured below). Recorded here and in
+ * AGENTS.md ("B6 is two daily steps").
  */
 export function issueOutcome(findings) {
   if (findings.some((finding) => finding.severity === 'fail')) {
@@ -435,46 +466,64 @@ export function issueOutcome(findings) {
   return 'success'
 }
 
+/**
+ * Pure: the ingestion arm's `measured` count. 1 when the Stats API answered and the arm judged
+ * ingestion -- confirmed, not observed, or a definite HTTP answer about our side such as a 401.
+ * 0 when it judged nothing: UNMEASURED, SKIPPED, or a fail with no HTTP answer behind it
+ * (`noAnswer`, a thrown request or body read). 0 wedges the daily tier on the day it happens
+ * (owner decision 2026-10-13, option A).
+ *
+ * `checkSaIngestion` returns exactly one finding, so the arm is in exactly one of these states.
+ */
+export function ingestionMeasured(findings) {
+  if (issueOutcome(findings) === 'indeterminate' || findings.some((finding) => finding.noAnswer === true)) {
+    return 0
+  }
+  return 1
+}
+
 function annotationValue(value) {
   return value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')
 }
 
-/** Make UNMEASURED visible: one workflow warning per finding and one step-summary line per run. */
-function announceUnmeasured(findings, {env, logger, append}) {
-  const unmeasured = findings.filter((finding) => finding.unmeasured === true)
-  for (const finding of unmeasured) {
-    logger.log(`::warning title=B6 SA Stats API UNMEASURED::${annotationValue(finding.message)}`)
+/** Pure: the label for a finding the arm could not judge, or null for a judged one. */
+function unjudgedState(finding) {
+  if (finding.unmeasured === true) {
+    return 'UNMEASURED'
   }
-  if (unmeasured.length > 0 && env.GITHUB_STEP_SUMMARY) {
-    append(env.GITHUB_STEP_SUMMARY, `- B6 analytics: UNMEASURED -- ${unmeasured.map((finding) => finding.message).join(' | ')}\n`, 'utf8')
+  if (finding.noAnswer === true) {
+    return 'NO ANSWER'
+  }
+  return finding.id === INGESTION_SKIPPED_ID ? 'SKIPPED' : null
+}
+
+/** Make an unjudged ingestion arm visible: one workflow warning per finding and one step-summary line. */
+function announceUnjudged(findings, measured, {env, logger, append}) {
+  const unjudged = findings.filter((finding) => unjudgedState(finding) !== null)
+  for (const finding of unjudged) {
+    const state = unjudgedState(finding)
+    const subject = state === 'SKIPPED' ? 'B6 SA ingestion' : 'B6 SA Stats API'
+    logger.log(`::warning title=${subject} ${state}::${annotationValue(finding.message)}`)
+  }
+  if (unjudged.length > 0 && env.GITHUB_STEP_SUMMARY) {
+    const states = [...new Set(unjudged.map(unjudgedState))].join('+')
+    append(env.GITHUB_STEP_SUMMARY, `- B6 SA ingestion: ${states} (measured=${measured}) -- ${unjudged.map((finding) => finding.message).join(' | ')}\n`,
+      'utf8')
   }
 }
 
 /**
- * Run B6 end to end and publish its channels: the findings and `measured` through the shared
- * report helper, then the UNMEASURED annotation, then `issue_outcome`. Returns the exit code.
- * Every I/O edge is injectable; production passes nothing.
+ * The beacons arm: load the live page, judge the four beacons, publish `measured` = beacons
+ * observed and the arm's `issue_outcome`. Returns the exit code.
+ *
+ * The launch/navigation failure is caught rather than left to reject. An unhandled rejection exits
+ * nonzero having written no count, and `continue-on-error: true` then swallows it -- the dead-man
+ * reads that as `crashed-before-measuring`, but a caught failure keeps the finding in the report.
  */
-export async function runAnalyticsCheck({
-  env = process.env,
-  collectBeacons = collectBeaconEvents,
-  fetchImpl = fetchStable,
-  postImpl = fetch,
-  now = Date.now,
-  sleep = realSleep,
-  logger = console,
-  append = appendFileSync
-} = {}) {
+export async function runBeaconsArm({env = process.env, collectBeacons = collectBeaconEvents} = {}) {
   const findings = []
-
-  // The measurement channel (atlas decision 0122): one per EXPECTATION the browser
-  // observed a response for. Each is a live transport probe, so observing three of
-  // four is a finding about the missing beacon, while observing none means the page
-  // never loaded or nothing left the browser -- the transport-dark shape.
-  //
-  // The launch/navigation failure is caught rather than left to reject. An unhandled
-  // rejection exits nonzero having written no count, and `continue-on-error: true`
-  // then swallows it into a green daily tile: the exact defect this channel closes.
+  // One per EXPECTATION the browser observed a response for (atlas decision 0122). Each is a live
+  // transport probe: three of four is a finding about the missing beacon, none is transport-dark.
   let seen = new Map()
   try {
     seen = await withHeartbeat('the browser beacon phase', () => collectBeacons(SITE_URL))
@@ -487,13 +536,38 @@ export async function runAnalyticsCheck({
   }
   findings.push(...evaluateBeacons(seen))
 
+  const exitCode = report('check-analytics-beacons', findings, seen.size)
+  publishIssueOutcome(issueOutcome(findings), {outputPath: env.GITHUB_OUTPUT})
+  return exitCode
+}
+
+/**
+ * The SA ingestion arm: synthetic event -> first-party proxy -> SA collector -> Stats API. Publishes
+ * `measured` (1 judged, 0 unmeasured or skipped) and the arm's `issue_outcome`. Returns the exit
+ * code. Every I/O edge is injectable; production passes nothing.
+ *
+ * NO SA_API_KEY PUBLISHES 0. The key is a provisioned repository secret, so its absence under
+ * Actions is a lost secret, not a design state: the arm is dark, and a dark arm must turn the tile
+ * red that day, exactly as an unreadable Stats API does. The same rule as the B2 Cloudflare
+ * cache-rule step, whose refused token publishes 0. Outside Actions there is no output path, so a
+ * workstation run without the key stays a visible SKIPPED and writes nothing.
+ */
+export async function runIngestionArm({
+  env = process.env,
+  fetchImpl = fetchStable,
+  postImpl = fetch,
+  now = Date.now,
+  sleep = realSleep,
+  logger = console,
+  append = appendFileSync
+} = {}) {
+  const findings = []
   const saApiKey = env.SA_API_KEY
   if (saApiKey) {
     progress('SA_API_KEY present -- running the end-to-end ingestion confirmation')
     findings.push(...(await checkSaIngestion(saApiKey, {fetchImpl, postImpl, now, sleep})))
   } else {
-    // Explicit, visible SKIPPED marker -- never silently green when a whole
-    // sub-check didn't run (§8 Q2: SA_API_KEY is a Phase 0 user-provisioned secret).
+    // Explicit, visible SKIPPED marker -- never silently green when the arm did not run.
     findings.push({
       severity: 'info',
       id: INGESTION_SKIPPED_ID,
@@ -501,20 +575,51 @@ export async function runAnalyticsCheck({
     })
   }
 
-  const exitCode = report('check-analytics', findings, seen.size)
-  announceUnmeasured(findings, {env, logger, append})
+  const measured = ingestionMeasured(findings)
+  const exitCode = report('check-analytics-ingestion', findings, measured)
   publishIssueOutcome(issueOutcome(findings), {outputPath: env.GITHUB_OUTPUT})
+  // AFTER both channels, and never fatal: a summary file that cannot be written must not reach
+  // main()'s crash path, which would publish `failure` and file #149 for a run that judged nothing.
+  try {
+    announceUnjudged(findings, measured, {env, logger, append})
+  } catch (err) {
+    console.error(`could not announce the unjudged ingestion arm: ${err?.message || err}`)
+  }
   return exitCode
 }
 
+/** The arms `--arm` accepts, each mapped to its runner. */
+export const ARMS = Object.freeze({beacons: runBeaconsArm, ingestion: runIngestionArm})
+
+/**
+ * Pure: read `--arm <name>` or `--arm=<name>` from argv. Required: each workflow step names its arm,
+ * and a step that names none is a wiring defect, never "run both" -- running both would publish
+ * one count for two arms, which is the defect this split removes.
+ *
+ * @returns {string|null} the arm name, or null when absent or unknown
+ */
+export function parseArm(argv) {
+  const index = argv.findIndex((arg) => arg === '--arm' || arg.startsWith('--arm='))
+  if (index < 0) {
+    return null
+  }
+  const value = argv[index] === '--arm' ? argv[index + 1] : argv[index].slice('--arm='.length)
+  return Object.hasOwn(ARMS, value) ? value : null
+}
+
 async function main() {
+  const arm = parseArm(process.argv.slice(2))
   let exitCode
   try {
-    exitCode = await runAnalyticsCheck()
+    if (arm === null) {
+      throw new TypeError(`--arm must be one of ${Object.keys(ARMS).join('|')} (argv: ${JSON.stringify(process.argv.slice(2))})`)
+    }
+    exitCode = await ARMS[arm]()
   } catch (err) {
     // A crash judged nothing, but it must still file: `failure`, never a missing output that the
-    // reconciler would read as indeterminate and leave a broken lane quiet.
-    console.error(`check-analytics terminated unexpectedly: ${err?.stack || err}`)
+    // reconciler would read as indeterminate and leave a broken lane quiet. It publishes no count,
+    // so the dead-man reads the failed step as `crashed-before-measuring`.
+    console.error(`check-analytics${arm ? ` --arm ${arm}` : ''} terminated unexpectedly: ${err?.stack || err}`)
     publishIssueOutcome('failure')
     exitCode = 1
   }
