@@ -56,5 +56,6 @@ missing-images.txt
 # adds this line in both spokes' migration PRs.
 .worktrees/
 
-# wrangler pages dev bundles (local Pages Functions smoke)
+# Wrangler state: the build writes .wrangler/deploy/config.json (the pointer to
+# dist/server/wrangler.json), and `wrangler dev` keeps local state here.
 .wrangler/

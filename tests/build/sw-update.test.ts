@@ -3,10 +3,11 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'fs'
 import path from 'path'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {scanWorkerSource, scanWorkerTree, siteGatedProbeUrls, verifyPurgeScript} from '../../scripts/lib/sw-privacy.mjs'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // Graceful no-interaction deploy updates (Phase 1).
 // Plan: .omc/plans/graceful-deploy-auto-update-plan.md
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 const swRegisterPath = path.join(distDir, 'js', 'sw-register.js')
 
 describe('SW update controller', () => {

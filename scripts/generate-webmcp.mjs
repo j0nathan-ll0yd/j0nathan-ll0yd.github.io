@@ -1,5 +1,5 @@
 // Generates the agent-discovery surface from the ONE agent catalog
-// (functions/_lib/agent-catalog.mjs). Run via `pnpm run generate:webmcp` (wired into
+// (src/lib/edge/agent-catalog.mjs). Run via `pnpm run generate:webmcp` (wired into
 // prebuild). Every output is byte-stable across runs; edit this file or the catalog,
 // never the outputs.
 //
@@ -37,7 +37,7 @@ import {
   SERVER_CARD_MEDIA_TYPE,
   SERVER_CARD_URL,
   TOOLS
-} from '../functions/_lib/agent-catalog.mjs'
+} from '../src/lib/edge/agent-catalog.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const publicDir = join(root, 'public')

@@ -1,6 +1,6 @@
 // @vitest-environment node
 //
-// The /mcp Pages Function end to end, in process: the request goes through the real
+// The /mcp route end to end, in process: the request goes through the real
 // Host/Origin guard, the real SDK entry, and the real focus-gated proxy machinery.
 // Only `fetch` (the CloudFront data plane) and the edge logger are stubbed.
 
@@ -15,17 +15,29 @@ import {
   SERVER_CARD_JSON,
   SERVER_CARD_MEDIA_TYPE,
   TOOLS
-} from '../../functions/_lib/agent-catalog.mjs'
-import {DISCOVERY_CACHE_SECONDS, LLM_CHANNEL_POLICY, LLM_WITHHELD_URLS} from '../../functions/_lib/agent-catalog.mjs'
-import {allowedHostnames, MAX_REQUEST_BODY_BYTES, PAGES_PROJECT_HOST, readGated, STALE_META_KEY, withheldLinks} from '../../functions/_lib/mcp-server'
-import type {ReadMemo} from '../../functions/_lib/mcp-server'
-import {onRequest as mcpRoute} from '../../functions/mcp/index'
-import {onRequest as serverCardRoute} from '../../functions/mcp/server-card'
+} from '../../src/lib/edge/agent-catalog.mjs'
+import {DISCOVERY_CACHE_SECONDS, LLM_CHANNEL_POLICY, LLM_WITHHELD_URLS} from '../../src/lib/edge/agent-catalog.mjs'
+import {
+  allowedHostnames,
+  isPreviewHost,
+  MAX_REQUEST_BODY_BYTES,
+  readGated,
+  STALE_META_KEY,
+  withheldLinks,
+  WORKER_NAME,
+  WORKERS_DEV_SUBDOMAIN
+} from '../../src/lib/edge/mcp-server'
+import type {ReadMemo} from '../../src/lib/edge/mcp-server'
+import {onRequest as mcpRoute} from '../../src/pages/mcp/index'
+import {onRequest as serverCardRoute} from '../../src/pages/mcp/server-card'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
 
 const SITE_HOST = new URL(SITE_URL).hostname
+// Worker preview hosts (atlas decision 0160): a Version URL and a pull request alias.
+const PREVIEW = 'abc123ef-human-datastream.webmaster-872.workers.dev'
+const PREVIEW_ALIAS = 'pr-348-human-datastream.webmaster-872.workers.dev'
 const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
 const BOOKS = {
   generatedAt: '2026-10-07T00:00:00.000Z',
@@ -319,34 +331,64 @@ describe('Host and Origin validation', () => {
     expect(body.error?.message).toBe('Invalid Host header')
   })
 
-  // A localhost Origin is a page on the caller's own machine. Only `wrangler pages dev`, whose
-  // Host is localhost, accepts one; a deployed host never does.
+  // A localhost Origin is a page on the caller's own machine. Only a local run (`wrangler dev`,
+  // `astro preview`), whose Host is localhost, accepts one; a deployed host never does.
   it.each(['http://localhost:4321', 'http://127.0.0.1:8788'])('accepts the Origin %s in development only', async (origin) => {
     expect((await modern('tools/list', {}, undefined, {origin})).response.status).toBe(403)
-    expect((await modern('tools/list', {}, undefined, {host: `${PAGES_PROJECT_HOST}`, origin})).response.status).toBe(403)
+    expect((await modern('tools/list', {}, undefined, {host: PREVIEW, origin})).response.status).toBe(403)
     expect((await modern('tools/list', {}, undefined, {host: 'localhost:8788', origin})).response.status).toBe(200)
     expect((await modern('tools/list', {}, undefined, {host: '127.0.0.1:8788', origin})).response.status).toBe(200)
   })
 
-  it('accepts the site origin and a preview origin of this Pages project', async () => {
+  it('accepts the site origin, and a Worker preview origin on its own preview host', async () => {
     expect((await modern('tools/list', {}, undefined, {origin: SITE_URL})).response.status).toBe(200)
-    const preview = `agent-readiness.${PAGES_PROJECT_HOST}`
-    expect((await modern('tools/list', {}, undefined, {host: preview, origin: `https://${preview}`})).response.status).toBe(200)
+    expect((await modern('tools/list', {}, undefined, {host: PREVIEW, origin: `https://${PREVIEW}`})).response.status).toBe(200)
+    expect((await modern('tools/list', {}, undefined, {host: PREVIEW_ALIAS, origin: `https://${PREVIEW_ALIAS}`})).response.status).toBe(200)
   })
 
-  it('rejects a Host outside the allowlist, and a look-alike preview suffix', async () => {
-    expect((await modern('tools/list', {}, undefined, {host: 'evil.example'})).response.status).toBe(403)
-    expect((await modern('tools/list', {}, undefined, {host: `x${PAGES_PROJECT_HOST}`})).response.status).toBe(403)
+  // A preview-shaped Origin from another host is a page elsewhere, even another preview.
+  it('rejects a preview origin that is not the request host', async () => {
+    expect((await modern('tools/list', {}, undefined, {host: PREVIEW, origin: `https://${PREVIEW_ALIAS}`})).response.status).toBe(403)
+    expect((await modern('tools/list', {}, undefined, {origin: `https://${PREVIEW}`})).response.status).toBe(403)
   })
 
-  it('names the Pages project the deploy workflows deploy to', () => {
-    const project = PAGES_PROJECT_HOST.replace('.pages.dev', '')
-    for (const workflow of ['.github/workflows/deploy.yml', '.github/workflows/preview-deploy.yml']) {
-      expect(readFileSync(workflow, 'utf8')).toContain(`--project-name=${project}`)
+  it('rejects a Host outside the allowlist, a look-alike preview host, and the retired Pages hosts', async () => {
+    for (
+      const host of [
+        'evil.example',
+        `${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`,
+        `abc123ef-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev.evil.example`,
+        `abc123ef-${WORKER_NAME}x.${WORKERS_DEV_SUBDOMAIN}.workers.dev`,
+        `${WORKER_NAME}.pages.dev`,
+        `branch.${WORKER_NAME}.pages.dev`
+      ]
+    ) {
+      expect((await modern('tools/list', {}, undefined, {host})).response.status, host).toBe(403)
     }
-    expect(allowedHostnames(undefined)).toContain(SITE_HOST)
-    expect(allowedHostnames(undefined)).not.toContain('localhost')
-    expect(allowedHostnames(undefined, {development: true})).toEqual(expect.arrayContaining(['localhost', '127.0.0.1']))
+  })
+
+  // Independent review of 5d042deb: the earlier pattern pinned neither the account nor the prefix.
+  it.each([
+    ['a foreign account', `abc123ef-${WORKER_NAME}.attacker.workers.dev`],
+    ['a foreign account alias', `pr-1-${WORKER_NAME}.attacker.workers.dev`],
+    ['a non-hex version prefix', `evil1234-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`],
+    ['a free-form prefix', `evil-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`],
+    ['a short hex prefix', `abc123e-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`]
+  ])('rejects %s as a preview host, for Host and for Origin', async (_label, hostname) => {
+    expect(isPreviewHost(hostname)).toBe(false)
+    expect((await modern('tools/list', {}, undefined, {host: hostname})).response.status).toBe(403)
+    expect((await modern('tools/list', {}, undefined, {host: hostname, origin: `https://${hostname}`})).response.status).toBe(403)
+  })
+
+  it("accepts this account's Version URL and pull request alias as preview hosts", () => {
+    expect(isPreviewHost(`05337795-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`)).toBe(true)
+    expect(isPreviewHost(`pr-348-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`)).toBe(true)
+  })
+
+  it('names the Worker that wrangler.jsonc deploys', () => {
+    expect(readFileSync('wrangler.jsonc', 'utf8')).toMatch(new RegExp(`^\\s*"name": "${WORKER_NAME}",$`, 'm'))
+    expect(allowedHostnames(undefined)).toEqual([SITE_HOST])
+    expect(allowedHostnames(undefined, {development: true})).toEqual(expect.arrayContaining(['localhost', '127.0.0.1', '[::1]']))
   })
 })
 
@@ -453,7 +495,7 @@ describe('resources', () => {
   })
 
   // The backend gate is the authority, not the focus signal: it can be shut over a visible value,
-  // and its 403 suppression body wins over a visible focus probe (functions/_lib/proxy.ts, rule 2).
+  // and its 403 suppression body wins over a visible focus probe (src/lib/edge/proxy.ts, rule 2).
   // That body reaches an agent as the suppression document, never as an error or data.
   it('returns the suppression document when the gate answers 403 over a visible focus value', async () => {
     fetchMock.mockImplementation((url: string) =>

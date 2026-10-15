@@ -1,8 +1,8 @@
 ---
 import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
-import { LLMS_TXT_PATH } from '../../functions/_lib/llms-artifacts';
-import { SITE_PAGE_PATHS, SITEMAP_INDEX_PATH } from '../../functions/_lib/site-paths';
+import { LLMS_TXT_PATH } from '../lib/edge/llms-artifacts';
+import { SITE_PAGE_PATHS, SITEMAP_INDEX_PATH } from '../lib/edge/site-paths';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
@@ -178,7 +178,7 @@ const jsonLdGraph = isHome
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
   {/* Both alternates address the SITE plane, never the CloudFront origin. The privacy
-      gate and the cache rules live on the site plane (functions/_lib/proxy.ts); an
+      gate and the cache rules live on the site plane (src/lib/edge/proxy.ts); an
       advertised origin URL inherits none of that policy and the origin serves
       selectively. They describe the homepage datastream, so they are gated to it. */}
   {isHome && (

@@ -3,8 +3,8 @@ import { SITE_URL } from '@j0nathan-ll0yd/portal-contract/constants';
 import { llm } from '@j0nathan-ll0yd/copy';
 import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
-import { AGENT_PATHS } from '../../functions/_lib/agent-paths.mjs';
-import { DATA_SOURCES, TOOLS, fillTemplate } from '../../functions/_lib/agent-catalog.mjs';
+import { AGENT_PATHS } from '../lib/edge/agent-paths.mjs';
+import { DATA_SOURCES, TOOLS, fillTemplate } from '../lib/edge/agent-catalog.mjs';
 import { linkSegments } from '../lib/link-segments';
 
 const d = llm.developers;

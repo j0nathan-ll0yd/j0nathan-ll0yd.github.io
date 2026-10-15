@@ -1,6 +1,7 @@
 import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import path from 'path'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 import {identity, llm} from '@j0nathan-ll0yd/copy'
 import {contentLastModified} from '../../src/lib/content-date'
 
@@ -11,7 +12,7 @@ import {contentLastModified} from '../../src/lib/content-date'
 // lastModified key. / carries none: it is live client-side data with no
 // verifiable content date, and CI checks out with depth 1, so git history gives a wrong
 // date (website #360, docs/wiki/Metadata-Files-Spec.md).
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 let xml: string
 

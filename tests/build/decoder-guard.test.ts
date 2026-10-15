@@ -1,6 +1,7 @@
 import {readdirSync, readFileSync} from 'fs'
 import path from 'path'
 import {describe, expect, it} from 'vitest'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // THE DECODER'S OWN-PROPERTY GUARD, ASSERTED IN THE FORM THIS REPO ACTUALLY SHIPS.
 //
@@ -27,7 +28,7 @@ import {describe, expect, it} from 'vitest'
 // global member access that survives minification verbatim, so the guard's presence is readable
 // from the emitted bytes even though its behaviour is not. If a bundler upgrade reshapes this
 // expression the test reds loudly and a human re-reads the chunk -- the fail-safe direction.
-const astroDir = path.resolve(process.cwd(), 'dist', '_astro')
+const astroDir = path.join(clientDir(), '_astro')
 
 // The producer's own message literal, the stable anchor: it is a string the generated decoder
 // emits and no minifier renames.

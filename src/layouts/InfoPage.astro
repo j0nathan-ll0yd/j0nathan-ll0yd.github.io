@@ -3,8 +3,8 @@ import { getEntry } from 'astro:content';
 import { TextPage } from '@j0nathan-ll0yd/web/components';
 import { llm } from '@j0nathan-ll0yd/copy';
 import Dashboard from './Dashboard.astro';
-import { SITE_PAGE_PATHS } from '../../functions/_lib/site-paths';
-import { AGENT_PATHS } from '../../functions/_lib/agent-paths.mjs';
+import { SITE_PAGE_PATHS } from '../lib/edge/site-paths';
+import { AGENT_PATHS } from '../lib/edge/agent-paths.mjs';
 
 // The document shell for /about, /contact, /developers, and /privacy: the Dashboard head,
 // then the design system's TextPage, which owns every style. This file supplies only what

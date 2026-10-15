@@ -60,13 +60,13 @@ export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
 // The media type ai-catalog.json is served as. A local choice: ARD §3.3 lists
 // `application/ai-catalog+json` as the entry `type` for a "nested manifest / catalog of
 // entries" (ards-project/ard-spec spec/ard.md at 9d33ea17, newer than the b76f235a pin).
-// Restated here rather than imported from functions/_lib/agent-paths.mjs, so the measurer
+// Restated here rather than imported from src/lib/edge/agent-paths.mjs, so the measurer
 // does not share the value it measures.
 export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'
 
 // The MCP resources the live server must list: every JSON export except the three the
 // LLM-channel policy withholds (health, sleep, workouts), plus llms-full.txt. Stated here
-// from the contract, independently of functions/_lib/agent-catalog.mjs, so a catalog edit
+// from the contract, independently of src/lib/edge/agent-catalog.mjs, so a catalog edit
 // that exposes a withheld export, or drops one, reds the probe.
 const WITHHELD_EXPORTS = new Set([ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts])
 export const EXPECTED_RESOURCE_URIS = Object.freeze([
@@ -293,8 +293,26 @@ export function judgeMcpExchange({initialize, toolsList, card}) {
   return findings
 }
 
+/**
+ * Cloudflare Access service-token headers for one URL. A preview Version URL sits behind Access
+ * (atlas decision 0160), so an audit of it (`--base`) must authenticate. The token goes ONLY to
+ * the audited origin: never to production, CloudFront, or any other host a discovery document
+ * names. Pure -- testable without network.
+ */
+export function accessHeadersFor(url, base, env = process.env) {
+  const id = env.CF_ACCESS_CLIENT_ID
+  const secret = env.CF_ACCESS_CLIENT_SECRET
+  if (!id || !secret || base === undefined || new URL(url).origin !== new URL(base).origin) {
+    return {}
+  }
+  return {'CF-Access-Client-Id': id, 'CF-Access-Client-Secret': secret}
+}
+
+/** The deploy under audit (`--base`); main() sets it. Access headers go to this origin only. */
+let auditedBase
+
 async function postMcp(url, message, extraHeaders = {}) {
-  const headers = {'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...extraHeaders}
+  const headers = {'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', ...extraHeaders, ...accessHeadersFor(url, auditedBase)}
   const res = await fetchStable(url, {method: 'POST', headers, body: JSON.stringify(message)})
   const text = await res.text()
   if (!res.ok) {
@@ -650,7 +668,7 @@ async function checkApiCatalog(base) {
 async function fetchJson(url, headers) {
   let res
   try {
-    res = await fetchStable(url, headers ? {headers} : undefined)
+    res = await fetchStable(url, {headers: {...headers, ...accessHeadersFor(url, auditedBase)}})
   } catch (err) {
     return {error: `fetch failed for ${url}: ${err.message}`}
   }
@@ -734,9 +752,11 @@ async function main() {
   const baseArgument = baseIndex > 0 ? process.argv[baseIndex + 1] : SITE_URL
   if (typeof baseArgument !== 'string' || !URL.canParse(baseArgument)) {
     console.error('usage: node audits/checks/b2-check-wellknown.mjs [--base <absolute URL of the deploy to audit>]')
+    console.error('  A preview Version URL sits behind Cloudflare Access: set CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET.')
     process.exit(2)
   }
   const base = baseArgument.replace(/\/$/, '')
+  auditedBase = base
   const settled = await Promise.allSettled([
     fetchAndValidate(
       `${base}/.well-known/webfinger?resource=acct:jonathan@jonathanlloyd.me`,

@@ -1,18 +1,27 @@
+import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'astro/config'
 import AstroPWA from '@vite-pwa/astro'
 import sitemap from '@astrojs/sitemap'
+import cloudflare from '@astrojs/cloudflare'
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
 import {forbidFixtures} from './scripts/vite-forbid-fixtures.mjs'
+import {clientNoProcessBanner} from './scripts/vite-client-no-process-banner.mjs'
 import llm from '@j0nathan-ll0yd/copy/llm.flat.json'
-import {AGENT_PATHS} from './functions/_lib/agent-paths.mjs'
-import {SITE_PAGE_PATHS} from './functions/_lib/site-paths.ts'
+import {AGENT_PATHS} from './src/lib/edge/agent-paths.mjs'
+import {SITE_PAGE_PATHS} from './src/lib/edge/site-paths.ts'
 import {contentLastModified} from './src/lib/content-date.ts'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
 const CF_HOST = new URL(CLOUDFRONT_BASE).host
 const CF_HOST_RE = CF_HOST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+// The static-asset directory. With the Cloudflare adapter Astro writes static files to
+// dist/client/ and the Worker to dist/server/. @vite-pwa/astro points the service worker at the
+// client directory only for `output: 'server'`; this site is `static` with an adapter, so without
+// these two options sw.js and its precache manifest land in dist/server/ and the precache is empty.
+const CLIENT_DIR = fileURLToPath(new URL('./dist/client/', import.meta.url))
 
 // The content date of each copy-driven page, from its copy lastModified key.
 const COPY_PAGE_LASTMOD = {
@@ -24,6 +33,16 @@ const COPY_PAGE_LASTMOD = {
 export default defineConfig({
   site: SITE_URL,
   output: 'static',
+  // Cloudflare Workers (atlas decision 0160, PR A). Every page stays prerendered; only the
+  // routes in src/lib/edge/routes.ts render on demand. prerenderEnvironment 'node' keeps the
+  // prerender in Node, as before (the adapter defaults to workerd). imageService 'compile' keeps
+  // build-time image work in Node and adds no Images binding. src/worker.ts wraps the handler.
+  adapter: cloudflare({prerenderEnvironment: 'node', imageService: 'compile'}),
+  // No sessions: the adapter would otherwise add a KV namespace binding the site never reads.
+  session: false,
+  // No origin check on the on-demand routes. Pages Functions had none, and browsers send CSP reports
+  // and analytics beacons as cross-site-looking POSTs that Astro's check would answer with 403.
+  security: {checkOrigin: false},
   trailingSlash: 'never',
   // `file` builds privacy.html, not privacy/index.html, to match trailingSlash: 'never'. Cloudflare
   // serves x.html at /x with a 200 and answers /x.html and /x/ with a redirect to /x. A directory
@@ -40,11 +59,12 @@ export default defineConfig({
     // Fails the build when any module resolves to @j0nathan-ll0yd/fixtures, directly or through
     // another module or package (atlas decision 0160, plan Step 6.7). Production pages carry no
     // fixture data; tests serve fixtures by route interception only.
-    plugins: [forbidFixtures()],
+    // clientNoProcessBanner: the adapter's Worker banner must not reach the browser bundle.
+    plugins: [forbidFixtures(), clientNoProcessBanner()],
     build: {
       // Force every bundled JS chunk to emit as an external _astro/*.js file
       // instead of being inlined into the HTML. Required because production CSP
-      // (functions/_middleware.ts) does not allow inline scripts — `'self'` only
+      // (src/lib/edge/security-headers.ts) does not allow inline scripts — `'self'` only
       // covers the hashed external chunks. See .omc/plans/fix-bio-csp-blocked-inline-script.md.
       assetsInlineLimit: 0
     },
@@ -82,6 +102,7 @@ export default defineConfig({
       }
     }),
     AstroPWA({
+      outDir: CLIENT_DIR,
       registerType: 'autoUpdate',
       // The graceful update controller is hand-rolled in public/js/sw-register.js
       // (single registration + deferred state-preserving reload). Suppress the
@@ -102,6 +123,7 @@ export default defineConfig({
         ]
       },
       workbox: {
+        globDirectory: CLIENT_DIR,
         // HTML documents are NOT precached, except the data-free /offline page
         // (atlas decision 0160, PR 0b). A precached document answers a navigation
         // from the precache before any runtime route runs, so a precached `/`

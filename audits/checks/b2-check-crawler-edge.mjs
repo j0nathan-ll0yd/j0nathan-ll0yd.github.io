@@ -12,9 +12,10 @@
 // Each response is judged on one question: did the request pass the edge and reach the
 // site? A 403 or the block body is a fail. A response without the site's own
 // Content-Usage header is a fail too: the zone answered (a challenge, a rate limit, an
-// edge error) and the site never saw the request. Every Pages Function response carries
-// that header (functions/_middleware.ts), and so does every static asset
-// (public/_headers), so its presence is the proof of reach.
+// edge error) and the site never saw the request. Every Worker response carries that
+// header (src/lib/edge/middleware.ts, and src/worker.ts on the code-free prefixes), and so
+// does every static asset (dist/client/_headers, written from src/lib/edge/security-headers.ts),
+// so its presence is the proof of reach.
 //
 // WHY NO OTHER CHECK SEES THIS. b2-validate-robots.mjs judges robots.txt TEXT with a
 // default User-Agent, and every other audit check fetches the site with one too. None of
@@ -31,7 +32,7 @@
 
 import robotsParser from 'robots-parser'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts.ts'
 import {DEFAULT_BUDGET_MS, fetchStable, isMain, report} from '../lib/http.mjs'
 import {createDeadline, progress, withHeartbeat} from '../lib/progress.mjs'
 

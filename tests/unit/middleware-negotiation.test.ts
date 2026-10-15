@@ -1,22 +1,22 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {llm} from '@j0nathan-ll0yd/copy'
 import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
-import {AGENT_PATHS} from '../../functions/_lib/agent-paths.mjs'
-import {SITEMAP_INDEX_PATH} from '../../functions/_lib/site-paths'
-import {CONTENT_USAGE, CSP, LINK_HEADER, NOT_FOUND_MARKDOWN, onRequest, prefersMarkdown} from '../../functions/_middleware'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
+import {AGENT_PATHS} from '../../src/lib/edge/agent-paths.mjs'
+import {SITEMAP_INDEX_PATH} from '../../src/lib/edge/site-paths'
+import {CONTENT_USAGE, CSP, LINK_HEADER, NOT_FOUND_MARKDOWN, onRequest, prefersMarkdown} from '../../src/lib/edge/middleware'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
 
-// Unit tests for the homepage markdown negotiation in functions/_middleware.ts.
+// Unit tests for the homepage markdown negotiation in src/lib/edge/middleware.ts.
 // The regression class under guard: the pre-P1 middleware negotiated on EVERY
 // path and method via `accept.includes('text/markdown')`, hijacking /llms.txt
 // (discovery identity lost), matching `text/markdown;q=0`, bypassing the shared
 // proxy machinery with an independent fetch, and skipping the header pipeline.
 
 // Both inits carry an AbortSignal: every network attempt the proxy makes is bounded by a
-// per-operation deadline drawn from the request's total budget (functions/_lib/proxy.ts).
+// per-operation deadline drawn from the request's total budget (src/lib/edge/proxy.ts).
 // Gated fetches are no-store with no `cf` cache options (atlas decision 0160, PR 0b); a gated 200
 // is admitted only with CloudFront's `x-amz-cf-id`, and its copy only with a composition stamp.
 const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', redirect: 'manual', signal: expect.any(AbortSignal)})

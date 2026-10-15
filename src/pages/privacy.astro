@@ -2,7 +2,7 @@
 import { getEntry } from 'astro:content';
 import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
-import { SITE_PAGE_PATHS } from '../../functions/_lib/site-paths';
+import { SITE_PAGE_PATHS } from '../lib/edge/site-paths';
 
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[privacy.astro] @j0nathan-ll0yd/copy identity entry missing');

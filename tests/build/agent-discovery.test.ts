@@ -5,9 +5,10 @@ import {CLOUDFRONT_BASE, ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contr
 import Ajv2020 from 'ajv/dist/2020.js'
 import * as cheerio from 'cheerio'
 import {describe, expect, it} from 'vitest'
-import {AGENT_PATHS, SERVER_CARD_JSON, SERVER_CARD_MEDIA_TYPE, SERVER_CARD_URL} from '../../functions/_lib/agent-catalog.mjs'
+import {AGENT_PATHS, SERVER_CARD_JSON, SERVER_CARD_MEDIA_TYPE, SERVER_CARD_URL} from '../../src/lib/edge/agent-catalog.mjs'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
-const distDir = path.resolve('dist')
+const distDir = clientDir()
 const read = (relativePath: string) => fs.readFileSync(path.join(distDir, relativePath), 'utf-8')
 
 describe('agent discovery build output', () => {

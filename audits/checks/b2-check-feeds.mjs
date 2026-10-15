@@ -12,7 +12,7 @@
 
 import {XMLParser} from 'fast-xml-parser'
 import {SyntaxValidator} from 'fast-xml-validator'
-import {feedArtifact} from '../../functions/_lib/feed-artifacts.ts'
+import {feedArtifact} from '../../src/lib/edge/feed-artifacts.ts'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
 import {publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
@@ -20,7 +20,7 @@ import {emit, rules} from '../specs/load.mjs'
 
 // Stryker disable all -- fetch-target URLs, read only by main() (network-path
 // plumbing with no test coverage), never by the pure validators. Both come from
-// functions/_lib/feed-artifacts.ts, the same module the two route files read,
+// src/lib/edge/feed-artifacts.ts, the same module the two route files read,
 // so no feed path is a literal in more than one place.
 const FEED_XML_URL = feedArtifact('feed.xml').siteUrl
 const FEED_JSON_URL = feedArtifact('feed.json').siteUrl

@@ -4,16 +4,17 @@ import {type CheerioAPI, load} from 'cheerio'
 import {describe, expect, it} from 'vitest'
 import {identity, llm} from '@j0nathan-ll0yd/copy'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {CONTENT_USAGE} from '../../functions/_middleware'
-import {AGENT_PATHS, DATA_SOURCES, TOOLS} from '../../functions/_lib/agent-catalog.mjs'
-import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
+import {CONTENT_USAGE} from '../../src/lib/edge/security-headers'
+import {AGENT_PATHS, DATA_SOURCES, TOOLS} from '../../src/lib/edge/agent-catalog.mjs'
+import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // Behavioral, non-screenshot assertions for the copy-driven text pages (atlas decision
 // 0158): /about, /contact, and /developers are indexable, carry at least 500 characters
 // of visible text (the is-agentic trust-anchor floor), render every copy section, and
 // link only what the site serves. /privacy shares their layout and stays noindex.
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 function page(file: string): CheerioAPI {
   return load(readFileSync(path.join(distDir, file), 'utf-8'))

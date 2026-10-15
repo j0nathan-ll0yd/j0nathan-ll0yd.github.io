@@ -19,8 +19,8 @@ importers:
   .:
     dependencies:
       '@j0nathan-ll0yd/copy':
-        specifier: 4.0.0
-        version: 4.0.0
+        specifier: 4.0.1
+        version: 4.0.1
       '@j0nathan-ll0yd/observability':
         specifier: ^1.0.0
         version: 1.0.0
@@ -34,10 +34,10 @@ importers:
         specifier: ^2.2.1
         version: 2.2.1
       '@j0nathan-ll0yd/web':
-        specifier: 4.2.0
-        version: 4.2.0
+        specifier: 4.2.1
+        version: 4.2.1
       '@modelcontextprotocol/server':
-        specifier: ^2.3.1
+        specifier: 2.3.1
         version: 2.3.1
       astro:
         specifier: ~7.2.8
@@ -49,6 +49,9 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.9
         version: 0.9.9(prettier@3.8.1)(typescript@5.9.3)
+      '@astrojs/cloudflare':
+        specifier: 14.2.6
+        version: 14.2.6(@types/node@25.3.0)(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(wrangler@4.149.0(@types/node@25.3.0))(yaml@2.9.1)
       '@astrojs/sitemap':
         specifier: ^3.7.3
         version: 3.7.3
@@ -172,6 +175,12 @@ packages:
     peerDependencies:
       typescript: ^5.0.0 || ^6.0.0
 
+  '@astrojs/cloudflare@14.2.6':
+    resolution: {integrity: sha512-YoHvuwX83gQA3VY4YpESn4GX4kVHESae1LS1+6QvyFGp7H8ZnX+aRXGOmyNKdl+zpwDIew7e1HcbidWeuk2RLw==}
+    peerDependencies:
+      astro: ^7.2.0
+      wrangler: ^4.125.0
+
   '@astrojs/compiler-binding-darwin-arm64@0.4.0':
     resolution: {integrity: sha512-ZVUwHundaQyFNjE6uoa0usaC0WOCitDCLS/4mdb4rOiJXwVUuKJBMxI5WMzXLWmamsXtK/Z//ifLXvV5Yeh4Hw==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -268,6 +277,9 @@ packages:
   '@astrojs/telemetry@3.3.3':
     resolution: {integrity: sha512-C1TLn5sPJr0x4vk56piHWKbnqlEB8BKyte5Y45V02U+D7BGO5eMqZDH5aPjnkXQWJggvmsTXxH03QMZ9NgWLzQ==}
     engines: {node: 18.20.8 || ^20.3.0 || >=22.0.0}
+
+  '@astrojs/underscore-redirects@1.0.4':
+    resolution: {integrity: sha512-sD3bn7i2yC+ocxlhCTshdg3gUM471Nag3wgyHilA+kpmufokvmUu1p5Mw5GT5Xp8SPC1Nlq0BJAgV/lslnWvRw==}
 
   '@astrojs/yaml2ts@0.2.4':
     resolution: {integrity: sha512-8oddpOae35pJsXPQXhTkM0ypfKPskVsh2bCxRtbf7e+/Epw2nReakFYpLKjZMEr75CsoF203PMnCocpfz0s69A==}
@@ -977,6 +989,13 @@ packages:
     peerDependenciesMeta:
       workerd:
         optional: true
+
+  '@cloudflare/vite-plugin@1.63.1':
+    resolution: {integrity: sha512-6EtAoRqWryl43bYiCl7yvCBHi3R+L/fM11zu8zRyvBMe0Yk63NseyrhA19nO5Y1yrrk6dD+Su7NBZhDuUbjh0g==}
+    hasBin: true
+    peerDependencies:
+      vite: ^6.1.0 || ^7.0.0 || ^8.0.0
+      wrangler: ^4.149.0
 
   '@cloudflare/workerd-darwin-64@1.20261006.1':
     resolution: {integrity: sha512-lCX6avJO2It9AyDEYitjmOtJRVp/xmaW0TziyoLAnfxlzozyyRbSFfIIMMCiDx/sTP1++E4VLbV+7BHSD33f0Q==}
@@ -1868,8 +1887,8 @@ packages:
   '@j0nathan-ll0yd/copy@3.3.0':
     resolution: {integrity: sha512-Ct/xjBy8kXPs5qHDHV4r1qk2hcpi1lHUWbRvD7ZHjJblF6RktGgfKESjXX4hcm5vgAuLe4PzsH7sRSEHg1NJfw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/3.3.0/6fe0558c15296b038e1d19111ef1b7f7fa90f99b}
 
-  '@j0nathan-ll0yd/copy@4.0.0':
-    resolution: {integrity: sha512-PudjvEkj3a6VJyyn0MDiq7x5y8VKSpCRvA2OMuTLEJs3ZLTIted4Qkx54IZHkUK/yp62V+8oi+m8pJLc8JDjnQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/4.0.0/cdcb6dadb4b72dce68f35185c0476805840ea75f}
+  '@j0nathan-ll0yd/copy@4.0.1':
+    resolution: {integrity: sha512-Xp1A+8HwNvO796tA3FfO3de6Vc8yXzrRFRSvyFnT+5Oi0GjVdhV3qHc5mlRcMzcSUd848VWdjgTE7qoDIMckNg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/4.0.1/2d512e968c7ff25a67b4debe48e02c09057f49fa}
 
   '@j0nathan-ll0yd/env@1.0.0':
     resolution: {integrity: sha512-thYcCx5oYJ0ReIfSSTdVM7FsUNJBnmkTkoq5/YywA7ly19nuSwzcJh/U+TRtGpMRtrbmvtkiZl2W/+nr1JMMHA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/env/1.0.0/abd9389d100f1263395c1a1ae3e85b9be9b625ad}
@@ -1900,8 +1919,8 @@ packages:
   '@j0nathan-ll0yd/web@4.1.0':
     resolution: {integrity: sha512-1nKVFSaThWU0moilSmXuh+tRqyKE8EosLunjO3LWNE+uGY2BegoZ+LLAr9HWkKpcBor7Rh8XCCZlU7F2pYRDag==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.1.0/28f7e532ff8e951f60e6266ff7c8ce455fd23c5e}
 
-  '@j0nathan-ll0yd/web@4.2.0':
-    resolution: {integrity: sha512-5AvZdH/VRY6QY/dYC1ips+4x8a5UTauqcWiApd0QQXGKKWfUaJPos1Lb39bj7qLfQyePoEOY0HojxLA0XvCPgQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.2.0/664ea1044d7a0d67162d7f2e0a7fe3cc8b34334b}
+  '@j0nathan-ll0yd/web@4.2.1':
+    resolution: {integrity: sha512-FLs8dR0D4nLK/U7JMaYtUxZlOGjCAg8CQV5duhKf9IXPSoP+kFd2cVfbwjZHzX++3wU5r1LjFHo8D7enNVE1oQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.2.1/acf646a2b695007d88dbd804dbb65ed32ffa357f}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -6152,11 +6171,6 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
-  yaml@2.9.0:
-    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
-    engines: {node: '>= 14.6'}
-    hasBin: true
-
   yaml@2.9.1:
     resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
     engines: {node: '>= 14.6'}
@@ -6255,6 +6269,31 @@ snapshots:
       - prettier
       - prettier-plugin-astro
 
+  '@astrojs/cloudflare@14.2.6(@types/node@25.3.0)(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(wrangler@4.149.0(@types/node@25.3.0))(yaml@2.9.1)':
+    dependencies:
+      '@astrojs/internal-helpers': 0.11.0
+      '@astrojs/underscore-redirects': 1.0.4
+      '@cloudflare/vite-plugin': 1.63.1(@types/node@25.3.0)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(wrangler@4.149.0(@types/node@25.3.0))
+      astro: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      piccolore: 0.1.3
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      wrangler: 4.149.0(@types/node@25.3.0)
+    transitivePeerDependencies:
+      - '@types/node'
+      - '@vitejs/devtools'
+      - bufferutil
+      - esbuild
+      - jiti
+      - less
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - utf-8-validate
+      - yaml
+
   '@astrojs/compiler-binding-darwin-arm64@0.4.0':
     optional: true
 
@@ -6316,7 +6355,7 @@ snapshots:
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       js-yaml: 4.3.2
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       retext-smartypants: 6.2.0
       shiki: 4.3.1
       smol-toml: 1.9.1
@@ -6371,9 +6410,11 @@ snapshots:
       is-docker: 4.0.0
       package-manager-detector: 1.6.0
 
+  '@astrojs/underscore-redirects@1.0.4': {}
+
   '@astrojs/yaml2ts@0.2.4':
     dependencies:
-      yaml: 2.9.0
+      yaml: 2.9.1
 
   '@aws-lambda-powertools/commons@2.35.0':
     dependencies:
@@ -7305,6 +7346,20 @@ snapshots:
     optionalDependencies:
       workerd: 1.20261006.1
 
+  '@cloudflare/vite-plugin@1.63.1(@types/node@25.3.0)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(wrangler@4.149.0(@types/node@25.3.0))':
+    dependencies:
+      '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261006.1)
+      miniflare: 5.20261006.1-alpha(@types/node@25.3.0)
+      unenv: 2.0.0-rc.24
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      workerd: 1.20261006.1
+      wrangler: 4.149.0(@types/node@25.3.0)
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - utf-8-validate
+
   '@cloudflare/workerd-darwin-64@1.20261006.1':
     optional: true
 
@@ -7911,7 +7966,7 @@ snapshots:
 
   '@j0nathan-ll0yd/copy@3.3.0': {}
 
-  '@j0nathan-ll0yd/copy@4.0.0': {}
+  '@j0nathan-ll0yd/copy@4.0.1': {}
 
   '@j0nathan-ll0yd/env@1.0.0': {}
 
@@ -7961,9 +8016,9 @@ snapshots:
       '@j0nathan-ll0yd/portal-contract': 2.7.0
       '@j0nathan-ll0yd/tokens': 2.2.1
 
-  '@j0nathan-ll0yd/web@4.2.0':
+  '@j0nathan-ll0yd/web@4.2.1':
     dependencies:
-      '@j0nathan-ll0yd/copy': 4.0.0
+      '@j0nathan-ll0yd/copy': 4.0.1
       '@j0nathan-ll0yd/portal-contract': 2.7.0
       '@j0nathan-ll0yd/tokens': 2.2.1
 
@@ -12666,8 +12721,6 @@ snapshots:
       yaml: 2.8.3
 
   yaml@2.8.3: {}
-
-  yaml@2.9.0: {}
 
   yaml@2.9.1: {}
 

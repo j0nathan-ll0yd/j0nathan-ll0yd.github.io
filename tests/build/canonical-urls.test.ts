@@ -3,9 +3,10 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {AGENT_PATHS} from '../../functions/_lib/agent-paths.mjs'
-import {onRequest as mcpOnRequest} from '../../functions/mcp/index'
-import {onRequest as serverCardOnRequest} from '../../functions/mcp/server-card'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
+import {AGENT_PATHS} from '../../src/lib/edge/agent-paths.mjs'
+import {onRequest as mcpOnRequest} from '../../src/pages/mcp/index'
+import {onRequest as serverCardOnRequest} from '../../src/pages/mcp/server-card'
 
 // Every canonical URL, sitemap URL and internal link must answer 200 directly, with no redirect.
 // The host maps a URL to the static output by these rules, which Cloudflare Pages and the Workers
@@ -17,18 +18,18 @@ import {onRequest as serverCardOnRequest} from '../../functions/mcp/server-card'
 //   /x/index.html redirects to /x/
 // With trailingSlash: 'never' the site's URLs have no trailing slash, so a page must build as
 // x.html (build.format 'file'). A page built as x/index.html makes its own canonical URL redirect.
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 const site = new URL(SITE_URL)
 
 /**
- * The extensionless Pages Function routes a page may link to, each with the status its handler
- * gives a plain GET. An allow-list, not "any functions/x.ts": a new extensionless Function route
+ * The extensionless on-demand Worker routes (src/lib/edge/routes.ts EDGE_ROUTES) a page may link to, each with the status its handler
+ * gives a plain GET. An allow-list, not "any endpoint under src/pages/": a new extensionless Worker route
  * must be added here with its status, so a link to an unreviewed endpoint fails this test.
  * /mcp answers JSON-RPC over POST only, so a GET is 405 (the MCP Streamable HTTP transport).
  */
 const FUNCTION_ROUTES: Record<string, {file: string; getStatus: number; onRequest: (context: never) => Promise<Response>}> = {
-  [AGENT_PATHS.mcp]: {file: 'functions/mcp/index.ts', getStatus: 405, onRequest: mcpOnRequest as never},
-  [AGENT_PATHS.serverCard]: {file: 'functions/mcp/server-card.ts', getStatus: 200, onRequest: serverCardOnRequest as never}
+  [AGENT_PATHS.mcp]: {file: 'src/pages/mcp/index.ts', getStatus: 405, onRequest: mcpOnRequest as never},
+  [AGENT_PATHS.serverCard]: {file: 'src/pages/mcp/server-card.ts', getStatus: 200, onRequest: serverCardOnRequest as never}
 }
 
 type Resolution = {ok: true; file: string} | {ok: false; reason: string}

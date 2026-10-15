@@ -1,8 +1,9 @@
 import {beforeAll, describe, expect, it} from 'vitest'
 import {existsSync, readFileSync} from 'fs'
 import path from 'path'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 const webfingerPath = path.join(distDir, '.well-known', 'webfinger')
 
 interface JrdLink {

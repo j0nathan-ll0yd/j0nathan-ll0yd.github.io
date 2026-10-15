@@ -155,7 +155,7 @@ export const WATCHED_SOURCES = Object.freeze([
     retrieved: '2026-10-07'
   },
   {
-    // functions/mcp/server-card.ts takes its path, media type, CORS and ETag behavior from here.
+    // src/pages/mcp/server-card.ts takes its path, media type, CORS and ETag behavior from here.
     label: 'MCP server-card discovery, Hosted Server Card Location (modelcontextprotocol/ext-server-card docs/discovery.md)',
     pinnedAt: 'https://raw.githubusercontent.com/modelcontextprotocol/ext-server-card/526201bbc80231daa40ffcdecfc9da4e54e5dc93/docs/discovery.md',
     retrieved: '2026-10-07'

@@ -19,10 +19,10 @@ by the mechanism best suited to that audience's freshness requirements.
 | --------------------------- | ------------------------- | --------------------------------------------------------------------- | ---------------- |
 | `/robots.txt`               | Machines (crawlers)       | Build-time endpoint (`src/pages/robots.txt.ts`)                       | robotstxt.org    |
 | `/sitemap-index.xml`        | Machines (search engines) | `@astrojs/sitemap` integration                                        | sitemaps.org     |
-| `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `functions/llms.txt.ts`)  | llmstxt.org      |
+| `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `src/pages/llms.txt.ts`)  | llmstxt.org      |
 | `/humans.txt`               | Humans                    | Build-time endpoint (`src/pages/humans.txt.ts`)                       | humanstxt.org    |
-| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `functions/feed.xml.ts`)  | RSS 2.0          |
-| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `functions/feed.json.ts`) | JSON Feed 1.1    |
+| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `src/pages/feed.xml.ts`)  | RSS 2.0          |
+| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `src/pages/feed.json.ts`) | JSON Feed 1.1    |
 | `/.well-known/api-catalog`  | Machines (API clients)    | Generated (`scripts/generate-webmcp.mjs`)                             | RFC 9727         |
 | `/.well-known/security.txt` | Machines + humans         | (Future) Static file at `/.well-known/security.txt`                   | RFC 9116         |
 
@@ -70,17 +70,18 @@ guessing paths. This site uses two complementary signals:
 
 - **HTML `<link>` in `<head>`** (`Dashboard.astro`) — declarative, parsed by
   browsers and crawlers that fetch the HTML document.
-- **HTTP `Link` response header** (`functions/_middleware.ts`) — injected on
+- **HTTP `Link` response header** (`src/lib/edge/middleware.ts`) — injected on
   the homepage (`/`) only, for agents that inspect headers without parsing HTML.
 
-Response-header policy has two complementary authorities. `public/_headers` applies to
-static asset responses and cache hits. `functions/_middleware.ts` applies to Pages
-Function responses; Cloudflare explicitly does not apply `_headers` rules to those
-responses. Cross-cutting headers must be kept in sync across both paths.
+Response-header policy has one source, `src/lib/edge/security-headers.ts` (atlas decision
+0160, PR A), and two planes. The build writes `dist/client/_headers` from it, which applies to
+static asset responses and cache hits. `src/lib/edge/middleware.ts` applies it to Worker
+responses; Cloudflare does not apply `_headers` rules to those responses.
 
 That sync is now GATED, not merely asked for: `tests/unit/discovery-link-header.test.ts`
-parses the `/*` block of `public/_headers` and asserts every header in it is served
-byte-identically on a Pages Function response, so a one-sided edit reds before it ships.
+parses the `/*` block of the rendered `_headers` and asserts every header in it, except the
+asset-plane `Access-Control-Allow-Origin`, is served byte-identically on a Worker response,
+so a one-sided edit reds before it ships.
 Until atlas decision 0142 phase 7 the sentence above was the whole of the enforcement and
 only `Content-Usage` was actually compared (B10: a convention that exists only as prose
 adheres about as well as its readers remember it).
@@ -154,8 +155,8 @@ uses only the site's approved `User-agent`, `Allow`, `Disallow`, and `Sitemap`
 directives so unknown extensions cannot regress Lighthouse SEO.
 
 The separate content-use reservation is delivered on site responses as
-`Content-Usage: train-ai=n, search=y` by `functions/_middleware.ts` for Function
-responses and the `public/_headers` wildcard for static responses/cache hits. This is
+`Content-Usage: train-ai=n, search=y` by `src/lib/edge/middleware.ts` for Worker
+responses and the generated `_headers` wildcard (`dist/client/_headers`) for static responses/cache hits. This is
 the HTTP header form in IETF AI Preferences Working Group drafts attach-05 and vocab-07
 (verified 2026-08-19). Although attach-05 also describes a robots extension, this site
 does not emit it in `/robots.txt` until Lighthouse recognizes it. The current WG
@@ -190,7 +191,7 @@ shape; it is protocol-valid and harmless at this scale.
 
 The only runtime-composed metadata file. The `ComposeLlmContent` Lambda writes
 it to CloudFront on each EventBridge data-change trigger (30-minute safety-net
-schedule). `functions/llms.txt.ts` is a Cloudflare Pages Function that proxies
+schedule). `src/pages/llms.txt.ts` is an on-demand Worker route that proxies
 the CloudFront-hosted canonical. Its cache policy is not restated here: the
 owning authority is
 `LLM_FRESHNESS_CONFIG.layers.portfolioServing.publicResponseCachePolicy` in
@@ -205,8 +206,8 @@ The syndication feed in two formats: RSS 2.0 (`/feed.xml`) and JSON Feed
 1.1 (`/feed.json`). Both express the same thesis — what Jonathan produces
 and completes — and carry identical items with the same guids and pubDates.
 Backend-composed by the `ComposeFeed` Lambda on EventBridge triggers (plus
-a 30-minute safety-net schedule); the Cloudflare Pages Functions
-`functions/feed.xml.ts` and `functions/feed.json.ts` proxy the
+a 30-minute safety-net schedule); the on-demand Worker routes
+`src/pages/feed.xml.ts` and `src/pages/feed.json.ts` proxy the
 CloudFront-hosted canonicals. The directives are not restated here: the feeds
 are the `rss-feed` surface, are gated like the llms trio, and send `no-store`,
 documented with the Cloudflare zone edge cache that sits in front of them in
@@ -241,8 +242,8 @@ public JSON export (all nine, `CLOUDFRONT_BASE` plus `ENDPOINTS`, typed
 `application/json`). Each item then has its own entry with `service-desc`
 (`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
 `service-doc` (`/developers` once `src/pages/developers.astro` exists, the wiki
-before). `Content-Type: application/linkset+json` is set by the middleware
-override (not by `_headers`).
+before). The build copies it to `dist/client/`. `Content-Type: application/linkset+json`
+is set by the middleware override (not by `_headers`).
 
 ### `/.well-known/security.txt` — future (RFC 9116)
 

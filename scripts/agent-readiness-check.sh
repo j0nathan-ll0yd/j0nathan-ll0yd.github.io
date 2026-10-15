@@ -4,7 +4,7 @@
 # MCP and WebMCP checks of atlas decision 0158.
 # Usage: ./scripts/agent-readiness-check.sh [URL] [BUILD_DIR]
 #   URL       - Site to test (default: https://jonathanlloyd.me)
-#   BUILD_DIR - Local build output to test (default: none, uses live URL)
+#   BUILD_DIR - Local static-asset output to test, dist/client (default: none, uses live URL)
 #
 # When BUILD_DIR is provided, tests are run against local files via
 # a temporary HTTP server. This catches deployment issues before pushing.
@@ -79,7 +79,7 @@ if [ -n "$BUILD_DIR" ]; then
   echo -e "${BOLD}Testing local build: ${BUILD_DIR}${NC}"
   if [ ! -d "$BUILD_DIR" ]; then
     echo -e "${RED}Error: Build directory '${BUILD_DIR}' not found.${NC}"
-    echo "Run 'pnpm build' first, then: $0 https://example.com ./dist"
+    echo "Run 'pnpm build' first, then: $0 https://example.com ./dist/client"
     exit 1
   fi
   # Strip trailing slash
@@ -150,7 +150,7 @@ else
     fi
   else
     log_fail "No Link header on GET /"
-    log_info "  Fix: LINK_HEADER in functions/_middleware.ts"
+    log_info "  Fix: LINK_HEADER in src/lib/edge/middleware.ts"
   fi
 fi
 
@@ -222,8 +222,9 @@ fi
 # --- Check 6: Content-Usage HTTP response header ---
 log_section "Check 6: Content-Usage HTTP response header"
 if [ -n "$BUILD_DIR" ]; then
-  middleware_path="${SCRIPT_DIR}/../functions/_middleware.ts"
-  static_headers_path="${SCRIPT_DIR}/../public/_headers"
+  # The one header-policy module (atlas decision 0160, PR A) and the _headers file the build writes from it.
+  middleware_path="${SCRIPT_DIR}/../src/lib/edge/security-headers.ts"
+  static_headers_path="${BUILD_DIR}/_headers"
   middleware_usage=$(sed -nE "s/^[[:space:]]*export const CONTENT_USAGE = ['\"]([^'\"]+)['\"][[:space:]]*$/\1/p" "$middleware_path" | head -1)
   static_usage=$(awk '
     $0 == "/*" { in_wildcard = 1; next }
@@ -312,7 +313,7 @@ else
     fi
   else
     log_fail "api-catalog returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_info "  Fix: Deploy latest code (the Cloudflare Worker, deploy.yml)"
   fi
 fi
 
@@ -376,7 +377,7 @@ if [ -n "$BUILD_DIR" ]; then
   else
     log_fail "server-card.json missing from build output"
   fi
-  log_info "/mcp and /mcp/server-card are Pages Functions -- verify after deploy, or under 'wrangler pages dev'"
+  log_info "/mcp and /mcp/server-card run in the Worker -- verify after deploy, or under 'wrangler dev'"
 else
   for card_path in /mcp/server-card /.well-known/mcp/server-card.json; do
     status=$(http_status "${BASE_URL}${card_path}")
@@ -458,7 +459,7 @@ else
     fi
   else
     log_fail "agent-skills/index.json returns HTTP $status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_info "  Fix: Deploy latest code (the Cloudflare Worker, deploy.yml)"
   fi
   # Check SKILL.md
   skill_status=$(http_status "${BASE_URL}/.well-known/agent-skills/portfolio-expert/SKILL.md")
@@ -466,7 +467,7 @@ else
     log_pass "SKILL.md returns 200"
   else
     log_fail "SKILL.md returns HTTP $skill_status (expected 200)"
-    log_info "  Fix: Deploy latest code to Cloudflare Pages"
+    log_info "  Fix: Deploy latest code (the Cloudflare Worker, deploy.yml)"
   fi
 fi
 
@@ -540,7 +541,7 @@ if [ -z "$BUILD_DIR" ]; then
   wf_status=$(http_status "${BASE_URL}/.well-known/api-catalog")
   if [ "$wf_status" = "404" ]; then
     echo -e "  ${RED}WARNING: .well-known files are NOT deployed!${NC}"
-    echo -e "  .well-known files have not been deployed to Cloudflare Pages."
+    echo -e "  .well-known files have not been deployed to the Cloudflare Worker."
     echo -e "  Fix: Push to main to trigger deploy, or check GitHub Actions status."
   else
     echo -e "  ${GREEN}Deployment appears current.${NC}"
