@@ -3,15 +3,15 @@
 import {appendFile, mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts.ts'
-import {FEED_ARTIFACTS} from '../../functions/_lib/feed-artifacts.ts'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts.ts'
+import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 import {publishMeasured} from '../lib/measurement.mjs'
 
 // The three canonical URLs, derived from the portal contract rather than
 // restated (atlas decision 0119 D2): the site origin plus the same paths the
 // serving proxies register. The discovery path comes through
-// functions/_lib/llms-artifacts.ts, which reads the contract's generated
+// src/lib/edge/llms-artifacts.ts, which reads the contract's generated
 // distribution registry.
 export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
   `${SITE_URL}${LLMS_TXT_PATH}`,

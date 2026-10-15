@@ -37,7 +37,7 @@ import {appendFile} from 'node:fs/promises'
 import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/estate-contracts/llms-assurance'
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'
-import {LLMS_ARTIFACTS} from '../../functions/_lib/llms-artifacts.ts'
+import {LLMS_ARTIFACTS} from '../../src/lib/edge/llms-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 import {publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
@@ -76,7 +76,7 @@ export const ARTIFACTS = [{surfaceId: 'llm-outputs'}]
  * }} LlmsResponseSnapshot
  */
 /** @typedef {{origin: LlmsResponseSnapshot, site: LlmsResponseSnapshot}} LlmsResponsePair */
-/** @typedef {import('../../functions/_lib/llms-artifacts.ts').LlmsArtifactId} LlmsArtifactId */
+/** @typedef {import('../../src/lib/edge/llms-artifacts.ts').LlmsArtifactId} LlmsArtifactId */
 /** @typedef {Record<LlmsArtifactId, LlmsResponsePair>} LlmsCoherenceInput */
 /** @typedef {{maxCompositionAgeMs: number, maxCompositionSkewMs: number, maxFutureSkewMs: number}} LlmsCoherenceThresholds */
 /** @typedef {{artifact: LlmsArtifactId, side: 'origin' | 'site'}} LlmsCoherenceParticipant */
@@ -471,7 +471,7 @@ export function evaluateLlmsCoherence(input, nowMs, thresholds = LLMS_COHERENCE_
   // arm, because the structure arm reads the site body alone and the freshness arm reads
   // the stamp both hops agree on. The exclusion had no stated rationale anywhere and no
   // divergence mechanism specific to llms.txt exists -- the proxy passes `upstream.body`
-  // through unchanged and only re-labels the content type (functions/_lib/proxy.ts), which
+  // through unchanged and only re-labels the content type (src/lib/edge/proxy.ts), which
   // the live sweep confirms: on 2026-09-21 both planes served llms.txt at 3490 bytes and
   // sha256 dcbfffac50a12643f78ef76a9c97a953b889071c3ad14fd4d0fac6dbed834e7c. Widening the
   // scope was therefore a DELIBERATE spec change, not a bug fix -- openspec's

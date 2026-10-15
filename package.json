@@ -25,7 +25,7 @@
     "audit:spec-currency": "node audits/checks/b2-check-spec-currency.mjs",
     "check:covers": "node scripts/openspec-covers.mjs --blocking",
     "build": "astro build",
-    "postbuild": "node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
+    "postbuild": "node scripts/drop-dev-vars.mjs && node scripts/generate-static-plane-rules.mjs && node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "pnpm run test:unit && pnpm run test:build",
@@ -42,17 +42,19 @@
     "typecheck": "astro check"
   },
   "dependencies": {
-    "@j0nathan-ll0yd/copy": "3.3.0",
+    "@j0nathan-ll0yd/copy": "4.0.1",
     "@j0nathan-ll0yd/observability": "^1.0.0",
     "@j0nathan-ll0yd/portal-contract": "2.7.0",
     "@j0nathan-ll0yd/schemas": "^2.3.1",
     "@j0nathan-ll0yd/tokens": "^2.2.1",
     "@j0nathan-ll0yd/web": "^4.1.0",
+    "@modelcontextprotocol/server": "2.3.1",
     "astro": "~7.2.8",
     "fast-xml-validator": "^1.4.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
+    "@astrojs/cloudflare": "14.2.6",
     "@astrojs/sitemap": "^3.7.3",
     "@axe-core/playwright": "^4.13.0",
     "@j0nathan-ll0yd/config": "^1.1.0",
@@ -61,6 +63,7 @@
     "@lhci/cli": "^0.15.1",
     "@napi-rs/image": "1.14.0",
     "@playwright/test": "^1.60.0",
+    "@seriousme/openapi-schema-validator": "^2.11.0",
     "@stryker-mutator/core": "^9.6.1",
     "@stryker-mutator/vitest-runner": "^9.6.1",
     "@vite-pwa/astro": "^1.2.0",

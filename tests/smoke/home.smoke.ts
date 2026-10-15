@@ -294,7 +294,7 @@ test.describe('production home dashboard', () => {
   test('Trusted Types telemetry ships as a report-only header', async ({page}) => {
     // The report-only policy is non-enforcing; it only drains DOM injection-sink
     // violations to /api/csp-report. Assert it reaches the browser on the live path
-    // (set unconditionally in functions/_middleware.ts alongside the enforced CSP).
+    // (set unconditionally in src/lib/edge/middleware.ts alongside the enforced CSP).
     const res = await getStable(page.request, '/')
     expect(res.status(), 'home page did not return 200').toBe(200)
     const reportOnly = res.headers()['content-security-policy-report-only'] || ''

@@ -13,8 +13,9 @@ import {getDashboardFixture} from '@j0nathan-ll0yd/fixtures'
 import {identity, profile as profileCopy, widgets} from '@j0nathan-ll0yd/copy'
 import {terminalLinesFromBlocks} from '../../src/lib/identity-profile'
 import {FIXTURE_SENTINELS, LIVE_CARD_IDS, RETIRED_OVERLAY_ROWS} from '../shared/fixture-sentinels'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 let html: string
 let $: ReturnType<typeof load>
 

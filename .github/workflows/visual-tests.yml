@@ -114,12 +114,22 @@ jobs:
         run: pnpm run build
 
       - name: Upload dist artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: visual-tests-ds-dist
-          path: dist
+          # `astro preview` (the SKIP_BUILD webServer) runs the built Worker through
+          # @astrojs/cloudflare, which refuses to start unless the build's redirect
+          # file .wrangler/deploy/config.json exists in the PROJECT ROOT (it points at
+          # dist/server/wrangler.json; adapter dist/entrypoints/preview.js). It lives
+          # outside dist/, so the artifact carries both paths. With two paths the
+          # artifact root is their common ancestor, the workspace, so each download
+          # extracts into `.` (atlas decision 0160, PR A).
+          path: |
+            dist
+            .wrangler/deploy/config.json
           retention-days: 1
           include-hidden-files: true
+          if-no-files-found: error
 
   visual-tests:
     needs: setup
@@ -138,13 +148,18 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download dist artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: visual-tests-ds-dist
-          # upload-artifact flattens a single-dir `path: dist` to the artifact
-          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
-          # preview server expects.
-          path: dist
+          # The artifact holds dist/ and .wrangler/deploy/config.json relative to
+          # the workspace (see the upload step), so it extracts into `.`.
+          path: .
+
+      - name: Verify the restored build (SKIP_BUILD preview needs both)
+        run: |
+          for f in .wrangler/deploy/config.json dist/server/wrangler.json dist/client/index.html; do
+            [ -f "$f" ] || { echo "::error::the dist artifact did not restore $f; astro preview cannot start"; exit 1; }
+          done
 
       # The self-hosted playwright runner image carries Node but not pnpm; provision the
       # `packageManager`-pinned version before any pnpm invocation below.
@@ -174,7 +189,7 @@ jobs:
 
       - name: Upload regenerated baselines
         if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: regenerated-baselines-shard-${{ matrix.shard }}
           path: tests/visual/__screenshots__/
@@ -183,7 +198,7 @@ jobs:
 
       - name: Upload blob report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: blob-report-${{ matrix.shard }}
           path: blob-report
@@ -191,7 +206,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: visual-test-results-${{ matrix.shard }}
           path: |
@@ -215,13 +230,18 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Download dist artifact
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: visual-tests-ds-dist
-          # upload-artifact flattens a single-dir `path: dist` to the artifact
-          # root, so extract back into dist/ to restore the tree the SKIP_BUILD
-          # preview server expects.
-          path: dist
+          # The artifact holds dist/ and .wrangler/deploy/config.json relative to
+          # the workspace (see the upload step), so it extracts into `.`.
+          path: .
+
+      - name: Verify the restored build (SKIP_BUILD preview needs both)
+        run: |
+          for f in .wrangler/deploy/config.json dist/server/wrangler.json dist/client/index.html; do
+            [ -f "$f" ] || { echo "::error::the dist artifact did not restore $f; astro preview cannot start"; exit 1; }
+          done
 
       # The self-hosted playwright runner image carries Node but not pnpm; provision the
       # `packageManager`-pinned version before any pnpm invocation below.
@@ -248,7 +268,7 @@ jobs:
 
       - name: Upload behavioral report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: behavioral-playwright-report
           path: playwright-report
@@ -287,7 +307,7 @@ jobs:
         # last-write-wins across those full trees, so a mass 1x->2x regen could
         # commit whichever copy landed last -- a nondeterministic 1x/2x mix. Keeping
         # shards isolated lets us pick, per file, the single shard that changed it.
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: /tmp/shards
           pattern: regenerated-baselines-shard-*
@@ -369,7 +389,7 @@ jobs:
       - name: Install dependencies (Playwright CLI only)
         run: pnpm install --frozen-lockfile
       - name: Download blob reports
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           path: all-blob-reports
           pattern: blob-report-*
@@ -377,7 +397,7 @@ jobs:
       - name: Merge into HTML report
         run: pnpm exec playwright merge-reports --reporter html ./all-blob-reports
       - name: Upload merged HTML report
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: playwright-report
           path: playwright-report

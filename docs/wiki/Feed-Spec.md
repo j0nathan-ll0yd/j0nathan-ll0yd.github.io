@@ -35,8 +35,8 @@ content. The guid is a tag-URI (RFC 4151): `tag:jonathanlloyd.me,YYYY:domain/slu
 
 The feed is composed by the `ComposeFeed` Lambda on every `BroadcastUpdate`
 EventBridge trigger (plus a 30-minute safety-net schedule), writing
-`feed.xml` and `feed.json` to CloudFront. The Cloudflare Pages Functions
-`functions/feed.xml.ts` and `functions/feed.json.ts` proxy those
+`feed.xml` and `feed.json` to CloudFront. The on-demand Worker routes
+`src/pages/feed.xml.ts` and `src/pages/feed.json.ts` proxy those
 CloudFront artifacts at the canonical root paths. Both routes are gated by the
 backend focus gate and send `no-store` on every cache header (atlas decision
 0160, PR 0b).
@@ -51,14 +51,14 @@ composition would make the feed stale by definition.
 
 - Backend composes on EventBridge trigger (any source update) + 30-minute schedule
 - CloudFront origin object TTL: 5 minutes (`max-age=300, s-maxage=300`, stamped by `ComposeFeed`)
-- Pages Function origin fetch: no cache. Every artifact fetch is
+- Worker origin fetch: no cache. Every artifact fetch is
   `cache: 'no-store'` with no `cf` cache options (`GATED_FETCH_INIT` in
-  `functions/_lib/proxy.ts`), so each one passes the backend focus gate
+  `src/lib/edge/proxy.ts`), so each one passes the backend focus gate
   (atlas decision 0160, PR 0b). The former 60-second origin fetch cache sat in
   front of that gate and is gone.
-- Pages Function response policy: `no-store` on `Cache-Control`,
+- Worker response policy: `no-store` on `Cache-Control`,
   `CDN-Cache-Control` and `Cloudflare-CDN-Cache-Control`, the factory default
-  in `functions/_lib/proxy.ts`. Until atlas decision 0160 PR 0b the feeds sent
+  in `src/lib/edge/proxy.ts`. Until atlas decision 0160 PR 0b the feeds sent
   `public, max-age=0, s-maxage=60`; that header did not bound the edge window
   (see below).
 - Last-known-good fallback copy: stored with `public, max-age=10800`
@@ -85,10 +85,10 @@ composition would make the feed stale by definition.
   the rule's mode and TTL for both feed paths. The zone change (a Cache Rule
   bypass for both paths, as "Homepage bypass for content negotiation" does for
   `/`, or a written exception) is an owner decision. Curl the URL to read the
-  served policy; do not infer it from `functions/_lib/proxy.ts`.
+  served policy; do not infer it from `src/lib/edge/proxy.ts`.
 - Expected staleness for a live event: the 30-minute compose cadence, plus
   the 5-minute CloudFront TTL, plus however long the Cloudflare zone edge
-  holds its copy. The Pages Function adds no cache of its own. The last term
+  holds its copy. The Worker adds no cache of its own. The last term
   is set by the zone rule above and is not visible from this repository, so
   the total has no ceiling this document can state from source. On
   2026-08-30 the site plane advertised a `<lastBuildDate>` 30.0 minutes
@@ -210,7 +210,7 @@ metadata files:
 
 - **HTML `<link>` in `<head>`** (`src/layouts/Dashboard.astro`) — two
   `<link rel="alternate">` elements, one per format.
-- **HTTP `Link` response header** (`functions/_middleware.ts`) — two
+- **HTTP `Link` response header** (`src/lib/edge/middleware.ts`) — two
   entries in the `LINK_HEADER` array on the homepage (`/`).
 
 | Signal                   | RSS 2.0                                                    | JSON Feed 1.1                                                 |

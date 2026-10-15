@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Deploy to Cloudflare Workers
 
 on:
   push:
@@ -48,16 +48,20 @@ jobs:
         # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
         run: pnpm build --json
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=human-datastream
+      - name: Deploy to Cloudflare Workers
+        # atlas decision 0160, PR A. `astro build` wrote dist/server/wrangler.json and the
+        # .wrangler/deploy/config.json pointer to it, so `wrangler deploy` reads the generated
+        # config: the Worker bundle in dist/server/ and the static assets in dist/client/. It
+        # also applies workers_dev and preview_urls from wrangler.jsonc. The Worker serves
+        # jonathanlloyd.me only after the plan Step 3.7 cutover attaches the hostname.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy
 
       - name: Purge stale production cache metadata
-        # Cloudflare's custom-domain cache can retain an unchanged Pages asset's
-        # old response headers across deploys and 304 revalidation. Purging after
+        # Cloudflare's zone cache can retain an unchanged asset's old response
+        # headers across deploys and 304 revalidation (observed on Pages). Purging after
         # the new deployment makes cross-cutting _headers changes atomic with the
         # release instead of waiting for per-PoP eviction.
         env:
@@ -103,7 +107,7 @@ jobs:
           # swallows a non-zero EXIT, not a HANG. Without a bound, an unresponsive
           # notify backend leaves this curl running until the job timeout (~14 min),
           # which cancels the job and reports the whole deploy as FAILED even though
-          # Build + Deploy to Cloudflare Pages already succeeded -- and a red deploy
+          # Build + Deploy to Cloudflare Workers already succeeded -- and a red deploy
           # skips the post-deploy smoke check (workflow_run.conclusion != success).
           # Observed on runs 29775663681 (#139) and 29779665862 (#140).
           curl -fsS --connect-timeout 5 --max-time 20 -X POST "$DEPLOY_NOTIFY_URL" \

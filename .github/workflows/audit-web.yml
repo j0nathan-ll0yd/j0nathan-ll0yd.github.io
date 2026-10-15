@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload playwright report
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: audit-web-daily-playwright-report
           path: playwright-report/
@@ -321,7 +321,7 @@ jobs:
       - name: Upload Cloudflare llms cache-rule evidence
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: llms-cloudflare-cache-rule-evidence
           path: artifacts/llms-assurance/cloudflare-cache-rules.json
@@ -470,7 +470,7 @@ jobs:
 
       - name: Upload Lighthouse reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: audit-web-weekly-lhci-reports
           path: lhci-reports/
@@ -679,7 +679,7 @@ jobs:
         continue-on-error: true
         run: node audits/checks/b2-check-security-txt.mjs
 
-      - name: B2 -- .well-known agent-discovery structural checks
+      - name: B2 -- .well-known agent discovery, schema conformance, and live MCP probe
         id: wellknown
         continue-on-error: true
         run: node audits/checks/b2-check-wellknown.mjs

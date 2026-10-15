@@ -1,12 +1,13 @@
 import {beforeAll, describe, expect, it} from 'vitest'
 import {readdirSync, readFileSync} from 'fs'
 import path from 'path'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // Asserts the enriched sitemap (astro.config.mjs sitemap() options) ships the
 // per-page SEO signals it is configured for (changefreq, priority) and no lastmod.
 // lastmod is omitted because no verifiable per-page content date exists: CI checks out
 // with depth 1 and / is live client-side data. See docs/wiki/Metadata-Files-Spec.md.
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 let xml: string
 
