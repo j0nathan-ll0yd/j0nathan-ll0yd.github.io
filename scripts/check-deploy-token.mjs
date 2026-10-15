@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /* Read-only capability probe for the CI deploy token (atlas decision 0160, Step 3.7).
  *
- * After the cutover, deploy.yml runs `wrangler deploy` with the production route declared. That needs
- * Workers Scripts (the upload), Zone read (wrangler resolves `zone_name` to a zone id), Workers Routes
- * (wrangler lists the zone's routes, then replaces the Worker's route set) and Cache Purge (the purge
- * step). This probe makes one GET per capability and prints ONLY the endpoint and its HTTP status, so
+ * deploy.yml runs `wrangler deploy` with NO route declared (the production route lives in Cloudflare,
+ * owner decision 2026-10-14), so the deploy needs Workers Scripts and Cache Purge only. Zone read and
+ * Workers Routes stay probed because the route's rollback and re-creation use them
+ * (docs/decision-0160/cutover-rehearsal-runbook.md). This probe makes one GET per capability and prints ONLY the endpoint and its HTTP status, so
  * the token can be confirmed before the merge. A GET proves read access, not edit access: Workers
  * Routes Edit and Cache Purge show only on the first real deploy.
  *

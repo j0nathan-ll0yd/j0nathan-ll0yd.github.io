@@ -313,8 +313,8 @@ most 5 minutes, using the measured Phase 4 window).
 
 ## Production cutover: 2026-10-14 (Step 3.7, owner go "Switch over!")
 
-Mechanism: the rehearsed overlap route (D7). `wrangler.jsonc` declares
-`routes: [{pattern: "jonathanlloyd.me/*", zone_name: "jonathanlloyd.me"}]`; the apex CNAME to
+Mechanism: the rehearsed overlap route (D7). `wrangler.jsonc` declared
+`routes: [{pattern: "jonathanlloyd.me/*", zone_name: "jonathanlloyd.me"}]` at the cutover (removed after the PR A merge; see "Route ownership" below); the apex CNAME to
 `human-datastream.pages.dev` is unchanged. Credentials: the owner's wrangler OAuth login.
 
 | Time (UTC) | Event |
@@ -341,10 +341,40 @@ transform rules on `/_astro/*` and `/assets/*`, unchanged. Edge 504s with user a
 `nginx-ssl early hints` (Cloudflare Early Hints subrequests, not visitor responses) appear before and
 after the cutover at the same rate per request.
 
-**Rollback (production):** `/tmp/pr-a-rollback.sh --execute` on the operator's Mac, or the
-equivalent API call: `DELETE /zones/{zone}/workers/routes/{id}` for pattern `jonathanlloyd.me/*`
-(script `human-datastream`), with any credential holding Workers Routes Edit on the zone. The CNAME
-still points at Pages, so the apex returns to Pages in about 2 s (rehearsal Rollback 2a: 0 errors).
-After the merge, CI's next `wrangler deploy` re-creates the route, so a lasting rollback also needs
-the route removed from `wrangler.jsonc`, or a revert.
+**Route ownership (owner decision 2026-10-14, option A).** The production route `jonathanlloyd.me/*`
+(script `human-datastream`, id `0671ef3e45ba4f41a963dd56aa1e9a77` since the PR A merge deploy) lives
+in Cloudflare, not in `wrangler.jsonc`. The owner sets it to fail open, so if the Workers Free daily
+request limit runs out, requests bypass the Worker and reach the apex CNAME (the `human-datastream`
+Pages project, which serves its last build) instead of a Cloudflare 1027 error. Why it left
+wrangler: a deploy that declares routes replaces the Worker's route set with new route objects
+(wrangler 4.149.0 `publishRoutes`, `cli.js:164031`: `PUT ${workerUrl}/routes`, commented "PUT will
+delete previous routes on this script"; the route id changed from `dfefa6b0…` to `0671ef3e…` on the
+first CI deploy), and the new object came back with `request_limit_fail_open: false`. A deploy that
+declares no routes makes no route call (`triggersDeploy`, `cli.js:164803`; the only route write sits
+behind `if (routesOnly.length > 0)`, `cli.js:164908`). The wrangler route schema has no fail-open key
+(`cli.js:26344-26365`); the documented control is the dashboard toggle on the route
+(https://developers.cloudflare.com/workers/platform/limits/).
 
+**Rollback (production):** delete the route. `/tmp/pr-a-rollback.sh --execute` on the operator's Mac
+(wrangler OAuth login), or the equivalent API call with any credential holding Workers Routes Edit on
+the zone:
+
+```bash
+curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes/$ROUTE_ID"
+```
+
+The CNAME still points at Pages, so the apex returns to Pages in about 2 s (rehearsal Rollback 2a:
+0 errors). CI deploys no longer re-create the route, so the rollback lasts until someone re-creates it.
+
+**Re-creation (production):** create the route, then set fail open again, because a route created
+through the API comes back fail-closed (the documented create body has only `pattern` and `script`):
+
+```bash
+curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes" \
+  --data '{"pattern":"jonathanlloyd.me/*","script":"human-datastream"}'
+```
+
+Then, in the dashboard, set the route's request-limit failure mode to fail open, and read it back:
+`GET /zones/$ZONE_ID/workers/routes` must show `"request_limit_fail_open": true` for the new id.
