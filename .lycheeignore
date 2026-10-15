@@ -1,6 +1,6 @@
 # Link-checker exclusions for lychee (.github/workflows/audit-web.yml, weekly B5
 # job). These are trusted image CDN hosts already allow-listed in the CSP
-# img-src directive (functions/_middleware.ts) -- excluded here because they
+# img-src directive (src/lib/edge/security-headers.ts) -- excluded here because they
 # routinely rate-limit or bot-block automated HEAD/GET probes from CI IP
 # ranges (403/503/999-style anti-scraping responses), which is CDN noise, not
 # a real dead link. Seeded 2026-07-16; expand only with evidence of the same
@@ -16,3 +16,8 @@ basemaps\.cartocdn\.com
 # Keep both patterns path-specific; GitHub and HTTP error classes stay checked.
 ^https://www\.linkedin\.com/in/lifegames/?$
 ^https://jonathanlloyd\.me/cdn-cgi/l/email-protection$
+
+# Atlas decision 0158. /developers links the MCP endpoint, which answers JSON-RPC over
+# POST only; a GET is 405 by the MCP Streamable HTTP transport, not a dead link. Its
+# liveness is measured by the MCP probe in audits/checks/b2-check-wellknown.mjs.
+^https://jonathanlloyd\.me/mcp$

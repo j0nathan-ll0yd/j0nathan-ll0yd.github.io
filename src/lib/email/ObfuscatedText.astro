@@ -1,0 +1,21 @@
+---
+// Renders text with every email address obfuscated (src/lib/email/obfuscate.ts). Not a widget: a
+// page-level text helper for copy strings that name an address (privacy, and contact in 0158 W2).
+//
+// Each address renders as a real link. Without JavaScript it reads `fallbackText` and goes to
+// `fallbackHref`; public/js/email-decode.js turns it into `mailto:` with the address as its text.
+// The page that uses this must load that script once: <script is:inline src={EMAIL_DECODE_SCRIPT} defer>.
+import {splitEmails} from './obfuscate'
+
+interface Props {
+  text: string
+  /** Where the link goes without JavaScript. */
+  fallbackHref: string
+  /** The link text without JavaScript (a copy string, never hard-coded). */
+  fallbackText: string
+}
+
+const {text, fallbackHref, fallbackText} = Astro.props
+const segments = splitEmails(text)
+---
+{segments.map((segment) => (segment.kind === 'text' ? segment.text : <a class="email-link" href={fallbackHref} data-email={segment.encoded}>{fallbackText}</a>))}

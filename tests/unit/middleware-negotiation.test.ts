@@ -1,22 +1,26 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {CONTENT_USAGE, CSP, LINK_HEADER, onRequest, prefersMarkdown} from '../../functions/_middleware'
+import {llm} from '@j0nathan-ll0yd/copy'
+import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
+import {AGENT_PATHS} from '../../src/lib/edge/agent-paths.mjs'
+import {SITEMAP_INDEX_PATH} from '../../src/lib/edge/site-paths'
+import {CONTENT_USAGE, CSP, LINK_HEADER, NOT_FOUND_MARKDOWN, onRequest, prefersMarkdown} from '../../src/lib/edge/middleware'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
 
-// Unit tests for the homepage markdown negotiation in functions/_middleware.ts.
+// Unit tests for the homepage markdown negotiation in src/lib/edge/middleware.ts.
 // The regression class under guard: the pre-P1 middleware negotiated on EVERY
 // path and method via `accept.includes('text/markdown')`, hijacking /llms.txt
 // (discovery identity lost), matching `text/markdown;q=0`, bypassing the shared
 // proxy machinery with an independent fetch, and skipping the header pipeline.
 
 // Both inits carry an AbortSignal: every network attempt the proxy makes is bounded by a
-// per-operation deadline drawn from the request's total budget (functions/_lib/proxy.ts).
-const FETCH_CACHE_INIT = expect.objectContaining({
-  cf: {cacheEverything: true, cacheTtlByStatus: {'200-299': 60, '300-599': 0}},
-  signal: expect.any(AbortSignal)
-})
+// per-operation deadline drawn from the request's total budget (src/lib/edge/proxy.ts).
+// Gated fetches are no-store with no `cf` cache options (atlas decision 0160, PR 0b); a gated 200
+// is admitted only with CloudFront's `x-amz-cf-id`, and its copy only with a composition stamp.
+const GATED_FETCH_INIT = expect.objectContaining({cache: 'no-store', redirect: 'manual', signal: expect.any(AbortSignal)})
+const CLOUDFRONT = (extra: Record<string, string> = {}) => ({'x-amz-cf-id': 'cf', 'x-amz-meta-composed-at': new Date().toISOString(), ...extra})
 const FOCUS_URL = `${CLOUDFRONT_BASE}/focus.json`
 const FOCUS_FETCH_INIT = expect.objectContaining({cache: 'no-store', signal: expect.any(AbortSignal)})
 const LLMS_FULL_UPSTREAM = `${CLOUDFRONT_BASE}${LLM_CONTENT_PATHS.llmsFull}`
@@ -31,7 +35,7 @@ function makeContext(path = '/', init: RequestInit = {}) {
 
 function stubFetch(artifactBody = '# full profile', currentFocus = 'Personal') {
   const mock = vi.fn().mockImplementation((url: string) =>
-    Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus})) : new Response(artifactBody))
+    Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus})) : new Response(artifactBody, {headers: CLOUDFRONT()}))
   )
   vi.stubGlobal('fetch', mock)
   return mock
@@ -96,7 +100,7 @@ describe('prefersMarkdown', () => {
 describe('negotiation scope', () => {
   it('never negotiates on explicit artifact, page, API, or feed paths, whatever the Accept', async () => {
     const mock = stubFetch()
-    for (const path of ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json', '/api/csp-report', '/privacy/']) {
+    for (const path of ['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json', '/api/csp-report', '/privacy']) {
       const {context, next} = makeContext(path, {headers: MARKDOWN})
       const response = await onRequest(context)
 
@@ -155,7 +159,8 @@ describe('negotiated homepage markdown', () => {
     // The SAME machinery as the explicit /llms-full.txt route: focus gate first,
     // then the retried origin-cached upstream fetch -- not an independent bare fetch.
     expect(mock).toHaveBeenCalledWith(FOCUS_URL, FOCUS_FETCH_INIT)
-    expect(mock).toHaveBeenCalledWith(LLMS_FULL_UPSTREAM, FETCH_CACHE_INIT)
+    expect(mock).toHaveBeenCalledWith(LLMS_FULL_UPSTREAM, GATED_FETCH_INIT)
+    expect(mock.mock.calls.every(([, init]) => !('cf' in init))).toBe(true)
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('# full profile')
     expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
@@ -217,11 +222,16 @@ describe('negotiated homepage markdown', () => {
 
   it('serves the warm last-known-good copy with no-store when the upstream fails', async () => {
     vi.useFakeTimers()
-    vi.stubGlobal('fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve(url === FOCUS_URL ? new Response(JSON.stringify({currentFocus: 'Personal'})) : new Response('upstream down', {status: 503}))
-      ))
-    stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800'}}))
+    // Three CloudFront 502s, then a gate probe that answers 200: only a 200 proves the gate is open.
+    let artifactCalls = 0
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((url: string) => {
+      if (url === FOCUS_URL) {
+        return Promise.resolve(new Response(JSON.stringify({currentFocus: 'Personal'})))
+      }
+      artifactCalls++
+      return Promise.resolve(new Response(artifactCalls <= 3 ? 'upstream down' : 'probe', {status: artifactCalls <= 3 ? 502 : 200, headers: CLOUDFRONT()}))
+    }))
+    stubCache(new Response('known good', {headers: {'Cache-Control': 'public, max-age=10800', 'X-Proxy-Lkg-Composed-At': new Date().toISOString()}}))
     const {context} = makeContext('/', {headers: MARKDOWN})
 
     const pending = onRequest(context)
@@ -260,7 +270,7 @@ describe('negotiated homepage markdown', () => {
         return Promise.resolve(new Response(JSON.stringify({currentFocus})))
       }
       artifactCalls++
-      return Promise.resolve(new Response(`content-${artifactCalls}`))
+      return Promise.resolve(new Response(`content-${artifactCalls}`, {headers: CLOUDFRONT()}))
     }))
     const cache = stubCache(new Response('pre-focus LKG'))
 
@@ -281,5 +291,121 @@ describe('negotiated homepage markdown', () => {
     expect(recovered.status).toBe(200)
     expect(await recovered.text()).toBe('content-2')
     expect(artifactCalls).toBe(2)
+  })
+})
+
+// covers: llms-txt#Markdown negotiation applies only to the homepage and honors Accept q-values
+describe('markdown 404', () => {
+  function notFoundContext(path: string, init: RequestInit = {}) {
+    const next = vi.fn(async () => new Response('<html>not found</html>', {status: 404, headers: {'Content-Type': 'text/html; charset=utf-8'}}))
+    return {context: {request: new Request(`https://jonathanlloyd.me${path}`, init), next, waitUntil: () => {}}, next}
+  }
+
+  it('answers a markdown 404 with the copy body, the agent links, and the header pipeline', async () => {
+    const mock = stubFetch()
+    const {context, next} = notFoundContext('/no-such-path', {headers: MARKDOWN})
+
+    const response = await onRequest(context)
+    const body = await response.text()
+
+    expect(next).toHaveBeenCalledOnce()
+    expect(mock).not.toHaveBeenCalled()
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(body).toBe(NOT_FOUND_MARKDOWN)
+    expect(body).toMatch(/^# \S/)
+    expect(llm.notFound.body.length).toBeGreaterThanOrEqual(20)
+    expect(body).toContain(llm.notFound.body)
+    const links = [
+      [llm.notFound.linkLlmsTxt, LLMS_TXT_PATH],
+      [llm.notFound.linkIndexMd, LLM_CONTENT_PATHS.indexMarkdown],
+      [llm.notFound.linkSitemap, SITEMAP_INDEX_PATH],
+      [llm.notFound.linkDevelopers, AGENT_PATHS.developers]
+    ] as const
+    for (const [link, path] of links) {
+      // The contract path and the copy link's own template must name the same URL.
+      expect(link.url.replace('{siteUrl}', SITE_URL), path).toBe(`${SITE_URL}${path}`)
+      expect(body, path).toContain(`- [${link.label}](${SITE_URL}${path}): ${link.notes}`)
+    }
+    expect(response.headers.get('Vary')).toBe('Accept')
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Content-Security-Policy')).toBe(CSP)
+    expect(response.headers.get('Content-Usage')).toBe(CONTENT_USAGE)
+    expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
+  })
+
+  it("drops the replaced 404 page's body and cache-state headers, keeping the rest", async () => {
+    const next = vi.fn(async () =>
+      new Response('<html>not found</html>', {
+        status: 404,
+        headers: {'Content-Type': 'text/html; charset=utf-8', ETag: '"page"', 'CF-Cache-Status': 'HIT', Age: '42', 'Access-Control-Allow-Origin': '*'}
+      })
+    )
+    const response = await onRequest({request: new Request('https://jonathanlloyd.me/no-such-path', {headers: MARKDOWN}), next, waitUntil: () => {}})
+
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    for (const name of ['ETag', 'CF-Cache-Status', 'Age']) {
+      expect(response.headers.get(name), name).toBeNull()
+    }
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('returns no body for a markdown HEAD 404 while keeping the GET headers', async () => {
+    const {context} = notFoundContext('/no-such-path', {method: 'HEAD', headers: MARKDOWN})
+
+    const response = await onRequest(context)
+
+    expect(response.status).toBe(404)
+    expect(response.body).toBeNull()
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(response.headers.get('Vary')).toBe('Accept')
+  })
+
+  it.each([
+    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    '*/*',
+    'text/markdown;q=0',
+    'text/markdown, text/html'
+  ])('keeps the HTML 404 for Accept %j, varying on Accept', async (accept) => {
+    const {context} = notFoundContext('/no-such-path', {headers: {Accept: accept}})
+
+    const response = await onRequest(context)
+
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    expect(await response.text()).toBe('<html>not found</html>')
+    expect(response.headers.get('Vary')).toBe('Accept')
+  })
+
+  it('keeps the HTML 404 when Accept is absent or the method is unsafe', async () => {
+    for (const init of [{}, {method: 'POST', headers: MARKDOWN}] as RequestInit[]) {
+      const response = await onRequest(notFoundContext('/no-such-path', init).context)
+
+      expect(response.status).toBe(404)
+      expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
+    }
+  })
+
+  it('leaves a found page untouched under a markdown Accept', async () => {
+    const {context} = makeContext('/about', {headers: MARKDOWN})
+
+    const response = await onRequest(context)
+
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('<html>home</html>')
+    expect(response.headers.get('Vary')).toBeNull()
+  })
+})
+
+describe('agent-discovery media types', () => {
+  it.each([
+    ['/.well-known/ai-catalog.json', 'application/ai-catalog+json'],
+    ['/.well-known/ard.json', 'application/json'],
+    ['/openapi.json', 'application/vnd.oai.openapi+json;version=3.1']
+  ])('serves %s as %s', async (path, type) => {
+    const {context, next} = makeContext(path)
+    next.mockImplementation(async () => new Response('{}', {headers: {'Content-Type': 'application/json'}}))
+    expect((await onRequest(context)).headers.get('Content-Type')).toBe(type)
   })
 })

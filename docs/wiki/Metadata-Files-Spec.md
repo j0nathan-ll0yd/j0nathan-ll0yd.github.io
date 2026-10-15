@@ -19,11 +19,11 @@ by the mechanism best suited to that audience's freshness requirements.
 | --------------------------- | ------------------------- | --------------------------------------------------------------------- | ---------------- |
 | `/robots.txt`               | Machines (crawlers)       | Build-time endpoint (`src/pages/robots.txt.ts`)                       | robotstxt.org    |
 | `/sitemap-index.xml`        | Machines (search engines) | `@astrojs/sitemap` integration                                        | sitemaps.org     |
-| `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `functions/llms.txt.ts`)  | llmstxt.org      |
+| `/llms.txt`                 | AI agents                 | Backend-composed live (CloudFront proxy via `src/pages/llms.txt.ts`)  | llmstxt.org      |
 | `/humans.txt`               | Humans                    | Build-time endpoint (`src/pages/humans.txt.ts`)                       | humanstxt.org    |
-| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `functions/feed.xml.ts`)  | RSS 2.0          |
-| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `functions/feed.json.ts`) | JSON Feed 1.1    |
-| `/.well-known/api-catalog`  | Machines (API clients)    | Static file (`public/.well-known/api-catalog`)                        | RFC 9727         |
+| `/feed.xml`                 | RSS readers, aggregators  | Backend-composed live (CloudFront proxy via `src/pages/feed.xml.ts`)  | RSS 2.0          |
+| `/feed.json`                | Feed readers, AI agents   | Backend-composed live (CloudFront proxy via `src/pages/feed.json.ts`) | JSON Feed 1.1    |
+| `/.well-known/api-catalog`  | Machines (API clients)    | Generated (`scripts/generate-webmcp.mjs`)                             | RFC 9727         |
 | `/.well-known/security.txt` | Machines + humans         | (Future) Static file at `/.well-known/security.txt`                   | RFC 9116         |
 
 `/llms.txt` is the only backend-composed file because its value proposition is
@@ -70,17 +70,18 @@ guessing paths. This site uses two complementary signals:
 
 - **HTML `<link>` in `<head>`** (`Dashboard.astro`) — declarative, parsed by
   browsers and crawlers that fetch the HTML document.
-- **HTTP `Link` response header** (`functions/_middleware.ts`) — injected on
+- **HTTP `Link` response header** (`src/lib/edge/middleware.ts`) — injected on
   the homepage (`/`) only, for agents that inspect headers without parsing HTML.
 
-Response-header policy has two complementary authorities. `public/_headers` applies to
-static asset responses and cache hits. `functions/_middleware.ts` applies to Pages
-Function responses; Cloudflare explicitly does not apply `_headers` rules to those
-responses. Cross-cutting headers must be kept in sync across both paths.
+Response-header policy has one source, `src/lib/edge/security-headers.ts` (atlas decision
+0160, PR A), and two planes. The build writes `dist/client/_headers` from it, which applies to
+static asset responses and cache hits. `src/lib/edge/middleware.ts` applies it to Worker
+responses; Cloudflare does not apply `_headers` rules to those responses.
 
 That sync is now GATED, not merely asked for: `tests/unit/discovery-link-header.test.ts`
-parses the `/*` block of `public/_headers` and asserts every header in it is served
-byte-identically on a Pages Function response, so a one-sided edit reds before it ships.
+parses the `/*` block of the rendered `_headers` and asserts every header in it, except the
+asset-plane `Access-Control-Allow-Origin`, is served byte-identically on a Worker response,
+so a one-sided edit reds before it ships.
 Until atlas decision 0142 phase 7 the sentence above was the whole of the enforcement and
 only `Content-Usage` was actually compared (B10: a convention that exists only as prose
 adheres about as well as its readers remember it).
@@ -91,7 +92,8 @@ Discovery `<link>` relations in use:
 | ---------------------------------------------- | ------------------------------ | -------------------- |
 | `rel="describedby" type="text/plain"`          | `/llms.txt`                    | RFC 8288             |
 | `rel="api-catalog"`                            | `/.well-known/api-catalog`     | RFC 9727             |
-| `rel="ai-catalog"`                             | `/.well-known/ai-catalog.json` | ARD                  |
+| `rel="ai-catalog"`                             | `/.well-known/ai-catalog.json` | ARD (predecessor)    |
+| `rel="ard"`                                    | `/.well-known/ard.json`        | ARD v0.91            |
 | `rel="sitemap"`                                | `/sitemap-index.xml`           | HTML Living Standard |
 | `rel="author"`                                 | `/humans.txt`                  | HTML Living Standard |
 | `rel="alternate" type="application/rss+xml"`   | `/feed.xml`                    | RSS 2.0 / HTML5      |
@@ -109,6 +111,12 @@ this site avoids:
   `new Date().toISOString().slice(0, 10)` at build time. This is honest: the
   file IS regenerated on every deploy (because it is a prerendered endpoint),
   so the build date accurately reflects the file's state.
+- **A hand-set `dateModified`.** The home page JSON-LD `ProfilePage` once carried
+  a hand-maintained `dateModified` (`2026-07-20`). It went stale: the profile
+  copy (`@j0nathan-ll0yd/copy`) was yalc-linked then and is now pinned at a
+  registry version, so no baseline exists to prove the date still holds. Google
+  lists `dateModified` as recommended "if applicable", so the node omits it.
+  `tests/build/json-ld.test.ts` fails if it returns.
 
 ## Privacy Stance
 
@@ -147,8 +155,8 @@ uses only the site's approved `User-agent`, `Allow`, `Disallow`, and `Sitemap`
 directives so unknown extensions cannot regress Lighthouse SEO.
 
 The separate content-use reservation is delivered on site responses as
-`Content-Usage: train-ai=n, search=y` by `functions/_middleware.ts` for Function
-responses and the `public/_headers` wildcard for static responses/cache hits. This is
+`Content-Usage: train-ai=n, search=y` by `src/lib/edge/middleware.ts` for Worker
+responses and the generated `_headers` wildcard (`dist/client/_headers`) for static responses/cache hits. This is
 the HTTP header form in IETF AI Preferences Working Group drafts attach-05 and vocab-07
 (verified 2026-08-19). Although attach-05 also describes a robots extension, this site
 does not emit it in `/robots.txt` until Lighthouse recognizes it. The current WG
@@ -156,17 +164,34 @@ vocabulary defines `train-ai` and `search` only.
 
 ### `/sitemap-index.xml` — `@astrojs/sitemap` integration
 
-Auto-generated at build time by `@astrojs/sitemap`. Lists the single canonical
-URL `https://jonathanlloyd.me/`. `lastmod` is omitted (config: no `lastmod`
-option set) to avoid the deploy-timestamp anti-pattern. The index/child split
-is `@astrojs/sitemap`'s default output shape; it is protocol-valid and harmless
-at this scale.
+Auto-generated at build time by `@astrojs/sitemap`. Lists only indexable pages:
+`https://jonathanlloyd.me` (daily, priority 1.0) and `/about`, `/contact`, and
+`/developers` (monthly, priority 0.5). The filter in `astro.config.mjs` excludes
+`/404`, the noindex `/offline` page, and the noindex `/privacy` page by exact
+pathname: a sitemap entry for a noindex page is a contradiction search engines
+report, and crawlers still reach `/privacy` by path and through every page's
+`rel="privacy-policy"` link.
+
+`lastmod` appears only where an authored content date exists. `/about`,
+`/contact`, and `/developers` carry the `lastModified` key of their
+`@j0nathan-ll0yd/copy` section, set through the integration's `serialize` hook.
+`/` carries none: it is live client-side data, and CI checks out with
+`actions/checkout` at its default depth of 1, so git history would give every
+page the same wrong date. A build-date `lastmod` is the anti-pattern this
+section rules out. The index carries one `lastmod`, the latest page date.
+`changefreq` and `priority` are emitted but Google ignores them.
+`tests/build/sitemap.test.ts` asserts each page's date, the homepage's absence
+of one, and the omitted noindex pages. Every listed URL answers 200 with no redirect:
+pages build as files (`build.format: 'file'`), and
+`tests/build/canonical-urls.test.ts` fails if a listed URL would come from a
+directory index. The index/child split is `@astrojs/sitemap`'s default output
+shape; it is protocol-valid and harmless at this scale.
 
 ### `/llms.txt` — backend-composed live
 
 The only runtime-composed metadata file. The `ComposeLlmContent` Lambda writes
 it to CloudFront on each EventBridge data-change trigger (30-minute safety-net
-schedule). `functions/llms.txt.ts` is a Cloudflare Pages Function that proxies
+schedule). `src/pages/llms.txt.ts` is an on-demand Worker route that proxies
 the CloudFront-hosted canonical. Its cache policy is not restated here: the
 owning authority is
 `LLM_FRESHNESS_CONFIG.layers.portfolioServing.publicResponseCachePolicy` in
@@ -181,14 +206,14 @@ The syndication feed in two formats: RSS 2.0 (`/feed.xml`) and JSON Feed
 1.1 (`/feed.json`). Both express the same thesis — what Jonathan produces
 and completes — and carry identical items with the same guids and pubDates.
 Backend-composed by the `ComposeFeed` Lambda on EventBridge triggers (plus
-a 30-minute safety-net schedule); the Cloudflare Pages Functions
-`functions/feed.xml.ts` and `functions/feed.json.ts` proxy the
-CloudFront-hosted canonicals with edge caching. The directives are not restated
-here: the feeds are the `rss-feed` surface and carry the shared
-`EDGE_CACHED_POLICY`, documented with its account-level override in
+a 30-minute safety-net schedule); the on-demand Worker routes
+`src/pages/feed.xml.ts` and `src/pages/feed.json.ts` proxy the
+CloudFront-hosted canonicals. The directives are not restated here: the feeds
+are the `rss-feed` surface, are gated like the llms trio, and send `no-store`,
+documented with the Cloudflare zone edge cache that sits in front of them in
 [Feed-Spec.md](Feed-Spec.md) and stated normatively in
-`openspec/specs/llms-txt/spec.md`, requirement "Cache policy is per route, and
-the feed routes stay edge-cached". No route emits `stale-while-revalidate`.
+`openspec/specs/llms-txt/spec.md`, requirement "Every proxy route is no-store,
+the feed routes included". No route emits `stale-while-revalidate`.
 
 Five included domains: theatre reviews (first-party, cap 10), meaningful
 GitHub activity (merged PRs + issues, cap 12), starred repositories (cap
@@ -208,12 +233,17 @@ URL (`identity.person.sameAs[0]`), not an email address. `Last update:` is
 derived from the build timestamp (honest, because the endpoint is prerendered
 on every deploy).
 
-### `/.well-known/api-catalog` — static RFC 9727
+### `/.well-known/api-catalog` — generated RFC 9727
 
-Static JSON file at `public/.well-known/api-catalog`, copied to `dist/` by
-Astro at build time. RFC 9727 linkset format — advertises the CloudFront data
-API to agent clients. `Content-Type: application/linkset+json` is set by the
-middleware override (not by `_headers`).
+Generated into `public/.well-known/api-catalog` by `scripts/generate-webmcp.mjs`
+during `prebuild` (atlas decision 0158); do not hand-edit it. RFC 9727 linkset
+format: the first entry anchors on the catalog URL and lists one `item` per
+public JSON export (all nine, `CLOUDFRONT_BASE` plus `ENDPOINTS`, typed
+`application/json`). Each item then has its own entry with `service-desc`
+(`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
+`service-doc` (`/developers` once `src/pages/developers.astro` exists, the wiki
+before). The build copies it to `dist/client/`. `Content-Type: application/linkset+json`
+is set by the middleware override (not by `_headers`).
 
 ### `/.well-known/security.txt` — future (RFC 9116)
 

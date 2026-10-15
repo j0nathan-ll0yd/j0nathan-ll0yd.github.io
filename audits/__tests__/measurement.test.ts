@@ -13,7 +13,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {checkSteps, parseJobs} from './audit-web-steps.ts'
-import {MEASURED_DEFERRED, publishMeasured} from '../lib/measurement.mjs'
+import {ISSUE_OUTCOMES, MEASURED_DEFERRED, publishIssueOutcome, publishMeasured} from '../lib/measurement.mjs'
 import {report} from '../lib/http.mjs'
 
 // $GITHUB_OUTPUT IS SET WHEN THIS SUITE RUNS UNDER ACTIONS, and unset on a workstation. Any
@@ -105,6 +105,35 @@ describe('publishMeasured', () => {
   // Every other string stays a TypeError: the declaration vocabulary is closed, not open.
   it.each(['n/a', 'deferred ', 'DEFERRED', 'unknown'])('rejects %j as a declaration', (value) => {
     expect(() => publishMeasured(value as unknown as number, {outputPath: undefined})).toThrow(TypeError)
+  })
+})
+
+describe('publishIssueOutcome', () => {
+  it('appends issue_outcome=<value> for each value the reconciler accepts', () => {
+    for (const outcome of ISSUE_OUTCOMES) {
+      const written: string[] = []
+      expect(publishIssueOutcome(outcome, {outputPath: '/tmp/output', append: (_p: string, line: string) => written.push(line)})).toBe(outcome)
+      expect(written).toEqual([`issue_outcome=${outcome}\n`])
+    }
+  })
+
+  it.each(['', 'skipped', 'cancelled', undefined, 'SUCCESS'])('rejects %j -- a value outside the tri-state is a TypeError, not a silent unknown',
+    (value) => {
+      expect(() => publishIssueOutcome(value as unknown as 'success', {outputPath: undefined})).toThrow(TypeError)
+    })
+
+  it('treats an EXPLICIT outputPath: undefined as "no path", never as "use $GITHUB_OUTPUT"', () => {
+    const written: string[] = []
+    process.env.GITHUB_OUTPUT = '/tmp/should-not-be-written'
+    publishIssueOutcome('failure', {outputPath: undefined, append: (_p: string, line: string) => written.push(line)})
+    expect(written).toEqual([])
+  })
+
+  it('falls back to $GITHUB_OUTPUT when the caller supplies no key -- the production path', () => {
+    const written: Array<[string, string]> = []
+    process.env.GITHUB_OUTPUT = '/tmp/github-output'
+    publishIssueOutcome('indeterminate', {append: (p: string, line: string) => written.push([p, line])})
+    expect(written).toEqual([['/tmp/github-output', 'issue_outcome=indeterminate\n']])
   })
 })
 
@@ -200,13 +229,10 @@ function reportCallArgs(source: string, from: number): string[] {
  * `status: unknown`) and that atlas decision 0120 D2 corrects the read permissions BEFORE
  * the channel lands, so the tile does not go permanently red on a known-open owner action.
  *
- * The reasoning held; the implementation did not. A constant is not a reading, so a run
- * that crashed before reaching Cloudflare at all published the same `deferred` and
- * inherited the same waiver -- a crash hiding behind a legitimate recorded exemption. The
- * runner now publishes its own three-way declaration
- * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs), so
- * it is an ordinary member of the census below and the waiver lives only in the workflow
- * record's trailing `until=` field.
+ * The owner rejected the waiver. The runner now publishes its real count
+ * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs): 0
+ * when every read is refused, which wedges the tier. It is an ordinary member of the census
+ * below, and its workflow record carries no reason and no `until=` field.
  *
  * Kept as an empty set rather than deleted: it is the seam a future exemption would have
  * to reopen, with its reason, in review.
@@ -228,14 +254,18 @@ describe('every audit check publishes a measurement', () => {
   it('censuses the check steps the workflow actually declares', () => {
     // Guards the census itself: a parser that matched nothing would pass every
     // assertion below while proving nothing -- the silent-empty-population shape this
-    // whole channel exists to end. 15 report-only check steps across the three tiers:
-    // 2 daily, 11 weekly, 2 monthly. The weekly count moved from 10 with
+    // whole channel exists to end. 17 report-only check steps across the three tiers:
+    // 3 daily, 12 weekly, 2 monthly. The weekly count moved from 10 with
     // `spec_currency` (atlas decision 0129 C6), which measures CURRENT upstream blobs
-    // where its `spec_drift` sibling measures PINNED ones.
-    expect(steps.map(({job}) => job).filter((j) => j === 'daily')).toHaveLength(2)
-    expect(steps.map(({job}) => job).filter((j) => j === 'weekly')).toHaveLength(11)
+    // where its `spec_drift` sibling measures PINNED ones, and from 11 with
+    // `crawler_edge` (atlas decision 0158), which measures edge responses to crawler tokens.
+    // The daily count moved from 2 when B6 split into `analytics_beacons` and
+    // `analytics_ingestion` (owner decision 2026-10-13, option A), so a dark SA ingestion
+    // arm publishes its own 0.
+    expect(steps.map(({job}) => job).filter((j) => j === 'daily')).toHaveLength(3)
+    expect(steps.map(({job}) => job).filter((j) => j === 'weekly')).toHaveLength(12)
     expect(steps.map(({job}) => job).filter((j) => j === 'monthly')).toHaveLength(2)
-    expect(steps).toHaveLength(15)
+    expect(steps).toHaveLength(17)
     expect(censusRunners.length).toBeGreaterThanOrEqual(8)
   })
 

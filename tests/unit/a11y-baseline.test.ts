@@ -63,15 +63,23 @@ describe('a11y scan targets', () => {
     // set legitimately matches nothing. The populated sibling state of each widget is deliberately
     // NOT waived (articles/baseline, devlog/baseline, health/workoutsBranded all render anchors),
     // so every widget keeps at least one state where the "axe reached this card" guard is live.
+    // The four `loading` states joined with atlas decision 0160: the data-free page renders each
+    // list card as a heading, skeleton bars and a hidden scaffold, so no WCAG rule applies.
     expect(waived.map((target) => target.key)).toEqual([
+      'bookshelf/loading',
       'bookshelf/empty',
+      'theatre-reviews/loading',
       'health/hydrationZero',
       'health/hydrationMax',
       'health/sleepBaseline',
       'health/sleepDeepDominant',
       'health/sleepEmpty',
       'health/workoutsMulti',
+      'health/workoutsRestDay',
+      'health/hydrationBands',
+      'articles/loading',
       'articles/empty',
+      'devlog/loading',
       'devlog/empty'
     ])
     for (const target of waived) {

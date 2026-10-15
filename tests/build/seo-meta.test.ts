@@ -3,10 +3,11 @@ import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
 import {PNG} from 'pngjs'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 let $: ReturnType<typeof load>
 
@@ -135,7 +136,7 @@ describe('SEO Meta Tags', () => {
  * The ADDRESS IS THE POLICY. An advertised URL that resolves at the origin is an address the
  * site's privacy gate and cache rules never see -- and the origin serves selectively (on
  * 2026-09-22, location.json returned 403 AccessDenied while focus.json returned 200). Both
- * alternates must therefore address the site plane, where functions/_lib/proxy.ts gates them.
+ * alternates must therefore address the site plane, where src/lib/edge/proxy.ts gates them.
  */
 describe('LLM content alternates', () => {
   const markdownSelector = 'link[rel="alternate"][type="text/markdown"]'
@@ -154,7 +155,7 @@ describe('LLM content alternates', () => {
   })
 
   // The href is DERIVED, not spelled: LLMS_TXT_PATH is the pathname of the contract's own "LLM
-  // discovery index" distribution entry (functions/_lib/llms-artifacts.ts).
+  // discovery index" distribution entry (src/lib/edge/llms-artifacts.ts).
   it('advertises the llms.txt discovery index at its derived contract path', () => {
     const link = $(plainSelector)
     expect(link.length, 'plain-text <link rel="alternate"> is missing').toBe(1)
@@ -165,7 +166,7 @@ describe('LLM content alternates', () => {
 
   // Dashboard.astro is the layout for /, /privacy and /404 alike. These alternates describe the
   // homepage datastream, so every other page advertising them was over-advertising.
-  it.each(['404.html', path.join('privacy', 'index.html')])('does not advertise them on %s', (page) => {
+  it.each(['404.html', 'privacy.html'])('does not advertise them on %s', (page) => {
     const $page = loadPage(page)
     expect($page(markdownSelector).length).toBe(0)
     expect($page(plainSelector).length).toBe(0)

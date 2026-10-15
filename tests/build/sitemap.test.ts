@@ -1,11 +1,18 @@
 import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import path from 'path'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
+import {identity, llm} from '@j0nathan-ll0yd/copy'
+import {contentLastModified} from '../../src/lib/content-date'
 
 // Asserts the enriched sitemap (astro.config.mjs sitemap() options) ships the
-// per-page SEO signals it is configured for. Without this, the changefreq /
-// priority / lastmod enrichment could silently regress to bare <loc> entries.
-const distDir = path.resolve(process.cwd(), 'dist')
+// per-page SEO signals it is configured for (changefreq, priority, lastmod).
+// It lists only indexable pages: /privacy is noindex, so it is absent. lastmod appears only
+// where an authored content date exists: the three static text pages carry their copy
+// lastModified key. / carries none: it is live client-side data with no
+// verifiable content date, and CI checks out with depth 1, so git history gives a wrong
+// date (website #360, docs/wiki/Metadata-Files-Spec.md).
+const distDir = clientDir()
 
 let xml: string
 
@@ -25,20 +32,14 @@ function urlBlock(locSuffix: string): string {
 }
 
 describe('Enriched sitemap', () => {
-  it('contains only the two canonical pages (home + privacy), no 404', () => {
+  it('lists only the four indexable pages (home, /about, /contact, /developers)', () => {
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1])
-    expect(locs).toHaveLength(2)
-    expect(locs.some((l) => /jonathanlloyd\.me$/.test(l))).toBe(true)
-    expect(locs.some((l) => l.endsWith('/privacy'))).toBe(true)
-    expect(locs.some((l) => l.includes('/404'))).toBe(false)
+    expect(locs.sort()).toEqual(['', '/about', '/contact', '/developers'].map((p) => `https://jonathanlloyd.me${p}`))
   })
 
-  it('every url carries a lastmod', () => {
-    const urls = xml.match(/<url>[\s\S]*?<\/url>/g) ?? []
-    expect(urls.length).toBeGreaterThan(0)
-    for (const u of urls) {
-      expect(u, `missing <lastmod> in ${u}`).toMatch(/<lastmod>[^<]+<\/lastmod>/)
-    }
+  it.each(['/privacy', '/offline', '/404'])('omits the noindex page %s', (page) => {
+    const pathnames = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
+    expect(pathnames).not.toContain(page)
   })
 
   it('home page has priority 1.0 and daily changefreq', () => {
@@ -47,9 +48,45 @@ describe('Enriched sitemap', () => {
     expect(home).toMatch(/<changefreq>daily<\/changefreq>/)
   })
 
-  it('privacy page has priority 0.3 and monthly changefreq', () => {
-    const privacy = urlBlock('/privacy')
-    expect(privacy).toMatch(/<priority>0\.3<\/priority>/)
-    expect(privacy).toMatch(/<changefreq>monthly<\/changefreq>/)
+  it.each(['/about', '/contact', '/developers'])('%s has priority 0.5 and monthly changefreq', (page) => {
+    const block = urlBlock(page)
+    expect(block).toMatch(/<priority>0\.5<\/priority>/)
+    expect(block).toMatch(/<changefreq>monthly<\/changefreq>/)
+  })
+
+  // lastmod means "content last changed" (atlas decision 0158, owner decision 2026-10-12).
+  // Two halves: a static page carries exactly its copy lastModified date, and every other URL
+  // carries none. A build-time stamp on any URL is the defect this guards.
+  const lastmodOf = (page: string) => urlBlock(page).match(/<lastmod>([^<]+)<\/lastmod>/)?.[1] ?? null
+  const STATIC_PAGE_DATES: Array<[string, string]> = [
+    ['/about', identity.about.lastModified],
+    ['/contact', identity.contact.lastModified],
+    ['/developers', llm.developers.lastModified]
+  ]
+
+  it('home page carries no lastmod: live data has no verifiable content date', () => {
+    expect(lastmodOf('/')).toBeNull()
+  })
+
+  it.each(STATIC_PAGE_DATES)('%s lastmod is its copy lastModified (%s)', (page, copyDate) => {
+    expect(lastmodOf(page)).toBe(contentLastModified(copyDate))
+  })
+
+  it('carries a lastmod on the static pages only, and none is a build timestamp', () => {
+    const blocks = xml.match(/<url>[\s\S]*?<\/url>/g) ?? []
+    const stamped = blocks.filter((b) => b.includes('<lastmod>')).map((b) => new URL(b.match(/<loc>([^<]+)<\/loc>/)![1]).pathname)
+    expect(stamped.sort()).toEqual(STATIC_PAGE_DATES.map(([page]) => page).sort())
+    for (const value of xml.match(/<lastmod>([^<]+)<\/lastmod>/g) ?? []) {
+      // A copy date is a calendar day (contentLastModified emits UTC midnight); a build stamp is not.
+      expect(value).toMatch(/T00:00:00\.000Z<\/lastmod>$/)
+    }
+  })
+
+  it('the sitemap index stamps its child with the latest static-page date, never the build time', () => {
+    const index = readFileSync(path.join(distDir, 'sitemap-index.xml'), 'utf-8')
+    const latest = STATIC_PAGE_DATES.map(([, d]) => contentLastModified(d)).sort().at(-1)
+    const stamps = [...index.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1])
+    // Exactly one child sitemap, stamped once: an index with no lastmod cannot pass this.
+    expect(stamps).toEqual([latest])
   })
 })

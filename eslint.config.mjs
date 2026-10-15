@@ -1,4 +1,5 @@
 import {createBaseConfig} from '@j0nathan-ll0yd/config/eslint'
+import * as espree from 'espree'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
 
@@ -9,18 +10,33 @@ import tseslint from 'typescript-eslint'
 // ignored here too (bringing tests under type-aware lint needs a dedicated tests
 // tsconfig -- a separate change). audits/__tests__/ is the audit-suite root moved
 // out of tests/audit/ by atlas decision 0111 phase 2b; the exclusion moved with it.
+const rawScriptFiles = ['public/js/**/*.{js,mjs,cjs}']
+const rawScriptLanguageOptions = {parser: espree, ecmaVersion: 2017, sourceType: 'script'}
+// Unused and empty-block checks stay on, minus the two ES5-era idioms these files
+// use: a catch binding cannot be dropped below ES2019, and best-effort cleanup
+// swallows errors with an empty catch.
+const rawScriptRules = {
+  '@typescript-eslint/no-unused-vars': 'off',
+  'no-unused-vars': ['error', {caughtErrors: 'none'}],
+  'no-empty': ['error', {allowEmptyCatch: true}]
+}
+
 export default [
   {
     ignores: [
       'dist/**',
       '.astro/**',
+      '.wrangler/**',
       'coverage/**',
       'node_modules/**',
       'previews/**',
       'playwright-report/**',
       'test-results/**',
       'docs/**',
-      'public/**',
+      // public/ holds raw-served assets. Only public/js (first-party scripts) is linted
+      // for its ES2017 syntax floor; vendored libraries stay out.
+      'public/*',
+      '!public/js/',
       'tests/**',
       'audits/__tests__/**',
       '.stryker-tmp/**',
@@ -42,6 +58,38 @@ export default [
     // fetch, ...). Separate object so it merges with disableTypeChecked above
     // rather than replacing its parserOptions.
     files: ['**/*.{js,mjs,cjs}'],
+    ignores: ['public/js/**'],
     languageOptions: {globals: {...globals.node}}
+  },
+  {
+    // Raw-served scripts (public/js) skip the bundler, so the browser parses them
+    // as written. ecmaVersion 2017 turns later syntax (?., ??, object spread,
+    // class fields, top-level await) into a parse error. This is the floor that
+    // AGENTS.md and widget check W9 state. The parser is espree on purpose: the
+    // typescript-eslint parser accepts every syntax and ignores ecmaVersion.
+    // The scripts load as classic scripts, so sourceType is 'script'.
+    // tests/unit/public-js-floor.test.ts pins these blocks.
+    files: rawScriptFiles,
+    ignores: ['public/js/sw-purge.js'],
+    languageOptions: {
+      ...rawScriptLanguageOptions,
+      // sa_event is the Simple Analytics global that public/js/sa-stub.js and the
+      // proxied /sa script define on window.
+      globals: {...globals.browser, sa_event: 'readonly'}
+    },
+    rules: rawScriptRules
+  },
+  {
+    // sw-purge.js is loaded into the Workbox service worker by importScripts, so it
+    // runs in the service-worker global scope, not a page.
+    files: ['public/js/sw-purge.js'],
+    languageOptions: {...rawScriptLanguageOptions, globals: {...globals.serviceworker}},
+    rules: rawScriptRules
+  },
+  {
+    // An ES module file is the one place sourceType 'module' is right. The floor
+    // (ecmaVersion 2017) still applies.
+    files: ['public/js/**/*.mjs'],
+    languageOptions: {sourceType: 'module'}
   }
 ]

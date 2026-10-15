@@ -3,8 +3,10 @@ import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
 import {DATASET_DISTRIBUTIONS, DATASET_VARIABLES, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
+import {identity} from '@j0nathan-ll0yd/copy'
 
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 /** Parse the single JSON-LD @graph emitted by a built HTML page. */
 function loadGraph(relPath: string): any[] {
@@ -163,6 +165,30 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
     const dataset = graph.find((n: any) => n['@type'] === 'Dataset')
     expect(dataset.license).toBe(SITE_URL + '/privacy')
   })
+
+  // Atlas decision 0158 (O5): the Person carries the contact data; every value is a copy key.
+  // No `email` (owner ruling 2026-10-15): no obfuscation reaches inside a <script>, and no page may
+  // carry the address in clear. The contact page carries it, encoded.
+  it('Person has a contactPoint with the copy contact type and the /contact page, and no email', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.contactPoint).toEqual({'@type': 'ContactPoint', contactType: identity.person.contactType, url: SITE_URL + '/contact'})
+    expect(JSON.stringify(graph)).not.toContain(identity.person.email)
+  })
+
+  it('Person has a PostalAddress from the copy locality, region, and country', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.address).toEqual({
+      '@type': 'PostalAddress',
+      addressLocality: identity.person.addressLocality,
+      addressRegion: identity.person.addressRegion,
+      addressCountry: identity.person.addressCountry
+    })
+  })
+
+  it('names no Organization for "Lifegames" anywhere in the graph', () => {
+    const organizations = JSON.stringify(graph).match(/"@type":"Organization","name":"[^"]*"/g) ?? []
+    expect(organizations.filter((o) => /lifegames/i.test(o))).toEqual([])
+  })
 })
 
 // Regression guard for the /privacy + /404 bug: Dashboard.astro is the shared
@@ -172,9 +198,12 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
 // gated to the home page.
 describe('JSON-LD @graph per-page shape and @id resolution', () => {
   const pages = [
-    {label: 'home', file: 'index.html', isHome: true},
-    {label: 'privacy', file: 'privacy/index.html', isHome: false},
-    {label: '404', file: '404.html', isHome: false}
+    {label: 'home', file: 'index.html', isHome: true, webPageType: null},
+    {label: 'privacy', file: 'privacy.html', isHome: false, webPageType: 'WebPage'},
+    {label: 'about', file: 'about.html', isHome: false, webPageType: 'AboutPage'},
+    {label: 'contact', file: 'contact.html', isHome: false, webPageType: 'ContactPage'},
+    {label: 'developers', file: 'developers.html', isHome: false, webPageType: 'WebPage'},
+    {label: '404', file: '404.html', isHome: false, webPageType: 'WebPage'}
   ]
 
   for (const page of pages) {
@@ -206,6 +235,11 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
           expect(pageGraph.some((n) => n['@type'] === 'Dataset')).toBe(true)
         })
 
+        it('ProfilePage carries no dateModified (no verifiable profile edit date exists)', () => {
+          const profilePage = pageGraph.find((n) => n['@type'] === 'ProfilePage')
+          expect(profilePage).not.toHaveProperty('dateModified')
+        })
+
         it('home page does NOT emit a WebPage node', () => {
           expect(pageGraph.some((n) => n['@type'] === 'WebPage')).toBe(false)
         })
@@ -215,8 +249,8 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
           expect(pageGraph.some((n) => n['@type'] === 'Dataset')).toBe(false)
         })
 
-        it('non-home page emits a WebPage node that isPartOf the WebSite', () => {
-          const webpage = pageGraph.find((n) => n['@type'] === 'WebPage')
+        it(`non-home page emits a ${page.webPageType} node that isPartOf the WebSite`, () => {
+          const webpage = pageGraph.find((n) => n['@type'] === page.webPageType)
           expect(webpage).toBeDefined()
           expect(webpage.isPartOf['@id']).toBe(SITE_URL + '#website')
           expect(webpage.name).toBeTruthy()

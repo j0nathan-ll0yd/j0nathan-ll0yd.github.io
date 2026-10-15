@@ -1,0 +1,225 @@
+{
+  "total": 114,
+  "unique": 89,
+  "successful": 95,
+  "unknown": 0,
+  "unsupported": 0,
+  "timeouts": 0,
+  "redirects": 0,
+  "remaps": 0,
+  "excludes": 4,
+  "errors": 15,
+  "cached": 0,
+  "success_map": {},
+  "error_map": {
+    "https://jonathanlloyd.me/": [
+      {
+        "url": "https://acaia.co/products/pearl",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://acaia.co/products/pearl))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 133,
+          "column": 7076
+        }
+      },
+      {
+        "url": "https://feedly.com/",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://feedly.com/))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 133,
+          "column": 9983
+        }
+      },
+      {
+        "url": "https://www.apple.com/apple-watch-series-11/",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://www.apple.com/apple-watch-series-11/))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 133,
+          "column": 6817
+        }
+      },
+      {
+        "url": "https://www.apple.com/apple-watch-series-11/",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://www.apple.com/apple-watch-series-11/))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 133,
+          "column": 8027
+        }
+      },
+      {
+        "url": "https://www.livelarq.com/",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://www.livelarq.com/))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 133,
+          "column": 6969
+        }
+      },
+      {
+        "url": "https://www.squarespace.com/",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://www.squarespace.com/))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 133,
+          "column": 13101
+        }
+      }
+    ],
+    "https://jonathanlloyd.me/feed.xml": [
+      {
+        "url": "https://lifehacker.com/health/apple-watch-series-12-new-health-features",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/health/apple-watch-series-12-new-health-features))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 280,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/health/things-that-surprised-me-about-apples-new-health-app",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/health/things-that-surprised-me-about-apples-new-health-app))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 258,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/10-hacks-every-macos-27-golden-gate-user-should-know",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/10-hacks-every-macos-27-golden-gate-user-should-know))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 238,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/10-hacks-every-proton-vpn-user-should-know",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/10-hacks-every-proton-vpn-user-should-know))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 304,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/10-keyboard-hacks-every-iphone-user-should-know",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/10-keyboard-hacks-every-iphone-user-should-know))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 270,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/best-gaming-gear-of-2026",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/best-gaming-gear-of-2026))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 248,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/best-smart-glasses-you-can-buy-in-2026",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/best-smart-glasses-you-can-buy-in-2026))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 228,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/how-to-claim-your-piece-of-the-250-million-siri-settlement",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/how-to-claim-your-piece-of-the-250-million-siri-settlement))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 292,
+          "column": 13
+        }
+      },
+      {
+        "url": "https://lifehacker.com/tech/i-tried-tailscale-the-self-hosted-vpn-service",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (https://lifehacker.com/tech/i-tried-tailscale-the-self-hosted-vpn-service))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 216,
+          "column": 13
+        }
+      }
+    ]
+  },
+  "timeout_map": {},
+  "suggestion_map": {},
+  "redirect_map": {},
+  "excluded_map": {
+    "https://jonathanlloyd.me/privacy": [
+      {
+        "url": "https://jonathanlloyd.me/cdn-cgi/l/email-protection",
+        "status": {
+          "text": "Excluded",
+          "details": "This is due to your 'exclude' values"
+        }
+      },
+      {
+        "url": "https://jonathanlloyd.me/cdn-cgi/l/email-protection",
+        "status": {
+          "text": "Excluded",
+          "details": "This is due to your 'exclude' values"
+        }
+      }
+    ],
+    "https://jonathanlloyd.me/": [
+      {
+        "url": "https://www.linkedin.com/in/lifegames/",
+        "status": {
+          "text": "Excluded",
+          "details": "This is due to your 'exclude' values"
+        }
+      }
+    ],
+    "https://jonathanlloyd.me/llms.txt": [
+      {
+        "url": "https://www.linkedin.com/in/lifegames/",
+        "status": {
+          "text": "Excluded",
+          "details": "This is due to your 'exclude' values"
+        }
+      }
+    ]
+  },
+  "detailed_stats": true
+}

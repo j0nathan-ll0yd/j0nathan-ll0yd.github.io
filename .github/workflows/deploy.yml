@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages
+name: Deploy to Cloudflare Workers
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
@@ -48,16 +48,20 @@ jobs:
         # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
         run: pnpm build --json
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=human-datastream
+      - name: Deploy to Cloudflare Workers
+        # atlas decision 0160, PR A. `astro build` wrote dist/server/wrangler.json and the
+        # .wrangler/deploy/config.json pointer to it, so `wrangler deploy` reads the generated
+        # config: the Worker bundle in dist/server/ and the static assets in dist/client/. It
+        # also applies workers_dev and preview_urls from wrangler.jsonc. The Worker serves
+        # jonathanlloyd.me only after the plan Step 3.7 cutover attaches the hostname.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy
 
       - name: Purge stale production cache metadata
-        # Cloudflare's custom-domain cache can retain an unchanged Pages asset's
-        # old response headers across deploys and 304 revalidation. Purging after
+        # Cloudflare's zone cache can retain an unchanged asset's old response
+        # headers across deploys and 304 revalidation (observed on Pages). Purging after
         # the new deployment makes cross-cutting _headers changes atomic with the
         # release instead of waiting for per-PoP eviction.
         env:
@@ -103,7 +107,7 @@ jobs:
           # swallows a non-zero EXIT, not a HANG. Without a bound, an unresponsive
           # notify backend leaves this curl running until the job timeout (~14 min),
           # which cancels the job and reports the whole deploy as FAILED even though
-          # Build + Deploy to Cloudflare Pages already succeeded -- and a red deploy
+          # Build + Deploy to Cloudflare Workers already succeeded -- and a red deploy
           # skips the post-deploy smoke check (workflow_run.conclusion != success).
           # Observed on runs 29775663681 (#139) and 29779665862 (#140).
           curl -fsS --connect-timeout 5 --max-time 20 -X POST "$DEPLOY_NOTIFY_URL" \
@@ -112,7 +116,12 @@ jobs:
             -d "{\"build\":\"${GITHUB_SHA}\"}"
 
   check-images:
-    runs-on: [self-hosted, linux, arm64, node]
+    # cfedge: the self-hosted Linux fleet reaches CloudFront only from the cfedge
+    # egress lane (ci-runners-private #130, atlas decisions 0085 and 0088). Without
+    # the label, every deploy from 2026-08-28 to 2026-10-10 printed `fetch failed`
+    # for focus.json, books.json and theatre-reviews.json, and the check measured
+    # nothing. audits/__tests__/deploy-workflow.test.ts keeps the label.
+    runs-on: [self-hosted, linux, arm64, node, cfedge]
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -121,7 +130,7 @@ jobs:
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
 
@@ -142,42 +151,49 @@ jobs:
       - name: Check for new images
         id: check
         continue-on-error: true
+        # A step timeout fails the step without cancelling the job, so the
+        # reconcile step below still runs and reads the empty output as failure.
+        # A job timeout would cancel the job and skip it.
+        timeout-minutes: 10
         run: node scripts/fetch-images.mjs --check-only
 
-      - name: Create issue for new images
-        if: steps.check.outcome == 'failure'
+      - name: Publish image audit report
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo '## Image mirror audit'
+            echo
+            echo "Status: \`${CHECK_STATUS:-not reported}\`"
+            echo
+            echo '```'
+            if [ -f image-audit-report.txt ]; then cat image-audit-report.txt; else echo '(no report written; inspect the check step log)'; fi
+            echo '```'
+            echo
+            echo 'To update the mirror: run `pnpm run fetch:images`, then commit `public/images/`.'
+            echo 'Review local-minus-manifest entries before deleting them; the script never prunes.'
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CHECK_STATUS: ${{ steps.check.outputs.status }}
+
+      - name: Reconcile managed image-mirror issue
+        if: ${{ !cancelled() }}
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          # Passed through the environment, never interpolated into the script body
+          # (atlas decision 0142 step 5.4). The script writes issue_outcome on every
+          # path after module load. An empty value means nothing was measured: the
+          # step never ran (the install failed), crashed at load, or timed out. All
+          # of those are failure.
+          IMAGE_MIRROR_ISSUE_OUTCOME: ${{ steps.check.outputs.issue_outcome }}
         with:
           script: |
-            const fs = await import('node:fs');
-            const readEvidence = (path, fallback) => fs.existsSync(path) ? fs.readFileSync(path, 'utf8').trim() : fallback;
-            const missing = readEvidence('missing-images.txt', '(no manifest-minus-local list was produced; inspect the audit report)');
-            const report = readEvidence('image-audit-report.txt', '(image audit report missing; inspect the workflow log)');
-            await github.rest.issues.create({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              title: 'Image mirror audit failed',
-              body: [
-                'The deploy image-mirror check found missing, stale, invalid, or unreachable image artifacts.',
-                '',
-                '**Missing images:**',
-                '```',
-                missing,
-                '```',
-                '',
-                '**Full audit report:**',
-                '```',
-                report,
-                '```',
-                '',
-                '**To update the mirror:**',
-                '```bash',
-                'pnpm run fetch:images',
-                'git add public/images/',
-                'git commit -m "Add optimized images from CloudFront"',
-                'git push',
-                '```',
-                '',
-                'Review local-minus-manifest entries before deleting them; the script never prunes automatically.',
-              ].join('\n'),
+            const {pathToFileURL} = await import('node:url');
+            const reconciler = await import(pathToFileURL(`${process.cwd()}/audits/lib/file-check-issues.mjs`).href);
+            await reconciler.reconcileCheckIssues({
+              checks: [
+                {id: 'image-mirror', title: 'Image mirror audit (deploy)', outcome: process.env.IMAGE_MIRROR_ISSUE_OUTCOME || 'failure'},
+              ],
+              repo: `${context.repo.owner}/${context.repo.repo}`,
+              runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              client: reconciler.createGithubClient(github),
             });

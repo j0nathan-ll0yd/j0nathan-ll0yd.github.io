@@ -23,6 +23,7 @@
  *   - CSP-violation and chunk-load assertions live in the fixture teardown
  *     (tests/smoke/fixtures.ts) and run automatically for every test.
  */
+import {createRequire} from 'node:module'
 import {expect, test} from './fixtures'
 import type {APIRequestContext, APIResponse} from '@playwright/test'
 import {probeSuppression, suppressionMessage} from '../../audits/lib/suppression.mjs'
@@ -64,16 +65,31 @@ async function headStable(request: APIRequestContext, url: string): Promise<APIR
   return res
 }
 
-async function skipSuppressedArtifact(label: string): Promise<void> {
+type SuppressionProbe = Awaited<ReturnType<typeof probeSuppression>>
+
+/**
+ * Skips while a focus mode hides gated artifacts, and returns the probe so a failed status
+ * assertion can name it. An `indeterminate` probe does not skip: absent evidence never grants a
+ * stand-down (atlas decision 0142). The probe reads the backend's focus.json on CloudFront, so it
+ * needs the cfedge runner lane; without it every probe was indeterminate and every deploy during
+ * a hiding focus failed here on the site's correct 503.
+ */
+async function skipSuppressedArtifact(label: string): Promise<SuppressionProbe> {
   const result = await probeSuppression()
   expect(result.status, suppressionMessage(result, label)).not.toBe('overdue')
   test.skip(result.status === 'suppressed', suppressionMessage(result, label))
+  return result
+}
+
+/** The status-assertion message for a gated artifact, naming the focus probe that let the test run. */
+function gatedStatusMessage(path: string, probe: SuppressionProbe): string {
+  return `${path} did not return 200 (focus probe ${probe.status}: ${probe.reason})`
 }
 
 // Statically server-rendered containers that must always be present. These are
-// structural — present in SSR HTML regardless of live data. `#cardWorkouts` is
-// intentionally excluded: it starts `display: none` in SSR and is only shown by
-// the workouts updater, so its presence is data-dependent, not structural.
+// structural — present in the data-free HTML regardless of live data. Every live
+// card ships in its `loading` state (atlas decision 0160); `@j0nathan-ll0yd/web` 4
+// renders `#cardWorkouts` visible in every state, so it is structural too.
 const REQUIRED_CONTAINERS = [
   '#identityCard',
   '#cardBio',
@@ -202,43 +218,43 @@ test.describe('production home dashboard', () => {
   })
 
   test('feed.xml is reachable and RSS content-type', async ({page}) => {
-    await skipSuppressedArtifact('/feed.xml smoke assertion')
+    const probe = await skipSuppressedArtifact('/feed.xml smoke assertion')
     const res = await getStable(page.request, '/feed.xml')
-    expect(res.status(), '/feed.xml did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/feed.xml', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/feed.xml wrong content-type').toContain('application/rss+xml')
   })
 
   test('feed.json is reachable and JSON Feed content-type', async ({page}) => {
-    await skipSuppressedArtifact('/feed.json smoke assertion')
+    const probe = await skipSuppressedArtifact('/feed.json smoke assertion')
     const res = await getStable(page.request, '/feed.json')
-    expect(res.status(), '/feed.json did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/feed.json', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/feed.json wrong content-type').toContain('application/feed+json')
   })
 
   test('llms.txt is reachable and plain text', async ({page}) => {
-    await skipSuppressedArtifact('/llms.txt smoke assertion')
+    const probe = await skipSuppressedArtifact('/llms.txt smoke assertion')
     const res = await getStable(page.request, '/llms.txt')
-    expect(res.status(), '/llms.txt did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/llms.txt', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/llms.txt wrong content-type').toContain('text/plain')
   })
 
   test('llms-full.txt is reachable on the prod domain and markdown', async ({page}) => {
-    await skipSuppressedArtifact('/llms-full.txt smoke assertion')
+    const probe = await skipSuppressedArtifact('/llms-full.txt smoke assertion')
     // Regression guard: until 2026-07-17 only /llms.txt had a proxy route, so
     // the full dump the discovery index advertises 404'd on jonathanlloyd.me.
     const res = await getStable(page.request, '/llms-full.txt')
-    expect(res.status(), '/llms-full.txt did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/llms-full.txt', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/llms-full.txt wrong content-type').toContain('text/markdown')
   })
 
   test('index.md is reachable on the prod domain and markdown', async ({page}) => {
-    await skipSuppressedArtifact('/index.md smoke assertion')
+    const probe = await skipSuppressedArtifact('/index.md smoke assertion')
     const res = await getStable(page.request, '/index.md')
-    expect(res.status(), '/index.md did not return 200').toBe(200)
+    expect(res.status(), gatedStatusMessage('/index.md', probe)).toBe(200)
     const contentType = res.headers()['content-type'] || ''
     expect(contentType, '/index.md wrong content-type').toContain('text/markdown')
   })
@@ -279,7 +295,7 @@ test.describe('production home dashboard', () => {
   test('Trusted Types telemetry ships as a report-only header', async ({page}) => {
     // The report-only policy is non-enforcing; it only drains DOM injection-sink
     // violations to /api/csp-report. Assert it reaches the browser on the live path
-    // (set unconditionally in functions/_middleware.ts alongside the enforced CSP).
+    // (set unconditionally in src/lib/edge/middleware.ts alongside the enforced CSP).
     const res = await getStable(page.request, '/')
     expect(res.status(), 'home page did not return 200').toBe(200)
     const reportOnly = res.headers()['content-security-policy-report-only'] || ''
@@ -287,7 +303,7 @@ test.describe('production home dashboard', () => {
   })
 
   test('Content-Usage preference covers representative site content', async ({page}) => {
-    for (const path of ['/', '/privacy/', '/robots.txt']) {
+    for (const path of ['/', '/privacy', '/about', '/contact', '/developers', '/robots.txt']) {
       const res = await getStable(page.request, path)
       expect(res.status(), `${path} did not return HTTP 200`).toBe(200)
       expect(res.headers()['content-usage'], `${path} has the wrong Content-Usage header`).toBe('train-ai=n, search=y')
@@ -357,4 +373,34 @@ test.describe('production home dashboard', () => {
       intervals: [2_000, 3_000, 5_000]
     }).toBe(true)
   })
+})
+
+// Email obfuscation on SERVED bytes (atlas decision 0158: obfuscation stays). On Pages, Cloudflare's
+// zone Email Address Obfuscation rewrote the HTML at the edge; on Workers (decision 0160) it stopped,
+// and production served the address in clear for a day without any check noticing, because the
+// parity checks compared two hosts without zone features. The build now encodes every address
+// (src/lib/email/), and these tests watch the bytes a visitor actually receives.
+const copyRequire = createRequire(import.meta.url)
+const identity = copyRequire('@j0nathan-ll0yd/copy/identity.flat.json') as {person: {email: string}}
+const ANY_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+/** Pages that name the address: /privacy, and /contact (decision 0158 W2). */
+const OBFUSCATED_PAGES = ['/privacy', '/contact']
+
+test.describe('email obfuscation on served pages', () => {
+  for (const path of OBFUSCATED_PAGES) {
+    test(`${path} serves no email address in clear, and the browser decodes the link`, async ({page}) => {
+      const res = await getStable(page.request, `${path}?cb=${Date.now()}`, {headers: {'Cache-Control': 'no-cache'}})
+      expect(res.status(), `${path} did not return HTTP 200`).toBe(200)
+      const html = await res.text()
+      expect(html.match(ANY_ADDRESS)?.[0] ?? null, `${path} served an email address in clear`).toBeNull()
+      expect(html, `${path} served a mailto: link in clear`).not.toMatch(/mailto:/i)
+      expect(html, `${path} carries no encoded address`).toContain('data-email="')
+
+      await page.goto(path)
+      const link = page.locator(`a[href="mailto:${identity.person.email}"]`).first()
+      await expect(link, 'the decoder did not turn the encoded address into a mailto link').toBeVisible()
+      await expect(link).toHaveText(identity.person.email)
+      await expect(page.locator('a[data-email]'), 'an encoded link was left undecoded').toHaveCount(0)
+    })
+  }
 })

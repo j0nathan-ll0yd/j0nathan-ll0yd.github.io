@@ -1,4 +1,4 @@
-> **WARNING: merging this PR deploys production.** A push to `main` runs `.github/workflows/deploy.yml`, which publishes straight to the `human-datastream` Cloudflare Pages project serving <https://jonathanlloyd.me>. There is no staging gate and no approval step.
+> **WARNING: merging this PR deploys production.** A push to `main` runs `.github/workflows/deploy.yml`, which deploys straight to the `human-datastream` Cloudflare Worker serving <https://jonathanlloyd.me> (Cloudflare Pages until the decision 0160 cutover). There is no staging gate and no approval step.
 
 - [ ] I verified this change on the pull-request preview deployment, and I accept that merging ships it to production.
 
@@ -19,6 +19,7 @@
 ## Fixtures (Invariant I2)
 
 - [ ] No consumer-side fixtures added (`data/`, `test/fixtures/`, `src/**/fixtures/`); fixtures are DS-owned in `@j0nathan-ll0yd/fixtures` (`pnpm run audit:fixtures` passes).
+- [ ] No production module imports `@j0nathan-ll0yd/fixtures`, directly or transitively (devDependency for tests only; the `forbid-fixtures` Vite plugin fails `pnpm build`).
 
 ## Test plan
 

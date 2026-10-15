@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {checkSteps, measuredStepRecords, parseJobs} from './audit-web-steps.ts'
+import {checkSteps, measuredStepRecords, parseJobs, reconcilerBindings} from './audit-web-steps.ts'
 
 const workflowPath = resolve('.github/workflows/audit-web.yml')
 const workflow = readFileSync(workflowPath, 'utf8')
@@ -118,12 +118,15 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).not.toContain('llms-assurance-b2-spoke-evidence')
   })
 
-  it('wires a fail-closed read-only Cloudflare rule audit with existing secret names', () => {
+  it('wires a fail-closed read-only Cloudflare rule audit with the existing API token', () => {
     const auditStep =
       executable.match(/      - name: B2 -- Cloudflare llms cache rules \(read-only\)\n[\s\S]*?(?=\n      - name: Upload Cloudflare)/)?.[0] ?? ''
     expect(auditStep).toContain('id: llms_cache_rules')
     expect(auditStep).toContain('continue-on-error: true')
+    // The existing CLOUDFLARE_API_TOKEN, and no new secret: the owner chose to widen it.
     expect(auditStep).toContain('CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}')
+    expect(auditStep).not.toContain('CLOUDFLARE_ACCOUNT_READALL')
+    expect(auditStep).not.toContain('CLOUDFLARE_PAGE_RULES_TOKEN')
     expect(auditStep).toContain('CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}')
     expect(auditStep).toContain('CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}')
     expect(auditStep).toContain('node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs')
@@ -166,6 +169,77 @@ describe('audit-web issue reconciliation wiring', () => {
       expect(runBlock(step.body)).toContain('if [ "$FOCUS_SUPPRESSED" = "true" ]; then')
       expect(runBlock(step.body)).toContain('$FOCUS_REASON')
     }
+  })
+
+  it('routes B6 analytics to the reconciler through its tri-state issue_outcome, never the step outcome', () => {
+    // An UNMEASURED Stats API read exits 0, so the step outcome is `success` and used to close
+    // issue #149 as "Recovery confirmed" although the ingestion arm never ran (atlas 0104, 0142).
+    // Both arms are rows of the ONE `analytics` bucket, under the title #149 is matched by.
+    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_BEACONS_ISSUE_OUTCOME}")
+    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_INGESTION_ISSUE_OUTCOME}")
+    expect(workflow).toContain('ANALYTICS_BEACONS_ISSUE_OUTCOME: ${{ steps.analytics_beacons.outputs.issue_outcome }}')
+    expect(workflow).toContain('ANALYTICS_INGESTION_ISSUE_OUTCOME: ${{ steps.analytics_ingestion.outputs.issue_outcome }}')
+    expect(countOccurrences(reconcilerScript, "{id: 'analytics', ")).toBe(2)
+    // A missing output must reach the reconciler as empty (indeterminate), never be defaulted.
+    expect(workflow).not.toMatch(/steps\.analytics_[a-z]+\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+    // The dead-man ping reads `steps.<id>.outcome` on purpose; the reconciler must not.
+    expect(reconcilerScript).not.toMatch(/steps\.analytics(_[a-z]+)?\.outcome\b/)
+    // The single combined step is gone: no record, binding or row may still name it.
+    expect(workflow).not.toMatch(/steps\.analytics\./)
+  })
+
+  it('splits B6 into two report-only steps of one runner, each naming its arm', () => {
+    const daily = parseJobs(workflow).find((job) => job.key === 'daily')!
+    const beacons = daily.steps.find((s) => s.id === 'analytics_beacons')!
+    const ingestion = daily.steps.find((s) => s.id === 'analytics_ingestion')!
+    expect(beacons.name).toBe('B6 -- analytics beacons (CF + SA)')
+    expect(ingestion.name).toBe('B6 -- SA ingestion (synthetic event -> Stats API)')
+    expect(runBlock(beacons.body)).toBe('node audits/checks/b6-check-analytics.mjs --arm beacons')
+    expect(runBlock(ingestion.body)).toBe('node audits/checks/b6-check-analytics.mjs --arm ingestion')
+    expect(beacons.reportOnly && ingestion.reportOnly).toBe(true)
+    // Only the ingestion arm reads the Stats API, so only it holds the key.
+    expect(ingestion.body).toContain('SA_API_KEY: ${{ secrets.SA_API_KEY }}')
+    expect(beacons.body).not.toContain('secrets.SA_API_KEY')
+    expect(countOccurrences(workflow, 'secrets.SA_API_KEY')).toBe(1)
+  })
+})
+
+// B5 split (issue #148). lychee FETCHES and audits/checks/b5-lychee.mjs JUDGES, because
+// lychee's exit code cannot tell a broken link from one the runner egress floor refused.
+describe('audit-web B5 lychee wiring', () => {
+  const weekly = parseJobs(workflow).find((job) => job.key === 'weekly')!
+  const fetchStep = weekly.steps.find((s) => s.id === 'lychee_run')!
+  const judgeStep = weekly.steps.find((s) => s.id === 'lychee')!
+
+  it('runs the fetch under the focus skip, then the judge only on a completed fetch', () => {
+    expect(fetchStep.body).toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
+    expect(judgeStep.body).toContain("if: steps.lychee_run.outcome == 'success'")
+    expect(weekly.steps.indexOf(judgeStep)).toBe(weekly.steps.indexOf(fetchStep) + 1)
+  })
+
+  it('never lets the fetch own the verdict, and never lets a cache hide a refusal', () => {
+    expect(fetchStep.reportOnly).toBe(false)
+    expect(fetchStep.body).toContain('fail: false')
+    expect(fetchStep.body).toContain('format: json')
+    expect(fetchStep.body).toContain('output: lychee/out.json')
+    expect(fetchStep.body).toContain('checkbox: false')
+    expect(fetchStep.body).not.toMatch(/^ {12}.*--cache/m)
+    expect(workflow).not.toContain('.lycheecache')
+  })
+
+  it('judges in the first-party runner and hands it the fetch exit code as environment', () => {
+    expect(judgeStep.reportOnly).toBe(true)
+    expect(judgeStep.runners).toEqual(['audits/checks/b5-lychee.mjs'])
+    expect(judgeStep.body).toContain('LYCHEE_EXIT_CODE: ${{ steps.lychee_run.outputs.exit_code }}')
+  })
+
+  it('feeds the reconciler the tri-state and the note, never the raw step outcome', () => {
+    expect(reconcilerScript).toContain('LYCHEE_ISSUE_OUTCOME: ${{ steps.lychee.outputs.issue_outcome }}')
+    expect(reconcilerScript).toContain('LYCHEE_ISSUE_NOTE: ${{ steps.lychee.outputs.issue_note }}')
+    expect(reconcilerScript).toContain(
+      "{id: 'lychee', title: 'B5 lychee link check', outcome: process.env.LYCHEE_ISSUE_OUTCOME, note: process.env.LYCHEE_ISSUE_NOTE}"
+    )
+    expect(reconcilerScript).not.toMatch(/steps\.lychee\.outcome\b/)
   })
 })
 
@@ -276,7 +350,9 @@ describe('audit-web interpolation channels', () => {
     expect(reconcilers).toHaveLength(3)
     for (const step of reconcilers) {
       const read = [...step.body.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1])
-      const declared = [...step.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.[a-z0-9_]+\.(?:outcome|outputs\.issue_outcome) \}\}$/gm)].map((m) => m[1])
+      const declared = reconcilerBindings(step).filter((b) => ['outcome', 'outputs.issue_outcome', 'outputs.issue_note'].includes(b.field)).map((b) =>
+        b.name
+      )
       expect(read.length).toBeGreaterThan(0)
       expect({step: step.name, missing: read.filter((name) => !declared.includes(name))}).toEqual({step: step.name, missing: []})
       // And nothing declared that nothing reads: a stale binding looks wired and is not.
@@ -364,6 +440,21 @@ describe('audit-web measurement channel', () => {
     }
   })
 
+  // ORDER IS WIRING. The reconciler and the ping read `steps.<id>.*`, and a step that has not run
+  // yet renders EMPTY there: a check moved below the reconciler reaches it as indeterminate on every
+  // run, and one moved below the ping reads as `unreadable-outcome`. Review of #379 found both
+  // mutants (B6 ingestion after the reconciler; the reconciler before both B6 steps) left the suite
+  // green. Every check step precedes the reconciler, which precedes the ping.
+  it.each(tiers)('$key runs every check step before the reconciler, and the reconciler before the ping', (tier) => {
+    const reconcile = tier.steps.findIndex((s) => s.name === 'Reconcile managed audit issues')
+    const ping = tier.steps.findIndex((s) => s.name === 'Healthchecks.io ping')
+    expect(reconcile).toBeGreaterThanOrEqual(0)
+    expect(ping).toBeGreaterThan(reconcile)
+    for (const step of checkSteps(tier)) {
+      expect({step: step.id, before: tier.steps.indexOf(step) < reconcile}).toEqual({step: step.id, before: true})
+    }
+  })
+
   it.each(tiers)('$key never lets a setup step claim a measurement', (tier) => {
     // `chrome` resolves a binary path and `focus_mode` probes suppression for the
     // checks that consume it. Neither judges an artifact, so neither may assert the
@@ -384,56 +475,33 @@ describe('audit-web measurement channel', () => {
   })
 
   /**
-   * The one step whose waiver is carried by the RECORD while the DECLARATION is read from
-   * the step (atlas decisions 0120 D2, 0142 step 5.4).
-   *
-   * `llms_cache_rules` could always claim; all five Cloudflare reads have returned 403 for
-   * its whole observable life and 0120 D2 rules that the permissions are corrected before
-   * the channel lands. This field used to be the literal `deferred`, which meant the
-   * waiver was published unconditionally -- a run that crashed before reaching Cloudflare
-   * inherited it. The runner now classifies its own run
-   * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs)
-   * and the record forwards what it published, so the trailing reason and `until=` attach
-   * to the literal `deferred` and to nothing else.
-   *
-   * An ALLOWLIST OF ONE, keyed by step id: a second waiver cannot appear without editing
-   * this line and explaining itself here.
+   * NO STEP IS WAIVED. `llms_cache_rules` used to carry a `deferred` reason and an `until=`
+   * deadline (atlas decision 0120 D2). The owner rejected the waiver: an all-refused run now
+   * publishes its real count (0), which wedges the tier until the token can read. The record
+   * therefore reads the step and carries no reason and no deadline.
    */
-  const WAIVED_STEP_IDS = new Set(['llms_cache_rules'])
-
-  it('declares exactly the four tool runs as not-applicable, and carries exactly one waiver', () => {
+  it('declares exactly the three tool runs as not-applicable, and waives nothing', () => {
     const all = tiers.flatMap((tier) => measuredStepRecords(tier))
-    // The four are third-party tool runs whose verdict IS their own exit code; they
+    // The three are third-party tool runs whose verdict IS their own exit code; they
     // hold no artifact set to count, so a number under this field would mean something
     // different from what it means everywhere else (atlas decision 0122 D1).
-    expect(all.filter((r) => r.measured === 'n/a').map((r) => r.step).sort()).toEqual(['lhci', 'lychee', 'pa11y', 'smoke'])
-    // NO LITERAL `deferred` SURVIVES. A constant in this field is the falsified-record
-    // shape the binding rung above rejects: the step's real state is never read, so every
-    // outcome -- including a crash -- publishes the waived value.
+    // `lychee` left this set: audits/checks/b5-lychee.mjs judges lychee's JSON report and
+    // publishes the links it held an answer for, so a run the egress floor refused
+    // wholesale publishes 0 and wedges the tier instead of hiding behind `n/a`.
+    expect(all.filter((r) => r.measured === 'n/a').map((r) => r.step).sort()).toEqual(['lhci', 'pa11y', 'smoke'])
+    // NO LITERAL `deferred` SURVIVES, and no record carries a deadline.
     expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual([])
-    // The waiver instead rides the trailing fields of a record that reads the step.
-    const waived = all.filter((r) => r.deadline !== '')
-    expect(waived.map((r) => r.step)).toEqual([...WAIVED_STEP_IDS])
-    for (const record of waived) {
-      expect(record.measured).toBe(`\${{ steps.${record.step}.outputs.measured }}`)
-      expect(record.reason).toContain('0120 D2')
-    }
+    expect(all.filter((r) => r.deadline !== '').map((r) => r.step)).toEqual([])
+    const cacheRules = all.filter((r) => r.step === 'llms_cache_rules')
+    expect(cacheRules).toHaveLength(1)
+    expect(cacheRules[0].measured).toBe('${{ steps.llms_cache_rules.outputs.measured }}')
+    expect(cacheRules[0].reason).toBe('')
   })
 
-  it.each(tiers)('$key dates every waiver and leaves every other record undated', (tier) => {
-    // A DEFERRAL IS TEMPORAL AND A NOT-APPLICABLE IS STRUCTURAL. Without a deadline the
-    // two behave identically and a disclosed gap becomes an indefinite one: the
-    // `llms_cache_rules` deferral produced a green job, no issue and no wedge on run
-    // 34164468115 while all five Cloudflare reads returned 403 -- the same shape as run
-    // 34086625518, the receipt decision 0122 opened with. `audits/healthchecks-ping.sh`
-    // wedges past the date; this reds before the lane ever runs.
+  it.each(tiers)('$key leaves every record undated', (tier) => {
+    // `until=` belongs only on a `deferred` record, and no record is deferred.
     for (const record of measuredStepRecords(tier)) {
-      if (WAIVED_STEP_IDS.has(record.step)) {
-        expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)})
-      } else {
-        // Nowhere else, so `until=` cannot drift onto a record where it grants nothing.
-        expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: ''})
-      }
+      expect({step: record.step, deadline: record.deadline}).toEqual({step: record.step, deadline: ''})
     }
   })
 

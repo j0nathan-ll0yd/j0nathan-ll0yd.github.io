@@ -86,6 +86,15 @@ describe('fetchStable retry semantics (preserved)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('returns a 5xx at once when the caller says it is not transient', async () => {
+    const fetchMock = vi.fn(async () => new Response('suppressed', {status: 503, headers: {'Content-Usage': 'train-ai=n, search=y'}}))
+    vi.stubGlobal('fetch', fetchMock)
+    const res = await fetchStable('https://example.test/site-503', {}, 20_000, undefined,
+      (r: Response) => r.status >= 500 && !r.headers.get('content-usage'))
+    expect(res.status).toBe(503)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('does not retry reachability errors (DNS, TLS)', async () => {
     const fetchMock = vi.fn(async () => {
       throw new TypeError('fetch failed')
