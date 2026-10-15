@@ -1,0 +1,59 @@
+// Cloudflare Worker for jonathanlloyd.me (atlas decision 0160, PR A; plan Step 3.1).
+// `astro build` (@astrojs/cloudflare) reads this file and writes the deployable config to
+// dist/server/wrangler.json; `wrangler deploy` and `wrangler versions upload` read that one.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "human-datastream",
+  "main": "./src/worker.ts",
+  // ONE runtime for every environment. Pages ran production on 2026-05-06 with no flags and
+  // previews on 2026-06-10 with nodejs_compat, so a preview did not prove production. This keeps
+  // the production date, at or after 2024-11-11 (the fetch `cache` option), and adds the flag the
+  // plan names. tests/unit/worker-routing.test.ts pins both.
+  "compatibility_date": "2026-05-06",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    // The default: `/x` serves x.html, and `/x.html` and `/x/` redirect to `/x`.
+    "html_handling": "auto-trailing-slash",
+    // An unmatched path runs the Worker, which renders the 404 page through the site middleware.
+    "not_found_handling": "none",
+    // Every path that runs code, and nothing else (plan Step 0.5 table). The first seven carry a
+    // header the middleware sets beyond `_headers` (HEADER_OVERRIDE_PATHS); `/` also negotiates
+    // Markdown. The rest are the routes in src/lib/edge/routes.ts EDGE_ROUTES.
+    "run_worker_first": [
+      "/",
+      "/sw.js",
+      "/version.json",
+      "/.well-known/api-catalog",
+      "/.well-known/webfinger",
+      "/.well-known/ai-catalog.json",
+      "/openapi.json",
+      "/llms.txt",
+      "/llms-full.txt",
+      "/index.md",
+      "/feed.xml",
+      "/feed.json",
+      "/sa",
+      "/cf-insights.js",
+      "/cf-rum",
+      "/api/csp-report",
+      "/simple",
+      "/simple/*",
+      "/mcp",
+      "/mcp/server-card"
+    ]
+  },
+  // NO `routes` key, on purpose (owner decision 2026-10-14, option A). The production route
+  // `jonathanlloyd.me/*` lives in Cloudflare, outside wrangler, set to fail open by the owner. A deploy
+  // that declares routes replaces the Worker's route set with new route objects (wrangler 4.149.0
+  // `publishRoutes`, PUT .../workers/scripts/:name/routes), which reset request_limit_fail_open to
+  // false; a deploy that declares none makes no route call (`triggersDeploy`: `if (routesOnly.length
+  // > 0)`). Rollback and re-creation: docs/decision-0160/cutover-rehearsal-runbook.md.
+  // No public workers.dev alias (decision 0160 D1).
+  "workers_dev": false,
+  // Version URLs on: the owner put Cloudflare Access on the Worker (gate G3, 2026-10-14), with the
+  // CI service-token policy. scripts/check-preview-access.mjs verifies it on every PR. Only
+  // `wrangler deploy` applies this setting; `wrangler versions upload` reads it.
+  "preview_urls": true,
+  "observability": {"enabled": true}
+}

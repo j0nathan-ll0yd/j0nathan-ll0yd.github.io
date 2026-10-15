@@ -1,7 +1,7 @@
 ---
 import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
-import { LLMS_TXT_PATH } from '../../functions/_lib/llms-artifacts';
+import { LLMS_TXT_PATH } from '../lib/edge/llms-artifacts';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
@@ -150,6 +150,9 @@ const jsonLdGraph = isHome
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  {/* First script on the page and deferred: agent scanners read only the first few
+      scripts for WebMCP registrations, and defer keeps it off the critical path. */}
+  {!dataFree && <script is:inline src="/js/webmcp.js" defer></script>}
   <meta name="theme-color" content="#06060f">
   <meta name="color-scheme" content="dark">
   <meta name="description" content={description}>
@@ -160,7 +163,7 @@ const jsonLdGraph = isHome
   <meta property="og:locale" content="en_US">
   <link rel="canonical" href={canonicalURL}>
   {/* Both alternates address the SITE plane, never the CloudFront origin. The privacy
-      gate and the cache rules live on the site plane (functions/_lib/proxy.ts); an
+      gate and the cache rules live on the site plane (src/lib/edge/proxy.ts); an
       advertised origin URL inherits none of that policy and the origin serves
       selectively. They describe the homepage datastream, so they are gated to it. */}
   {isHome && (
@@ -362,7 +365,6 @@ html { overflow-y: scroll; }
   {/* Defer Leaflet until a map enters view to avoid its initial-load cost. */}
   {import.meta.env.DEV && <script is:inline src="/js/leaflet-lazy.js"></script>}
   <script is:inline src="/js/sw-register.js"></script>
-  {!dataFree && <script is:inline src="/js/webmcp.js"></script>}
   {import.meta.env.PROD && !dataFree && (
     <Fragment>
       <script is:inline src="/js/sa-loader.js"></script>

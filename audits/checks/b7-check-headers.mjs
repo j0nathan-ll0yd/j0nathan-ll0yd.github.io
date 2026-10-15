@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // audits/checks/b7-check-headers.mjs -- B7. Security headers/TLS: diffs the live
-// CSP against a committed golden (drift guard for functions/_middleware.ts),
+// CSP against a committed golden (drift guard for src/lib/edge/security-headers.ts),
 // asserts the Trusted Types report-only header is present, and checks
 // certificate expiry via a raw node:tls connection (no new dependency).
 
@@ -37,7 +37,7 @@ export function validateHeaders(headers, goldenCsp) {
     findings.push({
       severity: 'fail',
       id: 'headers-csp-drift',
-      message: 'live CSP differs from audits/fixtures/golden/csp.txt (either functions/_middleware.ts changed ' +
+      message: 'live CSP differs from audits/fixtures/golden/csp.txt (either src/lib/edge/security-headers.ts changed ' +
         'and the golden needs updating, or this is an unintended drift):\n' +
         `    live:     ${liveCsp}\n    expected: ${expectedCsp}`
     })

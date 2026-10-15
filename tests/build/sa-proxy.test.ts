@@ -2,11 +2,12 @@ import {beforeAll, describe, expect, it} from 'vitest'
 import {readFileSync} from 'fs'
 import {load} from 'cheerio'
 import path from 'path'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // Build-tier test: asserts the compiled CSP + HTML artifacts satisfy the
 // Simple Analytics reverse-proxy invariants (Issue #83).
 
-const distDir = path.resolve(process.cwd(), 'dist')
+const distDir = clientDir()
 
 let $: ReturnType<typeof load>
 let middlewareSrc: string
@@ -14,8 +15,8 @@ let middlewareSrc: string
 beforeAll(() => {
   const html = readFileSync(path.join(distDir, 'index.html'), 'utf-8')
   $ = load(html)
-  // Read the middleware source to inspect the CSP string
-  middlewareSrc = readFileSync(path.resolve(process.cwd(), 'functions/_middleware.ts'), 'utf-8')
+  // Read the header-policy source to inspect the CSP string (src/lib/edge/security-headers.ts)
+  middlewareSrc = readFileSync(path.resolve(process.cwd(), 'src/lib/edge/security-headers.ts'), 'utf-8')
 })
 
 describe('Simple Analytics reverse-proxy CSP assertions', () => {
@@ -43,7 +44,7 @@ describe('Simple Analytics reverse-proxy CSP assertions', () => {
 
   it('sa-loader.js loads the first-party /sa route and not simpleanalyticscdn.com', () => {
     const loaderSrc = readFileSync(path.resolve(process.cwd(), 'public/js/sa-loader.js'), 'utf-8')
-    // Cloudflare Pages serves functions/sa.ts at the route /sa (the .ts extension
+    // Astro serves src/pages/sa.ts at the route /sa (the .ts extension
     // is stripped), so the loader must request /sa, NOT /sa.js (which 404s).
     expect(loaderSrc).toContain("s.src = '/sa'")
     expect(loaderSrc).not.toContain('/sa.js')

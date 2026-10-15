@@ -36,9 +36,24 @@ curl -sI -H 'Accept: text/markdown' https://jonathanlloyd.me/ | grep -iE '^(cont
 curl -sI https://jonathanlloyd.me/.well-known/api-catalog | grep -i '^content-type:' | tee /tmp/vp-catalog-ct.txt
 # Expect: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"
 
-# MCP server-card must list exactly 10 resources
-curl -s https://jonathanlloyd.me/.well-known/mcp/server-card.json | python3 -c "import sys,json; d=json.load(sys.stdin); print('resources:', len(d['resources']))"
-# Expect: resources: 10
+# MCP server card (SEP-2127) lists no resources; the server does, at runtime.
+# The canonical card and the compatibility copy must be the same bytes.
+diff <(curl -s https://jonathanlloyd.me/mcp/server-card) <(curl -s https://jonathanlloyd.me/.well-known/mcp/server-card.json) && echo "server card: IDENTICAL"
+# The audit runner walks the whole MCP chain against the live site:
+#   - ai-catalog.json (ARD schema, served as application/ai-catalog+json) and ard.json
+#     (ArdManifest schema); the card at both URLs (SEP-2127 schema; the canonical URL
+#     served as application/mcp-server-card+json);
+#   - every api-catalog item (the nine JSON exports): a 2xx application/json object,
+#     or the edge focus gate's 403 JSON suppression body while hiding; never S3 XML;
+#   - per remote, 2025-11-25 initialize then tools/list (every tool readOnlyHint: true);
+#   - 2026-07-28 server/discover, a tools/call per tool (none isError);
+#   - resources/list, which must be exactly 7 URIs: the six JSON exports other than
+#     health.json, sleep.json and workouts.json, plus llms-full.txt (EXPECTED_RESOURCE_URIS);
+#   - resources/read of focus.json (a focus document, never gated) and llms-full.txt
+#     (text, or the suppression document while hiding; an error fails, including the
+#     server refusing a copy that links a raw health export).
+node audits/checks/b2-check-wellknown.mjs
+# Expect: server card: IDENTICAL, and check-wellknown with 0 fail
 
 # Agent Skills Discovery digest must match the live SKILL.md body
 INDEX=$(curl -s https://jonathanlloyd.me/.well-known/agent-skills/index.json)
@@ -95,7 +110,7 @@ For each endpoint, verify: HTTP 200, non-empty body, and `Cache-Control` contain
 
 ## Step 3: Security & caching headers
 
-Fetch the homepage headers and validate against `functions/_middleware.ts`. The middleware -- not `public/_headers` -- is the source of truth because root middleware disables `_headers` processing.
+Fetch the homepage headers and validate against `src/lib/edge/security-headers.ts`, the one header-policy module (atlas decision 0160, PR A). The Worker middleware (`src/lib/edge/middleware.ts`) sets it on Worker responses, and the build writes `dist/client/_headers` from it for static files.
 
 ```bash
 # Homepage headers
@@ -105,7 +120,7 @@ cat /tmp/vp-home-headers.txt
 
 Verify:
 
-- `Content-Security-Policy:` matches the policy assembled in `functions/_middleware.ts:5-16`. In particular `connect-src` MUST include `'self'`, `https://d1pfm520aduift.cloudfront.net`, and `wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com`. `script-src` MUST include `https://scripts.simpleanalyticscdn.com` and `https://static.cloudflareinsights.com`. `script-src` MUST NOT contain `'unsafe-inline'` (PR #37 removed it by externalizing all inline scripts to `public/js/`; a regression here re-opens an XSS attack surface). `style-src` retaining `'unsafe-inline'` is currently expected; flag only as INFORMATIONAL once it is also removed upstream.
+- `Content-Security-Policy:` matches the `CSP` constant in `src/lib/edge/security-headers.ts`. In particular `connect-src` MUST include `'self'`, `https://d1pfm520aduift.cloudfront.net`, and `wss://iu1k9jv4mi.execute-api.us-west-2.amazonaws.com`. `script-src` MUST include `https://scripts.simpleanalyticscdn.com` and `https://static.cloudflareinsights.com`. `script-src` MUST NOT contain `'unsafe-inline'` (PR #37 removed it by externalizing all inline scripts to `public/js/`; a regression here re-opens an XSS attack surface). `style-src` retaining `'unsafe-inline'` is currently expected; flag only as INFORMATIONAL once it is also removed upstream.
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: strict-origin-when-cross-origin`
 - `CDN-Cache-Control: no-store` -- the homepage MUST bypass edge cache so content negotiation works. This is invariant per `CLAUDE.md` Caching Architecture.
@@ -397,7 +412,7 @@ Write `/tmp/prod-verification-$(date -u +%Y-%m-%d).md` AND echo it inline. Use t
 For each finding above, give: file:line of the likely fix, the specific change, and the classification:
 
 - **config** -- Cloudflare dashboard, CDN settings, DNS
-- **code** -- `functions/_middleware.ts`, `astro.config.mjs`, `src/`, etc.
+- **code** -- `src/lib/edge/security-headers.ts`, `src/lib/edge/middleware.ts`, `astro.config.mjs`, `src/`, etc.
 - **content** -- `data/*.json`, `public/.well-known/`
 - **upstream** -- Lifegames Portal backend (separate repo, out of scope for this site)
 
@@ -421,7 +436,7 @@ For each finding above, give: file:line of the likely fix, the specific change, 
 
 - **Read-only.** Never edit source files. Never run `npm run test:visual:update` or `npx playwright test --update-snapshots` — baseline regen is a deliberate action that belongs to the author of the visual change, not to verification. Never commit. Recommend fixes -- do not apply them.
 - **Parallel where possible.** Batch independent curl probes in a single Bash invocation. Surfaces 1, 2, 3 are independent; surface 4 (PSI) is independent and slow; surface 5 (Playwright) and surface 6 (BrowserOS) must run sequentially after the curl surfaces.
-- **Middleware is the header source of truth.** Root middleware disables `public/_headers`. When a header looks wrong, the root cause is almost always `functions/_middleware.ts`.
+- **One module is the header source of truth.** `src/lib/edge/security-headers.ts` feeds both response planes: the Worker middleware and the generated `_headers`. When a header looks wrong, the root cause is almost always that module, `src/lib/edge/middleware.ts` (per-path overrides), or `wrangler.jsonc` `run_worker_first` (which plane answered).
 - **Data freshness != deploy freshness.** A stale CloudFront JSON points at the upstream Lifegames Portal backend, not at this deploy. Classify those findings as **upstream**.
 - **No emojis** anywhere in the report.
 - **Default autonomy** is `[AFK]`. Only pause for user input if a critical surface (the homepage `/`) is unreachable.

@@ -1,13 +1,13 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {CLOUDFRONT_BASE, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {LKG_ADMISSION, LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy, PROXY_TIMEOUTS} from '../../functions/_lib/proxy'
-import type {CloudfrontProxyContext} from '../../functions/_lib/proxy'
-import {LLMS_TXT_PATH} from '../../functions/_lib/llms-artifacts'
-import {onRequest as feedJsonRoute} from '../../functions/feed.json.ts'
-import {onRequest as feedXmlRoute} from '../../functions/feed.xml.ts'
-import {onRequest as indexMdRoute} from '../../functions/index.md.ts'
-import {onRequest as llmsFullRoute} from '../../functions/llms-full.txt.ts'
-import {onRequest as llmsTxtRoute} from '../../functions/llms.txt.ts'
+import {CLOUDFRONT_BASE, HIDING_FOCUS_MODES, LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LKG_ADMISSION, LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy, PROXY_TIMEOUTS} from '../../src/lib/edge/proxy'
+import type {CloudfrontProxyContext} from '../../src/lib/edge/proxy'
+import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
+import {onRequest as feedJsonRoute} from '../../src/pages/feed.json.ts'
+import {onRequest as feedXmlRoute} from '../../src/pages/feed.xml.ts'
+import {onRequest as indexMdRoute} from '../../src/pages/index.md.ts'
+import {onRequest as llmsFullRoute} from '../../src/pages/llms-full.txt.ts'
+import {onRequest as llmsTxtRoute} from '../../src/pages/llms.txt.ts'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
 vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => logger}))
@@ -979,5 +979,25 @@ describe('gate admission', () => {
     expect(res.status).toBe(200)
     expect(cache.put).not.toHaveBeenCalled()
     expect(logger.warn).toHaveBeenCalledWith('cloudfront_proxy_lkg_unstamped', expect.objectContaining({artifact: '/thing.txt'}))
+  })
+})
+
+// The MCP server (atlas decision 0158) reads the JSON exports through this factory. One of its
+// readers differs from the five llm routes: the focus signal, which the edge gate never gates.
+describe('MCP readers', () => {
+  it('serves the focus signal without asking the focus gate, and keeps no copy of it', async () => {
+    const hiding = JSON.stringify({currentFocus: HIDING_FOCUS_MODES[0]})
+    const mock = vi.fn().mockImplementation(() => Promise.resolve(fromCloudfront(hiding)))
+    vi.stubGlobal('fetch', mock)
+    const cache = stubCache(lkgCopy('{"currentFocus":"stale"}'))
+    const {context} = makeContext('/focus.json')
+    const res = await makeCloudfrontProxy({path: '/focus.json', contentType: 'application/json'})(context)
+
+    expect(res.status).toBe(200)
+    expect(await res.text()).toBe(hiding)
+    expect(mock).toHaveBeenCalledOnce()
+    expect(mock).toHaveBeenCalledWith(FOCUS_URL, GATED_FETCH_INIT)
+    expect(cache.match).not.toHaveBeenCalled()
+    expect(cache.put).not.toHaveBeenCalled()
   })
 })

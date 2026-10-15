@@ -26,6 +26,7 @@ export default [
     ignores: [
       'dist/**',
       '.astro/**',
+      '.wrangler/**',
       'coverage/**',
       'node_modules/**',
       'previews/**',

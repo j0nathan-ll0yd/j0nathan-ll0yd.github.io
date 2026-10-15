@@ -2,6 +2,7 @@ import {createServer, type Server} from 'node:http'
 import {readFile} from 'node:fs/promises'
 import {extname, join, normalize, posix, resolve} from 'node:path'
 import type {AddressInfo} from 'node:net'
+import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 // A static server for the BUILT site on 127.0.0.1, for the service-worker behavioral specs.
 //
@@ -10,7 +11,7 @@ import type {AddressInfo} from 'node:net'
 // can override any path (`overrides`), read which paths were requested (`requests`), and make the
 // server drop every connection (`down`), which is a real network failure as the worker sees it.
 
-const DIST = resolve(process.cwd(), 'dist')
+const DIST = clientDir()
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

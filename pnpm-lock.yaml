@@ -19,8 +19,8 @@ importers:
   .:
     dependencies:
       '@j0nathan-ll0yd/copy':
-        specifier: 3.3.0
-        version: 3.3.0
+        specifier: 4.0.1
+        version: 4.0.1
       '@j0nathan-ll0yd/observability':
         specifier: ^1.0.0
         version: 1.0.0
@@ -36,9 +36,12 @@ importers:
       '@j0nathan-ll0yd/web':
         specifier: ^4.1.0
         version: 4.1.0
+      '@modelcontextprotocol/server':
+        specifier: 2.3.1
+        version: 2.3.1
       astro:
         specifier: ~7.2.8
-        version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+        version: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
       fast-xml-validator:
         specifier: ^1.4.0
         version: 1.4.0
@@ -46,6 +49,9 @@ importers:
       '@astrojs/check':
         specifier: ^0.9.9
         version: 0.9.9(prettier@3.8.1)(typescript@5.9.3)
+      '@astrojs/cloudflare':
+        specifier: 14.2.6
+        version: 14.2.6(@types/node@25.3.0)(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(wrangler@4.149.0(@types/node@25.3.0))(yaml@2.9.1)
       '@astrojs/sitemap':
         specifier: ^3.7.3
         version: 3.7.3
@@ -70,15 +76,18 @@ importers:
       '@playwright/test':
         specifier: ^1.60.0
         version: 1.60.0
+      '@seriousme/openapi-schema-validator':
+        specifier: ^2.11.0
+        version: 2.11.0
       '@stryker-mutator/core':
         specifier: ^9.6.1
         version: 9.6.1(@types/node@25.3.0)(supports-color@10.2.2)
       '@stryker-mutator/vitest-runner':
         specifier: ^9.6.1
-        version: 9.6.1(@stryker-mutator/core@9.6.1(@types/node@25.3.0)(supports-color@10.2.2))(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))
+        version: 9.6.1(@stryker-mutator/core@9.6.1(@types/node@25.3.0)(supports-color@10.2.2))(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)))
       '@vite-pwa/astro':
         specifier: ^1.2.0
-        version: 1.2.0(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(vite-plugin-pwa@1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1))
+        version: 1.2.0(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(vite-plugin-pwa@1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1))
       ajv:
         specifier: ^8.20.0
         version: 8.20.0
@@ -132,7 +141,7 @@ importers:
         version: 8.65.0(eslint@10.7.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@5.9.3)
       vitest:
         specifier: ^4.1.11
-        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
       wrangler:
         specifier: ^4.149.0
         version: 4.149.0(@types/node@25.3.0)
@@ -165,6 +174,12 @@ packages:
     hasBin: true
     peerDependencies:
       typescript: ^5.0.0 || ^6.0.0
+
+  '@astrojs/cloudflare@14.2.6':
+    resolution: {integrity: sha512-YoHvuwX83gQA3VY4YpESn4GX4kVHESae1LS1+6QvyFGp7H8ZnX+aRXGOmyNKdl+zpwDIew7e1HcbidWeuk2RLw==}
+    peerDependencies:
+      astro: ^7.2.0
+      wrangler: ^4.125.0
 
   '@astrojs/compiler-binding-darwin-arm64@0.4.0':
     resolution: {integrity: sha512-ZVUwHundaQyFNjE6uoa0usaC0WOCitDCLS/4mdb4rOiJXwVUuKJBMxI5WMzXLWmamsXtK/Z//ifLXvV5Yeh4Hw==}
@@ -262,6 +277,9 @@ packages:
   '@astrojs/telemetry@3.3.3':
     resolution: {integrity: sha512-C1TLn5sPJr0x4vk56piHWKbnqlEB8BKyte5Y45V02U+D7BGO5eMqZDH5aPjnkXQWJggvmsTXxH03QMZ9NgWLzQ==}
     engines: {node: 18.20.8 || ^20.3.0 || >=22.0.0}
+
+  '@astrojs/underscore-redirects@1.0.4':
+    resolution: {integrity: sha512-sD3bn7i2yC+ocxlhCTshdg3gUM471Nag3wgyHilA+kpmufokvmUu1p5Mw5GT5Xp8SPC1Nlq0BJAgV/lslnWvRw==}
 
   '@astrojs/yaml2ts@0.2.4':
     resolution: {integrity: sha512-8oddpOae35pJsXPQXhTkM0ypfKPskVsh2bCxRtbf7e+/Epw2nReakFYpLKjZMEr75CsoF203PMnCocpfz0s69A==}
@@ -971,6 +989,13 @@ packages:
     peerDependenciesMeta:
       workerd:
         optional: true
+
+  '@cloudflare/vite-plugin@1.63.1':
+    resolution: {integrity: sha512-6EtAoRqWryl43bYiCl7yvCBHi3R+L/fM11zu8zRyvBMe0Yk63NseyrhA19nO5Y1yrrk6dD+Su7NBZhDuUbjh0g==}
+    hasBin: true
+    peerDependencies:
+      vite: ^6.1.0 || ^7.0.0 || ^8.0.0
+      wrangler: ^4.149.0
 
   '@cloudflare/workerd-darwin-64@1.20261006.1':
     resolution: {integrity: sha512-lCX6avJO2It9AyDEYitjmOtJRVp/xmaW0TziyoLAnfxlzozyyRbSFfIIMMCiDx/sTP1++E4VLbV+7BHSD33f0Q==}
@@ -1862,6 +1887,9 @@ packages:
   '@j0nathan-ll0yd/copy@3.3.0':
     resolution: {integrity: sha512-Ct/xjBy8kXPs5qHDHV4r1qk2hcpi1lHUWbRvD7ZHjJblF6RktGgfKESjXX4hcm5vgAuLe4PzsH7sRSEHg1NJfw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/3.3.0/6fe0558c15296b038e1d19111ef1b7f7fa90f99b}
 
+  '@j0nathan-ll0yd/copy@4.0.1':
+    resolution: {integrity: sha512-Xp1A+8HwNvO796tA3FfO3de6Vc8yXzrRFRSvyFnT+5Oi0GjVdhV3qHc5mlRcMzcSUd848VWdjgTE7qoDIMckNg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/4.0.1/2d512e968c7ff25a67b4debe48e02c09057f49fa}
+
   '@j0nathan-ll0yd/env@1.0.0':
     resolution: {integrity: sha512-thYcCx5oYJ0ReIfSSTdVM7FsUNJBnmkTkoq5/YywA7ly19nuSwzcJh/U+TRtGpMRtrbmvtkiZl2W/+nr1JMMHA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/env/1.0.0/abd9389d100f1263395c1a1ae3e85b9be9b625ad}
 
@@ -1922,6 +1950,14 @@ packages:
 
   '@lhci/utils@0.15.1':
     resolution: {integrity: sha512-WclJnUQJeOMY271JSuaOjCv/aA0pgvuHZS29NFNdIeI14id8eiFsjith85EGKYhljgoQhJ2SiW4PsVfFiakNNw==}
+
+  '@modelcontextprotocol/core@2.3.1':
+    resolution: {integrity: sha512-laVmIhPGpWi7rG9q+0UigblRN0Hws/Yjlb6qLFtVqryXVLkc4h+yN8z731POD2LnAGQlFe7/tXhUm7Bi0YB91g==}
+    engines: {node: '>=20'}
+
+  '@modelcontextprotocol/server@2.3.1':
+    resolution: {integrity: sha512-e59MfWuSssj6DoQ96JCTqdW1AXT5/XtnTl0WWd6MU1Ka434fFUGGosCLJbGNySDhHGvxQWoRWK137FXYFkYNWw==}
+    engines: {node: '>=20'}
 
   '@napi-rs/image-android-arm64@1.14.0':
     resolution: {integrity: sha512-LBWu1fNR7uC6kNQy+axDqXKU7Kj1x3UdD3xGKw/bks6YAUG15m92qwSwINDEB4Jqgl29vCeSNFItJZRm3byfJQ==}
@@ -2383,6 +2419,10 @@ packages:
   '@sentry/utils@7.120.4':
     resolution: {integrity: sha512-zCKpyDIWKHwtervNK2ZlaK8mMV7gVUijAgFeJStH+CU/imcdquizV3pFLlSQYRswG+Lbyd6CT/LGRh3IbtkCFw==}
     engines: {node: '>=8'}
+
+  '@seriousme/openapi-schema-validator@2.11.0':
+    resolution: {integrity: sha512-DL8TjmjkUS76OaK/TinoRtf6PrirsWfMZiv62ifP9eq3UOpoLqSGZKpCErxMzz0i1pjECSPYY+qZ1SRYEgiEvg==}
+    hasBin: true
 
   '@shikijs/core@4.3.1':
     resolution: {integrity: sha512-ANMDxuaPsNMdDC1m4vfvhlDmJweMwkE5XitTwrq2rWHx5jM+dlm4MmHt2PP6t0uejfR77SuhrhJ0zEijIF/uhA==}
@@ -6128,8 +6168,8 @@ packages:
     engines: {node: '>= 14.6'}
     hasBin: true
 
-  yaml@2.9.0:
-    resolution: {integrity: sha512-2AvhNX3mb8zd6Zy7INTtSpl1F15HW6Wnqj0srWlkKLcpYl/gMIMJiyuGq2KeI2YFxUPjdlB+3Lc10seMLtL4cA==}
+  yaml@2.9.1:
+    resolution: {integrity: sha512-3NxN8+78OdzbT7C/WjGsyfPAtJaN3FNDsWxv7Y7mcDsT/oOmgW8BpyQQFFBnvZE3j9Y2Sdz1ULFLezL7Eb2yFw==}
     engines: {node: '>= 14.6'}
     hasBin: true
 
@@ -6226,6 +6266,31 @@ snapshots:
       - prettier
       - prettier-plugin-astro
 
+  '@astrojs/cloudflare@14.2.6(@types/node@25.3.0)(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(wrangler@4.149.0(@types/node@25.3.0))(yaml@2.9.1)':
+    dependencies:
+      '@astrojs/internal-helpers': 0.11.0
+      '@astrojs/underscore-redirects': 1.0.4
+      '@cloudflare/vite-plugin': 1.63.1(@types/node@25.3.0)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(wrangler@4.149.0(@types/node@25.3.0))
+      astro: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      piccolore: 0.1.3
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      wrangler: 4.149.0(@types/node@25.3.0)
+    transitivePeerDependencies:
+      - '@types/node'
+      - '@vitejs/devtools'
+      - bufferutil
+      - esbuild
+      - jiti
+      - less
+      - sass
+      - sass-embedded
+      - stylus
+      - sugarss
+      - terser
+      - tsx
+      - utf-8-validate
+      - yaml
+
   '@astrojs/compiler-binding-darwin-arm64@0.4.0':
     optional: true
 
@@ -6287,7 +6352,7 @@ snapshots:
       '@types/hast': 3.0.5
       '@types/mdast': 4.0.4
       js-yaml: 4.3.2
-      picomatch: 4.0.5
+      picomatch: 4.0.7
       retext-smartypants: 6.2.0
       shiki: 4.3.1
       smol-toml: 1.9.1
@@ -6342,9 +6407,11 @@ snapshots:
       is-docker: 4.0.0
       package-manager-detector: 1.6.0
 
+  '@astrojs/underscore-redirects@1.0.4': {}
+
   '@astrojs/yaml2ts@0.2.4':
     dependencies:
-      yaml: 2.9.0
+      yaml: 2.9.1
 
   '@aws-lambda-powertools/commons@2.35.0':
     dependencies:
@@ -7276,6 +7343,20 @@ snapshots:
     optionalDependencies:
       workerd: 1.20261006.1
 
+  '@cloudflare/vite-plugin@1.63.1(@types/node@25.3.0)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(wrangler@4.149.0(@types/node@25.3.0))':
+    dependencies:
+      '@cloudflare/unenv-preset': 2.16.2(unenv@2.0.0-rc.24)(workerd@1.20261006.1)
+      miniflare: 5.20261006.1-alpha(@types/node@25.3.0)
+      unenv: 2.0.0-rc.24
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      workerd: 1.20261006.1
+      wrangler: 4.149.0(@types/node@25.3.0)
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - '@types/node'
+      - bufferutil
+      - utf-8-validate
+
   '@cloudflare/workerd-darwin-64@1.20261006.1':
     optional: true
 
@@ -7882,6 +7963,8 @@ snapshots:
 
   '@j0nathan-ll0yd/copy@3.3.0': {}
 
+  '@j0nathan-ll0yd/copy@4.0.1': {}
+
   '@j0nathan-ll0yd/env@1.0.0': {}
 
   '@j0nathan-ll0yd/estate-contracts@0.16.0(typescript@5.9.3)':
@@ -8002,6 +8085,15 @@ snapshots:
       - react-native-b4a
       - supports-color
       - utf-8-validate
+
+  '@modelcontextprotocol/core@2.3.1':
+    dependencies:
+      zod: 4.4.3
+
+  '@modelcontextprotocol/server@2.3.1':
+    dependencies:
+      '@modelcontextprotocol/core': 2.3.1
+      zod: 4.4.3
 
   '@napi-rs/image-android-arm64@1.14.0':
     optional: true
@@ -8353,6 +8445,13 @@ snapshots:
     dependencies:
       '@sentry/types': 7.120.4
 
+  '@seriousme/openapi-schema-validator@2.11.0':
+    dependencies:
+      ajv: 8.20.0
+      ajv-draft-04: 1.0.0(ajv@8.20.0)
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      yaml: 2.9.1
+
   '@shikijs/core@4.3.1':
     dependencies:
       '@shikijs/primitive': 4.3.1
@@ -8492,14 +8591,14 @@ snapshots:
 
   '@stryker-mutator/util@9.6.1': {}
 
-  '@stryker-mutator/vitest-runner@9.6.1(@stryker-mutator/core@9.6.1(@types/node@25.3.0)(supports-color@10.2.2))(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)))':
+  '@stryker-mutator/vitest-runner@9.6.1(@stryker-mutator/core@9.6.1(@types/node@25.3.0)(supports-color@10.2.2))(vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)))':
     dependencies:
       '@stryker-mutator/api': 9.6.1
       '@stryker-mutator/core': 9.6.1(@types/node@25.3.0)(supports-color@10.2.2)
       '@stryker-mutator/util': 9.6.1
       semver: 7.8.5
       tslib: 2.8.1
-      vitest: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -8662,10 +8761,10 @@ snapshots:
 
   '@ungap/structured-clone@1.3.3': {}
 
-  '@vite-pwa/astro@1.2.0(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(vite-plugin-pwa@1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1))':
+  '@vite-pwa/astro@1.2.0(astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(vite-plugin-pwa@1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1))':
     dependencies:
-      astro: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
-      vite-plugin-pwa: 1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1)
+      astro: 7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      vite-plugin-pwa: 1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1)
 
   '@vitest/expect@4.1.11':
     dependencies:
@@ -8676,13 +8775,13 @@ snapshots:
       chai: 6.3.0
       tinyrainbow: 3.2.0
 
-  '@vitest/mocker@4.1.11(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))':
+  '@vitest/mocker@4.1.11(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 4.1.11
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
 
   '@vitest/pretty-format@4.1.11':
     dependencies:
@@ -8880,7 +8979,7 @@ snapshots:
     dependencies:
       tslib: 2.8.1
 
-  astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0):
+  astro@7.2.10(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@25.3.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1):
     dependencies:
       '@astrojs/compiler-rs': 0.4.0(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)
       '@astrojs/internal-helpers': 0.11.0
@@ -8930,8 +9029,8 @@ snapshots:
       ultrahtml: 1.6.0
       unifont: 0.7.5
       unstorage: 1.17.5
-      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
-      vitefu: 1.1.3(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
+      vitefu: 1.1.3(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
       xxhash-wasm: 1.1.0
       yargs-parser: 22.0.0
       zod: 4.4.3
@@ -12150,18 +12249,18 @@ snapshots:
       '@types/unist': 3.0.3
       vfile-message: 4.0.3
 
-  vite-plugin-pwa@1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1):
+  vite-plugin-pwa@1.3.0(supports-color@10.2.2)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))(workbox-build@7.4.1(supports-color@10.2.2))(workbox-window@7.4.1):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
       pretty-bytes: 6.1.1
       tinyglobby: 0.2.17
-      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
       workbox-build: 7.4.1(supports-color@10.2.2)
       workbox-window: 7.4.1
     transitivePeerDependencies:
       - supports-color
 
-  vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0):
+  vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -12174,16 +12273,16 @@ snapshots:
       fsevents: 2.3.3
       terser: 5.48.0
       tsx: 4.22.4
-      yaml: 2.9.0
+      yaml: 2.9.1
 
-  vitefu@1.1.3(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitefu@1.1.3(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)):
     optionalDependencies:
-      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
 
-  vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitest@4.1.11(@opentelemetry/api@1.9.1)(@types/node@25.3.0)(jsdom@29.1.1)(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)):
     dependencies:
       '@vitest/expect': 4.1.11
-      '@vitest/mocker': 4.1.11(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      '@vitest/mocker': 4.1.11(vite@8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1))
       '@vitest/pretty-format': 4.1.11
       '@vitest/runner': 4.1.11
       '@vitest/snapshot': 4.1.11
@@ -12200,7 +12299,7 @@ snapshots:
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
       tinyrainbow: 3.2.0
-      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite: 8.1.5(@types/node@25.3.0)(esbuild@0.28.1)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
@@ -12614,7 +12713,7 @@ snapshots:
 
   yaml@2.8.3: {}
 
-  yaml@2.9.0: {}
+  yaml@2.9.1: {}
 
   yargs-parser@13.1.2:
     dependencies:

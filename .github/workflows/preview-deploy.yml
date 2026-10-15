@@ -1,10 +1,10 @@
-name: Preview Deploy (PR)
+name: Preview Version (PR)
 
 on:
   pull_request:
     branches: [main]
 
-# Cancel superseded runs for the same PR to avoid queuing stale deploys.
+# Cancel superseded runs for the same PR to avoid queuing stale version uploads.
 concurrency:
   group: preview-deploy-${{ github.head_ref }}
   cancel-in-progress: true
@@ -16,11 +16,12 @@ permissions:
 
 jobs:
   preview:
-    # Same runner class as deploy.yml.
+    # Same runner class as deploy.yml. No cfedge: nothing here reads CloudFront from the
+    # runner; the Worker reads it from Cloudflare's edge.
     runs-on: [self-hosted, linux, arm64, node]
     # GitHub gives Dependabot-triggered and fork runs no Actions secrets. Gate the
-    # deploy on the token itself, not the actor name, so the build still runs for
-    # every actor and only the deploy is skipped.
+    # upload and the Access check on the token itself, not the actor name, so the
+    # build still runs for every actor and only the Cloudflare steps are skipped.
     env:
       HAS_CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
 
@@ -32,7 +33,7 @@ jobs:
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
@@ -55,19 +56,105 @@ jobs:
         # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
         run: pnpm build --json
 
-      - name: Note skipped preview deploy
+      - name: Note skipped preview upload
         if: env.HAS_CF_TOKEN != 'true'
-        run: echo "Preview deploy skipped because the run has no CLOUDFLARE_API_TOKEN (GitHub gives Dependabot-triggered runs no Actions secrets)." >> "$GITHUB_STEP_SUMMARY"
+        run: echo "Preview version upload skipped because the run has no CLOUDFLARE_API_TOKEN (GitHub gives Dependabot-triggered runs no Actions secrets)." >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Deploy preview to Cloudflare Pages
-        id: deploy
+      - name: Probe the deploy token's capabilities (read-only)
+        # Decision 0160 Step 3.7: after the cutover, deploy.yml deploys the production route, which
+        # needs Zone read and Workers Routes on jonathanlloyd.me in addition to Workers Scripts. One GET
+        # per capability; prints only HTTP status codes (scripts/check-deploy-token.mjs). Report only.
         if: env.HAS_CF_TOKEN == 'true'
-        uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=human-datastream --branch=${{ github.head_ref }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: node scripts/check-deploy-token.mjs
 
-      - name: Echo preview URL
+      - name: Upload a Worker version
+        id: upload
         if: env.HAS_CF_TOKEN == 'true'
-        run: echo "Preview deployed to ${{ steps.deploy.outputs.deployment-url }}"
+        # atlas decision 0160, PR A (plan Step 3.5). `wrangler versions upload` creates a new
+        # version of the Worker WITHOUT deploying it: production keeps serving the active
+        # deployment. The version gets a Version URL, and the PR a stable alias URL
+        # (pr-<number>-human-datastream.<subdomain>.workers.dev), only while preview_urls is
+        # true. Cloudflare Access guards both (decision 0160 D1, gate G3, done 2026-10-14). Wrangler writes the URLs to its ND-JSON output file; the step reads them
+        # from there, not from the human log.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+          PREVIEW_ALIAS: pr-${{ github.event.pull_request.number }}
+        run: |
+          pnpm exec wrangler versions upload --preview-alias "$PREVIEW_ALIAS" --message "PR #${{ github.event.pull_request.number }} ${GITHUB_SHA}"
+          node --input-type=module -e '
+            import {appendFileSync, readFileSync} from "node:fs"
+            const entries = readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, "utf8").trim().split("\n").map((line) => JSON.parse(line))
+            const upload = entries.find((entry) => entry.type === "version-upload")
+            if (!upload) {
+              console.error("wrangler wrote no version-upload entry")
+              process.exit(1)
+            }
+            const out = [`version_id=${upload.version_id}`, `preview_url=${upload.preview_url ?? ""}`, `alias_url=${upload.preview_alias_url ?? ""}`]
+            appendFileSync(process.env.GITHUB_OUTPUT, out.join("\n") + "\n")
+            console.log(out.join("\n"))
+          '
+
+      - name: Check that Cloudflare Access guards the Version URLs
+        id: access
+        if: env.HAS_CF_TOKEN == 'true'
+        # Pass: an anonymous GET does not answer 200, a GET with the CI service token does, and it
+        # carries X-Site-Runtime: workers (scripts/check-preview-access.mjs). A host that answers
+        # wrongly fails the step. A host the runner cannot reach is UNMEASURED: a ::warning and a
+        # step-summary verdict naming host, addresses and error, never a pass. The runner egress
+        # stays closed to *.workers.dev by owner decision (decision 0160, 2026-10-14), so CI is
+        # UNMEASURED on every PR and the tokened checks run locally. With preview_urls
+        # false the upload returns no URL and there is nothing to check; with it true (since gate
+        # G3), a missing URL is a failure.
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
+          ALIAS_URL: ${{ steps.upload.outputs.alias_url }}
+        run: |
+          previews=$(node -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync("dist/server/wrangler.json","utf8"));process.stdout.write(String(c.preview_urls===true))')
+          if [ -z "$PREVIEW_URL" ]; then
+            if [ "$previews" = "true" ]; then
+              echo "::error::preview_urls is true, but the upload returned no Version URL"
+              exit 1
+            fi
+            echo "::notice::preview_urls is false: version ${{ steps.upload.outputs.version_id }} has no URL to check"
+            exit 0
+          fi
+          node scripts/check-preview-access.mjs --unmeasured-ok "$PREVIEW_URL" ${ALIAS_URL:+"$ALIAS_URL"}
+          echo "Version URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "Alias URL: $ALIAS_URL" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compare the version with production Pages (decision 0160 Step 3.6, report only)
+        # The PR A parity report: scripts/worker-parity.mjs sends the same request matrix to the
+        # production Pages origin alias and to this version through the service token. Report
+        # only: a later PR that changes behavior on purpose differs by design, and the baseline
+        # retires with the Pages project (plan Step 8.9); remove this step then.
+        if: steps.access.outputs.outcome == 'pass'
+        continue-on-error: true
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
+        run: |
+          set -o pipefail
+          node scripts/worker-parity.mjs --baseline https://human-datastream.pages.dev --candidate "$PREVIEW_URL" --json "$RUNNER_TEMP/worker-parity.json" | tee "$RUNNER_TEMP/worker-parity.txt"
+          {
+            echo '## Worker parity (decision 0160 Step 3.6)'
+            echo
+            echo '```'
+            grep -E '^(DIFF|SKIP)|^        |worker-parity:' "$RUNNER_TEMP/worker-parity.txt" || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record the parity run as UNMEASURED
+        # Parity needs the same Version URL the Access check could not reach.
+        if: steps.access.outputs.outcome == 'unmeasured'
+        run: |
+          echo "::warning title=Worker parity UNMEASURED::the runner cannot reach the Version URL (see the Access check); run scripts/worker-parity.mjs locally with the service token"
+          printf '%s\n' '## Worker parity (decision 0160 Step 3.6): UNMEASURED' '' 'The runner cannot reach the Version URL (see the Access check above). Run `scripts/worker-parity.mjs` locally with the service token.' >> "$GITHUB_STEP_SUMMARY"

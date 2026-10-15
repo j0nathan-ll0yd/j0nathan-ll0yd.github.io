@@ -22,8 +22,9 @@
 //     imports fixtures is read, not skipped. A third-party package stays external; none in the
 //     tree depends on fixtures (`pnpm why @j0nathan-ll0yd/fixtures` names only this repo).
 //
-// The Pages Functions under functions/ are bundled by wrangler, outside this build. The same
-// plugin runs over their graph in tests/unit/forbid-fixtures.test.ts.
+// The Worker (src/worker.ts, the endpoints under src/pages/, src/lib/edge/) is bundled inside
+// this build, in the `ssr` environment (atlas decision 0160, PR A). The test also runs the plugin
+// over the edge graph alone in tests/unit/forbid-fixtures.test.ts.
 //
 // Its self-test is tests/unit/forbid-fixtures.test.ts: it builds a temporary entry that imports
 // fixtures through an intermediate module, and through an intermediate first-party package, in
