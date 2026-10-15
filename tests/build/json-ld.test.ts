@@ -167,14 +167,12 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
   })
 
   // Atlas decision 0158 (O5): the Person carries the contact data; every value is a copy key.
-  it('Person has a contactPoint with the copy email, contact type, and the /contact page', () => {
+  // No `email` (owner ruling 2026-10-15): no obfuscation reaches inside a <script>, and no page may
+  // carry the address in clear. The contact page carries it, encoded.
+  it('Person has a contactPoint with the copy contact type and the /contact page, and no email', () => {
     const person = graph.find((n: any) => n['@type'] === 'Person')
-    expect(person.contactPoint).toEqual({
-      '@type': 'ContactPoint',
-      contactType: identity.person.contactType,
-      email: identity.person.email,
-      url: SITE_URL + '/contact'
-    })
+    expect(person.contactPoint).toEqual({'@type': 'ContactPoint', contactType: identity.person.contactType, url: SITE_URL + '/contact'})
+    expect(JSON.stringify(graph)).not.toContain(identity.person.email)
   })
 
   it('Person has a PostalAddress from the copy locality, region, and country', () => {

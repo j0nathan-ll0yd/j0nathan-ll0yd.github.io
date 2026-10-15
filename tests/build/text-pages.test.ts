@@ -9,6 +9,7 @@ import {AGENT_PATHS, DATA_SOURCES, TOOLS} from '../../src/lib/edge/agent-catalog
 import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts'
 import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
+import {decodeEmail, EMAIL_FALLBACK_PATH} from '../../src/lib/email/obfuscate'
 
 // Behavioral, non-screenshot assertions for the copy-driven text pages (atlas decision
 // 0158): /about, /contact, and /developers are indexable, carry at least 500 characters
@@ -87,9 +88,12 @@ describe('/contact', () => {
   const github = byHost('github.com')
 
   it('shows only the channels the site already publishes: the email, LinkedIn, and GitHub', () => {
+    // The email link and the address in the security note are encoded (decision 0158): without
+    // JavaScript each links to the contact page; the decoder turns it into the mailto link.
     const hrefs = $('main section a').map((_, a) => $(a).attr('href')).get()
-    expect(hrefs).toEqual([`mailto:${identity.person.email}`, linkedin, github])
-    expect($('[data-channel="email"] a').text()).toBe(identity.person.email)
+    expect(hrefs).toEqual([EMAIL_FALLBACK_PATH, linkedin, github, EMAIL_FALLBACK_PATH])
+    const email = $('[data-channel="email"] a')
+    expect(decodeEmail(email.attr('data-email') ?? '')).toBe(identity.person.email)
     expect($('[data-channel="linkedin"] a').text()).toBe(identity.contact.linkedinLabel)
     expect($('[data-channel="github"] a').text()).toBe(identity.contact.githubLabel)
     // Each label sits on the profile of its own host, whatever order sameAs lists them in.
@@ -97,9 +101,21 @@ describe('/contact', () => {
     expect(new URL($('[data-channel="github"] a').attr('href')!).hostname).toMatch(/(^|\.)github\.com$/)
   })
 
-  it('states the security-report note under its own heading', () => {
+  it('states the security-report note under its own heading, its address encoded', () => {
     expect(visibleText($)).toContain(identity.contact.securityHeading)
-    expect(visibleText($)).toContain(identity.contact.security)
+    const security = $('#contact-security a[data-email]')
+    expect(security).toHaveLength(1)
+    expect(decodeEmail(security.attr('data-email') ?? '')).toBe(identity.person.email)
+    // The note reads as the copy string with the address replaced by the encoded link.
+    const [before, after] = identity.contact.security.split(identity.person.email)
+    expect(visibleText($)).toContain(before.trim())
+    expect(visibleText($)).toContain(after.trim())
+  })
+
+  it('names no address and no mailto in clear, anywhere in the page', () => {
+    const html = readFileSync(path.join(distDir, 'contact.html'), 'utf-8')
+    expect(html).not.toContain(identity.person.email)
+    expect(html).not.toMatch(/mailto:/i)
   })
 })
 

@@ -8,15 +8,13 @@
 // scripts/check-no-clear-email.mjs fails the build if any built HTML still carries an address.
 
 import {createHash} from 'node:crypto'
+import {SITE_PAGE_PATHS} from '../edge/site-paths'
 
 /** An email address, as the build gate and the splitter find it. */
 export const EMAIL_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
 
-/**
- * Where an obfuscated link goes without JavaScript: the contact page (decision 0158 W2, website #350).
- * #350 adds SITE_PAGE_PATHS; point this at SITE_PAGE_PATHS.contact when it lands.
- */
-export const EMAIL_FALLBACK_PATH = '/contact'
+/** Where an obfuscated link goes without JavaScript: the contact page (decision 0158 W2). */
+export const EMAIL_FALLBACK_PATH = SITE_PAGE_PATHS.contact
 
 /** The decoder the page loads once (CSP script-src 'self'; ES2017 floor). */
 export const EMAIL_DECODE_SCRIPT = '/js/email-decode.js'

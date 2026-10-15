@@ -69,10 +69,11 @@ const personNode = {
   url: siteUrl,
   image: avatarImage,
   sameAs: identity.person.sameAs,
+  // No `email`: the address never appears in clear in a page (atlas decision 0158, owner ruling
+  // 2026-10-15), and no obfuscation reaches inside a <script>. The contact page carries it, encoded.
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: identity.person.contactType,
-    email: identity.person.email,
     url: new URL(SITE_PAGE_PATHS.contact, Astro.site).href,
   },
   address: {

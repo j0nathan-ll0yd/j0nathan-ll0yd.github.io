@@ -383,8 +383,8 @@ test.describe('production home dashboard', () => {
 const copyRequire = createRequire(import.meta.url)
 const identity = copyRequire('@j0nathan-ll0yd/copy/identity.flat.json') as {person: {email: string}}
 const ANY_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
-/** Pages that name the address. Decision 0158 W2 (website #350) adds /contact here. */
-const OBFUSCATED_PAGES = ['/privacy']
+/** Pages that name the address: /privacy, and /contact (decision 0158 W2). */
+const OBFUSCATED_PAGES = ['/privacy', '/contact']
 
 test.describe('email obfuscation on served pages', () => {
   for (const path of OBFUSCATED_PAGES) {

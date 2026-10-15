@@ -2,6 +2,8 @@
 import { getEntry } from 'astro:content';
 import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
+import ObfuscatedText from '../lib/email/ObfuscatedText.astro';
+import { EMAIL_DECODE_SCRIPT, EMAIL_FALLBACK_PATH } from '../lib/email/obfuscate';
 import { SITE_PAGE_PATHS } from '../lib/edge/site-paths';
 
 const _identityEntry = await getEntry('copy', 'identity');
@@ -17,12 +19,14 @@ function profile(host: string): string {
 }
 const linkedinUrl = profile('linkedin.com');
 const githubUrl = profile('github.com');
+// Where the encoded address links without JavaScript, and what it reads (atlas decision 0158).
+const emailFallback = { href: EMAIL_FALLBACK_PATH, text: c.title };
 ---
 <InfoPage title={c.title} description={c.metaDescription} path={SITE_PAGE_PATHS.contact} pageType="ContactPage" lede={c.intro}>
   <TextPageSection heading={c.channelsHeading} id="contact-channels">
     <ul>
       <li data-channel="email">
-        <b>{c.emailLabel}</b> <a href={`mailto:${id.person.email}`}>{id.person.email}</a>
+        <b>{c.emailLabel}</b> <ObfuscatedText text={id.person.email} fallbackHref={emailFallback.href} fallbackText={emailFallback.text} />
         <small>{c.emailNote}</small>
       </li>
       <li data-channel="linkedin">
@@ -36,6 +40,7 @@ const githubUrl = profile('github.com');
     </ul>
   </TextPageSection>
   <TextPageSection heading={c.securityHeading} id="contact-security">
-    <p>{c.security}</p>
+    <p><ObfuscatedText text={c.security} fallbackHref={emailFallback.href} fallbackText={emailFallback.text} /></p>
   </TextPageSection>
+  <script is:inline src={EMAIL_DECODE_SCRIPT} defer></script>
 </InfoPage>
