@@ -1,6 +1,9 @@
 // Reconcile one GitHub issue per audit check id. A failed bucket creates or
 // reopens its managed issue; a wholly green bucket gets one recovery comment
 // and closes it. Unknown, skipped, or partially green buckets never close.
+// A check may carry a `note` (markdown naming what it could not measure, and why);
+// the reconciler posts it once per run on the bucket's open managed issue, and a
+// newly filed issue carries it in its body. A note never opens or closes an issue.
 //
 // The workflow injects the authenticated Octokit client through
 // actions/github-script. No runner-local `gh` binary is required.
@@ -40,7 +43,7 @@ export function issueTitle(title) {
   return `[audit] ${title}`
 }
 
-export function issueBody({id}, runUrl) {
+export function issueBody({id, note}, runUrl) {
   return [
     managedMarker(id),
     '',
@@ -48,6 +51,7 @@ export function issueBody({id}, runUrl) {
     '',
     `Run: ${runUrl}`,
     '',
+    ...(note ? [note, ''] : []),
     LEGACY_BODY_SUFFIX
   ].join('\n')
 }
@@ -259,6 +263,42 @@ async function ensureTransitionComment(client, issue, check, repo, runUrl, trans
   }
 }
 
+function noteBody(check, runUrl) {
+  return [transitionMarker(check.id, 'note', runUrl), '', check.note, '', `Run: ${runUrl}`].join('\n')
+}
+
+// One note comment per issue per run, keyed by the same marker scheme as the transition
+// comments, so a re-run of the reconciler in the same workflow run never repeats it.
+async function ensureNoteComment(client, issue, check, repo, runUrl) {
+  if (!check.note) {
+    return
+  }
+  const marker = transitionMarker(check.id, 'note', runUrl)
+  const comments = await client.listComments(issue.number, repo)
+  if (!commentsContain(comments, marker)) {
+    await client.comment(issue.number, repo, noteBody(check, runUrl))
+  }
+}
+
+// An indeterminate bucket leaves every issue's state alone. Its note still reaches the
+// open managed issue, because a partially measured run that says nothing is how a
+// blind spot goes unseen. Only already-managed issues qualify: adopting a legacy issue
+// is a lifecycle mutation, and an indeterminate result owns no lifecycle.
+async function reconcileIndeterminateNote(client, check, repo, runUrl) {
+  const issues = (await client.listIssues(check, repo)).filter((issue) => isManagedIssue(issue, check))
+  const open = issues.filter((issue) => stateOf(issue) === 'open').sort((a, b) => b.number - a.number)
+  if (open.length > 0) {
+    await ensureNoteComment(client, open[0], check, repo, runUrl)
+    console.log(`Posted the run note on audit issue #${open[0].number} for indeterminate bucket "${check.id}".`)
+  }
+}
+
+/** The bucket's check record, carrying the first note any of its results supplied. */
+function bucketCheck(bucket) {
+  const note = bucket.map((check) => check.note).find((value) => typeof value === 'string' && value.trim() !== '')
+  return {...bucket[0], note}
+}
+
 async function adoptLegacyIssue(client, issue, check, repo) {
   const originalBody = issue.body
   const originalLabels = issue.labels || []
@@ -283,6 +323,7 @@ async function reconcileFailure(client, issues, check, repo, runUrl) {
   const open = issues.filter((issue) => stateOf(issue) === 'open').sort((a, b) => b.number - a.number)
   if (open.length > 0) {
     console.log(`Audit issue #${open[0].number} remains open for failing bucket "${check.id}".`)
+    await ensureNoteComment(client, open[0], check, repo, runUrl)
     return
   }
 
@@ -292,6 +333,7 @@ async function reconcileFailure(client, issues, check, repo, runUrl) {
     await ensureTransitionComment(client, issue, check, repo, runUrl, 'regressed')
     await client.reopen(issue.number, repo)
     console.log(`Reopened audit issue #${issue.number} for regressed bucket "${check.id}".`)
+    await ensureNoteComment(client, issue, check, repo, runUrl)
     return
   }
 
@@ -339,12 +381,19 @@ export async function reconcileCheckIssues({checks, repo, runUrl, client}) {
     }
 
     const outcome = bucketOutcome(bucket)
+    const check = bucketCheck(bucket)
     if (outcome === 'indeterminate') {
       console.log(`Audit bucket "${id}" is not wholly green or failing -- leaving its issue unchanged.`)
+      if (check.note) {
+        try {
+          await reconcileIndeterminateNote(client, check, repo, runUrl)
+        } catch (error) {
+          console.error(`Warning: could not post the run note for audit bucket "${id}": ${error.message}`)
+        }
+      }
       continue
     }
 
-    const check = bucket[0]
     try {
       const candidates = (await client.listIssues(check, repo)).filter((issue) => issue.title === issueTitle(check.title))
       const managed = await adoptRecognizedLegacyIssues(client, candidates, check, repo)

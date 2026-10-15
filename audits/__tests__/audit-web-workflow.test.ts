@@ -183,6 +183,45 @@ describe('audit-web issue reconciliation wiring', () => {
   })
 })
 
+// B5 split (issue #148). lychee FETCHES and audits/checks/b5-lychee.mjs JUDGES, because
+// lychee's exit code cannot tell a broken link from one the runner egress floor refused.
+describe('audit-web B5 lychee wiring', () => {
+  const weekly = parseJobs(workflow).find((job) => job.key === 'weekly')!
+  const fetchStep = weekly.steps.find((s) => s.id === 'lychee_run')!
+  const judgeStep = weekly.steps.find((s) => s.id === 'lychee')!
+
+  it('runs the fetch under the focus skip, then the judge only on a completed fetch', () => {
+    expect(fetchStep.body).toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
+    expect(judgeStep.body).toContain("if: steps.lychee_run.outcome == 'success'")
+    expect(weekly.steps.indexOf(judgeStep)).toBe(weekly.steps.indexOf(fetchStep) + 1)
+  })
+
+  it('never lets the fetch own the verdict, and never lets a cache hide a refusal', () => {
+    expect(fetchStep.reportOnly).toBe(false)
+    expect(fetchStep.body).toContain('fail: false')
+    expect(fetchStep.body).toContain('format: json')
+    expect(fetchStep.body).toContain('output: lychee/out.json')
+    expect(fetchStep.body).toContain('checkbox: false')
+    expect(fetchStep.body).not.toMatch(/^ {12}.*--cache/m)
+    expect(workflow).not.toContain('.lycheecache')
+  })
+
+  it('judges in the first-party runner and hands it the fetch exit code as environment', () => {
+    expect(judgeStep.reportOnly).toBe(true)
+    expect(judgeStep.runners).toEqual(['audits/checks/b5-lychee.mjs'])
+    expect(judgeStep.body).toContain('LYCHEE_EXIT_CODE: ${{ steps.lychee_run.outputs.exit_code }}')
+  })
+
+  it('feeds the reconciler the tri-state and the note, never the raw step outcome', () => {
+    expect(reconcilerScript).toContain('LYCHEE_ISSUE_OUTCOME: ${{ steps.lychee.outputs.issue_outcome }}')
+    expect(reconcilerScript).toContain('LYCHEE_ISSUE_NOTE: ${{ steps.lychee.outputs.issue_note }}')
+    expect(reconcilerScript).toContain(
+      "{id: 'lychee', title: 'B5 lychee link check', outcome: process.env.LYCHEE_ISSUE_OUTCOME, note: process.env.LYCHEE_ISSUE_NOTE}"
+    )
+    expect(reconcilerScript).not.toMatch(/steps\.lychee\.outcome\b/)
+  })
+})
+
 describe('audit-web runner isolation', () => {
   // These jobs run on self-hosted arm64 runners behind a default-deny egress
   // allowlist that excludes ports.ubuntu.com and deb.nodesource.com. A per-run
@@ -290,7 +329,9 @@ describe('audit-web interpolation channels', () => {
     expect(reconcilers).toHaveLength(3)
     for (const step of reconcilers) {
       const read = [...step.body.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1])
-      const declared = [...step.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.[a-z0-9_]+\.(?:outcome|outputs\.issue_outcome) \}\}$/gm)].map((m) => m[1])
+      const declared = [
+        ...step.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.[a-z0-9_]+\.(?:outcome|outputs\.issue_outcome|outputs\.issue_note) \}\}$/gm)
+      ].map((m) => m[1])
       expect(read.length).toBeGreaterThan(0)
       expect({step: step.name, missing: read.filter((name) => !declared.includes(name))}).toEqual({step: step.name, missing: []})
       // And nothing declared that nothing reads: a stale binding looks wired and is not.
@@ -403,12 +444,15 @@ describe('audit-web measurement channel', () => {
    * publishes its real count (0), which wedges the tier until the token can read. The record
    * therefore reads the step and carries no reason and no deadline.
    */
-  it('declares exactly the four tool runs as not-applicable, and waives nothing', () => {
+  it('declares exactly the three tool runs as not-applicable, and waives nothing', () => {
     const all = tiers.flatMap((tier) => measuredStepRecords(tier))
-    // The four are third-party tool runs whose verdict IS their own exit code; they
+    // The three are third-party tool runs whose verdict IS their own exit code; they
     // hold no artifact set to count, so a number under this field would mean something
     // different from what it means everywhere else (atlas decision 0122 D1).
-    expect(all.filter((r) => r.measured === 'n/a').map((r) => r.step).sort()).toEqual(['lhci', 'lychee', 'pa11y', 'smoke'])
+    // `lychee` left this set: audits/checks/b5-lychee.mjs judges lychee's JSON report and
+    // publishes the links it held an answer for, so a run the egress floor refused
+    // wholesale publishes 0 and wedges the tier instead of hiding behind `n/a`.
+    expect(all.filter((r) => r.measured === 'n/a').map((r) => r.step).sort()).toEqual(['lhci', 'pa11y', 'smoke'])
     // NO LITERAL `deferred` SURVIVES, and no record carries a deadline.
     expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual([])
     expect(all.filter((r) => r.deadline !== '').map((r) => r.step)).toEqual([])

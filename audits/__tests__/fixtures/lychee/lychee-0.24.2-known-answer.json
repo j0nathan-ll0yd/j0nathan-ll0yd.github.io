@@ -1,0 +1,108 @@
+{
+  "total": 5,
+  "unique": 5,
+  "successful": 1,
+  "unknown": 0,
+  "unsupported": 0,
+  "timeouts": 0,
+  "redirects": 0,
+  "remaps": 0,
+  "excludes": 1,
+  "errors": 3,
+  "cached": 0,
+  "success_map": {
+    "known-answer.html": [
+      {
+        "url": "https://jonathanlloyd.me/",
+        "status": {
+          "text": "200 OK",
+          "code": 200
+        },
+        "span": {
+          "line": 1,
+          "column": 164
+        },
+        "duration": {
+          "secs": 0,
+          "nanos": 273802875
+        }
+      }
+    ]
+  },
+  "error_map": {
+    "known-answer.html": [
+      {
+        "url": "http://127.0.0.1:1/",
+        "status": {
+          "text": "Network error: Connection refused - server may be down or port blocked (error sending request for url (http://127.0.0.1:1/))",
+          "details": "Connection refused - server may be down or port blocked"
+        },
+        "span": {
+          "line": 1,
+          "column": 10
+        },
+        "duration": {
+          "secs": 0,
+          "nanos": 202246041
+        }
+      },
+      {
+        "url": "https://b5-no-such-host-zz9q.com/",
+        "status": {
+          "text": "Network error: Connection failed. Check network connectivity and firewall settings (error sending request for url (https://b5-no-such-host-zz9q.com/))",
+          "details": "Connection failed. Check network connectivity and firewall settings"
+        },
+        "span": {
+          "line": 1,
+          "column": 113
+        },
+        "duration": {
+          "secs": 0,
+          "nanos": 4349584
+        }
+      },
+      {
+        "url": "https://jonathanlloyd.me/b5-known-answer-404",
+        "status": {
+          "text": "Rejected status code: 404 Not Found",
+          "code": 404
+        },
+        "span": {
+          "line": 1,
+          "column": 51
+        },
+        "duration": {
+          "secs": 0,
+          "nanos": 202771458
+        }
+      }
+    ]
+  },
+  "timeout_map": {},
+  "suggestion_map": {},
+  "redirect_map": {},
+  "excluded_map": {
+    "known-answer.html": [
+      {
+        "url": "https://www.linkedin.com/in/lifegames/",
+        "status": {
+          "text": "Excluded",
+          "details": "This is due to your 'exclude' values"
+        },
+        "span": {
+          "line": 1,
+          "column": 206
+        },
+        "duration": {
+          "secs": 0,
+          "nanos": 20208
+        }
+      }
+    ]
+  },
+  "duration": {
+    "secs": 0,
+    "nanos": 477865750
+  },
+  "detailed_stats": true
+}
