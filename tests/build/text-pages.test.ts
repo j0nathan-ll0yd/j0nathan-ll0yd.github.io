@@ -9,7 +9,8 @@ import {AGENT_PATHS, DATA_SOURCES, TOOLS} from '../../src/lib/edge/agent-catalog
 import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts'
 import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
-import {decodeEmail, EMAIL_FALLBACK_PATH} from '../../src/lib/email/obfuscate'
+import {decodeEmail} from '../../src/lib/email/obfuscate'
+import {SECURITY_TXT_PATH} from '../../src/lib/edge/site-paths'
 
 // Behavioral, non-screenshot assertions for the copy-driven text pages (atlas decision
 // 0158): /about, /contact, and /developers are indexable, carry at least 500 characters
@@ -88,10 +89,11 @@ describe('/contact', () => {
   const github = byHost('github.com')
 
   it('shows only the channels the site already publishes: the email, LinkedIn, and GitHub', () => {
-    // The email link and the address in the security note are encoded (decision 0158): without
-    // JavaScript each links to the contact page; the decoder turns it into the mailto link.
+    // The email link and the address in the security note are encoded (decision 0158); the decoder
+    // turns each into the mailto link.
     const hrefs = $('main section a').map((_, a) => $(a).attr('href')).get()
-    expect(hrefs).toEqual([EMAIL_FALLBACK_PATH, linkedin, github, EMAIL_FALLBACK_PATH])
+    // Without JavaScript the two encoded links go to security.txt, never to this page itself.
+    expect(hrefs).toEqual([SECURITY_TXT_PATH, linkedin, github, SECURITY_TXT_PATH])
     const email = $('[data-channel="email"] a')
     expect(decodeEmail(email.attr('data-email') ?? '')).toBe(identity.person.email)
     expect($('[data-channel="linkedin"] a').text()).toBe(identity.contact.linkedinLabel)

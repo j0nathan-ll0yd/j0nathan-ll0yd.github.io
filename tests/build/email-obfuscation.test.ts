@@ -5,6 +5,7 @@ import {load} from 'cheerio'
 import {describe, expect, it} from 'vitest'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
 import {decodeEmail, EMAIL_DECODE_SCRIPT, EMAIL_FALLBACK_PATH} from '../../src/lib/email/obfuscate'
+import {SECURITY_TXT_PATH} from '../../src/lib/edge/site-paths'
 
 // The built /privacy and /contact carry the address only encoded (atlas decision 0158), and
 // security.txt keeps its clear Contact line (RFC 9116).
@@ -48,11 +49,12 @@ describe('built /contact', () => {
     expect(html).not.toMatch(/mailto:/i)
   })
 
-  it('encodes the email channel and the security note, each decoding to the copy address', () => {
+  it('encodes the email channel and the security note, each falling back to security.txt, never to /contact', () => {
     const links = $('a[data-email]')
     expect(links.length).toBe(2)
     links.each((_i, element) => {
-      expect($(element).attr('href')).toBe(EMAIL_FALLBACK_PATH)
+      expect($(element).attr('href')).toBe(SECURITY_TXT_PATH)
+      expect($(element).attr('href')).not.toBe(EMAIL_FALLBACK_PATH)
       expect(decodeEmail($(element).attr('data-email') ?? '')).toBe(identity.person.email)
     })
   })

@@ -3,8 +3,8 @@ import { getEntry } from 'astro:content';
 import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
 import ObfuscatedText from '../lib/email/ObfuscatedText.astro';
-import { EMAIL_DECODE_SCRIPT, EMAIL_FALLBACK_PATH } from '../lib/email/obfuscate';
-import { SITE_PAGE_PATHS } from '../lib/edge/site-paths';
+import { EMAIL_DECODE_SCRIPT } from '../lib/email/obfuscate';
+import { SECURITY_TXT_PATH, SITE_PAGE_PATHS } from '../lib/edge/site-paths';
 
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[contact.astro] @j0nathan-ll0yd/copy identity entry missing');
@@ -19,8 +19,10 @@ function profile(host: string): string {
 }
 const linkedinUrl = profile('linkedin.com');
 const githubUrl = profile('github.com');
-// Where the encoded address links without JavaScript, and what it reads (atlas decision 0158).
-const emailFallback = { href: EMAIL_FALLBACK_PATH, text: c.title };
+// Where the encoded address links without JavaScript, and what it reads. Every other page falls
+// back to this page; this page falls back to security.txt, which already publishes the address
+// under RFC 9116, so the link adds no exposure (atlas decision 0158, owner ruling 2026-10-15).
+const emailFallback = { href: SECURITY_TXT_PATH, text: c.title };
 ---
 <InfoPage title={c.title} description={c.metaDescription} path={SITE_PAGE_PATHS.contact} pageType="ContactPage" lede={c.intro}>
   <TextPageSection heading={c.channelsHeading} id="contact-channels">

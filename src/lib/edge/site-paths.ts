@@ -10,3 +10,10 @@ export const SITE_PAGE_PATHS = {about: '/about', contact: '/contact', privacy: '
  * rel="sitemap" link, the homepage Link header, and the markdown 404.
  */
 export const SITEMAP_INDEX_PATH = '/sitemap-index.xml'
+
+/**
+ * The RFC 9116 security.txt, a static file in public/.well-known/. It is the one served file that
+ * keeps the contact address in clear (RFC 9116 requires it), so /contact links here without
+ * JavaScript (atlas decision 0158, owner ruling 2026-10-15).
+ */
+export const SECURITY_TXT_PATH = '/.well-known/security.txt'
