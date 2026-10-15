@@ -66,3 +66,33 @@ export function publishMeasured(measured, deps = {}) {
   append(outputPath, `measured=${measured}\n`, 'utf8')
   return measured
 }
+
+/** The closed set the managed-issue reconciler accepts for one bucket (audits/lib/file-check-issues.mjs). */
+export const ISSUE_OUTCOMES = Object.freeze(['success', 'failure', 'indeterminate'])
+
+/**
+ * Append `issue_outcome=<outcome>` to `$GITHUB_OUTPUT` -- the ONE writer for the tri-state the
+ * reconciler reads in place of a report-only step's process outcome (atlas decision 0142).
+ *
+ * A step outcome cannot separate "measured and healthy" from "could not measure": every check
+ * step is `continue-on-error`, and an unmeasured arm exits 0. `indeterminate` leaves the managed
+ * issue unchanged, so a run that judged nothing can neither file nor close one (atlas 0104).
+ *
+ * Same contract as `publishMeasured`: synchronous, validated, a no-op without an output path, and
+ * an explicit `outputPath` (even `undefined`) is never replaced by the environment.
+ *
+ * @param {'success'|'failure'|'indeterminate'} outcome
+ * @returns {'success'|'failure'|'indeterminate'} `outcome`, so callers can pass it through
+ */
+export function publishIssueOutcome(outcome, deps = {}) {
+  if (!ISSUE_OUTCOMES.includes(outcome)) {
+    throw new TypeError(`issue_outcome must be one of ${ISSUE_OUTCOMES.join('|')}, got ${JSON.stringify(outcome)}`)
+  }
+  const append = deps.append ?? appendFileSync
+  const outputPath = Object.hasOwn(deps, 'outputPath') ? deps.outputPath : process.env.GITHUB_OUTPUT
+  if (!outputPath) {
+    return outcome
+  }
+  append(outputPath, `issue_outcome=${outcome}\n`, 'utf8')
+  return outcome
+}

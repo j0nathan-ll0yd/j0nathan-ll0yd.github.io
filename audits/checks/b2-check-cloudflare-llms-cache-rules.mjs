@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import {appendFile, mkdir, writeFile} from 'node:fs/promises'
+import {mkdir, writeFile} from 'node:fs/promises'
 import {dirname} from 'node:path'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts.ts'
 import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
-import {publishMeasured} from '../lib/measurement.mjs'
+import {publishIssueOutcome, publishMeasured} from '../lib/measurement.mjs'
 
 // The three canonical URLs, derived from the portal contract rather than
 // restated (atlas decision 0119 D2): the site origin plus the same paths the
@@ -1012,7 +1012,7 @@ async function writeGithubOutput(outputPath, evidence) {
   if (!outputPath) {
     return
   }
-  await appendFile(outputPath, `issue_outcome=${managedIssueOutcome(evidence.status)}\n`, 'utf8')
+  publishIssueOutcome(managedIssueOutcome(evidence.status), {outputPath})
   const declaration = measurementDeclaration(evidence)
   if (declaration !== null) {
     // Published through the one measurement writer (audits/lib/measurement.mjs), with this

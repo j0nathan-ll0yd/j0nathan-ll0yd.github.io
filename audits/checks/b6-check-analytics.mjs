@@ -17,9 +17,11 @@
 // case is roughly 375s, comfortably inside one job budget, and no interval between two output
 // lines can exceed the 30s heartbeat.
 
+import {appendFileSync} from 'node:fs'
 import {chromium} from '@playwright/test'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {DEFAULT_BUDGET_MS, fetchStable, isMain, report} from '../lib/http.mjs'
+import {publishIssueOutcome} from '../lib/measurement.mjs'
 import {progress, withHeartbeat} from '../lib/progress.mjs'
 
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap, and it
@@ -174,9 +176,70 @@ export function syntheticEventPayload(hostname, eventName, ua) {
   return {type: 'event', hostname, event: eventName, ua, unique: true}
 }
 
+/** Finding id for the no-key arm: the ingestion arm did not run, so the run cannot say "healthy". */
+export const INGESTION_SKIPPED_ID = 'analytics-sa-ingestion-skipped'
+
+/**
+ * Failure codes that mean the runner never got an answer from Simple Analytics. Fetch reports
+ * them as `err.cause.code` on its `TypeError: fetch failed`, and a body read reports them on its
+ * `TypeError: terminated`. Node codes: connection reset, refused, DNS (permanent and temporary),
+ * connect timeout, no route, broken pipe. undici codes, checked against `lib/core/errors.js` in
+ * undici 8.11.2 and the undici 7.25.0 bundled with Node 24.16.0 (same codes): `SocketError`
+ * (the peer closed or reset the socket) and the connect, headers, and body timeouts.
+ *
+ * Anything else is a defect and stays a fail: an invalid Api-Key byte, an invalid URL, a TLS
+ * certificate error, or `UND_ERR_CLOSED` (a client our own code closed).
+ */
+export const UNREACHABLE_CAUSE_CODES = new Set([
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'EPIPE',
+  'UND_ERR_SOCKET',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT'
+])
+
+/** Pure: an UNMEASURED error. It renders as a warn and makes the run's issue outcome indeterminate. */
+function statsApiUnmeasured(id, reason) {
+  return {id, unmeasured: true, message: `UNMEASURED: ${reason}. SA ingestion was not judged; this is runner egress or an SA outage, not a site finding.`}
+}
+
+/**
+ * Pure: classify an error thrown by a Stats API request or by reading its body.
+ *
+ * Daily runs 37102564954, 37580690736 and 38356590370 failed in ~36ms with `fetch failed`
+ * while all four site beacons were observed. The runner's egress allowlist had dropped SA's
+ * address after a transient DNS miss (ci-runners-private #163). That is not a site failure, and
+ * reporting it as one reopened issue #149 three times.
+ *
+ * ONE RULE FOR AN SA OUTAGE: when SA served no answer -- a transport failure listed in
+ * `UNREACHABLE_CAUSE_CODES`, a budget timeout, or a 5xx after the fetch helper's retries -- the
+ * run is UNMEASURED. An answer that points at our side (401 bad key, 404 wrong hostname, `ok:false`,
+ * invalid JSON on a non-5xx) is a measurement and stays a fail. So is any unclassified throw.
+ *
+ * @param {Error & {cause?: {code?: string, message?: string}}} err
+ * @returns {{id: string, message: string, unmeasured?: true}}
+ */
+export function classifyStatsReadError(err) {
+  const causeCode = err?.cause?.code
+  if (err?.name === 'TimeoutError' || UNREACHABLE_CAUSE_CODES.has(causeCode)) {
+    const cause = causeCode || err?.cause?.message || err?.name || 'unknown'
+    return statsApiUnmeasured('analytics-sa-stats-api-unreachable', `the runner could not reach the SA Stats API (${err?.message || err}; cause: ${cause})`)
+  }
+  const cause = causeCode || err?.cause?.message
+  return {id: 'analytics-sa-stats-api-fetch', message: `Stats API fetch failed: ${err?.message || err}${cause ? ` (cause: ${cause})` : ''}`}
+}
+
 /**
  * Pure decision -> findings[]. Testable without network. Given the resolved
  * outcome of the trigger-then-confirm flow, decide pass/fail:
+ *   - an `unmeasured` error -> warn carrying `unmeasured: true`, never fail
  *   - a pre-resolved I/O `error` -> fail (surfaced with its own id)
  *   - after > before -> confirmed (info finding carrying the measured latency)
  *   - otherwise -> the delta was never observed within the timeout -> fail
@@ -187,10 +250,13 @@ export function syntheticEventPayload(hostname, eventName, ua) {
  * @param {number} [r.after]
  * @param {number} [r.elapsedMs]
  * @param {number} [r.timeoutMs]
- * @param {{id: string, message: string}} [r.error]
- * @returns {Array<{severity: string, id: string, message: string}>}
+ * @param {{id: string, message: string, unmeasured?: boolean}} [r.error]
+ * @returns {Array<{severity: string, id: string, message: string, unmeasured?: true}>}
  */
 export function evaluateIngestion({eventName, before, after, elapsedMs, timeoutMs, error}) {
+  if (error?.unmeasured) {
+    return [{severity: 'warn', id: error.id, message: error.message, unmeasured: true}]
+  }
   if (error) {
     return [{severity: 'fail', id: error.id, message: error.message}]
   }
@@ -212,19 +278,65 @@ export function evaluateIngestion({eventName, before, after, elapsedMs, timeoutM
   }]
 }
 
-/** Read the current SA count for `eventName`. Network I/O; returns {ok, total} or {ok:false, error}. */
-async function readEventTotal(queryUrl, apiKey, eventName) {
+/**
+ * "Not observed" is a claim about the whole window, so it needs a successful read near its end.
+ * Two poll intervals is the tolerance: one late or failed read near the deadline still counts.
+ */
+export const INGESTION_OBSERVED_TAIL_MS = 2 * INGESTION_POLL_INTERVAL_MS
+
+/**
+ * Pure: conclude the poll phase. Precedence:
+ *   1. the count rose -> confirmed (success evidence outranks any earlier read error);
+ *   2. a definite read error (401, bad JSON, unclassified throw) -> that fail, even if an
+ *      unmeasured error came later;
+ *   3. a successful read within `INGESTION_OBSERVED_TAIL_MS` of the deadline -> not observed (fail);
+ *   4. otherwise the window was not watched to its end -> UNMEASURED.
+ */
+export function concludeIngestion({eventName, before, after, startedAt, endedAt, deadline, lastReadAt, definiteError, unmeasuredError}) {
+  const timeoutMs = deadline - startedAt
+  if (after > before) {
+    return evaluateIngestion({eventName, before, after, elapsedMs: endedAt - startedAt, timeoutMs})
+  }
+  if (definiteError) {
+    return evaluateIngestion({eventName, error: definiteError})
+  }
+  if (lastReadAt !== null && deadline - lastReadAt <= INGESTION_OBSERVED_TAIL_MS) {
+    return evaluateIngestion({eventName, before, after, elapsedMs: endedAt - startedAt, timeoutMs})
+  }
+  const observedS = lastReadAt === null ? 0 : Math.round((lastReadAt - startedAt) / 1000)
+  return evaluateIngestion({
+    eventName,
+    error: statsApiUnmeasured('analytics-sa-ingestion-unobserved',
+      `the Stats API answered for only the first ${observedS}s of the ${Math.round(timeoutMs / 1000)}s ingestion window (last read error: ${
+        unmeasuredError?.message ?? 'none'
+      }), so "not ingested" cannot be claimed`)
+  })
+}
+
+/**
+ * Read the current SA count for `eventName`. Network I/O; returns {ok, total} or {ok:false, error}.
+ * `fetchImpl` has the shared fetch helper's signature, so tests drive the real classification.
+ */
+export async function readEventTotal(queryUrl, apiKey, eventName, {fetchImpl = fetchStable} = {}) {
   let res
   try {
-    res = await fetchStable(queryUrl, {headers: {'Api-Key': apiKey}})
+    res = await fetchImpl(queryUrl, {headers: {'Api-Key': apiKey}})
   } catch (err) {
-    return {ok: false, error: {id: 'analytics-sa-stats-api-fetch', message: `Stats API fetch failed: ${err.message}`}}
+    return {ok: false, error: classifyStatsReadError(err)}
+  }
+  if (res.status >= 500) {
+    // SA served no answer after the helper's retries: the SA-outage rule in classifyStatsReadError.
+    return {ok: false, error: statsApiUnmeasured('analytics-sa-stats-api-unavailable', `the SA Stats API returned HTTP ${res.status} after retries`)}
   }
   let json
   try {
     json = await res.json()
   } catch (err) {
-    return {ok: false, error: {id: 'analytics-sa-stats-api-parse', message: `Stats API did not return valid JSON: ${err.message}`}}
+    if (err instanceof SyntaxError) {
+      return {ok: false, error: {id: 'analytics-sa-stats-api-parse', message: `Stats API did not return valid JSON: ${err.message}`}}
+    }
+    // The body stream itself failed (reset or timeout mid-body): the same classifier as the request.
+    return {ok: false, error: classifyStatsReadError(err)}
   }
   if (!res.ok || json?.ok !== true) {
     return {ok: false, error: {id: 'analytics-sa-stats-api-error', message: `SA Stats API error (HTTP ${res.status}): ${json?.error ?? '(no error field)'}`}}
@@ -232,19 +344,22 @@ async function readEventTotal(queryUrl, apiKey, eventName) {
   return {ok: true, total: eventTotal(json, eventName)}
 }
 
+const realSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 /**
  * Trigger-then-confirm ingestion test. Reads the event's baseline count, POSTs a
  * fresh server-side event through the first-party /simple/events proxy, then
  * polls the Stats API until the count increments (or the timeout is hit).
- * The pure decision lives in evaluateIngestion (unit tested).
+ * The pure decisions live in evaluateIngestion and concludeIngestion (unit tested).
+ * `fetchImpl`, `postImpl`, `now` and `sleep` are injectable so tests run the real path.
  */
-async function checkSaIngestion(apiKey) {
-  const hostname = new URL(SITE_URL).hostname
-  const eventsUrl = `${SITE_URL}/simple/events`
+export async function checkSaIngestion(apiKey, {fetchImpl = fetchStable, postImpl = fetch, now = Date.now, sleep = realSleep, siteUrl = SITE_URL} = {}) {
+  const hostname = new URL(siteUrl).hostname
+  const eventsUrl = `${siteUrl}/simple/events`
   const queryUrl = saEventsQueryUrl(hostname, INGESTION_EVENT_NAME, SA_QUERY_WINDOW_DAYS)
 
   progress(`reading SA baseline count for "${INGESTION_EVENT_NAME}"`)
-  const beforeRead = await withHeartbeat('SA Stats API baseline read', () => readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME))
+  const beforeRead = await withHeartbeat('SA Stats API baseline read', () => readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME, {fetchImpl}))
   if (!beforeRead.ok) {
     progress(`baseline read failed: ${beforeRead.error.id}`)
     return evaluateIngestion({eventName: INGESTION_EVENT_NAME, error: beforeRead.error})
@@ -252,11 +367,11 @@ async function checkSaIngestion(apiKey) {
   const before = beforeRead.total
   progress(`baseline count is ${before}; posting synthetic event to ${eventsUrl}`)
 
-  const startedAt = Date.now()
+  const startedAt = now()
   try {
     // Bounded but deliberately NOT routed through fetchStable: retrying this POST
     // could ingest the synthetic event twice and skew the before/after count.
-    await fetch(eventsUrl, {
+    await postImpl(eventsUrl, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'User-Agent': SYNTHETIC_UA},
       body: JSON.stringify(syntheticEventPayload(hostname, INGESTION_EVENT_NAME, SYNTHETIC_UA)),
@@ -271,30 +386,85 @@ async function checkSaIngestion(apiKey) {
 
   let after = before
   let polls = 0
+  let lastReadAt = null
+  let definiteError = null
+  let unmeasuredError = null
   const deadline = startedAt + INGESTION_POLL_TIMEOUT_MS
   progress(`polling the Stats API every ${INGESTION_POLL_INTERVAL_MS / 1000}s for up to ${INGESTION_POLL_TIMEOUT_MS / 1000}s`)
-  while (Date.now() < deadline) {
+  while (now() < deadline) {
     // The sleep is clamped to what is LEFT of the window. It used to be a flat
     // interval taken after the `while` test, so the last iteration could start at
     // deadline-1ms and still spend a full interval plus a full read -- pushing the
     // phase past its own stated 180s bound by ~35s for no added signal.
-    await new Promise((r) => setTimeout(r, Math.min(INGESTION_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()))))
+    await sleep(Math.min(INGESTION_POLL_INTERVAL_MS, Math.max(0, deadline - now())))
     polls++
-    const read = await readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME)
+    const read = await readEventTotal(queryUrl, apiKey, INGESTION_EVENT_NAME, {fetchImpl})
     // One line per poll is what keeps this phase audible: at a 15s interval the gap
     // between consecutive lines is an order of magnitude inside the ~600s deadline.
-    progress(`poll ${polls} at +${Math.round((Date.now() - startedAt) / 1000)}s -- ${read.ok ? `count ${read.total}` : `read failed (${read.error.id})`}`)
+    progress(`poll ${polls} at +${Math.round((now() - startedAt) / 1000)}s -- ${read.ok ? `count ${read.total}` : `read failed (${read.error.id})`}`)
     if (read.ok) {
+      lastReadAt = now()
       after = read.total
       if (after > before) {
         break
       }
+    } else if (read.error.unmeasured) {
+      unmeasuredError = read.error
+    } else {
+      definiteError ??= read.error
     }
   }
-  return evaluateIngestion({eventName: INGESTION_EVENT_NAME, before, after, elapsedMs: Date.now() - startedAt, timeoutMs: INGESTION_POLL_TIMEOUT_MS})
+  return concludeIngestion({eventName: INGESTION_EVENT_NAME, before, after, startedAt, endedAt: now(), deadline, lastReadAt, definiteError, unmeasuredError})
 }
 
-async function main() {
+/**
+ * Pure: the managed-issue tri-state for bucket `analytics` (audits/lib/file-check-issues.mjs).
+ * Any fail files or keeps the issue. An unmeasured arm or a skipped arm (no SA_API_KEY) is
+ * `indeterminate`: the run judged only part of B6, so it may neither file nor close the issue
+ * (atlas decisions 0104, 0142). The exit code alone cannot carry this; an unmeasured run exits 0.
+ *
+ * Persistent UNMEASURED never escalates today (review item M5, held for an owner decision).
+ */
+export function issueOutcome(findings) {
+  if (findings.some((finding) => finding.severity === 'fail')) {
+    return 'failure'
+  }
+  if (findings.some((finding) => finding.unmeasured === true || finding.id === INGESTION_SKIPPED_ID)) {
+    return 'indeterminate'
+  }
+  return 'success'
+}
+
+function annotationValue(value) {
+  return value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')
+}
+
+/** Make UNMEASURED visible: one workflow warning per finding and one step-summary line per run. */
+function announceUnmeasured(findings, {env, logger, append}) {
+  const unmeasured = findings.filter((finding) => finding.unmeasured === true)
+  for (const finding of unmeasured) {
+    logger.log(`::warning title=B6 SA Stats API UNMEASURED::${annotationValue(finding.message)}`)
+  }
+  if (unmeasured.length > 0 && env.GITHUB_STEP_SUMMARY) {
+    append(env.GITHUB_STEP_SUMMARY, `- B6 analytics: UNMEASURED -- ${unmeasured.map((finding) => finding.message).join(' | ')}\n`, 'utf8')
+  }
+}
+
+/**
+ * Run B6 end to end and publish its channels: the findings and `measured` through the shared
+ * report helper, then the UNMEASURED annotation, then `issue_outcome`. Returns the exit code.
+ * Every I/O edge is injectable; production passes nothing.
+ */
+export async function runAnalyticsCheck({
+  env = process.env,
+  collectBeacons = collectBeaconEvents,
+  fetchImpl = fetchStable,
+  postImpl = fetch,
+  now = Date.now,
+  sleep = realSleep,
+  logger = console,
+  append = appendFileSync
+} = {}) {
   const findings = []
 
   // The measurement channel (atlas decision 0122): one per EXPECTATION the browser
@@ -307,7 +477,7 @@ async function main() {
   // then swallows it into a green daily tile: the exact defect this channel closes.
   let seen = new Map()
   try {
-    seen = await withHeartbeat('the browser beacon phase', () => collectBeaconEvents(SITE_URL))
+    seen = await withHeartbeat('the browser beacon phase', () => collectBeacons(SITE_URL))
   } catch (err) {
     findings.push({
       severity: 'fail',
@@ -317,21 +487,38 @@ async function main() {
   }
   findings.push(...evaluateBeacons(seen))
 
-  const saApiKey = process.env.SA_API_KEY
+  const saApiKey = env.SA_API_KEY
   if (saApiKey) {
     progress('SA_API_KEY present -- running the end-to-end ingestion confirmation')
-    findings.push(...(await checkSaIngestion(saApiKey)))
+    findings.push(...(await checkSaIngestion(saApiKey, {fetchImpl, postImpl, now, sleep})))
   } else {
     // Explicit, visible SKIPPED marker -- never silently green when a whole
     // sub-check didn't run (§8 Q2: SA_API_KEY is a Phase 0 user-provisioned secret).
     findings.push({
       severity: 'info',
-      id: 'analytics-sa-ingestion-skipped',
+      id: INGESTION_SKIPPED_ID,
       message: 'SKIPPED(server-side): SA_API_KEY not set -- end-to-end SA ingestion confirmation (synthetic event -> Stats API delta) was not run'
     })
   }
 
-  process.exit(report('check-analytics', findings, seen.size))
+  const exitCode = report('check-analytics', findings, seen.size)
+  announceUnmeasured(findings, {env, logger, append})
+  publishIssueOutcome(issueOutcome(findings), {outputPath: env.GITHUB_OUTPUT})
+  return exitCode
+}
+
+async function main() {
+  let exitCode
+  try {
+    exitCode = await runAnalyticsCheck()
+  } catch (err) {
+    // A crash judged nothing, but it must still file: `failure`, never a missing output that the
+    // reconciler would read as indeterminate and leave a broken lane quiet.
+    console.error(`check-analytics terminated unexpectedly: ${err?.stack || err}`)
+    publishIssueOutcome('failure')
+    exitCode = 1
+  }
+  process.exit(exitCode)
 }
 
 if (isMain(import.meta.url)) {
