@@ -1,6 +1,6 @@
 // @vitest-environment node
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {CSP, LINK_HEADER} from '../../src/lib/edge/middleware'
+import {CSP, LINK_HEADER, NOT_FOUND_MARKDOWN} from '../../src/lib/edge/middleware'
 import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers'
 
 // src/worker.ts routes each request the way Pages routed it (atlas decision 0160, PR A). Astro's
@@ -139,6 +139,47 @@ describe('static-asset plane, through the Worker', () => {
     const response = await request('/_astro/x.js', {method: 'POST'})
     expect(response.status).toBe(405)
     expect(handled).toHaveLength(0)
+  })
+})
+
+// Atlas decision 0158: an unknown path under a markdown Accept answers the markdown 404. It needs no
+// wrangler.jsonc run_worker_first entry: a path with no file runs the Worker (not_found_handling
+// "none"), which renders the 404 inside the site middleware, and the middleware swaps the body.
+// covers: llms-txt#Markdown negotiation applies only to the homepage and honors Accept q-values
+describe('markdown 404, through the Worker', () => {
+  const MARKDOWN = {Accept: 'text/markdown'}
+
+  it('answers an unknown path under Accept: text/markdown with the markdown 404, never Astro', async () => {
+    const response = await request('/no-such-page', {headers: MARKDOWN})
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(await response.text()).toBe(NOT_FOUND_MARKDOWN)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Vary')).toBe('Accept')
+    expect(response.headers.get('Content-Security-Policy')).toBe(CSP)
+    // The HTML 404 carries the asset plane's CORS header; the markdown body keeps it.
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(handled).toHaveLength(0)
+  })
+
+  it('answers HEAD with the markdown 404 headers and no body', async () => {
+    const response = await request('/no-such-page', {method: 'HEAD', headers: MARKDOWN})
+    expect(response.status).toBe(404)
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(response.body).toBeNull()
+  })
+
+  it('serves a known page unchanged under the same Accept', async () => {
+    const response = await request('/privacy', {headers: MARKDOWN})
+    expect(response.status).toBe(200)
+    expect(await response.text()).toBe('file /privacy')
+  })
+
+  it('keeps the HTML 404 on a code-free path, which skips the middleware', async () => {
+    const response = await request('/_astro/missing.js', {headers: MARKDOWN})
+    expect(response.status).toBe(404)
+    expect(await response.text()).toBe('not found page')
   })
 })
 

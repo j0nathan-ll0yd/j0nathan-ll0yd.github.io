@@ -19,6 +19,9 @@ only as true as its covering tests.
 - `https://jonathanlloyd.me/` under an `Accept` that negotiates markdown (GET/HEAD only) — the same
   llms-full.txt representation, served by `src/lib/edge/middleware.ts` through the same factory; see
   "Markdown negotiation applies only to the homepage and honors Accept q-values" below.
+- Any path that resolves to 404 under the same markdown `Accept` — a short markdown 404 body, generated
+  at prebuild into `src/lib/edge/not-found-markdown.mjs` by `scripts/generate-not-found.mjs`; see the
+  404 exception in that same requirement.
 - All three are built by one factory, `makeCloudfrontProxy` — `src/lib/edge/proxy.ts`. That factory
   also builds /feed.xml and /feed.json, which are a DIFFERENT surface (`rss-feed`) behind the same
   gate and under the same no-store policy; see "Every proxy route is no-store, the feed routes
@@ -603,7 +606,7 @@ zone-edge-cache window in "Gated artifacts are admitted only through the CloudFr
 ### Requirement: Markdown negotiation applies only to the homepage and honors Accept q-values
 
 Markdown content negotiation SHALL apply only to `GET`/`HEAD` requests for `/`, decided in
-`src/lib/edge/middleware.ts`. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
+`src/lib/edge/middleware.ts`, except the 404 exception below. The explicit artifact paths (/llms.txt, /llms-full.txt, /index.md),
 pages, API routes, and feeds SHALL NOT negotiate: each keeps its own bytes and content type for
 every `Accept` value. This requirement replaced a middleware that negotiated on every path and
 method via an `Accept` substring test, which served llms-full bytes for an explicit GET /llms.txt
@@ -627,7 +630,25 @@ other response (security headers, Content-Usage, discovery Link header). Every h
 representation SHALL carry `Vary: Accept`, merged into any existing `Vary`. A negotiated HEAD
 response SHALL carry no body.
 
-Verified by `tests/unit/middleware-negotiation.test.ts:58` (decision table, scope, response classes),
+404 EXCEPTION (atlas decision 0158). When a `GET`/`HEAD` request on any path resolves to 404 and
+the same `prefersMarkdown` decision selects markdown, the middleware SHALL replace the HTML 404
+page with a short markdown body: a heading and an explanation of at least 20 characters from
+copy `llm.notFound`, and links to /llms.txt, /index.md, /sitemap-index.xml, and /developers. The
+status SHALL stay 404, the `Content-Type` SHALL be `text/markdown; charset=utf-8`, the markdown
+404 SHALL carry `Cache-Control: no-store`, and the response SHALL pass through the same header
+pipeline. The body SHALL be generated at build time, so a copy defect fails the build and never
+the middleware's start. Every other `Accept` value, an absent
+`Accept`, and an unsafe method SHALL keep the HTML 404. Both 404 representations SHALL carry
+`Vary: Accept` and `CDN-Cache-Control: no-store`, so an edge cache HIT cannot answer without the
+negotiation. A markdown 404 HEAD response SHALL carry no body. An unknown path reaches the middleware with no
+`wrangler.jsonc` `run_worker_first` entry: a path with no file runs the Worker
+(`not_found_handling: "none"`), which renders the 404 inside the middleware (`src/worker.ts`). The
+code-free prefixes (`CODE_FREE_PREFIXES`, `src/lib/edge/security-headers.ts`) skip the middleware and
+keep the static HTML 404.
+
+Verified by `tests/unit/middleware-negotiation.test.ts:62` (decision table, scope, response classes),
+by `tests/unit/middleware-negotiation.test.ts:297` (the 404 exception),
+by `tests/unit/worker-entry.test.ts:148` (the 404 exception through the Worker),
 and verified by `tests/unit/cloudfront-proxy.test.ts:642` (explicit routes ignore Accept).
 
 #### Scenario: An agent asks the homepage for markdown
@@ -650,6 +671,15 @@ and verified by `tests/unit/cloudfront-proxy.test.ts:642` (explicit routes ignor
   browser-typical value that does not name `text/markdown`
 - **WHEN** the middleware decides the representation
 - **THEN** it SHALL serve HTML
+
+#### Scenario: An agent asks for markdown on a path that does not exist
+
+- **GIVEN** a GET /no-such-path request with `Accept: text/markdown`
+- **WHEN** the site resolves the path to 404
+- **THEN** the middleware SHALL answer 404 with `Content-Type: text/markdown; charset=utf-8`, the
+  `llm.notFound` heading and body, links to /llms.txt, /index.md, /sitemap-index.xml, and
+  /developers, `Vary: Accept`, and the pipeline's security headers
+- **AND** the same request with a browser-typical `Accept` SHALL receive the HTML 404 page
 
 ### Requirement: Served llms.txt conforms to the Lifegames llms.txt profile
 

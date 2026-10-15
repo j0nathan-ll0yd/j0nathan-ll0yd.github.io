@@ -164,16 +164,24 @@ vocabulary defines `train-ai` and `search` only.
 
 ### `/sitemap-index.xml` — `@astrojs/sitemap` integration
 
-Auto-generated at build time by `@astrojs/sitemap`. Lists the two canonical
-URLs, `https://jonathanlloyd.me` (daily, priority 1.0) and
-`https://jonathanlloyd.me/privacy` (monthly, priority 0.3). The filter in
-`astro.config.mjs` excludes `/404` and the noindex `/offline` page by exact
-pathname. The sitemap emits no `lastmod`: no verifiable per-page content date
-exists. CI checks out with `actions/checkout` at its default depth of 1, so git
-history would give every page the same wrong date, `/` is live client-side data
-plus authored copy, and `/privacy` has no authored date. `changefreq` and
-`priority` are emitted but Google ignores them. `tests/build/sitemap.test.ts`
-fails if any `lastmod` appears. Every listed URL answers 200 with no redirect:
+Auto-generated at build time by `@astrojs/sitemap`. Lists only indexable pages:
+`https://jonathanlloyd.me` (daily, priority 1.0) and `/about`, `/contact`, and
+`/developers` (monthly, priority 0.5). The filter in `astro.config.mjs` excludes
+`/404`, the noindex `/offline` page, and the noindex `/privacy` page by exact
+pathname: a sitemap entry for a noindex page is a contradiction search engines
+report, and crawlers still reach `/privacy` by path and through every page's
+`rel="privacy-policy"` link.
+
+`lastmod` appears only where an authored content date exists. `/about`,
+`/contact`, and `/developers` carry the `lastModified` key of their
+`@j0nathan-ll0yd/copy` section, set through the integration's `serialize` hook.
+`/` carries none: it is live client-side data, and CI checks out with
+`actions/checkout` at its default depth of 1, so git history would give every
+page the same wrong date. A build-date `lastmod` is the anti-pattern this
+section rules out. The index carries one `lastmod`, the latest page date.
+`changefreq` and `priority` are emitted but Google ignores them.
+`tests/build/sitemap.test.ts` asserts each page's date, the homepage's absence
+of one, and the omitted noindex pages. Every listed URL answers 200 with no redirect:
 pages build as files (`build.format: 'file'`), and
 `tests/build/canonical-urls.test.ts` fails if a listed URL would come from a
 directory index. The index/child split is `@astrojs/sitemap`'s default output

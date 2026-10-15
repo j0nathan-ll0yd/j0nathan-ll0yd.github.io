@@ -7,6 +7,10 @@ import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constan
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
 import {forbidFixtures} from './scripts/vite-forbid-fixtures.mjs'
 import {clientNoProcessBanner} from './scripts/vite-client-no-process-banner.mjs'
+import llm from '@j0nathan-ll0yd/copy/llm.flat.json'
+import {AGENT_PATHS} from './src/lib/edge/agent-paths.mjs'
+import {SITE_PAGE_PATHS} from './src/lib/edge/site-paths.ts'
+import {contentLastModified} from './src/lib/content-date.ts'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -18,6 +22,13 @@ const CF_HOST_RE = CF_HOST.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // client directory only for `output: 'server'`; this site is `static` with an adapter, so without
 // these two options sw.js and its precache manifest land in dist/server/ and the precache is empty.
 const CLIENT_DIR = fileURLToPath(new URL('./dist/client/', import.meta.url))
+
+// The content date of each copy-driven page, from its copy lastModified key.
+const COPY_PAGE_LASTMOD = {
+  [SITE_PAGE_PATHS.about]: contentLastModified(identity.about.lastModified),
+  [SITE_PAGE_PATHS.contact]: contentLastModified(identity.contact.lastModified),
+  [AGENT_PATHS.developers]: contentLastModified(llm.developers.lastModified)
+}
 
 export default defineConfig({
   site: SITE_URL,
@@ -61,15 +72,19 @@ export default defineConfig({
   },
   integrations: [
     sitemap({
-      // Enrich the sitemap with per-page SEO signals. The built surface is small
-      // (home + privacy); 404 is excluded by Astro automatically, the filter is a
-      // guard so a future non-canonical route can never leak in. No lastmod: no
-      // verifiable per-page content date exists (CI checks out with depth 1, so
-      // git history gives a wrong date; / is live data). A build-date lastmod is
-      // the anti-pattern docs/wiki/Metadata-Files-Spec.md names.
-      // tests/build/sitemap.test.ts fails if any lastmod returns.
-      // Matched on the exact pathname: /offline is the noindex service-worker fallback.
-      filter: (page) => !['/404', '/offline'].includes(new URL(page).pathname),
+      // Enrich the sitemap with per-page SEO signals. It lists only indexable pages: the home
+      // page, /about, /contact, and /developers. The filter drops /404, the noindex /offline
+      // service-worker fallback, and the noindex /privacy (a sitemap entry for a noindex page
+      // is a contradiction search engines report); crawlers and the trust-anchor check still
+      // reach /privacy by path and through every page's rel="privacy-policy" link.
+      // lastmod means "content last changed", and it is emitted only where an authored date
+      // exists. The three static text pages carry their copy lastModified key (serialize()
+      // below). / carries NONE: it is live data with no verifiable content date, CI checks out
+      // with depth 1 so git history gives a wrong date, and a build-date lastmod is the
+      // anti-pattern docs/wiki/Metadata-Files-Spec.md names (website #360).
+      // tests/build/sitemap.test.ts asserts both halves.
+      // Matched on the exact pathname.
+      filter: (page) => !['/404', '/offline', SITE_PAGE_PATHS.privacy].includes(new URL(page).pathname),
       changefreq: 'weekly',
       priority: 0.7,
       serialize(item) {
@@ -77,9 +92,11 @@ export default defineConfig({
         if (path === '/') {
           item.changefreq = 'daily'
           item.priority = 1.0
-        } else if (path === '/privacy') {
+        } else if (path in COPY_PAGE_LASTMOD) {
+          // Copy-driven pages: they change only when a @j0nathan-ll0yd/copy release does.
           item.changefreq = 'monthly'
-          item.priority = 0.3
+          item.priority = 0.5
+          item.lastmod = COPY_PAGE_LASTMOD[path]
         }
         return item
       }
