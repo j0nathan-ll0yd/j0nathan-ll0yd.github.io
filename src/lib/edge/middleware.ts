@@ -145,6 +145,20 @@ const serveLlmsFull = makeCloudfrontProxy({
 // a copy change can fail the build, never this Worker's start.
 export { NOT_FOUND_MARKDOWN }
 
+/**
+ * The markdown 404: the routed 404's headers (the asset plane's CORS header among them) with the
+ * markdown body. Only the headers that describe the HTML body are replaced.
+ */
+function markdownNotFound(routed: Response): Response {
+  const headers = new Headers(routed.headers)
+  for (const name of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified']) {
+    headers.delete(name)
+  }
+  headers.set('Content-Type', 'text/markdown; charset=utf-8')
+  headers.set('Cache-Control', 'no-store')
+  return new Response(NOT_FOUND_MARKDOWN, {status: 404, headers})
+}
+
 /** Merge `Accept` into Vary so every cache layer keys negotiated representations on it. */
 function mergeVaryAccept(headers: Headers): void {
   const existing = headers.get('Vary')
@@ -178,9 +192,7 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
   // decision answers with a short markdown body instead of the HTML 404 page. Status
   // stays 404; the body points at the documents an agent can read instead.
   const notFoundMarkdown = routed.status === 404 && wantsMarkdown
-  const response = notFoundMarkdown
-    ? new Response(NOT_FOUND_MARKDOWN, {status: 404, headers: {'Content-Type': 'text/markdown; charset=utf-8', 'Cache-Control': 'no-store'}})
-    : routed
+  const response = notFoundMarkdown ? markdownNotFound(routed) : routed
   const headers = new Headers(response.headers)
 
   // Security headers

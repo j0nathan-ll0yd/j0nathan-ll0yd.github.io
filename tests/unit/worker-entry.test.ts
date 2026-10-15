@@ -158,6 +158,8 @@ describe('markdown 404, through the Worker', () => {
     expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
     expect(response.headers.get('Vary')).toBe('Accept')
     expect(response.headers.get('Content-Security-Policy')).toBe(CSP)
+    // The HTML 404 carries the asset plane's CORS header; the markdown body keeps it.
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(handled).toHaveLength(0)
   })
 
