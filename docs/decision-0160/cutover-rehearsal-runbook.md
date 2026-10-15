@@ -342,8 +342,10 @@ transform rules on `/_astro/*` and `/assets/*`, unchanged. Edge 504s with user a
 after the cutover at the same rate per request.
 
 **Route ownership (owner decision 2026-10-14, option A).** The production route `jonathanlloyd.me/*`
-(script `human-datastream`, id `0671ef3e45ba4f41a963dd56aa1e9a77` since the PR A merge deploy) lives
-in Cloudflare, not in `wrangler.jsonc`. The owner sets it to fail open, so if the Workers Free daily
+(script `human-datastream`) lives in Cloudflare, not in `wrangler.jsonc`. Identify it by pattern and
+script, never by id: the id changes whenever the route object is replaced. The PR A merge deploy
+replaced it (`dfefa6b0…` to `0671ef3e…`), and so did the owner's dashboard edit that set fail open
+(`0671ef3e…` to `536388ce…`, read back with `request_limit_fail_open: true`). It is set to fail open, so if the Workers Free daily
 request limit runs out, requests bypass the Worker and reach the apex CNAME (the `human-datastream`
 Pages project, which serves its last build) instead of a Cloudflare 1027 error. Why it left
 wrangler: a deploy that declares routes replaces the Worker's route set with new route objects
@@ -356,10 +358,14 @@ behind `if (routesOnly.length > 0)`, `cli.js:164908`). The wrangler route schema
 (https://developers.cloudflare.com/workers/platform/limits/).
 
 **Rollback (production):** delete the route. `/tmp/pr-a-rollback.sh --execute` on the operator's Mac
-(wrangler OAuth login), or the equivalent API call with any credential holding Workers Routes Edit on
-the zone:
+(wrangler OAuth login; it resolves the id by pattern and script, and `--execute` is required to
+delete), or the equivalent API calls with any credential holding Workers Routes Edit on the zone:
 
 ```bash
+ROUTE_ID=$(curl -sS -H "Authorization: Bearer $TOKEN" \
+  "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes" |
+  node -pe "JSON.parse(require('fs').readFileSync(0)).result.filter(r => r.pattern === 'jonathanlloyd.me/*' && r.script === 'human-datastream').map(r => r.id).join(' ')")
+echo "route(s): $ROUTE_ID"   # expect exactly one id
 curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
   "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/workers/routes/$ROUTE_ID"
 ```
@@ -376,5 +382,7 @@ curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application
   --data '{"pattern":"jonathanlloyd.me/*","script":"human-datastream"}'
 ```
 
-Then, in the dashboard, set the route's request-limit failure mode to fail open, and read it back:
-`GET /zones/$ZONE_ID/workers/routes` must show `"request_limit_fail_open": true` for the new id.
+Then, in the dashboard, set the route's request-limit failure mode to fail open. The dashboard edit
+replaces the route object, so read it back by pattern, not by the id the POST returned:
+`GET /zones/$ZONE_ID/workers/routes` must show one `jonathanlloyd.me/*` route for `human-datastream`
+with `"request_limit_fail_open": true`.
