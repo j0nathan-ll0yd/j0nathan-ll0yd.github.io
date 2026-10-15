@@ -55,8 +55,8 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('route')
   })
 
-  it('declares exactly the production route, so every deploy re-asserts it (Step 3.7)', () => {
-    expect(config.routes).toEqual([{pattern: 'jonathanlloyd.me/*', zone_name: 'jonathanlloyd.me'}])
+  it('declares no route: the production route lives in Cloudflare, so CI deploys never reset its fail-open (owner decision 2026-10-14)', () => {
+    expect(config).not.toHaveProperty('routes')
   })
 
   it('declares no binding beyond the static assets', () => {
