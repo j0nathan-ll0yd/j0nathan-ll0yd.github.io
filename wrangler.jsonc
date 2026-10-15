@@ -43,13 +43,12 @@
       "/mcp/server-card"
     ]
   },
-  // The production route (decision 0160 Step 3.7, owner go 2026-10-14; D7: the rehearsed overlap
-  // route). The apex CNAME still points at Pages; this route puts the Worker in front of it. Declared
-  // here so `wrangler deploy` owns it: a deploy that declares routes replaces the Worker's route set
-  // (PUT .../workers/scripts/:name/routes), so CI keeps exactly this route after the merge. A deploy
-  // that declares none leaves routes untouched, so removing this entry is NOT a rollback; the
-  // rollback deletes the route through the API (docs/decision-0160/cutover-rehearsal-runbook.md).
-  "routes": [{"pattern": "jonathanlloyd.me/*", "zone_name": "jonathanlloyd.me"}],
+  // NO `routes` key, on purpose (owner decision 2026-10-14, option A). The production route
+  // `jonathanlloyd.me/*` lives in Cloudflare, outside wrangler, set to fail open by the owner. A deploy
+  // that declares routes replaces the Worker's route set with new route objects (wrangler 4.149.0
+  // `publishRoutes`, PUT .../workers/scripts/:name/routes), which reset request_limit_fail_open to
+  // false; a deploy that declares none makes no route call (`triggersDeploy`: `if (routesOnly.length
+  // > 0)`). Rollback and re-creation: docs/decision-0160/cutover-rehearsal-runbook.md.
   // No public workers.dev alias (decision 0160 D1).
   "workers_dev": false,
   // Version URLs on: the owner put Cloudflare Access on the Worker (gate G3, 2026-10-14), with the
