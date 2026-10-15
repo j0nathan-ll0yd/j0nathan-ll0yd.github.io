@@ -23,6 +23,7 @@
  *   - CSP-violation and chunk-load assertions live in the fixture teardown
  *     (tests/smoke/fixtures.ts) and run automatically for every test.
  */
+import {createRequire} from 'node:module'
 import {expect, test} from './fixtures'
 import type {APIRequestContext, APIResponse} from '@playwright/test'
 import {probeSuppression, suppressionMessage} from '../../audits/lib/suppression.mjs'
@@ -372,4 +373,34 @@ test.describe('production home dashboard', () => {
       intervals: [2_000, 3_000, 5_000]
     }).toBe(true)
   })
+})
+
+// Email obfuscation on SERVED bytes (atlas decision 0158: obfuscation stays). On Pages, Cloudflare's
+// zone Email Address Obfuscation rewrote the HTML at the edge; on Workers (decision 0160) it stopped,
+// and production served the address in clear for a day without any check noticing, because the
+// parity checks compared two hosts without zone features. The build now encodes every address
+// (src/lib/email/), and these tests watch the bytes a visitor actually receives.
+const copyRequire = createRequire(import.meta.url)
+const identity = copyRequire('@j0nathan-ll0yd/copy/identity.flat.json') as {person: {email: string}}
+const ANY_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
+/** Pages that name the address. Decision 0158 W2 (website #350) adds /contact here. */
+const OBFUSCATED_PAGES = ['/privacy']
+
+test.describe('email obfuscation on served pages', () => {
+  for (const path of OBFUSCATED_PAGES) {
+    test(`${path} serves no email address in clear, and the browser decodes the link`, async ({page}) => {
+      const res = await getStable(page.request, `${path}?cb=${Date.now()}`, {headers: {'Cache-Control': 'no-cache'}})
+      expect(res.status(), `${path} did not return HTTP 200`).toBe(200)
+      const html = await res.text()
+      expect(html.match(ANY_ADDRESS)?.[0] ?? null, `${path} served an email address in clear`).toBeNull()
+      expect(html, `${path} served a mailto: link in clear`).not.toMatch(/mailto:/i)
+      expect(html, `${path} carries no encoded address`).toContain('data-email="')
+
+      await page.goto(path)
+      const link = page.locator(`a[href="mailto:${identity.person.email}"]`).first()
+      await expect(link, 'the decoder did not turn the encoded address into a mailto link').toBeVisible()
+      await expect(link).toHaveText(identity.person.email)
+      await expect(page.locator('a[data-email]'), 'an encoded link was left undecoded').toHaveCount(0)
+    })
+  }
 })

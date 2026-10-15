@@ -2,11 +2,14 @@
 import { getEntry } from 'astro:content';
 import { TextPageSection } from '@j0nathan-ll0yd/web/components';
 import InfoPage from '../layouts/InfoPage.astro';
+import ObfuscatedText from '../lib/email/ObfuscatedText.astro';
+import { EMAIL_DECODE_SCRIPT, EMAIL_FALLBACK_PATH } from '../lib/email/obfuscate';
 import { SITE_PAGE_PATHS } from '../lib/edge/site-paths';
 
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[privacy.astro] @j0nathan-ll0yd/copy identity entry missing');
-const p = _identityEntry.data.privacy;
+const id = _identityEntry.data;
+const p = id.privacy;
 
 const sections = [
   { heading: p.whoHeading, body: p.who },
@@ -27,7 +30,8 @@ const sections = [
   {/* Content-use preferences are carried by the HTTP Content-Usage response header; robots.txt stays RFC 9309-only. */}
   {sections.map((s) => (
     <TextPageSection heading={s.heading}>
-      <p>{s.body}</p>
+      <p><ObfuscatedText text={s.body} fallbackHref={EMAIL_FALLBACK_PATH} fallbackText={id.contact.title} /></p>
     </TextPageSection>
   ))}
+  <script is:inline src={EMAIL_DECODE_SCRIPT} defer></script>
 </InfoPage>
