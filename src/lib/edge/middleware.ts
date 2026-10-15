@@ -151,7 +151,8 @@ export { NOT_FOUND_MARKDOWN }
  */
 function markdownNotFound(routed: Response): Response {
   const headers = new Headers(routed.headers)
-  for (const name of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified']) {
+  // The body-describing headers, and the cache-state headers of the 404 page the markdown replaces.
+  for (const name of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified', 'CF-Cache-Status', 'Age']) {
     headers.delete(name)
   }
   headers.set('Content-Type', 'text/markdown; charset=utf-8')

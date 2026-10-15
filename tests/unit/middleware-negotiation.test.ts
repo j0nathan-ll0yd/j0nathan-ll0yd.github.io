@@ -335,6 +335,22 @@ describe('markdown 404', () => {
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
   })
 
+  it("drops the replaced 404 page's body and cache-state headers, keeping the rest", async () => {
+    const next = vi.fn(async () =>
+      new Response('<html>not found</html>', {
+        status: 404,
+        headers: {'Content-Type': 'text/html; charset=utf-8', ETag: '"page"', 'CF-Cache-Status': 'HIT', Age: '42', 'Access-Control-Allow-Origin': '*'}
+      })
+    )
+    const response = await onRequest({request: new Request('https://jonathanlloyd.me/no-such-path', {headers: MARKDOWN}), next, waitUntil: () => {}})
+
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    for (const name of ['ETag', 'CF-Cache-Status', 'Age']) {
+      expect(response.headers.get(name), name).toBeNull()
+    }
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
   it('returns no body for a markdown HEAD 404 while keeping the GET headers', async () => {
     const {context} = notFoundContext('/no-such-path', {method: 'HEAD', headers: MARKDOWN})
 

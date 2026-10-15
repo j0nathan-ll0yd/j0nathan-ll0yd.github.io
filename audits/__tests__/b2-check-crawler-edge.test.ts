@@ -1,5 +1,16 @@
 import {describe, expect, it, vi} from 'vitest'
-import {BLOCK_BODY, classifyResponse, isEdge5xx, judgeProbes, parseGroups, planProbes, runProbes, userAgentFor} from '../checks/b2-check-crawler-edge.mjs'
+import {
+  AGENT_SURFACE_PATHS,
+  BLOCK_BODY,
+  classifyResponse,
+  isEdge5xx,
+  judgeProbes,
+  parseGroups,
+  planProbes,
+  runProbes,
+  userAgentFor,
+  WILDCARD_GROUP_AGENTS
+} from '../checks/b2-check-crawler-edge.mjs'
 import {GET as getRobotsTxt} from '../../src/pages/robots.txt'
 import GOLDEN from '../fixtures/golden/robots-ai-crawlers.json'
 
@@ -26,23 +37,44 @@ describe('parseGroups', () => {
 })
 
 describe('planProbes', () => {
-  it('probes each path the served robots.txt lets a named group read, and nothing it disallows', async () => {
+  const surfaces = (agent: string) => AGENT_SURFACE_PATHS.map((path: string) => ({agent, path}))
+
+  it('samples every agent surface each robots.txt group may read, and nothing it disallows', async () => {
     const body = await getRobotsTxt().text()
     const probes = planProbes(body, ROBOTS_URL)
+    const of = (agent: string) => probes.filter((p: {agent: string}) => p.agent === agent)
 
-    // Training crawlers: /llms.txt only. The root is disallowed for them, so it is never requested.
+    // The seven agent surfaces: home page, llms.txt, index.md, OpenAPI, MCP card, sitemap, /developers.
+    expect(AGENT_SURFACE_PATHS).toEqual(['/', '/llms.txt', '/index.md', '/openapi.json', '/mcp/server-card', '/sitemap-index.xml', '/developers'])
+    // Training crawlers: /llms.txt only. Every other surface is disallowed for them, so it is never requested.
     for (const agent of GOLDEN.aiTrainingBotsBlockedExceptLlmsTxt) {
-      expect(probes.filter((p: {agent: string}) => p.agent === agent)).toEqual([{agent, path: '/llms.txt'}])
+      expect(of(agent)).toEqual([{agent, path: '/llms.txt'}])
     }
-    // Search and answer agents: the root and /llms.txt.
-    for (const agent of GOLDEN.aiSearchAgentsAllowedFullSite) {
-      expect(probes.filter((p: {agent: string}) => p.agent === agent)).toEqual([{agent, path: '/'}, {agent, path: '/llms.txt'}])
+    // Search and answer agents, and the tokens that stand for the * group: every surface.
+    for (const agent of [...GOLDEN.aiSearchAgentsAllowedFullSite, ...WILDCARD_GROUP_AGENTS]) {
+      expect(of(agent)).toEqual(surfaces(agent))
     }
-    expect(probes).toHaveLength(GOLDEN.aiTrainingBotsBlockedExceptLlmsTxt.length + 2 * GOLDEN.aiSearchAgentsAllowedFullSite.length)
+    // 10 training crawlers x 1 + 5 search agents x 7 + 3 * group tokens x 7 = 66 on 2026-10-15.
+    expect(probes).toHaveLength(
+      GOLDEN.aiTrainingBotsBlockedExceptLlmsTxt.length +
+        AGENT_SURFACE_PATHS.length * (GOLDEN.aiSearchAgentsAllowedFullSite.length + WILDCARD_GROUP_AGENTS.length)
+    )
   })
 
-  it('plans nothing for a robots.txt with only the * group', () => {
-    expect(planProbes('User-agent: *\nAllow: /\n', ROBOTS_URL)).toEqual([])
+  it('probes the * group through its stand-in tokens even when robots.txt names no crawler', () => {
+    const probes = planProbes('User-agent: *\nAllow: /\n', ROBOTS_URL)
+    expect(probes).toEqual(WILDCARD_GROUP_AGENTS.flatMap((agent: string) => surfaces(agent)))
+  })
+
+  it('probes a stand-in token under its own group when robots.txt names it', () => {
+    const probes = planProbes('User-agent: *\nAllow: /\n\nUser-agent: Googlebot\nAllow: /llms.txt\nDisallow: /\n', ROBOTS_URL)
+    expect(probes.filter((p: {agent: string}) => p.agent === 'Googlebot')).toEqual([{agent: 'Googlebot', path: '/llms.txt'}])
+  })
+
+  it('skips a surface the * group disallows', () => {
+    const probes = planProbes('User-agent: *\nDisallow: /developers\n', ROBOTS_URL)
+    expect(probes.some((p: {path: string}) => p.path === '/developers')).toBe(false)
+    expect(probes).toHaveLength(WILDCARD_GROUP_AGENTS.length * (AGENT_SURFACE_PATHS.length - 1))
   })
 })
 

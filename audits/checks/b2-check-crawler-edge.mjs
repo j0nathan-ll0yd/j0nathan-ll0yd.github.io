@@ -7,9 +7,16 @@
 // /llms.txt their robots.txt group allows (decision 0158 evidence,
 // live-probes-2026-10-07.md section 1).
 //
-// WHAT THIS MEASURES. For each NAMED User-agent group in the served robots.txt, every
-// path that group may read is requested once with that group's token as the User-Agent.
-// Each response is judged on one question: did the request pass the edge and reach the
+// WHAT THIS MEASURES. A SAMPLE, stated exactly. The paths are AGENT_SURFACE_PATHS (the
+// home page and the agent-facing documents and interfaces) plus each group's own literal
+// `Allow:` lines; a path is probed for an agent only where the served robots.txt lets that
+// agent read it. The agents are every token in every NAMED User-agent group, plus
+// WILDCARD_GROUP_AGENTS, explicit tokens that stand for the `*` group, because a `*` line
+// names no crawler. Each pair is requested once, with the token as the User-Agent. On
+// 2026-10-15 that was 15 named groups (10 training crawlers, which may read only
+// /llms.txt, and 5 search agents, which may read every surface) and 3 `*`-group tokens:
+// 10 + 5 x 7 + 3 x 7 = 66 probes. Paths outside the sample (other pages, assets) are not
+// probed. Each response is judged on one question: did the request pass the edge and reach the
 // site? A 403 or the block body is a fail. A response without the site's own
 // Content-Usage header is a fail too: the zone answered (a challenge, a rate limit, an
 // edge error) and the site never saw the request. Every Worker response carries that
@@ -22,9 +29,11 @@
 // them ever presents a crawler token, so the zone's per-crawler policy is invisible to
 // all of them.
 //
-// ITS OWN DOUBT. A probe sends the token from the audit runner's IP, so it measures the
-// zone's policy against a User-Agent CLAIM. A zone rule keyed on verified-bot IP ranges
-// would treat real crawler traffic differently, and this check cannot see that.
+// ITS OWN DOUBTS. A probe sends the token from the audit runner's IP, so it measures the
+// zone's policy against a User-Agent CLAIM made from THAT address. Two zone shapes stay
+// invisible to it: a rule keyed on verified-bot IP ranges would treat real crawler traffic
+// differently from the claim; and an IP Access Rule or a WAF skip rule that allow-lists
+// the runner's own address would pass every probe while blocking the real crawlers.
 //
 // A FETCH FAILURE IS INDETERMINATE, NEVER CLEAN (the b2-check-spec-drift.mjs convention).
 // A robots.txt the run cannot hold, or a probe that never got a response, is a fail
@@ -32,7 +41,10 @@
 
 import robotsParser from 'robots-parser'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {AGENT_PATHS} from '../../src/lib/edge/agent-paths.mjs'
 import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts.ts'
+import {SITEMAP_INDEX_PATH} from '../../src/lib/edge/site-paths.ts'
 import {DEFAULT_BUDGET_MS, fetchStable, isMain, report} from '../lib/http.mjs'
 import {createDeadline, progress, withHeartbeat} from '../lib/progress.mjs'
 
@@ -48,21 +60,37 @@ export const ROBOTS_URL = `${SITE_URL}/robots.txt`
 export const BLOCK_BODY = 'Your request was blocked.'
 
 /**
- * Paths every group is TESTED for, beyond its own literal Allow lines. A probe runs only
- * where the group's robots.txt policy allows the path, so the root is probed for a group
- * with `Allow: /` and skipped for a training crawler with `Disallow: /`. /llms.txt is the
- * path decision 0158 names: the robots-allowed discovery index the training crawlers
- * could not reach.
+ * The agent surfaces every group is TESTED for, beyond its own literal Allow lines: the home
+ * page, the LLM documents, the OpenAPI document, the MCP server card, the sitemap, and the
+ * developer page. A probe runs only where the group's robots.txt policy allows the path, so
+ * a search agent with `Allow: /` gets all seven and a training crawler with `Disallow: /`
+ * gets only /llms.txt, the path decision 0158 names. /mcp itself is POST-only (a GET is
+ * 405 by design), so the card stands for the MCP surface.
  */
-export const BASE_PATHS = ['/', LLMS_TXT_PATH]
+export const AGENT_SURFACE_PATHS = [
+  '/',
+  LLMS_TXT_PATH,
+  LLM_CONTENT_PATHS.indexMarkdown,
+  AGENT_PATHS.openapi,
+  AGENT_PATHS.serverCard,
+  SITEMAP_INDEX_PATH,
+  AGENT_PATHS.developers
+]
+
+/**
+ * Tokens that stand for the robots.txt `*` group: the search crawlers the site wants and
+ * robots.txt never names, so they inherit `*`. PerplexityBot is the one the served robots.txt
+ * comments on by name. A token that robots.txt does name is probed under its own group.
+ */
+export const WILDCARD_GROUP_AGENTS = ['Googlebot', 'Bingbot', 'PerplexityBot']
 
 /**
  * Wall-clock bound for the WHOLE probe phase (audits/lib/progress.mjs createDeadline).
- * Sixteen groups at about two probes each are ~30 requests; a healthy edge answers each in
- * well under a second. Three minutes leaves room for retried 5xx while staying far inside
- * the weekly tier's ceiling.
+ * 66 probes on 2026-10-15 (see the header); a healthy edge answers each in well under a
+ * second. Five minutes leaves room for retried edge 5xx while staying far inside the weekly
+ * tier's ceiling.
  */
-export const PHASE_BUDGET_MS = 180_000
+export const PHASE_BUDGET_MS = 300_000
 
 /**
  * The User-Agent a probe presents for a robots.txt token. The decision 0158 step-0
@@ -110,16 +138,21 @@ export function parseGroups(body) {
 }
 
 /**
- * The probe plan: one `{agent, path}` per path a named agent may read, under the served
- * robots.txt as robots-parser evaluates it. Candidates are the group's literal Allow paths
- * plus BASE_PATHS; the robots policy decides which of them the agent may request.
+ * The probe plan: one `{agent, path}` per sampled path an agent may read, under the served
+ * robots.txt as robots-parser evaluates it. A named group's candidates are its literal Allow
+ * paths plus AGENT_SURFACE_PATHS; each WILDCARD_GROUP_AGENTS token that robots.txt does not
+ * name gets AGENT_SURFACE_PATHS under the `*` group. The robots policy decides which
+ * candidates each agent may request.
  */
 export function planProbes(body, robotsUrl = ROBOTS_URL) {
   const robots = robotsParser(robotsUrl, body)
   const origin = new URL(robotsUrl).origin
+  const groups = parseGroups(body)
+  const named = new Set(groups.flatMap((group) => group.agents.map((agent) => agent.toLowerCase())))
+  const wildcard = WILDCARD_GROUP_AGENTS.filter((agent) => !named.has(agent.toLowerCase())).map((agent) => ({agents: [agent], allows: []}))
   const probes = []
-  for (const group of parseGroups(body)) {
-    const candidates = [...new Set([...group.allows, ...BASE_PATHS])]
+  for (const group of [...groups, ...wildcard]) {
+    const candidates = [...new Set([...group.allows, ...AGENT_SURFACE_PATHS])]
     for (const agent of group.agents) {
       for (const path of candidates) {
         if (robots.isAllowed(`${origin}${path}`, agent) === true) {
