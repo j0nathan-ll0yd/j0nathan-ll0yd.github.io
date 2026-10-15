@@ -17,7 +17,16 @@ import {
   TOOLS
 } from '../../src/lib/edge/agent-catalog.mjs'
 import {DISCOVERY_CACHE_SECONDS, LLM_CHANNEL_POLICY, LLM_WITHHELD_URLS} from '../../src/lib/edge/agent-catalog.mjs'
-import {allowedHostnames, MAX_REQUEST_BODY_BYTES, readGated, STALE_META_KEY, withheldLinks, WORKER_NAME} from '../../src/lib/edge/mcp-server'
+import {
+  allowedHostnames,
+  isPreviewHost,
+  MAX_REQUEST_BODY_BYTES,
+  readGated,
+  STALE_META_KEY,
+  withheldLinks,
+  WORKER_NAME,
+  WORKERS_DEV_SUBDOMAIN
+} from '../../src/lib/edge/mcp-server'
 import type {ReadMemo} from '../../src/lib/edge/mcp-server'
 import {onRequest as mcpRoute} from '../../src/pages/mcp/index'
 import {onRequest as serverCardRoute} from '../../src/pages/mcp/server-card'
@@ -27,8 +36,8 @@ vi.mock('@j0nathan-ll0yd/observability/edge', () => ({createEdgeLogger: () => lo
 
 const SITE_HOST = new URL(SITE_URL).hostname
 // Worker preview hosts (atlas decision 0160): a Version URL and a pull request alias.
-const PREVIEW = 'abc123ef-human-datastream.account.workers.dev'
-const PREVIEW_ALIAS = 'pr-348-human-datastream.account.workers.dev'
+const PREVIEW = 'abc123ef-human-datastream.webmaster-872.workers.dev'
+const PREVIEW_ALIAS = 'pr-348-human-datastream.webmaster-872.workers.dev'
 const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
 const BOOKS = {
   generatedAt: '2026-10-07T00:00:00.000Z',
@@ -347,15 +356,33 @@ describe('Host and Origin validation', () => {
     for (
       const host of [
         'evil.example',
-        `${WORKER_NAME}.account.workers.dev`,
-        `abc-${WORKER_NAME}.account.workers.dev.evil.example`,
-        `abc-${WORKER_NAME}x.account.workers.dev`,
+        `${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`,
+        `abc123ef-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev.evil.example`,
+        `abc123ef-${WORKER_NAME}x.${WORKERS_DEV_SUBDOMAIN}.workers.dev`,
         `${WORKER_NAME}.pages.dev`,
         `branch.${WORKER_NAME}.pages.dev`
       ]
     ) {
       expect((await modern('tools/list', {}, undefined, {host})).response.status, host).toBe(403)
     }
+  })
+
+  // Independent review of 5d042deb: the earlier pattern pinned neither the account nor the prefix.
+  it.each([
+    ['a foreign account', `abc123ef-${WORKER_NAME}.attacker.workers.dev`],
+    ['a foreign account alias', `pr-1-${WORKER_NAME}.attacker.workers.dev`],
+    ['a non-hex version prefix', `evil1234-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`],
+    ['a free-form prefix', `evil-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`],
+    ['a short hex prefix', `abc123e-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`]
+  ])('rejects %s as a preview host, for Host and for Origin', async (_label, hostname) => {
+    expect(isPreviewHost(hostname)).toBe(false)
+    expect((await modern('tools/list', {}, undefined, {host: hostname})).response.status).toBe(403)
+    expect((await modern('tools/list', {}, undefined, {host: hostname, origin: `https://${hostname}`})).response.status).toBe(403)
+  })
+
+  it("accepts this account's Version URL and pull request alias as preview hosts", () => {
+    expect(isPreviewHost(`05337795-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`)).toBe(true)
+    expect(isPreviewHost(`pr-348-${WORKER_NAME}.${WORKERS_DEV_SUBDOMAIN}.workers.dev`)).toBe(true)
   })
 
   it('names the Worker that wrangler.jsonc deploys', () => {

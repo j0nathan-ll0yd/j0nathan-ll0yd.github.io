@@ -69,8 +69,11 @@ decision 0160).
   2025-era clients (`initialize`, then any request). GET and DELETE answer 405 with
   `Allow: POST`. No session id is minted, and a sent `Mcp-Session-Id` is ignored.
 - **Validation:** Host and Origin are checked against `jonathanlloyd.me` and the Worker's
-  preview hosts (`<version>-human-datastream.<account>.workers.dev` and the
-  `pr-<number>-human-datastream...` alias). A preview Origin passes only from the same preview
+  preview hosts, pinned to this account: a Version URL
+  (`<8 hex>-human-datastream.webmaster-872.workers.dev`) or a pull request alias
+  (`pr-<number>-human-datastream.webmaster-872.workers.dev`). The account subdomain is one
+  constant, `WORKERS_DEV_SUBDOMAIN` in `src/lib/edge/mcp-server.ts`; a Worker of the same name on
+  another account, or any other prefix, is rejected. A preview Origin passes only from the same preview
   host. `localhost`, `127.0.0.1`, and `[::1]` are allowed as an Origin only when the Host is one of
   them, which is a local run (`wrangler dev`, `astro preview`): Cloudflare never routes a
   localhost Host to a deploy. An invalid Host or Origin answers 403

@@ -66,7 +66,18 @@ const DEVELOPMENT_HOSTNAMES = localhostAllowedHostnames()
 /** The largest POST body /mcp reads. One request with an empty `arguments` object is well under 1 KiB. */
 export const MAX_REQUEST_BODY_BYTES = 8 * 1024
 
-const VERSION_URL_HOST = new RegExp(`^[a-z0-9-]+-${WORKER_NAME}\\.[a-z0-9-]+\\.workers\\.dev$`)
+/**
+ * The Cloudflare account's workers.dev subdomain: the one account whose previews may call this
+ * server. Measured from the preview job's Version URLs (`wrangler versions upload`). A Worker named
+ * like this one on any other account is a different origin and is rejected.
+ */
+export const WORKERS_DEV_SUBDOMAIN = 'webmaster-872'
+
+/**
+ * A preview host of this Worker: a Version URL (`<first 8 hex of the version id>-<name>`) or a pull
+ * request alias (`pr-<number>-<name>`), on this account's workers.dev subdomain only.
+ */
+const VERSION_URL_HOST = new RegExp(`^(?:[0-9a-f]{8}|pr-[0-9]+)-${WORKER_NAME}\\.${WORKERS_DEV_SUBDOMAIN}\\.workers\\.dev$`)
 
 /** True for a preview Version URL or alias host of this Worker. */
 export function isPreviewHost(hostname: string | undefined): boolean {
