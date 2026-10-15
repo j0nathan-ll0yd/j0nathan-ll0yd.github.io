@@ -501,17 +501,30 @@ jobs:
           fi
           pnpm exec pa11y-ci
 
-      - name: Restore lychee link cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: .lycheecache
-          key: lychee-cache-${{ github.run_id }}
-          restore-keys: lychee-cache-
-
-      - name: B5 -- lychee link check (live HTML + llms.txt + feed.xml)
-        id: lychee
+      # lychee FETCHES; audits/checks/b5-lychee.mjs JUDGES. lychee's exit code folds three
+      # answers into one: a broken link, a green link, and a link the runner could not reach
+      # because its default-deny egress floor answers every host off the allowlist with a TCP
+      # reset (ci-runners-private firewall/colima/egress-isolation.sh). Weekly run 38428346533
+      # failed on 15 such refusals while every one of those links answered 200 from open
+      # egress. So this step never fails on links (`fail: false`) and writes JSON; the next
+      # step classifies a refusal as UNMEASURED, never a pass and never a site failure.
+      #
+      # Not report-only, deliberately: with `fail: false` it fails only when the action cannot
+      # install lychee, and that must red the job. The entrypoint swallows every lychee exit
+      # code under `fail: false`, so the judge reads `exit_code` and rejects anything but 0
+      # (no link errors) or 2 (link errors). `failIfEmpty` greps the markdown table and never
+      # matches JSON, so the judge also owns the empty run: 0 measured wedges the tier.
+      # lychee exits 1 when an INPUT (/, /privacy, /llms.txt, /feed.xml) cannot be read;
+      # the judge then throws, publishes nothing, and the tier wedges as
+      # crashed-before-measuring. The B2 llms and feeds checks own those inputs' health
+      # and file their own managed issues.
+      #
+      # No `--cache`: a weekly lane always finds the 1-day cache expired (run 38428346533:
+      # "Cache is too old (age: 1d 10h 17m 1s)"), and a cache hit would replace a refusal's
+      # text with "cached", hiding it from the classifier.
+      - name: B5 -- lychee fetch (live HTML + llms.txt + feed.xml)
+        id: lychee_run
         if: steps.focus_mode.outputs.suppressed != 'true'
-        continue-on-error: true
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2
         with:
           # feed.json is deliberately excluded: lychee has no JSON-aware
@@ -520,7 +533,7 @@ jobs:
           # false-positive "broken link" noise for every URL field. feed.json's
           # own URLs are already validated structurally by check-feeds.mjs.
           args: >-
-            --verbose --no-progress --cache --max-cache-age 1d --max-retries 0
+            --verbose --no-progress --max-retries 0
             https://jonathanlloyd.me/
             https://jonathanlloyd.me/privacy
             https://jonathanlloyd.me/about
@@ -528,8 +541,20 @@ jobs:
             https://jonathanlloyd.me/developers
             https://jonathanlloyd.me/llms.txt
             https://jonathanlloyd.me/feed.xml
-          fail: true
-          jobSummary: true
+          format: json
+          output: lychee/out.json
+          checkbox: false
+          failIfEmpty: false
+          fail: false
+          jobSummary: false
+
+      - name: B5 -- lychee link check (live HTML + llms.txt + feed.xml)
+        id: lychee
+        if: steps.lychee_run.outcome == 'success'
+        continue-on-error: true
+        env:
+          LYCHEE_EXIT_CODE: ${{ steps.lychee_run.outputs.exit_code }}
+        run: node audits/checks/b5-lychee.mjs lychee/out.json
 
       - name: Reconcile managed audit issues
         if: >-
@@ -553,7 +578,8 @@ jobs:
           HEADERS_OUTCOME: ${{ steps.headers.outcome }}
           LHCI_OUTCOME: ${{ steps.lhci.outcome }}
           PA11Y_OUTCOME: ${{ steps.pa11y.outcome }}
-          LYCHEE_OUTCOME: ${{ steps.lychee.outcome }}
+          LYCHEE_ISSUE_OUTCOME: ${{ steps.lychee.outputs.issue_outcome }}
+          LYCHEE_ISSUE_NOTE: ${{ steps.lychee.outputs.issue_note }}
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
@@ -574,7 +600,7 @@ jobs:
                 {id: 'lhci', title: 'B3 Lighthouse CI budgets', outcome: process.env.LHCI_OUTCOME},
                 {id: 'pa11y', title: 'B4 pa11y-ci accessibility', outcome: process.env.PA11Y_OUTCOME},
                 {id: 'lychee', title: 'B5 lychee link check', outcome: process.env.FOCUS_MODE_OUTCOME},
-                {id: 'lychee', title: 'B5 lychee link check', outcome: process.env.LYCHEE_OUTCOME},
+                {id: 'lychee', title: 'B5 lychee link check', outcome: process.env.LYCHEE_ISSUE_OUTCOME, note: process.env.LYCHEE_ISSUE_NOTE},
               ],
               repo: `${context.repo.owner}/${context.repo.repo}`,
               runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
@@ -615,7 +641,7 @@ jobs:
             headers|${{ steps.headers.outcome }}|${{ steps.headers.outputs.measured }}
             lhci|${{ steps.lhci.outcome }}|n/a|third-party tool run (Lighthouse); the budget assertion is its verdict, it holds no artifact set to count
             pa11y|${{ steps.pa11y.outcome }}|n/a|third-party tool run (pa11y-ci); the axe/htmlcs verdict is its own, it holds no artifact set to count
-            lychee|${{ steps.lychee.outcome }}|n/a|third-party action exposing only exit_code; its own failIfEmpty already reds an empty run
+            lychee|${{ steps.lychee.outcome }}|${{ steps.lychee.outputs.measured }}
         run: bash audits/healthchecks-ping.sh
 
   monthly:
