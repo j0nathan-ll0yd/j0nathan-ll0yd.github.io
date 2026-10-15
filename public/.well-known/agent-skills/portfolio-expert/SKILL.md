@@ -67,6 +67,7 @@ The public data API is documented for developers. For health, sleep, and workout
 
 <!-- BEGIN GENERATED: developer documentation. Rendered by scripts/generate-webmcp.mjs from the llm.txt.whenToUseApi and whenToUseDevelopers copy keys; do not edit by hand. -->
 - **OpenAPI:** <https://jonathanlloyd.me/openapi.json> — OpenAPI 3.1 description of the JSON data exports
+- **Developers:** <https://jonathanlloyd.me/developers> — Every machine interface, with caching, focus suppression, and usage terms
 <!-- END GENERATED: developer documentation -->
 
 ## Key Architectural Decisions

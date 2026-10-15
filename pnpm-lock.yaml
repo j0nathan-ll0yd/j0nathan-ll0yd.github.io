@@ -34,8 +34,8 @@ importers:
         specifier: ^2.2.1
         version: 2.2.1
       '@j0nathan-ll0yd/web':
-        specifier: ^4.1.0
-        version: 4.1.0
+        specifier: 4.2.1
+        version: 4.2.1
       '@modelcontextprotocol/server':
         specifier: 2.3.1
         version: 2.3.1
@@ -1918,6 +1918,9 @@ packages:
 
   '@j0nathan-ll0yd/web@4.1.0':
     resolution: {integrity: sha512-1nKVFSaThWU0moilSmXuh+tRqyKE8EosLunjO3LWNE+uGY2BegoZ+LLAr9HWkKpcBor7Rh8XCCZlU7F2pYRDag==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.1.0/28f7e532ff8e951f60e6266ff7c8ce455fd23c5e}
+
+  '@j0nathan-ll0yd/web@4.2.1':
+    resolution: {integrity: sha512-FLs8dR0D4nLK/U7JMaYtUxZlOGjCAg8CQV5duhKf9IXPSoP+kFd2cVfbwjZHzX++3wU5r1LjFHo8D7enNVE1oQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.2.1/acf646a2b695007d88dbd804dbb65ed32ffa357f}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -8010,6 +8013,12 @@ snapshots:
   '@j0nathan-ll0yd/web@4.1.0':
     dependencies:
       '@j0nathan-ll0yd/copy': 3.3.0
+      '@j0nathan-ll0yd/portal-contract': 2.7.0
+      '@j0nathan-ll0yd/tokens': 2.2.1
+
+  '@j0nathan-ll0yd/web@4.2.1':
+    dependencies:
+      '@j0nathan-ll0yd/copy': 4.0.1
       '@j0nathan-ll0yd/portal-contract': 2.7.0
       '@j0nathan-ll0yd/tokens': 2.2.1
 

@@ -8,6 +8,8 @@
 import {LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {AGENT_PATHS, AI_CATALOG_MEDIA_TYPE, OPENAPI_MEDIA_TYPE} from './agent-paths.mjs'
 import {LLMS_TXT_PATH} from './llms-artifacts'
+import {NOT_FOUND_MARKDOWN} from './not-found-markdown.mjs'
+import {SITEMAP_INDEX_PATH} from './site-paths'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './proxy'
 import {BASE_SECURITY_HEADERS, CONTENT_USAGE, CSP, CSP_HEADERS, SITE_RUNTIME, SITE_RUNTIME_HEADER} from './security-headers'
 
@@ -34,7 +36,7 @@ export const LINK_HEADER = [
   `<${AGENT_PATHS.apiCatalog}>; rel="api-catalog"`,
   `<${AGENT_PATHS.aiCatalog}>; rel="ai-catalog"`,
   `<${AGENT_PATHS.ard}>; rel="ard"`,
-  '</sitemap-index.xml>; rel="sitemap"',
+  `<${SITEMAP_INDEX_PATH}>; rel="sitemap"`,
   '</humans.txt>; rel="author"',
   '</feed.xml>; rel="alternate"; type="application/rss+xml"',
   '</feed.json>; rel="alternate"; type="application/feed+json"'
@@ -138,7 +140,27 @@ const serveLlmsFull = makeCloudfrontProxy({
   cachePolicy: LLM_OUTPUT_CACHE_POLICY
 })
 
-/** Merge `Accept` into Vary so every cache layer keys homepage representations on it. */
+// The markdown 404 body is generated at prebuild by scripts/generate-not-found.mjs from
+// @j0nathan-ll0yd/copy (llm.notFound) and the contract paths. The import is one constant string:
+// a copy change can fail the build, never this Worker's start.
+export { NOT_FOUND_MARKDOWN }
+
+/**
+ * The markdown 404: the routed 404's headers (the asset plane's CORS header among them) with the
+ * markdown body. Only the headers that describe the HTML body are replaced.
+ */
+function markdownNotFound(routed: Response): Response {
+  const headers = new Headers(routed.headers)
+  // The body-describing headers, and the cache-state headers of the 404 page the markdown replaces.
+  for (const name of ['Content-Length', 'Content-Encoding', 'ETag', 'Last-Modified', 'CF-Cache-Status', 'Age']) {
+    headers.delete(name)
+  }
+  headers.set('Content-Type', 'text/markdown; charset=utf-8')
+  headers.set('Cache-Control', 'no-store')
+  return new Response(NOT_FOUND_MARKDOWN, {status: 404, headers})
+}
+
+/** Merge `Accept` into Vary so every cache layer keys negotiated representations on it. */
 function mergeVaryAccept(headers: Headers): void {
   const existing = headers.get('Vary')
   if (!existing) {
@@ -155,14 +177,23 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
   const {request} = context
   const url = new URL(request.url)
 
-  // Markdown negotiation, HOMEPAGE ONLY (GET/HEAD). Explicit artifact paths
-  // (/llms.txt, /llms-full.txt, /index.md), pages, API routes, and feeds never
-  // negotiate: each keeps its own bytes and content type for every Accept value.
-  const negotiated = url.pathname === '/' && (request.method === 'GET' || request.method === 'HEAD') && prefersMarkdown(request.headers.get('Accept'))
+  // Markdown negotiation, HOMEPAGE ONLY (GET/HEAD), plus the 404 exception below.
+  // Explicit artifact paths (/llms.txt, /llms-full.txt, /index.md), pages, API routes,
+  // and feeds never negotiate: each keeps its own bytes and content type for every
+  // Accept value.
+  const safeMethod = request.method === 'GET' || request.method === 'HEAD'
+  const wantsMarkdown = safeMethod && prefersMarkdown(request.headers.get('Accept'))
+  const negotiated = url.pathname === '/' && wantsMarkdown
 
-  const response = negotiated
+  const routed = negotiated
     ? await serveLlmsFull({request, waitUntil: (promise) => context.waitUntil(promise)})
     : await context.next()
+
+  // The one exception to homepage-only negotiation: a 404 under the same markdown
+  // decision answers with a short markdown body instead of the HTML 404 page. Status
+  // stays 404; the body points at the documents an agent can read instead.
+  const notFoundMarkdown = routed.status === 404 && wantsMarkdown
+  const response = notFoundMarkdown ? markdownNotFound(routed) : routed
   const headers = new Headers(response.headers)
 
   // Security headers
@@ -199,6 +230,13 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
     headers.set('No-Vary-Search', 'params=("utm_source" "utm_medium" "utm_campaign" "utm_term" "utm_content" "gclid" "fbclid")')
   }
 
+  // Both 404 representations (HTML and markdown) vary on Accept, and the edge must not
+  // cache either one, or a cache HIT would answer without this negotiation.
+  if (response.status === 404) {
+    mergeVaryAccept(headers)
+    headers.set('CDN-Cache-Control', 'no-store')
+  }
+
   // API catalog Content-Type override for RFC 9727 compliance
   if (url.pathname === '/.well-known/api-catalog') {
     headers.set('Content-Type', 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"')
@@ -222,10 +260,10 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
     headers.set('Access-Control-Allow-Origin', '*')
   }
 
-  // The proxy machinery composes GET bodies; a negotiated HEAD must not carry one.
-  // Suppression responses already null theirs; this covers the success and error paths.
-  // (Pass-through responses keep their body: src/worker.ts hands HEAD to the ASSETS binding and
-  // the Astro endpoints as HEAD, and both answer it without one.)
-  const body = negotiated && request.method === 'HEAD' ? null : response.body
+  // The proxy machinery and the markdown 404 compose GET bodies; a negotiated HEAD must not
+  // carry one. Suppression responses already null theirs; this covers the success and error
+  // paths. (Pass-through responses keep their body: src/worker.ts hands HEAD to the ASSETS binding
+  // and the Astro endpoints as HEAD, and both answer it without one.)
+  const body = (negotiated || notFoundMarkdown) && request.method === 'HEAD' ? null : response.body
   return new Response(body, {status: response.status, statusText: response.statusText, headers})
 }

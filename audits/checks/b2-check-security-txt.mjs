@@ -9,13 +9,14 @@
 // finding #4 of the monorepo audit plan).
 
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {SECURITY_TXT_PATH} from '../../src/lib/edge/site-paths.ts'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
 import {emit, rules} from '../specs/load.mjs'
 
 // The URI this file is served from. Also the value RFC 9116 §2.5.2 expects a
 // Canonical field to list, so the pure validator reads it as the default
 // `canonicalUrl` operand -- it is no longer main()-only plumbing.
-export const SECURITY_TXT_URL = `${SITE_URL}/.well-known/security.txt`
+export const SECURITY_TXT_URL = `${SITE_URL}${SECURITY_TXT_PATH}`
 const R = rules('security-txt')
 
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: the

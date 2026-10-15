@@ -1,0 +1,48 @@
+---
+import { getEntry } from 'astro:content';
+import { TextPageSection } from '@j0nathan-ll0yd/web/components';
+import InfoPage from '../layouts/InfoPage.astro';
+import ObfuscatedText from '../lib/email/ObfuscatedText.astro';
+import { EMAIL_DECODE_SCRIPT } from '../lib/email/obfuscate';
+import { SECURITY_TXT_PATH, SITE_PAGE_PATHS } from '../lib/edge/site-paths';
+
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[contact.astro] @j0nathan-ll0yd/copy identity entry missing');
+const id = _identityEntry.data;
+const c = id.contact;
+// Select each channel by host, not by array position: a reordered or extended sameAs list
+// must never attach the LinkedIn label to another profile. A missing host fails the build.
+function profile(host: string): string {
+  const url = id.person.sameAs.find((u) => new URL(u).hostname.replace(/^www\./, '') === host);
+  if (!url) throw new Error(`[contact.astro] identity.person.sameAs has no ${host} profile`);
+  return url;
+}
+const linkedinUrl = profile('linkedin.com');
+const githubUrl = profile('github.com');
+// Where the encoded address links without JavaScript, and what it reads. Every other page falls
+// back to this page; this page falls back to security.txt, which already publishes the address
+// under RFC 9116, so the link adds no exposure (atlas decision 0158, owner ruling 2026-10-15).
+const emailFallback = { href: SECURITY_TXT_PATH, text: c.title };
+---
+<InfoPage title={c.title} description={c.metaDescription} path={SITE_PAGE_PATHS.contact} pageType="ContactPage" lede={c.intro}>
+  <TextPageSection heading={c.channelsHeading} id="contact-channels">
+    <ul>
+      <li data-channel="email">
+        <b>{c.emailLabel}</b> <ObfuscatedText text={id.person.email} fallbackHref={emailFallback.href} fallbackText={emailFallback.text} />
+        <small>{c.emailNote}</small>
+      </li>
+      <li data-channel="linkedin">
+        <a href={linkedinUrl} rel="me noopener">{c.linkedinLabel}</a>
+        <small>{c.linkedinNote}</small>
+      </li>
+      <li data-channel="github">
+        <a href={githubUrl} rel="me noopener">{c.githubLabel}</a>
+        <small>{c.githubNote}</small>
+      </li>
+    </ul>
+  </TextPageSection>
+  <TextPageSection heading={c.securityHeading} id="contact-security">
+    <p><ObfuscatedText text={c.security} fallbackHref={emailFallback.href} fallbackText={emailFallback.text} /></p>
+  </TextPageSection>
+  <script is:inline src={EMAIL_DECODE_SCRIPT} defer></script>
+</InfoPage>

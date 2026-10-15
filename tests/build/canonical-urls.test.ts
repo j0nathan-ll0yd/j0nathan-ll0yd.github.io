@@ -4,6 +4,9 @@ import {load} from 'cheerio'
 import path from 'path'
 import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
+import {AGENT_PATHS} from '../../src/lib/edge/agent-paths.mjs'
+import {onRequest as mcpOnRequest} from '../../src/pages/mcp/index'
+import {onRequest as serverCardOnRequest} from '../../src/pages/mcp/server-card'
 
 // Every canonical URL, sitemap URL and internal link must answer 200 directly, with no redirect.
 // The host maps a URL to the static output by these rules, which Cloudflare Pages and the Workers
@@ -17,6 +20,17 @@ import {clientDir} from '../../scripts/lib/build-paths.mjs'
 // x.html (build.format 'file'). A page built as x/index.html makes its own canonical URL redirect.
 const distDir = clientDir()
 const site = new URL(SITE_URL)
+
+/**
+ * The extensionless on-demand Worker routes (src/lib/edge/routes.ts EDGE_ROUTES) a page may link to, each with the status its handler
+ * gives a plain GET. An allow-list, not "any endpoint under src/pages/": a new extensionless Worker route
+ * must be added here with its status, so a link to an unreviewed endpoint fails this test.
+ * /mcp answers JSON-RPC over POST only, so a GET is 405 (the MCP Streamable HTTP transport).
+ */
+const FUNCTION_ROUTES: Record<string, {file: string; getStatus: number; onRequest: (context: never) => Promise<Response>}> = {
+  [AGENT_PATHS.mcp]: {file: 'src/pages/mcp/index.ts', getStatus: 405, onRequest: mcpOnRequest as never},
+  [AGENT_PATHS.serverCard]: {file: 'src/pages/mcp/server-card.ts', getStatus: 200, onRequest: serverCardOnRequest as never}
+}
 
 type Resolution = {ok: true; file: string} | {ok: false; reason: string}
 
@@ -41,6 +55,9 @@ function resolve(pathname: string): Resolution {
   }
   if (existsSync(file) && statSync(file).isFile()) {
     return {ok: true, file: relative}
+  }
+  if (pathname in FUNCTION_ROUTES) {
+    return {ok: true, file: FUNCTION_ROUTES[pathname].file}
   }
   return {ok: false, reason: 'is not in the static output'}
 }
@@ -79,6 +96,21 @@ beforeAll(() => {
 })
 
 describe('URLs answer 200 with no redirect', () => {
+  it.each(Object.entries(FUNCTION_ROUTES))('allow-lists the Function route %s, whose handler gives a GET its expected status', async (pathname, route) => {
+    expect(existsSync(path.resolve(process.cwd(), route.file)), route.file).toBe(true)
+    expect(resolve(pathname)).toEqual({ok: true, file: route.file})
+    // A real request carries Host; the MCP server's DNS-rebinding guard answers 403 without it.
+    const request = new Request(`${SITE_URL}${pathname}`, {headers: {Host: site.host}})
+    const response = await route.onRequest({request, waitUntil: () => {}, next: async () => new Response(null, {status: 404})} as never)
+    expect(response.status).toBe(route.getStatus)
+  })
+
+  it('resolves no other path outside the static output, Function file or not', () => {
+    expect(resolve('/no-such-page')).toEqual({ok: false, reason: 'is not in the static output'})
+    expect(resolve('/_middleware')).toEqual({ok: false, reason: 'is not in the static output'})
+    expect(resolve('/api/csp-report')).toEqual({ok: false, reason: 'is not in the static output'})
+  })
+
   it('builds every page as <name>.html, never as a directory index', () => {
     expect(pages().filter((file) => file !== 'index.html' && path.basename(file) === 'index.html')).toEqual([])
   })

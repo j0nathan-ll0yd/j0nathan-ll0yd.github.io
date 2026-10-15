@@ -16,3 +16,8 @@ basemaps\.cartocdn\.com
 # Keep both patterns path-specific; GitHub and HTTP error classes stay checked.
 ^https://www\.linkedin\.com/in/lifegames/?$
 ^https://jonathanlloyd\.me/cdn-cgi/l/email-protection$
+
+# Atlas decision 0158. /developers links the MCP endpoint, which answers JSON-RPC over
+# POST only; a GET is 405 by the MCP Streamable HTTP transport, not a dead link. Its
+# liveness is measured by the MCP probe in audits/checks/b2-check-wellknown.mjs.
+^https://jonathanlloyd\.me/mcp$

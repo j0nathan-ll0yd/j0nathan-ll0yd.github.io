@@ -37,6 +37,13 @@ From #348, ported on 2026-10-14 (merge of `main` at `3e0a516d`): `functions/_lib
 `HEADER_OVERRIDE_PATHS`, because the middleware sets their Content-Type. From #350: `functions/_lib/not-found-markdown.mjs` (4, generated),
 `functions/_lib/site-paths.ts` (13), plus an edit to `_middleware.ts` (+35/-10).
 
+From #350, ported on 2026-10-14 (merge of `main` at `ad9748a1`): `not-found-markdown.mjs` (generated
+by `scripts/generate-not-found.mjs`) and `site-paths.ts` moved to `src/lib/edge/`, and the Markdown 404
+branch landed in `src/lib/edge/middleware.ts`. It needs no `run_worker_first` entry: an unknown path
+matches no file, so the Worker runs (`not_found_handling: "none"`) and renders the 404 inside the
+middleware, which swaps the body. `tests/unit/worker-entry.test.ts` pins that path. `/about`,
+`/contact` and `/developers` are prerendered pages on the static-asset plane; they run no code.
+
 ## Routes and methods
 
 Measured against production Pages at its origin alias `https://human-datastream.pages.dev` (no
@@ -92,8 +99,8 @@ A Pages Function route also matched its path with a trailing slash (`/llms.txt/`
 | `/cf-rum`                                                           | 204                                       | 204      | forwards (2xx → 204) | 204                                       | yes        |                                                                         |
 | `/api/csp-report`                                                   | 404 page                                  | 404      | 415 or 204           | 404 page                                  | yes        | PUT: static 405                                                         |
 | `/simple`, `/simple/`                                               | 200 (upstream)                            | 200      | forwards             | 200                                       | yes        |                                                                         |
-| `/about`, `/contact`, `/developers` (pending 0158 #350)             | 404 today; 200 html after #350            |          |                      | 200 html                                  | after #350 | prerendered pages                                                       |
-| Markdown 404 (pending 0158 #350)                                    | —                                         | —        | —                    | unknown path under M: 404 `text/markdown` | —          | middleware; `Vary: Accept`, `CDN-Cache-Control: no-store` on every 404  |
+| `/about`, `/contact`, `/developers` (0158 #350)                     | 200 html (prerendered, static plane)      |          |                      | 200 html                                  | after #350 | prerendered pages                                                       |
+| Markdown 404 (0158 #350)                                            | —                                         | —        | —                    | unknown path under M: 404 `text/markdown` | —          | middleware; `Vary: Accept`, `CDN-Cache-Control: no-store` on every 404  |
 | `/mcp` (pending 0158 #348)                                          | 405                                       | 405      | 200 JSON-RPC         | 405                                       | after #348 |                                                                         |
 | `/mcp/server-card` (pending 0158 #348)                              | 200 card + ETag                           | 200      | 405                  | 200                                       | after #348 |                                                                         |
 | `/openapi.json`, `/.well-known/ard.json` (pending 0158 #348)        | 200 json                                  | 200      | —                    | 200                                       | after #348 | type from middleware                                                    |
