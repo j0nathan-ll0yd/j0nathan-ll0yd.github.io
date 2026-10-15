@@ -13,7 +13,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {checkSteps, parseJobs} from './audit-web-steps.ts'
-import {MEASURED_DEFERRED, publishMeasured} from '../lib/measurement.mjs'
+import {ISSUE_OUTCOMES, MEASURED_DEFERRED, publishIssueOutcome, publishMeasured} from '../lib/measurement.mjs'
 import {report} from '../lib/http.mjs'
 
 // $GITHUB_OUTPUT IS SET WHEN THIS SUITE RUNS UNDER ACTIONS, and unset on a workstation. Any
@@ -105,6 +105,35 @@ describe('publishMeasured', () => {
   // Every other string stays a TypeError: the declaration vocabulary is closed, not open.
   it.each(['n/a', 'deferred ', 'DEFERRED', 'unknown'])('rejects %j as a declaration', (value) => {
     expect(() => publishMeasured(value as unknown as number, {outputPath: undefined})).toThrow(TypeError)
+  })
+})
+
+describe('publishIssueOutcome', () => {
+  it('appends issue_outcome=<value> for each value the reconciler accepts', () => {
+    for (const outcome of ISSUE_OUTCOMES) {
+      const written: string[] = []
+      expect(publishIssueOutcome(outcome, {outputPath: '/tmp/output', append: (_p: string, line: string) => written.push(line)})).toBe(outcome)
+      expect(written).toEqual([`issue_outcome=${outcome}\n`])
+    }
+  })
+
+  it.each(['', 'skipped', 'cancelled', undefined, 'SUCCESS'])('rejects %j -- a value outside the tri-state is a TypeError, not a silent unknown',
+    (value) => {
+      expect(() => publishIssueOutcome(value as unknown as 'success', {outputPath: undefined})).toThrow(TypeError)
+    })
+
+  it('treats an EXPLICIT outputPath: undefined as "no path", never as "use $GITHUB_OUTPUT"', () => {
+    const written: string[] = []
+    process.env.GITHUB_OUTPUT = '/tmp/should-not-be-written'
+    publishIssueOutcome('failure', {outputPath: undefined, append: (_p: string, line: string) => written.push(line)})
+    expect(written).toEqual([])
+  })
+
+  it('falls back to $GITHUB_OUTPUT when the caller supplies no key -- the production path', () => {
+    const written: Array<[string, string]> = []
+    process.env.GITHUB_OUTPUT = '/tmp/github-output'
+    publishIssueOutcome('indeterminate', {append: (p: string, line: string) => written.push([p, line])})
+    expect(written).toEqual([['/tmp/github-output', 'issue_outcome=indeterminate\n']])
   })
 })
 

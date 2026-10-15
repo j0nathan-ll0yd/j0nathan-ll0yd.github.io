@@ -170,6 +170,17 @@ describe('audit-web issue reconciliation wiring', () => {
       expect(runBlock(step.body)).toContain('$FOCUS_REASON')
     }
   })
+
+  it('routes B6 analytics to the reconciler through its tri-state issue_outcome, never the step outcome', () => {
+    // An UNMEASURED Stats API read exits 0, so the step outcome is `success` and used to close
+    // issue #149 as "Recovery confirmed" although the ingestion arm never ran (atlas 0104, 0142).
+    expect(workflow).toContain("{id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_ISSUE_OUTCOME}")
+    expect(workflow).toContain('ANALYTICS_ISSUE_OUTCOME: ${{ steps.analytics.outputs.issue_outcome }}')
+    // A missing output must reach the reconciler as empty (indeterminate), never be defaulted.
+    expect(workflow).not.toMatch(/steps\.analytics\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+    // The dead-man ping reads `steps.analytics.outcome` on purpose; the reconciler must not.
+    expect(reconcilerScript).not.toMatch(/steps\.analytics\.outcome\b/)
+  })
 })
 
 describe('audit-web runner isolation', () => {
