@@ -6,6 +6,7 @@
 // `_headers` (atlas decision 0160, plan Step 3.3).
 
 import {LLM_CONTENT_PATHS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {AGENT_PATHS, AI_CATALOG_MEDIA_TYPE, OPENAPI_MEDIA_TYPE} from './agent-paths.mjs'
 import {LLMS_TXT_PATH} from './llms-artifacts'
 import {LLM_OUTPUT_CACHE_POLICY, makeCloudfrontProxy} from './proxy'
 import {BASE_SECURITY_HEADERS, CONTENT_USAGE, CSP, CSP_HEADERS, SITE_RUNTIME, SITE_RUNTIME_HEADER} from './security-headers'
@@ -18,12 +19,21 @@ export { CONTENT_USAGE, CSP }
  * Workers, so wrangler.jsonc lists it in `run_worker_first`, or the static-asset plane would
  * answer it without these headers. tests/unit/worker-routing.test.ts pins that list.
  */
-export const HEADER_OVERRIDE_PATHS = Object.freeze(['/', '/sw.js', '/version.json', '/.well-known/api-catalog', '/.well-known/webfinger'])
+export const HEADER_OVERRIDE_PATHS = Object.freeze([
+  '/',
+  '/sw.js',
+  '/version.json',
+  '/.well-known/api-catalog',
+  '/.well-known/webfinger',
+  AGENT_PATHS.aiCatalog,
+  AGENT_PATHS.openapi
+])
 
 export const LINK_HEADER = [
   `<${LLMS_TXT_PATH}>; rel="describedby"; type="text/plain"`,
-  '</.well-known/api-catalog>; rel="api-catalog"',
-  '</.well-known/ai-catalog.json>; rel="ai-catalog"',
+  `<${AGENT_PATHS.apiCatalog}>; rel="api-catalog"`,
+  `<${AGENT_PATHS.aiCatalog}>; rel="ai-catalog"`,
+  `<${AGENT_PATHS.ard}>; rel="ard"`,
   '</sitemap-index.xml>; rel="sitemap"',
   '</humans.txt>; rel="author"',
   '</feed.xml>; rel="alternate"; type="application/rss+xml"',
@@ -192,6 +202,17 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
   // API catalog Content-Type override for RFC 9727 compliance
   if (url.pathname === '/.well-known/api-catalog') {
     headers.set('Content-Type', 'application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"')
+  }
+
+  // ai-catalog.json carries the ARD catalog media type (see AI_CATALOG_MEDIA_TYPE). ard.json
+  // keeps application/json until the owner decides; ARD names no Content-Type for either file.
+  if (url.pathname === AGENT_PATHS.aiCatalog) {
+    headers.set('Content-Type', AI_CATALOG_MEDIA_TYPE)
+  }
+
+  // /openapi.json carries the media type the api-catalog advertises for it.
+  if (url.pathname === AGENT_PATHS.openapi) {
+    headers.set('Content-Type', OPENAPI_MEDIA_TYPE)
   }
 
   // WebFinger (RFC 7033) Content-Type + permissive CORS for the static JRD at

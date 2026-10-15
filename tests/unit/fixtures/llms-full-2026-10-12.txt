@@ -1,0 +1,319 @@
+<SYSTEM>This is the complete, authoritative personal "Human Datastream" profile for Jonathan Lloyd — an engineering director and backend engineer. It contains biographical information plus live health aggregates, GitHub activity, reading, saved articles, and theatre reviews, auto-composed from source data by a backend Lambda.</SYSTEM>
+
+# Jonathan Lloyd — Human Datastream (Complete)
+
+> Full data dump for LLM ingestion. Everything the dashboard displays, rendered
+> as structured markdown with tables, interpretation, and source citations.
+> Composed by a backend Lambda on data-change events. Body metrics come from the
+> latest export, summarised and never averaged over a window. Everything else is full granularity.
+
+**Last updated:** 2026-10-12
+**Generated:** 2026-10-12T23:19:05.554Z
+**Source:** https://jonathanlloyd.me/llms-full.txt
+
+## Contents
+
+- [Profile](#profile)
+- [Body](#body)
+- [Mind](#mind)
+- [System](#system)
+- [Streams](#streams)
+
+---
+
+## Profile {#profile}
+
+**Jonathan Lloyd** — Engineering Director.
+
+Bio: 100% pure, old fashioned, home-grown human, born free right here in the real world.
+
+- **Location**: San Francisco, CA
+- **Experience**: 24+ years professionally and counting
+- **Philosophy**: "Enjoying the passage of time"
+- **Current focus**: "None"
+- **Skills**: aws, typescript, serverless, swift, go, perl
+- **Interests**: programming, pc gaming, musical theatre, edm, conversation
+
+### Expertise
+
+Backend Engineering, Software Engineering, Engineering Leadership, Cloud Infrastructure, Data Visualization, Serverless Architecture, TypeScript, Go, AWS
+
+### Links
+
+- Site: https://jonathanlloyd.me
+- GitHub: https://github.com/j0nathan-ll0yd
+- LinkedIn: https://www.linkedin.com/in/lifegames/
+
+---
+
+## Body {#body}
+
+**Data as of:** 2026-10-12
+
+Each body metric is a single value from the latest export — never an average over a
+window. Values are summarised as ranges, shares, or goal status rather than published
+raw. For dated raw values, see the JSON endpoints linked in the Streams section.
+
+### Cardiovascular (latest export)
+
+| Metric | Range | Trend | Interpretation |
+|---|---|---|---|
+| Resting heart rate | 40–49 BPM | — | Excellent (target ≤60 BPM) |
+| Heart rate variability (SDNN) | 20–39 ms | — | Fair (20–40 ms) |
+
+### Sleep (latest export)
+
+| Metric | Value | Trend | Interpretation |
+|---|---|---|---|
+| Total sleep duration | 7h 55m | — | Meeting 7h goal |
+| Sleep efficiency | 98% | — | — |
+| Deep sleep share | 6% | — | — |
+| REM sleep share | 17% | — | — |
+
+### Activity (latest export)
+
+- Below daily step goal (10,000)
+- Below active energy goal (300 kcal/day)
+- Below stand goal (12 hr/day)
+
+### Workouts (latest export)
+
+_No workout data available._
+
+### Hydration (latest export)
+
+- Water intake: Above target range (74–125 oz/day)
+- Caffeine intake: Below target range (200–400 mg/day)
+
+---
+
+## Mind {#mind}
+
+### GitHub activity
+
+**Data as of:** 2026-10-12
+
+- Active repositories: 2
+- Recent events: 186 total
+- Starred repositories: 30
+
+#### Recent commits
+
+1. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — fix(deps): clear 81 of 85 Dependabot alerts; evidence for the 4 with no fix (#367)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/e1668f2)** (today) · +894 / −1069
+2. **[`j0nathan-ll0yd/mantle-OfflineMediaDownloader` — chore(deps): adopt Mantle CLI 2.20.0 (#663)](https://github.com/j0nathan-ll0yd/mantle-OfflineMediaDownloader/commit/8c4a6c6)** (today) · +63 / −61
+3. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — fix(seo): omit sitemap lastmod, no verifiable content date exists (#360)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/dc82793)** (today) · +41 / −26
+4. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — build(lint): gate public/js at an ES2017 syntax floor (#361)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/333cc84)** (today) · +132 / −2
+5. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — test(visual): make the health popover capture deterministic (#365)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/3f48205)** (today) · +64 / −7
+6. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — fix(audit): classify Cloudflare cache-rule answers and judge last-match (#362)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/c1e6d3b)** (today) · +1286 / −260
+7. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — chore(contracts): adopt estate-contracts 0.16.0 exact (#366)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/875dd14)** (today) · +15 / −12
+8. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — fix(agents): stop clobbering the tracked .envrc, and refresh the vendored widget rules (#364)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/e4aeb61)** (yesterday) · +156 / −55
+9. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — fix(live-data): re-judge card freshness while the tab stays open (#363)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/d450ea3)** (yesterday) · +646 / −42
+10. **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` — fix(seo): build pages as files so canonical URLs answer 200 with no redirect (#356)](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/commit/95efa48)** (yesterday) · +210 / −29
+
+#### Recent PRs & issues
+
+- **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` #370 — chore(deps): bump actions/setup-node from 7.0.0 to 7.1.0](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/pull/370)** (today)
+- **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` #369 — chore(deps): bump actions/upload-artifact from 7.0.1 to 7.0.2](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/pull/369)** (today)
+- **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` #368 — chore(deps): bump actions/download-artifact from 8.0.1 to 8.0.2](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/pull/368)** (today)
+- **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` #367 — fix(deps): clear 81 of 85 Dependabot alerts; evidence for the 4 with no fix](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/pull/367)** (today)
+- **[`j0nathan-ll0yd/j0nathan-ll0yd.github.io` #367 — fix(deps): clear 81 of 85 Dependabot alerts; evidence for the 4 with no fix](https://github.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/pull/367)** (today)
+
+### Starred repositories
+
+**Data as of:** 2026-10-12
+
+30 total starred repositories. Showing top 5 by stars.
+
+- [**NousResearch/hermes-agent**](https://github.com/NousResearch/hermes-agent) — The agent that grows with you · ★253101 · DIGITAL Command Language · Topics: ai, ai-agent, ai-agents, anthropic, chatgpt
+- [**shadcn-ui/ui**](https://github.com/shadcn-ui/ui) — Composable, accessible components with thoughtful defaults. Build your own component library with code you can customize, extend, and make your own. · ★125428 · Shell · Topics: ai, base-ui, components, gen-ui, generative-ai
+- [**earendil-works/pi**](https://github.com/earendil-works/pi) — AI agent toolkit: unified LLM API, agent loop, TUI, coding agent CLI · ★114593 · JavaScript
+- [**nexu-io/open-design**](https://github.com/nexu-io/open-design) — 🎨 Best DeepSeek Harness Design Plugin. The open-source Claude Design alternative. 🖥️ Local-first desktop app. 🖼️ Your coding agent becomes the design engine: prototypes, landing pages, dashboards, slides, images & video — real files, HTML/PDF/PPTX/MP4 export. 🤖 Claude Code / Codex / Cursor / DeepSeek Harness / OpenCode & 20+ CLIs via BYOK. · ★100745 · CSS · Topics: agent-skills, ai-design, byok, claude-code-for-design, claude-design
+- [**opencv/opencv**](https://github.com/opencv/opencv) — Open Source Computer Vision Library · ★91160 · Kotlin · Topics: c-plus-plus, computer-vision, deep-learning, image-processing, opencv
+
+### Bookshelf
+
+**Data as of:** 2026-10-10
+
+#### Currently reading
+
+- [**A Trade of Blood**](https://www.amazon.com/dp/0593723856?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Robert Jackson Bennett (57% of 382 pages)
+  - · *Shadow of the Leviathan* #3 · 2026
+  - In the farming canton of Sapirdad, the heir to a powerful imperial family sits in jail, accused of murder, unable to explain how his hands came to be covered in the victim's blood. Investigator Ana Dolabra and her assistant Dinios Kol arrive to determine what happened, aware that a wrongful execution could ignite a war that threatens the empire's food supply. Their inquiry points toward a wider conspiracy behind the killing, reaching beyond a single family's guilt or innocence.
+
+#### Up next
+
+- [**Crafting Engineering Strategy: How Thoughtful Decisions Solve Complex Problems**](https://www.amazon.com/dp/B0FBRJY116?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Will Larson
+  - Software Engineering, Business Decision Making, 2025
+
+#### Recently finished
+
+- [**City of Stairs**](https://www.amazon.com/dp/080413717X?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Robert Jackson Bennett
+  - · *Divine Cities Trilogy* #1 · Fantasy · 2014 · 465 pages
+  - Decades after the island nation of Saypur overthrew and killed the gods that once ruled the continent, Saypur occupies the fallen city of Bulikov as a colonial power. When a Saypuri historian researching Bulikov's suppressed history is murdered, Saypuri agent Shara Komayd arrives to investigate. Accompanied by her secretary and bodyguard Sigrud, Shara uncovers a hidden faction working to revive one of the dead gods and restore the old order to the city.
+  - ISBN: 9780804137171
+- [**Foundryside**](https://www.amazon.com/dp/0525573844?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Robert Jackson Bennett — 5★
+  - · *The Founders Trilogy* #1 · Fantasy, Mystery, Thriller · 2019 · 512 pages
+  - In the industrial city of Tevanne, four merchant houses control society through scriving, a technique that inscribes objects with commands they must obey. Sancia Grado, a thief who can sense the inner workings of scrived objects, is hired to steal an artifact that turns out to be a sentient, talking key. Pursued by a powerful house that wants the key for itself, Sancia allies with a former soldier and a scriver to keep it out of their hands and uncover its origins.
+  - ISBN: 978-0525573845
+- [**A Drop of Corruption: An Ana and Din Mystery**](https://www.amazon.com/dp/0593723848?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Robert Jackson Bennett — 5★
+  - · *Shadow of the Leviathan* #2 · Fantasy, Mystery, Thriller · 2026 · 480 pages
+  - Investigators Ana Dolabra and Dinios Kol travel to Yarrowdale, a semi-independent kingdom that the Empire of Khanum is slowly absorbing. A Treasury officer vanishes from his locked, guarded quarters, an impossible crime. Working with a local warden, the pair trace the disappearance toward a conspiracy involving imperial researchers and the kingdom's uneasy place within the empire. The case draws them into the political tensions surrounding Yarrowdale's approaching annexation.
+  - ISBN: 978-0593723845
+- [**Shorefall**](https://www.amazon.com/dp/B07QVH2Q2K?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Robert Jackson Bennett — 5★
+  - · *The Founders Trilogy* #2 · Fantasy, Mystery, Thriller · 2021
+  - Three years after Foundryside, Sancia Grado and her allies Orso, Berenice, and Gregor now run a scriving house that shares magical technology once controlled only by Tevanne's merchant elite. Their work is interrupted by the return of Crasedes Magnus, an ancient hierophant who used scriving centuries ago to make himself effectively a god. As Crasedes moves to seize control of Tevanne, Sancia and her friends must uncover older, deeper principles of scriving to stop him.
+  - *Notes*: Chapter 9 and the introduction of crecedes is absolutely cinematic!
+
+Chapter 21 - Valeria's account of Cresedes
+- [**The Tainted Cup**](https://www.amazon.com/dp/1984820710?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl) by Robert Jackson Bennett — 5★
+  - · *Shadow of the Leviathan* #1 · Fantasy, Mystery, Thriller · 2024 · 432 pages
+  - In the Empire of Khanum, walls and imperial forces hold back sea monsters called leviathans, and engineering has produced humans modified for specialized roles. Dinios Kol, whose altered senses let him remember everything he perceives, becomes assistant to Ana Dolabra, a reclusive, brilliant imperial investigator. When an engineer is found dead with a tree grown through his chest on a wealthy family's estate, the two investigate a killing tied to the empire's failing sea defenses.
+  - ISBN: 978-1984820716
+
+#### Reading stats
+
+- Books read: 6
+- Currently reading: 1
+- Up next: 1
+- Average rating: 5.0 / 5
+
+### Reading feed (articles)
+
+**Data as of:** 2026-10-01
+
+| Title | Source | Category | Date |
+|---|---|---|---|
+| [See the first new species of cat discovered in more than a century—it’s adorable](https://www.scientificamerican.com/article/see-the-first-new-species-of-cat-discovered-in-more-than-a-century-its-adorable/) | www.scientificamerican.com |  | 1w ago |
+| [When it comes to ‘poop maxxing,’ are you optimizing or obsessing?](https://www.scientificamerican.com/podcast/episode/when-it-comes-to-poop-maxxing-are-you-optimizing-or-obsessing/) | www.scientificamerican.com |  | 1w ago |
+| [Watch a robot dog run a marathon faster than the average human](https://www.scientificamerican.com/article/watch-a-robot-dog-run-a-marathon-faster-than-the-average-human/) | www.scientificamerican.com |  | 1w ago |
+| [I Tried 'Tailscale,' the Self-Hosted VPN Service That Makes It Look Like You're…](https://lifehacker.com/tech/i-tried-tailscale-the-self-hosted-vpn-service) | lifehacker.com |  | 1w ago |
+| [The Best Smart Glasses You Can Buy in 2026](https://lifehacker.com/tech/best-smart-glasses-you-can-buy-in-2026) | lifehacker.com |  | 1w ago |
+| [10 Hacks Every macOS 27 User Should Know](https://lifehacker.com/tech/10-hacks-every-macos-27-golden-gate-user-should-know) | lifehacker.com |  | 1w ago |
+| [This Is the Best Gaming Gear of 2026](https://lifehacker.com/tech/best-gaming-gear-of-2026) | lifehacker.com |  | 1w ago |
+| [Seven Things That Surprised Me About Apple's New Health App](https://lifehacker.com/health/things-that-surprised-me-about-apples-new-health-app) | lifehacker.com |  | 1w ago |
+
+### Theatre reviews
+
+**Data as of:** 2026-10-12
+
+#### [Prince F*ggot](https://www.coasttocoastreviews.com/show-reviews/prince-fggot) — B+
+
+- By Jonathan Lloyd · 2025-10-03
+- Prince Faggot imagines a world where Prince George becomes the first openly 
+gay royal, weaving a tender love story with the pressures of monarchy and 
+public scrutiny. As George and Dev navigate family expectations, queer 
+identity, and the cost of visibility, the fully queer ensemble delivers 
+moving performances that fill the theater with warmth and electricity. 
+Despite occasional dips in storytelling, the heart and honesty of the 
+production make it a compelling and memorable experience.
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/prince-fggot)
+
+#### [Art](https://www.coasttocoastreviews.com/show-reviews/art) — B-
+
+- By Jonathan Lloyd · 2025-10-02
+- Art explores the shifting dynamics of a decades-long friendship after Serge 
+buys an expensive painting that looks like a blank canvas. As Marc rejects 
+the purchase and Yvan gets stuck in the middle, the play digs into how 
+people grow apart, what we expect from long-term friends, and how 
+relationships change over time. Strong performances, especially from James 
+Corden, keep the story engaging even when the dialogue wanders.
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/art)
+
+#### [Stranger Things: The First Shadow](https://www.coasttocoastreviews.com/show-reviews/stranger-things-the-first-shadow) — B-
+
+- By Jonathan Lloyd · 2025-10-01
+- Stranger Things: The First Shadow combines the dark edge of Carrie, the 
+camp of High School Musical, and the spectacle of Harry Potter and the 
+Cursed Child to explore the early story of Henry Creel. Louis McCartney, 
+Alison Jaye, and Gabrielle Nevaeh bring warmth and humor to a production 
+that shifts from playful student moments to a much darker second act. Some 
+plot lines feel tangential in a long runtime, but the show’s technical 
+achievements and striking effects keep the momentum alive.…
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/stranger-things-the-first-shadow)
+
+#### [Call Me Izzy](https://www.coasttocoastreviews.com/show-reviews/call-me-izzy)
+
+- By Jonathan Lloyd · 2025-06-05
+- Call Me Izzy spotlights Jean Smart’s formidable talent in an intimate solo 
+performance set mostly within the confines of a bathroom—a refuge for a 
+Southern woman enduring domestic violence and channeling her pain into 
+poetry. Smart captivates with her rich accent, quick character shifts, and 
+rhythmic delivery of Izzy’s verses. But while the emotional stakes are 
+undeniable, the play ultimately lingers without evolving, rehashing 
+familiar themes of loss and trauma without providing a new or…
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/call-me-izzy)
+
+#### [Just In Time](https://www.coasttocoastreviews.com/show-reviews/just-in-time)
+
+- By Jonathan Lloyd · 2025-06-05
+- Just In Time is an intimate, emotionally rich musical that showcases 
+Jonathan Groff at his very best. Performed in a stripped-down nightclub 
+setting with no set changes or flashy visuals, the production relies on raw 
+talent, heartfelt storytelling, and the timeless music of Bobby Darin. 
+Groff’s performance is magnetic—charismatic, nuanced, and wholly deserving 
+of his Tony nomination—while Michele Pawk provides a grounded, moving 
+counterpoint as his sister Polly. With songs seamlessly woven…
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/just-in-time)
+
+#### [Death Becomes Her](https://www.coasttocoastreviews.com/show-reviews/death-becomes-her)
+
+- By Jonathan Lloyd · 2025-06-03
+- Camp has rarely felt so polished or so big as in Broadway’s Death Becomes 
+Her. From Megan Hilty’s showstopping “For the Gaze” opener to Jennifer 
+Simard’s jaw-dropping transformation and Michelle Williams’ dreamy potion 
+scene, the performances crackle with humor and glamor. The production nails 
+its cartoonish physical comedy with stunning stagecraft and lavish design. 
+Though the score misses that iconic hit song, the show delivers a riotous, 
+high-energy night of Broadway excess that leaves…
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/death-becomes-her)
+
+#### [Dead Outlaw](https://www.coasttocoastreviews.com/show-reviews/dead-outlaw)
+
+- By Jonathan Lloyd · 2025-06-02
+- Dead Outlaw is a gritty, folk-infused musical that tells the strange true 
+story of Elmer McCurdy, a failed outlaw whose life of crime ends in a 
+shootout—and whose corpse embarks on an even wilder journey through 
+sideshows and Hollywood sets. With a live onstage band and a barroom folk 
+opera vibe, the show delivers raw Americana energy and standout 
+performances, particularly from Jeb Brown and Eddie Cooper. While its 
+macabre humor and unique storytelling make it entertaining, its minimal 
+s…
+- Source: [coasttocoastreviews.com](https://www.coasttocoastreviews.com/show-reviews/dead-outlaw)
+
+---
+
+## System {#system}
+
+### Data freshness
+
+| Source | Last fetched |
+|---|---|
+| health.json | 2026-10-12T23:19:04.462Z |
+| sleep.json | 2026-10-12T23:11:18.788Z |
+| workouts.json | 2026-10-12T23:19:04.681Z |
+| focus.json | 2026-10-12T13:30:17.178Z |
+| books.json | 2026-10-10T04:57:35.700Z |
+| articles.json | 2026-10-01T23:23:55.651Z |
+| github-events.json | 2026-10-12T22:58:10.646Z |
+| github-starred-repos.json | 2026-10-12T21:28:24.678Z |
+| theatre-reviews.json | 2026-10-12T21:28:23.104Z |
+
+Composition triggered by EventBridge BroadcastUpdate events (after each source JSON
+update) plus a 30-minute safety-net schedule. Composer reads all source JSON from S3
+and writes `llms.txt`, `llms-full.txt`, and `index.md` to CloudFront origin.
+
+---
+
+## Streams {#streams}
+
+Canonical JSON endpoints for agents preferring raw machine-readable data:
+
+- https://d1pfm520aduift.cloudfront.net/health.json — biometrics (heart rate, HRV, activity, workouts)
+- https://d1pfm520aduift.cloudfront.net/sleep.json — sleep phases and efficiency
+- https://d1pfm520aduift.cloudfront.net/focus.json — focus / Do Not Disturb state
+- https://d1pfm520aduift.cloudfront.net/github-events.json — GitHub commits, PRs, issues
+- https://d1pfm520aduift.cloudfront.net/github-starred-repos.json — starred repositories
+- https://d1pfm520aduift.cloudfront.net/books.json — bookshelf with status, ratings, progress
+- https://d1pfm520aduift.cloudfront.net/articles.json — saved articles
+- https://d1pfm520aduift.cloudfront.net/theatre-reviews.json — theatre reviews
+- https://d1pfm520aduift.cloudfront.net/workouts.json — workout sessions

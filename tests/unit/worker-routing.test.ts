@@ -109,7 +109,9 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       '/cf-insights.js': 'cf-insights.js.ts',
       '/cf-rum': 'cf-rum.ts',
       '/api/csp-report': 'api/csp-report.ts',
-      '/simple': 'simple/[...path].ts'
+      '/simple': 'simple/[...path].ts',
+      '/mcp': 'mcp/index.ts',
+      '/mcp/server-card': 'mcp/server-card.ts'
     }
     expect(EDGE_ROUTES.map((route) => route.path).sort()).toEqual(Object.keys(files).sort())
     for (const file of Object.values(files)) {

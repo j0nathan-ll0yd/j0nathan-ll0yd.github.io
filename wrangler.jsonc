@@ -17,7 +17,7 @@
     "html_handling": "auto-trailing-slash",
     // An unmatched path runs the Worker, which renders the 404 page through the site middleware.
     "not_found_handling": "none",
-    // Every path that runs code, and nothing else (plan Step 0.5 table). The first five carry a
+    // Every path that runs code, and nothing else (plan Step 0.5 table). The first seven carry a
     // header the middleware sets beyond `_headers` (HEADER_OVERRIDE_PATHS); `/` also negotiates
     // Markdown. The rest are the routes in src/lib/edge/routes.ts EDGE_ROUTES.
     "run_worker_first": [
@@ -26,6 +26,8 @@
       "/version.json",
       "/.well-known/api-catalog",
       "/.well-known/webfinger",
+      "/.well-known/ai-catalog.json",
+      "/openapi.json",
       "/llms.txt",
       "/llms-full.txt",
       "/index.md",
@@ -36,7 +38,9 @@
       "/cf-rum",
       "/api/csp-report",
       "/simple",
-      "/simple/*"
+      "/simple/*",
+      "/mcp",
+      "/mcp/server-card"
     ]
   },
   // NO `routes` key, on purpose (owner decision 2026-10-14, option A). The production route

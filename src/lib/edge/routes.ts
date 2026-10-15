@@ -30,7 +30,12 @@ export const EDGE_ROUTES: readonly EdgeRoute[] = Object.freeze([
   {path: '/cf-insights.js', analytics: true},
   {path: '/cf-rum', analytics: true},
   {path: '/api/csp-report', methods: ['POST']},
-  {path: '/simple', catchAll: true, analytics: true}
+  {path: '/simple', catchAll: true, analytics: true},
+  // The MCP server and its card (atlas decision 0158). Each handler answers every method itself:
+  // /mcp serves POST and answers GET and DELETE 405 with `Allow: POST`; the card serves GET, HEAD
+  // and OPTIONS and answers anything else 405.
+  {path: '/mcp'},
+  {path: '/mcp/server-card'}
 ])
 
 /**

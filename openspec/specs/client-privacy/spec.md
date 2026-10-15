@@ -199,7 +199,8 @@ export ages").
 
 Verified by `tests/unit/api.test.ts:374` (the startup read, three unreadable forms),
 `tests/unit/poll-engine.test.ts:417` (the engine, including focus-first ordering) and
-`tests/unit/webmcp-suppression.test.ts:50` (the generated tool, four unreadable forms, executed).
+`tests/unit/webmcp-script.test.ts:123` (the generated tool, executed through the `/mcp` focus gate,
+four unreadable forms).
 
 #### Scenario: Focus cannot be read at startup
 

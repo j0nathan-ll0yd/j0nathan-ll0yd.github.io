@@ -5,6 +5,11 @@
 // static files. Responses are wrapped by src/lib/edge/middleware.ts, which injects
 // the security headers.
 //
+// The MCP server (src/lib/edge/mcp-server.ts, atlas decision 0158) reads its
+// resources through this same factory, so every agent read passes the same focus
+// probe and gate. Its focus-signal reader is the one route with no focus probe and
+// no last-known-good copy, exactly as the edge gate never gates that signal.
+//
 // Not itself a route: the routes are the endpoints under src/pages/; this
 // module exports a factory.
 //
@@ -101,8 +106,11 @@ export const PROXY_TIMEOUTS = Object.freeze({
 export const LKG_ADMISSION = Object.freeze({maxSourceAgeMs: LKG_MAX_SOURCE_AGE_MS, maxFutureSkewMs: LKG_MAX_FUTURE_SKEW_MS})
 const PUBLIC_NO_STORE = 'no-store'
 const SUPPRESSION_RETRY_SECONDS = 60
+/** The `X-Source` value of a focus-suppression response. Exported so a caller of a proxy handler can tell suppression from failure. */
+export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
-const FOCUS_URL = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
+const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
+const FOCUS_URL = `${CLOUDFRONT_BASE}${FOCUS_SIGNAL_PATH}`
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
 
 /**
@@ -417,7 +425,7 @@ function suppressionResponse(method: string): Response {
   const headers = new Headers({
     'Content-Type': 'application/json; charset=utf-8',
     'Retry-After': String(SUPPRESSION_RETRY_SECONDS),
-    'X-Source': 'cloudfront-proxy-suppressed'
+    'X-Source': SUPPRESSION_SOURCE
   })
   setPublicNoStore(headers)
   const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
@@ -788,6 +796,7 @@ export function makeCloudfrontProxy(
 ): (context: CloudfrontProxyContext) => Promise<Response> {
   const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
+  const isFocusSignal = path === FOCUS_SIGNAL_PATH
 
   return async function onRequest(context: CloudfrontProxyContext): Promise<Response> {
     if (context.request.method !== 'GET' && context.request.method !== 'HEAD') {
@@ -808,12 +817,18 @@ export function makeCloudfrontProxy(
     // network call.
     const budget = startBudget()
 
-    const privacyResponse = await focusPrivacyResponse(context.request.method, path, budget)
+    // The focus signal itself is never gated, exactly as the edge gate never gates it
+    // (focus-privacy spec, "The focus signal stays retrievable while hiding"). Every
+    // other artifact is suppressible and goes through the gate.
+    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget)
     if (privacyResponse) {
       return privacyResponse
     }
 
-    const cache = defaultCache()
+    // The focus signal has no last-known-good copy. Like the gate's own probe, it is read fresh
+    // (GATED_FETCH_INIT is no-store), so a stored copy could disagree with the probe that a
+    // sibling read just consulted.
+    const cache = isFocusSignal ? undefined : defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
     const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS))
 

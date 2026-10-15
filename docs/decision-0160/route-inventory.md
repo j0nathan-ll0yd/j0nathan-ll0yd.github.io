@@ -28,10 +28,13 @@ what `main` has; when a 0158 PR merges first, PR A rebases and ports its routes 
 | `functions/api/csp-report.ts`      |    45 | `src/pages/api/csp-report.ts`    |
 | `functions/simple/[[path]].ts`     |   152 | `src/pages/simple/[...path].ts`  |
 
-Pending 0158, from #348: `functions/_lib/agent-catalog.mjs` (250), `functions/_lib/agent-paths.mjs`
-(25), `functions/_lib/mcp-server.ts` (330), `functions/mcp/index.ts` (6),
-`functions/mcp/server-card.ts` (47), plus edits to `_middleware.ts` (+15/-2) and `_lib/proxy.ts`
-(+19/-4). From #350: `functions/_lib/not-found-markdown.mjs` (4, generated),
+From #348, ported on 2026-10-14 (merge of `main` at `3e0a516d`): `functions/_lib/agent-catalog.mjs`,
+`agent-paths.mjs` and `mcp-server.ts` moved to `src/lib/edge/`; `functions/mcp/index.ts` and
+`functions/mcp/server-card.ts` became the on-demand endpoints `src/pages/mcp/index.ts` and
+`src/pages/mcp/server-card.ts`, both in `EDGE_ROUTES` and `run_worker_first`; the
+`_middleware.ts` and `_lib/proxy.ts` edits landed in `src/lib/edge/middleware.ts` and
+`src/lib/edge/proxy.ts`. `/.well-known/ai-catalog.json` and `/openapi.json` joined
+`HEADER_OVERRIDE_PATHS`, because the middleware sets their Content-Type. From #350: `functions/_lib/not-found-markdown.mjs` (4, generated),
 `functions/_lib/site-paths.ts` (13), plus an edit to `_middleware.ts` (+35/-10).
 
 ## Routes and methods
