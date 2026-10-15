@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {checkSteps, measuredStepRecords, parseJobs} from './audit-web-steps.ts'
+import {checkSteps, measuredStepRecords, parseJobs, reconcilerBindings} from './audit-web-steps.ts'
 
 const workflowPath = resolve('.github/workflows/audit-web.yml')
 const workflow = readFileSync(workflowPath, 'utf8')
@@ -350,9 +350,9 @@ describe('audit-web interpolation channels', () => {
     expect(reconcilers).toHaveLength(3)
     for (const step of reconcilers) {
       const read = [...step.body.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1])
-      const declared = [
-        ...step.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.[a-z0-9_]+\.(?:outcome|outputs\.issue_outcome|outputs\.issue_note) \}\}$/gm)
-      ].map((m) => m[1])
+      const declared = reconcilerBindings(step).filter((b) => ['outcome', 'outputs.issue_outcome', 'outputs.issue_note'].includes(b.field)).map((b) =>
+        b.name
+      )
       expect(read.length).toBeGreaterThan(0)
       expect({step: step.name, missing: read.filter((name) => !declared.includes(name))}).toEqual({step: step.name, missing: []})
       // And nothing declared that nothing reads: a stale binding looks wired and is not.
@@ -437,6 +437,21 @@ describe('audit-web measurement channel', () => {
       // check on a daily cadence in another repo, and merging here IS a production deploy.
       // The gate has to be the one that blocks the PR carrying the mutant.
       expect([`\${{ steps.${record.step}.outputs.measured }}`, 'n/a', 'deferred']).toContain(record.measured)
+    }
+  })
+
+  // ORDER IS WIRING. The reconciler and the ping read `steps.<id>.*`, and a step that has not run
+  // yet renders EMPTY there: a check moved below the reconciler reaches it as indeterminate on every
+  // run, and one moved below the ping reads as `unreadable-outcome`. Review of #379 found both
+  // mutants (B6 ingestion after the reconciler; the reconciler before both B6 steps) left the suite
+  // green. Every check step precedes the reconciler, which precedes the ping.
+  it.each(tiers)('$key runs every check step before the reconciler, and the reconciler before the ping', (tier) => {
+    const reconcile = tier.steps.findIndex((s) => s.name === 'Reconcile managed audit issues')
+    const ping = tier.steps.findIndex((s) => s.name === 'Healthchecks.io ping')
+    expect(reconcile).toBeGreaterThanOrEqual(0)
+    expect(ping).toBeGreaterThan(reconcile)
+    for (const step of checkSteps(tier)) {
+      expect({step: step.id, before: tier.steps.indexOf(step) < reconcile}).toEqual({step: step.id, before: true})
     }
   })
 

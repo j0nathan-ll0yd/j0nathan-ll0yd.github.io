@@ -270,7 +270,7 @@ export function evaluateIngestion({eventName, before, after, elapsedMs, timeoutM
     return [{severity: 'warn', id: error.id, message: error.message, unmeasured: true}]
   }
   if (error) {
-    return [{severity: 'fail', id: error.id, message: error.message}]
+    return [{severity: 'fail', id: error.id, message: error.message, ...(error.noAnswer ? {noAnswer: true} : {})}]
   }
   if (typeof before === 'number' && typeof after === 'number' && after > before) {
     return [{
@@ -310,7 +310,9 @@ export function concludeIngestion({eventName, before, after, startedAt, endedAt,
     return evaluateIngestion({eventName, before, after, elapsedMs: endedAt - startedAt, timeoutMs})
   }
   if (definiteError) {
-    return evaluateIngestion({eventName, error: definiteError})
+    // The baseline read answered before the poll began, so this run held an answer: the error
+    // stays a fail and the arm counts as measured, whatever the poll-phase error carried.
+    return evaluateIngestion({eventName, error: {id: definiteError.id, message: definiteError.message}})
   }
   if (lastReadAt !== null && deadline - lastReadAt <= INGESTION_OBSERVED_TAIL_MS) {
     return evaluateIngestion({eventName, before, after, elapsedMs: endedAt - startedAt, timeoutMs})
@@ -326,6 +328,19 @@ export function concludeIngestion({eventName, before, after, startedAt, endedAt,
 }
 
 /**
+ * Pure: mark a read error that carried no HTTP answer -- a thrown request or a thrown body read.
+ *
+ * SEPARATE FROM `unmeasured` ON PURPOSE. `unmeasured` decides the ISSUE: a listed transport code
+ * reads `indeterminate`. `noAnswer` decides the COUNT: the arm reached none of its artifacts, so it
+ * measured 0 (AGENTS.md, "the count is artifacts held and judged"). An unlisted throw such as
+ * CERT_HAS_EXPIRED or ECONNABORTED stays a `fail` on the issue channel, as #374 intended, and now
+ * also turns the tile red, because a fail with no answer behind it judged nothing.
+ */
+function noAnswer(error) {
+  return {...error, noAnswer: true}
+}
+
+/**
  * Read the current SA count for `eventName`. Network I/O; returns {ok, total} or {ok:false, error}.
  * `fetchImpl` has the shared fetch helper's signature, so tests drive the real classification.
  */
@@ -334,7 +349,7 @@ export async function readEventTotal(queryUrl, apiKey, eventName, {fetchImpl = f
   try {
     res = await fetchImpl(queryUrl, {headers: {'Api-Key': apiKey}})
   } catch (err) {
-    return {ok: false, error: classifyStatsReadError(err)}
+    return {ok: false, error: noAnswer(classifyStatsReadError(err))}
   }
   if (res.status >= 500) {
     // SA served no answer after the helper's retries: the SA-outage rule in classifyStatsReadError.
@@ -348,7 +363,7 @@ export async function readEventTotal(queryUrl, apiKey, eventName, {fetchImpl = f
       return {ok: false, error: {id: 'analytics-sa-stats-api-parse', message: `Stats API did not return valid JSON: ${err.message}`}}
     }
     // The body stream itself failed (reset or timeout mid-body): the same classifier as the request.
-    return {ok: false, error: classifyStatsReadError(err)}
+    return {ok: false, error: noAnswer(classifyStatsReadError(err))}
   }
   if (!res.ok || json?.ok !== true) {
     return {ok: false, error: {id: 'analytics-sa-stats-api-error', message: `SA Stats API error (HTTP ${res.status}): ${json?.error ?? '(no error field)'}`}}
@@ -433,7 +448,13 @@ export async function checkSaIngestion(apiKey, {fetchImpl = fetchStable, postImp
  * Pure: one arm's managed-issue tri-state for bucket `analytics` (audits/lib/file-check-issues.mjs).
  * Any fail files or keeps the issue. An unmeasured arm or a skipped arm (no SA_API_KEY) is
  * `indeterminate`: the arm judged nothing, so it may neither file nor close the issue (atlas
- * decisions 0104, 0142). The reconciler folds both arms' outcomes into the one bucket.
+ * decisions 0104, 0142). The reconciler folds both arms' outcomes into the one bucket. The exit
+ * code alone cannot carry this: an unmeasured run exits 0.
+ *
+ * RESIDUAL (review item M5): a persistent UNMEASURED still never escalates the ISSUE. The owner
+ * chose option A on 2026-10-13: the escalation lives on the dead-man tile instead, which goes red
+ * on each day this arm publishes `measured=0` (ingestionMeasured below). Recorded here and in
+ * AGENTS.md ("B6 is two daily steps").
  */
 export function issueOutcome(findings) {
   if (findings.some((finding) => finding.severity === 'fail')) {
@@ -446,31 +467,48 @@ export function issueOutcome(findings) {
 }
 
 /**
- * Pure: the ingestion arm's `measured` count. 1 when the arm judged ingestion -- confirmed, not
- * observed, or a definite answer about our side such as an HTTP 401 -- and 0 when it judged
- * nothing. 0 wedges the daily tier on the day it happens (owner decision 2026-10-13, option A).
+ * Pure: the ingestion arm's `measured` count. 1 when the Stats API answered and the arm judged
+ * ingestion -- confirmed, not observed, or a definite HTTP answer about our side such as a 401.
+ * 0 when it judged nothing: UNMEASURED, SKIPPED, or a fail with no HTTP answer behind it
+ * (`noAnswer`, a thrown request or body read). 0 wedges the daily tier on the day it happens
+ * (owner decision 2026-10-13, option A).
  *
- * A fail is judged and counts 1, even beside an unmeasured finding: the fail reaches the issue,
- * and the tile answers only "did the arm run to measurement".
+ * `checkSaIngestion` returns exactly one finding, so the arm is in exactly one of these states.
  */
 export function ingestionMeasured(findings) {
-  return issueOutcome(findings) === 'indeterminate' ? 0 : 1
+  if (issueOutcome(findings) === 'indeterminate' || findings.some((finding) => finding.noAnswer === true)) {
+    return 0
+  }
+  return 1
 }
 
 function annotationValue(value) {
   return value.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A')
 }
 
+/** Pure: the label for a finding the arm could not judge, or null for a judged one. */
+function unjudgedState(finding) {
+  if (finding.unmeasured === true) {
+    return 'UNMEASURED'
+  }
+  if (finding.noAnswer === true) {
+    return 'NO ANSWER'
+  }
+  return finding.id === INGESTION_SKIPPED_ID ? 'SKIPPED' : null
+}
+
 /** Make an unjudged ingestion arm visible: one workflow warning per finding and one step-summary line. */
-function announceUnjudged(findings, {env, logger, append}) {
-  const unjudged = findings.filter((finding) => finding.unmeasured === true || finding.id === INGESTION_SKIPPED_ID)
+function announceUnjudged(findings, measured, {env, logger, append}) {
+  const unjudged = findings.filter((finding) => unjudgedState(finding) !== null)
   for (const finding of unjudged) {
-    const title = finding.unmeasured === true ? 'B6 SA Stats API UNMEASURED' : 'B6 SA ingestion SKIPPED'
-    logger.log(`::warning title=${title}::${annotationValue(finding.message)}`)
+    const state = unjudgedState(finding)
+    const subject = state === 'SKIPPED' ? 'B6 SA ingestion' : 'B6 SA Stats API'
+    logger.log(`::warning title=${subject} ${state}::${annotationValue(finding.message)}`)
   }
   if (unjudged.length > 0 && env.GITHUB_STEP_SUMMARY) {
-    const state = unjudged.some((finding) => finding.unmeasured === true) ? 'UNMEASURED' : 'SKIPPED'
-    append(env.GITHUB_STEP_SUMMARY, `- B6 SA ingestion: ${state} (measured=0) -- ${unjudged.map((finding) => finding.message).join(' | ')}\n`, 'utf8')
+    const states = [...new Set(unjudged.map(unjudgedState))].join('+')
+    append(env.GITHUB_STEP_SUMMARY, `- B6 SA ingestion: ${states} (measured=${measured}) -- ${unjudged.map((finding) => finding.message).join(' | ')}\n`,
+      'utf8')
   }
 }
 
@@ -537,12 +575,13 @@ export async function runIngestionArm({
     })
   }
 
-  const exitCode = report('check-analytics-ingestion', findings, ingestionMeasured(findings))
+  const measured = ingestionMeasured(findings)
+  const exitCode = report('check-analytics-ingestion', findings, measured)
   publishIssueOutcome(issueOutcome(findings), {outputPath: env.GITHUB_OUTPUT})
   // AFTER both channels, and never fatal: a summary file that cannot be written must not reach
   // main()'s crash path, which would publish `failure` and file #149 for a run that judged nothing.
   try {
-    announceUnjudged(findings, {env, logger, append})
+    announceUnjudged(findings, measured, {env, logger, append})
   } catch (err) {
     console.error(`could not announce the unjudged ingestion arm: ${err?.message || err}`)
   }

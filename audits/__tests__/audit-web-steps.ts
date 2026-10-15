@@ -10,8 +10,8 @@
 // one to read a file the sibling suite already regexes would be a new supply-chain
 // edge for no new signal.
 
-import {readFileSync} from 'node:fs'
-import {resolve} from 'node:path'
+import {chmodSync, readFileSync, writeFileSync} from 'node:fs'
+import {join, resolve} from 'node:path'
 
 export const WORKFLOW_PATH = resolve('.github/workflows/audit-web.yml')
 export const WORKFLOW = readFileSync(WORKFLOW_PATH, 'utf8')
@@ -106,8 +106,7 @@ export interface MeasuredStepRecord {
  * guess -- and backward compatible, because a record with no marker parses as it always did.
  */
 export function measuredStepRecords(job: WorkflowJob): MeasuredStepRecord[] {
-  const ping = job.steps.find((s) => s.name === 'Healthchecks.io ping')
-  const block = ping ? /^ {10}MEASURED_STEPS: \|\n((?: {12}.+\n)+)/m.exec(ping.body)?.[1] : undefined
+  const block = measuredStepsBlock(job)
   if (!block) {
     return []
   }
@@ -122,4 +121,47 @@ export function measuredStepRecords(job: WorkflowJob): MeasuredStepRecord[] {
       deadline: marker ? marker.slice('until='.length) : ''
     }
   })
+}
+
+/**
+ * The raw `MEASURED_STEPS` block of a job's Healthchecks.io ping step, one record per line with
+ * the YAML indentation removed and the `${{ }}` expressions left as written. `''` when absent.
+ * The ONE reader of that block: the record parser above and the tests that render it both use it.
+ */
+export function measuredStepsBlock(job: WorkflowJob): string {
+  const ping = job.steps.find((s) => s.name === 'Healthchecks.io ping')
+  const block = ping ? /^ {10}MEASURED_STEPS: \|\n((?: {12}.+\n)+)/m.exec(ping.body)?.[1] : undefined
+  return block ? block.replace(/^ {12}/gm, '') : ''
+}
+
+export interface ReconcilerBinding {
+  /** The env var name the reconciler script reads as `process.env.<name>`. */
+  name: string
+  /** The step whose result it binds. */
+  step: string
+  /** What it binds: `outcome`, or `outputs.<key>`. */
+  field: string
+}
+
+/**
+ * The `env:` bindings of a reconciler step, `NAME: ${{ steps.<id>.<field> }}`, in order. The ONE
+ * parser of that shape: the wiring census and the B6 tier tests both read bindings through it.
+ */
+export function reconcilerBindings(step: WorkflowStep): ReconcilerBinding[] {
+  return [...step.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.([a-z0-9_]+)\.(outcome|outputs\.[a-z_]+) \}\}$/gm)].map((m) => ({
+    name: m[1],
+    step: m[2],
+    field: m[3]
+  }))
+}
+
+/**
+ * Install a fake `curl` in `dir` that appends the last argument it was handed (the URL) to `log`
+ * and exits `exitCode`. Put `dir` first on PATH to drive the real `audits/healthchecks-ping.sh`
+ * without touching the network.
+ */
+export function installCurlStub(dir: string, log: string, exitCode = 0): void {
+  const shim = join(dir, 'curl')
+  writeFileSync(shim, `#!/usr/bin/env bash\nfor arg in "$@"; do :; done\necho "$arg" >> ${JSON.stringify(log)}\nexit ${exitCode}\n`)
+  chmodSync(shim, 0o755)
 }

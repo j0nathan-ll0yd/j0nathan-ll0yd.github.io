@@ -1,9 +1,9 @@
 import {execFileSync} from 'node:child_process'
-import {appendFileSync, chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
+import {appendFileSync, existsSync, mkdtempSync, readFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {parseJobs} from './audit-web-steps.ts'
+import {installCurlStub, measuredStepsBlock, parseJobs, reconcilerBindings} from './audit-web-steps.ts'
 import {bucketOutcome} from '../lib/file-check-issues.mjs'
 import {
   ARMS,
@@ -324,6 +324,7 @@ describe('checkSaIngestion poll phase (M2)', () => {
 
 describe('ingestionMeasured (the ingestion step count: 1 judged, 0 not judged)', () => {
   const fail = {severity: 'fail', id: 'analytics-sa-stats-api-error', message: 'HTTP 401'}
+  const failNoAnswer = {severity: 'fail', id: 'analytics-sa-stats-api-fetch', message: 'Stats API fetch failed', noAnswer: true}
   const unmeasured = {severity: 'warn', id: 'analytics-sa-stats-api-unreachable', message: 'UNMEASURED: x', unmeasured: true}
   const skipped = {severity: 'info', id: 'analytics-sa-ingestion-skipped', message: 'SKIPPED'}
   const confirmed = {severity: 'info', id: 'analytics-sa-ingestion-confirmed', message: 'ok'}
@@ -331,16 +332,17 @@ describe('ingestionMeasured (the ingestion step count: 1 judged, 0 not judged)',
   it.each([
     ['confirmed', 1, [confirmed]],
     ['a definite fail (401)', 1, [fail]],
-    ['a fail beside an unmeasured read', 1, [unmeasured, fail]],
+    ['a fail with no HTTP answer behind it (thrown fetch)', 0, [failNoAnswer]],
     ['an unmeasured read', 0, [unmeasured]],
     ['a skipped arm (no SA_API_KEY)', 0, [skipped]]
   ])('%s -> %i', (_label, expected, findings) => {
     expect(ingestionMeasured(findings)).toBe(expected)
   })
 
-  it('0 exactly when the arm reads indeterminate, so the tile and the issue never disagree', () => {
-    for (const findings of [[confirmed], [fail], [unmeasured], [skipped], [unmeasured, fail]]) {
-      expect(ingestionMeasured(findings) === 0).toBe(issueOutcome(findings) === 'indeterminate')
+  it('0 exactly when the arm reads indeterminate or held no answer, so the tile never pings green on an unread Stats API', () => {
+    for (const findings of [[confirmed], [fail], [unmeasured], [skipped], [failNoAnswer]]) {
+      const noAnswer = findings.some((f) => (f as {noAnswer?: boolean}).noAnswer === true)
+      expect(ingestionMeasured(findings) === 0).toBe(issueOutcome(findings) === 'indeterminate' || noAnswer)
     }
   })
 })
@@ -431,7 +433,7 @@ describe('the two B6 arms end to end', () => {
     expect(readOutputs(outputPath)).toEqual({measured: '0', issue_outcome: 'failure'})
   })
 
-  it('beacons arm never reads SA_API_KEY or the Stats API', async () => {
+  it('beacons arm publishes the same outputs with SA_API_KEY set (the key-scoping guard is the secrets.SA_API_KEY count in audit-web-workflow.test.ts)', async () => {
     const r = await runArm('beacons', {env: {SA_API_KEY: 'k'}})
     expect(r.outputs).toEqual({measured: '4', issue_outcome: 'success'})
   })
@@ -451,6 +453,32 @@ describe('the two B6 arms end to end', () => {
 
   it('ingestion arm: HTTP 401 -> measured=1 AND issue_outcome=failure, exit 1', async () => {
     const r = await runArm('ingestion', {env: {SA_API_KEY: 'k'}, fetchImpl: scripted([json({ok: false, error: 'Invalid API key'}, 401)])})
+    expect(r.exitCode).toBe(1)
+    expect(r.outputs).toEqual({measured: '1', issue_outcome: 'failure'})
+    expect(r.annotations).toEqual([])
+  })
+
+  // M-2: a throw outside UNREACHABLE_CAUSE_CODES stays a fail on the issue channel (#374), but no
+  // HTTP answer ever came back, so the arm reached none of its artifacts and measures 0.
+  it.each(['ECONNABORTED', 'CERT_HAS_EXPIRED', 'ENETDOWN', 'EADDRNOTAVAIL', 'UND_ERR_ABORTED'])(
+    'ingestion arm: an unlisted transport failure (%s) -> measured=0 AND issue_outcome=failure, exit 1, with a NO ANSWER warning',
+    async (code) => {
+      const r = await runArm('ingestion', {env: {SA_API_KEY: 'k'}, fetchImpl: scripted([fetchFailed(code)])})
+      expect(r.exitCode).toBe(1)
+      expect(r.outputs).toEqual({measured: '0', issue_outcome: 'failure'})
+      expect(r.annotations).toEqual([expect.stringMatching(new RegExp(`^::warning title=B6 SA Stats API NO ANSWER::Stats API fetch failed: .*${code}`))])
+      expect(r.summary).toMatch(/^- B6 SA ingestion: NO ANSWER \(measured=0\) -- /)
+    }
+  )
+
+  it('ingestion arm: a body read that throws mid-body (unlisted cause) -> measured=0 AND failure', async () => {
+    const bodyThrows = {status: 200, ok: true, json: async () => Promise.reject(fetchFailed('ERR_STREAM_PREMATURE_CLOSE', 'terminated'))}
+    const r = await runArm('ingestion', {env: {SA_API_KEY: 'k'}, fetchImpl: vi.fn(async () => bodyThrows as unknown as Response)})
+    expect(r.outputs).toEqual({measured: '0', issue_outcome: 'failure'})
+  })
+
+  it('ingestion arm: the baseline answered, then a poll read throws an unlisted cause -> measured=1 AND failure (an answer was held)', async () => {
+    const r = await runArm('ingestion', {env: {SA_API_KEY: 'k'}, fetchImpl: scripted([count(4), fetchFailed('CERT_HAS_EXPIRED')])})
     expect(r.exitCode).toBe(1)
     expect(r.outputs).toEqual({measured: '1', issue_outcome: 'failure'})
     expect(r.annotations).toEqual([])
@@ -511,24 +539,20 @@ const PING_URL = 'https://hc-ping.com/00000000-0000-0000-0000-000000000000'
  */
 function renderMeasuredSteps(steps: Record<string, {outcome: string; outputs: Record<string, string>}>): string {
   const daily = parseJobs().find((job) => job.key === 'daily')!
-  const ping = daily.steps.find((s) => s.name === 'Healthchecks.io ping')!
-  const block = /^ {10}MEASURED_STEPS: \|\n((?: {12}.+\n)+)/m.exec(ping.body)![1]
-  return block.replace(/\$\{\{ steps\.([a-z0-9_]+)\.(outcome|outputs\.([a-z_]+)) \}\}/g, (_m, id: string, _f, output?: string) => {
+  return measuredStepsBlock(daily).replace(/\$\{\{ steps\.([a-z0-9_]+)\.(outcome|outputs\.([a-z_]+)) \}\}/g, (_m, id: string, _f, output?: string) => {
     const step = steps[id]
     if (!step) {
       return ''
     }
     return output ? (step.outputs[output] ?? '') : step.outcome
-  }).replace(/^ {12}/gm, '')
+  })
 }
 
 /** Run the real ping script with a stubbed curl; returns the URLs it pinged. */
 function ping(measuredSteps: string): string[] {
   const scratch = mkdtempSync(path.join(tmpdir(), 'b6split-ping-'))
   const log = path.join(scratch, 'curl.log')
-  const shim = path.join(scratch, 'curl')
-  writeFileSync(shim, `#!/usr/bin/env bash\nfor arg in "$@"; do :; done\necho "$arg" >> ${JSON.stringify(log)}\nexit 0\n`)
-  chmodSync(shim, 0o755)
+  installCurlStub(scratch, log)
   execFileSync('bash', [PING_SCRIPT], {
     encoding: 'utf8',
     env: {...process.env, PATH: `${scratch}:${process.env.PATH}`, HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: measuredSteps}
@@ -540,9 +564,7 @@ function ping(measuredSteps: string): string[] {
 function analyticsBucket(outputs: Record<string, Record<string, string>>) {
   const daily = parseJobs().find((job) => job.key === 'daily')!
   const reconciler = daily.steps.find((s) => s.name === 'Reconcile managed audit issues')!
-  const bindings = Object.fromEntries(
-    [...reconciler.body.matchAll(/^ {10}([A-Z0-9_]+): \$\{\{ steps\.([a-z0-9_]+)\.outputs\.issue_outcome \}\}$/gm)].map((m) => [m[1], m[2]])
-  )
+  const bindings = Object.fromEntries(reconcilerBindings(reconciler).filter((b) => b.field === 'outputs.issue_outcome').map((b) => [b.name, b.step]))
   const rows = [...reconciler.body.matchAll(/\{id: 'analytics', title: '([^']+)', outcome: process\.env\.([A-Z0-9_]+)\}/g)]
   return rows.map((m) => ({id: 'analytics', title: m[1], outcome: outputs[bindings[m[2]]]?.issue_outcome ?? ''}))
 }
@@ -622,6 +644,13 @@ describe('the daily tier with both B6 arms (owner decision 2026-10-13, option A)
     const {records, pinged, issue} = await day(scripted([count(4), count(5)]), {SA_API_KEY: 'k'}, async () => Promise.reject(new Error('net::ERR_FAILED')))
     expect(records).toContain('analytics_beacons|failure|0\n')
     expect(records).toContain('analytics_ingestion|success|1\n')
+    expect(pinged).toEqual([`${PING_URL}/fail`])
+    expect(issue).toBe('failure')
+  })
+
+  it('a CERT_HAS_EXPIRED baseline read: the tile goes RED (nothing was read) AND the issue files', async () => {
+    const {records, pinged, issue} = await day(scripted([fetchFailed('CERT_HAS_EXPIRED')]))
+    expect(records).toContain('analytics_ingestion|failure|0\n')
     expect(pinged).toEqual([`${PING_URL}/fail`])
     expect(issue).toBe('failure')
   })

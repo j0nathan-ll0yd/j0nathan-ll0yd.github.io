@@ -128,8 +128,9 @@ jobs:
         continue-on-error: true
         run: node audits/checks/b6-check-analytics.mjs --arm beacons
 
-      # measured=1 when ingestion was judged (pass or fail), 0 when UNMEASURED or SKIPPED (no
-      # SA_API_KEY). 0 wedges this tier the same day, like the weekly `llms_cache_rules` step.
+      # measured=1 when the Stats API answered and ingestion was judged (pass or fail). 0 when the
+      # arm held no answer: UNMEASURED, SKIPPED (no SA_API_KEY), or every read threw. 0 wedges this
+      # tier the same day, like the weekly `llms_cache_rules` step.
       - name: B6 -- SA ingestion (synthetic event -> Stats API)
         id: analytics_ingestion
         continue-on-error: true
