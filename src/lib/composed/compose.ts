@@ -56,6 +56,7 @@ import {
 } from './artifact'
 import {checkFragment, type FragmentOptions} from './fragment-policy'
 import {COMPOSER_CONTRACT} from './paths'
+import {composableReading} from './reading-links'
 
 declare const __SSR_BUILD_ID__: string | undefined
 declare const __MIRRORED_BOOK_COVERS__: readonly string[] | undefined
@@ -201,7 +202,8 @@ async function renderFragments(
     ['cardSleep', NightSummary, vm.nightSummary],
     ['cardWorkouts', Workouts, vm.workouts],
     ['cardDevLog', DevActivityLog, vm.devActivityLog],
-    ['cardReading', ReadingFeed, vm.readingFeed],
+    // A link or note title the Worker would refuse is degraded, never published (./reading-links.ts).
+    ['cardReading', ReadingFeed, composableReading(vm.readingFeed)],
     ['cardStarredRepos', StarredRepoList, vm.starredRepoList],
     ['cardBooks', Bookshelf, {...vm.bookshelf, localCovers}],
     ['cardTheatreReviews', TheatreReviews, vm.theatreReviews]

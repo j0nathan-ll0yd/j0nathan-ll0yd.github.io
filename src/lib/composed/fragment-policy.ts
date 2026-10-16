@@ -44,6 +44,7 @@
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {WIDGET_STATES} from '@j0nathan-ll0yd/web/runtime/widget-state'
 import {FRAGMENT_CLASS_TOKENS, FRAGMENT_ROOT_CLASS_TOKENS} from './fragment-classes'
+import {READING_LINKS} from './reading-option'
 
 /** Why a fragment is refused. A closed set: it reaches the log line, which carries no data value. */
 export type FragmentRejection =
@@ -198,6 +199,7 @@ export const LINK_HOSTS: ReadonlySet<string> = new Set([
  * pending: option A admits them here; option B would strip the href on the server). The link is
  * admitted only in its exact DS shape, `a.article-list-title` in `cardReading` with
  * `target="_blank"` and `rel="noopener noreferrer"`, so no other card or element gains the rule.
+ * Under READING_LINKS 'strip' (option B) the exception is off (./reading-option.ts).
  */
 export const ARTICLE_LINK = Object.freeze({fragment: 'cardReading', className: 'article-list-title', target: '_blank', rel: 'noopener noreferrer'})
 /** Longer than any article URL the feed carries (123 characters in production, 2026-10-16). */
@@ -603,7 +605,7 @@ function checkAttribute(
       }
       // Not a first-party or allowlisted link: admitted only as an article link, judged once the
       // whole tag is read (its class, rel and target may follow the href).
-      if (!articleHrefAllowed(value)) {
+      if (READING_LINKS !== 'allow' || !articleHrefAllowed(value)) {
         return 'url'
       }
       deferred.articleHref = value

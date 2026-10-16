@@ -7,6 +7,7 @@ import {isAllowedImageUrl, srcsetCandidates} from '../image-url-allowlist'
 import {LIVE_CARD_IDS} from '../shared/fixture-sentinels'
 import {legacyMarkers, RETIRED_OVERLAY_ROWS} from '../shared/legacy-markers'
 import {headFactsOf, prerenderedIndexHtml, visibleTextOf} from '../shared/ssr-page'
+import {READING_LINKS} from '../../src/lib/composed/reading-option'
 
 // The server render of `/`, read with JavaScript off (atlas decision 0160, PR B; plan Step 6.3).
 //
@@ -149,24 +150,51 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     await expect(page.locator('#dndOverlay')).toBeHidden()
   })
 
-  // The design system's ReadingFeed server markup is plain text rows: one client page of at most
-  // ten articles, no outbound links, no note affordance, no pager. The browser's runtime adds those
-  // once (the hand-off's enhancement exception for cardReading; see openspec dashboard-ssr). A
-  // visitor with JavaScript off keeps the plain rows, and this test pins exactly that.
-  test('the Reading Feed renders titles, sources and dates, at most ten rows, and no links', async ({page}) => {
+  // The design system's ReadingFeed server markup (web 4.3.0, DS #312): one client page of at most
+  // ten articles, each title linked to its publisher, a note icon on an article with notes, and no
+  // pager (the browser's runtime adds the pager once; see openspec dashboard-ssr). The links follow
+  // the owner's option, READING_LINKS (src/lib/composed/reading-option.ts): 'allow' links each title
+  // in the DS shape the Worker admits; 'strip' renders every title as text. A visitor with
+  // JavaScript off keeps exactly this markup, and this test pins it.
+  test('the Reading Feed renders titles, sources, dates and notes, at most ten rows, links as READING_LINKS says, and no pager', async ({page}) => {
     await expectSummary(page, 'live')
-    const articles = knownAnswer('articles').articles as {articleTitle: string; sourceTitle: string; savedAt: string}[]
+    const articles = knownAnswer('articles').articles as {articleTitle: string; articleUrl: string; sourceTitle: string; savedAt: string}[]
     const rows = page.locator('#cardReading .article-list-item')
+    const links = page.locator('#cardReading a.article-list-title')
+    const pager = page.locator('#cardReading .article-page-btn')
     await expect(rows).toHaveCount(articles.length)
+    await expect(page.locator('#cardReading .article-list-title')).toHaveText(articles.map((a) => a.articleTitle))
     await expect(page.locator('#cardReading .article-list-source')).toHaveText(articles.map((a) => `(${a.sourceTitle})`))
     await expect(page.locator('#cardReading time.article-list-date')).toHaveText(articles.map(() => /\d+(w|d|h|m) ago|just now/))
     await expect(page.locator('#cardReading time.article-list-date').first()).toHaveAttribute('datetime', articles[0].savedAt)
-    await expect(page.locator('#cardReading a.article-list-title, #cardReading .article-list-note, #cardReading .article-page-btn')).toHaveCount(0)
+    if (READING_LINKS === 'allow') {
+      await expect(links).toHaveCount(articles.length)
+      for (const [index, article] of articles.entries()) {
+        await expect(links.nth(index)).toHaveAttribute('href', article.articleUrl)
+        await expect(links.nth(index)).toHaveAttribute('target', '_blank')
+        await expect(links.nth(index)).toHaveAttribute('rel', 'noopener noreferrer')
+      }
+    } else {
+      await expect(links).toHaveCount(0)
+      await expect(page.locator('#cardReading span.article-list-title')).toHaveCount(articles.length)
+    }
+    // The known-answer articles carry no notes; the withNotes variation below does.
+    await expect(page.locator('#cardReading .article-list-note')).toHaveCount(0)
+    await expect(pager).toHaveCount(0)
+
+    const noted = JSON.parse(readFileSync(fixture('articles', 'withNotes'), 'utf8')).articles as {notes: {comment: string}[] | null}[]
+    await serveFixtures({[ENDPOINTS.articles]: fixture('articles', 'withNotes')})
+    await open(page)
+    const notes = page.locator('#cardReading .article-list-note')
+    await expect(notes, 'one note icon per article with notes').toHaveCount(noted.filter((a) => (a.notes ?? []).length > 0).length)
+    await expect(notes.first()).toHaveAttribute('title', (noted.find((a) => (a.notes ?? []).length > 0)?.notes ?? []).map((n) => n.comment).join('\n'))
+    await expect(page.locator('#cardReading .article-list-note-icon')).toHaveCount(await notes.count())
 
     await serveFixtures({[ENDPOINTS.articles]: fixture('articles', 'overThirty')})
     await open(page)
     await expect(rows, 'forty exported articles render one client page of ten').toHaveCount(10)
-    await expect(page.locator('#cardReading a.article-list-title, #cardReading .article-page-btn')).toHaveCount(0)
+    await expect(links).toHaveCount(READING_LINKS === 'allow' ? 10 : 0)
+    await expect(pager).toHaveCount(0)
   })
 
   test('sorts as the widgets document, whatever order the export arrives in', async ({page}) => {
