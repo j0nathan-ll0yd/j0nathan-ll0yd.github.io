@@ -619,6 +619,24 @@ describe('per-route cache policy', () => {
     expectPublicNoStore(res)
   })
 
+  it.each(routes)('%s drops the Cache API read state (CF-Cache-Status, Age) from the stale copy', async (route, onRequest) => {
+    vi.useFakeTimers()
+    stubOutageWithOpenProbe()
+    // A real match carries `CF-Cache-Status: HIT` (workerd Cache::match returns nothing else); Age is
+    // undocumented and dropped too. Either one would read as a zone-cache hit downstream.
+    stubCache(lkgCopy('known good', {'CF-Cache-Status': 'HIT', Age: '120'}))
+    const {context} = makeContext(route)
+
+    const pending = onRequest(context)
+    await vi.runAllTimersAsync()
+    const res = await pending
+
+    expect(res.headers.get('X-Source')).toBe('cloudfront-proxy-stale')
+    expect(res.headers.get('CF-Cache-Status')).toBeNull()
+    expect(res.headers.get('Age')).toBeNull()
+    expect(res.headers.get('X-Proxy-Stale')).toBe('true')
+  })
+
   it.each(routes)('%s stores a cacheable last-known-good copy despite the no-store public policy', async (route, onRequest) => {
     stubFetch(fromCloudfront('payload'))
     const cache = stubCache()

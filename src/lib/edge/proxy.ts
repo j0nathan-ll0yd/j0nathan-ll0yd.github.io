@@ -38,15 +38,23 @@
 // 30 s to first denial and about 75 s to convergence, with no SLA), and a
 // response that passed the gate before a flip and is still in flight.
 //
-// One window is NOT this module's to close. Cloudflare's zone edge cache sits in
-// front of this Function, and a zone Edge Cache TTL rule can store a feed
-// response and replay it with no focus probe and no gate check. On 2026-10-08
-// /feed.xml and /feed.json answered `cf-cache-status: HIT` with `Age` up to
-// 796 s while they still sent `s-maxage=60`, so that rule, not the header, set
-// the window. Whether the no-store policy below ends it depends on the rule's
-// mode: a rule that respects origin headers stops caching, one that overrides
-// them does not. audits/checks/b2-check-cloudflare-llms-cache-rules.mjs measures
-// the rule for all five paths; the zone change is an owner decision.
+// On Cloudflare Pages, one window was NOT this module's to close. The zone edge
+// cache sat in front of the Pages Function, and a zone Edge Cache TTL rule could
+// store a feed response and replay it with no focus probe and no gate check. On
+// 2026-10-08 /feed.xml and /feed.json answered `cf-cache-status: HIT` with `Age`
+// up to 796 s while they still sent `s-maxage=60`, so that rule, not the header,
+// set the window. On Workers (atlas decision 0160) the Worker runs ahead of the
+// zone cache ("Cloudflare Workers run before the cache",
+// developers.cloudflare.com/workers/reference/how-the-cache-works/), so a zone
+// rule cannot store a response this module builds. What keeps a cache out in
+// front of the Worker is that wrangler.jsonc enables no Workers Caching
+// (tests/unit/worker-routing.test.ts pins it). The zone rules still matter on one
+// path: the production route fails open, so a request the Worker cannot take goes
+// past it to the zone, where those rules apply.
+// audits/checks/b2-check-cloudflare-llms-cache-rules.mjs measures the rules for
+// all five paths, and audits/checks/b2-llms.mjs `siteEdgeCacheFailure` measures
+// the served result: it reds on any `Age`, on a cache-served `CF-Cache-Status`, and
+// on an absent status without the Worker's platform marker.
 
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -135,6 +143,15 @@ export interface Upstream {
 }
 const CLOUDFRONT_UPSTREAM: Upstream = Object.freeze({base: CLOUDFRONT_BASE, fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init)})
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
+
+/**
+ * Headers the Cache API adds to a match, which describe the CACHE READ, not the artifact. workerd
+ * returns a match only when the cache answered `CF-Cache-Status: HIT`, and passes that answer's
+ * headers through unchanged (workerd src/workerd/api/cache.c++, `Cache::match`, commit 40838ae3).
+ * Whether the cache also adds `Age` is not documented; it is dropped too, because the B2 llms
+ * edge arm reds on any `Age`.
+ */
+const CACHE_API_STATE_HEADERS = Object.freeze(['CF-Cache-Status', 'Age'])
 
 interface CacheLike {
   match(request: Request): Promise<Response | undefined>
@@ -700,6 +717,12 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
   }
 
   const headers = new Headers(cached.headers)
+  // Served as read, a permitted fallback would look like a zone-cache hit to every downstream
+  // observer, the B2 llms edge arm (audits/checks/b2-llms.mjs siteEdgeCacheFailure) included.
+  // Warning 110, X-Proxy-Stale and X-Source state what the copy is.
+  for (const name of CACHE_API_STATE_HEADERS) {
+    headers.delete(name)
+  }
   const diagnostics = diagnosticHeaders(failure)
   diagnostics.forEach((value, name) => headers.set(name, value))
   headers.set('Content-Type', contentType)
@@ -734,9 +757,9 @@ export function makeCloudfrontProxy(
     // once. A VISIBLE value is not permission on its own: the backend gate can be shut over a
     // visible signal, so every artifact fetch below still passes the gate itself (no-store), and a
     // suppression body from it wins. Every route's responses, the feeds included, are no-store at
-    // the browser, generic CDN, and Cloudflare-specific layers. Whether every request then reaches
-    // this Function is the Cloudflare zone's decision, not this header's: see the zone-edge-cache
-    // note at the top of this module. No route can enter SWR.
+    // the browser, generic CDN, and Cloudflare-specific layers. A request the Worker takes reaches it
+    // ahead of the zone cache; the fail-open path is the zone's: see the zone-edge-cache note at the
+    // top of this module. No route can enter SWR.
     // ONE budget for the whole request: the focus probe, its retry, every artifact attempt, every
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.

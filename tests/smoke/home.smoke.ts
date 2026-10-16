@@ -2,7 +2,7 @@
  * Production smoke check for the dashboard home page.
  *
  * Runs against the LIVE deployed site (https://jonathanlloyd.me) after each
- * Cloudflare Pages deploy. Asserts the page actually loaded and HYDRATED —
+ * Worker deploy. Asserts the page actually loaded and HYDRATED —
  * deterministically, without flaking on the constantly-changing live data
  * stream (GitHub activity, reading feed, movement rings, health values).
  *
@@ -36,7 +36,7 @@ import {isAllowedImageUrl} from '../image-url-allowlist'
  * GET a live endpoint, retrying transient upstream gateway failures (HTTP >= 500)
  * with capped exponential backoff over a ~25s budget.
  *
- * The feed and well-known routes are served through the Pages middleware, which
+ * The feed and well-known routes are served through the Worker middleware, which
  * proxies to a CloudFront origin (responses carry `x-source: cloudfront-proxy`).
  * That upstream can emit a one-off 5xx in the seconds after a deploy: smoke run
  * 28675680076 (issue #106) saw feed.json return 502 while every run before and
@@ -358,18 +358,18 @@ test.describe('production home dashboard', () => {
     const builtAfterMs = Date.parse(process.env.EXPECTED_BUILT_AFTER ?? '')
     const acceptsNewer = !Number.isNaN(builtAfterMs)
 
-    // version.json is edge-cached (`Cache-Control: max-age=600`) and the deploy
-    // does NOT purge the Cloudflare cache, so the EDGE can keep serving the
+    // On Pages, version.json was edge-cached (`Cache-Control: max-age=600`) and the
+    // deploy did NOT purge the Cloudflare cache, so the EDGE kept serving the
     // PREVIOUS build for up to ~10 min post-deploy. Issue #106 (smoke run
     // 28675680076): expected 46e1db3 but the edge served the prior e692457 for the
-    // whole run, failing every whole-test retry — a plain re-fetch just hits the
-    // same cached asset. That stale edge is expected and self-heals; it is NOT a
-    // failed deploy. Poll a cache-busted URL instead: a unique `?cb=` per attempt
-    // plus a `no-cache` request header force an origin revalidation (verified: the
-    // plain URL is a cf-cache HIT while `?cb=<ts>` returns the fresh origin build),
-    // so this asserts the ORIGIN published the new build — the real failure mode —
-    // while tolerating the bounded edge-propagation lag. A deploy that never lands
-    // at origin still fails once the budget is spent.
+    // whole run. On Workers (atlas decision 0160) version.json runs the Worker
+    // first and the middleware sets `max-age=0, no-store` (src/lib/edge/middleware.ts),
+    // but the Worker reads it from the ASSETS binding, whose headers pass through
+    // (src/worker.ts fromAssets), and that response still reported
+    // `cf-cache-status: HIT` on 2026-10-16 UTC. So the cache-busted poll stays: a unique
+    // `?cb=` per attempt plus a `no-cache` request header, so this asserts the
+    // deployed build, tolerating a bounded propagation lag. A deploy that never
+    // lands still fails once the budget is spent.
     test.setTimeout(90_000)
     await expect.poll(async () => {
       const fresh = await page.request.get(`/version.json?cb=${Date.now()}`, {headers: {'Cache-Control': 'no-cache'}})

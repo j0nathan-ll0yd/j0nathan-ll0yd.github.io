@@ -60,6 +60,15 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('routes')
   })
 
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
+  it('enables no Workers Caching: the Worker answers ahead of every Cloudflare cache', () => {
+    // With `cache.enabled`, Cloudflare checks a cache BEFORE running the Worker and answers a hit
+    // without it (developers.cloudflare.com/workers/cache/). That would replay a stored LLM document
+    // past the proxy's focus gate, and the B2 llms check would see CF-Cache-Status on the site plane
+    // (audits/checks/b2-llms.mjs siteEdgeCacheFailure).
+    expect(config).not.toHaveProperty('cache')
+  })
+
   it('declares no binding beyond the static assets', () => {
     for (const key of ['kv_namespaces', 'images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'durable_objects']) {
       expect(config, key).not.toHaveProperty(key)
