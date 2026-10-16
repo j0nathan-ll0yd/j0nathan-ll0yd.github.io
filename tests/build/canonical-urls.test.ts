@@ -166,7 +166,7 @@ describe('URLs answer 200 with no redirect', () => {
       }
       walk(JSON.parse($(element).text()))
     })
-    // An asset or endpoint path (with an extension) may be a Pages Function rather than a file,
+    // An asset or endpoint path (with an extension) may be a Worker route rather than a file,
     // but it can never be a directory index; a page path must be in the static output.
     const failures = [...links].sort().flatMap((pathname) => {
       const result = resolve(pathname)

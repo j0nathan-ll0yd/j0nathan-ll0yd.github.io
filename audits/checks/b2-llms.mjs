@@ -37,6 +37,7 @@ import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/esta
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'
 import {LLMS_ARTIFACTS} from '../../src/lib/edge/llms-artifacts.ts'
+import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
 import {publishIssueOutcome, publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
@@ -54,11 +55,14 @@ export const ARTIFACTS = [{surfaceId: 'llm-outputs'}]
 /**
  * One side of one artifact, as this run observed it.
  *
- * `age`, `xCache` and `source` are EVIDENCE, NOT SUBJECTS. No arm judges them;
+ * `xCache`, `source` and `proxyStale` are EVIDENCE, NOT SUBJECTS. No arm judges them;
  * `printSnapshot` logs them so a reader triaging a skew or a byte difference can
  * see which hop answered. They are declared here because `fetchSnapshot` and
  * `failedSnapshot` both set them, and a fixture built from a typedef that omitted
- * them logged `age=undefined` in place of the evidence.
+ * them logged `age=undefined` in place of the evidence. On the SITE side, `age` and
+ * `siteRuntime` became subjects with the move to Workers (atlas decision 0160): the
+ * edge-cache arm (`siteEdgeCacheFailure`) reds on any `Age`, and accepts an absent
+ * `CF-Cache-Status` only on a response carrying the Worker's platform marker.
  *
  * @typedef {{
  *   status: number,
@@ -69,6 +73,8 @@ export const ARTIFACTS = [{surfaceId: 'llm-outputs'}]
  *   cfCacheStatus: string | null,
  *   composedAtHeader: string | null,
  *   age?: string | null,
+ *   siteRuntime?: string | null,
+ *   proxyStale?: string | null,
  *   xCache?: string | null,
  *   source?: string | null,
  *   error?: string
@@ -357,6 +363,62 @@ export function compositionWireSkew(snapshot) {
   return headerMs === body ? null : {header, body}
 }
 
+/** `CF-Cache-Status` values that say Cloudflare's edge cache did not answer from a stored copy. */
+const EDGE_UNCACHED_STATUSES = new Set(['BYPASS', 'DYNAMIC'])
+
+/**
+ * The edge-cache arm of the site plane: no edge cache served a stored, possibly stale, copy of
+ * an LLM document. Returns the finding message, or null when the response proves it.
+ *
+ * TWO PLANES, ONE PROPERTY (atlas decision 0160). On Cloudflare Pages the zone cache sat in
+ * front of the Function, so the observable was `CF-Cache-Status: BYPASS|DYNAMIC`. On Workers
+ * the Worker runs AHEAD of the zone cache (wrangler.jsonc enables no Workers Caching, pinned by
+ * tests/unit/worker-routing.test.ts), and it builds each response itself from a `no-store`
+ * CloudFront fetch with no `cf` cache options (src/lib/edge/proxy.ts GATED_FETCH_INIT), refusing
+ * any upstream 200 that Cloudflare answered from cache. Its response therefore carries no
+ * `CF-Cache-Status` at all. An absent status is accepted ONLY with three corroborating facts:
+ *
+ * 1. `X-Site-Runtime: workers`, the middleware's platform marker. Without it the Worker did not
+ *    answer (a fail-open route sends the request past it), so the absence proves nothing.
+ * 2. No `Age`. Cloudflare sets `Age` on a response its cache served (HIT, STALE, UPDATING).
+ * 3. `CDN-Cache-Control: no-store`, so no shared cache downstream of the Worker stores it either.
+ *    `llms-site-cdn-cache-policy` also reds on that header. The overlap is deliberate: this arm
+ *    proves its own pass rather than leaning on another arm, so one defect yields two findings.
+ *
+ * A present status is still judged on Workers. A Worker response can carry one: a response the
+ * Worker takes from the ASSETS binding keeps its headers (src/worker.ts `fromAssets`), and
+ * /version.json answered `cf-cache-status: HIT` with `x-site-runtime: workers` on 2026-10-16 UTC.
+ *
+ * Any `Age` reds, on either plane. A present status other than BYPASS or DYNAMIC reds too: HIT,
+ * STALE, UPDATING and REVALIDATED served a stored copy, and MISS or EXPIRED mean the response
+ * was eligible for storage and the next request can be a HIT.
+ *
+ * @param {LlmsResponseSnapshot} snapshot
+ * @returns {string | null}
+ */
+export function siteEdgeCacheFailure(snapshot) {
+  const age = snapshot.age?.trim() || null
+  if (age !== null) {
+    return `site carries Age: ${JSON.stringify(snapshot.age)}; an edge cache served a stored copy`
+  }
+  const edgeStatus = snapshot.cfCacheStatus?.trim().toUpperCase() || null
+  if (edgeStatus !== null) {
+    return EDGE_UNCACHED_STATUSES.has(edgeStatus)
+      ? null
+      : `site CF-Cache-Status is ${JSON.stringify(snapshot.cfCacheStatus)}; expected BYPASS or DYNAMIC, or none on a Worker response`
+  }
+  const runtime = snapshot.siteRuntime?.trim().toLowerCase() || null
+  if (runtime !== SITE_RUNTIME) {
+    return `site has no CF-Cache-Status and ${SITE_RUNTIME_HEADER} is ${JSON.stringify(snapshot.siteRuntime ?? null)}; ` +
+      `an absent status is accepted only on a Worker response (${SITE_RUNTIME_HEADER}: ${SITE_RUNTIME})`
+  }
+  if (!hasNoStore(snapshot.cdnCacheControl)) {
+    return `site Worker response has no CF-Cache-Status and CDN-Cache-Control is ${JSON.stringify(snapshot.cdnCacheControl)}; ` +
+      'an absent status is accepted only with CDN-Cache-Control: no-store'
+  }
+  return null
+}
+
 /**
  * @param {LlmsCoherenceFinding[]} findings
  * @param {(typeof LLMS_ARTIFACTS)[number]} artifact
@@ -406,14 +468,9 @@ function validateSnapshot(findings, artifact, side, snapshot, expectedContentTyp
         participants
       })
     }
-    const edgeStatus = snapshot.cfCacheStatus?.toUpperCase() || null
-    if (edgeStatus !== 'BYPASS' && edgeStatus !== 'DYNAMIC') {
-      findings.push({
-        id: 'llms-site-edge-cache-status',
-        artifact: artifact.id,
-        message: `site CF-Cache-Status is ${JSON.stringify(snapshot.cfCacheStatus)}; expected BYPASS or DYNAMIC`,
-        participants
-      })
+    const edgeCacheFailure = siteEdgeCacheFailure(snapshot)
+    if (edgeCacheFailure) {
+      findings.push({id: 'llms-site-edge-cache-status', artifact: artifact.id, message: edgeCacheFailure, participants})
     }
   }
 
@@ -617,6 +674,8 @@ function failedSnapshot(error) {
     composedAtHeader: null,
     error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
     age: null,
+    siteRuntime: null,
+    proxyStale: null,
     xCache: null,
     source: null
   }
@@ -634,6 +693,10 @@ async function fetchSnapshot(url) {
       cfCacheStatus: response.headers.get('cf-cache-status'),
       composedAtHeader: response.headers.get(COMPOSED_AT_HEADER),
       age: response.headers.get('age'),
+      siteRuntime: response.headers.get(SITE_RUNTIME_HEADER),
+      // The Worker's last-known-good fallback (src/lib/edge/proxy.ts staleResponse). The spec
+      // permits it, so no arm judges it; it tells a reader of a skew or byte finding why.
+      proxyStale: response.headers.get('x-proxy-stale'),
       xCache: response.headers.get('x-cache'),
       source: response.headers.get('x-source')
     }
@@ -667,6 +730,7 @@ function printSnapshot(side, snapshot, logger) {
       `bytes=${snapshot.body.byteLength} sha256=${sha256(snapshot.body)} ` +
       `cache-control=${JSON.stringify(snapshot.cacheControl)} cdn-cache-control=${JSON.stringify(snapshot.cdnCacheControl)} ` +
       `cf-cache-status=${JSON.stringify(snapshot.cfCacheStatus)} age=${JSON.stringify(snapshot.age)} ` +
+      `x-site-runtime=${JSON.stringify(snapshot.siteRuntime ?? null)} x-proxy-stale=${JSON.stringify(snapshot.proxyStale ?? null)} ` +
       `x-cache=${JSON.stringify(snapshot.xCache)} x-source=${JSON.stringify(snapshot.source)}`
   )
   if (snapshot.error) {

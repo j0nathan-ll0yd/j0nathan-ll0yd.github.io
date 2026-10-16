@@ -222,10 +222,11 @@ derived discovery path, and their absence from /404 and /privacy).
 ### Requirement: Canonical llms responses always pass through the privacy gate
 
 The portfolio SHALL NOT permit a browser, a generic downstream CDN, or the Cloudflare edge cache
-to retain a canonical llms response and answer a later request without executing the Pages
-Function's focus-mode privacy transition check. Every public success, stale fallback, suppression,
-and error response SHALL therefore carry `Cache-Control: no-store`, `CDN-Cache-Control: no-store`,
-and `Cloudflare-CDN-Cache-Control: no-store`. The explicit Cache API last-known-good entry
+to retain a canonical llms response and answer a later request without executing the Worker's
+focus-mode privacy transition check (a Pages Function before atlas decision 0160). Every public
+success, stale fallback, suppression, and error response SHALL therefore carry
+`Cache-Control: no-store`, `CDN-Cache-Control: no-store`, and
+`Cloudflare-CDN-Cache-Control: no-store`. The explicit Cache API last-known-good entry
 (3 hours of storage) is the only origin-side cache, and it sits behind the privacy check AND
 behind the gate-admission rules below; the stored LKG representation SHALL NOT retain the public
 CDN no-store headers. There is no origin fetch cache: every artifact fetch is `no-store` (see
@@ -247,8 +248,24 @@ Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` prece
 `CDN-Cache-Control` and `Cache-Control`, and treats `no-store` as BYPASS. An account-level Edge
 Cache TTL or Cache Response Rule can override origin-set headers, so deployment also depends on
 the canonical paths having no such override and on purging representations retained by the old
-rule. The weekly coherence audit makes that external state visible by requiring the returned
-browser/CDN policy and `CF-Cache-Status: BYPASS|DYNAMIC`.
+rule.
+
+On Workers (atlas decision 0160) the Worker runs ahead of the zone cache: Cloudflare documents
+that "Cloudflare Workers run before the cache"
+(https://developers.cloudflare.com/workers/reference/how-the-cache-works/), `wrangler.jsonc`
+enables no Workers Caching (the opt-in cache that would sit in front of the Worker), and the
+Worker builds each canonical response from a `no-store` CloudFront fetch with no `cf` cache
+options. Its response therefore carries no `CF-Cache-Status`. The weekly coherence audit makes
+the edge state visible on both planes. It requires the returned browser/CDN policy, and it fails
+the site response on any `Age` header and on any present `CF-Cache-Status` other than `BYPASS` or
+`DYNAMIC`. An ABSENT `CF-Cache-Status` passes only on a Worker response (`X-Site-Runtime: workers`)
+that carries `CDN-Cache-Control: no-store` and no `Age`. Without the platform marker the Worker
+did not answer, because the fail-open route sent the request past it, so the absence proves
+nothing.
+
+Verified by `audits/__tests__/b2-llms.test.ts:271` (the edge-cache arm over Worker, cached,
+aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.test.ts:63`
+(no Workers Caching in `wrangler.jsonc`).
 
 The non-deploying weekly audit also SHALL inspect active account- and zone-level Cache Rules,
 Cache Response Rules, and Page Rules through read-only Cloudflare API requests for exactly the
@@ -434,7 +451,7 @@ live on 2026-09-21, when both planes served llms.txt at 3490 bytes under one sha
 `llms-full.txt`/`index.md` ALIAS comparison stays scoped to those two: llms.txt is a different
 document, not an alias of either.
 
-Verified by `audits/__tests__/b2-llms.test.ts:112` (coherence evaluator).
+Verified by `audits/__tests__/b2-llms.test.ts:117` (coherence evaluator).
 The pure snapshots cover status, content-type, both timestamp syntaxes, bounded convergence,
 same-generation byte equality on every artifact, and cache policy.
 
@@ -463,7 +480,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:448` (orchestration and issue-outcome channel) and
+Verified by `audits/__tests__/b2-llms.test.ts:514` (orchestration and issue-outcome channel) and
 `audits/__tests__/audit-web-workflow.test.ts:90` (workflow wiring).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. The workflow suite
@@ -512,7 +529,7 @@ arm reading it, so an origin TTL drifting upward would have broken the window's 
 silently, and B2 would have stayed green until observed skew exceeded the very interval the broken
 derivation no longer justified.
 
-Verified by `audits/__tests__/b2-llms.test.ts:622` (the agreeing header, a drift on each directive
+Verified by `audits/__tests__/b2-llms.test.ts:688` (the agreeing header, a drift on each directive
 and on both, the absent header, and the site plane which must never fire).
 
 #### Scenario: The origin TTL drifts away from the contract
@@ -549,9 +566,9 @@ A response missing EITHER wire SHALL produce no finding. An absent body stamp is
 by `llms-{side}-composition-time`; an absent or unparseable header means the hop did not forward
 usable metadata, and an absent wire is not a disagreeing one.
 
-Verified by `audits/__tests__/b2-llms.test.ts:299` (the pure `compositionWireSkew` evaluator over
+Verified by `audits/__tests__/b2-llms.test.ts:364` (the pure `compositionWireSkew` evaluator over
 agreement, equivalent ISO spellings, both skew directions, both trailer syntaxes, and every absence
-case) and `audits/__tests__/b2-llms.test.ts:562` (the orchestration arm: per-side emission, a
+case) and `audits/__tests__/b2-llms.test.ts:628` (the orchestration arm: per-side emission, a
 fleet-wide skew as six findings, and exit 0 throughout).
 
 This requirement exists because nothing in the estate held both wires for one response.
@@ -763,11 +780,11 @@ is additive: it changes no finding, no exit code, and neither GITHUB_OUTPUT fiel
 cadence is the owner call that would shorten it; keep source freshness distinct from
 recomposition freshness.
 
-Verified by `audits/__tests__/b2-llms.test.ts:134` (the pure evaluator), which injects a fixed clock
+Verified by `audits/__tests__/b2-llms.test.ts:139` (the pure evaluator), which injects a fixed clock
 and synthetic response snapshots to exercise the exact age boundary logic without network and
 asserts the evaluator configuration equals the contract's `coherencePolicy`, by
-`audits/__tests__/b2-llms.test.ts:265` (the derived detection interval and the line the run prints),
-and by `audits/__tests__/b2-llms.test.ts:741` (the presence arm). The old `spec-cases.test.ts` covers
+`audits/__tests__/b2-llms.test.ts:330` (the derived detection interval and the line the run prints),
+and by `audits/__tests__/b2-llms.test.ts:807` (the presence arm). The old `spec-cases.test.ts` covers
 claim was removed: that harness only proved operational rules had no cases and never exercised
 freshness.
 
@@ -817,7 +834,7 @@ in the catalog checks its clause as quoted.
 | Requirement              | Unit                                       | Integration                          | Audit (prod)                   | Provenance               |
 | ------------------------ | ------------------------------------------ | ------------------------------------ | ------------------------------ | ------------------------ |
 | Served at contract paths | `cloudfront-proxy.test.ts` (fetch stubbed) | raw/canonical coherence evaluator    | weekly B2 llms (coherence arm) | portal contract          |
-| Privacy/cache transition | `cloudfront-proxy.test.ts`                 | response headers + `CF-Cache-Status` | weekly B2 llms (coherence arm) | Cloudflare docs          |
+| Privacy/cache transition | `cloudfront-proxy.test.ts`                 | edge headers (status, `Age`, marker) | weekly B2 llms (coherence arm) | Cloudflare docs          |
 | Gate admission           | `cloudfront-proxy.test.ts`                 | —                                    | —                              | LP `focus-privacy` spec  |
 | Homepage negotiation     | `middleware-negotiation.test.ts`           | — (middleware unit-only)             | —                              | RFC 9110 Accept          |
 | Origin/site coherence    | pure snapshots + issue-outcome fold        | six live responses                   | weekly B2 llms issue_outcome   | contract coherence       |
