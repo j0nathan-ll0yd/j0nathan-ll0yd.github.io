@@ -167,6 +167,18 @@ async function dashboard(request: IncomingMessage, response: ServerResponse): Pr
   send(response, 200, JSON.stringify(result.artifact), !unproven)
 }
 
+async function warmComposer(): Promise<void> {
+  const {compose} = (await import(COMPOSER.href)) as {compose: (input: unknown) => Promise<unknown>}
+  const keys = Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus')
+  await compose({
+    exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
+    focus: exportBody(ENDPOINTS.focus),
+    nowMs: Date.parse(FIXTURE_NOW),
+    localCovers: mirroredBookCovers(),
+    web: 'warm-up'
+  })
+}
+
 const server = createServer((request, response) => {
   const path = new URL(request.url ?? '/', 'http://data-plane.invalid').pathname
   if (path.startsWith(`${CONTROL_PREFIX}/`)) {
@@ -190,6 +202,11 @@ const server = createServer((request, response) => {
     answer(response, behavior)
   }
 })
+
+// Warm the composer before the server answers: its first compose (the module import and the Astro
+// container) can take longer than the Worker's 3 s ceiling on a loaded machine, and the first test
+// would then see the data-free page instead of the composed one.
+await warmComposer()
 
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`[data-plane] listening on http://127.0.0.1:${PORT}`)
