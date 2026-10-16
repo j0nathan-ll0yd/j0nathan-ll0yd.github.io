@@ -251,9 +251,9 @@ With the pixel-determinism problems fully solved, the structural limitations of 
 
 **The hydration-blindness problem.** Drift's pixel approach structurally could not catch the failure it existed for: an Astro island whose hydration script is blocked by CSP (issue #50) still renders its SSR shell at the correct pixel coordinates. The pixel diff passes. The widget is silently dead. Pixel comparison has no signal on this failure class.
 
-**The Docker/QEMU constraint (resolved 2026-06-12).** Originally, the regression suite required SwiftShader + a `linux/amd64` Docker image, which forced QEMU on Apple Silicon — and the QEMU + SwiftShader combination intermittently SIGSEGVed at browser launch. The migration to self-hosted arm64 (RUNNERS.md) eliminated this entirely: CI now runs the Playwright noble image arm64-native on `runner-playwright`, local Docker pulls the same image tag and runs it arm64-native under Apple Virtualization Framework, and the SwiftShader determinism flags execute natively in both environments. The smoke check still has no baselines and runs on bare `ubuntu-latest`, by choice.
+**The Docker/QEMU constraint (resolved 2026-06-12).** Originally, the regression suite required SwiftShader + a `linux/amd64` Docker image, which forced QEMU on Apple Silicon — and the QEMU + SwiftShader combination intermittently SIGSEGVed at browser launch. The migration to self-hosted arm64 (RUNNERS.md) eliminated this entirely: CI now runs the Playwright noble image arm64-native on `runner-playwright`, local Docker pulls the same image tag and runs it arm64-native under Apple Virtualization Framework, and the SwiftShader determinism flags execute natively in both environments. The smoke check still has no baselines and runs without Docker, by choice, on the self-hosted `[self-hosted, linux, arm64, playwright, cfedge]` lane (`.github/workflows/smoke-check.yml`).
 
-**The replacement.** The production smoke check asserts that hydration RAN (DOM signals: skeletons resolved, terminal animation completed, service worker registered) rather than that pixels matched a stale snapshot. It is green on healthy production and high-signal on real failures. It runs natively on `ubuntu-latest` with no Docker/QEMU, immune to the constraints that plagued drift.
+**The replacement.** The production smoke check asserts that hydration RAN (DOM signals: skeletons resolved, terminal animation completed, service worker registered) rather than that pixels matched a stale snapshot. It is green on healthy production and high-signal on real failures. It runs natively on the self-hosted `[self-hosted, linux, arm64, playwright, cfedge]` lane with no Docker/QEMU, immune to the constraints that plagued drift.
 
 ---
 
@@ -265,10 +265,10 @@ Lives in this repo. Triggers: `pull_request` to `main`, `workflow_dispatch` with
 
 Two jobs:
 
-- `contract-check` (bare `ubuntu-latest`) — schema contract verification, skippable via `skip-contract-check` label.
-- `visual` — `uses: j0nathan-ll0yd/ci-runners-private/.github/workflows/web-visual-tests.yml@main` and forwards `update_snapshots` plus `LP_REPO_TOKEN`.
+- `contract-check` (`[self-hosted, linux, arm64, node]`) — schema contract verification, skippable via `skip-contract-check` label.
+- `visual` (`[self-hosted, linux, arm64, playwright]`) — the Playwright visual suite, run in this repo; `update_snapshots=true` regenerates the baselines.
 
-This repo is PUBLIC; self-hosted runners cannot register against a public repo without exposing them to fork-PR code execution. The dispatch into the PRIVATE companion repo is the security boundary -- see `ci-runners-private/RUNNERS.md` "Companion Repo Pattern". The previous standalone `update-snapshots.yml` was retired in the same migration; its role is now fulfilled by dispatching `visual-tests.yml` with `update_snapshots=true`.
+Both jobs run in this repo on self-hosted lanes (`.github/workflows/visual-tests.yml`); the earlier dispatch into the private companion repo `ci-runners-private` no longer appears in the workflow. The previous standalone `update-snapshots.yml` is retired; dispatch `visual-tests.yml` with `update_snapshots=true` instead.
 
 ### 5.2 `web-visual-tests.yml` (companion) — the actual runner
 
