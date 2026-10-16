@@ -312,3 +312,58 @@ describe('live-data → an open tab re-judges freshness', () => {
     expect(bpm()).toBe('63')
   })
 })
+
+// The articles export's `audit.warn` age is 3 d (`@j0nathan-ll0yd/web` 4.2.2, design-system #310,
+// matching the producer's daily articles re-export and atlas #445). The Reading card is live up to
+// 3 d and stale past it, also while a tab stays open.
+describe('live-data → the Reading card follows the 3 d articles warning age', () => {
+  const DAY = 24 * 60 * MINUTE
+  const ARTICLES_WARN_MS = 3 * DAY
+  const READING_CARD = '<div id="focusOverlay" style="display:none"></div><div id="dndOverlay" style="display:none"></div>' +
+    '<div id="cardReading" class="tri-card is-loading" data-ssr-state="loading">' +
+    '<div class="widget-header"><h3 class="widget-label">Reading</h3>' +
+    '<div class="widget-header-right"><span class="widget-timestamp" data-live-label="live"></span></div></div>' +
+    '<div class="widget-body"><div class="skeleton-state"></div><div data-state-scaffold></div></div></div>'
+  const articlesAt = (ms: number) => ({
+    generatedAt: new Date(ms).toISOString(),
+    articles: [{articleTitle: 'An article', articleUrl: 'https://example.com/a', sourceTitle: 'Example', savedAt: '2026-10-05T07:00:00Z', notes: []}]
+  })
+  const reading = () => document.getElementById('cardReading') as HTMLElement
+
+  beforeEach(() => {
+    vi.resetModules()
+    vi.useFakeTimers()
+    vi.setSystemTime(T0)
+    document.body.innerHTML = READING_CARD
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    added.splice(0).forEach(([target, type, listener]) => target.removeEventListener(type, listener))
+  })
+
+  it('pins the articles warning and error ages at 3 d and 6 d', async () => {
+    const {EXPORT_FRESHNESS, freshnessState, isFreshnessDegraded} = await import('@j0nathan-ll0yd/web/runtime/freshness')
+    expect(EXPORT_FRESHNESS.articles).toEqual({warnMs: 3 * DAY, errorMs: 6 * DAY})
+    expect(freshnessState('articles', new Date(T0 - ARTICLES_WARN_MS).toISOString(), T0)).toBe('live')
+    expect(freshnessState('articles', new Date(T0 - ARTICLES_WARN_MS - 1).toISOString(), T0)).toBe('stale')
+    expect(isFreshnessDegraded('articles', new Date(T0 - 6 * DAY).toISOString(), T0)).toBe(false)
+    expect(isFreshnessDegraded('articles', new Date(T0 - 6 * DAY - 1).toISOString(), T0)).toBe(true)
+  })
+
+  // covers: dashboard-shell#An open tab re-judges freshness as an export ages
+  it('renders the Reading card live inside 3 d, and stale once the export passes 3 d', async () => {
+    const old = articlesAt(T0 - ARTICLES_WARN_MS + 5 * MINUTE)
+    network.boot = {focus: focus('Personal'), articles: ok(old)}
+    network.poll = {focus: focus('Personal')}
+    await boot()
+    expect(reading().dataset.ssrState).toBe('live')
+
+    // Every articles poll fails from here on. 6 min later the export is 3 d 1 min old.
+    await vi.advanceTimersByTimeAsync(6 * MINUTE)
+
+    expect(reading().dataset.ssrState).toBe('stale')
+    expect(reading().dataset.generatedAt).toBe(old.generatedAt)
+    expect(reading().querySelector('.widget-header')?.textContent).toMatch(/as of /)
+  })
+})
