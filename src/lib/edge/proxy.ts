@@ -172,6 +172,8 @@ export interface CloudfrontProxyContext {
    * that value (src/lib/composed/read.ts). The response itself never names the value.
    */
   onHidingFocus?(currentFocus: string): void
+  /** The whole request's budget in ms. Absent: TOTAL_BUDGET_MS. The dashboard passes its D2 I/O share. */
+  budgetMs?: number
 }
 
 /**
@@ -763,7 +765,7 @@ export function makeCloudfrontProxy(
     // ONE budget for the whole request: the focus probe, its retry, every artifact attempt, every
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.
-    const budget = startBudget()
+    const budget = startBudget(context.budgetMs)
     const source = context.upstream ?? CLOUDFRONT_UPSTREAM
     const upstreamUrl = `${source.base}${path}`
 

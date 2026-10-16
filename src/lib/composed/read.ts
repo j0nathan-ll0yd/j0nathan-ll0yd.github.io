@@ -13,6 +13,13 @@ const HIDING_FOCUS_MODE_SET: ReadonlySet<string> = new Set(HIDING_FOCUS_MODES)
 const FOCUS_ERROR_SOURCE = 'cloudfront-proxy-focus-error'
 const ARTIFACT_SOURCE = 'cloudfront-proxy'
 
+/**
+ * The read's whole budget: D2's 2.5 s of I/O, inside the Worker's 3 s ceiling (SSR_CEILING_MS). The
+ * proxy's own budget is 10 s; without this, a slow focus probe would outlast the ceiling and answer
+ * `fallback` where the read itself would answer `focus-unreadable`.
+ */
+export const COMPOSED_READ_BUDGET_MS = 2_500
+
 const proxyDashboard = makeCloudfrontProxy({path: COMPOSED_ARTIFACT_PATH, contentType: 'application/json; charset=utf-8', lastKnownGood: false})
 
 export type ComposedRead =
@@ -31,13 +38,18 @@ export interface ComposedReadOptions {
   renderer: {web: string}
   /** The test seams' upstream; absent in production. */
   upstream?: Upstream
+  /** Overrides the read budget, for tests only. */
+  budgetMs?: number
 }
 
-export async function readComposed({request, waitUntil, nowMs, renderer, upstream}: ComposedReadOptions): Promise<ComposedRead> {
+export async function readComposed(
+  {request, waitUntil, nowMs, renderer, upstream, budgetMs = COMPOSED_READ_BUDGET_MS}: ComposedReadOptions
+): Promise<ComposedRead> {
   let hidingFocus: string | null = null
   const response = await proxyDashboard({
     request: new Request(request.url, {method: 'GET'}),
     waitUntil,
+    budgetMs,
     onHidingFocus: (currentFocus) => {
       hidingFocus = currentFocus
     },

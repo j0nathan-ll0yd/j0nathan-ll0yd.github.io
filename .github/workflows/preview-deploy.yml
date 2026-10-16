@@ -55,6 +55,10 @@ jobs:
         # trailing args to the script directly (no `--` separator needed), preserving the
         # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
         run: pnpm build --json
+        env:
+          # The preview's fixture data plane reads tests/fixtures/composed at this commit
+          # (src/lib/data-plane/faults.ts FIXTURE_REF), so the fixture matches the Worker.
+          SSR_FIXTURE_REF: ${{ github.event.pull_request.head.sha }}
 
       - name: Note skipped preview upload
         if: env.HAS_CF_TOKEN != 'true'

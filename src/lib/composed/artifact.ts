@@ -7,7 +7,10 @@
 // The artifact is JSON, not a whole page: the page around the cards (the head, the hashed /_astro
 // asset names, the client runtime) belongs to the website build, and only the website knows it. So a
 // website deploy never invalidates an artifact, and an artifact never names a website asset.
-import type {SsrRenderRecord, SsrSummary} from '../data-plane/render-model'
+import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {WIDGET_STATES, type WidgetState} from '@j0nathan-ll0yd/web/runtime/widget-state'
+import type {GatedKey} from '../data-plane/loader'
+import type {LiveCardId, SsrRenderRecord, SsrSummary} from '../data-plane/render-model'
 
 /** The artifact's path on the data plane, beside the exports. Gated (SUPPRESSIBLE_PATHS in LP). */
 export const COMPOSED_ARTIFACT_PATH = '/dashboard.json'
@@ -58,12 +61,11 @@ export interface ComposedArtifact {
 }
 
 /**
- * The value-free pages, as the website build composes them (scripts/build-composer.mjs): one per
- * hiding focus value, one for the gate shut over a visible value, one for an unreadable focus signal.
- * They hold no export value and depend only on the build, so they are a static asset of the website,
- * read by the Worker through the ASSETS binding. A public request for the path gets the 404 page.
+ * The value-free pages (./paths.ts VALUE_FREE_PATH) hold no export value and depend only on the
+ * build, so they are a static asset of the website, read by the Worker through the ASSETS binding. A
+ * public request for the path gets the 404 page.
  */
-export const VALUE_FREE_PATH = '/_ssr/value-free.json'
+export { VALUE_FREE_PATH } from './paths'
 /** The variant for the gate shut over a visible focus value: every card suppressed, no overlay. */
 export const GATE_VARIANT = 'gate'
 /** The variant for an unreadable focus signal: every card unavailable, no overlay. */
@@ -106,12 +108,68 @@ export function checkValueFree(text: string, renderer: {web: string}, required: 
   return {renderer: {web: renderer.web}, variants}
 }
 
-/** Every fragment id, each a string that holds the element it replaces; otherwise null. */
+/**
+ * True when `fragment` opens with the element it replaces (the first tag carries `id`) and closes
+ * that tag's kind. The composer's parity oracle proves the stronger property, the root and at most
+ * its hidden data carrier (tests/oracle/composer-parity.test.ts); this is the Worker's cheap guard.
+ */
+export function opensWithRoot(fragment: string, id: string): boolean {
+  const open = /^<([a-z][a-z0-9-]*)\b[^>]*>/i.exec(fragment)
+  return open !== null && open[0].includes(` id="${id}"`) && fragment.endsWith(`</${open[1]}>`)
+}
+
+/**
+ * The render record, rebuilt from closed sets, or null. It goes into the Worker's log line, which
+ * carries no data value, so nothing the composer adds beyond these fields reaches the log.
+ */
+function checkRecord(value: Record<string, unknown>): SsrRenderRecord | null {
+  const {summary, focus, domains, cards, degraded, io_ms: ioMs} = value
+  if (
+    typeof summary !== 'string' || !SUMMARIES.has(summary) || typeof focus !== 'string' || !FOCUS_STATES.has(focus) || !isRecord(domains) ||
+    !isRecord(cards) || !Array.isArray(degraded) || typeof ioMs !== 'number' || !Number.isFinite(ioMs)
+  ) {
+    return null
+  }
+  const checkedDomains: Record<string, string> = {}
+  for (const key of GATED_EXPORTS) {
+    const outcome = domains[key]
+    if (typeof outcome !== 'string' || !DOMAIN_OUTCOME.test(outcome)) {
+      return null
+    }
+    checkedDomains[key] = outcome
+  }
+  const checkedCards: Record<string, WidgetState> = {}
+  for (const id of COMPOSED_FRAGMENT_IDS.filter((fragmentId) => fragmentId.startsWith('card') && fragmentId !== 'cardSystem')) {
+    const state = cards[id]
+    if (typeof state !== 'string' || !WIDGET_STATE_SET.has(state)) {
+      return null
+    }
+    // Checked against the closed set of widget states above.
+    checkedCards[id] = state as WidgetState
+  }
+  if (!degraded.every((key) => typeof key === 'string' && GATED_EXPORTS.includes(key))) {
+    return null
+  }
+  return {
+    // Each checked against its closed set above.
+    summary: summary as SsrSummary,
+    focus: focus as SsrRenderRecord['focus'],
+    domains: checkedDomains as Record<GatedKey, string>,
+    cards: checkedCards as Record<LiveCardId, WidgetState>,
+    degraded: degraded as GatedKey[],
+    io_ms: ioMs
+  }
+}
+
+/** Markup a fragment never carries: the page loads its own scripts and styles. */
+const FOREIGN_MARKUP = /<(?:script|style|link|meta|base)\b/i
+
+/** Every fragment id, each opening with its own root element, with no script, style or link; otherwise null. */
 function checkFragments(value: Record<string, unknown>): Record<ComposedFragmentId, string> | null {
   const fragments: Partial<Record<ComposedFragmentId, string>> = {}
   for (const id of COMPOSED_FRAGMENT_IDS) {
     const fragment = value[id]
-    if (typeof fragment !== 'string' || !fragment.includes(`id="${id}"`)) {
+    if (typeof fragment !== 'string' || !opensWithRoot(fragment, id) || FOREIGN_MARKUP.test(fragment)) {
       return null
     }
     fragments[id] = fragment
@@ -124,6 +182,12 @@ function checkFragments(value: Record<string, unknown>): Record<ComposedFragment
 export type ArtifactRefusal = 'not-json' | 'schema' | 'stale' | 'future' | 'renderer' | 'hiding' | 'fragments'
 
 const SUMMARIES = new Set(['live', 'stale', 'partial', 'unavailable', 'suppressed'])
+const FOCUS_STATES = new Set(['visible', 'hiding', 'unreadable'])
+const WIDGET_STATE_SET: ReadonlySet<string> = new Set(WIDGET_STATES)
+/** The eight gated exports: every endpoint but the focus signal. */
+const GATED_EXPORTS: readonly string[] = Object.keys(ENDPOINTS).filter((key) => key !== 'focus')
+/** An export's read outcome, as the composer writes it: a closed word or `unavailable:<reason>`. */
+const DOMAIN_OUTCOME = /^(?:ok|suppressed|unavailable:[a-z0-9-]+)$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -131,8 +195,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * The artifact, when it may be served at `nowMs` by a website built with `renderer`; otherwise the
- * reason it may not. Every field the Worker uses is checked; a fragment must be a non-empty string
- * that opens with the element it replaces.
+ * reason it may not. Every field the Worker uses is checked; each fragment must be the element it
+ * replaces, with no script, style or link (`checkFragments`).
  */
 export function checkArtifact(
   text: string,
@@ -173,6 +237,10 @@ export function checkArtifact(
   if (fragments === null) {
     return {ok: false, refusal: 'fragments'}
   }
+  const record = checkRecord(value.record)
+  if (record === null) {
+    return {ok: false, refusal: 'schema'}
+  }
   return {
     ok: true,
     artifact: {
@@ -182,8 +250,7 @@ export function checkArtifact(
       currentFocus: value.currentFocus,
       // Checked against the closed set above.
       summary: value.summary as SsrSummary,
-      // Logged only; the Worker reads no value from it.
-      record: value.record as unknown as SsrRenderRecord,
+      record,
       fragments
     }
   }

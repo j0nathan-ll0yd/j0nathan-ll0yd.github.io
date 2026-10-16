@@ -266,3 +266,27 @@ describe('HEAD /', () => {
     expect(response.headers.get(SSR_DATA_HEADER)).toBeNull()
   })
 })
+
+describe('GET /: a built page that cannot be read (review L3)', () => {
+  it('answers a bare 500, no-store, never a platform error', async () => {
+    const {deps: d} = deps(async () => ({kind: 'unavailable', status: 502}))
+    const response = await renderDashboard(REQUEST, {...d, asset: () => Promise.reject(new TypeError('assets down'))})
+    expect(response.status).toBe(500)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('error')
+  })
+})
+
+describe("GET /: the log line keeps the Worker's own fields (review M3)", () => {
+  it('lets no record field override the event, build or timings', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const spoofed = {
+      ...artifact(),
+      record: {...artifact().record, event: 'spoofed', build: 'spoofed', total_ms: -1} as unknown as ComposedArtifact['record']
+    }
+    await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: spoofed})).deps)
+    const [line] = logLines(info)
+    expect(line).toMatchObject({event: 'ssr_render', build: 'test'})
+    expect(line?.total_ms).not.toBe(-1)
+  })
+})

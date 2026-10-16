@@ -144,12 +144,22 @@ export function faultyFetch(fault: Fault, base: typeof fetch = fetch): typeof fe
 /** The request header that reads the fixture data plane (FIXTURE_DATA_PLANE) instead of CloudFront. */
 export const SSR_DATA_PLANE_HEADER = 'X-SSR-Data-Plane'
 
+declare const __SSR_FIXTURE_REF__: string | undefined
+
+/**
+ * The commit the fixture data plane reads: the PR head the preview was built from
+ * (`preview-deploy.yml` sets SSR_FIXTURE_REF), so the fixture always matches the Worker that reads it.
+ * Elsewhere `main`. Only a full commit id or `main` is accepted; anything else reads `main`.
+ */
+export const FIXTURE_REF = typeof __SSR_FIXTURE_REF__ === 'string' && /^(?:[0-9a-f]{40}|main)$/.test(__SSR_FIXTURE_REF__) ? __SSR_FIXTURE_REF__ : 'main'
+
 /**
  * A fixed, public, value-free test location for the Step 6.10 measurement of the serving path: the
- * website repository's own fixture data plane (tests/fixtures/composed/), served by GitHub. It holds a
- * focus signal and a composed artifact built from the design system's fixtures, never live data.
+ * website repository's own fixture data plane (tests/fixtures/composed/) at FIXTURE_REF, served by
+ * GitHub. It holds a focus signal and a composed artifact built from the design system's fixtures,
+ * never live data.
  */
-export const FIXTURE_DATA_PLANE = 'https://raw.githubusercontent.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/0160-pr-b-ssr/tests/fixtures/composed'
+export const FIXTURE_DATA_PLANE = `https://raw.githubusercontent.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/${FIXTURE_REF}/tests/fixtures/composed`
 
 /**
  * The fixture data plane for one request, or null (the same two locks as a fault). Its responses

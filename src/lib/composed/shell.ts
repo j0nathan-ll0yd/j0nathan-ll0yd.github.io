@@ -79,7 +79,7 @@ export function assemble(shell: Shell, fragments: Record<ComposedFragmentId, str
 
 let cached: {key: string; shell: Promise<Shell>} | null = null
 
-/** The cut shell, once per isolate and data-free page version (its ETag). */
+/** The cut shell, once per isolate and build (`key` is the build id). A failed cut is not kept. */
 export function shellFor(key: string, read: () => Promise<Response>): Promise<Shell> {
   if (!cached || cached.key !== key) {
     const shell = read().then(cutShell)

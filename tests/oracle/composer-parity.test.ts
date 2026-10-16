@@ -45,6 +45,19 @@ function rootId(fragment: string): string | undefined {
 }
 
 /**
+ * The top-level nodes of a fragment beside its root, other than whitespace and the component's own
+ * hidden data carrier (`#<id>Data[hidden]`, which Hydration emits in a data state for the browser to
+ * draw its bands). Anything else is foreign: the container once appended a module script whose `src`
+ * named this machine's path.
+ */
+function besideRoot(fragment: string, id: string): string[] {
+  const nodes = load(fragment, null, false).root().contents().toArray().filter((node) => node.type !== 'text' || (node.data ?? '').trim() !== '')
+  return nodes.slice(1).filter((node) => !(node.type === 'tag' && node.attribs.id === `${id}Data` && 'hidden' in node.attribs)).map((node) =>
+    node.type === 'tag' || node.type === 'script' || node.type === 'style' ? `${node.type}:${node.name}#${node.attribs?.id ?? ''}` : node.type
+  )
+}
+
+/**
  * Tag and first class: the element's kind. Later classes are state (`is-loading`) or data-driven
  * (`tri-card-accent-red` at a heart-rate peak) and differ by design.
  */
@@ -173,6 +186,8 @@ describe('the composer equals the Astro render', () => {
       const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
       const fragment = result.artifact.fragments[id] ?? ''
       expect(rootId(fragment), `${id} is its component's root`).toBe(id)
+      expect(besideRoot(fragment, id), `${id} is its root element, with nothing foreign beside it`).toEqual([])
+      expect(fragment, `${id} carries no script`).not.toMatch(/<script\b/i)
       expect(fragmentElement(fragment, id), `${id} replaces the same element`).toBe(pageElement(id))
       expect(normalized(fragment, `#${id}`), id).toBe(normalized(oracle, `#${id}`))
       for (const scope of fragment.match(/data-astro-cid-[a-z0-9]+/g) ?? []) {
@@ -231,6 +246,8 @@ describe('the value-free pages equal the Astro render and hold no value', () => 
       const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
       const fragment = page?.fragments[id] ?? ''
       expect(rootId(fragment), `${id} is its component's root`).toBe(id)
+      expect(besideRoot(fragment, id), `${id} is its root element, with nothing foreign beside it`).toEqual([])
+      expect(fragment, `${id} carries no script`).not.toMatch(/<script\b/i)
       expect(fragmentElement(fragment, id), `${id} replaces the same element`).toBe(pageElement(id))
       expect(normalized(fragment, `#${id}`), id).toBe(normalized(oracle, `#${id}`))
       expect(fragment, `${id} names no source age`).not.toContain('data-generated-at')

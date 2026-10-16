@@ -10,7 +10,7 @@
  * Consumers: the test data plane (tests/data-plane/server.ts) and, later, the backend composer.
  *
  * With `--value-free` (postbuild) it also writes the value-free pages the Worker serves while the focus
- * value hides or cannot be read (src/lib/composed/artifact.ts VALUE_FREE_PATH) into the built static
+ * value hides or cannot be read (src/lib/composed/paths.ts VALUE_FREE_PATH) into the built static
  * assets. They hold no export value, so the website build owns them, not the backend. */
 import {createRequire} from 'node:module'
 import path from 'node:path'
@@ -18,7 +18,7 @@ import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {getViteConfig} from 'astro/config'
 import {MIRRORED_BOOK_COVERS_DEFINE, mirroredBookCovers} from '../src/lib/book-cover-mirror.ts'
-import {VALUE_FREE_PATH} from '../src/lib/composed/artifact.ts'
+import {VALUE_FREE_PATH} from '../src/lib/composed/paths.ts'
 import {clientDir} from './lib/build-paths.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))

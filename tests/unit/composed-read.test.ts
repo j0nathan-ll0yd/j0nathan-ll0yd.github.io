@@ -9,9 +9,11 @@
 // hiding is proven in tests/oracle/composer-parity.test.ts.
 import {readFileSync} from 'node:fs'
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
-import {COMPOSED_ARTIFACT_PATH} from '../../src/lib/composed/artifact'
-import {type ComposedRead, readComposed} from '../../src/lib/composed/read'
+import {CLOUDFRONT_BASE, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
+import {checkArtifact, COMPOSED_ARTIFACT_PATH} from '../../src/lib/composed/artifact'
+import {COMPOSED_READ_BUDGET_MS, type ComposedRead, readComposed} from '../../src/lib/composed/read'
+import {FIXTURE_DATA_PLANE, fixturePlane} from '../../src/lib/data-plane/faults'
+import {SSR_CEILING_MS} from '../../src/lib/data-plane/ssr-response'
 import type {Upstream} from '../../src/lib/edge/proxy'
 
 const logger = vi.hoisted(() => ({info: vi.fn(), warn: vi.fn(), error: vi.fn()}))
@@ -24,6 +26,7 @@ const ARTIFACT = readFileSync(new URL('../fixtures/composed/dashboard.json', imp
 const PARSED = JSON.parse(ARTIFACT) as {composedAt: string; renderer: {web: string}}
 const NOW = Date.parse(PARSED.composedAt) + 60_000
 const SUPPRESSION_BODY = JSON.stringify({suppressed: true, reason: 'focus mode active'})
+const HIDING: ReadonlySet<string> = new Set(HIDING_FOCUS_MODES)
 
 /** A response CloudFront served in this request: it carries `x-amz-cf-id`. */
 function fromCloudfront(body: string, init: ResponseInit = {}): Response {
@@ -144,6 +147,7 @@ describe('readComposed: the artifact checks', () => {
     expect(await read(u)).toEqual({kind: 'refused', refusal: 'hiding'})
   })
 
+  // covers: dashboard-ssr#Card labels and ages are as of composition, at most 35 minutes old
   it('refuses an artifact older than its maximum age', async () => {
     const {upstream: u} = upstream({[FOCUS_URL]: focus('None'), [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
     expect(await read(u, Date.parse(PARSED.composedAt) + 24 * 3_600_000)).toEqual({kind: 'refused', refusal: 'stale'})
@@ -172,5 +176,95 @@ describe('readForRequest: the platform fetch', () => {
     const result = await readForRequest(new Request('http://127.0.0.1:4321/'), {DATA_PLANE_BASE: BASE}, NOW, () => {})
     expect(strictFetch.mock.calls.map(([url]) => String(url))).toEqual([FOCUS_URL, ARTIFACT_URL])
     expect(result.kind).not.toBe('focus-unreadable')
+  })
+})
+
+describe('checkArtifact: fragments and the logged record (review H1, M3)', () => {
+  const parsed = () => JSON.parse(ARTIFACT) as {fragments: Record<string, string>; record: Record<string, unknown>}
+
+  it('refuses a fragment that carries a script beside its root', () => {
+    const value = parsed()
+    value.fragments.cardHR += '<script type="module" src="/Users/someone/HeartRate.astro?astro&type=script"></script>'
+    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)).toEqual({ok: false, refusal: 'fragments'})
+  })
+
+  it('refuses a fragment that is not its own root element', () => {
+    const value = parsed()
+    value.fragments.cardSystem = `<div class="wrapper">${value.fragments.cardSystem}</div>`
+    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)).toEqual({ok: false, refusal: 'fragments'})
+  })
+
+  it('carries only the closed-set record fields into the log record', () => {
+    const value = parsed()
+    value.record = {...value.record, note: 'Known Answer Title Kappa-7731', event: 'spoofed', build: 'spoofed'}
+    const checked = checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)
+    expect(checked.ok).toBe(true)
+    if (checked.ok) {
+      expect(Object.keys(checked.artifact.record).sort()).toEqual(['cards', 'degraded', 'domains', 'focus', 'io_ms', 'summary'])
+      expect(JSON.stringify(checked.artifact.record)).not.toContain('Kappa-7731')
+    }
+  })
+
+  it.each([
+    ['a domain outcome outside the closed set', (r: Record<string, unknown>) => ({...r, domains: {...(r.domains as object), health: 'ok: 72 bpm'}})],
+    ['a card state outside the closed set', (r: Record<string, unknown>) => ({...r, cards: {...(r.cards as object), cardHR: '72 bpm'}})],
+    ['an unknown degraded export', (r: Record<string, unknown>) => ({...r, degraded: ['72 bpm']})]
+  ])('refuses %s as schema', (_label, change) => {
+    const value = parsed()
+    value.record = change(value.record)
+    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)).toEqual({ok: false, refusal: 'schema'})
+  })
+})
+
+describe('readComposed: the D2 budget (review M4)', () => {
+  it('is the 2.5 s I/O share of the 3 s ceiling', () => {
+    expect(COMPOSED_READ_BUDGET_MS + 500).toBe(SSR_CEILING_MS)
+  })
+
+  it('answers focus-unreadable within its budget when the focus probe hangs', async () => {
+    const {calls, upstream: u} = upstream({[FOCUS_URL]: () => new Promise<Response>(() => {}), [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
+    const started = Date.now()
+    const result = await readComposed({
+      request: new Request('https://jonathanlloyd.me/'),
+      waitUntil: () => {},
+      nowMs: NOW,
+      renderer: PARSED.renderer,
+      upstream: u,
+      budgetMs: 300
+    })
+    expect(result).toEqual({kind: 'focus-unreadable'})
+    expect(Date.now() - started).toBeLessThan(1_500)
+    expect(artifactCalls(calls)).toBe(0)
+  })
+})
+
+describe('the fixture data plane never reaches production (review M2)', () => {
+  const SEAMS = {'X-SSR-Data-Plane': 'fixture', 'X-SSR-Fault': 'suppress', 'X-SSR-Clock': '2026-03-18T12:02:00.000Z'}
+
+  it.each([
+    ['the production host, seams enabled', 'https://jonathanlloyd.me/', '1'],
+    ['a preview host, seams disabled', 'https://abc12345-human-datastream.webmaster-872.workers.dev/', undefined]
+  ])('%s: fixturePlane is null', (_label, url, enabled) => {
+    expect(fixturePlane(new Request(url, {headers: SEAMS}), enabled)).toBeNull()
+  })
+
+  it('a preview host with the seams enabled reads the fixture at a pinned ref', () => {
+    const plane = fixturePlane(new Request('https://abc12345-human-datastream.webmaster-872.workers.dev/', {headers: SEAMS}), '1')
+    expect(plane?.base).toBe(FIXTURE_DATA_PLANE)
+    expect(FIXTURE_DATA_PLANE).toMatch(/\/(?:[0-9a-f]{40}|main)\/tests\/fixtures\/composed$/)
+  })
+
+  it('production reads CloudFront whatever the headers and variables say', async () => {
+    const seen: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      seen.push(String(input))
+      return String(input).endsWith('/focus.json') ? focus('None') : fromCloudfront(ARTIFACT)
+    }))
+    const {readForRequest} = await import('../../src/lib/data-plane/request')
+    await readForRequest(new Request('https://jonathanlloyd.me/', {headers: SEAMS}), {SSR_FAULT_INJECTION: '1', DATA_PLANE_BASE: BASE}, NOW, () => {})
+    expect(seen.length).toBeGreaterThan(0)
+    for (const url of seen) {
+      expect(url.startsWith(`${CLOUDFRONT_BASE}/`), url).toBe(true)
+    }
   })
 })

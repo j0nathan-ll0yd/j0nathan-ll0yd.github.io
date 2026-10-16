@@ -65,7 +65,9 @@ export default defineConfig({
       [MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(mirroredBookCovers()),
       __SSR_BUILD_ID__: JSON.stringify(process.env.GITHUB_SHA || 'dev'),
       // The design-system version this build renders with; a composed artifact must name the same.
-      __WEB_VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL('./node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version)
+      __WEB_VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL('./node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version),
+      // The commit the preview's fixture data plane reads (src/lib/data-plane/faults.ts FIXTURE_REF).
+      __SSR_FIXTURE_REF__: JSON.stringify(process.env.SSR_FIXTURE_REF || 'main')
     },
     // Fails the build when any module resolves to @j0nathan-ll0yd/fixtures, directly or through
     // another module or package (atlas decision 0160, plan Step 6.7). Production pages carry no

@@ -217,6 +217,23 @@ Verified by `tests/unit/ssr-response.test.ts:124`.
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: unavailable`, and no shared cache SHALL
   store it
 
+### Requirement: Card labels and ages are as of composition, at most 35 minutes old
+
+A composed card's state (`live`, `stale`) and every relative age the artifact renders (System Status
+`<time>` text) are judged when the composer runs, not when the Worker serves. The composer runs on
+every export update and on a 30-minute backstop, so a label trails the truth by at most the time
+since the last composition. The Worker SHALL refuse an artifact older than 35 minutes
+(`COMPOSED_MAX_AGE_MS`: the backstop plus 5 minutes) and SHALL serve the data-free page as
+`fallback`. A browser with JavaScript re-judges each card and age on load.
+
+Verified by `tests/unit/composed-read.test.ts:150`.
+
+#### Scenario: The composer stops
+
+- **GIVEN** the newest artifact was composed 36 minutes ago
+- **WHEN** a client requests `/`
+- **THEN** the Worker SHALL answer the data-free page with `X-SSR-Data: fallback`
+
 ### Requirement: A hiding or unreadable focus value answers the build's value-free page
 
 While the focus value hides, the gate is shut over a visible value, or the focus signal cannot be
@@ -230,7 +247,7 @@ pages cannot be used, the data-free page SHALL answer with the same summary. A p
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
 Verified by `tests/unit/ssr-response.test.ts:183` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:221` (each variant equals the Astro render, holds no
+`tests/oracle/composer-parity.test.ts:236` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb

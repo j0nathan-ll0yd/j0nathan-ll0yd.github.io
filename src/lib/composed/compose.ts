@@ -32,6 +32,7 @@ import {
   type ComposedArtifact,
   type ComposedFragmentId,
   GATE_VARIANT,
+  opensWithRoot,
   UNREADABLE_VARIANT,
   type ValueFreePage,
   type ValueFreeSet
@@ -65,6 +66,9 @@ function outcome(key: GatedKey, raw: unknown): DomainOutcome {
 }
 
 let container: Awaited<ReturnType<typeof AstroContainer.create>> | null = null
+
+/** A module script element, as the container emits it after a component. */
+const MODULE_SCRIPT = /<script\b[^>]*>[\s\S]*?<\/script>/gi
 
 /** The artifact for these inputs, or why none may be published. */
 export async function compose(input: ComposeInput): Promise<{ok: true; artifact: ComposedArtifact} | {ok: false; refusal: ComposeRefusal}> {
@@ -121,10 +125,26 @@ async function renderFragments(vm: DashboardRender['vm'], localCovers: readonly 
   const fragments: Partial<Record<ComposedFragmentId, string>> = {}
   for (const [id, Component, props] of parts) {
     // The production components are Astro components; the container renders each with its props.
-    fragments[id] = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
+    const rendered = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
+    fragments[id] = rootOnly(id, rendered)
   }
   // Every id was rendered in the loop above.
   return fragments as Record<ComposedFragmentId, string>
+}
+
+/**
+ * The component's markup without its module scripts: the root element, and in a data state the
+ * hidden data carrier a component emits beside it (Hydration's `#cardHydrationData`). The container
+ * appends each module script as a sibling, with a `src` that names this machine's source path; the
+ * website page already loads the built, hashed scripts, so a fragment carries none (atlas decision
+ * 0160, PR B review H1). The parity oracle proves nothing else sits beside the root.
+ */
+function rootOnly(id: ComposedFragmentId, rendered: string): string {
+  const fragment = rendered.replace(MODULE_SCRIPT, '').trim()
+  if (!opensWithRoot(fragment, id) || /<(?:script|style|link)\b/i.test(fragment)) {
+    throw new Error(`the ${id} component rendered markup a fragment may not carry`)
+  }
+  return fragment
 }
 
 /** The states a page can show with no export value, by variant key (./artifact.ts ValueFreeSet). */

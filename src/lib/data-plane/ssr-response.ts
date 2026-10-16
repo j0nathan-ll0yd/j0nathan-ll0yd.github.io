@@ -181,8 +181,34 @@ async function errorPage(deps: DashboardRenderDeps): Promise<Response> {
   return new Response(page.status === 200 ? page.body : 'Internal Server Error', {status: 500, headers})
 }
 
+/** The last answer when even a built page cannot be read: a bare 500, never a platform error. */
+function bareError(): Response {
+  return new Response('Internal Server Error', {
+    status: 500,
+    headers: {'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', [SSR_DATA_HEADER]: 'error'}
+  })
+}
+
 /** Answers `GET /`: the composed page, or the data-free page, or the 500 page. */
 export async function renderDashboard(request: Request, deps: DashboardRenderDeps): Promise<Response> {
+  try {
+    return await answerDashboard(request, deps)
+  } catch (error) {
+    // Only a failed read of a built page reaches here (the data-free page or the 500 page).
+    logRender({
+      event: 'ssr_render',
+      summary: 'error',
+      status: 500,
+      render_ms: 0,
+      total_ms: 0,
+      build: BUILD_ID,
+      error_class: error instanceof Error ? error.name : 'UnknownError'
+    })
+    return bareError()
+  }
+}
+
+async function answerDashboard(request: Request, deps: DashboardRenderDeps): Promise<Response> {
   const startedAt = Date.now()
   let timer: ReturnType<typeof setTimeout> | undefined
   const ceiling = new Promise<Outcome>((resolve) => {
@@ -195,8 +221,8 @@ export async function renderDashboard(request: Request, deps: DashboardRenderDep
 
   if (outcome.kind === 'composed') {
     logRender({
-      ...base,
       ...outcome.record,
+      ...base,
       summary: outcome.summary,
       served: 'composed',
       status: 200,
