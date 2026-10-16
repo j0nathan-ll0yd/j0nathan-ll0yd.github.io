@@ -28,7 +28,7 @@ function timestampSlot(state: DataState, generatedAt: string | null | undefined)
         setAttribute(el, 'datetime', view.datetime)
       }
       text = view.text
-      slot.element?.(el)
+      return slot.element?.(el)
     },
     text: slot.text
   }
