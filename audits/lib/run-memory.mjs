@@ -1,81 +1,55 @@
-// audits/lib/run-memory.mjs -- one bit of memory between two daily runs of a check.
+// audits/lib/run-memory.mjs -- the memory one scheduled check keeps between two daily runs.
 //
 // WHY. Plan Step 6.8 item 7 fails a `partial` page only on the SECOND consecutive run, so one
-// upstream blip never pages the owner. A scheduled check has no state of its own, and the
-// self-hosted runners keep no cache between jobs. The memory lives in the body of one open GitHub
-// issue labelled `audit:state`, found by its exact title. It is NOT a finding: the managed-issue
-// reconciler (file-check-issues.mjs) still owns every finding issue.
+// upstream blip never pages the owner. B11 also keeps the last visible oracle values, so a hiding
+// run can look for them in the page text.
 //
-// The state issue is written through the REST API with the job's own GITHUB_TOKEN (`issues: write`).
-// Without a token or repository (a workstation run) the memory is `unavailable`, and the caller
-// must treat an unavailable memory as "no earlier sighting provable": fail loud, never stay quiet.
+// WHERE. A directory of small files (`B11_STATE_DIR`). The workflow restores it before the check
+// and saves it after, with actions/cache (restore by the key prefix `b11-state-`, save under a
+// per-run key, because a cache key is immutable). No GitHub issue, label or comment carries state:
+// finding issues belong to the reconciler (audits/lib/file-check-issues.mjs) alone.
+//
+// LOUD, NEVER QUIET. Without a directory (a workstation run) or when a read or write fails, the
+// memory is `unavailable`, and the caller must fail at once. An ABSENT file is not unavailable: it
+// is the first run, or an entry the cache evicted after seven idle days.
 
-const API = 'https://api.github.com'
-const STATE_LABEL = 'audit:state'
-const MARKER = /<!-- audit-run-memory:v1 key=([A-Za-z0-9_-]+) value=([^ ]*) -->/
+import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import path from 'node:path'
 
-function markerFor(key, value) {
-  return `<!-- audit-run-memory:v1 key=${key} value=${value} -->`
-}
-
-function headers(token) {
-  return {accept: 'application/vnd.github+json', authorization: `Bearer ${token}`, 'x-github-api-version': '2022-11-28'}
-}
+const NAME = /^[a-z0-9-]+$/
 
 /**
- * @param {{key: string, title: string, token?: string, repo?: string, fetchImpl?: typeof fetch}} options
- * `key` names the memory slot (letters, digits, `_`, `-`). `title` is the state issue's exact title.
- * @returns {{read(): Promise<{available: boolean, value: string|null}>, write(value: string): Promise<boolean>}}
+ * @param {{dir?: string}} [options] `dir` defaults to `$B11_STATE_DIR`.
+ * @returns {{read(name: string): Promise<{available: boolean, value: string|null}>, write(name: string, value: string): Promise<boolean>}}
  */
-export function createRunMemory({key, title, token = process.env.GITHUB_TOKEN, repo = process.env.GITHUB_REPOSITORY, fetchImpl = fetch}) {
-  const usable = Boolean(token && repo)
-
-  async function find() {
-    const res = await fetchImpl(`${API}/repos/${repo}/issues?state=open&labels=${encodeURIComponent(STATE_LABEL)}&per_page=100`, {
-      headers: headers(token),
-      signal: AbortSignal.timeout(10_000)
-    })
-    if (!res.ok) {
-      throw new Error(`state issue list returned HTTP ${res.status}`)
+export function createRunMemory({dir = process.env.B11_STATE_DIR} = {}) {
+  const fileOf = (name) => {
+    if (!NAME.test(name)) {
+      throw new TypeError(`run memory name must match ${NAME}, got ${JSON.stringify(name)}`)
     }
-    const issues = await res.json()
-    return issues.find((issue) => issue.title === title && !issue.pull_request) ?? null
+    return path.join(dir, name)
   }
-
   return {
-    async read() {
-      if (!usable) {
+    async read(name) {
+      const file = dir ? fileOf(name) : ''
+      if (!dir) {
         return {available: false, value: null}
       }
       try {
-        const issue = await find()
-        const match = issue ? MARKER.exec(issue.body ?? '') : null
-        return {available: true, value: match && match[1] === key ? match[2] : null}
-      } catch {
-        return {available: false, value: null}
+        return {available: true, value: readFileSync(file, 'utf8')}
+      } catch (err) {
+        return err?.code === 'ENOENT' ? {available: true, value: null} : {available: false, value: null}
       }
     },
-    async write(value) {
-      if (!usable) {
+    async write(name, value) {
+      const file = dir ? fileOf(name) : ''
+      if (!dir) {
         return false
       }
-      const body = `${markerFor(key, value)}\n\nMemory slot for a scheduled audit check. Machine-owned: do not edit or close.`
       try {
-        const issue = await find()
-        const res = issue
-          ? await fetchImpl(`${API}/repos/${repo}/issues/${issue.number}`, {
-            method: 'PATCH',
-            headers: headers(token),
-            body: JSON.stringify({body}),
-            signal: AbortSignal.timeout(10_000)
-          })
-          : await fetchImpl(`${API}/repos/${repo}/issues`, {
-            method: 'POST',
-            headers: headers(token),
-            body: JSON.stringify({title, body, labels: [STATE_LABEL]}),
-            signal: AbortSignal.timeout(10_000)
-          })
-        return res.ok
+        mkdirSync(dir, {recursive: true})
+        writeFileSync(file, value, 'utf8')
+        return true
       } catch {
         return false
       }

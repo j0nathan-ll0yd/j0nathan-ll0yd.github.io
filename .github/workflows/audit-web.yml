@@ -142,14 +142,34 @@ jobs:
       # plan Steps 6.8, 6.9, 6.11), so they run on this job's cfedge lane. Each publishes its own
       # `measured` and tri-state `issue_outcome`; each feeds its own managed-issue bucket.
       # B11 compares rendered values with the decoded exports through an oracle of its own. It
-      # needs GITHUB_TOKEN to keep one bit of memory between two runs (a `partial` page fails on
-      # the second consecutive run); see audits/lib/run-memory.mjs. B12 asserts consistency only.
+      # keeps a little memory between runs (a `partial` page fails on the second consecutive run).
+      # B12 asserts consistency only.
+      #
+      # B11's run memory (audits/lib/run-memory.mjs) is a directory of small files carried between
+      # runs by actions/cache. A cache key is immutable, so each run saves under its own key and the
+      # next run restores the newest entry by the `b11-state-` prefix. No GitHub issue holds state.
+      # A restore that finds nothing is the first run (or a seven-day eviction); a restore that
+      # errors fails the job and the dead-man ping.
+      - name: B11 -- restore run memory
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/b11-state
+          key: b11-state-none
+          restore-keys: b11-state-
+
       - name: B11 -- SSR known answer (page vs exports)
         id: ssr_known_answer
         continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          B11_STATE_DIR: ${{ runner.temp }}/b11-state
         run: node audits/checks/b11-check-ssr-known-answer.mjs
+
+      - name: B11 -- save run memory
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/b11-state
+          key: b11-state-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: B12 -- SSR metadata consistency (header, meta, card attributes)
         id: ssr_metadata

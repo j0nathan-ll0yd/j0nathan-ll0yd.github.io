@@ -79,6 +79,12 @@ describe('judgeMetadata', () => {
     expect(ids(judgeMetadata(parsePage(html, page.headers), 200))).toEqual(['ssr-generated-at-invalid', 'ssr-card-state-invalid'])
   })
 
+  it('accepts any parseable data-generated-at, as the design system emits it', () => {
+    const page = renderPage(makeBodies())
+    const html = page.html.replace(/data-generated-at="[^"]*"/, 'data-generated-at="2026-10-15T12:00:00+00:00"')
+    expect(judgeMetadata(parsePage(html, page.headers), 200)).toEqual([])
+  })
+
   it('fails a missing or duplicated card', () => {
     const page = renderPage(makeBodies())
     const missing = page.html.replace('id="cardBooks"', 'id="cardBooksX"')

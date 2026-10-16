@@ -1,5 +1,16 @@
+import {readFileSync} from 'node:fs'
 import {describe, expect, it} from 'vitest'
-import {buildOracle, classifyPage, extractRendered, judgeAttempt, runKnownAnswer, WARN_AGE_MS} from '../checks/b11-check-ssr-known-answer.mjs'
+import {
+  buildOracle,
+  classifyPage,
+  EDGE_CACHE_WINDOW_MS,
+  extractRendered,
+  GATED_STRUCTURES,
+  judgeAttempt,
+  judgeHiding,
+  runKnownAnswer,
+  WARN_AGE_MS
+} from '../checks/b11-check-ssr-known-answer.mjs'
 import {parsePage, transitionedDomains} from '../lib/ssr-evidence.mjs'
 import {type Bodies, makeBodies, makeSnapshot, NOW, type RenderOptions, renderPage} from './ssr-fixtures.ts'
 
@@ -10,16 +21,23 @@ const judge = (bodies: Bodies, options: RenderOptions = {}, snapshotOptions = {}
 }
 const ids = (result: {findings: {id: string}[]}) => result.findings.map((f) => f.id)
 
-/** In-memory run memory with the same read/write contract as audits/lib/run-memory.mjs. */
-function fakeMemory(initial: string | null, available = true) {
-  const state = {value: initial, writes: [] as string[]}
+/** In-memory run memory with the same read(name)/write(name, value) contract as audits/lib/run-memory.mjs. */
+function fakeMemory(initial: string | null, available = true, writable = true) {
+  const files = new Map<string, string>(initial === null ? [] : [['partial', initial]])
+  const state = {
+    get value() {
+      return files.get('partial') ?? null
+    },
+    files
+  }
   return {
     state,
-    read: async () => ({available, value: available ? state.value : null}),
-    write: async (value: string) => {
-      state.writes.push(value)
-      state.value = value
-      return available
+    read: async (name: string) => ({available, value: available ? files.get(name) ?? null : null}),
+    write: async (name: string, value: string) => {
+      if (writable) {
+        files.set(name, value)
+      }
+      return writable
     }
   }
 }
@@ -79,7 +97,7 @@ describe('judgeAttempt: a correct page', () => {
     const result = judge(makeBodies())
     expect(result.findings).toEqual([])
     expect(result.compared).toBe(10)
-    expect(result.healthyAndFresh).toBe(true)
+    expect(result.stuckDomains).toEqual([])
   })
 
   it('accepts a stale card whose export is older than its audit.warn age', () => {
@@ -154,11 +172,27 @@ describe('partial policy', () => {
     expect(result.findings[0].message).toContain('run memory unavailable')
   })
 
-  it('does not call a partial page a first sighting when an export is stale', async () => {
+  it('keeps the grace when an UNRELATED export is stale: health aging past 45 minutes must not remove it', async () => {
     const bodies = makeBodies()
     bodies.health.generatedAt = new Date(NOW - 3 * 3_600_000).toISOString()
-    const result = await run(bodies, {states: {cardDevLog: 'unavailable', cardHR: 'stale', cardMovement: 'stale', cardHydration: 'stale'}}, fakeMemory(null))
+    const states = {cardDevLog: 'unavailable', cardHR: 'stale', cardMovement: 'stale', cardHydration: 'stale'}
+    const result = await run(bodies, {states}, fakeMemory(null))
+    expect(result.outcome).toBe('indeterminate')
+    expect(result.findings.map((f: {severity: string}) => f.severity)).toEqual(['warn'])
+  })
+
+  it("removes the grace when the STUCK card's own export is stale", async () => {
+    const bodies = makeBodies()
+    bodies.githubEvents.generatedAt = new Date(NOW - 9 * 86_400_000).toISOString()
+    const result = await run(bodies, {states: {cardDevLog: 'unavailable'}}, fakeMemory(null))
     expect(result.outcome).toBe('failure')
+  })
+
+  it('fails at once when the memory write fails, so a partial page cannot stay a warning forever', async () => {
+    const result = await run(makeBodies(), {states: {cardDevLog: 'unavailable'}}, fakeMemory(null, true, false))
+    expect(result.outcome).toBe('failure')
+    expect(result.findings.map((f: {id: string}) => f.id)).toEqual(['ssr-card-not-rendered', 'ssr-run-memory-write'])
+    expect(result.findings[0].severity).toBe('fail')
   })
 
   it('treats the Worker fallback page as a partial sighting', async () => {
@@ -306,5 +340,139 @@ describe('a page that is not a server render, and an unreadable data plane', () 
     const result = judge(makeBodies(), {states: {cardWorkouts: 'unavailable'}}, {unreadable: ['workouts']})
     expect(result.findings).toEqual([])
     expect(result.compared).toBe(9)
+  })
+})
+
+describe('a paused watch (H1)', () => {
+  const paused = () => {
+    const bodies = makeBodies()
+    bodies.health.watch = {worn: false}
+    return bodies
+  }
+
+  it('the oracle makes no heart-rate claim, because the card is live and writes no BPM', () => {
+    expect(buildOracle(makeSnapshot(paused()).exports).heartRate).toBeNull()
+  })
+
+  it('passes a live heart-rate card that shows no BPM', () => {
+    expect(judge(paused(), {values: {heartRate: ''}}).findings).toEqual([])
+  })
+
+  it('self-test: with the skip removed the same page would fail', () => {
+    // The oracle that ignores `watch.worn` would claim "58" against the empty slot.
+    const bodies = paused()
+    const claimed = buildOracle(makeSnapshot(makeBodies()).exports).heartRate
+    expect(claimed).toBe('58')
+    const rendered = renderPage(bodies, {values: {heartRate: ''}})
+    expect(extractRendered(parsePage(rendered.html, rendered.headers).$).heartRate).not.toBe(claimed)
+  })
+})
+
+describe('article title fallback (L3)', () => {
+  it('compares the source title when the article has no title, as ReadingFeed renders title || source', () => {
+    const bodies = makeBodies()
+    bodies.articles.articles[1] = {...bodies.articles.articles[1], articleTitle: '', sourceTitle: 'Some Source'}
+    expect(buildOracle(makeSnapshot(bodies).exports).articleTitle).toBe('Some Source')
+    expect(judge(bodies, {values: {articleTitle: 'Some Source'}}).findings).toEqual([])
+  })
+})
+
+describe('the edge cache window (L7)', () => {
+  it('reads snapshot B at least one cache window after snapshot A', async () => {
+    const waits: number[] = []
+    const bodies = makeBodies()
+    await runKnownAnswer({
+      readSnapshotImpl: async () => makeSnapshot(bodies),
+      fetchPageImpl: async () => renderPage(bodies),
+      memory: fakeMemory(null),
+      now: () => NOW + 4_000,
+      delay: async (ms: number) => {
+        waits.push(ms)
+      }
+    })
+    expect(waits).toEqual([EDGE_CACHE_WINDOW_MS - 4_000])
+  })
+
+  it('an export newer than the window is TRANSITION: the Worker may have read the older copy', () => {
+    const bodies = makeBodies()
+    bodies.books.generatedAt = new Date(NOW - 10_000).toISOString()
+    const rendered = renderPage(makeBodies(), {values: {shelfTitle: 'older copy'}})
+    const snapshot = makeSnapshot(bodies)
+    const result = judgeAttempt({a: snapshot, b: snapshot, page: parsePage(rendered.html, rendered.headers), now: NOW})
+    expect(result.transitioned).toEqual(['books'])
+    expect(result.findings).toEqual([])
+  })
+})
+
+// The structural hiding check names design-system classes. These tests run it, and the extractor,
+// against REAL server-rendered widget markup (trimmed from a live render), so a class rename reds here.
+describe('real design-system markup', () => {
+  const html = readFileSync('audits/fixtures/ssr-index.trimmed.html', 'utf8')
+  const page = parsePage(html, new Headers({'x-ssr-data': 'stale'}))
+
+  it('the extractor reads the six fields from it', () => {
+    expect(extractRendered(page.$)).toEqual({
+      heartRate: '58',
+      devLogTitle: 'feat(audits): split B6 into two steps that each publish a measured count (#379)',
+      articleTitle: 'See the first new species of cat discovered in more than a century\u2014it\u2019s adorable',
+      starredRepo: 'omlahore/RemoveMacAI',
+      shelfTitle: 'A Trade of Blood',
+      workoutCount: 1
+    })
+  })
+
+  it.each(GATED_STRUCTURES)('the hiding selector %s matches the real markup', (selector: string) => {
+    expect(page.$(selector).length).toBeGreaterThan(0)
+  })
+
+  it('finds all ten cards with a state', () => {
+    expect(Object.values(page.cards).map((c: {count: number}) => c.count)).toEqual(Array(10).fill(1))
+  })
+})
+
+describe('hiding: value-based leak check (M6)', () => {
+  const real = parsePage(readFileSync('audits/fixtures/ssr-index.trimmed.html', 'utf8'), new Headers({'x-ssr-data': 'suppressed'}))
+  const remembered = {
+    heartRate: '58',
+    devLogTitle: 'feat(audits): split B6 into two steps that each publish a measured count (#379)',
+    articleTitle: 'Newest article',
+    starredRepo: 'omlahore/RemoveMacAI',
+    shelfTitle: 'A Trade of Blood'
+  }
+
+  it('finds remembered values in real markup even where every class name is unknown', () => {
+    const renamed = parsePage(readFileSync('audits/fixtures/ssr-index.trimmed.html', 'utf8').replace(/class="[^"]*"/g, 'class="x"'),
+      new Headers({'x-ssr-data': 'suppressed'}))
+    const found = judgeHiding(renamed, remembered).filter((f: {id: string}) => f.id === 'ssr-hiding-leaks-remembered-value')
+    expect(found).toHaveLength(4)
+    expect(found.some((f: {message: string}) => f.message.includes('heartRate'))).toBe(true)
+  })
+
+  it('stays silent about values when the run memory holds none', () => {
+    expect(judgeHiding(real).some((f: {id: string}) => f.id === 'ssr-hiding-leaks-remembered-value')).toBe(false)
+  })
+
+  it('passes a clean suppressed page', () => {
+    const clean = renderPage(makeBodies(), {hiding: true})
+    expect(judgeHiding(parsePage(clean.html, clean.headers), remembered)).toEqual([])
+  })
+
+  it('stores visible values on a clean run and uses them on the next hiding run', async () => {
+    const memory = fakeMemory(null)
+    await run(makeBodies(), {}, memory)
+    expect(JSON.parse(memory.state.files.get('oracle')!)).toMatchObject({heartRate: '58', devLogTitle: 'newest commit', shelfTitle: 'Reading Book'})
+    const bodies = makeBodies()
+    const hidingSnapshot = makeSnapshot(bodies, {focus: 'Work'})
+    const leaky = renderPage(bodies, {hiding: true})
+    leaky.html = leaky.html.replace('</body>', '<p>newest commit</p></body>')
+    const result = await runKnownAnswer({
+      readSnapshotImpl: async () => hidingSnapshot,
+      fetchPageImpl: async () => leaky,
+      memory,
+      now: () => NOW,
+      delay: async () => {}
+    })
+    expect(result.findings.map((f: {id: string}) => f.id)).toEqual(['ssr-hiding-leaks-remembered-value'])
+    expect(result.outcome).toBe('failure')
   })
 })

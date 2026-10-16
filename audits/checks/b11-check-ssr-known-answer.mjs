@@ -19,8 +19,17 @@
 //
 // PARTIAL. A page that is `partial` (or the Worker's `fallback`) while every export is healthy and
 // fresh fails only on the SECOND consecutive run. Run N records `partial` in the run memory
-// (audits/lib/run-memory.mjs); run N+1 finds it and fails. An unavailable memory fails at once,
-// because a blind measurer must stay loud.
+// (audits/lib/run-memory.mjs); run N+1 finds it and fails. The grace needs the STUCK cards' own
+// exports (every export for a `fallback` page) to be healthy and fresh: an unrelated stale export
+// does not remove it. An unavailable memory, or a memory write that fails, fails at once, because a
+// blind measurer must stay loud.
+//
+// EDGE CACHE WINDOW. The exports answer `Cache-Control: max-age=30, s-maxage=30` (focus: no-store;
+// measured with a live GET on 2026-10-15). The runner and the Worker can reach different CloudFront
+// edges, each holding a copy up to 30 s old, so snapshot A can differ from the Worker's read for 30 s.
+// Two rules cover that window: snapshot B is read at least 31 s after snapshot A, so a change that
+// landed inside the window shows as A != B; and an export whose `generatedAt` is newer than 35 s
+// before the page read is TRANSITION, because the Worker may have read the older copy.
 
 import {isMain, report} from '../lib/http.mjs'
 import {publishIssueOutcome} from '../lib/measurement.mjs'
@@ -54,10 +63,11 @@ export const WARN_AGE_MS = Object.freeze({
 
 /** Clock skew between this runner, the Worker and CloudFront near the live/stale boundary. */
 const BOUNDARY_TOLERANCE_MS = 2 * MINUTE
+/** `s-maxage` of the export objects, plus a margin. */
+export const EDGE_CACHE_WINDOW_MS = 35_000
 export const MAX_ATTEMPTS = 3
 const RETRY_DELAY_MS = 4_000
 const BOOK_STATUS_ORDER = {reading: 0, upNext: 1, finished: 2}
-const MEMORY_TITLE = '[audit-state] B11 SSR known answer'
 
 /** `live`, `stale` or `boundary` (either is acceptable) for an export at `now`. */
 function freshnessOf(domain, generatedAt, now) {
@@ -81,7 +91,8 @@ export function buildOracle(exports) {
   const health = exports.health?.kind === 'ok' ? exports.health.body : null
   if (health) {
     const heartRate = health.quantities?.heartRate?.value
-    oracle.heartRate = isNumber(heartRate) && heartRate > 0 ? String(Math.round(heartRate)) : null
+    // A paused watch keeps the card live and writes no BPM (widget-views.ts: showData = data && !paused).
+    oracle.heartRate = health.watch?.worn !== false && isNumber(heartRate) && heartRate > 0 ? String(Math.round(heartRate)) : null
   }
   const events = exports.githubEvents?.kind === 'ok' ? exports.githubEvents.body.events : null
   if (Array.isArray(events)) {
@@ -96,7 +107,8 @@ export function buildOracle(exports) {
         newest = article
       }
     }
-    oracle.articleTitle = newest ? newest.articleTitle : null
+    // ReadingFeed.astro renders `a.title || a.source`; the adapter maps title and source from these two.
+    oracle.articleTitle = newest ? newest.articleTitle || newest.sourceTitle || '' : null
   }
   const repos = exports.starredRepos?.kind === 'ok' ? exports.starredRepos.body.repos : null
   if (Array.isArray(repos)) {
@@ -204,7 +216,7 @@ const VALUE_FIELDS = Object.freeze({
 })
 
 /** Structures that exist only when a gated value renders. Each must be absent while hiding. */
-const GATED_STRUCTURES = Object.freeze([
+export const GATED_STRUCTURES = Object.freeze([
   '#cardHR [data-bpm]',
   '#cardWorkouts .workout-sub-card',
   '#cardDevLog .gh-dal-line',
@@ -216,7 +228,34 @@ const GATED_STRUCTURES = Object.freeze([
 
 const fail = (id, message, extra = {}) => ({severity: 'fail', id, message, ...extra})
 
-function judgeHiding(page) {
+/** The oracle fields kept from the last visible run, and whether each is checked as a whole word. */
+const REMEMBERED_FIELDS = Object.freeze(['heartRate', 'devLogTitle', 'articleTitle', 'starredRepo', 'shelfTitle'])
+
+/**
+ * Values the last visible run saw, found in the page text while the data plane hides. The structural
+ * check above depends on class names, so a design-system rename would make it pass silently; this
+ * one depends on the values only. A hiding run reads no export, so the values come from the run
+ * memory. The BPM is a short number: it is searched in the heart-rate card's text as a whole word.
+ */
+function leakedValues(page, remembered) {
+  const strip = (text) => text.replace(/\s+/g, '')
+  const bodyText = strip(norm(page.$('body').text()))
+  const hrText = norm(page.$('#cardHR').text())
+  const leaks = []
+  for (const field of REMEMBERED_FIELDS) {
+    const value = remembered?.[field]
+    if (typeof value !== 'string' || value === '') {
+      continue
+    }
+    const found = field === 'heartRate' ? new RegExp(`(^|\\D)${value}(\\D|$)`).test(hrText) : bodyText.includes(strip(value))
+    if (found) {
+      leaks.push(field)
+    }
+  }
+  return leaks
+}
+
+export function judgeHiding(page, remembered = null) {
   const findings = []
   if (page.header !== 'suppressed') {
     findings.push(fail('ssr-hiding-not-suppressed', `the data plane is hiding but X-SSR-Data is ${JSON.stringify(page.header)}, not "suppressed"`))
@@ -235,12 +274,15 @@ function judgeHiding(page) {
       findings.push(fail('ssr-hiding-leaks-value', `gated structure "${selector}" renders while the data plane is hiding`))
     }
   }
+  for (const field of leakedValues(page, remembered)) {
+    findings.push(fail('ssr-hiding-leaks-remembered-value', `the page text carries the last visible ${field} while the data plane is hiding`))
+  }
   return findings
 }
 
-/** True when all eight exports are admitted, stable and within their `audit.warn` age. */
-function allHealthyAndFresh(snapshot, transitioned, now) {
-  return GATED_KEYS.every((key) => {
+/** True when the named exports are admitted, stable and within their `audit.warn` age. */
+function healthyAndFresh(snapshot, transitioned, now, domains = GATED_KEYS) {
+  return domains.every((key) => {
     const read = snapshot.exports[key]
     return read.kind === 'ok' && !transitioned.includes(key) && freshnessOf(key, read.generatedAt, now) !== 'stale'
   })
@@ -251,21 +293,23 @@ function allHealthyAndFresh(snapshot, transitioned, now) {
  * Returns the findings, the number of artifacts compared, the transitioned domains, and the two
  * flags the partial policy reads.
  */
-export function judgeAttempt({a, b, page, now}) {
+export function judgeAttempt({a, b, page, now, remembered = null}) {
   const findings = []
   if (a.hiding && b.hiding) {
-    findings.push(...judgeHiding(page))
-    return {findings, compared: 1, transitioned: [], partialCandidate: false, healthyAndFresh: false, hiding: true}
+    findings.push(...judgeHiding(page, remembered))
+    return {findings, compared: 1, transitioned: [], stuckDomains: [], hiding: true, oracle: null}
   }
   if (a.hiding !== b.hiding) {
-    return {findings, compared: 0, transitioned: [...GATED_KEYS], partialCandidate: false, healthyAndFresh: false, hiding: false}
+    return {findings, compared: 0, transitioned: [...GATED_KEYS], stuckDomains: [], hiding: false, oracle: null}
   }
 
-  const transitioned = transitionedDomains(a, b)
+  // An export newer than the edge cache window may be the older copy on the Worker's edge.
+  const recent = GATED_KEYS.filter((key) => b.exports[key].kind === 'ok' && Date.parse(b.exports[key].generatedAt) > now - EDGE_CACHE_WINDOW_MS)
+  const transitioned = [...new Set([...transitionedDomains(a, b), ...recent])]
   const oracle = buildOracle(b.exports)
   const rendered = extractRendered(page.$)
   let compared = 0
-  let partialCandidate = false
+  const stuckDomains = new Set()
   for (const cardId of CARD_IDS) {
     const domain = CARD_DOMAINS[cardId]
     const read = b.exports[domain]
@@ -282,7 +326,9 @@ export function judgeAttempt({a, b, page, now}) {
     }
     if (!allowed.includes(card.state)) {
       const stuck = card.state === 'loading' || card.state === 'unavailable'
-      partialCandidate ||= stuck
+      if (stuck) {
+        stuckDomains.add(domain)
+      }
       findings.push(
         fail(stuck ? 'ssr-card-not-rendered' : 'ssr-card-state-mismatch',
           `${cardId} is ${JSON.stringify(card.state)} but its ${domain} export is healthy and admitted (expected ${allowed.join(' or ')})`, {partial: stuck})
@@ -306,7 +352,7 @@ export function judgeAttempt({a, b, page, now}) {
       )
     }
   }
-  return {findings, compared, transitioned, partialCandidate, healthyAndFresh: allHealthyAndFresh(b, transitioned, now), hiding: false}
+  return {findings, compared, transitioned, stuckDomains: [...stuckDomains], hiding: false, oracle: findings.length === 0 ? oracle : null}
 }
 
 /** Page-level findings: a page that is not a server render has nothing to compare. */
@@ -339,13 +385,21 @@ export function classifyPage(page, parsed) {
   return {findings: [], usable: true, partial: false}
 }
 
+function parseRemembered(read) {
+  try {
+    return read.available && read.value ? JSON.parse(read.value) : null
+  } catch {
+    return null
+  }
+}
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /** One full run: up to three attempts, then the partial policy. Dependencies are injectable. */
 export async function runKnownAnswer({
   readSnapshotImpl = readSnapshot,
   fetchPageImpl = fetchPage,
-  memory = createRunMemory({key: 'b11-partial', title: MEMORY_TITLE}),
+  memory = createRunMemory(),
   now = () => Date.now(),
   delay = sleep
 } = {}) {
@@ -359,22 +413,23 @@ export async function runKnownAnswer({
       return {findings: [fail('ssr-page-fetch', `GET / failed: ${err instanceof Error ? err.message : String(err)}`)], measured: 0, outcome: 'failure'}
     }
     const pageAt = now()
+    // Snapshot B waits out the edge cache window counted from snapshot A (see the header).
+    await delay(Math.max(0, EDGE_CACHE_WINDOW_MS - (pageAt - a.readAt)))
     const b = await readSnapshotImpl()
     const parsed = parsePage(page.html, page.headers)
     const heldReads = [a.focus, ...GATED_KEYS.map((key) => a.exports[key])].filter((read) => read.kind !== 'unreadable').length
     const classified = classifyPage(page, parsed)
     last = {classified, heldReads}
     if (!classified.usable) {
-      last.judged = {
-        findings: [],
-        compared: 0,
-        transitioned: [],
-        partialCandidate: classified.partial,
-        healthyAndFresh: allHealthyAndFresh(b, transitionedDomains(a, b), pageAt)
-      }
+      last.judged = {findings: [], compared: 0, transitioned: transitionedDomains(a, b), stuckDomains: [], oracle: null}
+      last.b = b
+      last.pageAt = pageAt
       break
     }
-    last.judged = judgeAttempt({a, b, page: parsed, now: pageAt})
+    const remembered = a.hiding && b.hiding ? parseRemembered(await memory.read('oracle')) : null
+    last.judged = judgeAttempt({a, b, page: parsed, now: pageAt, remembered})
+    last.b = b
+    last.pageAt = pageAt
     if (last.judged.transitioned.length === 0) {
       break
     }
@@ -395,15 +450,20 @@ export async function runKnownAnswer({
     })
   }
 
-  const failing = findings.filter((f) => f.severity === 'fail')
-  const partialOnly = failing.length > 0 && failing.every((f) => f.partial)
-  const partialNow = (judged.partialCandidate || classified.partial) && judged.healthyAndFresh
-  const prior = await memory.read()
+  const partialNow = classified.partial || judged.stuckDomains.length > 0
+  const scope = classified.partial ? GATED_KEYS : judged.stuckDomains
+  const graceEligible = partialNow && healthyAndFresh(last.b, judged.transitioned, last.pageAt, scope)
+  const prior = await memory.read('partial')
   if (partialNow) {
-    const repeat = !prior.available || prior.value === 'partial'
-    await memory.write('partial')
+    const wrote = await memory.write('partial', 'partial')
+    if (!wrote) {
+      findings.push(fail('ssr-run-memory-write', 'the run memory could not be written, so a repeat of this partial page cannot be proved on the next run'))
+    }
+    const failing = findings.filter((f) => f.severity === 'fail' && f.id !== 'ssr-run-memory-write')
+    const partialOnly = failing.length > 0 && failing.every((f) => f.partial)
+    const grace = graceEligible && partialOnly && wrote && prior.available && prior.value !== 'partial'
     for (const f of findings.filter((item) => item.partial)) {
-      if (partialOnly && !repeat) {
+      if (grace) {
         f.severity = 'warn'
         f.message += ' (first sighting: this fails if the next run is partial too)'
       } else if (!prior.available) {
@@ -411,7 +471,20 @@ export async function runKnownAnswer({
       }
     }
   } else if (prior.available && prior.value === 'partial' && judged.compared > 0) {
-    await memory.write('clear')
+    if (!(await memory.write('partial', 'clear'))) {
+      findings.push(fail('ssr-run-memory-write', 'the run memory could not be cleared after a clean run'))
+    }
+  }
+  if (judged.oracle && judged.findings.length === 0) {
+    // The values a later hiding run looks for in the page text.
+    const keep = Object.fromEntries(REMEMBERED_FIELDS.map((field) => [field, judged.oracle[field] ?? null]))
+    if (!(await memory.write('oracle', JSON.stringify(keep)))) {
+      findings.push({
+        severity: 'warn',
+        id: 'ssr-run-memory-write',
+        message: 'the run memory could not store the visible values, so a hiding run has only its structural leak check'
+      })
+    }
   }
 
   const measured = heldReads > 0 ? 1 + heldReads : 0

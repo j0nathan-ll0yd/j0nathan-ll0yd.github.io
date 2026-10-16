@@ -25,7 +25,6 @@ import {CARD_IDS, CARD_STATES, fetchPage, parsePage, RENDER_SUMMARIES, WORKER_SU
 export const ARTIFACTS = []
 
 const fail = (id, message) => ({severity: 'fail', id, message})
-const ISO_INSTANT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/
 
 /** The summary the ten card states imply. First match wins. */
 export function summarizeStates(states) {
@@ -95,8 +94,8 @@ export function judgeMetadata(parsed, status) {
       findings.push(fail('ssr-generated-at-missing', `${id} is ${card.state} but carries no data-generated-at`))
     } else if (!dataState && card.generatedAt !== null) {
       findings.push(fail('ssr-generated-at-on-non-data-card', `${id} is ${card.state} but carries data-generated-at=${JSON.stringify(card.generatedAt)}`))
-    } else if (card.generatedAt !== null && (!ISO_INSTANT.test(card.generatedAt) || Number.isNaN(Date.parse(card.generatedAt)))) {
-      findings.push(fail('ssr-generated-at-invalid', `${id} data-generated-at is ${JSON.stringify(card.generatedAt)}, not an ISO instant`))
+    } else if (card.generatedAt !== null && Number.isNaN(Date.parse(card.generatedAt))) {
+      findings.push(fail('ssr-generated-at-invalid', `${id} data-generated-at is ${JSON.stringify(card.generatedAt)}, not a parseable timestamp`))
     }
   }
 
