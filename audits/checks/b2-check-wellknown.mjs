@@ -59,7 +59,7 @@ export const SERVER_CARD_MEDIA_TYPE = 'application/mcp-server-card+json'
 
 // The media type ai-catalog.json is served as. A local choice: ARD §3.3 lists
 // `application/ai-catalog+json` as the entry `type` for a "nested manifest / catalog of
-// entries" (ards-project/ard-spec spec/ard.md at 9d33ea17, newer than the b76f235a pin).
+// entries" (ards-project/ard-spec spec/ard.md at 9d33ea17, the pin since 2026-10-16).
 // Restated here rather than imported from src/lib/edge/agent-paths.mjs, so the measurer
 // does not share the value it measures.
 export const AI_CATALOG_MEDIA_TYPE = 'application/ai-catalog+json'

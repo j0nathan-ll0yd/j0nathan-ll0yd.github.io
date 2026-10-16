@@ -144,9 +144,15 @@ const VENDORED_SOURCES =
 
 export const WATCHED_SOURCES = Object.freeze([
   {
+    // Re-pinned 2026-10-16 from 6891d0e8 after a full re-read of the diff. The IDL the site uses
+    // is byte-identical: `document.modelContext`, `registerTool(tool, options)` and
+    // `ToolAnnotations {readOnlyHint, untrustedContentHint, consequentialHint}`. The revision
+    // removed the declarative-API placeholder, replaced `UnknownError` with specific DOMException
+    // names through a new "tool execution error" concept, and hardened re-registration and
+    // detached-document checks. public/js/webmcp.js needs no change.
     label: 'WebMCP Draft Community Group Report (webmachinelearning/webmcp index.bs)',
-    pinnedAt: 'https://raw.githubusercontent.com/webmachinelearning/webmcp/6891d0e857a0b35d8478aa8a01958565fb5466cd/index.bs',
-    retrieved: '2026-10-07'
+    pinnedAt: 'https://raw.githubusercontent.com/webmachinelearning/webmcp/32797985580b3ac0c7adc4e3cfa4cd4cd5fa7546/index.bs',
+    retrieved: '2026-10-16'
   },
   {
     label: 'SEP-2127 MCP Server Cards (modelcontextprotocol seps/2127-mcp-server-cards.md)',
@@ -161,9 +167,16 @@ export const WATCHED_SOURCES = Object.freeze([
     retrieved: '2026-10-07'
   },
   {
+    // Re-pinned 2026-10-16 from b76f235a after a full re-read of the diff. Still v0.91. The
+    // revision lists the recognized entry media types in section 3.3 (application/ai-catalog+json
+    // among them), makes the `urn:air:` namespace segment optional, renames the skill example's
+    // type to application/agent-skills+md, scopes trustManifest attestations, and defines the
+    // registry base URL. Every clause the site relies on still holds: the ard.json path and
+    // relation, the optional host.identifier, `entries`, and its `urn:air:<publisher>:<namespace>:<name>`
+    // identifiers, which stay valid under the wider grammar.
     label: 'ARD specification v0.91 (ards-project/ard-spec spec/ard.md)',
-    pinnedAt: 'https://raw.githubusercontent.com/ards-project/ard-spec/b76f235a8f461876ad4f1e77abd0eb0eb302b48d/spec/ard.md',
-    retrieved: '2026-10-07'
+    pinnedAt: 'https://raw.githubusercontent.com/ards-project/ard-spec/9d33ea17164be2e7255a9d4761fb451a1692f28b/spec/ard.md',
+    retrieved: '2026-10-16'
   },
   ...VENDORED_SOURCES.map(({spec, url, retrieved}) => ({label: `${spec}, vendored schema`, pinnedAt: url, retrieved}))
 ])

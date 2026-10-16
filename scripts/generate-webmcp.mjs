@@ -190,7 +190,9 @@ write(AGENT_PATHS.agentSkillsIndex.slice(1), json({
 // entries and ignores other top-level members. host.identifier is omitted: ARD makes
 // it optional, and did:web:jonathanlloyd.me does not resolve. Verified 2026-10-07
 // against ards-project/ard-spec b76f235a (spec/schemas/ai-catalog.schema.json and
-// spec/schemas/ard-entry.schema.json); see docs/discovery-surface.md.
+// spec/schemas/ard-entry.schema.json). Re-verified 2026-10-16 at 9d33ea17: ard-entry is
+// re-pinned there, and ai-catalog is byte-identical at both commits, so it keeps the b76f235a
+// pin; see docs/discovery-surface.md.
 // ---------------------------------------------------------------------------
 const air = (namespace, name) => `urn:air:${new URL(SITE_URL).hostname}:${namespace}:${name}`
 const catalog = json({
