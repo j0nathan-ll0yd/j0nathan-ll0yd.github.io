@@ -597,7 +597,10 @@ describe('the daily tier with both B6 arms (owner decision 2026-10-13, option A)
     const steps = {
       smoke: {outcome: 'success', outputs: {}},
       analytics_beacons: {outcome: beaconsExit === 0 ? 'success' : 'failure', outputs: readOutputs(beaconsOut)},
-      analytics_ingestion: {outcome: ingestionExit === 0 ? 'success' : 'failure', outputs: readOutputs(ingestionOut)}
+      analytics_ingestion: {outcome: ingestionExit === 0 ? 'success' : 'failure', outputs: readOutputs(ingestionOut)},
+      // The two SSR checks (plan Steps 6.8, 6.9) are healthy here: this suite judges B6, not them.
+      ssr_known_answer: {outcome: 'success', outputs: {measured: '10'}},
+      ssr_metadata: {outcome: 'success', outputs: {measured: '1'}}
     }
     const bucket = analyticsBucket({analytics_beacons: steps.analytics_beacons.outputs, analytics_ingestion: steps.analytics_ingestion.outputs})
     return {records: renderMeasuredSteps(steps), pinged: ping(renderMeasuredSteps(steps)), bucket, issue: bucketOutcome(bucket)}
