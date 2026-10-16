@@ -19,8 +19,8 @@ const {
   dataFree = false,
   // schema.org type of this page's WebPage node: AboutPage, ContactPage, or plain WebPage.
   pageType = 'WebPage',
-  // The public path this document answers, when it differs from the path Astro rendered. The
-  // server render of `/` runs at an internal path (src/pages/ssr-dashboard.astro) and passes '/'.
+  // The public path this document answers, when it differs from the path Astro rendered (the
+  // dashboard body passes '/', so a render outside `/`, such as the test oracle's, keeps its head).
   pagePath: pagePathProp = undefined,
   // The server render's summary (atlas decision 0160, PR B), emitted as <meta name="ssr-data">.
   ssrData = undefined,

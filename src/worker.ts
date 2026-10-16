@@ -13,16 +13,20 @@
 //    static-asset plane's header policy (src/lib/edge/security-headers.ts).
 // 4. A code-free path (public/_routes.json excluded it from Functions on Pages) skips the
 //    middleware and carries only the static-asset plane's policy, as it did on Pages.
-// 5. `GET /` is the server render of the dashboard (atlas decision 0160, PR B): the Worker renders
-//    src/pages/ssr-dashboard.astro under the D2 budget (src/lib/data-plane/ssr-response.ts). `HEAD /`
-//    answers from the prerendered data-free page and reads no data.
+// 5. `GET /` is the server render of the dashboard (atlas decision 0160, PR B; owner decision
+//    2026-10-16, option B): the Worker reads the data plane and writes it into the prerendered
+//    data-free page with HTMLRewriter, under the D2 budget (src/lib/data-plane/ssr-response.ts).
+//    Astro does not run for `/`. `HEAD /` answers from the data-free page and reads no data. The
+//    value-free card templates (TEMPLATES_PAGE_PATH) are internal: a public request gets the 404 page.
 // 6. On a loopback host only (a local `astro preview` or `wrangler dev`), the analytics routes
 //    answer 404, as the static preview did before PR A, so no test run reaches an upstream.
 
 import {handle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
 import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
+import {loadForRequest, renderClock, type RenderVars} from './lib/data-plane/request'
 import {type DashboardRenderDeps, headDashboard, renderDashboard} from './lib/data-plane/ssr-response'
+import {TEMPLATES_PAGE_PATH} from './lib/edge-render/paths'
 import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath, withUtf8Charset} from './lib/edge/security-headers'
 
 type AstroEnv = Parameters<typeof handle>[1]
@@ -82,6 +86,11 @@ async function fromAssets(request: Request, env: WorkerEnv, codeFree: boolean): 
   if (asset.status !== 404) {
     return withAssetPlaneHeaders(asset, codeFree)
   }
+  return notFoundPage(request, env, codeFree)
+}
+
+/** The 404 page with status 404, no-store and no ETag, as Pages answered an unknown path. */
+async function notFoundPage(request: Request, env: WorkerEnv, codeFree: boolean): Promise<Response> {
   const page = await env.ASSETS.fetch(new URL(NOT_FOUND_PAGE_PATH, request.url))
   const headers = new Headers(page.headers)
   headers.delete('ETag')
@@ -90,9 +99,14 @@ async function fromAssets(request: Request, env: WorkerEnv, codeFree: boolean): 
   return withAssetPlaneHeaders(new Response(body, {status: 404, headers}), codeFree)
 }
 
-/** The server render's two dependencies: Astro and the static-asset plane. */
-function dashboardDeps(request: Request, env: WorkerEnv, context: AstroContext): DashboardRenderDeps {
-  return {render: (rendered) => handle(rendered, env, context), asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method}))}
+/** The server render's dependencies: the data plane, the render clock and the static-asset plane. */
+function dashboardDeps(request: Request, env: WorkerEnv): DashboardRenderDeps {
+  const vars: RenderVars = {...env}
+  return {
+    load: (rendered) => loadForRequest(rendered, vars),
+    now: (rendered) => renderClock(rendered, vars),
+    asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method}))
+  }
 }
 
 /** Routes one request the way Pages routed it, before the middleware wraps the response. */
@@ -100,10 +114,10 @@ async function route(request: Request, env: WorkerEnv, context: AstroContext, co
   const url = new URL(request.url)
   if (url.pathname === '/' && !codeFree) {
     if (request.method === 'GET') {
-      return renderDashboard(request, dashboardDeps(request, env, context))
+      return renderDashboard(request, dashboardDeps(request, env))
     }
     if (request.method === 'HEAD') {
-      return headDashboard(dashboardDeps(request, env, context))
+      return headDashboard(dashboardDeps(request, env))
     }
   }
   const edgeRoute = codeFree ? undefined : matchEdgeRoute(url.pathname)
@@ -121,6 +135,10 @@ async function route(request: Request, env: WorkerEnv, context: AstroContext, co
   }
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return withAssetPlaneHeaders(methodNotAllowed(), codeFree)
+  }
+  if (url.pathname === TEMPLATES_PAGE_PATH || url.pathname === `${TEMPLATES_PAGE_PATH}.html`) {
+    // Internal to the server render of `/`: the Worker reads it through the ASSETS binding.
+    return notFoundPage(request, env, codeFree)
   }
   return fromAssets(request, env, codeFree)
 }

@@ -1,14 +1,15 @@
-// The Worker's answer to `GET /` and `HEAD /` (atlas decision 0160, PR B; plan Steps 4.3 to 4.6).
+// The Worker's answer to `GET /` and `HEAD /` (atlas decision 0160, PR B; plan Steps 4.3 to 4.6;
+// owner decision 2026-10-16, option B: edge injection).
 //
-// `GET /` renders src/pages/ssr-dashboard.astro, which reads the data plane and renders every live
-// card from the decoded exports. The Worker:
+// `GET /` reads the focus signal and the eight exports (./loader.ts), maps them through the shared
+// view models (./render-model.ts), and writes the result into the prerendered data-free page with
+// HTMLRewriter (src/lib/edge-render/). Astro does not run per request. The Worker:
 //
 // 1. Bounds the whole render by SSR_CEILING_MS (D2: 2.5 s of I/O plus a 0.5 s render reserve). A
-//    render that misses it is answered with the prerendered data-free page (`/`, dist/client/
-//    index.html) and `X-SSR-Data: fallback`.
-// 2. Buffers the rendered document before it answers. A render exception, whether before the first
-//    byte or in the middle of the stream, therefore always becomes a clean 500 page (D13), never a
-//    200 whose document stops half-way or mixes two states.
+//    render that misses it is answered with the data-free page itself and `X-SSR-Data: fallback`.
+// 2. Awaits every read before the first byte, then buffers the rewritten document before it answers.
+//    A failure anywhere, a rewrite handler included, therefore becomes a clean 500 page (D13), never
+//    a 200 whose document stops half-way or mixes two states.
 // 3. Answers every data state 200 (D13), with no edge or browser cache (D3), the summary in
 //    `X-SSR-Data`, and one value-free `ssr_render` log line (Step 4.6).
 //
@@ -16,19 +17,18 @@
 // render would spend the data plane and the CPU budget for nothing. It omits `X-SSR-Data`, whose
 // value exists only once a body is rendered (RFC 9110 section 9.3.2 allows that).
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
-import type {SsrRenderRecord} from './render-model'
+import {injectDashboard} from '../edge-render/inject'
+import {DATA_FREE_PAGE_PATH} from '../edge-render/paths'
+import {loadTemplates} from '../edge-render/templates'
+import type {DashboardLoad} from './loader'
+import {type SsrRenderRecord, toDashboardRender} from './render-model'
 
-/** The internal path the Worker renders `GET /` at. No public request reaches Astro there. */
-export const SSR_DASHBOARD_PATH = '/ssr-dashboard'
-/** The public path of the data-free page: dist/client/index.html. */
-export const DATA_FREE_PAGE_PATH = '/'
+export { DATA_FREE_PAGE_PATH }
 /** The prerendered 500 page (src/pages/500.astro). */
 export const ERROR_PAGE_PATH = '/500'
 
 /** The summary header. Values: SsrSummary, plus `fallback` and `error`. */
 export const SSR_DATA_HEADER = 'X-SSR-Data'
-/** Carries the page's value-free render record to the Worker. The Worker logs it and strips it. */
-export const SSR_RECORD_HEADER = 'X-Internal-SSR-Record'
 
 /** D2's hard ceiling: 2.5 s of I/O (LOADER_TIMEOUTS.ioBudgetMs) plus a 0.5 s render reserve. */
 export const SSR_CEILING_MS = 3_000
@@ -53,8 +53,10 @@ const BUILD_ID = typeof __SSR_BUILD_ID__ === 'undefined' ? 'unknown' : __SSR_BUI
 const logger = createEdgeLogger({service: 'ssr-dashboard'})
 
 export interface DashboardRenderDeps {
-  /** Renders a request through Astro (the adapter's `handle`). */
-  render(request: Request): Promise<Response>
+  /** Reads the data plane for this request (./loader.ts, with the request's test seams). */
+  load(request: Request): Promise<DashboardLoad>
+  /** The render time for this request: Date.now(), or the X-SSR-Clock test seam. */
+  now(request: Request): number
   /** Reads a built file from the static-asset plane (the ASSETS binding). */
   asset(path: string, method: 'GET' | 'HEAD'): Promise<Response>
   /** Overrides the ceiling, for tests only. */
@@ -78,7 +80,6 @@ function logRender(line: SsrLogLine): void {
 
 function withDashboardHeaders(source: Headers, summary: string | null): Headers {
   const headers = new Headers(source)
-  headers.delete(SSR_RECORD_HEADER)
   for (const name of ASSET_VALIDATORS) {
     headers.delete(name)
   }
@@ -100,41 +101,21 @@ type Outcome =
   | {kind: 'failed'; status: number; errorClass: string}
   | {kind: 'ceiling'}
 
-const RECORD_KEYS = ['summary', 'focus', 'domains', 'cards', 'degraded', 'io_ms'] as const
-
-function isRenderRecord(value: unknown): value is SsrRenderRecord {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const record: Record<string, unknown> = {...value}
-  return RECORD_KEYS.every((key) => key in record) && typeof record.summary === 'string' && typeof record.io_ms === 'number'
-}
-
-/** The record the page wrote (this Worker's own bytes), or null when it is missing or malformed. */
-function parseRecord(value: string | null): SsrRenderRecord | null {
-  if (value === null) {
-    return null
-  }
-  try {
-    const record: unknown = JSON.parse(value)
-    return isRenderRecord(record) ? record : null
-  } catch {
-    return null
-  }
-}
-
 async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Outcome> {
   try {
-    const response = await deps.render(new Request(new URL(SSR_DASHBOARD_PATH, request.url), {method: 'GET', headers: request.headers}))
-    const record = parseRecord(response.headers.get(SSR_RECORD_HEADER))
-    if (response.status !== 200 || record === null) {
-      // Astro answered its own error page: the page threw before its first byte.
-      response.body?.cancel().catch(() => {})
-      return {kind: 'failed', status: response.status, errorClass: 'RenderError'}
+    const load = await deps.load(request)
+    const nowMs = deps.now(request)
+    const render = toDashboardRender(load, nowMs)
+    const read = (path: string) => deps.asset(path, 'GET')
+    const [page, templates] = await Promise.all([read(DATA_FREE_PAGE_PATH), loadTemplates(read)])
+    if (!page.ok) {
+      page.body?.cancel().catch(() => {})
+      return {kind: 'failed', status: 500, errorClass: 'DataFreePageMissing'}
     }
-    // Buffer the document: an exception thrown while the stream renders rejects here.
-    const body = await response.arrayBuffer()
-    return {kind: 'rendered', response, body, record}
+    const injected = await injectDashboard(page, {render, templates, nowMs})
+    // Buffer the document: a failure inside a rewrite handler rejects here.
+    const body = await injected.arrayBuffer()
+    return {kind: 'rendered', response: injected, body, record: render.record}
   } catch (error) {
     return {kind: 'failed', status: 500, errorClass: error instanceof Error ? error.name : 'UnknownError'}
   }

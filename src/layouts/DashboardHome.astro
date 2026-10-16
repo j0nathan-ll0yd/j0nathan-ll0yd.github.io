@@ -1,13 +1,15 @@
 ---
-// The dashboard page body, shared by its two renders (atlas decision 0160):
+// The dashboard page body (atlas decision 0160).
 //
-// - `src/pages/index.astro`, prerendered: the data-free page. Every live widget renders `loading`
-//   with its <noscript> note. The Worker serves it at `/` when a server render misses its budget
-//   (decision 0160, D2) and for `HEAD /`, and it is the rollback target (D9).
-// - `src/pages/ssr-dashboard.astro`, on demand: the Worker renders it for `GET /` from the
-//   decoded exports (`src/lib/data-plane/`). `vm` then carries every live widget's props.
+// `src/pages/index.astro` prerenders it with no `vm`: the data-free page, every live widget `loading`
+// with its <noscript> note. That file is what the Worker streams for `GET /`, writing each card's
+// state and values into it with HTMLRewriter (src/lib/edge-render/; owner decision 2026-10-16,
+// option B), and it is also the D2 fallback, the `HEAD /` answer and the rollback target (D9).
 //
-// With no `vm`, every live widget renders `loading`. A widget never receives a fixture value.
+// With a `vm` this layout is the TEST ORACLE of that injection (tests/oracle/): Astro renders the
+// same view models, and the injected page must equal it. That path never runs in the Worker.
+//
+// A widget never receives a fixture value.
 import Dashboard from './Dashboard.astro';
 import {
   BioTerminal, BookModal, Hydration, IdentityCard,

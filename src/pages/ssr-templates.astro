@@ -1,0 +1,38 @@
+---
+// Value-free card templates for the edge injection (atlas decision 0160, PR B, owner decision
+// 2026-10-16, option B). The design system's components stay the only source of widget markup: the
+// build renders each live card here in each state that carries no value (`empty`, `unavailable`,
+// `suppressed`), and the Worker swaps the matching template in for a card of the data-free page.
+// Every template renders with no data, so no export value can reach this file. The Worker reads it
+// through the ASSETS binding; a public request for its path gets the 404 page (src/worker.ts).
+import {
+  Bookshelf, DevActivityLog, HeartRate, Hydration, MovementRings, NightSummary,
+  ReadingFeed, StarredRepoList, TheatreReviews, Workouts,
+} from '@j0nathan-ll0yd/web/production';
+import { MIRRORED_BOOK_COVERS } from '../lib/load-dashboard-data';
+import { TEMPLATE_ATTRIBUTE } from '../lib/edge-render/paths';
+import { TEMPLATE_STATES } from '../lib/edge-render/templates';
+
+const localCovers = [...MIRRORED_BOOK_COVERS];
+const cards = [
+  { id: 'cardHR', Component: HeartRate },
+  { id: 'cardMovement', Component: MovementRings },
+  { id: 'cardHydration', Component: Hydration },
+  { id: 'cardSleep', Component: NightSummary },
+  { id: 'cardWorkouts', Component: Workouts },
+  { id: 'cardDevLog', Component: DevActivityLog },
+  { id: 'cardReading', Component: ReadingFeed },
+  { id: 'cardStarredRepos', Component: StarredRepoList },
+  { id: 'cardBooks', Component: Bookshelf },
+  { id: 'cardTheatreReviews', Component: TheatreReviews },
+];
+---
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="robots" content="noindex, nofollow"><title>templates</title></head>
+<body>
+{cards.map(({ id, Component }) => TEMPLATE_STATES.map((state) => (
+  <template {...{ [TEMPLATE_ATTRIBUTE]: `${id}:${state}` }}>{id === 'cardBooks' ? <Component state={state} localCovers={localCovers} /> : <Component state={state} />}</template>
+)))}
+</body>
+</html>
