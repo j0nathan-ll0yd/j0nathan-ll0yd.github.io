@@ -68,7 +68,9 @@ const LOCAL_COVERS: readonly string[] = typeof __MIRRORED_BOOK_COVERS__ === 'und
  * The runner's read bounds. A Lambda run has 60 s, not the request path's 2.5 s, so a slow export
  * still composes; the whole read stays well inside the run.
  */
-const RUNNER_TIMEOUTS: Readonly<LoaderTimeouts> = Object.freeze({focusMs: 5_000, artifactMs: 10_000, ioBudgetMs: 30_000})
+// 5 s + 20 s of reads, then a 5 s focus re-read, leave the runner's 60 s timeout room for its own two
+// 8 s downloads and the render (review L7).
+const RUNNER_TIMEOUTS: Readonly<LoaderTimeouts> = Object.freeze({focusMs: 5_000, artifactMs: 10_000, ioBudgetMs: 20_000})
 
 export interface ComposeInput {
   /** Each export's parsed JSON, or null when it could not be read. */
@@ -152,10 +154,14 @@ export type ComposeDashboardResult = {ok: true; artifact: ComposedArtifact; body
 /**
  * The runner's entry: reads the focus signal and the eight exports through the public gated URLs,
  * composes, then reads the focus signal again. It publishes nothing when focus hides or cannot be
- * read, when the gate is shut, or when focus turned hiding or unreadable during the render (privacy
+ * read, when the gate is shut, or when the focus value changed at all during the render (privacy
  * race (a), openspec/specs/dashboard-ssr). `body` is the JSON the runner stores, byte for byte.
  */
 export async function composeDashboard(options: ComposeDashboardOptions = {}): Promise<ComposeDashboardResult> {
+  if (COMPOSER_BUILD === 'unknown') {
+    // A composer built without a build id would name no build the Worker can check (review L9).
+    throw new Error('the composer was built without a build id')
+  }
   const io = {base: options.base ?? CLOUDFRONT_BASE, timeouts: RUNNER_TIMEOUTS, ...(options.fetch ? {fetch: options.fetch} : {})}
   const load = await loadDashboard(io)
   if (load.focus.state === 'hiding') {
@@ -169,7 +175,8 @@ export async function composeDashboard(options: ComposeDashboardOptions = {}): P
   }
   const artifact = await composeLoad(load, load.focus.currentFocus, options.nowMs ?? Date.now(), LOCAL_COVERS)
   const after = await loadFocus(io)
-  if (after.state !== 'visible') {
+  // The same visible value, not only a visible one: the artifact names the focus value it read.
+  if (after.state !== 'visible' || after.currentFocus !== load.focus.currentFocus) {
     return {ok: false, refusal: 'focus-changed'}
   }
   return {ok: true, artifact, body: JSON.stringify(artifact)}

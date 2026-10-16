@@ -37,7 +37,10 @@ export const COMPOSER_OUT_DIR = path.join(ROOT, 'dist-composer')
 const BUILD = buildId()
 const COVERS = mirroredBookCovers()
 const originalSecrets = secretValues({...process.env})
-const KEEP = new Set(['PATH', 'HOME', 'TMPDIR', 'TEMP', 'TMP', 'NODE_ENV', 'LANG', 'SystemRoot'])
+const KEEP = new Set(['PATH', 'HOME', 'TMPDIR', 'TEMP', 'TMP', 'NODE_ENV'])
+// The kept values are checked too: none may reach the public bundle (review M2).
+// NODE_ENV is a mode word (`production`) the bundle holds anyway; the machine-specific ones may not.
+const keptValues = ['PATH', 'TMPDIR', 'TEMP', 'TMP'].map((name) => process.env[name]).filter((value) => typeof value === 'string' && value.length >= 8)
 for (const name of Object.keys(process.env)) {
   if (!KEEP.has(name)) {
     delete process.env[name]
@@ -84,8 +87,17 @@ for (const leak of [ROOT, homedir()]) {
   }
 }
 const leaked = leakedNames(neutral, originalSecrets)
-if (leaked.length > 0 || /\{_:`/.test(neutral)) {
-  throw new Error(`the composer bundle holds an environment value (${leaked.join(', ') || '_'})`)
+if (leaked.length > 0 || keptValues.some((value) => neutral.includes(value))) {
+  throw new Error(`the composer bundle holds an environment value (${leaked.join(', ') || 'a kept variable'})`)
+}
+// Astro's env object is `Object.assign({BASE_URL...}, {<private vars>})`; the private part must be empty.
+const envObjects = [...neutral.matchAll(/Object\.assign\(\{BASE_URL:[^}]*\},(\{[^}]*\})\)/g)]
+if (envObjects.length === 0) {
+  // A guard that matches nothing is blind: Astro changed the form, so re-derive this check.
+  throw new Error('the composer bundle has no Astro env object to check; update this guard')
+}
+if (envObjects.some((match) => match[1] !== '{}')) {
+  throw new Error('the composer bundle inlines a private environment variable')
 }
 writeFileSync(bundle, neutral)
 console.log(`[build-composer] wrote ${path.relative(ROOT, bundle)}`)

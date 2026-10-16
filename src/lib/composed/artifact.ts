@@ -238,7 +238,8 @@ export function checkArtifact(
   }
   // Lockstep: a site deploy changes the build, so an artifact the old composer made (even one
   // composed during the deploy, privacy race (b)) is never spliced into the new page.
-  if (value.composer.build !== build) {
+  // `unknown` is the id of a build without one; two of them never prove the same build (review L9).
+  if (value.composer.build !== build || build === 'unknown') {
     return {ok: false, refusal: 'build'}
   }
   if (hidingModes.has(value.currentFocus) || value.summary === 'suppressed') {

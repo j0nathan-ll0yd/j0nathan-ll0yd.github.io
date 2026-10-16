@@ -1,42 +1,25 @@
 #!/usr/bin/env node
 /* Postbuild gate (atlas decision 0160, PR B): fails when the value of any secret-looking variable,
- * from the process or from this repo's .env files, occurs in any built file under dist/. Astro inlines
- * a private variable's value into a server module whenever its name appears in that module's source
- * (scripts/lib/env-secrets.mjs), so a token could reach the Worker bundle or a public asset without any
- * code asking for it. It reports variable names only, never values. */
-import {readdirSync, readFileSync, statSync} from 'node:fs'
-import path from 'node:path'
+ * from the process or from this repo's .env files, occurs in any built file under dist/, as written
+ * or JSON-escaped. Astro inlines a private variable's value into a server module whenever its name
+ * appears in that module's source (scripts/lib/env-secrets.mjs), so a token could reach the Worker
+ * bundle or a public asset without any code asking for it. It reports variable names only, never
+ * values, and it fails when it read no file, because a blind gate must stay loud. */
 import {createRequire} from 'node:module'
-import {pathToFileURL} from 'node:url'
-import {leakedNames, secretValues} from './lib/env-secrets.mjs'
+import path from 'node:path'
+import {fileURLToPath, pathToFileURL} from 'node:url'
+import {scanBuiltFiles, secretValues} from './lib/env-secrets.mjs'
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // vite is astro's own dependency, not the site's: resolve it through astro.
 const astroRequire = createRequire(createRequire(import.meta.url).resolve('astro/package.json'))
 const {loadEnv} = await import(pathToFileURL(astroRequire.resolve('vite')).href)
-const DIST = path.join(ROOT, 'dist')
 // The same view of the environment Astro's env plugin has: the process plus every .env file.
 const secrets = secretValues({...loadEnv('production', ROOT, ''), ...process.env})
-
-function* files(dir) {
-  for (const entry of readdirSync(dir)) {
-    const full = path.join(dir, entry)
-    if (statSync(full).isDirectory()) {
-      yield* files(full)
-    } else if (/\.(?:m?js|json|html|txt|css|map|xml|md|webmanifest)$/.test(entry) || !entry.includes('.')) {
-      yield full
-    }
-  }
-}
-
-const leaks = []
-let checked = 0
-for (const file of files(DIST)) {
-  checked++
-  const names = leakedNames(readFileSync(file, 'utf8'), secrets)
-  if (names.length > 0) {
-    leaks.push(`${path.relative(ROOT, file)}: ${names.join(', ')}`)
-  }
+const {checked, leaks} = scanBuiltFiles(path.join(ROOT, 'dist'), secrets)
+if (checked === 0) {
+  console.error('[check-no-env-secrets] FAIL: no built file to check under dist/')
+  process.exit(1)
 }
 if (leaks.length > 0) {
   console.error(`[check-no-env-secrets] FAIL: the value of a secret-looking variable is in a built file:\n  ${leaks.join('\n  ')}`)

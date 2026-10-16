@@ -270,3 +270,10 @@ describe('the fixture data plane never reaches production (review M2)', () => {
     }
   })
 })
+
+describe('checkArtifact: a build without an id (review L9)', () => {
+  it('never treats two unknown builds as the same build', () => {
+    const value = {...JSON.parse(ARTIFACT), composer: {build: 'unknown'}}
+    expect(checkArtifact(JSON.stringify(value), NOW, 'unknown', HIDING)).toEqual({ok: false, refusal: 'build'})
+  })
+})

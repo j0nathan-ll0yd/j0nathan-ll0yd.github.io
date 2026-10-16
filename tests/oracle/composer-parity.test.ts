@@ -356,4 +356,11 @@ describe('composeDashboard: the runner entry (owner decision 2026-10-16, the liv
     )
     expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'focus-changed'})
   })
+
+  it('refuses when the visible focus value changes during the render (review L6)', async () => {
+    const plane = dataPlane((key, call) =>
+      key === 'focus' && call === 2 ? new Response(JSON.stringify({generatedAt: FRESH, currentFocus: 'Personal'}), {headers: {'x-amz-cf-id': 'test'}}) : null
+    )
+    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'focus-changed'})
+  })
 })

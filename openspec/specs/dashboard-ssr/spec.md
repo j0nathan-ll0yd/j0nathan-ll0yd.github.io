@@ -115,7 +115,7 @@ Every read SHALL end within its bound, and an export still unread at the budget 
 `unavailable`. The loader's default bounds are 1 s for the focus read, 2 s per export and 2.5 s for
 every read of one load (D2); a runtime may hold six open connections, so two of the eight reads may
 wait in its queue. The composer runs in a backend runner with a 60 s run, so it reads with 5 s, 10 s
-and 30 s (src/lib/composed/compose.ts `RUNNER_TIMEOUTS`).
+and 20 s (src/lib/composed/compose.ts `RUNNER_TIMEOUTS`).
 
 Verified by `tests/unit/data-plane-loader.test.ts:301`.
 
@@ -267,7 +267,7 @@ Verified by `tests/unit/composed-read.test.ts:156` (another build's artifact is 
 
 Two privacy races SHALL publish or serve nothing stale. (a) Focus turns hiding during a composition:
 the composer SHALL read the focus signal again after rendering and SHALL refuse (`focus-changed`)
-unless it still reads visible; an artifact published before the change holds pre-hiding values, and
+unless it reads the same visible value; an artifact published before the change holds pre-hiding values, and
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
