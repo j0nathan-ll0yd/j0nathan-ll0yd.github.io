@@ -1,0 +1,136 @@
+---
+// The dashboard page body, shared by its two renders (atlas decision 0160):
+//
+// - `src/pages/index.astro`, prerendered: the data-free page. Every live widget renders `loading`
+//   with its <noscript> note. The Worker serves it at `/` when a server render misses its budget
+//   (decision 0160, D2) and for `HEAD /`, and it is the rollback target (D9).
+// - `src/pages/ssr-dashboard.astro`, on demand: the Worker renders it for `GET /` from the
+//   decoded exports (`src/lib/data-plane/`). `vm` then carries every live widget's props.
+//
+// With no `vm`, every live widget renders `loading`. A widget never receives a fixture value.
+import Dashboard from './Dashboard.astro';
+import {
+  BioTerminal, BookModal, Hydration, IdentityCard,
+  SystemStatus, HeartRate, MovementRings, Workouts, NightSummary,
+  StarredRepoList, DevActivityLog, ReadingFeed, Bookshelf,
+  FocusOverlay, DndOverlay,
+  TheatreReviews,
+} from '@j0nathan-ll0yd/web/production';
+import type { DashboardViewModels } from '@j0nathan-ll0yd/web/runtime/view-models';
+import type { DashboardData } from '../lib/load-dashboard-data';
+import { a11y, app, identity } from '@j0nathan-ll0yd/copy';
+
+interface Props {
+  /** Authored identity content and the mirrored cover paths (`loadDashboardData`). */
+  data: DashboardData;
+  /** The server render's view models. Absent: the data-free page. */
+  vm?: DashboardViewModels;
+  /** The render summary for the `ssr-data` meta (`src/lib/data-plane/render-model.ts`). */
+  ssrData?: string;
+}
+
+const { data, vm, ssrData } = Astro.props;
+const { profile, localCovers } = data;
+const loading = { state: 'loading' } as const;
+const system = vm ? vm.systemStatus.system : data.system;
+---
+<Dashboard pagePath="/" ssrData={ssrData}>
+  <FocusOverlay {...(vm?.focusOverlay ?? {})} />
+  <DndOverlay {...(vm?.dndOverlay ?? {})} />
+
+  <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+  <div class="command-layout">
+
+    <aside class="left-panel" aria-label={a11y.nav.profile}>
+      <IdentityCard profile={profile.card} />
+      <BioTerminal profile={profile.terminal} />
+      <SystemStatus system={system} />
+    </aside>
+
+    <nav aria-label={a11y.nav.dashboard}>
+      <header class="top-bar">
+        <div class="top-bar-title">{identity.site.name}</div>
+        <span id="pollStatus" class="poll-status">
+          <span class="poll-dot poll-dot--off"></span>
+          <span class="poll-label"></span>
+        </span>
+        <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label={a11y.clock.currentTime}></div>
+      </header>
+    </nav>
+
+    <main id="main-content" class="right-panel">
+      <div class="triptych-grid" id="triptychGrid">
+
+        <section class="triptych-column triptych-column-body" aria-label={a11y.region.body}>
+          <h2 class="column-header column-header-pink">{app.sections.body}</h2>
+          {/* Tablet columns become real boxes so a tall card cannot stretch its neighbor.
+              Desktop keeps display:contents to preserve the unified grid. */}
+          <div class="body-bento">
+            <div class="body-bento-col">
+              <HeartRate {...(vm?.heartRate ?? loading)} />
+              <Workouts {...(vm?.workouts ?? loading)} />
+            </div>
+            <div class="body-bento-col">
+              <MovementRings {...(vm?.movementRings ?? loading)} />
+              <Hydration {...(vm?.hydration ?? loading)} />
+              <NightSummary {...(vm?.nightSummary ?? loading)} />
+            </div>
+          </div>
+        </section>
+
+        <section class="triptych-column triptych-column-mind" aria-label={a11y.region.mind}>
+          <h2 class="column-header column-header-green">{app.sections.mind}</h2>
+          <DevActivityLog {...(vm?.devActivityLog ?? loading)} />
+          <ReadingFeed {...(vm?.readingFeed ?? loading)} />
+          <StarredRepoList {...(vm?.starredRepoList ?? loading)} />
+          <Bookshelf {...(vm?.bookshelf ?? loading)} localCovers={localCovers} />
+          <TheatreReviews {...(vm?.theatreReviews ?? loading)} />
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <BookModal />
+
+  <script>
+    import { initInputModality } from '@j0nathan-ll0yd/web/runtime/input-modality';
+    initInputModality();
+  </script>
+
+  <script>
+    window.addEventListener('load', () => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // iOS 26 Safari's Advanced Fingerprinting Protection surfaces the "reduce
+      // protections" banner when 2+ canvases animate at once (the particle canvas
+      // plus the live heart-rate canvas). On touch devices we render the particle
+      // network as SVG instead (no canvas → no banner), keeping the moving-network
+      // look. Escapes: ?bg=off disables it, ?bg=canvas forces the old full canvas,
+      // ?bg=lite forces a lighter canvas variant (see src/lib/mobile-bg.ts).
+      // Desktop (fine pointer) keeps the full particle canvas.
+      if (window.matchMedia('(pointer: coarse)').matches) {
+        const bg = new URLSearchParams(location.search).get('bg');
+        if (bg === 'off') return;
+        if (bg === 'canvas') {
+          import('@j0nathan-ll0yd/web/runtime/particles').then(m => m.startParticles());
+        } else {
+          import('../lib/mobile-bg').then(m => m.initMobileBg(bg === 'lite' ? 'lite' : 'svg'));
+        }
+        return;
+      }
+      import('@j0nathan-ll0yd/web/runtime/particles').then(m => m.startParticles());
+    });
+  </script>
+
+  <script is:inline src="/js/clock.js"></script>
+
+  <script is:inline src="/js/card-reveal.js"></script>
+
+  {import.meta.env.PROD && <script is:inline src="/js/scroll-depth.js"></script>}
+
+  <script>
+    import '../lib/runtime/live-data';
+  </script>
+</Dashboard>

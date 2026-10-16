@@ -51,6 +51,21 @@
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {COMPOSED_AT_METADATA_HEADER} from './feed-artifacts'
+import {
+  DeadlineError,
+  discardBody,
+  errorClass,
+  GATED_FETCH_INIT,
+  isRetryableStatus,
+  isSuppressionBody as isSuppressionBodyWithin,
+  passedGate,
+  type Refusal,
+  type RequestBudget,
+  reserving,
+  startBudget as startBoundedBudget,
+  successRefusal,
+  withDeadline
+} from '../data-plane/admission'
 
 /**
  * The oldest upstream composition the last-known-good path may serve. It equals the registry's
@@ -112,21 +127,6 @@ const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
 const FOCUS_URL = `${CLOUDFRONT_BASE}${FOCUS_SIGNAL_PATH}`
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
-
-/**
- * The fetch options for every request to a gated path: the artifact attempts and the gate probe.
- *
- * `cache: 'no-store'` makes a subrequest to an origin that Cloudflare does not host bypass
- * Cloudflare's caches, so every attempt reaches CloudFront and passes the viewer-request gate.
- * There are deliberately no `cf` cache options: `cacheEverything` and `cacheTtlByStatus` put a
- * Cloudflare cache IN FRONT of the gate, and a hit there served gated content without asking it.
- * `redirect: 'manual'` keeps a redirect from carrying the request to a URL the gate does not
- * guard; a 3xx is then an ordinary non-retryable failure.
- */
-const GATED_FETCH_INIT: RequestInit = Object.freeze({cache: 'no-store', redirect: 'manual'})
-
-/** `cf-cache-status` values that mean Cloudflare answered from its own cache, not from the origin. */
-const CLOUDFLARE_CACHE_SERVED = new Set(['HIT', 'STALE', 'UPDATING', 'REVALIDATED'])
 
 interface CacheLike {
   match(request: Request): Promise<Response | undefined>
@@ -208,8 +208,6 @@ interface UpstreamFailure {
   refused?: Refusal
 }
 
-type Refusal = 'cloudflare-cache' | 'no-cloudfront-id' | 'non-200-success'
-
 /** The gate answered an artifact request with its 403 suppression body. The gate wins. */
 interface UpstreamSuppressed {
   ok: false
@@ -241,67 +239,11 @@ interface FocusUnavailable {
 
 type FocusResult = FocusVisible | FocusSuppressed | FocusUnavailable
 
-/**
- * The remaining share of ONE request's total wall-clock budget. Every deadline in this module
- * is sized to `min(per-operation cap, remainingMs())`, so no sequence of individually-bounded
- * operations can outrun the request as a whole.
- */
-export interface RequestBudget {
-  remainingMs(): number
-}
+export type { RequestBudget }
 
+/** One request's budget, by default the proxy's total (`PROXY_TIMEOUTS.totalMs`). */
 export function startBudget(totalMs: number = TOTAL_BUDGET_MS): RequestBudget {
-  const startedAt = Date.now()
-  return {remainingMs: () => Math.max(0, totalMs - (Date.now() - startedAt))}
-}
-
-/** The same budget, less `reserveMs` that the holder may not spend. */
-function reserving(budget: RequestBudget, reserveMs: number): RequestBudget {
-  return {remainingMs: () => Math.max(0, budget.remainingMs() - reserveMs)}
-}
-
-/** Raised when a bounded operation outlives its deadline. Named TimeoutError so diagnostics read like the platform's own. */
-class DeadlineError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TimeoutError'
-  }
-}
-
-function errorClass(error: unknown): string {
-  return error instanceof Error ? error.name : 'UnknownError'
-}
-
-/**
- * Run one network operation under a hard wall-clock bound.
- *
- * The AbortSignal ASKS the platform to cancel; the race GUARANTEES the bound. Those are two
- * different jobs. `fetch` honors the signal and releases the socket, but a body read takes no
- * signal at all, and a runtime that ignored one would hold the request open forever -- which is
- * the exact failure this bounds. When the deadline wins it aborts the controller so nothing keeps
- * running behind the answer; when the operation wins the timer is cleared and the deadline never
- * fires. The operation is invoked INSIDE the try so a synchronous throw still clears the timer.
- */
-async function withDeadline<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  if (timeoutMs <= 0) {
-    throw new DeadlineError(`${label} had no remaining request budget`)
-  }
-  const controller = new AbortController()
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const expiry = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      controller.abort()
-      reject(new DeadlineError(`${label} exceeded ${timeoutMs}ms`))
-    }, timeoutMs)
-  })
-  try {
-    const attempt = operation(controller.signal)
-    // The loser of the race still settles. Without this, its rejection surfaces as an unhandled one.
-    attempt.catch(() => {})
-    return await Promise.race([attempt, expiry])
-  } finally {
-    clearTimeout(timer)
-  }
+  return startBoundedBudget(totalMs)
 }
 
 function defaultCache(): CacheLike | undefined {
@@ -355,10 +297,6 @@ function diagnosticFields(path: string, failure: UpstreamFailure, staleHit?: boo
  */
 function setPublicNoStore(headers: Headers): void {
   applyCachePolicy(headers, LLM_OUTPUT_CACHE_POLICY)
-}
-
-function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 429 || status >= 500
 }
 
 /**
@@ -459,22 +397,6 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** True when Cloudflare answered from its own cache rather than forwarding to CloudFront. */
-function servedFromCloudflareCache(response: Response): boolean {
-  const status = response.headers.get('cf-cache-status')
-  return status !== null && CLOUDFLARE_CACHE_SERVED.has(status.trim().toUpperCase())
-}
-
-/**
- * True when this response came from CloudFront in this request, so the viewer-request gate let the
- * request through. CloudFront stamps `x-amz-cf-id` on every response, including its own errors. A
- * Cloudflare cache hit replays stored headers, `x-amz-cf-id` included, so a cache-served response
- * proves nothing about the gate now and is excluded explicitly.
- */
-function passedGate(response: Response): boolean {
-  return Boolean(response.headers.get('x-amz-cf-id')) && !servedFromCloudflareCache(response)
-}
-
 /**
  * True when this response is evidence, for the last-known-good path, that the gate is open now: a
  * 200 that passed the gate in this request. No CloudFront error status proves that the gate
@@ -490,35 +412,9 @@ function isGateOpenEvidence(response: Response): boolean {
   return response.status === 200 && passedGate(response)
 }
 
-/** Why a success-class response may not be admitted, or undefined when it may. */
-function successRefusal(response: Response): Refusal | undefined {
-  if (response.status !== 200) {
-    return 'non-200-success'
-  }
-  if (servedFromCloudflareCache(response)) {
-    return 'cloudflare-cache'
-  }
-  return passedGate(response) ? undefined : 'no-cloudfront-id'
-}
-
-/**
- * Reads a 403 body under a deadline and reports whether it is the gate's suppression body
- * (`{"suppressed":true,...}`). Any read or parse failure is `false`: an unreadable 403 is not
- * evidence of anything, and every caller already treats a non-suppression 403 as a refusal.
- */
-async function isSuppressionBody(response: Response, budget: RequestBudget, label: string): Promise<boolean> {
-  try {
-    const text = await withDeadline(() => response.text(), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), label)
-    const body: unknown = JSON.parse(text)
-    return typeof body === 'object' && body !== null && 'suppressed' in body && body.suppressed === true
-  } catch {
-    return false
-  }
-}
-
-/** Release a response body this module will not read, so the socket does not wait on it. */
-function discardBody(response: Response): void {
-  response.body?.cancel().catch(() => {})
+/** Reads a 403 body under the artifact deadline and reports whether it is the gate's suppression body. */
+function isSuppressionBody(response: Response, budget: RequestBudget, label: string): Promise<boolean> {
+  return isSuppressionBodyWithin(response, Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), label)
 }
 
 async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget): Promise<UpstreamResult> {

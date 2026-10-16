@@ -1,0 +1,49 @@
+---
+import { getEntry } from 'astro:content';
+import { widgets } from '@j0nathan-ll0yd/copy';
+import Dashboard from '../layouts/Dashboard.astro';
+
+// The 500 page (atlas decision 0160, PR B; plan Step 4.5, D13). The Worker answers `GET /` with it,
+// status 500 and no-store, only when the server render throws. It carries no live widget, no gated
+// value and no fixture value: authored identity copy and a notice, like the data-free /offline page.
+// @j0nathan-ll0yd/copy has no error-page key yet, so the notice reuses the authored "unavailable"
+// widget state; a dedicated key is a design-system follow-up.
+const _identityEntry = await getEntry('copy', 'identity');
+if (!_identityEntry) throw new Error('[500.astro] @j0nathan-ll0yd/copy identity entry missing');
+const id = _identityEntry.data;
+const notice = widgets.widgetState.unavailable;
+---
+<Dashboard title={`${notice} — ${id.site.name}`} description={id.site.fullName} robots="noindex, nofollow" dataFree>
+  <main id="main-content" class="error-page" data-error-page>
+    <h1 class="error-title">{notice}</h1>
+    <p class="error-site">{id.site.fullName}</p>
+    <a href="/" class="error-back-link">{id.privacy.backLink}</a>
+  </main>
+</Dashboard>
+
+<style>
+  .error-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-12);
+    min-height: 100vh;
+    padding: var(--space-24);
+    text-align: center;
+  }
+  .error-title {
+    margin: 0;
+    font-size: var(--font-size-2xl);
+    color: var(--text);
+  }
+  .error-site {
+    margin: 0;
+    font-size: var(--font-size-base);
+    color: var(--text-muted);
+  }
+  .error-back-link {
+    font-size: var(--font-size-sm);
+    color: var(--neon-cyan);
+  }
+</style>

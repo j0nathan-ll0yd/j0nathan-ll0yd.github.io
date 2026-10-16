@@ -48,6 +48,11 @@ jobs:
         # prebuild/postbuild lifecycle hooks. Nothing downstream parses the human log format.
         run: pnpm build --json
 
+      - name: Check that no test-only Worker variable is set
+        # atlas decision 0160, PR B. DATA_PLANE_BASE (a fixture data plane) and SSR_FAULT_INJECTION
+        # (the Step 6.10 fault header) are for tests and the PR preview only.
+        run: node scripts/check-deploy-vars.mjs
+
       - name: Deploy to Cloudflare Workers
         # atlas decision 0160, PR A. `astro build` wrote dist/server/wrangler.json and the
         # .wrangler/deploy/config.json pointer to it, so `wrangler deploy` reads the generated

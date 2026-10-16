@@ -19,11 +19,16 @@ const {
   dataFree = false,
   // schema.org type of this page's WebPage node: AboutPage, ContactPage, or plain WebPage.
   pageType = 'WebPage',
+  // The public path this document answers, when it differs from the path Astro rendered. The
+  // server render of `/` runs at an internal path (src/pages/ssr-dashboard.astro) and passes '/'.
+  pagePath: pagePathProp = undefined,
+  // The server render's summary (atlas decision 0160, PR B), emitted as <meta name="ssr-data">.
+  ssrData = undefined,
 } = Astro.props;
 const siteUrl = Astro.site?.toString().replace(/\/$/, '');
 // build.format 'file' puts the output file name in Astro.url.pathname at build time
 // (/privacy.html, /index.html). The page's URL drops it: the host serves privacy.html at /privacy.
-const pagePath = Astro.url.pathname.replace(/(?:\/index)?\.html$/, '') || '/';
+const pagePath = pagePathProp ?? (Astro.url.pathname.replace(/(?:\/index)?\.html$/, '') || '/');
 const canonicalURL = siteUrl + (pagePath === '/' ? '' : pagePath);
 const ogImage = new URL('/assets/og-image.png', Astro.site);
 // Cloudflare Web Analytics site token (public — appears in the page markup). The
@@ -173,6 +178,7 @@ const jsonLdGraph = isHome
   <meta name="color-scheme" content="dark">
   <meta name="description" content={description}>
   <meta name="robots" content={robots}>
+  {ssrData && <meta name="ssr-data" content={ssrData}>}
   <meta name="keywords" content={identity.seo.keywords.join(', ')}>
   {/* CSP and Referrer-Policy are response headers, so no equivalent meta tags belong here. */}
   <meta name="author" content={identity.person.name}>

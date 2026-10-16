@@ -1,0 +1,30 @@
+---
+// The server render of `/` (atlas decision 0160, PR B; plan Steps 4.2 and 4.3).
+//
+// The Worker (src/worker.ts) renders this page for `GET /` only: it rewrites the request to
+// SSR_DASHBOARD_PATH and hands it to Astro. A public request for that path never reaches Astro; the
+// Worker answers it from the static-asset plane, which has no such file, so it gets the 404 page.
+//
+// The page awaits every read before it renders (Step 4.5), so a data failure can only change a
+// card's state, never break the document. It reports its summary in the `ssr-data` meta and, to the
+// Worker only, in SSR_RECORD_HEADER, which the Worker logs and strips (Step 4.6).
+import { env } from 'cloudflare:workers';
+import DashboardHome from '../layouts/DashboardHome.astro';
+import { loadDashboardData } from '../lib/load-dashboard-data';
+import { dataPlaneBase, DATA_PLANE_BASE_VAR } from '../lib/data-plane/config';
+import { faultyFetch, requestFault, SSR_FAULT_VAR } from '../lib/data-plane/faults';
+import { loadDashboard } from '../lib/data-plane/loader';
+import { toDashboardRender } from '../lib/data-plane/render-model';
+import { SSR_RECORD_HEADER } from '../lib/data-plane/ssr-response';
+
+export const prerender = false;
+
+const vars: Record<string, unknown> = { ...env };
+const base = dataPlaneBase(vars[DATA_PLANE_BASE_VAR]);
+// Step 6.10 fault injection: preview and loopback hosts only, and only when the Worker variable is set.
+const fault = requestFault(Astro.request, vars[SSR_FAULT_VAR]);
+const load = await loadDashboard({ base, ...(fault ? { fetch: faultyFetch(fault) } : {}) });
+const render = toDashboardRender(load, Date.now());
+Astro.response.headers.set(SSR_RECORD_HEADER, JSON.stringify(render.record));
+---
+<DashboardHome data={loadDashboardData()} vm={render.vm} ssrData={render.summary} />
