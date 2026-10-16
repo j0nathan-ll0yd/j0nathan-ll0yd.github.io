@@ -12,6 +12,7 @@ import {AGENT_PATHS} from './src/lib/edge/agent-paths.mjs'
 import {SITE_PAGE_PATHS} from './src/lib/edge/site-paths.ts'
 import {contentLastModified} from './src/lib/content-date.ts'
 import {MIRRORED_BOOK_COVERS_DEFINE, mirroredBookCovers} from './src/lib/book-cover-mirror.ts'
+import {SSR_DASHBOARD_PATH} from './src/lib/data-plane/ssr-response.ts'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -89,7 +90,8 @@ export default defineConfig({
       // anti-pattern docs/wiki/Metadata-Files-Spec.md names (website #360).
       // tests/build/sitemap.test.ts asserts both halves.
       // Matched on the exact pathname.
-      filter: (page) => !['/404', '/500', '/offline', SITE_PAGE_PATHS.privacy].includes(new URL(page).pathname),
+      // SSR_DASHBOARD_PATH is the Worker's private render of `/` (atlas decision 0160, PR B); `/` is listed.
+      filter: (page) => !['/404', '/500', '/offline', SITE_PAGE_PATHS.privacy, SSR_DASHBOARD_PATH].includes(new URL(page).pathname),
       changefreq: 'weekly',
       priority: 0.7,
       serialize(item) {
