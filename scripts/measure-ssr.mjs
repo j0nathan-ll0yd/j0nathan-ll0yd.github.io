@@ -13,11 +13,13 @@
  *
  * Usage:
  *   node scripts/measure-ssr.mjs --base <url> [--count 100] [--concurrency 4] [--fault <spec>]
- *        [--gap-ms 0] [--label warm] [--out /tmp/file.jsonl] [--path /]
+ *        [--gap-ms 0] [--label warm] [--out /tmp/file.jsonl] [--path /] [--header 'Name: value' ...]
  *   node scripts/measure-ssr.mjs --summarize /tmp/a.jsonl [/tmp/b.jsonl ...]
  *
  * `--fault` sends `X-SSR-Fault` (src/lib/data-plane/faults.ts); the preview honors it only because
- * the PR upload sets SSR_FAULT_INJECTION. `--gap-ms` spaces requests apart (a cold-isolate series). */
+ * the PR upload sets SSR_FAULT_INJECTION. `--header` adds a request header, once per flag, for the other
+ * test seams (`X-SSR-Data-Plane: fixture`, `X-SSR-Clock`). `--gap-ms` spaces requests apart (a
+ * cold-isolate series). */
 import {spawn} from 'node:child_process'
 import {appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -30,7 +32,7 @@ export const D2 = Object.freeze({usefulRate: 0.995, pagesBaselineTtfbP75Ms: 124.
 const USEFUL = new Set(['live', 'stale'])
 
 function parseArgs(argv) {
-  const args = {path: '/', count: 100, concurrency: 4, gapMs: 0, label: 'run', fault: null, base: null, out: null, summarize: []}
+  const args = {path: '/', count: 100, concurrency: 4, gapMs: 0, label: 'run', fault: null, headers: [], base: null, out: null, summarize: []}
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i]
     const next = () => argv[++i]
@@ -48,6 +50,8 @@ function parseArgs(argv) {
       args.label = next()
     } else if (flag === '--fault') {
       args.fault = next()
+    } else if (flag === '--header') {
+      args.headers.push(next())
     } else if (flag === '--out') {
       args.out = next()
     } else if (flag === '--summarize') {
@@ -148,7 +152,7 @@ async function run(args) {
   const url = new URL(args.path, args.base).href
   const dir = mkdtempSync(path.join(tmpdir(), 'measure-ssr-'))
   const headerFile = path.join(dir, 'headers')
-  const headers = [...accessHeaders(), 'Accept: text/html', ...(args.fault ? [`X-SSR-Fault: ${args.fault}`] : [])]
+  const headers = [...accessHeaders(), 'Accept: text/html', ...(args.fault ? [`X-SSR-Fault: ${args.fault}`] : []), ...args.headers]
   writeFileSync(headerFile, headers.join('\n') + '\n', {mode: 0o600})
   const records = []
   let next = 0

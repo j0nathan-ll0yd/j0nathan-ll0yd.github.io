@@ -21,7 +21,9 @@ export function readForRequest(request: Request, vars: RenderVars, nowMs: number
   const base = fixture?.base ?? requestDataPlaneBase(request, vars[DATA_PLANE_BASE_VAR], faultableHost)
   const fault = requestFault(request, vars[SSR_FAULT_VAR])
   const clock = requestClock(request, vars[SSR_FAULT_VAR])
-  const plain = fixture?.fetch ?? fetch
+  // Never the bare global: the proxy calls `upstream.fetch(...)` as a method, and workerd rejects a
+  // platform fetch whose receiver is not the global scope (TypeError: Illegal invocation).
+  const plain: typeof fetch = fixture?.fetch ?? ((input, init) => fetch(input, init))
   // A fixed test clock travels to a fixture data plane, which composes at the same instant. Only a
   // preview or loopback host with the seams enabled ever has one (requestClock).
   const transport: typeof fetch = clock === null ? plain : (input, init) => {
