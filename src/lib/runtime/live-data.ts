@@ -15,6 +15,7 @@ import {EXPORT_FRESHNESS, exportDomainState, exportFreshness} from '@j0nathan-ll
 import type {Freshness} from '@j0nathan-ll0yd/web/runtime/freshness'
 import {releaseSuppression, renderWidgetUnavailable} from '@j0nathan-ll0yd/web/runtime/updater-empty'
 import {sleepScoreSource} from '@j0nathan-ll0yd/web/runtime/widget-rules'
+import {NO_READING, stateNoticeHtml} from '@j0nathan-ll0yd/web/runtime/widget-state'
 import {WSClient} from './ws-client'
 import {
   updateBookshelf,
@@ -130,13 +131,28 @@ function isSuppressed(): boolean {
 // reload waits for the end of the window and then runs: it is never dropped.
 const PRIVACY_RELOAD_KEY = 'privacyReloadAtMs'
 const PRIVACY_RELOAD_WINDOW_MS = 15_000
+const PRIVACY_RELOAD_NAME_PATTERN = /privacyReloadAtMs=(\d+);?/
+
+// The time of the last privacy reload lives in sessionStorage. A browser that blocks it (it throws)
+// falls back to `window.name`, which also survives a reload of the same tab, so the limit still holds.
+function readLastPrivacyReload(): number {
+  try {
+    return Number(window.sessionStorage.getItem(PRIVACY_RELOAD_KEY)) || 0
+  } catch {
+    return Number(PRIVACY_RELOAD_NAME_PATTERN.exec(window.name)?.[1]) || 0
+  }
+}
+
+function writeLastPrivacyReload(ms: number): void {
+  try {
+    window.sessionStorage.setItem(PRIVACY_RELOAD_KEY, String(ms))
+  } catch {
+    window.name = `${window.name.replace(PRIVACY_RELOAD_NAME_PATTERN, '')}${PRIVACY_RELOAD_KEY}=${ms};`
+  }
+}
 
 function performPrivacyReload(): void {
-  try {
-    window.sessionStorage.setItem(PRIVACY_RELOAD_KEY, String(Date.now()))
-  } catch {
-    // Storage is unavailable: the window cannot be counted, so the reload still runs.
-  }
+  writeLastPrivacyReload(Date.now())
   window.location.reload()
 }
 
@@ -145,20 +161,80 @@ function reloadForPrivacy(): void {
     return
   }
   reloading = true
-  let waitMs = 0
-  try {
-    const last = Number(window.sessionStorage.getItem(PRIVACY_RELOAD_KEY))
-    if (Number.isFinite(last) && last > 0) {
-      waitMs = Math.min(Math.max(last + PRIVACY_RELOAD_WINDOW_MS - Date.now(), 0), PRIVACY_RELOAD_WINDOW_MS)
-    }
-  } catch {
-    // Storage is unavailable: no earlier reload is known.
-  }
+  const last = readLastPrivacyReload()
+  const waitMs = last > 0 ? Math.min(Math.max(last + PRIVACY_RELOAD_WINDOW_MS - Date.now(), 0), PRIVACY_RELOAD_WINDOW_MS) : 0
   if (waitMs > 0) {
+    // The window holds the reload, but a gated value must not stay on screen meanwhile.
+    clearGatedValuesInPlace()
     setTimeout(performPrivacyReload, waitMs)
     return
   }
   performPrivacyReload()
+}
+
+/**
+ * Removes every gated value from the DOM now, without a reload. Each live card takes the server's
+ * suppressed state (its notice, no `data-generated-at`), System Status ages read as no reading,
+ * canvas value attributes and pixels go, and the book modal empties. The module's own caches are
+ * already forgotten (`forgetGatedExports`). The held reload that follows restores the cards.
+ */
+function clearGatedValuesInPlace(): void {
+  for (const id of LIVE_CARDS) {
+    const card = document.getElementById(id)
+    if (!card) {
+      continue
+    }
+    card.querySelectorAll<HTMLCanvasElement>('canvas').forEach((canvas) => {
+      for (const name of canvas.getAttributeNames()) {
+        if (name.startsWith('data-')) {
+          canvas.removeAttribute(name)
+        }
+      }
+      // Assigning the width resets the bitmap, which clears every drawn pixel.
+      const {width} = canvas
+      canvas.width = width
+    })
+    card.querySelectorAll('noscript, [data-state-notice]').forEach((node) => node.remove())
+    card.querySelectorAll<HTMLElement>('.widget-timestamp').forEach((stamp) => {
+      stamp.removeAttribute('datetime')
+      stamp.textContent = ''
+    })
+    const body = card.querySelector('.widget-body')
+    if (body) {
+      Array.from(body.children).forEach((child) => {
+        if (!child.classList.contains('skeleton-state')) {
+          child.remove()
+        }
+      })
+      delete (body as HTMLElement).dataset.currentPage
+      const skeleton = body.querySelector(':scope > .skeleton-state')
+      if (skeleton) {
+        skeleton.insertAdjacentHTML('afterend', stateNoticeHtml('suppressed'))
+      } else {
+        body.insertAdjacentHTML('afterbegin', stateNoticeHtml('suppressed'))
+      }
+    }
+    delete card.dataset.generatedAt
+    card.dataset.ssrState = 'suppressed'
+    card.classList.remove('is-loading', 'is-paused')
+  }
+  document.querySelectorAll<HTMLElement>('#systemStatus .sys-line').forEach((row) => {
+    row.querySelectorAll('time').forEach((time) => time.remove())
+    const value = row.querySelector('[class*="sys-val"]')
+    if (value) {
+      value.textContent = NO_READING
+    }
+    row.querySelector('.sys-dot')?.setAttribute('class', 'sys-dot')
+    row.dataset.ssrState = 'suppressed'
+  })
+  const dialog = document.getElementById('bookDialog')
+  if (dialog instanceof HTMLDialogElement && dialog.open && typeof dialog.close === 'function') {
+    dialog.close()
+  }
+  const modal = document.getElementById('bookModal')
+  if (modal) {
+    modal.innerHTML = ''
+  }
 }
 
 /** Removes every gated value this document holds, if it holds any. */
@@ -393,6 +469,10 @@ function applyHealth(health: HealthExport, sleep: SleepExport | null, now: numbe
  * (`sleepScoreSource`); a stale or missing health export renders the score as the no-reading mark.
  */
 function applyNightSummary(sleep: SleepExport, health: HealthExport | null, now: number): void {
+  // A health export older than the page's generation never lends its score.
+  if (health && belowKnownGeneration('health', health)) {
+    health = null
+  }
   const healthState = exportDomainState('health', health, now).state
   updateNightSummary(adaptSleep(sleep, sleepScoreSource(health, healthState)), exportFreshness('sleep', sleep, now))
 }
@@ -479,7 +559,9 @@ const CARD_RENDERS = {
   nightSummary: {
     judge: (now: number) =>
       lastExports.sleep && !belowKnownGeneration('sleep', lastExports.sleep)
-        ? `${exportFreshness('sleep', lastExports.sleep, now).state}/${exportDomainState('health', lastExports.health ?? null, now).state}`
+        ? `${exportFreshness('sleep', lastExports.sleep, now).state}/${
+          exportDomainState('health', lastExports.health && !belowKnownGeneration('health', lastExports.health) ? lastExports.health : null, now).state
+        }`
         : null,
     render: (now: number) => {
       if (lastExports.sleep && !belowKnownGeneration('sleep', lastExports.sleep)) {
@@ -629,6 +711,10 @@ function seedServerOutput(): void {
       generations[key] = best.ms
       serverStates[key] = best.state
     }
+  }
+  // A System Status row that shows a source age (a <time datetime>) also carries export recency.
+  if (document.querySelector('#systemStatus .sys-line time[datetime]')) {
+    gatedDataApplied = true
   }
 }
 seedServerOutput()
@@ -796,6 +882,16 @@ const firstRead = async () => {
     }
   }
   Object.assign(timestamps, isSuppressed() ? {focus: data.timestamps.focus} : data.timestamps)
+
+  // ENHANCEMENT EXCEPTION, Reading Feed only. The design-system ReadingFeed server template
+  // (`widgets/reading/ReadingFeed.astro`) renders titles alone: no article link, no note affordance,
+  // no pager, at most 10 rows. The client updater renders all of those (30 rows, 10 per page). An
+  // equal generation would never repaint, so JS visitors would lose links, notes and pages. Run the
+  // updater once on an equal export: same values, richer structure. No other card has this exception.
+  // Design-system follow-up: render the same structure on the server, then delete this block.
+  if (articles && !newer.articles && serverStates.articles !== undefined && generationOf(articles) === generations.articles) {
+    repaint.articles = true
+  }
 
   // A card left as the server rendered it counts as rendered with the server's judgement, so the
   // re-judgement repaints it only when that judgement truly changes (live to stale at the warn age).

@@ -533,3 +533,174 @@ describe('live-data hand-off → privacy reload', () => {
     expect(reload).not.toHaveBeenCalled()
   })
 })
+
+describe('live-data hand-off → a held privacy reload clears the DOM in place', () => {
+  const RELOAD_KEY = 'privacyReloadAtMs'
+  const BOOK_TITLE = 'SSR-BOOK-TITLE'
+
+  /** A server page with every kind of value holder: card text, a canvas attribute, System Status ages, the book modal. */
+  function richPage(): void {
+    document.body.innerHTML = serverPage({health: HEALTH_GEN, sleep: SLEEP_GEN, workouts: WORKOUTS_GEN})
+    root('cardHR').querySelector('[data-state-scaffold]')?.insertAdjacentHTML('beforeend',
+      '<canvas id="hrEcgCanvas" data-bpm="SSR-CANVAS" data-hrv="48"></canvas>')
+    const row = document.querySelector('#systemStatus .sys-line')
+    row?.insertAdjacentHTML('beforeend', `<time datetime="${HEALTH_GEN}">SSR-TIME</time>`)
+    document.body.insertAdjacentHTML('beforeend',
+      `<dialog id="bookDialog"><div id="bookModal"><div class="book-modal-title">${BOOK_TITLE}</div></div></dialog>`)
+  }
+
+  it('leaves no server value in the document while the reload waits, then reloads', async () => {
+    richPage()
+    window.sessionStorage.setItem(RELOAD_KEY, String(T0 - 5000))
+    network.poll.focus = focus('Do Not Disturb')
+
+    await boot()
+
+    expect(reload).not.toHaveBeenCalled()
+    const html = document.body.innerHTML
+    for (
+      const value of [
+        'SSR-BPM',
+        'SSR-RHR',
+        'SSR-RINGS',
+        'SSR-WATER',
+        'SSR-COFFEE',
+        'SSR-SCORE',
+        'SSR-DURATION',
+        'SSR-WORKOUT',
+        'SSR-AGE',
+        'SSR-CANVAS',
+        'SSR-TIME',
+        BOOK_TITLE,
+        HEALTH_GEN,
+        SLEEP_GEN
+      ]
+    ) {
+      expect(html).not.toContain(value)
+    }
+    expect(html).not.toContain('data-bpm')
+    expect(root('cardHR').dataset.ssrState).toBe('suppressed')
+    expect(root('cardHR').dataset.generatedAt).toBeUndefined()
+    expect(root('cardHR').querySelector('[data-state-notice="suppressed"]')).not.toBeNull()
+    expect(document.querySelector('#systemStatus .sys-val')?.textContent).toBe('—')
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(reload).toHaveBeenCalledOnce()
+  })
+})
+
+describe('live-data hand-off → the reload limit survives blocked sessionStorage', () => {
+  const NAME_KEY = 'privacyReloadAtMs'
+  let savedName = ''
+
+  beforeEach(() => {
+    savedName = window.name
+    window.name = ''
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.name = savedName
+  })
+
+  it('records the reload in window.name and reloads at once the first time', async () => {
+    document.body.innerHTML = serverPage({health: HEALTH_GEN})
+    network.poll.focus = focus('Do Not Disturb')
+    await boot()
+    expect(reload).toHaveBeenCalledOnce()
+    expect(window.name).toContain(NAME_KEY)
+  })
+
+  it('holds a second reload inside the 15 s window', async () => {
+    document.body.innerHTML = serverPage({health: HEALTH_GEN})
+    window.name = `${NAME_KEY}=${T0 - 5000};`
+    network.poll.focus = focus('Do Not Disturb')
+    await boot()
+    expect(reload).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(reload).toHaveBeenCalledOnce()
+  })
+})
+
+describe('live-data hand-off → gated values seeded from System Status', () => {
+  it('reloads on a hiding focus when only a System Status row shows a source age', async () => {
+    document.body.innerHTML = '<div id="focusOverlay" style="display:none"></div><div id="dndOverlay" style="display:none"></div>' +
+      '<div id="cardHR" data-ssr-state="unavailable"></div>' +
+      '<div id="systemStatus"><div class="sys-line" data-source="health"><span class="sys-val"><time datetime="2026-10-10T06:55:00Z">5m ago</time></span></div></div>'
+    network.poll.focus = focus('Do Not Disturb')
+    await boot()
+    expect(reload).toHaveBeenCalledOnce()
+  })
+})
+
+describe('live-data hand-off → Night Summary ignores a health export older than the server generation', () => {
+  it('renders the score as no reading instead of taking it from the older health export', async () => {
+    document.body.innerHTML = serverPage({health: HEALTH_GEN, sleep: SLEEP_GEN})
+    network.boot.health = ok({...healthExport(at(-20 * MINUTE)), quantities: {sleepScore: {value: 11, unit: 'score'}}})
+    network.boot.sleep = ok(sleepExport(at(-10 * MINUTE)))
+    await boot()
+
+    expect(spies.updateNightSummary).toHaveBeenCalled()
+    expect(spies.updateNightSummary.mock.calls[0]?.[0]).toMatchObject({sleepScore: null})
+    expect(text('sleepScoreVal')).not.toContain('11')
+  })
+})
+
+describe('live-data hand-off → Reading Feed enhancement exception', () => {
+  const ARTICLES_GEN = at(-60 * MINUTE)
+  const articles = Array.from({length: 12},
+    (_, i) => ({
+      articleTitle: `Title ${i}`,
+      articleUrl: `https://example.com/a${i}`,
+      sourceTitle: `Source ${i}`,
+      savedAt: at(-(i + 1) * 60 * MINUTE),
+      notes: i === 0 ? [{comment: 'a note'}] : []
+    }))
+  // The design-system server template: titles and sources only, 10 rows, no link, note or pager.
+  const serverReading = (state: string) =>
+    `<div id="cardReading" class="tri-card" data-ssr-state="${state}" data-generated-at="${ARTICLES_GEN}"><div class="widget-body"><ul class="article-list" data-state-scaffold>` +
+    articles.slice(0, 10).map((a) =>
+      `<li class="article-list-item"><span class="article-list-title">${a.articleTitle}</span><span class="article-list-source">(${a.sourceTitle})</span></li>`
+    ).join('') +
+    '</ul></div></div>'
+
+  const titles = () => [...document.querySelectorAll('#cardReading .article-list-title')].map((el) => el.textContent)
+  const sources = () => [...document.querySelectorAll('#cardReading .article-list-source')].map((el) => el.textContent)
+
+  for (const state of ['live', 'stale']) {
+    it(`adds links, notes and the pager to a ${state} server render of an equal export, with the values unchanged`, async () => {
+      document.body.innerHTML = serverPage({workouts: WORKOUTS_GEN}) + serverReading(state)
+      const before = {
+        titles: ['Title 0', 'Title 1', 'Title 2', 'Title 3', 'Title 4', 'Title 5', 'Title 6', 'Title 7', 'Title 8', 'Title 9'],
+        sources: [] as (string | null)[]
+      }
+      before.sources = sources()
+      network.boot.articles = ok({generatedAt: ARTICLES_GEN, articles})
+      network.boot.workouts = ok(workoutsExport(WORKOUTS_GEN))
+
+      await boot()
+
+      expect(titles()).toEqual(before.titles)
+      expect(sources()).toEqual(before.sources)
+      expect(document.querySelectorAll('#cardReading a.article-list-title[href^="https://example.com/"]')).toHaveLength(10)
+      expect(document.querySelector('#cardReading .article-list-note')).not.toBeNull()
+      expect(document.querySelectorAll('#cardReading .article-page-btn')).toHaveLength(2)
+      // No other card has the exception.
+      expect(spies.updateWorkouts).not.toHaveBeenCalled()
+    })
+  }
+
+  it('does not run the updater when the card was not server-rendered with data', async () => {
+    document.body.innerHTML = serverPage() + `<div id="cardReading" class="tri-card" data-ssr-state="unavailable"><div class="widget-body"></div></div>`
+    network.boot.articles = ok({generatedAt: ARTICLES_GEN, articles})
+    await boot()
+    // Applied as a first read (no server generation), not as the exception.
+    expect(document.querySelector('#cardReading .article-list')).not.toBeNull()
+  })
+})
