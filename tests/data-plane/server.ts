@@ -151,7 +151,7 @@ async function dashboard(request: IncomingMessage, response: ServerResponse): Pr
   }
   const {compose} = (await import(COMPOSER.href)) as {compose: (input: unknown) => Promise<{ok: boolean; artifact?: unknown}>}
   const clock = request.headers['x-ssr-clock']
-  const nowMs = typeof clock === 'string' ? Date.parse(clock) : DEFAULT_GENERATED_AT === 'original' ? Date.parse(FIXTURE_NOW) : Date.now()
+  const nowMs = typeof clock === 'string' ? Date.parse(clock) : stampClockMs()
   const keys = Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus')
   const result = await compose({
     exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
@@ -166,13 +166,22 @@ async function dashboard(request: IncomingMessage, response: ServerResponse): Pr
   send(response, 200, JSON.stringify(result.artifact), !unproven)
 }
 
+/**
+ * The composition clock that matches how the exports are stamped: the fixtures' own date for
+ * `original`, else now. The composer refuses a card whose source age is after its composition stamp
+ * (src/lib/composed/fragment-policy.ts, `data-generated-at`), as the Worker would.
+ */
+function stampClockMs(): number {
+  return DEFAULT_GENERATED_AT === 'original' ? Date.parse(FIXTURE_NOW) : Date.now()
+}
+
 async function warmComposer(): Promise<void> {
   const {compose} = (await import(COMPOSER.href)) as {compose: (input: unknown) => Promise<unknown>}
   const keys = Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus')
   await compose({
     exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
     focus: exportBody(ENDPOINTS.focus),
-    nowMs: Date.parse(FIXTURE_NOW),
+    nowMs: stampClockMs(),
     localCovers: mirroredBookCovers()
   })
 }
