@@ -373,7 +373,10 @@ export function classifyPage(page, parsed) {
   if (parsed.header === 'fallback') {
     return {
       findings: [
-        fail('ssr-fallback-served', 'X-SSR-Data is "fallback": the Worker served the data-free page after a missed render budget', {partial: true})
+        fail('ssr-fallback-served',
+          'X-SSR-Data is "fallback": the Worker served the data-free page (no fresh, admitted composed artifact, or the 3 s ceiling passed)', {
+          partial: true
+        })
       ],
       usable: false,
       partial: true
