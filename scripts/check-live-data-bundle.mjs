@@ -1,13 +1,13 @@
 // Verifies the live-data bundle is present in dist/_astro/.
 //
 // Catches the class of bug where Rollup tree-shakes the side-effect-only
-// `import '../lib/runtime/live-data'` (in src/pages/index.astro), producing an
+// `import '../lib/runtime/live-data'` (in src/layouts/DashboardHome.astro, the body both renders of `/` share), producing an
 // empty <script></script> tag in production. The build itself succeeds silently.
 // The data runtime is app-local under src/lib/runtime/ — relocated out of the
 // @j0nathan-ll0yd/web design-system package (see ADR 0005 in design-system-Lifegames).
 //
 // We assert that the live-data runtime — reachable from the entry
-// `index.astro_astro_type_script_index_*_lang.*.js` chunk(s) — contains string
+// `DashboardHome.astro_astro_type_script_index_*_lang.*.js` chunk(s) — contains string
 // literals that only it emits (DOM element IDs plus the live-data dispatch
 // table). Function identifiers are minified; DOM IDs and dispatch keys survive
 // minification because they're string literals.
@@ -23,7 +23,7 @@ import {resolve} from 'node:path'
 import {clientDir} from './lib/build-paths.mjs'
 
 const astroDir = resolve(clientDir(), '_astro')
-const BUNDLE_RE = /^index\.astro_astro_type_script_index_\d+_lang\.[A-Za-z0-9_-]+\.js$/
+const BUNDLE_RE = /^DashboardHome\.astro_astro_type_script_index_\d+_lang\.[A-Za-z0-9_-]+\.js$/
 const REQUIRED = ['cardTheatreReviews', 'systemStatus', 'theatreReviews']
 // Matches a relative chunk reference (`"./updaters.fDuJCGys.js"`) in minified output,
 // whether via static import, dynamic import, or re-export.
@@ -40,7 +40,7 @@ try {
 const fileSet = new Set(files)
 const entryBundles = files.filter((f) => BUNDLE_RE.test(f))
 if (entryBundles.length === 0) {
-  console.error('[check-live-data-bundle] No index.astro module bundles found in', astroDir)
+  console.error('[check-live-data-bundle] No DashboardHome.astro module bundles found in', astroDir)
   process.exit(1)
 }
 

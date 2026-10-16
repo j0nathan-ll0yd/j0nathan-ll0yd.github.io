@@ -59,6 +59,21 @@
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {COMPOSED_AT_METADATA_HEADER} from './feed-artifacts'
+import {
+  DeadlineError,
+  discardBody,
+  errorClass,
+  GATED_FETCH_INIT,
+  isRetryableStatus,
+  isSuppressionBody as isSuppressionBodyWithin,
+  passedGate,
+  type Refusal,
+  type RequestBudget,
+  reserving,
+  startBudget as startBoundedBudget,
+  successRefusal,
+  withDeadline
+} from '../data-plane/admission'
 
 /**
  * The oldest upstream composition the last-known-good path may serve. It equals the registry's
@@ -118,20 +133,16 @@ const SUPPRESSION_RETRY_SECONDS = 60
 export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
-const FOCUS_URL = `${CLOUDFRONT_BASE}${FOCUS_SIGNAL_PATH}`
-const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
-
 /**
- * The fetch options for every request to a gated path: the artifact attempts and the gate probe.
- *
- * `cache: 'no-store'` makes a subrequest to an origin that Cloudflare does not host bypass
- * Cloudflare's caches, so every attempt reaches CloudFront and passes the viewer-request gate.
- * There are deliberately no `cf` cache options: `cacheEverything` and `cacheTtlByStatus` put a
- * Cloudflare cache IN FRONT of the gate, and a hit there served gated content without asking it.
- * `redirect: 'manual'` keeps a redirect from carrying the request to a URL the gate does not
- * guard; a 3xx is then an ordinary non-retryable failure.
+ * Where a proxy reads: the CloudFront data plane through the platform fetch, unless a caller passes
+ * another (the server render's test seams, which apply only on a preview or loopback host).
  */
-const GATED_FETCH_INIT: RequestInit = Object.freeze({cache: 'no-store', redirect: 'manual'})
+export interface Upstream {
+  base: string
+  fetch: typeof fetch
+}
+const CLOUDFRONT_UPSTREAM: Upstream = Object.freeze({base: CLOUDFRONT_BASE, fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init)})
+const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
 
 /**
  * Headers the Cache API adds to a match, which describe the CACHE READ, not the artifact. workerd
@@ -141,9 +152,6 @@ const GATED_FETCH_INIT: RequestInit = Object.freeze({cache: 'no-store', redirect
  * edge arm reds on any `Age`.
  */
 const CACHE_API_STATE_HEADERS = Object.freeze(['CF-Cache-Status', 'Age'])
-
-/** `cf-cache-status` values that mean Cloudflare answered from its own cache, not from the origin. */
-const CLOUDFLARE_CACHE_SERVED = new Set(['HIT', 'STALE', 'UPDATING', 'REVALIDATED'])
 
 interface CacheLike {
   match(request: Request): Promise<Response | undefined>
@@ -157,6 +165,15 @@ interface CloudflareCacheStorage {
 export interface CloudfrontProxyContext {
   request: Request
   waitUntil(promise: Promise<unknown>): void
+  /** Where to read. Absent: the CloudFront data plane. Only the server render's test seams pass one. */
+  upstream?: Upstream
+  /**
+   * Told the hiding focus value when the probe denies. Internal: the dashboard picks the overlay of
+   * that value (src/lib/composed/read.ts). The response itself never names the value.
+   */
+  onHidingFocus?(currentFocus: string): void
+  /** The whole request's budget in ms. Absent: TOTAL_BUDGET_MS. The dashboard passes its D2 I/O share. */
+  budgetMs?: number
 }
 
 /**
@@ -195,6 +212,12 @@ export interface CloudfrontProxyConfig {
   contentType: string
   /** Cache directives for the success and stale paths. Defaults to no-store, which every gated route needs. */
   cachePolicy?: CachePolicy
+  /**
+   * Whether the route may keep and serve a last-known-good copy. Defaults to true. The dashboard
+   * passes false: decision 0160 D3 allows no last-known-good copy for it, and its fallback is the
+   * data-free page instead.
+   */
+  lastKnownGood?: boolean
 }
 
 interface UpstreamSuccess {
@@ -224,8 +247,6 @@ interface UpstreamFailure {
    */
   refused?: Refusal
 }
-
-type Refusal = 'cloudflare-cache' | 'no-cloudfront-id' | 'non-200-success'
 
 /** The gate answered an artifact request with its 403 suppression body. The gate wins. */
 interface UpstreamSuppressed {
@@ -258,67 +279,11 @@ interface FocusUnavailable {
 
 type FocusResult = FocusVisible | FocusSuppressed | FocusUnavailable
 
-/**
- * The remaining share of ONE request's total wall-clock budget. Every deadline in this module
- * is sized to `min(per-operation cap, remainingMs())`, so no sequence of individually-bounded
- * operations can outrun the request as a whole.
- */
-export interface RequestBudget {
-  remainingMs(): number
-}
+export type { RequestBudget }
 
+/** One request's budget, by default the proxy's total (`PROXY_TIMEOUTS.totalMs`). */
 export function startBudget(totalMs: number = TOTAL_BUDGET_MS): RequestBudget {
-  const startedAt = Date.now()
-  return {remainingMs: () => Math.max(0, totalMs - (Date.now() - startedAt))}
-}
-
-/** The same budget, less `reserveMs` that the holder may not spend. */
-function reserving(budget: RequestBudget, reserveMs: number): RequestBudget {
-  return {remainingMs: () => Math.max(0, budget.remainingMs() - reserveMs)}
-}
-
-/** Raised when a bounded operation outlives its deadline. Named TimeoutError so diagnostics read like the platform's own. */
-class DeadlineError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'TimeoutError'
-  }
-}
-
-function errorClass(error: unknown): string {
-  return error instanceof Error ? error.name : 'UnknownError'
-}
-
-/**
- * Run one network operation under a hard wall-clock bound.
- *
- * The AbortSignal ASKS the platform to cancel; the race GUARANTEES the bound. Those are two
- * different jobs. `fetch` honors the signal and releases the socket, but a body read takes no
- * signal at all, and a runtime that ignored one would hold the request open forever -- which is
- * the exact failure this bounds. When the deadline wins it aborts the controller so nothing keeps
- * running behind the answer; when the operation wins the timer is cleared and the deadline never
- * fires. The operation is invoked INSIDE the try so a synchronous throw still clears the timer.
- */
-async function withDeadline<T>(operation: (signal: AbortSignal) => Promise<T>, timeoutMs: number, label: string): Promise<T> {
-  if (timeoutMs <= 0) {
-    throw new DeadlineError(`${label} had no remaining request budget`)
-  }
-  const controller = new AbortController()
-  let timer: ReturnType<typeof setTimeout> | undefined
-  const expiry = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      controller.abort()
-      reject(new DeadlineError(`${label} exceeded ${timeoutMs}ms`))
-    }, timeoutMs)
-  })
-  try {
-    const attempt = operation(controller.signal)
-    // The loser of the race still settles. Without this, its rejection surfaces as an unhandled one.
-    attempt.catch(() => {})
-    return await Promise.race([attempt, expiry])
-  } finally {
-    clearTimeout(timer)
-  }
+  return startBoundedBudget(totalMs)
 }
 
 function defaultCache(): CacheLike | undefined {
@@ -374,10 +339,6 @@ function setPublicNoStore(headers: Headers): void {
   applyCachePolicy(headers, LLM_OUTPUT_CACHE_POLICY)
 }
 
-function isRetryableStatus(status: number): boolean {
-  return status === 408 || status === 429 || status >= 500
-}
-
 /**
  * One bounded read of the ungated focus signal.
  *
@@ -385,10 +346,11 @@ function isRetryableStatus(status: number): boolean {
  * turns that into a 502. The gate fails CLOSED: a focus state this Function could not read is
  * never treated as permission to serve.
  */
-async function probeFocusOnce(budget: RequestBudget): Promise<FocusResult> {
+async function probeFocusOnce(budget: RequestBudget, upstream: Upstream): Promise<FocusResult> {
   let response: Response
   try {
-    response = await withDeadline((signal) => fetch(FOCUS_URL, {cache: 'no-store', signal}), Math.min(FOCUS_TIMEOUT_MS, budget.remainingMs()), 'focus probe')
+    response = await withDeadline((signal) => upstream.fetch(`${upstream.base}${FOCUS_SIGNAL_PATH}`, {cache: 'no-store', signal}),
+      Math.min(FOCUS_TIMEOUT_MS, budget.remainingMs()), 'focus probe')
   } catch (error) {
     return {status: 'unavailable', errorName: errorClass(error), retryable: true}
   }
@@ -419,11 +381,11 @@ async function probeFocusOnce(budget: RequestBudget): Promise<FocusResult> {
 }
 
 /** Bounded retry over the focus probe: one extra attempt for a transport-shaped failure, never for a definite answer. */
-async function probeFocus(budget: RequestBudget): Promise<FocusResult> {
+async function probeFocus(budget: RequestBudget, upstream: Upstream): Promise<FocusResult> {
   let failure: FocusUnavailable = {status: 'unavailable', errorName: 'FocusProbeNotAttempted', retryable: false}
 
   for (let attempt = 1; attempt <= FOCUS_MAX_ATTEMPTS; attempt++) {
-    const result = await probeFocusOnce(budget)
+    const result = await probeFocusOnce(budget, upstream)
     if (result.status !== 'unavailable') {
       return result
     }
@@ -460,10 +422,17 @@ function focusUnavailableResponse(path: string, result: FocusUnavailable): Respo
   return new Response('focus state unavailable', {status: 502, headers})
 }
 
-export async function focusPrivacyResponse(method: string, path: string, budget: RequestBudget = startBudget()): Promise<Response | null> {
-  const focus = await probeFocus(budget)
+export async function focusPrivacyResponse(
+  method: string,
+  path: string,
+  budget: RequestBudget = startBudget(),
+  upstream: Upstream = CLOUDFRONT_UPSTREAM,
+  onHidingFocus?: (currentFocus: string) => void
+): Promise<Response | null> {
+  const focus = await probeFocus(budget, upstream)
   if (focus.status === 'suppressed') {
     logger.info?.('cloudfront_proxy_suppressed', {artifact: path, current_focus: focus.currentFocus})
+    onHidingFocus?.(focus.currentFocus)
     return suppressionResponse(method)
   }
   if (focus.status === 'unavailable') {
@@ -474,22 +443,6 @@ export async function focusPrivacyResponse(method: string, path: string, budget:
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-/** True when Cloudflare answered from its own cache rather than forwarding to CloudFront. */
-function servedFromCloudflareCache(response: Response): boolean {
-  const status = response.headers.get('cf-cache-status')
-  return status !== null && CLOUDFLARE_CACHE_SERVED.has(status.trim().toUpperCase())
-}
-
-/**
- * True when this response came from CloudFront in this request, so the viewer-request gate let the
- * request through. CloudFront stamps `x-amz-cf-id` on every response, including its own errors. A
- * Cloudflare cache hit replays stored headers, `x-amz-cf-id` included, so a cache-served response
- * proves nothing about the gate now and is excluded explicitly.
- */
-function passedGate(response: Response): boolean {
-  return Boolean(response.headers.get('x-amz-cf-id')) && !servedFromCloudflareCache(response)
 }
 
 /**
@@ -507,46 +460,20 @@ function isGateOpenEvidence(response: Response): boolean {
   return response.status === 200 && passedGate(response)
 }
 
-/** Why a success-class response may not be admitted, or undefined when it may. */
-function successRefusal(response: Response): Refusal | undefined {
-  if (response.status !== 200) {
-    return 'non-200-success'
-  }
-  if (servedFromCloudflareCache(response)) {
-    return 'cloudflare-cache'
-  }
-  return passedGate(response) ? undefined : 'no-cloudfront-id'
+/** Reads a 403 body under the artifact deadline and reports whether it is the gate's suppression body. */
+function isSuppressionBody(response: Response, budget: RequestBudget, label: string): Promise<boolean> {
+  return isSuppressionBodyWithin(response, Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), label)
 }
 
-/**
- * Reads a 403 body under a deadline and reports whether it is the gate's suppression body
- * (`{"suppressed":true,...}`). Any read or parse failure is `false`: an unreadable 403 is not
- * evidence of anything, and every caller already treats a non-suppression 403 as a refusal.
- */
-async function isSuppressionBody(response: Response, budget: RequestBudget, label: string): Promise<boolean> {
-  try {
-    const text = await withDeadline(() => response.text(), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), label)
-    const body: unknown = JSON.parse(text)
-    return typeof body === 'object' && body !== null && 'suppressed' in body && body.suppressed === true
-  } catch {
-    return false
-  }
-}
-
-/** Release a response body this module will not read, so the socket does not wait on it. */
-function discardBody(response: Response): void {
-  response.body?.cancel().catch(() => {})
-}
-
-async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget): Promise<UpstreamResult> {
+async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget, fetchImpl: typeof fetch): Promise<UpstreamResult> {
   let lastResponse: Response | undefined
   let errorName: string | undefined
   let gateOpen = false
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      lastResponse = await withDeadline((signal) => fetch(upstreamUrl, {...GATED_FETCH_INIT, signal}), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()),
-        `${path} fetch`)
+      lastResponse = await withDeadline((signal) => fetchImpl(upstreamUrl, {...GATED_FETCH_INIT, signal}),
+        Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), `${path} fetch`)
       errorName = undefined
       if (lastResponse.status === 403 && await isSuppressionBody(lastResponse, budget, `${path} 403 body`)) {
         return {ok: false, suppressed: true, attempts: attempt, response: lastResponse}
@@ -609,10 +536,10 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
  * Then the answer is `unknown` and no copy is served: without a gate observation there is no
  * permission to serve one.
  */
-async function observeGate(upstreamUrl: string, path: string, budget: RequestBudget): Promise<GateObservation> {
+async function observeGate(upstreamUrl: string, path: string, budget: RequestBudget, fetchImpl: typeof fetch): Promise<GateObservation> {
   let response: Response
   try {
-    response = await withDeadline((signal) => fetch(upstreamUrl, {...GATED_FETCH_INIT, signal}), Math.min(GATE_PROBE_TIMEOUT_MS, budget.remainingMs()),
+    response = await withDeadline((signal) => fetchImpl(upstreamUrl, {...GATED_FETCH_INIT, signal}), Math.min(GATE_PROBE_TIMEOUT_MS, budget.remainingMs()),
       `${path} gate probe`)
   } catch (error) {
     logger.warn('cloudfront_proxy_gate_probe_failed', {artifact: path, error_class: errorClass(error)})
@@ -739,9 +666,10 @@ interface StaleRequest {
   failure: UpstreamFailure
   policy: CachePolicy
   budget: RequestBudget
+  fetchImpl: typeof fetch
 }
 
-async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure, policy, budget}: StaleRequest): Promise<StaleOutcome> {
+async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure, policy, budget, fetchImpl}: StaleRequest): Promise<StaleOutcome> {
   // A refusal always carries its success-class response, whose status is never retryable, so this
   // one test also withholds the copy from every refusal.
   if (!cache || (failure.response && !isRetryableStatus(failure.response.status))) {
@@ -768,7 +696,7 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
     return {kind: 'none'}
   }
 
-  const gate: GateObservation = failure.gateOpen ? 'open' : await observeGate(upstreamUrl, path, budget)
+  const gate: GateObservation = failure.gateOpen ? 'open' : await observeGate(upstreamUrl, path, budget, fetchImpl)
   if (gate === 'suppressed') {
     discardBody(cached)
     return {kind: 'suppressed'}
@@ -813,11 +741,21 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
   return suppressionResponse(method)
 }
 
+/**
+ * The share of the request budget the artifact attempts may spend. A route with a last-known-good
+ * copy keeps LKG_READ_RESERVE_MS back for the cache read; a route without one (the focus signal,
+ * the composed dashboard) has nothing to reserve for, so its artifact read gets the whole remainder
+ * after the focus probe (review 2026-10-16, I1: the dashboard's 2.5 s budget left the artifact
+ * about 1.5 s).
+ */
+export function artifactBudget(budget: RequestBudget, hasLastKnownGood: boolean): RequestBudget {
+  return hasLastKnownGood ? reserving(budget, LKG_READ_RESERVE_MS) : budget
+}
+
 /** Builds an onRequest handler that proxies one CloudFront artifact resiliently. */
 export function makeCloudfrontProxy(
-  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY}: CloudfrontProxyConfig
+  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY, lastKnownGood = true}: CloudfrontProxyConfig
 ): (context: CloudfrontProxyContext) => Promise<Response> {
-  const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
   const isFocusSignal = path === FOCUS_SIGNAL_PATH
 
@@ -838,12 +776,14 @@ export function makeCloudfrontProxy(
     // ONE budget for the whole request: the focus probe, its retry, every artifact attempt, every
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.
-    const budget = startBudget()
+    const budget = startBudget(context.budgetMs)
+    const source = context.upstream ?? CLOUDFRONT_UPSTREAM
+    const upstreamUrl = `${source.base}${path}`
 
     // The focus signal itself is never gated, exactly as the edge gate never gates it
     // (focus-privacy spec, "The focus signal stays retrievable while hiding"). Every
     // other artifact is suppressible and goes through the gate.
-    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget)
+    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget, source, context.onHidingFocus)
     if (privacyResponse) {
       return privacyResponse
     }
@@ -851,9 +791,9 @@ export function makeCloudfrontProxy(
     // The focus signal has no last-known-good copy. Like the gate's own probe, it is read fresh
     // (GATED_FETCH_INIT is no-store), so a stored copy could disagree with the probe that a
     // sibling read just consulted.
-    const cache = isFocusSignal ? undefined : defaultCache()
+    const cache = isFocusSignal || !lastKnownGood ? undefined : defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
-    const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS))
+    const upstream = await fetchWithRetry(upstreamUrl, path, artifactBudget(budget, cache !== undefined), source.fetch)
 
     if (upstream.ok) {
       const response = publicResponse(upstream, contentType, cachePolicy)
@@ -875,7 +815,17 @@ export function makeCloudfrontProxy(
       })
     }
 
-    const stale = await staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure: upstream, policy: cachePolicy, budget})
+    const stale = await staleResponse({
+      cache,
+      cacheKey,
+      contentType,
+      path,
+      upstreamUrl,
+      failure: upstream,
+      policy: cachePolicy,
+      budget,
+      fetchImpl: source.fetch
+    })
     if (stale.kind === 'served') {
       return stale.response
     }

@@ -13,12 +13,25 @@
 //    static-asset plane's header policy (src/lib/edge/security-headers.ts).
 // 4. A code-free path (public/_routes.json excluded it from Functions on Pages) skips the
 //    middleware and carries only the static-asset plane's policy, as it did on Pages.
-// 5. On a loopback host only (a local `astro preview` or `wrangler dev`), the analytics routes
+// 5. `GET /` serves the precomposed dashboard (atlas decision 0160, PR B; owner decision 2026-10-16:
+//    the page is precomposed as the data changes, like llms.txt). The Worker reads the composed
+//    artifact through the CloudFront proxy and splices its fragments into the prerendered data-free
+//    page, under the D2 ceiling (src/lib/data-plane/ssr-response.ts). It renders nothing, and Astro
+//    does not run for `/`. `HEAD /` answers from the data-free page and reads no data. While the focus
+//    value hides or cannot be read, the build's value-free pages answer (src/lib/composed/value-free.ts);
+//    their asset path is internal, and a public request for it gets the 404 page.
+// 6. On a loopback host only (a local `astro preview` or `wrangler dev`), the analytics routes
 //    answer 404, as the static preview did before PR A, so no test run reaches an upstream.
 
 import {handle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
 import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
+import {VALUE_FREE_PATH} from './lib/composed/artifact'
+import {INTERNAL_ASSET_PATHS} from './lib/composed/paths'
+import {valueFreeFor} from './lib/composed/value-free'
+import {BUILD_ID} from './lib/data-plane/build'
+import {readForRequest, renderClock, type RenderVars} from './lib/data-plane/request'
+import {type DashboardRenderDeps, headDashboard, renderDashboard} from './lib/data-plane/ssr-response'
 import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath, withUtf8Charset} from './lib/edge/security-headers'
 
 type AstroEnv = Parameters<typeof handle>[1]
@@ -78,6 +91,11 @@ async function fromAssets(request: Request, env: WorkerEnv, codeFree: boolean): 
   if (asset.status !== 404) {
     return withAssetPlaneHeaders(asset, codeFree)
   }
+  return notFoundPage(request, env, codeFree)
+}
+
+/** The 404 page with status 404, no-store and no ETag, as Pages answered an unknown path. */
+async function notFoundPage(request: Request, env: WorkerEnv, codeFree: boolean): Promise<Response> {
   const page = await env.ASSETS.fetch(new URL(NOT_FOUND_PAGE_PATH, request.url))
   const headers = new Headers(page.headers)
   headers.delete('ETag')
@@ -86,9 +104,32 @@ async function fromAssets(request: Request, env: WorkerEnv, codeFree: boolean): 
   return withAssetPlaneHeaders(new Response(body, {status: 404, headers}), codeFree)
 }
 
+/** The dashboard's dependencies: the composed-artifact read, the clock and the static-asset plane. */
+function dashboardDeps(request: Request, env: WorkerEnv, context: AstroContext): DashboardRenderDeps {
+  const vars: RenderVars = {...env}
+  return {
+    read: (rendered, nowMs) => readForRequest(rendered, vars, nowMs, (promise) => context.waitUntil(promise)),
+    now: (rendered) => renderClock(rendered, vars),
+    asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method})),
+    valueFree: () => valueFreeFor(BUILD_ID, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url)))
+  }
+}
+
 /** Routes one request the way Pages routed it, before the middleware wraps the response. */
 async function route(request: Request, env: WorkerEnv, context: AstroContext, codeFree: boolean): Promise<Response> {
   const url = new URL(request.url)
+  if (url.pathname === '/' && !codeFree) {
+    if (request.method === 'GET') {
+      return renderDashboard(request, dashboardDeps(request, env, context))
+    }
+    if (request.method === 'HEAD') {
+      return headDashboard(dashboardDeps(request, env, context))
+    }
+  }
+  if (INTERNAL_ASSET_PATHS.includes(url.pathname)) {
+    // Built for the Worker alone (src/lib/composed/paths.ts); the ASSETS binding still reads it.
+    return notFoundPage(request, env, codeFree)
+  }
   const edgeRoute = codeFree ? undefined : matchEdgeRoute(url.pathname)
   if (edgeRoute && isLocalAnalyticsRequest(edgeRoute, url)) {
     // Local runs only (see isLocalAnalyticsRequest): no test page may reach an analytics upstream.

@@ -10,7 +10,7 @@ import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-hea
 
 const handled: Request[] = []
 const assetRequests: Request[] = []
-const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js'])
+const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js', '/_ssr/value-free.json'])
 
 vi.mock('@astrojs/cloudflare/handler', () => ({
   handle: vi.fn(async (request: Request) => {
@@ -96,7 +96,7 @@ describe('static-asset plane, through the Worker', () => {
   })
 
   it('passes the request itself to the ASSETS binding, so a conditional request can answer 304', async () => {
-    const response = await request('/', {headers: {'If-None-Match': '"v1"'}})
+    const response = await request('/privacy', {headers: {'If-None-Match': '"v1"'}})
     expect(response.status).toBe(304)
     expect(assetRequests[0].headers.get('If-None-Match')).toBe('"v1"')
   })
@@ -261,5 +261,44 @@ describe('analytics routes on a local run', () => {
     await request('/sa')
     await request('/simple/simple.gif')
     expect(handled.map((r) => new URL(r.url).pathname)).toEqual(['/llms.txt', '/sa', '/simple/simple.gif'])
+  })
+})
+
+describe('the dashboard at / (atlas decision 0160, PR B)', () => {
+  it('answers GET / without Astro: it reads through the proxy and serves from the static plane', async () => {
+    // The data plane is down: this exercises the routing only.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('down', {status: 503})))
+    const response = await request('/')
+    expect(handled).toHaveLength(0)
+    // The focus signal cannot be read: the Worker serves the data-free page, honestly labelled.
+    expect(response.status).toBe(200)
+    expect(response.headers.get('X-SSR-Data')).toBe('unavailable')
+    // The middleware still wraps it.
+    expect(response.headers.get('Link')).toBe(LINK_HEADER)
+    expect(response.headers.get(SITE_RUNTIME_HEADER)).toBe(SITE_RUNTIME)
+  })
+
+  it('answers HEAD / from the data-free file, and renders nothing', async () => {
+    const response = await request('/', {method: 'HEAD'})
+    expect(handled).toHaveLength(0)
+    expect(assetRequests.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['HEAD /'])
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('no-cache')
+    expect(response.headers.get('X-SSR-Data')).toBeNull()
+  })
+
+  it('answers a public request for the value-free pages with the 404 page, though the file exists', async () => {
+    for (const method of ['GET', 'HEAD']) {
+      const response = await request('/_ssr/value-free.json', {method})
+      expect(response.status, method).toBe(404)
+      expect(response.headers.get('Cache-Control'), method).toBe('no-store')
+    }
+    expect(assetRequests.map((r) => new URL(r.url).pathname)).not.toContain('/_ssr/value-free.json')
+  })
+
+  it('still negotiates Markdown at / before any render', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('focus unavailable', {status: 503})))
+    await request('/', {headers: {Accept: 'text/markdown'}})
+    expect(handled).toHaveLength(0)
   })
 })

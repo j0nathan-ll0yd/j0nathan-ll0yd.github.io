@@ -37,6 +37,12 @@ describe('Enriched sitemap', () => {
     expect(locs.sort()).toEqual(['', '/about', '/contact', '/developers'].map((p) => `https://jonathanlloyd.me${p}`))
   })
 
+  it('never lists the private on-demand render page /ssr-dashboard (atlas decision 0160, PR B)', () => {
+    const pathnames = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
+    expect(pathnames.filter((pathname) => pathname.startsWith('/ssr-dashboard'))).toEqual([])
+    expect(xml).not.toContain('ssr-dashboard')
+  })
+
   it.each(['/privacy', '/offline', '/404'])('omits the noindex page %s', (page) => {
     const pathnames = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => new URL(m[1]).pathname)
     expect(pathnames).not.toContain(page)

@@ -25,12 +25,26 @@ export default defineConfig({
     ? [['github'], ['blob'], ['html', {open: 'never', outputFolder: 'playwright-report'}]]
     : [['html', {open: 'on-failure'}]],
 
-  webServer: {
-    command: process.env.SKIP_BUILD ? 'pnpm run preview' : 'pnpm run build && pnpm run preview',
-    url: 'http://localhost:4321/',
-    timeout: 120_000,
-    reuseExistingServer: !isCI
-  },
+  // The fixture data plane feeds the Worker's server render of `/` (atlas decision 0160, PR B). It
+  // keeps each fixture's own generatedAt and the render clock is pinned to it (helpers.ts sends
+  // X-SSR-Clock), so relative times and freshness never move with the wall clock.
+  webServer: [
+    {
+      command: 'node scripts/build-composer.mjs && pnpm exec tsx tests/data-plane/server.ts',
+      url: 'http://127.0.0.1:4399/__control/requests',
+      timeout: 30_000,
+      reuseExistingServer: !isCI,
+      env: {DATA_PLANE_GENERATED_AT: 'original'}
+    },
+    {
+      command: process.env.SKIP_BUILD
+        ? 'node tests/data-plane/write-dev-vars.mjs && pnpm run preview'
+        : 'pnpm run build && node tests/data-plane/write-dev-vars.mjs && pnpm run preview',
+      url: 'http://localhost:4321/',
+      timeout: 120_000,
+      reuseExistingServer: !isCI
+    }
+  ],
 
   use: {
     baseURL: 'http://localhost:4321/',

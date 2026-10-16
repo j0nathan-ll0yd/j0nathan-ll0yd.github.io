@@ -1,10 +1,8 @@
-import {readdirSync} from 'node:fs'
-import {join} from 'node:path'
 import {composeSystemLines} from '@j0nathan-ll0yd/web/runtime/view-models'
 import {type IdentityProfile, identityProfile} from './identity-profile'
 
 /**
- * The data `/` renders at build time: authored identity content and nothing measured.
+ * The authored content `/` renders: identity content and nothing measured.
  *
  * Production `/` carries no fixture data (atlas decision 0160, PR 0a). Every live widget renders
  * its `loading` state with the `<noscript>` note, and the client runtime
@@ -37,12 +35,18 @@ export function loadingSystemLines() {
   })
 }
 
-/** Root-relative paths of the committed book-cover mirror (`scripts/fetch-images.mjs`). */
-export function mirroredBookCovers(publicDir: string = join(process.cwd(), 'public')): string[] {
-  return readdirSync(join(publicDir, 'images', 'books')).filter((name) => !name.startsWith('.')).sort().map((name) => `/images/books/${name}`)
-}
+declare const __MIRRORED_BOOK_COVERS__: readonly string[] | undefined
 
-/** Runs only at Astro build time. The build reads no network and no fixture. */
+/**
+ * Root-relative paths of the committed book-cover mirror, listed at build time
+ * (`src/lib/book-cover-mirror.ts`, defined in astro.config.mjs). The server render reads no filesystem.
+ */
+export const MIRRORED_BOOK_COVERS: readonly string[] = typeof __MIRRORED_BOOK_COVERS__ === 'undefined' ? [] : __MIRRORED_BOOK_COVERS__
+
+/**
+ * The authored content both renders of `/` share. It reads no network, no filesystem and no
+ * fixture, so it runs at build time (the data-free page) and per request (the server render).
+ */
 export function loadDashboardData(): DashboardData {
-  return {profile: identityProfile(), system: {lines: loadingSystemLines()}, localCovers: mirroredBookCovers()}
+  return {profile: identityProfile(), system: {lines: loadingSystemLines()}, localCovers: [...MIRRORED_BOOK_COVERS]}
 }

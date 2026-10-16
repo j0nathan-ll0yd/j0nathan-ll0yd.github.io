@@ -2,6 +2,7 @@ import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {expectNoNewAxeViolations} from './a11y'
+import {expectLiveReady, serveDataFreePage, syncServerPlane} from './dashboard-fixtures'
 
 const require = createRequire(import.meta.url)
 
@@ -20,7 +21,9 @@ const BASELINE_FIXTURES: Record<string, string> = {
   '/theatre-reviews.json': fixture('theatre-reviews', 'baseline')
 }
 
-async function interceptDashboardData(page: Page, booksFixture: string): Promise<void> {
+async function interceptDashboardData(page: Page, booksFixture: string, dataFree = false): Promise<void> {
+  // The server render (atlas decision 0160, PR B) reads the same files the browser's route serves.
+  await syncServerPlane(page, {...BASELINE_FIXTURES, '/books.json': booksFixture})
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
     const pathname = new URL(route.request().url()).pathname
     const path = pathname === '/books.json' ? booksFixture : BASELINE_FIXTURES[pathname]
@@ -39,18 +42,21 @@ async function interceptDashboardData(page: Page, booksFixture: string): Promise
     }
     await route.abort()
   })
+  if (dataFree) {
+    await serveDataFreePage(page)
+  }
 }
 
 async function loadBooksFixture(page: Page, variation: string): Promise<void> {
   await interceptDashboardData(page, fixture('books', variation))
   await page.goto('/')
-  await expect(page.locator('#cardBooks')).not.toHaveClass(/is-loading/)
+  await expectLiveReady(page)
 }
 
 test.describe('Bookshelf Render Conformance', () => {
   // covers: bookshelf-render#Loading state keeps the shelf in its loading presentation
   test('keeps the loading skeleton visible while the books request is pending', async ({page}) => {
-    await interceptDashboardData(page, fixture('books', 'baseline'))
+    await interceptDashboardData(page, fixture('books', 'baseline'), true)
     await page.route(`${CLOUDFRONT_BASE}/books.json**`, () => new Promise(() => {}))
 
     await page.goto('/', {waitUntil: 'domcontentloaded'})

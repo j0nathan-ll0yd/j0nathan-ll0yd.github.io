@@ -15,6 +15,8 @@
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {BASELINE_BY_PATH} from '../data-plane/baseline'
+import {syncServerPlane} from './dashboard-fixtures'
 
 const require = createRequire(import.meta.url)
 
@@ -30,6 +32,8 @@ function baselineFixture(dir: string, file: string): string {
 
 /** Set up route interception: books→full, everything else→baseline or block */
 async function interceptRoutes(page: Page): Promise<void> {
+  // The Worker renders `/` from the fixture data plane (atlas decision 0160, PR B): same files.
+  await syncServerPlane(page, {...BASELINE_BY_PATH, '/books.json': BOOKS_FULL_FIXTURE})
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
     const url = new URL(route.request().url())
     const fixtureMap: Record<string, string> = {
@@ -93,8 +97,8 @@ async function navigateWithSaStub(page: Page): Promise<void> {
 
   await page.goto('/')
 
-  // Wait for skeleton states to clear — the bookshelf is populated
-  await page.waitForFunction(() => document.querySelectorAll('.is-loading').length === 0, {timeout: 15_000})
+  // Wait for the runtime's first read to end — the bookshelf is populated
+  await page.waitForFunction(() => document.body.dataset.liveReady === '1', {timeout: 15_000})
 
   // Ensure #cardBooks has at least one clickable shelf-book
   await page.waitForSelector('#cardBooks .shelf-book[data-book]', {timeout: 10_000})

@@ -3,6 +3,8 @@ import {readFileSync} from 'node:fs'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {expectNoNewAxeViolations} from './a11y'
+import {expectLiveReady, serveDataFreePage, syncServerPlane} from './dashboard-fixtures'
+import {setDataPlane} from '../data-plane/control'
 
 const require = createRequire(import.meta.url)
 const THEATRE_EMPTY_MESSAGE = 'No reviews yet'
@@ -33,7 +35,14 @@ const BASELINE_FIXTURES: Record<string, string> = {
   '/focus.json': fixture('focus', 'empty')
 }
 
-async function interceptDashboardData(page: Page, theatreFixture: FixtureResponse): Promise<void> {
+async function interceptDashboardData(page: Page, theatreFixture: FixtureResponse, dataFree = false): Promise<void> {
+  // The server render (atlas decision 0160, PR B) reads the same files the browser's route serves.
+  await syncServerPlane(page, BASELINE_FIXTURES)
+  await setDataPlane({
+    '/theatre-reviews.json': 'path' in theatreFixture
+      ? {kind: 'fixture', file: theatreFixture.path, generatedAt: 'original'}
+      : {kind: 'json', body: JSON.parse(theatreFixture.body), generatedAt: 'original'}
+  })
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
     const pathname = new URL(route.request().url()).pathname
     const response = pathname === '/theatre-reviews.json'
@@ -56,6 +65,9 @@ async function interceptDashboardData(page: Page, theatreFixture: FixtureRespons
     }
     await route.abort()
   })
+  if (dataFree) {
+    await serveDataFreePage(page)
+  }
 }
 
 // Use same-origin fixture images (serveFixturePosters) to retain optimized-picture
@@ -75,13 +87,13 @@ function allowedPosterFixture(): FixtureResponse {
 async function loadTheatreFixture(page: Page, variation: string): Promise<void> {
   await interceptDashboardData(page, {path: fixture('theatre-reviews', variation)})
   await page.goto('/')
-  await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
+  await expectLiveReady(page)
 }
 
 test.describe('Theatre Reviews Render Conformance', () => {
   // covers: theatre-reviews-render#Loading skeleton renders placeholders before review data arrives
   test('keeps the loading skeleton visible while the theatre request is pending', async ({page}) => {
-    await interceptDashboardData(page, {path: fixture('theatre-reviews', 'baseline')})
+    await interceptDashboardData(page, {path: fixture('theatre-reviews', 'baseline')}, true)
     await page.route(`${CLOUDFRONT_BASE}/theatre-reviews.json**`, () => new Promise(() => {}))
 
     await page.goto('/', {waitUntil: 'domcontentloaded'})
@@ -147,7 +159,7 @@ test.describe('Theatre Reviews Render Conformance', () => {
   test('displays the total source count while rendering only the exported seven-card window', async ({page}) => {
     await interceptDashboardData(page, productionWindowFixture())
     await page.goto('/')
-    await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
+    await expectLiveReady(page)
 
     await expect(page.locator('#theatreCount')).toHaveText('18 reviews')
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(7)
@@ -163,7 +175,7 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await interceptDashboardData(page, allowedPosterFixture())
     await serveFixturePosters(page)
     await page.goto('/')
-    await expect(page.locator('#cardTheatreReviews')).not.toHaveClass(/is-loading/)
+    await expectLiveReady(page)
 
     const cards = page.locator('#cardTheatreReviews .theatre-card')
     await expect(cards).toHaveCount(8)

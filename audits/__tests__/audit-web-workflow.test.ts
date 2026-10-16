@@ -216,6 +216,37 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(beacons.body).not.toContain('secrets.SA_API_KEY')
     expect(countOccurrences(workflow, 'secrets.SA_API_KEY')).toBe(1)
   })
+
+  // Atlas decision 0160, plan Steps 6.8, 6.9, 6.11. Each SSR check is its own step, bucket and record.
+  it('wires B11 and B12 as report-only daily steps, each reconciled through its own tri-state bucket', () => {
+    const daily = parseJobs(workflow).find((job) => job.key === 'daily')!
+    const known = daily.steps.find((s) => s.id === 'ssr_known_answer')!
+    const metadata = daily.steps.find((s) => s.id === 'ssr_metadata')!
+    expect(runBlock(known.body)).toBe('node audits/checks/b11-check-ssr-known-answer.mjs')
+    expect(runBlock(metadata.body)).toBe('node audits/checks/b12-check-ssr-metadata.mjs')
+    expect(known.reportOnly && metadata.reportOnly).toBe(true)
+    // Both read CloudFront or the page from the daily job's cfedge lane.
+    expect(daily.body).toMatch(/runs-on: \[self-hosted, linux, arm64, playwright, cfedge\]/)
+    // Only B11 keeps run memory: a restored and saved cache directory, never a GitHub issue.
+    expect(known.body).toContain('B11_STATE_DIR: ${{ runner.temp }}/b11-state')
+    expect(metadata.body).not.toContain('B11_STATE_DIR')
+    const names = daily.steps.map((s) => s.name)
+    expect(names.indexOf('B11 -- restore run memory')).toBe(names.indexOf(known.name) - 1)
+    expect(names.indexOf('B11 -- save run memory')).toBe(names.indexOf(known.name) + 1)
+    const save = daily.steps.find((s) => s.name === 'B11 -- save run memory')!
+    expect(save.body).toContain('if: always()')
+    expect(save.body).toMatch(/key: b11-state-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}/)
+    expect(daily.steps.find((s) => s.name === 'B11 -- restore run memory')!.body).toContain('restore-keys: b11-state-')
+    expect(workflow).not.toContain('GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n        run: node audits/checks/b11')
+    expect(workflow).toContain(
+      "{id: 'ssr-known-answer', title: 'B11 SSR known answer (page vs exports)', outcome: process.env.SSR_KNOWN_ANSWER_ISSUE_OUTCOME}"
+    )
+    expect(workflow).toContain("{id: 'ssr-metadata', title: 'B12 SSR metadata consistency', outcome: process.env.SSR_METADATA_ISSUE_OUTCOME}")
+    expect(workflow).toContain('SSR_KNOWN_ANSWER_ISSUE_OUTCOME: ${{ steps.ssr_known_answer.outputs.issue_outcome }}')
+    expect(workflow).toContain('SSR_METADATA_ISSUE_OUTCOME: ${{ steps.ssr_metadata.outputs.issue_outcome }}')
+    expect(reconcilerScript).not.toMatch(/steps\.ssr_[a-z_]+\.outcome\b/)
+    expect(workflow).not.toMatch(/steps\.ssr_[a-z_]+\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+  })
 })
 
 // B5 split (issue #148). lychee FETCHES and audits/checks/b5-lychee.mjs JUDGES, because

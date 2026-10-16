@@ -17,13 +17,14 @@ encode a wall-clock boundary as a conformance fact.
 ### Requirement: Loading state keeps the reading feed in its loading presentation
 
 While the articles request is pending, the system SHALL keep the Reading Feed card in its loading
-presentation. The server renders no items (`dashboard-shell`), so the card shows only its skeleton and a
+presentation. The data-free fallback page (`dashboard-shell`), which the Worker serves when a server
+render misses its budget (`dashboard-ssr`), renders no items, so the card shows only its skeleton and a
 hidden, empty scaffold until fresh data arrives.
 Verified by `tests/behavioral/articles-matrix.test.ts:18`.
 
 #### Scenario: The feed stays in its loading presentation while articles.json is outstanding
 
-- **GIVEN** the dashboard loads with the articles.json response held open
+- **GIVEN** the Worker serves the data-free fallback page and the dashboard loads with the articles.json response held open
 - **WHEN** the page reaches DOMContentLoaded before the article data arrives
 - **THEN** the Reading Feed card SHALL still be visible carrying its `is-loading` presentation
 

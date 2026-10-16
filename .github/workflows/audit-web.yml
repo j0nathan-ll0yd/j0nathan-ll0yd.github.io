@@ -51,7 +51,7 @@ permissions:
 
 jobs:
   daily:
-    name: Daily (B1 smoke, B6 analytics)
+    name: Daily (B1 smoke, B6 analytics, B11/B12 server-rendered page)
     if: github.event_name == 'workflow_dispatch' && (inputs.tier == 'daily' || inputs.tier == 'all')
     # playwright label: Chromium is preinstalled in the runner-playwright image; the node
     # label cannot `playwright install --with-deps` (apt-get to ports.ubuntu.com is egress-blocked).
@@ -138,6 +138,44 @@ jobs:
           SA_API_KEY: ${{ secrets.SA_API_KEY }}
         run: node audits/checks/b6-check-analytics.mjs --arm ingestion
 
+      # B11 and B12 read the server-rendered `/` and the CloudFront exports (atlas decision 0160,
+      # plan Steps 6.8, 6.9, 6.11), so they run on this job's cfedge lane. Each publishes its own
+      # `measured` and tri-state `issue_outcome`; each feeds its own managed-issue bucket.
+      # B11 compares rendered values with the decoded exports through an oracle of its own. It
+      # keeps a little memory between runs (a `partial` page fails on the second consecutive run).
+      # B12 asserts consistency only.
+      #
+      # B11's run memory (audits/lib/run-memory.mjs) is a directory of small files carried between
+      # runs by actions/cache. A cache key is immutable, so each run saves under its own key and the
+      # next run restores the newest entry by the `b11-state-` prefix. No GitHub issue holds state.
+      # A restore that finds nothing is the first run (or a seven-day eviction); a restore that
+      # errors fails the job and the dead-man ping.
+      - name: B11 -- restore run memory
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/b11-state
+          key: b11-state-none
+          restore-keys: b11-state-
+
+      - name: B11 -- SSR known answer (page vs exports)
+        id: ssr_known_answer
+        continue-on-error: true
+        env:
+          B11_STATE_DIR: ${{ runner.temp }}/b11-state
+        run: node audits/checks/b11-check-ssr-known-answer.mjs
+
+      - name: B11 -- save run memory
+        if: always()
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/b11-state
+          key: b11-state-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: B12 -- SSR metadata consistency (header, meta, card attributes)
+        id: ssr_metadata
+        continue-on-error: true
+        run: node audits/checks/b12-check-ssr-metadata.mjs
+
       - name: Reconcile managed audit issues
         if: >-
           always() && github.event_name == 'workflow_dispatch' && (
@@ -156,6 +194,8 @@ jobs:
           SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
           ANALYTICS_BEACONS_ISSUE_OUTCOME: ${{ steps.analytics_beacons.outputs.issue_outcome }}
           ANALYTICS_INGESTION_ISSUE_OUTCOME: ${{ steps.analytics_ingestion.outputs.issue_outcome }}
+          SSR_KNOWN_ANSWER_ISSUE_OUTCOME: ${{ steps.ssr_known_answer.outputs.issue_outcome }}
+          SSR_METADATA_ISSUE_OUTCOME: ${{ steps.ssr_metadata.outputs.issue_outcome }}
         with:
           script: |
             const {pathToFileURL} = await import('node:url');
@@ -168,6 +208,8 @@ jobs:
                 // an UNMEASURED ingestion arm, leaves the issue unchanged.
                 {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_BEACONS_ISSUE_OUTCOME},
                 {id: 'analytics', title: 'B6 analytics beacons (CF + SA)', outcome: process.env.ANALYTICS_INGESTION_ISSUE_OUTCOME},
+                {id: 'ssr-known-answer', title: 'B11 SSR known answer (page vs exports)', outcome: process.env.SSR_KNOWN_ANSWER_ISSUE_OUTCOME},
+                {id: 'ssr-metadata', title: 'B12 SSR metadata consistency', outcome: process.env.SSR_METADATA_ISSUE_OUTCOME},
               ],
               repo: `${context.repo.owner}/${context.repo.repo}`,
               runUrl: `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
@@ -193,6 +235,8 @@ jobs:
             smoke|${{ steps.smoke.outcome }}|n/a|third-party tool run (Playwright); the suite exit code is its verdict, it holds no artifact set to count
             analytics_beacons|${{ steps.analytics_beacons.outcome }}|${{ steps.analytics_beacons.outputs.measured }}
             analytics_ingestion|${{ steps.analytics_ingestion.outcome }}|${{ steps.analytics_ingestion.outputs.measured }}
+            ssr_known_answer|${{ steps.ssr_known_answer.outcome }}|${{ steps.ssr_known_answer.outputs.measured }}
+            ssr_metadata|${{ steps.ssr_metadata.outcome }}|${{ steps.ssr_metadata.outputs.measured }}
         run: bash audits/healthchecks-ping.sh
 
   weekly:

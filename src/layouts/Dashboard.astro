@@ -365,7 +365,15 @@ html { overflow-y: scroll; }
 .left-panel-status { opacity: 0; transform: translateX(-30px); transition: opacity 0.8s ease, transform 0.8s ease; }
 .left-panel-status.visible { opacity: 1; transform: translateX(0); }
 .left-panel-bio { opacity: 0; transform: translateX(-30px); transition: opacity 0.8s ease, transform 0.8s ease; }
-.left-panel-bio.visible { opacity: 1; transform: translateX(0); }</style>
+.left-panel-bio.visible { opacity: 1; transform: translateX(0); }
+/* Reveal fallback (decision 0157 O2b): card-reveal.js adds .visible. If it fails to load or run,
+   an element that never gets .visible still fades in after 2.5 s. .visible ends the animation and
+   the transitions above run as before. */
+@keyframes reveal-fallback { to { opacity: 1; transform: none; } }
+.tri-card:not(.visible), .identity-card:not(.visible), .left-panel-status:not(.visible), .left-panel-bio:not(.visible) { animation: reveal-fallback 0.6s ease 2.5s forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .tri-card:not(.visible), .identity-card:not(.visible), .left-panel-status:not(.visible), .left-panel-bio:not(.visible) { animation-duration: 0.01s; }
+}</style>
   <style is:global>
     @import '@j0nathan-ll0yd/web/styles/layout.css';
   </style>

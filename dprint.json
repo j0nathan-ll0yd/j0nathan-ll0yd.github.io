@@ -21,6 +21,7 @@
 
     "**/node_modules",
     "**/dist",
+    "**/dist-composer",
     "**/.astro",
     "**/.wrangler",
     "**/coverage",

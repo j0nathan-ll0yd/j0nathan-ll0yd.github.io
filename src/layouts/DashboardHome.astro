@@ -1,0 +1,127 @@
+---
+// The dashboard page body (atlas decision 0160): the data-free page, prerendered by
+// `src/pages/index.astro`. Every live widget renders `loading` with its <noscript> note. The Worker
+// splices composed fragments into it for `GET /` (src/lib/composed/), and serves it as is for the D2
+// fallback, the `HEAD /` answer and the rollback target (D9).
+//
+// A widget never receives a fixture value.
+import Dashboard from './Dashboard.astro';
+import {
+  BioTerminal, BookModal, Hydration, IdentityCard,
+  SystemStatus, HeartRate, MovementRings, Workouts, NightSummary,
+  StarredRepoList, DevActivityLog, ReadingFeed, Bookshelf,
+  FocusOverlay, DndOverlay,
+  TheatreReviews,
+} from '@j0nathan-ll0yd/web/production';
+import type { DashboardData } from '../lib/load-dashboard-data';
+import { a11y, app, identity } from '@j0nathan-ll0yd/copy';
+
+interface Props {
+  /** Authored identity content and the mirrored cover paths (`loadDashboardData`). */
+  data: DashboardData;
+}
+
+const { data } = Astro.props;
+const { profile, localCovers, system } = data;
+const loading = { state: 'loading' } as const;
+---
+<Dashboard>
+  <FocusOverlay />
+  <DndOverlay />
+
+  <canvas id="particle-canvas" aria-hidden="true"></canvas>
+
+  <div class="command-layout">
+
+    <aside class="left-panel" aria-label={a11y.nav.profile}>
+      <IdentityCard profile={profile.card} />
+      <BioTerminal profile={profile.terminal} />
+      <SystemStatus system={system} />
+    </aside>
+
+    <nav aria-label={a11y.nav.dashboard}>
+      <header class="top-bar">
+        <div class="top-bar-title">{identity.site.name}</div>
+        <span id="pollStatus" class="poll-status">
+          <span class="poll-dot poll-dot--off"></span>
+          <span class="poll-label"></span>
+        </span>
+        <div class="top-bar-clock" id="liveClock" aria-live="off" aria-label={a11y.clock.currentTime}></div>
+      </header>
+    </nav>
+
+    <main id="main-content" class="right-panel">
+      <div class="triptych-grid" id="triptychGrid">
+
+        <section class="triptych-column triptych-column-body" aria-label={a11y.region.body}>
+          <h2 class="column-header column-header-pink">{app.sections.body}</h2>
+          {/* Tablet columns become real boxes so a tall card cannot stretch its neighbor.
+              Desktop keeps display:contents to preserve the unified grid. */}
+          <div class="body-bento">
+            <div class="body-bento-col">
+              <HeartRate {...loading} />
+              <Workouts {...loading} />
+            </div>
+            <div class="body-bento-col">
+              <MovementRings {...loading} />
+              <Hydration {...loading} />
+              <NightSummary {...loading} />
+            </div>
+          </div>
+        </section>
+
+        <section class="triptych-column triptych-column-mind" aria-label={a11y.region.mind}>
+          <h2 class="column-header column-header-green">{app.sections.mind}</h2>
+          <DevActivityLog {...loading} />
+          <ReadingFeed {...loading} />
+          <StarredRepoList {...loading} />
+          <Bookshelf {...loading} localCovers={localCovers} />
+          <TheatreReviews {...loading} />
+        </section>
+
+      </div>
+    </main>
+
+  </div>
+
+  <BookModal />
+
+  <script>
+    import { initInputModality } from '@j0nathan-ll0yd/web/runtime/input-modality';
+    initInputModality();
+  </script>
+
+  <script>
+    window.addEventListener('load', () => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // iOS 26 Safari's Advanced Fingerprinting Protection surfaces the "reduce
+      // protections" banner when 2+ canvases animate at once (the particle canvas
+      // plus the live heart-rate canvas). On touch devices we render the particle
+      // network as SVG instead (no canvas → no banner), keeping the moving-network
+      // look. Escapes: ?bg=off disables it, ?bg=canvas forces the old full canvas,
+      // ?bg=lite forces a lighter canvas variant (see src/lib/mobile-bg.ts).
+      // Desktop (fine pointer) keeps the full particle canvas.
+      if (window.matchMedia('(pointer: coarse)').matches) {
+        const bg = new URLSearchParams(location.search).get('bg');
+        if (bg === 'off') return;
+        if (bg === 'canvas') {
+          import('@j0nathan-ll0yd/web/runtime/particles').then(m => m.startParticles());
+        } else {
+          import('../lib/mobile-bg').then(m => m.initMobileBg(bg === 'lite' ? 'lite' : 'svg'));
+        }
+        return;
+      }
+      import('@j0nathan-ll0yd/web/runtime/particles').then(m => m.startParticles());
+    });
+  </script>
+
+  <script is:inline src="/js/clock.js"></script>
+
+  <script is:inline src="/js/card-reveal.js"></script>
+
+  {import.meta.env.PROD && <script is:inline src="/js/scroll-depth.js"></script>}
+
+  <script>
+    import '../lib/runtime/live-data';
+  </script>
+</Dashboard>

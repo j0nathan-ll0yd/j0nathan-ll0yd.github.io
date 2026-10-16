@@ -295,6 +295,22 @@ Verify:
 - Every other entry of `CSP_HEADERS` (the report-only policy and `Reporting-Endpoints`) and every entry of `BASE_SECURITY_HEADERS` matches its export. The script reads the header names from the exports; do not restate them here.
 - `CDN-Cache-Control: no-store` -- the homepage MUST bypass edge cache so content negotiation works. Source: the `url.pathname === '/'` block in `src/lib/edge/middleware.ts`.
 
+The server render of `/` (atlas decision 0160, PR B; `openspec/specs/dashboard-ssr`). Sources: `src/lib/data-plane/ssr-response.ts` (`DASHBOARD_CACHE_HEADERS`, `SSR_DATA_HEADER`) and `src/lib/data-plane/render-model.ts` (`summarize`, `LIVE_CARD_MODELS`).
+
+```bash
+curl -s -D /tmp/vp-home-get-headers.txt -o /tmp/vp-home.html https://jonathanlloyd.me/
+curl -s -I https://jonathanlloyd.me/ > /tmp/vp-home-head.txt
+grep -i '^x-ssr-data:' /tmp/vp-home-get-headers.txt
+grep -o '<meta name="ssr-data"[^>]*>' /tmp/vp-home.html
+grep -o 'id="card[A-Za-z]*"[^>]*data-ssr-state="[a-z]*"' /tmp/vp-home.html
+grep -ci '^x-ssr-data:' /tmp/vp-home-head.txt   # expect 0
+```
+
+- `GET /` carries `X-SSR-Data` and the same value in `<meta name="ssr-data">`. `live` and `stale` are healthy. `suppressed` is correct only while `focus.json` reads a hiding mode (`Work`, `Do Not Disturb`). `partial` and `unavailable` are findings while every CloudFront export answers 200. `fallback` (the render missed its 3 s ceiling) and `error` (status 500) are always findings.
+- `GET /` carries `Cache-Control: no-cache` and `CDN-Cache-Control: no-store` (D3), and every live card in `LIVE_CARD_MODELS` carries a `data-ssr-state` other than `loading`.
+- `HEAD /` carries no `X-SSR-Data`: it answers from the prerendered data-free page and reads no data.
+- Cite the latest daily web audits B11 (known answer) and B12 (metadata consistency); they check the same page every day.
+
 Probe the 404 regression (PRs #27 and #29 -- 4xx and SPA-fallback responses must replace the HTML body and must NOT be cached):
 
 ```bash

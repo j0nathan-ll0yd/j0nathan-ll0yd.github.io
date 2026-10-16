@@ -9,7 +9,8 @@ import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {identity, profile} from '@j0nathan-ll0yd/copy'
 import {identityProfile, profileLink, terminalLinesFromBlocks} from '../../src/lib/identity-profile'
-import {loadDashboardData, loadingSystemLines, mirroredBookCovers} from '../../src/lib/load-dashboard-data'
+import {loadDashboardData, loadingSystemLines} from '../../src/lib/load-dashboard-data'
+import {mirroredBookCovers} from '../../src/lib/book-cover-mirror'
 
 describe('identityProfile', () => {
   it('reads every identity string from the copy package', () => {

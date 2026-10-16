@@ -15,7 +15,7 @@ import {fixture, interceptDashboard, loadDashboard} from './dashboard-fixtures'
 test.describe('Dev Activity Log Render Conformance', () => {
   // covers: devlog-render#Loading state keeps the dev log in its loading presentation
   test('keeps the loading presentation while the events request is pending', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.githubEvents}**`, () => new Promise(() => {}))
 
     await page.goto('/', {waitUntil: 'domcontentloaded'})

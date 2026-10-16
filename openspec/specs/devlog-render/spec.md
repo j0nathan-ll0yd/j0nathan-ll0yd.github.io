@@ -18,13 +18,14 @@ they are computed against the reader's clock.
 ### Requirement: Loading state keeps the dev log in its loading presentation
 
 While the GitHub events request is pending, the system SHALL keep the Dev Log card in its loading
-presentation. The server renders no items (`dashboard-shell`), so the card shows only its skeleton and a
+presentation. The data-free fallback page (`dashboard-shell`), which the Worker serves when a server
+render misses its budget (`dashboard-ssr`), renders no items, so the card shows only its skeleton and a
 hidden, empty scaffold until fresh data arrives.
 Verified by `tests/behavioral/devlog-matrix.test.ts:16`.
 
 #### Scenario: The log stays in its loading presentation while github-events.json is outstanding
 
-- **GIVEN** the dashboard loads with the github-events.json response held open
+- **GIVEN** the Worker serves the data-free fallback page and the dashboard loads with the github-events.json response held open
 - **WHEN** the page reaches DOMContentLoaded before the event data arrives
 - **THEN** the Dev Log card SHALL still be visible carrying its `is-loading` presentation
 

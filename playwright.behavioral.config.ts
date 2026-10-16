@@ -13,6 +13,7 @@ import {defineConfig} from '@playwright/test'
 // when the dist/ is already current.
 
 const isCI = !!process.env.CI
+const NO_JS_SPECS = ['**/ssr-no-js.test.ts']
 
 export default defineConfig({
   testDir: './tests/behavioral',
@@ -29,6 +30,7 @@ export default defineConfig({
     '**/data-free-shell.test.ts',
     '**/devlog-matrix.test.ts',
     '**/health-matrix.test.ts',
+    '**/ssr-no-js.test.ts',
     '**/theatre-reviews-matrix.test.ts'
   ],
   fullyParallel: false,
@@ -41,14 +43,25 @@ export default defineConfig({
     ? [['github'], ['html', {open: 'never', outputFolder: 'playwright-report'}]]
     : [['list'], ['html', {open: 'on-failure'}]],
 
-  webServer: {
-    command: process.env.SKIP_BUILD
-      ? 'pnpm run preview'
-      : 'pnpm run build && pnpm run preview',
-    url: 'http://localhost:4321/',
-    timeout: 120_000,
-    reuseExistingServer: !isCI
-  },
+  // Two servers. The fixture data plane (tests/data-plane/server.ts) answers the export paths the
+  // Worker reads for the server render of `/` (atlas decision 0160, PR B). The preview runs the real
+  // Worker in workerd; write-dev-vars.mjs runs after the build because postbuild deletes the file.
+  webServer: [
+    {
+      command: 'node scripts/build-composer.mjs && pnpm exec tsx tests/data-plane/server.ts',
+      url: 'http://127.0.0.1:4399/__control/requests',
+      timeout: 30_000,
+      reuseExistingServer: !isCI
+    },
+    {
+      command: process.env.SKIP_BUILD
+        ? 'node tests/data-plane/write-dev-vars.mjs && pnpm run preview'
+        : 'pnpm run build && node tests/data-plane/write-dev-vars.mjs && pnpm run preview',
+      url: 'http://localhost:4321/',
+      timeout: 120_000,
+      reuseExistingServer: !isCI
+    }
+  ],
 
   use: {
     baseURL: 'http://localhost:4321/',
@@ -61,7 +74,14 @@ export default defineConfig({
   },
 
   projects: [
-    {name: 'behavioral-chromium', use: {browserName: 'chromium', viewport: {width: 1400, height: 900}}},
+    {name: 'behavioral-chromium', testIgnore: NO_JS_SPECS, use: {browserName: 'chromium', viewport: {width: 1400, height: 900}}},
+    {
+      // The server render read with JavaScript off (plan Step 6.3): what a crawler or a no-JS
+      // visitor gets. It is part of the blocking `behavioral` gate with the rest of the suite.
+      name: 'behavioral-no-js',
+      testMatch: NO_JS_SPECS,
+      use: {browserName: 'chromium', viewport: {width: 1400, height: 900}, javaScriptEnabled: false}
+    },
     {
       // Scoped to the layout specs only — book-modal.spec.ts assumes a
       // desktop layout and would emit false failures at 390px.

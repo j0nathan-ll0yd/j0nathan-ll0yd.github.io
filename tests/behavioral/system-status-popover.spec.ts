@@ -19,6 +19,8 @@
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {BASELINE_BY_PATH} from '../data-plane/baseline'
+import {syncServerPlane} from './dashboard-fixtures'
 
 const require = createRequire(import.meta.url)
 
@@ -30,6 +32,8 @@ function baselineFixture(dir: string, file: string): string {
 const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' + 'Nl7BcQAAAABJRU5ErkJggg==', 'base64')
 
 async function interceptRoutes(page: Page): Promise<void> {
+  // The Worker renders `/` from the fixture data plane (atlas decision 0160, PR B): same files.
+  await syncServerPlane(page, BASELINE_BY_PATH)
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
     const url = new URL(route.request().url())
     const fixtureMap: Record<string, string> = {
@@ -75,7 +79,7 @@ async function interceptRoutes(page: Page): Promise<void> {
 
 async function navigateAndWaitForHydration(page: Page): Promise<void> {
   await page.goto('/')
-  await page.waitForFunction(() => document.querySelectorAll('.is-loading').length === 0, {timeout: 15_000})
+  await page.waitForFunction(() => document.body.dataset.liveReady === '1', {timeout: 15_000})
 }
 
 // ---------------------------------------------------------------------------

@@ -25,9 +25,9 @@ The portfolio at jonathanlloyd.me is a sci-fi "Human Datastream" dashboard — a
 
 ### Technology Stack
 
-- **Framework:** Astro 7.x (static site generation, 0 KB JS by default)
+- **Framework:** Astro 7.x. The Worker renders `/` per request from the live data; every other page is prerendered
 - **Hosting:** a Cloudflare Worker with static assets, deployed by GitHub Actions
-- **Live data:** CloudFront-backed JSON API polled at runtime
+- **Live data:** CloudFront-backed JSON exports, read by the Worker for each render of `/` and polled by the browser after load
 - **Design:** Glass-morphism dark theme, fluid clamp() responsive tokens, CSS container queries
 - **Font:** Space Grotesk (self-hosted, variable woff2)
 
@@ -72,9 +72,9 @@ The public data API is documented for developers. For health, sleep, and workout
 
 ## Key Architectural Decisions
 
-1. **Zero JS by default** — All rendering is build-time Astro components. No React/Vue/Svelte.
+1. **Server-rendered data, no UI framework** — The Worker renders `/` with real values, or an honest state per card (live, stale, empty, unavailable, suppressed), so a client without JavaScript reads the same data. No React/Vue/Svelte.
 2. **ES2017 raw scripts** — Scripts served without a build step (`public/js/*.js`) use ES2017 syntax at most, and all of them load from files because the CSP is `script-src 'self'`.
-3. **Separate data origin** — JSON on CloudFront (d1pfm520aduift.cloudfront.net), HTML on a Cloudflare Worker (jonathanlloyd.me). Cloudflare never caches JSON.
+3. **Separate data origin** — JSON on CloudFront (d1pfm520aduift.cloudfront.net), HTML on a Cloudflare Worker (jonathanlloyd.me). Cloudflare caches neither the JSON nor the rendered `/`.
 4. **Privacy-first health data** — LLM content uses 7-day aggregates only. No point-in-time BPM, steps, or calories exposed.
 5. **Image pipeline** — Book covers and theatre posters optimized to WebP by Lambda, downloaded locally at build time, served same-origin via Cloudflare CDN.
 
