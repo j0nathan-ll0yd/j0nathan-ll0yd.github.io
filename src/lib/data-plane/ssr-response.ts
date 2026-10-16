@@ -61,6 +61,8 @@ export interface DashboardRenderDeps {
   asset(path: string, method: 'GET' | 'HEAD'): Promise<Response>
   /** Overrides the ceiling, for tests only. */
   ceilingMs?: number
+  /** Overrides the injector, for tests that run outside workerd (Node has no HTMLRewriter). */
+  inject?: typeof injectDashboard
 }
 
 /** The fields of one `ssr_render` log line. No field carries a data value. */
@@ -113,7 +115,7 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
       return {kind: 'failed', status: 500, errorClass: 'DataFreePageMissing'}
     }
     // One input chunk: each text node of the page then reaches a text slot whole (./fragment.ts).
-    const injected = await injectDashboard(new Response(await page.text(), {headers: page.headers}), {render, templates, nowMs})
+    const injected = await (deps.inject ?? injectDashboard)(new Response(await page.text(), {headers: page.headers}), {render, templates, nowMs})
     // Buffer the document: a failure inside a rewrite handler rejects here.
     const body = await injected.arrayBuffer()
     return {kind: 'rendered', response: injected, body, record: render.record}

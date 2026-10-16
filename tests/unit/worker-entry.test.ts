@@ -10,7 +10,7 @@ import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-hea
 
 const handled: Request[] = []
 const assetRequests: Request[] = []
-const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js'])
+const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js', '/ssr-templates'])
 
 vi.mock('@astrojs/cloudflare/handler', () => ({
   handle: vi.fn(async (request: Request) => {
@@ -265,10 +265,13 @@ describe('analytics routes on a local run', () => {
 })
 
 describe('the dashboard at / (atlas decision 0160, PR B)', () => {
-  it('renders GET / at the private server-render path through Astro, never from the static file', async () => {
+  it('answers GET / without Astro: it reads the data-free page and the templates from the static plane', async () => {
+    // The data plane is down, and Node has no HTMLRewriter: this exercises the routing only.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('down', {status: 503})))
     const response = await request('/')
-    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['GET /ssr-dashboard'])
-    // The stub answers without a render record, which the Worker treats as a render failure.
+    expect(handled).toHaveLength(0)
+    expect(assetRequests.map((r) => new URL(r.url).pathname)).toEqual(expect.arrayContaining(['/', '/ssr-templates']))
+    // No HTMLRewriter in Node: the render fails, and the Worker answers its 500 page, honestly.
     expect(response.status).toBe(500)
     expect(response.headers.get('X-SSR-Data')).toBe('error')
     // The middleware still wraps it.
@@ -285,9 +288,9 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
     expect(response.headers.get('X-SSR-Data')).toBeNull()
   })
 
-  // covers: dashboard-ssr#Only the Worker reaches the render path
-  it('keeps the private render path private: a public request gets the 404 page and never reaches Astro', async () => {
-    const response = await request('/ssr-dashboard')
+  // covers: dashboard-ssr#Only the Worker reaches the card templates
+  it.each(['/ssr-templates', '/ssr-templates.html'])('keeps the card templates private: a public GET %s gets the 404 page', async (path) => {
+    const response = await request(path)
     expect(response.status).toBe(404)
     expect(handled).toHaveLength(0)
   })

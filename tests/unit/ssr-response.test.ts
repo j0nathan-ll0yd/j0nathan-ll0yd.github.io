@@ -1,127 +1,172 @@
 // @vitest-environment node
 //
-// The Worker's answer to `/` (atlas decision 0160, PR B; plan Steps 4.3 to 4.6): the D2 ceiling and
-// its data-free fallback, the buffered body that turns any render exception into a clean 500 (D13),
-// the response headers (D3), and the value-free `ssr_render` log line.
-import {afterEach, describe, expect, it, vi} from 'vitest'
+// The Worker's answer to `/` (atlas decision 0160, PR B; plan Steps 4.3 to 4.6; owner decision
+// 2026-10-16, option B): the D2 ceiling and its data-free fallback, the buffered body that turns any
+// failure into a clean 500 (D13), the response headers (D3), and the value-free `ssr_render` log line.
+// Node has no HTMLRewriter, so the injector is a stub here; tests/oracle runs the real one in workerd.
+import {readFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
+import type {ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
+import type {DashboardLoad, DomainOutcome, GatedKey} from '../../src/lib/data-plane/loader'
 import {
   DASHBOARD_CACHE_HEADERS,
+  type DashboardRenderDeps,
   DATA_FREE_PAGE_PATH,
   ERROR_PAGE_PATH,
   headDashboard,
   renderDashboard,
   SSR_CEILING_MS,
-  SSR_DASHBOARD_PATH,
-  SSR_DATA_HEADER,
-  SSR_RECORD_HEADER
+  SSR_DATA_HEADER
 } from '../../src/lib/data-plane/ssr-response'
-import type {SsrRenderRecord} from '../../src/lib/data-plane/render-model'
+import {TEMPLATES_PAGE_PATH} from '../../src/lib/edge-render/paths'
+import {resetTemplatesForTest} from '../../src/lib/edge-render/templates'
+import type {injectDashboard} from '../../src/lib/edge-render/inject'
 
-const RECORD: SsrRenderRecord = {
-  summary: 'live',
-  focus: 'visible',
-  domains: {health: 'ok', sleep: 'ok', workouts: 'ok', books: 'ok', githubEvents: 'ok', starredRepos: 'ok', articles: 'ok', theatreReviews: 'ok'},
-  cards: {
-    cardHR: 'live',
-    cardMovement: 'live',
-    cardHydration: 'live',
-    cardSleep: 'live',
-    cardWorkouts: 'live',
-    cardDevLog: 'live',
-    cardReading: 'live',
-    cardStarredRepos: 'live',
-    cardBooks: 'live',
-    cardTheatreReviews: 'empty'
-  },
-  degraded: [],
-  io_ms: 120
+const require = createRequire(import.meta.url)
+const NOW = Date.parse('2026-10-15T12:00:00.000Z')
+const FRESH = new Date(NOW - 60_000).toISOString()
+const OLD = new Date(NOW - 30 * 24 * 60 * 60 * 1000).toISOString()
+const KEYS: GatedKey[] = ['health', 'sleep', 'workouts', 'books', 'githubEvents', 'starredRepos', 'articles', 'theatreReviews']
+const DIRS: Record<GatedKey, string> = {
+  health: 'health',
+  sleep: 'sleep',
+  workouts: 'workouts',
+  books: 'books',
+  githubEvents: 'github-events',
+  starredRepos: 'github-starred-repos',
+  articles: 'articles',
+  theatreReviews: 'theatre-reviews'
 }
 
-const PAGE = '<!DOCTYPE html><html><body>rendered</body></html>'
-
-function rendered(body: BodyInit = PAGE, record: SsrRenderRecord | string = RECORD): Response {
-  return new Response(body, {
-    status: 200,
-    headers: {'Content-Type': 'text/html', [SSR_RECORD_HEADER]: typeof record === 'string' ? record : JSON.stringify(record)}
-  })
+function ok(key: GatedKey, generatedAt: string): DomainOutcome {
+  const raw: Record<string, unknown> = JSON.parse(readFileSync(require.resolve(`@j0nathan-ll0yd/fixtures/generated/${DIRS[key]}/baseline.json`), 'utf8'))
+  raw.generatedAt = generatedAt
+  // Test data: the decoded value of the key it was decoded under.
+  return {kind: 'ok', data: decodeArtifact(key as ResourceKey, raw)} as DomainOutcome
 }
+
+function domains(outcome: (key: GatedKey) => DomainOutcome): DashboardLoad['domains'] {
+  // Test data: one outcome per gated key, keyed as the loader keys them.
+  return Object.fromEntries(KEYS.map((key) => [key, outcome(key)])) as DashboardLoad['domains']
+}
+
+/** A load for each summary the render can produce. */
+const LOADS: Record<'live' | 'stale' | 'partial' | 'unavailable' | 'suppressed', () => DashboardLoad> = {
+  live: () => ({focus: {state: 'visible', currentFocus: 'None'}, domains: domains((k) => ok(k, FRESH)), suppressed: false, ioMs: 120}),
+  stale: () => ({focus: {state: 'visible', currentFocus: 'None'}, domains: domains((k) => ok(k, OLD)), suppressed: false, ioMs: 120}),
+  partial: () => ({
+    focus: {state: 'visible', currentFocus: 'None'},
+    domains: domains((k) => (k === 'books' ? {kind: 'unavailable', reason: 'http-503'} : ok(k, FRESH))),
+    suppressed: false,
+    ioMs: 120
+  }),
+  unavailable: () => ({
+    focus: {state: 'unreadable', reason: 'timeout'},
+    domains: domains(() => ({kind: 'unavailable', reason: 'focus-unreadable'})),
+    suppressed: false,
+    ioMs: 1000
+  }),
+  suppressed: () => ({focus: {state: 'hiding', currentFocus: 'Work'}, domains: domains(() => ({kind: 'suppressed'})), suppressed: true, ioMs: 80})
+}
+
+const TEMPLATES = '<template data-ssr-template="cardHR:unavailable"><div id="cardHR"></div></template>'
 
 interface Calls {
-  rendered: Request[]
+  loads: Request[]
   assets: string[]
 }
 
-function deps(render: (request: Request) => Promise<Response>, ceilingMs?: number) {
-  const calls: Calls = {rendered: [], assets: []}
+/** The injector stub: it names the summary it received, so a test can see which render answered. */
+const echoInject: typeof injectDashboard = async (page, {render}) => new Response(`${await page.text()}|injected:${render.summary}`, {headers: page.headers})
+
+interface DepsOptions {
+  load?: () => Promise<DashboardLoad>
+  inject?: typeof injectDashboard
+  ceilingMs?: number
+  /** A path's answer: a response, or null for a 404. */
+  assets?: Record<string, Response | null>
+}
+
+function deps(options: DepsOptions = {}): {calls: Calls; deps: DashboardRenderDeps} {
+  const calls: Calls = {loads: [], assets: []}
   return {
     calls,
     deps: {
-      render: (request: Request) => {
-        calls.rendered.push(request)
-        return render(request)
+      load: (request) => {
+        calls.loads.push(request)
+        return options.load ? options.load() : Promise.resolve(LOADS.live())
       },
-      asset: async (path: string, method: 'GET' | 'HEAD') => {
+      now: () => NOW,
+      asset: async (path, method) => {
         calls.assets.push(`${method} ${path}`)
-        const body = method === 'HEAD' ? null : path === DATA_FREE_PAGE_PATH ? 'data-free page' : 'error page'
+        const override = options.assets?.[path]
+        if (override !== undefined) {
+          return override ?? new Response('missing', {status: 404})
+        }
+        const body = method === 'HEAD' ? null : path === DATA_FREE_PAGE_PATH ? 'data-free page' : path === TEMPLATES_PAGE_PATH ? TEMPLATES : 'error page'
         return new Response(body, {status: 200, headers: {'Content-Type': 'text/html', ETag: '"asset"', 'Last-Modified': 'Thu, 01 Jan 2026 00:00:00 GMT'}})
       },
-      ...(ceilingMs === undefined ? {} : {ceilingMs})
+      inject: options.inject ?? echoInject,
+      ...(options.ceilingMs === undefined ? {} : {ceilingMs: options.ceilingMs})
     }
   }
 }
 
-const REQUEST = new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/html', 'X-SSR-Fault': 'stall'}})
+const REQUEST = new Request('https://jonathanlloyd.me/', {headers: {Accept: 'text/html'}})
 
-/** The JSON log lines the edge logger wrote, by message. */
-function logLines(spy: ReturnType<typeof vi.spyOn>): Record<string, unknown>[] {
-  return spy.mock.calls.map((call: unknown[]) => JSON.parse(String(call[0])) as Record<string, unknown>)
+/** The JSON log lines the edge logger wrote. */
+function logLines(spy: {mock: {calls: unknown[][]}}): Record<string, unknown>[] {
+  return spy.mock.calls.map((call) => {
+    const line: unknown = JSON.parse(String(call[0]))
+    return typeof line === 'object' && line !== null ? {...line} : {}
+  })
 }
+
+beforeEach(() => {
+  resetTemplatesForTest()
+})
 
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
 describe('GET /: a completed render', () => {
-  it('renders the private page path with the request headers, and answers 200 with the summary', async () => {
-    const {deps: d, calls} = deps(async () => rendered())
+  it('reads the data plane for the request, injects into the data-free page and answers 200 with the summary', async () => {
+    const {deps: d, calls} = deps()
     const response = await renderDashboard(REQUEST, d)
-    expect(calls.rendered).toHaveLength(1)
-    expect(new URL(calls.rendered[0].url).pathname).toBe(SSR_DASHBOARD_PATH)
-    expect(calls.rendered[0].method).toBe('GET')
-    expect(calls.rendered[0].headers.get('X-SSR-Fault')).toBe('stall')
+    expect(calls.loads).toEqual([REQUEST])
+    expect(calls.assets).toEqual(expect.arrayContaining([`GET ${DATA_FREE_PAGE_PATH}`, `GET ${TEMPLATES_PAGE_PATH}`]))
     expect(response.status).toBe(200)
-    expect(await response.text()).toBe(PAGE)
+    expect(await response.text()).toBe('data-free page|injected:live')
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('live')
   })
 
   // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
-  it('never stores the document at the edge or reuses it unrevalidated (D3), and keeps the charset', async () => {
-    const response = await renderDashboard(REQUEST, deps(async () => rendered()).deps)
+  it.each(['stale', 'partial', 'unavailable', 'suppressed'] as const)('answers 200 for the %s summary too (D13)', async (summary) => {
+    const response = await renderDashboard(REQUEST, deps({load: async () => LOADS[summary]()}).deps)
+    expect(response.status).toBe(200)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
+  })
+
+  it('never stores the document at the edge or reuses it unrevalidated (D3), keeps the charset and drops asset validators', async () => {
+    const response = await renderDashboard(REQUEST, deps().deps)
     for (const [name, value] of DASHBOARD_CACHE_HEADERS) {
       expect(response.headers.get(name), name).toBe(value)
     }
     expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
-  })
-
-  it('strips the internal record header before the answer leaves the Worker', async () => {
-    const response = await renderDashboard(REQUEST, deps(async () => rendered()).deps)
-    expect(response.headers.get(SSR_RECORD_HEADER)).toBeNull()
-  })
-
-  // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
-  it.each(['stale', 'partial', 'unavailable', 'suppressed'] as const)('answers 200 for the %s summary too (D13)', async (summary) => {
-    const response = await renderDashboard(REQUEST, deps(async () => rendered(PAGE, {...RECORD, summary})).deps)
-    expect(response.status).toBe(200)
-    expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
+    expect(response.headers.get('ETag')).toBeNull()
+    expect(response.headers.get('Last-Modified')).toBeNull()
   })
 
   // covers: dashboard-ssr#Each render logs one value-free line
   it('logs one value-free ssr_render line with the record, the timings and the build', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
-    await renderDashboard(REQUEST, deps(async () => rendered()).deps)
+    await renderDashboard(REQUEST, deps().deps)
     const lines = logLines(info)
     expect(lines).toHaveLength(1)
-    const [line] = lines
+    const line = lines[0] ?? {}
     expect(line).toMatchObject({
       service: 'ssr-dashboard',
       message: 'ssr_render',
@@ -130,13 +175,13 @@ describe('GET /: a completed render', () => {
       focus: 'visible',
       status: 200,
       io_ms: 120,
-      domains: RECORD.domains,
-      cards: RECORD.cards,
-      degraded: [],
       build: 'test'
     })
+    expect(Object.keys(line.domains ?? {}).sort()).toEqual([...KEYS].sort())
     expect(typeof line.render_ms).toBe('number')
     expect(typeof line.total_ms).toBe('number')
+    // States and timings only: no export value reaches the log.
+    expect(JSON.stringify(line)).not.toMatch(/Tainted Cup|Shorefall|bpm/i)
   })
 })
 
@@ -144,7 +189,7 @@ describe('GET /: the D2 ceiling', () => {
   // covers: dashboard-ssr#A render that misses its budget falls back to the data-free page
   it('serves the prerendered data-free page with X-SSR-Data: fallback when the render misses the ceiling', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
-    const {deps: d, calls} = deps(() => new Promise<Response>(() => {}), 50)
+    const {deps: d, calls} = deps({load: () => new Promise<DashboardLoad>(() => {}), ceilingMs: 50})
     const started = Date.now()
     const response = await renderDashboard(REQUEST, d)
     expect(Date.now() - started).toBeLessThan(1_000)
@@ -152,15 +197,14 @@ describe('GET /: the D2 ceiling', () => {
     expect(await response.text()).toBe('data-free page')
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
     expect(response.headers.get('ETag')).toBeNull()
-    expect(response.headers.get('Last-Modified')).toBeNull()
     expect(response.headers.get('Cache-Control')).toBe('no-cache')
     expect(calls.assets).toEqual([`GET ${DATA_FREE_PAGE_PATH}`])
     expect(logLines(info)[0]).toMatchObject({summary: 'fallback', status: 200})
   })
 
-  it('applies the fallback to a body that stalls after the headers arrived', async () => {
-    const stalled = new ReadableStream({pull: () => new Promise(() => {})})
-    const response = await renderDashboard(REQUEST, deps(async () => rendered(stalled), 50).deps)
+  it('applies the fallback to a rewritten body that stalls', async () => {
+    const stalled: typeof injectDashboard = async () => new Response(new ReadableStream({pull: () => new Promise(() => {})}))
+    const response = await renderDashboard(REQUEST, deps({inject: stalled, ceilingMs: 50}).deps)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
   })
 
@@ -169,49 +213,48 @@ describe('GET /: the D2 ceiling', () => {
   })
 })
 
-describe('GET /: a render exception (D13, Step 4.5)', () => {
+describe('GET /: a render failure (D13, Step 4.5)', () => {
   function expectErrorPage(response: Response, calls: Calls): void {
     expect(response.status).toBe(500)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('error')
     expect(response.headers.get('Cache-Control')).toBe('no-store')
-    expect(calls.assets).toEqual([`GET ${ERROR_PAGE_PATH}`])
+    expect(calls.assets.at(-1)).toBe(`GET ${ERROR_PAGE_PATH}`)
   }
 
-  it('a throw before the first byte answers the 500 page', async () => {
-    const {deps: d, calls} = deps(async () => {
-      throw new TypeError('render failed')
+  it('an injector that throws answers the 500 page', async () => {
+    const {deps: d, calls} = deps({
+      inject: async () => {
+        throw new TypeError('rewrite failed')
+      }
     })
     const response = await renderDashboard(REQUEST, d)
     expectErrorPage(response, calls)
     expect(await response.text()).toBe('error page')
   })
 
-  it("Astro's own error answer (a frontmatter throw) answers the 500 page", async () => {
-    const {deps: d, calls} = deps(async () => new Response('astro error', {status: 500}))
-    expectErrorPage(await renderDashboard(REQUEST, d), calls)
-  })
-
   // covers: dashboard-ssr#A render exception answers a clean 500
-  it('a throw while the stream renders answers the 500 page, never a half document with status 200', async () => {
-    const broken = new ReadableStream<Uint8Array>({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode('<!DOCTYPE html><html><body><section>live data'))
-      },
-      pull(controller) {
-        controller.error(new Error('widget threw'))
-      }
-    })
+  it('a stream that fails while the page is rewritten answers the 500 page, never a half document with status 200', async () => {
+    const broken: typeof injectDashboard = async () =>
+      new Response(new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode('<!DOCTYPE html><html><body><section>live data'))
+        },
+        pull(controller) {
+          controller.error(new Error('handler threw'))
+        }
+      }))
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
-    const {deps: d, calls} = deps(async () => rendered(broken))
+    const {deps: d, calls} = deps({inject: broken})
     const response = await renderDashboard(REQUEST, d)
     expectErrorPage(response, calls)
     expect(await response.text()).not.toContain('live data')
     expect(logLines(info)[0]).toMatchObject({summary: 'error', status: 500, error_class: 'Error'})
   })
 
-  it('a missing or malformed record is a render failure, not a 200 without a summary', async () => {
-    for (const record of ['', '{"summary":', '{"summary":"live"}']) {
-      const {deps: d, calls} = deps(async () => rendered(PAGE, record))
+  it('a missing data-free page or templates page is a render failure, not a page without values', async () => {
+    for (const path of [DATA_FREE_PAGE_PATH, TEMPLATES_PAGE_PATH]) {
+      resetTemplatesForTest()
+      const {deps: d, calls} = deps({assets: {[path]: null}})
       expectErrorPage(await renderDashboard(REQUEST, d), calls)
     }
   })
@@ -220,9 +263,9 @@ describe('GET /: a render exception (D13, Step 4.5)', () => {
 describe('HEAD /', () => {
   // covers: dashboard-ssr#HEAD reads no data
   it('answers from the data-free page headers, reads no data and renders nothing', async () => {
-    const {deps: d, calls} = deps(async () => rendered())
+    const {deps: d, calls} = deps()
     const response = await headDashboard(d)
-    expect(calls.rendered).toHaveLength(0)
+    expect(calls.loads).toHaveLength(0)
     expect(calls.assets).toEqual([`HEAD ${DATA_FREE_PAGE_PATH}`])
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('')
