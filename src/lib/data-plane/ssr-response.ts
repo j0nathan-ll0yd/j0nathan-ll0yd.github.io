@@ -112,7 +112,8 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
       page.body?.cancel().catch(() => {})
       return {kind: 'failed', status: 500, errorClass: 'DataFreePageMissing'}
     }
-    const injected = await injectDashboard(page, {render, templates, nowMs})
+    // One input chunk: each text node of the page then reaches a text slot whole (./fragment.ts).
+    const injected = await injectDashboard(new Response(await page.text(), {headers: page.headers}), {render, templates, nowMs})
     // Buffer the document: a failure inside a rewrite handler rejects here.
     const body = await injected.arrayBuffer()
     return {kind: 'rendered', response: injected, body, record: render.record}

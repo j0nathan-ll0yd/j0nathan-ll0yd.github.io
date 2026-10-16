@@ -29,8 +29,16 @@ interface HTMLRewriterElement {
   remove(): HTMLRewriterElement
   removeAndKeepContent(): HTMLRewriterElement
 }
+interface HTMLRewriterTextChunk {
+  readonly text: string
+  readonly lastInTextNode: boolean
+  readonly removed: boolean
+  replace(content: string, options?: HTMLRewriterContentOptions): HTMLRewriterTextChunk
+  remove(): HTMLRewriterTextChunk
+}
 interface HTMLRewriterElementHandlers {
   element?(element: HTMLRewriterElement): void | Promise<void>
+  text?(chunk: HTMLRewriterTextChunk): void | Promise<void>
 }
 declare class HTMLRewriter {
   constructor()

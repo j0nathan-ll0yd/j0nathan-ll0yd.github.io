@@ -15,13 +15,12 @@ import {a11y, widgets} from '@j0nathan-ll0yd/copy'
 import type {DashboardViewModels} from '@j0nathan-ll0yd/web/runtime/view-models'
 import {mirroredCoverUrl, PLACEHOLDER_IMAGE_SRC, sanitizeImageUrl} from '@j0nathan-ll0yd/web/runtime/image-utils'
 import {formatMonthYear} from '@j0nathan-ll0yd/web/runtime/widget-state'
-import {type DataState, registerDataState} from '../card-state'
-import {fillFragment, setOptionalAttribute, setText} from '../fragment'
+import {type DataState, dataVariant, registerDataState} from '../card-state'
+import {fillFragment, setAttribute, setOptionalAttribute, slotWith, textSlot} from '../fragment'
+import {shelfItemKey, type ShelfItemShape} from '../slot-props'
 import {templateFor, type Templates} from '../templates'
 
 export const BOOKSHELF_CARD = 'cardBooks'
-/** The two item templates the build renders (src/pages/ssr-templates.astro). */
-export const BOOK_ITEM_TEMPLATES = {reading: 'cardBooks:item-reading', shelf: 'cardBooks:item-shelf'} as const
 
 type BookshelfProps = DashboardViewModels['bookshelf']
 type BookEntry = NonNullable<BookshelfProps['books']>['books'][number]
@@ -120,64 +119,62 @@ export function bookItemView(b: BookEntry, index: number, props: BookshelfProps,
   }
 }
 
-/** One item: its template, with the parts the book lacks dropped and every value written. */
+/** The five stars of a rating: each one's class and glyph, with the template's padding. */
+function starSlot(rating: number | null): HTMLRewriterElementHandlers {
+  let star = -1
+  const on = () => rating !== null && (STARS[star] ?? 0) <= rating
+  return slotWith(textSlot(() => (on() ? '★' : '☆')), (el) => {
+    star++
+    setAttribute(el, 'class', on() ? 'star-on' : 'star-off')
+  })
+}
+
+/** The item template shape this book takes in Bookshelf.astro. */
+function itemShape(view: BookItemView): ShelfItemShape {
+  return {
+    reading: view.reading,
+    measure: view.reading ? view.progress !== null : Boolean(view.rating),
+    dated: !view.reading && view.finishedText !== null,
+    picture: view.avifSrcset !== null
+  }
+}
+
+/** One item: its shape's template, with every value written. */
 function bookItem(view: BookItemView, templates: Templates): Promise<string> {
-  const template = templateFor(templates, BOOKSHELF_CARD, view.reading ? 'item-reading' : 'item-shelf')
-  let star = 0
-  const drop = (el: HTMLRewriterElement) => void el.remove()
+  const template = templateFor(templates, BOOKSHELF_CARD, shelfItemKey(itemShape(view)))
   return fillFragment(template, (rewriter) =>
     rewriter.on('li.shelf-book', {
       element(el) {
-        el.setAttribute('class', view.className)
-        el.setAttribute('style', view.style)
-        el.setAttribute('data-book', view.dataBook)
-        el.setAttribute('aria-label', view.ariaLabel)
+        setAttribute(el, 'class', view.className)
+        setAttribute(el, 'style', view.style)
+        setAttribute(el, 'data-book', view.dataBook)
+        setAttribute(el, 'aria-label', view.ariaLabel)
       }
-    }).on('picture', {element: (el) => void (view.avifSrcset ? el : el.removeAndKeepContent())}).on('source', {
-      element: (el) => void (view.avifSrcset ? el.setAttribute('srcset', view.avifSrcset) : el.remove())
-    }).on('img', {
+    }).on('source', {element: (el) => setOptionalAttribute(el, 'srcset', view.avifSrcset)}).on('img', {
       element(el) {
-        el.setAttribute('src', view.imgSrc)
+        setAttribute(el, 'src', view.imgSrc)
         setOptionalAttribute(el, 'srcset', view.imgSrcset)
-        el.setAttribute('alt', view.title)
+        setAttribute(el, 'alt', view.title)
         setOptionalAttribute(el, 'data-fallback', view.fallback)
       }
-    }).on('.shelf-book-title span', {element: (el) => setText(el, view.title)}).on('.shelf-book-author', {element: (el) => setText(el, view.author)}).on(
-      '.shelf-book-status',
-      {
-        element(el) {
-          el.setAttribute('class', view.statusClass)
-          setText(el, view.statusText)
-        }
-      }
-    ).on('.shelf-book-progress-bar', {element: (el) => void (view.progress === null ? el.remove() : el)}).on('.shelf-book-progress-fill', {
-      element: (el) => void el.setAttribute('style', `width: ${view.progress}%`)
-    }).on('.shelf-book-progress', {element: (el) => (view.progress === null ? drop(el) : setText(el, `${view.progress}%`))}).on('.shelf-book-stars', {
-      element: (el) => void (view.rating ? el : el.remove())
-    }).on('.shelf-book-stars span', {
-      element(el) {
-        const s = STARS[star++] ?? 0
-        const on = view.rating !== null && s <= view.rating
-        el.setAttribute('class', on ? 'star-on' : 'star-off')
-        setText(el, on ? '★' : '☆')
-      }
-    }).on('.shelf-book-finished-date', {element: (el) => (view.finishedText === null ? drop(el) : setText(el, view.finishedText))}))
+    }).on('.shelf-book-title span', textSlot(view.title)).on('.shelf-book-author', textSlot(view.author)).on('.shelf-book-status',
+      slotWith(textSlot(view.statusText), (el) => setAttribute(el, 'class', view.statusClass))).on('.shelf-book-progress-fill', {
+        element: (el) => setAttribute(el, 'style', `width: ${view.progress}%`)
+      }).on('.shelf-book-progress', textSlot(`${view.progress}%`)).on('.shelf-book-stars span', starSlot(view.rating)).on('.shelf-book-finished-date',
+        textSlot(view.finishedText ?? '')))
 }
 
-export async function prepareBookshelf(props: BookshelfProps, templates: Templates, localCovers: readonly string[]): Promise<string> {
+/** The card, filled from its build-time template, with one item per shelf book. */
+export async function fillBookshelf(props: BookshelfProps, state: DataState, templates: Templates, localCovers: readonly string[]): Promise<string> {
   const mirrored = new Set(localCovers)
-  const items = await Promise.all(shelfBooks(props).map((b, i) => bookItem(bookItemView(b, i, props, mirrored), templates)))
-  return items.join('')
-}
-
-export function registerBookshelf(rewriter: HTMLRewriter, props: BookshelfProps, state: DataState, items: string): HTMLRewriter {
-  registerDataState(rewriter, BOOKSHELF_CARD, state, props.generatedAt ?? null)
-  return rewriter.on('#dashShelfRow', {
-    element(el) {
-      el.removeAttribute('hidden')
-      // Items cloned from the design system's value-free templates, every value written through the
-      // text and attribute APIs (bookItem above). No string built from data.
-      el.setInnerContent(items, {html: true})
-    }
-  })
+  const items = (await Promise.all(shelfBooks(props).map((b, i) => bookItem(bookItemView(b, i, props, mirrored), templates)))).join('')
+  return fillFragment(templateFor(templates, BOOKSHELF_CARD, dataVariant(state, props.generatedAt)),
+    (rewriter) =>
+      registerDataState(rewriter, BOOKSHELF_CARD, state, props.generatedAt ?? null).on('#dashShelfRow li', {
+        element(el) {
+          // Items cloned from the design system's templates, every value written through the text and
+          // attribute APIs (bookItem above). No string built from data.
+          el.replace(items, {html: true})
+        }
+      }))
 }

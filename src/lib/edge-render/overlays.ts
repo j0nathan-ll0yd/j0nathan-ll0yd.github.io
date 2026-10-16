@@ -4,7 +4,7 @@
 // data-free page's overlays. tests/oracle pins it to the Astro render.
 import {FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {DISPLAY_TIME_ZONE} from '@j0nathan-ll0yd/web/runtime/widget-state'
-import {setText} from './fragment'
+import {setAttribute, textSlot} from './fragment'
 
 const OVERLAYS = [
   {id: 'focusOverlay', clock: 'focusClock', mode: FOCUS_MODES.work},
@@ -22,12 +22,12 @@ export function registerOverlays(rewriter: HTMLRewriter, currentFocus: string | 
   const clock = overlayClock(nowMs)
   for (const overlay of OVERLAYS) {
     const active = currentFocus === overlay.mode
-    rewriter.on(`#${overlay.clock}`, {element: (el) => setText(el, clock)})
+    rewriter.on(`#${overlay.clock}`, textSlot(clock))
     if (active) {
       rewriter.on(`#${overlay.id}`, {
         element(el) {
-          el.setAttribute('style', 'display: flex')
-          el.setAttribute('data-ssr-state', 'suppressed')
+          setAttribute(el, 'style', 'display: flex')
+          setAttribute(el, 'data-ssr-state', 'suppressed')
         }
       })
     }

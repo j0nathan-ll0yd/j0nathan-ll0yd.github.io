@@ -5,35 +5,27 @@
 //
 // - a card in `empty`, `unavailable` or `suppressed` is replaced by its value-free template, which
 //   the build rendered from the design system's own component (./templates.ts);
-// - a card in `live` or `stale` keeps the data-free page's value-free scaffold, and its card module
-//   writes the state and every value through the text and attribute APIs (./cards/).
+// - a card in `live` or `stale` is replaced by its data-state template (rendered at build time from
+//   value-free stand-ins), with every value written through the text and attribute APIs (./cards/).
 //
 // Every value is written through `setInnerContent` (text) or `setAttribute`, which escape it.
 // tests/oracle renders the same props through Astro and pins the two to equal markup.
 import type {DashboardRender, LiveCardId} from '../data-plane/render-model'
 import {MIRRORED_BOOK_COVERS} from '../load-dashboard-data'
 import type {DataState} from './card-state'
-import {prepareBookshelf, registerBookshelf} from './cards/bookshelf'
-import {registerHeartRate} from './cards/heart-rate'
-import {prepareTheatre, registerTheatre} from './cards/theatre'
+import {fillBookshelf} from './cards/bookshelf'
+import {fillHeartRate} from './cards/heart-rate'
+import {fillTheatre} from './cards/theatre'
 import {registerOverlays} from './overlays'
 import {isTemplateState, templateFor, type Templates} from './templates'
 
-/** The cards the edge can write in a data state. A card missing here stays `loading` (spike scope). */
-type DataCardWriter = (rewriter: HTMLRewriter, render: DashboardRender, state: DataState, templates: Templates) => Promise<void>
+/** The cards the edge writes in a data state: each returns its filled template. A card missing here stays `loading` (spike scope). */
+type DataCardFill = (render: DashboardRender, state: DataState, templates: Templates) => Promise<string>
 
-const DATA_CARD_WRITERS: Partial<Record<LiveCardId, DataCardWriter>> = {
-  cardHR: async (rewriter, render, state) => {
-    registerHeartRate(rewriter, render.vm.heartRate, state)
-  },
-  cardBooks: async (rewriter, render, state, templates) => {
-    const items = await prepareBookshelf(render.vm.bookshelf, templates, MIRRORED_BOOK_COVERS)
-    registerBookshelf(rewriter, render.vm.bookshelf, state, items)
-  },
-  cardTheatreReviews: async (rewriter, render, state) => {
-    const fill = await prepareTheatre(render.vm.theatreReviews, state)
-    registerTheatre(rewriter, render.vm.theatreReviews, state, fill)
-  }
+const DATA_CARD_FILLS: Partial<Record<LiveCardId, DataCardFill>> = {
+  cardHR: (render, state, templates) => fillHeartRate(render.vm.heartRate, state, templates),
+  cardBooks: (render, state, templates) => fillBookshelf(render.vm.bookshelf, state, templates, MIRRORED_BOOK_COVERS),
+  cardTheatreReviews: (render, state, templates) => fillTheatre(render.vm.theatreReviews, state, templates)
 }
 
 export interface InjectInput {
@@ -57,7 +49,11 @@ export async function injectDashboard(page: Response, {render, templates, nowMs}
       const template = templateFor(templates, cardId, state)
       rewriter.on(`#${cardId}`, {element: (card) => void card.replace(template, {html: true})})
     } else if (state === 'live' || state === 'stale') {
-      await DATA_CARD_WRITERS[cardId]?.(rewriter, render, state, templates)
+      const fill = DATA_CARD_FILLS[cardId]
+      if (fill) {
+        const card = await fill(render, state, templates)
+        rewriter.on(`#${cardId}`, {element: (el) => void el.replace(card, {html: true})})
+      }
     }
   }
   registerOverlays(rewriter, render.vm.focusOverlay.currentFocus, nowMs)

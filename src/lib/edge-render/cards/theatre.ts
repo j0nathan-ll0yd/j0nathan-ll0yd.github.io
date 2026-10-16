@@ -10,10 +10,10 @@ import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 import type {DashboardViewModels} from '@j0nathan-ll0yd/web/runtime/view-models'
 import {safeHttpsUrl} from '@j0nathan-ll0yd/web/runtime/html-utils'
 import {sanitizeImageUrl} from '@j0nathan-ll0yd/web/runtime/image-sanitizer'
-import {THEATRE_SITE, type TheatreCardReview, theatreCardsHtml, theatreCountLabel} from '@j0nathan-ll0yd/web/runtime/updaters-theatre'
-import {type DataState, registerDataState} from '../card-state'
-import {fillFragment, setText} from '../fragment'
-import {staleTimestampFragment} from '../timestamp'
+import {type TheatreCardReview, theatreCardsHtml, theatreCountLabel} from '@j0nathan-ll0yd/web/runtime/updaters-theatre'
+import {type DataState, dataVariant, registerDataState} from '../card-state'
+import {fillFragment, setAttribute, textSlot} from '../fragment'
+import {templateFor, type Templates} from '../templates'
 
 export const THEATRE_CARD = 'cardTheatreReviews'
 
@@ -87,7 +87,7 @@ export function theatreCards(reviews: readonly Review[]): Promise<string> {
   const rewrite = (attribute: string) => (el: HTMLRewriterElement) => {
     const value = el.getAttribute(attribute)
     if (value !== null) {
-      el.setAttribute(attribute, realAttribute(value, current(), index))
+      setAttribute(el, attribute, realAttribute(value, current(), index))
     }
   }
   return fillFragment(theatreCardsHtml(reviews.map(slotReview)), (rewriter) =>
@@ -101,40 +101,22 @@ export function theatreCards(reviews: readonly Review[]): Promise<string> {
         rewrite('src')(el)
         rewrite('srcset')(el)
       }
-    }).on('a.theatre-card .theatre-grade', {element: (el) => setText(el, current().rating ?? '')}).on('a.theatre-card .theatre-title span', {
-      element: (el) => setText(el, current().title)
-    }))
+    }).on('a.theatre-card .theatre-grade', textSlot(() => current().rating ?? '')).on('a.theatre-card .theatre-title span', textSlot(() => current().title)))
 }
 
-/** Everything the card needs before the page pass starts. */
-export interface TheatreFill {
-  cards: string
-  staleTimestamp: string | null
-}
-
-export async function prepareTheatre(props: DashboardViewModels['theatreReviews'], state: DataState): Promise<TheatreFill> {
-  return {cards: await theatreCards(props.reviews ?? []), staleTimestamp: state === 'stale' ? await staleTimestampFragment('', props.generatedAt) : null}
-}
-
-export function registerTheatre(rewriter: HTMLRewriter, props: DashboardViewModels['theatreReviews'], state: DataState, fill: TheatreFill): HTMLRewriter {
-  registerDataState(rewriter, THEATRE_CARD, state, props.generatedAt ?? null)
-  return rewriter.on('#theatreCount', {
-    element(el) {
-      if (fill.staleTimestamp !== null) {
-        el.before(fill.staleTimestamp, {html: true})
-      }
-      el.tagName = 'a'
-      el.setAttribute('href', THEATRE_SITE)
-      el.setAttribute('target', '_blank')
-      el.setAttribute('rel', 'noopener noreferrer')
-      setText(el, theatreCountLabel(props.totalReviews))
-    }
-  }).on('#theatreRow', {
-    element(el) {
-      el.removeAttribute('hidden')
-      // Markup the design system rendered from slot stand-ins, with every value written through
-      // the text and attribute APIs (theatreCards above). It holds no string built from data.
-      el.setInnerContent(fill.cards, {html: true})
-    }
-  })
+/** The card, filled from its build-time template: the header and the review cards. */
+export async function fillTheatre(props: DashboardViewModels['theatreReviews'], state: DataState, templates: Templates): Promise<string> {
+  const cards = await theatreCards(props.reviews ?? [])
+  return fillFragment(templateFor(templates, THEATRE_CARD, dataVariant(state, props.generatedAt)),
+    (rewriter) =>
+      registerDataState(rewriter, THEATRE_CARD, state, props.generatedAt ?? null).on('#theatreCount', textSlot(theatreCountLabel(props.totalReviews))).on(
+        '#theatreRow a.theatre-card',
+        {
+          element(el) {
+            // Markup the design system rendered from slot stand-ins, with every value written through
+            // the text and attribute APIs (theatreCards above). It holds no string built from data.
+            el.replace(cards, {html: true})
+          }
+        }
+      ))
 }

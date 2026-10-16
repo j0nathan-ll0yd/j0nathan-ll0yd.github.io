@@ -51,10 +51,10 @@ export function parseTemplates(html: string): Templates {
 }
 
 /** One card's template, or a thrown error: a missing template is a build defect, never a value leak. */
-export function templateFor(templates: Templates, cardId: string, state: TemplateState | `item-${string}`): string {
-  const template = templates.get(`${cardId}:${state}`)
+export function templateFor(templates: Templates, cardId: string, variant: string): string {
+  const template = templates.get(`${cardId}:${variant}`)
   if (template === undefined) {
-    throw new Error(`no template for ${cardId}:${state}`)
+    throw new Error(`no template for ${cardId}:${variant}`)
   }
   return template
 }
