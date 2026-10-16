@@ -61,8 +61,8 @@ gate shut over a visible signal, and KeyValueStore propagation.
 Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible signal),
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
 `tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
-browser by `tests/behavioral/ssr-no-js.test.ts:260` (one 403 suppresses the page) and
-`tests/behavioral/ssr-no-js.test.ts:306` (each hiding mode: the overlay shows, nothing is read, no
+browser by `tests/behavioral/ssr-no-js.test.ts:263` (one 403 suppresses the page) and
+`tests/behavioral/ssr-no-js.test.ts:320` (each hiding mode: the overlay shows, nothing is read, no
 gated value is in the DOM).
 
 #### Scenario: A failed focus publication
@@ -127,7 +127,7 @@ with an empty list is `empty`, not a failure. An export older than its `audit.er
 
 Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
 `tests/unit/data-plane-loader.test.ts:290` (an old source), and per export in a scripts-off browser by
-`tests/behavioral/ssr-no-js.test.ts:232` (5xx, malformed, old and empty answers, with `data-ssr-state`,
+`tests/behavioral/ssr-no-js.test.ts:235` (5xx, malformed, old and empty answers, with `data-ssr-state`,
 the meta and `X-SSR-Data` in agreement).
 
 #### Scenario: An old export
@@ -145,7 +145,7 @@ documented sort, the newest article title, the workout count, and the other fiel
 document. Production is checked daily by web audit B11, through an oracle that imports none of the
 shared adapters.
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:87` (the `ssrKnownAnswer` fixture variation, whose
+Verified by `tests/behavioral/ssr-no-js.test.ts:90` (the `ssrKnownAnswer` fixture variation, whose
 distinctive values occur in no other variation, `tests/build/ssr-known-answer.test.ts`).
 
 #### Scenario: A client without JavaScript reads the dashboard
@@ -162,8 +162,8 @@ overlay used to hard-code, and no coordinates, place or visit data (D14). Author
 such as the Person address, is allowed. Production builds cannot reach `@j0nathan-ll0yd/fixtures`
 (the `forbid-fixtures` build plugin).
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:182` (legacy markers and retired overlay rows) and
-`tests/behavioral/ssr-no-js.test.ts:211` (D14).
+Verified by `tests/behavioral/ssr-no-js.test.ts:185` (legacy markers and retired overlay rows) and
+`tests/behavioral/ssr-no-js.test.ts:214` (D14).
 
 #### Scenario: A crawler reads the dashboard
 
@@ -230,7 +230,7 @@ pages cannot be used, the data-free page SHALL answer with the same summary. A p
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
 Verified by `tests/unit/ssr-response.test.ts:183` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:187` (each variant equals the Astro render, holds no
+`tests/oracle/composer-parity.test.ts:221` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb
@@ -306,7 +306,7 @@ The render SHALL NOT branch on the client: no code on the render path reads `Use
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
 Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
-`tests/behavioral/ssr-no-js.test.ts:368` (the head of the render equals the data-free page's).
+`tests/behavioral/ssr-no-js.test.ts:382` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 

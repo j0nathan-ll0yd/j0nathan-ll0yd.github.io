@@ -54,7 +54,10 @@ async function open(page: Page): Promise<Rendered> {
   return {
     status: response!.status(),
     summaryHeader: response!.headers()['x-ssr-data'],
-    summaryMeta: (await page.locator('meta[name="ssr-data"]').getAttribute('content')) ?? undefined
+    // The data-free page carries no summary meta; getAttribute would wait for one.
+    summaryMeta: (await page.locator('meta[name="ssr-data"]').count()) === 0
+      ? undefined
+      : (await page.locator('meta[name="ssr-data"]').getAttribute('content')) ?? undefined
   }
 }
 
@@ -276,14 +279,25 @@ test.describe('server render with JavaScript off: states', () => {
     await setDataPlane({[ENDPOINTS.focus]: {kind: 'status', status: 500}})
     await expectSummary(page, 'unavailable')
     expect(await cardStates(page)).toEqual(expectedStates('unavailable'))
-    expect(await dataPlaneRequests()).toEqual([ENDPOINTS.focus])
+    // Only the focus signal is read: once, or twice through the proxy's one bounded retry of a
+    // retryable failure (src/lib/edge/proxy.ts FOCUS_MAX_ATTEMPTS). The composed page never is.
+    const reads = await dataPlaneRequests()
+    expect(new Set(reads)).toEqual(new Set([ENDPOINTS.focus]))
+    expect(reads.length).toBeLessThanOrEqual(2)
     expect(await page.content()).not.toContain(TOKEN)
   })
 
-  test('a 200 without a CloudFront request id is refused', async ({page}) => {
-    await setDataPlane({[ENDPOINTS.workouts]: {kind: 'no-cloudfront-id', file: KNOWN_ANSWER_BY_PATH[ENDPOINTS.workouts]}})
-    await expectSummary(page, 'partial')
-    expect(await cardStates(page)).toEqual(expectedStates('live', {cardWorkouts: 'unavailable'}))
+  test('a composed page without a CloudFront request id is refused', async ({page}) => {
+    // The admission rules apply to the Worker's one gated read, the composed artifact. The backend
+    // composer reads the exports from the bucket itself, behind no CloudFront.
+    await setDataPlane({'/dashboard.json': {kind: 'no-cloudfront-id'}})
+    const rendered = await open(page)
+    expect(rendered.status).toBe(200)
+    expect(rendered.summaryHeader, 'X-SSR-Data').toBe('fallback')
+    // The data-free page is served as built: it carries no summary meta of its own.
+    expect(rendered.summaryMeta).toBeUndefined()
+    expect(await cardStates(page)).toEqual(expectedStates('loading'))
+    expect(await page.content()).not.toContain(TOKEN)
   })
 
   test('every export down renders an unavailable page with no value', async ({page}) => {

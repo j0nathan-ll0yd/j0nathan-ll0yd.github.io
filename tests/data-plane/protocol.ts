@@ -12,7 +12,8 @@ export type Behavior =
     | {kind: 'suppress'}
     | {kind: 'stall'}
     | {kind: 'malformed'}
-    | {kind: 'no-cloudfront-id'; file: string}
+    /** No `file` on the composed-artifact path: the artifact is composed as usual and sent without the id. */
+    | {kind: 'no-cloudfront-id'; file?: string}
   )
   & {delayMs?: number}
 

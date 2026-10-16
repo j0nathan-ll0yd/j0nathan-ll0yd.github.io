@@ -296,6 +296,22 @@ describe('live-data → focus overlay + suppression wiring', () => {
     expect(document.getElementById('cardHR')?.classList.contains('is-loading')).toBe(false)
   })
 
+  // A server-rendered overlay (atlas decision 0160, PR B: the Worker showed it because its own focus
+  // probe read a hiding value) is the best-known state. A failed focus read in the browser knows
+  // nothing, so it must not hide it (found by tests/behavioral/sw-ssr-privacy.spec.ts, 2026-10-15).
+  // covers: client-privacy#An unreadable focus value never hides a server-rendered overlay
+  it.each([
+    ['failed', {status: 'failed', reason: 'network'}],
+    ['suppressed without a value', {status: 'suppressed'}]
+  ])('keeps a server-rendered overlay when the startup focus read is %s', async (_label, result) => {
+    document.body.innerHTML = '<div id="focusOverlay" style="display: flex" data-ssr-state="suppressed"></div><div id="dndOverlay"></div>'
+    fetchSpy.mockResolvedValueOnce(result)
+
+    await bootLiveData()
+
+    expect(document.getElementById('focusOverlay')?.style.display).toBe('flex')
+  })
+
   it('ignores a stale focus poll that contradicts the latest push while the WS is connected', async () => {
     await bootLiveData()
     wsOpts?.onStateChange?.(true) // WS live → the focus poll is fallback-only

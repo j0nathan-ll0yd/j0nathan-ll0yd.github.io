@@ -106,7 +106,7 @@ async function renderFragments(vm: DashboardRender['vm'], localCovers: readonly 
   const parts: [ComposedFragmentId, unknown, object][] = [
     ['focusOverlay', FocusOverlay, vm.focusOverlay],
     ['dndOverlay', DndOverlay, vm.dndOverlay],
-    ['systemStatus', SystemStatus, vm.systemStatus],
+    ['cardSystem', SystemStatus, vm.systemStatus],
     ['cardHR', HeartRate, vm.heartRate],
     ['cardMovement', MovementRings, vm.movementRings],
     ['cardHydration', Hydration, vm.hydration],

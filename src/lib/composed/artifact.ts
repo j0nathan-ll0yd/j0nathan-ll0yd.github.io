@@ -26,11 +26,11 @@ export const COMPOSED_MAX_AGE_MS = 35 * 60 * 1000
 /** A composition stamp this far ahead of the Worker's clock is malformed, not skewed. */
 export const COMPOSED_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
 
-/** The elements of the data-free page an artifact replaces, by id. */
+/** The elements of the data-free page an artifact replaces, by id: each is its component's root element. */
 export const COMPOSED_FRAGMENT_IDS = Object.freeze([
   'focusOverlay',
   'dndOverlay',
-  'systemStatus',
+  'cardSystem',
   'cardHR',
   'cardMovement',
   'cardHydration',

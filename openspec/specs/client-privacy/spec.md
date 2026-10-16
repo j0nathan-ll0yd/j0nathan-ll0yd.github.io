@@ -208,6 +208,22 @@ four unreadable forms).
 - **WHEN** the dashboard loads
 - **THEN** no gated artifact SHALL be requested, and each SHALL be reported as not applied
 
+### Requirement: An unreadable focus value never hides a server-rendered overlay
+
+Only a decoded focus value SHALL drive the focus overlays at startup. A failed focus read, or a
+suppression body with no focus value, SHALL leave the overlays as the server rendered them: the
+Worker showed an overlay because its own focus probe read a hiding value (`dashboard-ssr`, "A hiding
+or unreadable focus value answers the build's value-free page"), and a read that knows nothing is no
+reason to hide that notice. Showing an overlay exposes no value.
+
+Verified by `tests/unit/live-data.app-update.test.ts:302`.
+
+#### Scenario: The browser cannot read the focus signal during hiding
+
+- **GIVEN** a page the Worker served with the Work overlay shown
+- **WHEN** the browser's first focus read fails
+- **THEN** the Work overlay SHALL stay shown
+
 ### Requirement: Entering suppression removes gated values, and leaving it restores them
 
 When the page learns of a hiding mode -- a hiding focus value, or a 403 suppression body from any
@@ -225,9 +241,9 @@ lifts no sooner than 25 s after the last denial, so a focus answer that races a 
 start a lift-and-refetch loop; a one-shot timer then asks the gate itself on one path, and a 200
 lifts it while a suppression body re-arms it.
 
-Verified by `tests/unit/live-data.app-update.test.ts:349` (reload on entering, the loop guard, one
+Verified by `tests/unit/live-data.app-update.test.ts:364` (reload on entering, the loop guard, one
 reload per burst, startup withholding asserted on the bookshelf updater, the engine seed and the
-system-status timestamps) and `tests/unit/live-data.app-update.test.ts:590` (the one-shot gate
+system-status timestamps) and `tests/unit/live-data.app-update.test.ts:606` (the one-shot gate
 re-check).
 
 #### Scenario: A hiding push arrives after data was shown

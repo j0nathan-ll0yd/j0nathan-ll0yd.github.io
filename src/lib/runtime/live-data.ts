@@ -791,7 +791,11 @@ const firstRead = async () => {
   // focus is already a hiding mode at load, sets suppression intent (engine is still null;
   // it is propagated via engine.setSuppressed(isSuppressed()) below once created).
   const focusResult = await fetchArtifact('focus')
-  applyFocus(focusResult.status === 'ok' ? focusResult.data.currentFocus : null)
+  // Only a decoded value drives the overlay. A failed read knows nothing, and the overlay the server
+  // rendered (from its own focus probe) is the best-known state; hiding it would hide a true notice.
+  if (focusResult.status === 'ok') {
+    applyFocus(focusResult.data.currentFocus)
+  }
 
   const data = await fetchAllEndpoints()
 

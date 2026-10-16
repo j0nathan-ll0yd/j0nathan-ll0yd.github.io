@@ -53,6 +53,10 @@ function answer(response: ServerResponse, behavior: Behavior): void {
       send(response, 200, JSON.stringify(stamp(readJson(behavior.file), behavior.generatedAt ?? DEFAULT_GENERATED_AT)))
       return
     case 'no-cloudfront-id':
+      if (behavior.file === undefined) {
+        send(response, 500, JSON.stringify({error: 'no-cloudfront-id needs a file outside the composed-artifact path'}))
+        return
+      }
       send(response, 200, JSON.stringify(stamp(readJson(behavior.file), DEFAULT_GENERATED_AT)), false)
       return
     case 'json':
@@ -113,8 +117,9 @@ function exportBody(path: string): unknown {
   const behavior = overrides.get(path) ?? baselineFor(path)
   switch (behavior.kind) {
     case 'fixture':
+      return stamp(readJson(behavior.file), behavior.generatedAt ?? DEFAULT_GENERATED_AT)
     case 'no-cloudfront-id':
-      return stamp(readJson(behavior.file), ('generatedAt' in behavior ? behavior.generatedAt : undefined) ?? DEFAULT_GENERATED_AT)
+      return behavior.file === undefined ? null : stamp(readJson(behavior.file), DEFAULT_GENERATED_AT)
     case 'json':
       return stamp(behavior.body, behavior.generatedAt ?? DEFAULT_GENERATED_AT)
     case 'malformed':
@@ -133,7 +138,9 @@ function exportBody(path: string): unknown {
  */
 async function dashboard(request: IncomingMessage, response: ServerResponse): Promise<void> {
   const own = overrides.get(DASHBOARD_PATH)
-  if (own) {
+  // `no-cloudfront-id` with no file: compose as usual, then answer without the CloudFront request id.
+  const unproven = own?.kind === 'no-cloudfront-id' && own.file === undefined
+  if (own && !unproven) {
     answer(response, own)
     return
   }
@@ -157,7 +164,7 @@ async function dashboard(request: IncomingMessage, response: ServerResponse): Pr
     send(response, 404, '{}')
     return
   }
-  send(response, 200, JSON.stringify(result.artifact))
+  send(response, 200, JSON.stringify(result.artifact), !unproven)
 }
 
 const server = createServer((request, response) => {

@@ -5,6 +5,7 @@
 // must be byte-identical after attribute ordering (./harness.ts `normalized`), and every scoped-style
 // hash in it must be one the website's own built page carries, or the Worker refuses it.
 import {existsSync, readFileSync} from 'node:fs'
+import {load} from 'cheerio'
 import {beforeAll, describe, expect, it} from 'vitest'
 import {
   Bookshelf,
@@ -34,10 +35,38 @@ const OLD = new Date(NOW - 30 * 24 * 60 * 60 * 1000).toISOString()
 const KEYS: GatedKey[] = ['health', 'sleep', 'workouts', 'books', 'githubEvents', 'starredRepos', 'articles', 'theatreReviews']
 const WEB = JSON.parse(readFileSync(new URL('../../node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version as string
 
+/**
+ * The id of a fragment's first element. The Worker replaces the page element with the fragment's id,
+ * so the fragment must BE that element: a fragment keyed on an inner id would nest the component
+ * inside itself (it did, for System Status: root #cardSystem, inner #systemStatus).
+ */
+function rootId(fragment: string): string | undefined {
+  return load(fragment, null, false).root().children().filter((_, node) => node.type === 'tag').first().attr('id')
+}
+
+/**
+ * Tag and first class: the element's kind. Later classes are state (`is-loading`) or data-driven
+ * (`tri-card-accent-red` at a heart-rate peak) and differ by design.
+ */
+function shape(tag: string | undefined, classes: string | undefined): string {
+  return `${tag ?? 'missing'}.${(classes ?? '').split(/\s+/)[0] ?? ''}`
+}
+
+/** The shape of the page's element with `id`: the element a fragment replaces. */
+function pageElement(id: string): string {
+  const element = sitePage(`#${id}`)
+  return shape(element.prop('tagName'), element.attr('class'))
+}
+
+function fragmentElement(fragment: string, id: string): string {
+  const element = load(fragment, null, false)(`#${id}`).first()
+  return shape(element.prop('tagName'), element.attr('class'))
+}
+
 const ORACLE = {
   focusOverlay: [FocusOverlay, 'focusOverlay'],
   dndOverlay: [DndOverlay, 'dndOverlay'],
-  systemStatus: [SystemStatus, 'systemStatus'],
+  cardSystem: [SystemStatus, 'systemStatus'],
   cardHR: [HeartRate, 'heartRate'],
   cardMovement: [MovementRings, 'movementRings'],
   cardHydration: [Hydration, 'hydration'],
@@ -57,6 +86,7 @@ type Compose = (input: unknown) => Promise<{ok: true; artifact: {fragments: Reco
 let compose: Compose
 let container: Awaited<ReturnType<typeof astroContainer>>
 let siteScopes: Set<string>
+let sitePage: ReturnType<typeof load>
 
 beforeAll(async () => {
   if (!existsSync(COMPOSER)) {
@@ -64,7 +94,9 @@ beforeAll(async () => {
   }
   ;({compose, composeValueFree} = (await import(COMPOSER.href)) as {compose: Compose; composeValueFree: ComposeValueFree})
   container = await astroContainer()
-  siteScopes = new Set(readFileSync(SITE_PAGE, 'utf8').match(/data-astro-cid-[a-z0-9]+/g) ?? [])
+  const site = readFileSync(SITE_PAGE, 'utf8')
+  siteScopes = new Set(site.match(/data-astro-cid-[a-z0-9]+/g) ?? [])
+  sitePage = load(site)
 }, 120_000)
 
 const SCENARIOS: [string, Partial<Record<GatedKey, DomainSpec>>][] = [
@@ -140,6 +172,8 @@ describe('the composer equals the Astro render', () => {
       const props = id === 'cardBooks' ? {...render.vm.bookshelf, localCovers: LOCAL_COVERS} : render.vm[model]
       const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
       const fragment = result.artifact.fragments[id] ?? ''
+      expect(rootId(fragment), `${id} is its component's root`).toBe(id)
+      expect(fragmentElement(fragment, id), `${id} replaces the same element`).toBe(pageElement(id))
       expect(normalized(fragment, `#${id}`), id).toBe(normalized(oracle, `#${id}`))
       for (const scope of fragment.match(/data-astro-cid-[a-z0-9]+/g) ?? []) {
         expect(siteScopes.has(scope), `${id}: ${scope} is not in the website's page`).toBe(true)
@@ -196,13 +230,15 @@ describe('the value-free pages equal the Astro render and hold no value', () => 
       const props = id === 'cardBooks' ? {...vm.bookshelf, localCovers: LOCAL_COVERS} : vm[model]
       const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
       const fragment = page?.fragments[id] ?? ''
+      expect(rootId(fragment), `${id} is its component's root`).toBe(id)
+      expect(fragmentElement(fragment, id), `${id} replaces the same element`).toBe(pageElement(id))
       expect(normalized(fragment, `#${id}`), id).toBe(normalized(oracle, `#${id}`))
       expect(fragment, `${id} names no source age`).not.toContain('data-generated-at')
       for (const scope of fragment.match(/data-astro-cid-[a-z0-9]+/g) ?? []) {
         expect(siteScopes.has(scope), `${id}: ${scope} is not in the website's page`).toBe(true)
       }
     }
-    const cardStates = COMPOSED_FRAGMENT_IDS.filter((id) => id.startsWith('card')).map((id) =>
+    const cardStates = COMPOSED_FRAGMENT_IDS.filter((id) => id.startsWith('card') && id !== 'cardSystem').map((id) =>
       /data-ssr-state="([a-z]+)"/.exec(page?.fragments[id] ?? '')?.[1]
     )
     expect(new Set(cardStates)).toEqual(new Set([state.kind === 'unreadable' ? 'unavailable' : 'suppressed']))
