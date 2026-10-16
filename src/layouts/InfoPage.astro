@@ -34,7 +34,7 @@ const links = [
 ].map((link) => ({ ...link, current: link.href === path }));
 ---
 <Dashboard title={title} description={description} robots={robots} pageType={pageType}>
-  <TextPage title={title} updated={updated} lede={lede} back={{ href: '/', label: id.privacy.backLink }} links={links}>
+  <TextPage title={title} updated={updated} lede={lede} back={{ href: '/', label: id.navigation.backLink }} links={links}>
     <slot />
   </TextPage>
 </Dashboard>

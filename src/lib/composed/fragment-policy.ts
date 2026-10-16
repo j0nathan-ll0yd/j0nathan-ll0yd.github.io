@@ -22,7 +22,8 @@
 // Everything else is refused: comments, doctypes, processing instructions, raw-text elements
 // (`script`, `style`, `textarea`, `plaintext`, `noscript`, `iframe`, `template`), `form`, `object`,
 // `embed`, `link`, `meta`, `base`, any `on*` or unknown attribute, a URL that is not a first-party
-// path or an allowlisted https host (an encoded dot, slash or backslash included), a `style`
+// path or an allowlisted https host (an encoded dot, slash or backslash included; the one exception is
+// the Reading card's article link, ARTICLE_LINK below), a `style`
 // attribute outside the declaration grammar below, and `popover` anywhere but System Status's tooltip
 // (the UA styles `[popover]` as a fixed full-viewport layer, shown by any author `display`).
 //
@@ -40,7 +41,7 @@
 //
 // Cost: one linear pass. Every per-element check is O(1) (counters, not stack scans), and the
 // caller caps the artifact size (./artifact.ts COMPOSED_MAX_BYTES).
-import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {WIDGET_STATES} from '@j0nathan-ll0yd/web/runtime/widget-state'
 import {FRAGMENT_CLASS_TOKENS, FRAGMENT_ROOT_CLASS_TOKENS} from './fragment-classes'
 
@@ -149,7 +150,7 @@ export const HTML_ELEMENTS: Readonly<Record<string, ReadonlySet<string>>> = Obje
   p: new Set<string>(),
   picture: new Set<string>(),
   source: new Set(['srcset', 'type']),
-  span: new Set<string>(),
+  span: new Set(['title']),
   time: new Set(['datetime']),
   ul: new Set<string>()
 })
@@ -176,9 +177,13 @@ const PHRASING_ONLY: ReadonlySet<string> = new Set(['p', 'h2', 'h3', 'span', 'ti
 const PHRASING: ReadonlySet<string> = new Set(['a', 'span', 'time', 'img', 'picture', 'canvas', 'button', 'svg'])
 const SVG_NS = 'http://www.w3.org/2000/svg'
 
-/** The https hosts a link may name: the repository and review hosts and the authored System Status links. */
+/**
+ * The https hosts a link may name: the repository and review hosts, the authored System Status links,
+ * and the Barry's Bootcamp share link Workouts names for an `Other` workout (DS ACTIVITY_TYPE_MAP).
+ */
 export const LINK_HOSTS: ReadonlySet<string> = new Set([
   'github.com',
+  'share.barrys.com',
   'www.coasttocoastreviews.com',
   'coasttocoastreviews.com',
   'www.apple.com',
@@ -187,6 +192,44 @@ export const LINK_HOSTS: ReadonlySet<string> = new Set([
   'feedly.com',
   'www.squarespace.com'
 ])
+/**
+ * The one link that may name any https host: a Reading card article title (DS ReadingFeed,
+ * `articleItemHtml`). Articles come from any publisher, so no host list can hold them (owner decision
+ * pending: option A admits them here; option B would strip the href on the server). The link is
+ * admitted only in its exact DS shape, `a.article-list-title` in `cardReading` with
+ * `target="_blank"` and `rel="noopener noreferrer"`, so no other card or element gains the rule.
+ */
+export const ARTICLE_LINK = Object.freeze({fragment: 'cardReading', className: 'article-list-title', target: '_blank', rel: 'noopener noreferrer'})
+/** Longer than any article URL the feed carries (123 characters in production, 2026-10-16). */
+export const MAX_ARTICLE_HREF = 2_048
+/**
+ * A parsed host of two or more labels with an alphabetic or punycode last label, and an optional
+ * trailing dot: no IP literal, no single-label host. `_` is admitted because publishers use it.
+ */
+const ARTICLE_HOST = /^(?:[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})\.?$/
+/**
+ * Hosts an article link may not name: the site and the data plane. An article leaves the site; a
+ * first-party link stays under `hrefAllowed`, whose encoded-escape rule this exception does not apply.
+ */
+const FIRST_PARTY_HOST = new RegExp(
+  `(?:^|\\.)(?:${[new URL(SITE_URL).hostname, new URL(CLOUDFRONT_BASE).hostname, 'workers.dev'].map((host) => host.replaceAll('.', '\\.')).join('|')})\\.?$`
+)
+/** True when `href` holds a C0 control (tab and newline among them), DEL or a backslash. */
+function hasRefusedHrefCharacter(href: string): boolean {
+  for (let index = 0; index < href.length; index++) {
+    const code = href.charCodeAt(index)
+    if (code <= 0x1f || code === 0x7f || code === 0x5c) {
+      return true
+    }
+  }
+  return false
+}
+/**
+ * A `title` value: escaped text (no raw angle bracket), at most this long. The DS joins every note
+ * on an article into one title and caps none, so the bound sits far above a real note; the artifact
+ * cap (COMPOSED_MAX_BYTES) bounds the whole page.
+ */
+export const MAX_TITLE = 16_384
 /** The one off-origin image host: the data plane's `/images/` (the CSP's img-src names it too). */
 const IMAGE_ORIGIN = new URL(CLOUDFRONT_BASE).origin
 
@@ -436,6 +479,35 @@ export function hrefAllowed(href: string): boolean {
   return httpsUrlAllowed(href, LINK_HOSTS)
 }
 
+/**
+ * True for an article link's href: what the DS emits for any https article URL (`safeHttpsUrl` passes
+ * the feed's string through unchanged), so the policy admits the forms a publisher really uses (an
+ * upper-case host, `:443`, non-ASCII or a space in the path, `_` in a label, an IDN TLD). It must start
+ * `https://` in any case (no other scheme, no protocol-relative form), hold no control character or
+ * backslash (the browser's parser would strip or reinterpret them), parse as https with no userinfo
+ * and the default port, name a DNS host that is not first-party, and be at most MAX_ARTICLE_HREF
+ * long. An encoded dot, slash or backslash is not refused, unlike `hrefAllowed`: that rule keeps a
+ * first-party path off a gated route, and this link names no first-party host.
+ */
+export function articleHrefAllowed(href: string): boolean {
+  if (href.length > MAX_ARTICLE_HREF || !/^https:\/\//i.test(href) || hasRefusedHrefCharacter(href)) {
+    return false
+  }
+  try {
+    const url = new URL(href)
+    return (
+      url.protocol === 'https:' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.port === '' &&
+      ARTICLE_HOST.test(url.hostname) &&
+      !FIRST_PARTY_HOST.test(url.hostname)
+    )
+  } catch {
+    return false
+  }
+}
+
 /** True for an image source: a same-origin `/images/` path, or the data plane's `/images/`. */
 export function imageAllowed(src: string): boolean {
   const path = src.startsWith(`${IMAGE_ORIGIN}/`) ? src.slice(IMAGE_ORIGIN.length) : src
@@ -470,7 +542,8 @@ const VALUE_CHECKED: ReadonlySet<string> = new Set([
   'width',
   'height',
   'datetime',
-  'role'
+  'role',
+  'title'
 ])
 
 function checkAttribute(
@@ -480,7 +553,8 @@ function checkAttribute(
   raw: string | null,
   facts: FragmentFacts,
   options: FragmentOptions,
-  classTokens: ReadonlySet<string>
+  classTokens: ReadonlySet<string>,
+  deferred: {articleHref: string | null}
 ): FragmentRejection | null {
   if (SCOPE_ATTRIBUTE.test(name)) {
     if (raw !== null && raw !== '') {
@@ -524,7 +598,16 @@ function checkAttribute(
     case 'class':
       return value.split(/[ \t\n]+/).every((token) => token === '' || classTokens.has(token)) ? null : 'class'
     case 'href':
-      return hrefAllowed(value) ? null : 'url'
+      if (hrefAllowed(value)) {
+        return null
+      }
+      // Not a first-party or allowlisted link: admitted only as an article link, judged once the
+      // whole tag is read (its class, rel and target may follow the href).
+      if (!articleHrefAllowed(value)) {
+        return 'url'
+      }
+      deferred.articleHref = value
+      return null
     case 'src':
       return imageAllowed(value) ? null : 'url'
     case 'srcset':
@@ -535,6 +618,8 @@ function checkAttribute(
       return value.split(/\s+/).every((token) => token === 'noopener' || token === 'noreferrer') ? null : 'attribute'
     case 'role':
       return /^[a-z]{1,20}$/.test(value) ? null : 'attribute'
+    case 'title':
+      return raw !== null && !/[<>]/.test(raw) && value.length <= MAX_TITLE ? null : 'attribute'
     case 'datetime':
       return /^[0-9T:.Z+-]{4,30}$/.test(value) ? null : 'attribute'
     case 'width':
@@ -695,6 +780,9 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
     let noopener = false
     let style: string | null = null
     let classValue: string | null = null
+    let relValue: string | null = null
+    let targetValue: string | null = null
+    const deferred: {articleHref: string | null} = {articleHref: null}
     for (;;) {
       ATTRIBUTE.lastIndex = cursor
       const attr = ATTRIBUTE.exec(fragment)
@@ -712,7 +800,7 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
         return {ok: false, reason: 'attribute'}
       }
       const idsBefore = facts.ids.length
-      const rejection = checkAttribute(name, svg, attrName, attr[2] ?? null, facts, options, classTokens)
+      const rejection = checkAttribute(name, svg, attrName, attr[2] ?? null, facts, options, classTokens, deferred)
       if (rejection !== null) {
         return {ok: false, reason: rejection}
       }
@@ -725,6 +813,10 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
         style = attr[2] ?? ''
       } else if (attrName === 'class') {
         classValue = attr[2] ?? ''
+      } else if (attrName === 'rel') {
+        relValue = attr[2] ?? ''
+      } else if (attrName === 'target') {
+        targetValue = attr[2] ?? ''
       }
       cursor = ATTRIBUTE.lastIndex
     }
@@ -733,6 +825,17 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
     // A new browsing context opened by a link never gets a handle on this page.
     if (close === null || (seen.has('target') && !noopener)) {
       return {ok: false, reason: 'attribute'}
+    }
+    // An any-host link stands only in the article link's exact shape.
+    if (
+      deferred.articleHref !== null &&
+      (name !== 'a' ||
+        id !== ARTICLE_LINK.fragment ||
+        classValue !== ARTICLE_LINK.className ||
+        relValue !== ARTICLE_LINK.rel ||
+        targetValue !== ARTICLE_LINK.target)
+    ) {
+      return {ok: false, reason: 'url'}
     }
     // The UA styles `[popover]` as a fixed full-viewport layer; only `display: none` keeps it shut.
     // A top-level element carries no `style` or `popover`, so it cannot become a layer over the page.

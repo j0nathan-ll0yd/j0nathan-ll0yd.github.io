@@ -4,7 +4,9 @@
 // renders the same view models through the Container API (the oracle, never deployed). Every fragment
 // must be byte-identical after attribute ordering (./harness.ts `normalized`), and every scoped-style
 // hash in it must be one the website's own built page carries, or the Worker refuses it.
-import {existsSync, readFileSync} from 'node:fs'
+import {existsSync, readdirSync, readFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
+import {dirname} from 'node:path'
 import {load} from 'cheerio'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {buildId} from '../../scripts/lib/build-id.mjs'
@@ -149,11 +151,13 @@ const SCENARIOS: [string, Partial<Record<GatedKey, DomainSpec>>][] = [
   ['watch charging', {health: {variation: 'pausedCharging'}}],
   ['watch off the wrist', {health: {variation: 'pausedHrGap'}}],
   ['heart-rate peak', {health: {variation: 'peak'}}],
+  ['heart-rate fat burn (the amber accent)', {health: {variation: 'fatBurn'}}],
   ['zero hydration', {health: {variation: 'zeroHydration'}}],
   ['missing optional health', {health: {variation: 'missingOptional'}}],
   ['long sleep', {sleep: {variation: 'longSleep'}}],
   ['multiple workouts', {workouts: {variation: 'multiWorkout'}}],
   ['workouts without distance', {workouts: {variation: 'noDistance'}}],
+  ["a Barry's Bootcamp workout (the share.barrys.com link)", {workouts: {variation: 'barrysBootcamp'}}],
   ['commits only', {githubEvents: {variation: 'commitsOnly'}}],
   ['over ten events', {githubEvents: {variation: 'overTen'}}],
   ['old starred repos', {starredRepos: {variation: 'oldTimestamp'}}],
@@ -496,6 +500,41 @@ describe("the Worker's fragment allowlist admits every render, and names nothing
         record(id, artifact.fragments[id] ?? '')
       }
     }
+  })
+
+  // The scenarios above name the variations parity needs; this sweep composes EVERY variation the
+  // fixtures package ships, one export at a time, so a data-driven class or link no scenario names
+  // (the fat-burn accent and the Barry's link both refused the page before this sweep) reds here.
+  it('admits every fixture variation of every export, through checkArtifact', async () => {
+    const require = createRequire(import.meta.url)
+    let composed = 0
+    for (const key of KEYS) {
+      const dir = dirname(require.resolve(`@j0nathan-ll0yd/fixtures/generated/${ENDPOINTS[key].replace(/^\//, '').replace(/\.json$/, '')}/baseline.json`))
+      for (const variation of readdirSync(dir).filter((file) => file.endsWith('.json')).map((file) => file.slice(0, -'.json'.length))) {
+        const exports = Object.fromEntries(KEYS.map((other) => {
+          const raw = rawFixture(other, other === key ? variation : 'baseline')
+          raw.generatedAt = FRESH
+          return [other, raw]
+        }))
+        const label = `${key}/${variation}`
+        const result = await compose({exports, focus: {generatedAt: FRESH, currentFocus: 'None'}, nowMs: NOW, localCovers: LOCAL_COVERS}).catch((
+          error: Error
+        ) => ({ok: false as const, refusal: error.message}))
+        expect(result, label).toMatchObject({ok: true})
+        if (!result.ok) {
+          continue
+        }
+        const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>}
+        const checked = checkArtifact(JSON.stringify(artifact), Date.parse(artifact.composedAt), artifact.composer.build, new Set(HIDING_FOCUS_MODES))
+        expect(checked, label).toMatchObject({ok: true})
+        used.maxBytes = Math.max(used.maxBytes, JSON.stringify(artifact).length)
+        for (const id of COMPOSED_FRAGMENT_IDS) {
+          record(id, artifact.fragments[id] ?? '')
+        }
+        composed++
+      }
+    }
+    expect(composed).toBeGreaterThan(KEYS.length)
   })
 
   it('admits the value-free set the website build shipped', () => {

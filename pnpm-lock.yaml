@@ -19,8 +19,8 @@ importers:
   .:
     dependencies:
       '@j0nathan-ll0yd/copy':
-        specifier: 4.0.1
-        version: 4.0.1
+        specifier: 4.1.0
+        version: 4.1.0
       '@j0nathan-ll0yd/observability':
         specifier: ^1.0.0
         version: 1.0.0
@@ -28,14 +28,14 @@ importers:
         specifier: 2.7.0
         version: 2.7.0
       '@j0nathan-ll0yd/schemas':
-        specifier: ^2.3.1
-        version: 2.3.1
+        specifier: ^2.4.0
+        version: 2.4.0
       '@j0nathan-ll0yd/tokens':
         specifier: ^2.2.1
         version: 2.2.1
       '@j0nathan-ll0yd/web':
-        specifier: 4.2.2
-        version: 4.2.2
+        specifier: 4.3.0
+        version: 4.3.0
       '@modelcontextprotocol/server':
         specifier: 2.3.1
         version: 2.3.1
@@ -65,8 +65,8 @@ importers:
         specifier: 0.16.0
         version: 0.16.0(typescript@5.9.3)
       '@j0nathan-ll0yd/fixtures':
-        specifier: 1.5.6
-        version: 1.5.6
+        specifier: 1.5.7
+        version: 1.5.7
       '@lhci/cli':
         specifier: ^0.15.1
         version: 0.15.1(supports-color@10.2.2)
@@ -1887,8 +1887,8 @@ packages:
     peerDependencies:
       eslint: '>=10.0.0'
 
-  '@j0nathan-ll0yd/copy@4.0.1':
-    resolution: {integrity: sha512-Xp1A+8HwNvO796tA3FfO3de6Vc8yXzrRFRSvyFnT+5Oi0GjVdhV3qHc5mlRcMzcSUd848VWdjgTE7qoDIMckNg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/4.0.1/2d512e968c7ff25a67b4debe48e02c09057f49fa}
+  '@j0nathan-ll0yd/copy@4.1.0':
+    resolution: {integrity: sha512-SbIxkaY9bvnCEqz7ZpGAeOyUHooPqwuCvtNGm7fJh4h01pIH1ck/VJqsw7MCF7706kM2nPH8DCGzhbl3rnAkCw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/copy/4.1.0/564ec7d81e06009ae5a417fad3efcc87470e4c88}
 
   '@j0nathan-ll0yd/env@1.0.0':
     resolution: {integrity: sha512-thYcCx5oYJ0ReIfSSTdVM7FsUNJBnmkTkoq5/YywA7ly19nuSwzcJh/U+TRtGpMRtrbmvtkiZl2W/+nr1JMMHA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/env/1.0.0/abd9389d100f1263395c1a1ae3e85b9be9b625ad}
@@ -1898,8 +1898,8 @@ packages:
     peerDependencies:
       typescript: 5.9.2 || 5.9.3 || 6.0.3
 
-  '@j0nathan-ll0yd/fixtures@1.5.6':
-    resolution: {integrity: sha512-DdmZUQoy+7rb7QgMDjEE3CwTkdI2MFZEvSXuPcpg9wa08KEtEIdy4Krqque6xFUl1BMSduHkGLitB2z1jHiBKA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.5.6/1ee27a209d1f00125420cd49c1b35b256adb5191}
+  '@j0nathan-ll0yd/fixtures@1.5.7':
+    resolution: {integrity: sha512-KFxoJBqGEYZkuNaoZK4BVROu0uH6zNn4JfQeTs737AUnZSrxkH6lMI94wdGVF+4pT3dNs2+k0HnephZUDjRr8w==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.5.7/3c38a33fba3a03c88d762e2bc1d02f1d2f591ae3}
 
   '@j0nathan-ll0yd/observability@1.0.0':
     resolution: {integrity: sha512-RXrWGD7E3uFxZJj4XdtHf3Po5kkxV5ajQIkY8J9F+uZ1q/iVeeq0BkZMabbFcq5oX4nK3N2NVlwMqa4LOSvLjQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/observability/1.0.0/4f802427590ea9ba6964a49427faf2c43a75f464}
@@ -1907,14 +1907,14 @@ packages:
   '@j0nathan-ll0yd/portal-contract@2.7.0':
     resolution: {integrity: sha512-IbA5siDDE79gVPMOdSaF6J7oSGJr/Yq6A3WUv3iqQIv/Bp2ShmHV52EReehe4m0kpWsfI4hteZHCHkqeXJLLMA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/2.7.0/aab846c8221e3edbbf2a51ff673d63403c5f9068}
 
-  '@j0nathan-ll0yd/schemas@2.3.1':
-    resolution: {integrity: sha512-qqEUy1PSYi04tkD+PWb+3EWPi5Q9HTv/ega3kweBL/VeuQmy/9V3AtVhY1HA2dS/xNrSp7FAG89bWvmKIGFuyA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.3.1/6506ef07cca5d6f9e7ee138065e40d85100b403f}
+  '@j0nathan-ll0yd/schemas@2.4.0':
+    resolution: {integrity: sha512-KjOFrPcPe/keV0kF1e1BP/++Jl7UYnkCiLhX/ltnvPt3QpnuzmniN73KQb5m0tcBKoB0p36uvvxCF6hPqoxa/w==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.4.0/0a160ae831a8683977d16c6ed5a72e36aa9eedfb}
 
   '@j0nathan-ll0yd/tokens@2.2.1':
     resolution: {integrity: sha512-yc0tl7jbA71yShjQtpanTdwfPSEJbvAfjvQQH0BH21ZnyFO9L9c8xMA8y+y4kLjrqjSLxaqzvCVK11jdcIvzfQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.2.1/6f3f5f1ae54b9133461f8fc2af275a8cc5bada2b}
 
-  '@j0nathan-ll0yd/web@4.2.2':
-    resolution: {integrity: sha512-wmMmiu2CTIJsEu38wBDJnBMgaNj81xZMWChdNB2r3ok4BOA7gKXUiXcx9gWC+FE1oLu+g6qYzktwkYO6uC1+qQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.2.2/af436ca2349f3ff39d953f982b4cd129c97a855f}
+  '@j0nathan-ll0yd/web@4.3.0':
+    resolution: {integrity: sha512-adxLYFbWErmQbuc8ya2tZB6KLLPeLWtp9aEoBUZkElGX6PJ5xyBYEdgNgoOdO96TedN9UtqHVFuzamdxAl3N6w==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.3.0/295dcf791311b7608e69cca91638e1e77bbddbd1}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -7958,7 +7958,7 @@ snapshots:
       - supports-color
       - typescript
 
-  '@j0nathan-ll0yd/copy@4.0.1': {}
+  '@j0nathan-ll0yd/copy@4.1.0': {}
 
   '@j0nathan-ll0yd/env@1.0.0': {}
 
@@ -7967,12 +7967,12 @@ snapshots:
       typescript: 5.9.3
       zod: 4.4.3
 
-  '@j0nathan-ll0yd/fixtures@1.5.6':
+  '@j0nathan-ll0yd/fixtures@1.5.7':
     dependencies:
-      '@j0nathan-ll0yd/copy': 4.0.1
+      '@j0nathan-ll0yd/copy': 4.1.0
       '@j0nathan-ll0yd/portal-contract': 2.7.0
-      '@j0nathan-ll0yd/schemas': 2.3.1
-      '@j0nathan-ll0yd/web': 4.2.2
+      '@j0nathan-ll0yd/schemas': 2.4.0
+      '@j0nathan-ll0yd/web': 4.3.0
 
   '@j0nathan-ll0yd/observability@1.0.0':
     dependencies:
@@ -7988,7 +7988,7 @@ snapshots:
 
   '@j0nathan-ll0yd/portal-contract@2.7.0': {}
 
-  '@j0nathan-ll0yd/schemas@2.3.1':
+  '@j0nathan-ll0yd/schemas@2.4.0':
     dependencies:
       '@j0nathan-ll0yd/portal-contract': 2.7.0
       ajv: 8.20.0
@@ -7996,9 +7996,9 @@ snapshots:
 
   '@j0nathan-ll0yd/tokens@2.2.1': {}
 
-  '@j0nathan-ll0yd/web@4.2.2':
+  '@j0nathan-ll0yd/web@4.3.0':
     dependencies:
-      '@j0nathan-ll0yd/copy': 4.0.1
+      '@j0nathan-ll0yd/copy': 4.1.0
       '@j0nathan-ll0yd/portal-contract': 2.7.0
       '@j0nathan-ll0yd/tokens': 2.2.1
 
