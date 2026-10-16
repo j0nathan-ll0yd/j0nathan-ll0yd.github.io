@@ -286,6 +286,14 @@ describe('siteEdgeCacheFailure (the Workers-era edge-cache arm, atlas decision 0
     expect(edgeFindings({...site(), cfCacheStatus: status})).toHaveLength(1)
   })
 
+  it('accepts the Worker last-known-good fallback, which drops the Cache API read state', () => {
+    // src/lib/edge/proxy.ts staleResponse deletes CF-Cache-Status and Age from the stored copy; the
+    // spec permits the fallback, and X-Proxy-Stale is evidence only.
+    expect(siteEdgeCacheFailure({...site(), proxyStale: 'true'})).toBeNull()
+    // Before that fix, a real match carried CF-Cache-Status: HIT into the response, and this arm red.
+    expect(siteEdgeCacheFailure({...site(), proxyStale: 'true', cfCacheStatus: 'HIT'})).not.toBeNull()
+  })
+
   it.each(['BYPASS', 'DYNAMIC'])('still accepts CF-Cache-Status %s, the uncached Pages-era answers', (status) => {
     expect(siteEdgeCacheFailure({...site(), cfCacheStatus: status})).toBeNull()
   })

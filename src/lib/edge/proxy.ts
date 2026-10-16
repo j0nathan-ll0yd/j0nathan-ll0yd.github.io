@@ -133,6 +133,15 @@ const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
  */
 const GATED_FETCH_INIT: RequestInit = Object.freeze({cache: 'no-store', redirect: 'manual'})
 
+/**
+ * Headers the Cache API adds to a match, which describe the CACHE READ, not the artifact. workerd
+ * returns a match only when the cache answered `CF-Cache-Status: HIT`, and passes that answer's
+ * headers through unchanged (workerd src/workerd/api/cache.c++, `Cache::match`, commit 40838ae3).
+ * Whether the cache also adds `Age` is not documented; it is dropped too, because the B2 llms
+ * edge arm reds on any `Age`.
+ */
+const CACHE_API_STATE_HEADERS = Object.freeze(['CF-Cache-Status', 'Age'])
+
 /** `cf-cache-status` values that mean Cloudflare answered from its own cache, not from the origin. */
 const CLOUDFLARE_CACHE_SERVED = new Set(['HIT', 'STALE', 'UPDATING', 'REVALIDATED'])
 
@@ -782,6 +791,12 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
   }
 
   const headers = new Headers(cached.headers)
+  // Served as read, a permitted fallback would look like a zone-cache hit to every downstream
+  // observer, the B2 llms edge arm (audits/checks/b2-llms.mjs siteEdgeCacheFailure) included.
+  // Warning 110, X-Proxy-Stale and X-Source state what the copy is.
+  for (const name of CACHE_API_STATE_HEADERS) {
+    headers.delete(name)
+  }
   const diagnostics = diagnosticHeaders(failure)
   diagnostics.forEach((value, name) => headers.set(name, value))
   headers.set('Content-Type', contentType)
