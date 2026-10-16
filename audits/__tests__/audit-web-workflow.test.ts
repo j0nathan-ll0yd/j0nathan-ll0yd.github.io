@@ -188,6 +188,20 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).not.toMatch(/steps\.analytics\./)
   })
 
+  it('routes the 404 check to the reconciler through its tri-state issue_outcome, never the step outcome', () => {
+    // An unanswered probe exits 1, so the step outcome would file a transport blip as a defect.
+    const weekly = parseJobs(workflow).find((job) => job.key === 'weekly')!
+    const step = weekly.steps.find((s) => s.id === 'not_found')!
+    expect(step.reportOnly).toBe(true)
+    expect(step.runners).toEqual(['audits/checks/b2-check-not-found.mjs'])
+    expect(reconcilerScript).toContain('NOT_FOUND_ISSUE_OUTCOME: ${{ steps.not_found.outputs.issue_outcome }}')
+    expect(reconcilerScript).toContain(
+      "{id: 'not-found', title: 'B2 markdown and HTML 404 on the deployed Worker', outcome: process.env.NOT_FOUND_ISSUE_OUTCOME}"
+    )
+    expect(reconcilerScript).not.toMatch(/steps\.not_found\.outcome\b/)
+    expect(workflow).not.toMatch(/steps\.not_found\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
+  })
+
   it('splits B6 into two report-only steps of one runner, each naming its arm', () => {
     const daily = parseJobs(workflow).find((job) => job.key === 'daily')!
     const beacons = daily.steps.find((s) => s.id === 'analytics_beacons')!

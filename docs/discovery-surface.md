@@ -6,25 +6,25 @@ specifications carry a point-in-time verification date.
 
 ## At a glance
 
-| File                                               | Purpose                                                     | Produced by                                                             | Spec / version (verified)              |
-| -------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
-| `/robots.txt`                                      | Per-agent crawl policy                                      | `src/pages/robots.txt.ts`                                               | RFC 9309 directives + Sitemap           |
-| `Content-Usage` response header                    | Machine-readable content-use preference                     | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                         | IETF WG drafts attach-05 / vocab-07     |
-| `/sitemap-index.xml`                               | URL discovery for search engines                            | `@astrojs/sitemap` (`astro.config.mjs`)                                 | Sitemaps 0.9                           |
-| `/humans.txt`                                      | Human authorship credits                                    | `src/pages/humans.txt.ts`                                               | humanstxt.org                          |
-| `/feed.xml`, `/feed.json`                          | Content feeds                                               | `src/pages/feed.xml.ts`, `src/pages/feed.json.ts`                       | RSS 2.0 / JSON Feed 1.1                |
-| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `src/pages/llms.txt.ts`, `src/pages/llms-full.txt.ts`, `src/pages/index.md.ts`, CloudFront compose, `src/lib/edge/middleware.ts` | llms.txt convention |
-| `/.well-known/security.txt`                        | Security contact                                            | static                                                                  | RFC 9116                               |
-| `/.well-known/api-catalog`                         | API linkset (`item` + `service-desc` to `/openapi.json`)    | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type) | RFC 9727                               |
-| `/openapi.json`                                    | OpenAPI document for the nine JSON exports                  | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type) | OpenAPI 3.1.0                          |
-| `/.well-known/webfinger`                           | Fediverse alias (JRD)                                       | static + `src/lib/edge/middleware.ts`                                   | RFC 7033                               |
-| `/mcp`                                             | Read-only MCP server                                        | `src/pages/mcp/index.ts`, `src/lib/edge/mcp-server.ts`                | MCP 2026-07-28, also 2025-11-25        |
-| `/mcp/server-card`                                 | MCP server card (canonical)                                 | `src/pages/mcp/server-card.ts`                                          | SEP-2127 (ext-server-card `526201bb`)  |
-| `/.well-known/mcp/server-card.json`                | MCP server card (compatibility copy, same bytes)            | `scripts/generate-webmcp.mjs`                                           | SEP-2127                               |
-| `/js/webmcp.js`                                    | WebMCP browser tools                                        | `scripts/generate-webmcp.mjs`                                           | WebMCP Draft CG Report 2026-10-02      |
-| `/.well-known/agent-skills/index.json`             | Agent Skills discovery index                                | `scripts/generate-webmcp.mjs`                                           | agentskills.io discovery 0.2.0         |
-| `/.well-known/ai-catalog.json`                     | AI catalog (ARD predecessor path)                           | `scripts/generate-webmcp.mjs`                                           | ai-catalog `specVersion` 1.0           |
-| `/.well-known/ard.json`                            | The same catalog at the ARD path, `rel="ard"` in `Link`     | `scripts/generate-webmcp.mjs`                                           | ARD v0.91 (`b76f235a`, 2026-10-07)     |
+| File                                                | Purpose                                                                   | Produced by                                                                                                                      | Spec / version (verified)             |
+| --------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `/robots.txt`                                       | Per-agent crawl policy                                                    | `src/pages/robots.txt.ts`                                                                                                        | RFC 9309 directives + Sitemap         |
+| `Content-Usage` response header                     | Machine-readable content-use preference                                   | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                                                    | IETF WG drafts attach-05 / vocab-07   |
+| `/sitemap-index.xml`                                | URL discovery for search engines                                          | `@astrojs/sitemap` (`astro.config.mjs`)                                                                                          | Sitemaps 0.9                          |
+| `/humans.txt`                                       | Human authorship credits                                                  | `src/pages/humans.txt.ts`                                                                                                        | humanstxt.org                         |
+| `/feed.xml`, `/feed.json`                           | Content feeds                                                             | `src/pages/feed.xml.ts`, `src/pages/feed.json.ts`                                                                                | RSS 2.0 / JSON Feed 1.1               |
+| `/llms.txt`, `/llms-full.txt`, site-root `index.md` | LLM-ingestible corpus + homepage-only `Accept: text/markdown` negotiation | `src/pages/llms.txt.ts`, `src/pages/llms-full.txt.ts`, `src/pages/index.md.ts`, CloudFront compose, `src/lib/edge/middleware.ts` | llms.txt convention                   |
+| `/.well-known/security.txt`                         | Security contact                                                          | static                                                                                                                           | RFC 9116                              |
+| `/.well-known/api-catalog`                          | API linkset (`item` + `service-desc` to `/openapi.json`)                  | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type)                                                      | RFC 9727                              |
+| `/openapi.json`                                     | OpenAPI document for the nine JSON exports                                | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type)                                                      | OpenAPI 3.1.0                         |
+| `/.well-known/webfinger`                            | Fediverse alias (JRD)                                                     | static + `src/lib/edge/middleware.ts`                                                                                            | RFC 7033                              |
+| `/mcp`                                              | Read-only MCP server                                                      | `src/pages/mcp/index.ts`, `src/lib/edge/mcp-server.ts`                                                                           | MCP 2026-07-28, also 2025-11-25       |
+| `/mcp/server-card`                                  | MCP server card (canonical)                                               | `src/pages/mcp/server-card.ts`                                                                                                   | SEP-2127 (ext-server-card `526201bb`) |
+| `/.well-known/mcp/server-card.json`                 | MCP server card (compatibility copy, same bytes)                          | `scripts/generate-webmcp.mjs`                                                                                                    | SEP-2127                              |
+| `/js/webmcp.js`                                     | WebMCP browser tools                                                      | `scripts/generate-webmcp.mjs`                                                                                                    | WebMCP Draft CG Report 2026-10-02     |
+| `/.well-known/agent-skills/index.json`              | Agent Skills discovery index                                              | `scripts/generate-webmcp.mjs`                                                                                                    | agentskills.io discovery 0.2.0        |
+| `/.well-known/ai-catalog.json`                      | AI catalog (ARD predecessor path)                                         | `scripts/generate-webmcp.mjs`                                                                                                    | ai-catalog `specVersion` 1.0          |
+| `/.well-known/ard.json`                             | The same catalog at the ARD path, `rel="ard"` in `Link`                   | `scripts/generate-webmcp.mjs`                                                                                                    | ARD v0.91 (`9d33ea17`, 2026-10-16)    |
 
 ## Source of truth
 
@@ -166,7 +166,8 @@ as `transport.url`; an MCP `initialize` there returned a CloudFront HTML 403.
 
 `public/js/webmcp.js` registers each catalog tool with
 `document.modelContext.registerTool(tool)`, per the WebMCP Draft Community Group Report
-of 2026-10-02. Each tool declares `readOnlyHint: true`; `get_current_reading` also
+of 2026-10-02 (re-read 2026-10-16 at `webmachinelearning/webmcp` `32797985`; the IDL is
+unchanged). Each tool declares `readOnlyHint: true`; `get_current_reading` also
 declares `untrustedContentHint: true` (book titles are third-party text). Each tool runs as
 a `tools/call` against `/mcp`, so the browser holds no tool logic and no data host.
 `navigator.modelContext.registerTool` is a trailing fallback for older origin-trial
@@ -176,7 +177,9 @@ the 2026-10-07 is-agentic scan read 8 of 17 scripts and missed it at position 15
 
 ### AI catalog and ARD — `ai-catalog.json` and `ard.json`
 
-Verified 2026-10-07 against `ards-project/ard-spec` `b76f235a`. ARD v0.91 makes
+Verified 2026-10-07 against `ards-project/ard-spec` `b76f235a`, re-verified 2026-10-16 at
+`9d33ea17` (the spec and `ard-entry.schema.json` moved; every clause below still holds).
+ARD v0.91 makes
 `/.well-known/ard.json` and `rel="ard"` the normative publisher path and relation, and
 keeps `/.well-known/ai-catalog.json` and `rel="ai-catalog"` as the predecessor names a
 consumer MAY consult. The site serves one document at both paths and sends both `Link`
@@ -311,6 +314,8 @@ What re-verifies them automatically:
   preview deploy. A Worker preview Version URL sits behind Cloudflare Access, so set
   `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`; the check sends them to the audited
   origin only, never to production or CloudFront.
+- `audits/checks/b2-check-not-found.mjs` (weekly) requests a missing path under
+  `Accept: text/markdown` and `Accept: text/html` and expects a 404 of each media type.
 
 DNS-AID, NLWeb, A2A and Agent Skills discovery have no automatic watch. Their dates above
 are as stale as they look, and re-verifying them is a manual task.

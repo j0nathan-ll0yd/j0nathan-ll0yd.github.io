@@ -408,6 +408,15 @@ jobs:
         continue-on-error: true
         run: node audits/checks/b2-check-crawler-edge.mjs
 
+      # Atlas decision 0158 (atlas #443, `site-not-found-markdown`). No other step requests a
+      # missing path. This one does, twice: under `Accept: text/markdown` the Worker must answer
+      # 404 with a markdown body, and under `Accept: text/html` 404 with the HTML page. An
+      # unanswered probe exits 1 but is indeterminate, so the reconciler reads issue_outcome.
+      - name: B2 -- markdown and HTML 404 on the deployed Worker
+        id: not_found
+        continue-on-error: true
+        run: node audits/checks/b2-check-not-found.mjs
+
       - name: B2 -- feed.xml / feed.json validator
         id: feeds
         if: steps.focus_mode.outputs.suppressed != 'true'
@@ -633,6 +642,7 @@ jobs:
           SITEMAP_OUTCOME: ${{ steps.sitemap.outcome }}
           ROBOTS_OUTCOME: ${{ steps.robots.outcome }}
           CRAWLER_EDGE_OUTCOME: ${{ steps.crawler_edge.outcome }}
+          NOT_FOUND_ISSUE_OUTCOME: ${{ steps.not_found.outputs.issue_outcome }}
           FEEDS_OUTCOME: ${{ steps.feeds.outcome }}
           SPEC_DRIFT_OUTCOME: ${{ steps.spec_drift.outcome }}
           SPEC_CURRENCY_OUTCOME: ${{ steps.spec_currency.outcome }}
@@ -653,6 +663,7 @@ jobs:
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: process.env.SITEMAP_OUTCOME},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: process.env.ROBOTS_OUTCOME},
                 {id: 'crawler-edge', title: 'B2 crawler edge access vs robots.txt', outcome: process.env.CRAWLER_EDGE_OUTCOME},
+                {id: 'not-found', title: 'B2 markdown and HTML 404 on the deployed Worker', outcome: process.env.NOT_FOUND_ISSUE_OUTCOME},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: process.env.FOCUS_MODE_OUTCOME},
                 {id: 'feeds', title: 'B2 feed.xml/feed.json validator', outcome: process.env.FEEDS_OUTCOME},
                 {id: 'spec-drift', title: 'B2 external spec drift (pinned sources vs normative quotes)', outcome: process.env.SPEC_DRIFT_OUTCOME},
@@ -696,6 +707,7 @@ jobs:
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             crawler_edge|${{ steps.crawler_edge.outcome }}|${{ steps.crawler_edge.outputs.measured }}
+            not_found|${{ steps.not_found.outcome }}|${{ steps.not_found.outputs.measured }}
             feeds|${{ steps.feeds.outcome }}|${{ steps.feeds.outputs.measured }}
             spec_drift|${{ steps.spec_drift.outcome }}|${{ steps.spec_drift.outputs.measured }}
             spec_currency|${{ steps.spec_currency.outcome }}|${{ steps.spec_currency.outputs.measured }}
