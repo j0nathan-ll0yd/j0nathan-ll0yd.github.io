@@ -43,7 +43,9 @@ Verified by `tests/unit/data-plane-loader.test.ts:102` (no-store reads, focus fi
 A hiding focus value (`Work`, `Do Not Disturb`) SHALL suppress every gated domain, and the loader
 SHALL fetch no gated export. A focus body that fails its contract but still names a hiding mode
 SHALL suppress too. Under a visible focus value, a 403 with the gate's suppression body from ANY
-export SHALL suppress every domain: no value a sibling read admitted reaches the page. System Status
+export SHALL suppress every domain: no value a sibling read admitted reaches the page. A 403 that
+CloudFront served (`x-amz-cf-id`) but whose body cannot be read in time SHALL suppress too (fail
+closed). System Status
 SHALL then name no source age. This covers the three disagreements the backend's focus-privacy
 spec allows: the gate shut before the signal is published, a failed publication that leaves the
 gate shut over a visible signal, and KeyValueStore propagation.
@@ -260,7 +262,9 @@ Verified by `tests/unit/data-plane-config.test.ts:107`.
 The fixture data plane (`DATA_PLANE_BASE`) and the Step 6.10 fault and clock headers
 (`SSR_FAULT_INJECTION`, `X-SSR-Fault`, `X-SSR-Clock`) are for tests and the access-guarded preview
 only. A fault or clock header SHALL take effect only when the Worker variable is `1` AND the host is
-a `*.workers.dev` Version URL or a loopback host. The production deploy job SHALL fail when the
+a `*.workers.dev` Version URL or a loopback host. `DATA_PLANE_BASE` SHALL take effect only on those
+hosts too: the admission rules trust `x-amz-cf-id`, which any server can send, so production SHALL
+read CloudFront whatever the variable says (a Worker secret escapes the deploy guard). The production deploy job SHALL fail when the
 built Worker config or its environment sets either variable (scripts/check-deploy-vars.mjs).
 
 Verified by `tests/unit/data-plane-config.test.ts:43` (both locks) and
@@ -305,9 +309,13 @@ Verified by `tests/unit/live-data.handoff.test.ts:309`.
 
 ### Requirement: Hiding clears server-rendered values
 
-Server-rendered `live` and `stale` values are gated values in the DOM. When an open tab learns of a
-hiding mode, it SHALL remove them, by reloading to a fresh render. The tab SHALL reload at most
-once per 15 s; a blocked reload SHALL run at the end of the window, never be dropped (D12b).
+Server-rendered `live` and `stale` values and System Status ages are gated values in the DOM. When
+an open tab learns of a hiding mode or a gate suppression, it SHALL remove them, by reloading to a
+fresh render. The tab SHALL reload at most once per 15 s, so a gate disagreement across edges
+cannot loop renders. While a reload is held, the tab SHALL clear every gated value in place at once
+(each live card to its suppressed state, System Status ages, canvas data attributes, the book
+modal), then reload at the end of the window; a held reload is never dropped (D12b: gated DOM
+values clear on suppression).
 
 Verified by `tests/unit/live-data.handoff.test.ts:476` (a startup that reads a hiding focus) and
 `tests/unit/live-data.handoff.test.ts:492` (the reload window).

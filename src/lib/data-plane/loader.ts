@@ -23,7 +23,8 @@ import {
   discardBody,
   errorClass,
   GATED_FETCH_INIT,
-  isSuppressionBody,
+  isSuppressionValue,
+  passedGate,
   type RequestBudget,
   startBudget,
   successRefusal,
@@ -119,6 +120,26 @@ function namedHidingFocus(body: unknown): string | undefined {
   return typeof currentFocus === 'string' && HIDING_FOCUS_MODE_SET.has(currentFocus) ? currentFocus : undefined
 }
 
+/**
+ * A gated 403: the gate's suppression body, a readable refusal, or a body that could not be read in
+ * time. An unreadable 403 that CloudFront served (`x-amz-cf-id`) may be the gate's answer, so it
+ * fails CLOSED: it suppresses the page like a suppression body, rather than letting sibling reads
+ * render while the gate may be shut.
+ */
+async function gatedForbiddenVerdict(response: Response, timeoutMs: number, key: string): Promise<'suppression' | 'unreadable' | 'refusal'> {
+  let text: string
+  try {
+    text = await withDeadline(() => response.text(), timeoutMs, `${key} 403 body`)
+  } catch {
+    return passedGate(response) ? 'unreadable' : 'refusal'
+  }
+  try {
+    return isSuppressionValue(JSON.parse(text)) ? 'suppression' : 'refusal'
+  } catch {
+    return 'refusal'
+  }
+}
+
 function failureOf(error: unknown): ReadFailure {
   return error instanceof DeadlineError || errorClass(error) === 'AbortError' ? 'timeout' : 'network'
 }
@@ -140,8 +161,12 @@ async function readArtifact<K extends ResourceKey>(
   } catch (error) {
     return {kind: 'unavailable', reason: failureOf(error)}
   }
-  if (response.status === 403 && key !== 'focus' && await isSuppressionBody(response, deadline(), `${key} 403 body`)) {
-    return {kind: 'suppressed'}
+  if (response.status === 403 && key !== 'focus') {
+    const verdict = await gatedForbiddenVerdict(response, deadline(), key)
+    if (verdict !== 'refusal') {
+      return {kind: 'suppressed'}
+    }
+    return {kind: 'unavailable', reason: 'http-403'}
   }
   if (!response.ok) {
     discardBody(response)

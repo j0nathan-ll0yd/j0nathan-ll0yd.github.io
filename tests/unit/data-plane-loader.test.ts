@@ -92,9 +92,9 @@ function load(p: Plane, timeouts: Partial<LoaderTimeouts> = QUICK) {
 function baselineValues(): string[] {
   const values: string[] = []
   const books = fixture('books') as {books: {title: string}[]}
-  const articles = fixture('articles') as {articles: {title: string}[]}
+  const articles = fixture('articles') as {articles: {articleTitle: string}[]}
   const starred = fixture('starredRepos') as {repos: {name: string}[]}
-  values.push(...books.books.map((b) => b.title), ...articles.articles.map((a) => a.title), ...starred.repos.map((r) => r.name))
+  values.push(...books.books.map((b) => b.title), ...articles.articles.map((a) => a.articleTitle), ...starred.repos.map((r) => r.name))
   return values.filter((value) => typeof value === 'string' && value.length > 6)
 }
 
@@ -347,5 +347,21 @@ describe('summarize: the X-SSR-Data rule, first match wins', () => {
     ['a loading card', ['live', 'loading'], false, 'partial']
   ] as const)('%s', (_label, cards, suppressed, expected) => {
     expect(summarize(cards, suppressed)).toBe(expected)
+  })
+})
+
+describe('loader: a gated 403 whose body cannot be read fails closed', () => {
+  it('suppresses the page when CloudFront answered 403 and the body stalls', async () => {
+    const result = await load(plane({books: () => new Response(new ReadableStream({pull: () => new Promise(() => {})}), {status: 403, headers: CF})}))
+    expect(result.suppressed).toBe(true)
+    expect(toDashboardRender(result, NOW).summary).toBe('suppressed')
+  })
+
+  it('keeps a stalled 403 without x-amz-cf-id a refusal of that export only', async () => {
+    const stalled403 = () =>
+      new Response(new ReadableStream({pull: () => new Promise(() => {})}), {status: 403, headers: {'content-type': 'application/json'}})
+    const result = await load(plane({books: stalled403}))
+    expect(result.suppressed).toBe(false)
+    expect(result.domains.books).toEqual({kind: 'unavailable', reason: 'http-403'})
   })
 })

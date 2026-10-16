@@ -11,8 +11,8 @@
 import { env } from 'cloudflare:workers';
 import DashboardHome from '../layouts/DashboardHome.astro';
 import { loadDashboardData } from '../lib/load-dashboard-data';
-import { dataPlaneBase, DATA_PLANE_BASE_VAR } from '../lib/data-plane/config';
-import { faultyFetch, requestClock, requestFault, SSR_FAULT_VAR } from '../lib/data-plane/faults';
+import { DATA_PLANE_BASE_VAR, requestDataPlaneBase } from '../lib/data-plane/config';
+import { faultableHost, faultyFetch, requestClock, requestFault, SSR_FAULT_VAR } from '../lib/data-plane/faults';
 import { loadDashboard } from '../lib/data-plane/loader';
 import { toDashboardRender } from '../lib/data-plane/render-model';
 import { SSR_RECORD_HEADER } from '../lib/data-plane/ssr-response';
@@ -20,7 +20,8 @@ import { SSR_RECORD_HEADER } from '../lib/data-plane/ssr-response';
 export const prerender = false;
 
 const vars: Record<string, unknown> = { ...env };
-const base = dataPlaneBase(vars[DATA_PLANE_BASE_VAR]);
+// A fixture data plane only on a preview or loopback host; production always reads CloudFront.
+const base = requestDataPlaneBase(Astro.request, vars[DATA_PLANE_BASE_VAR], faultableHost);
 // Step 6.10 fault injection: preview and loopback hosts only, and only when the Worker variable is set.
 const fault = requestFault(Astro.request, vars[SSR_FAULT_VAR]);
 const load = await loadDashboard({ base, ...(fault ? { fetch: faultyFetch(fault) } : {}) });

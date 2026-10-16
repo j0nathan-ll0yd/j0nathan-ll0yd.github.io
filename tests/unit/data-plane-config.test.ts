@@ -117,3 +117,35 @@ describe('one document for every client', () => {
     }
   })
 })
+
+describe('requestDataPlaneBase (the host lock on DATA_PLANE_BASE)', () => {
+  it('reads the variable on a preview or loopback host only; production always reads CloudFront', async () => {
+    const {requestDataPlaneBase} = await import('../../src/lib/data-plane/config')
+    const fixturePlane = 'http://127.0.0.1:4400'
+    expect(requestDataPlaneBase(new Request('http://localhost:4321/'), fixturePlane, faultableHost)).toBe(fixturePlane)
+    expect(requestDataPlaneBase(new Request('https://abc-human-datastream.x.workers.dev/'), fixturePlane, faultableHost)).toBe(fixturePlane)
+    expect(requestDataPlaneBase(new Request('https://jonathanlloyd.me/'), fixturePlane, faultableHost)).toBe(CLOUDFRONT_BASE)
+    // A broken value on production is never even parsed: the host lock comes first.
+    expect(requestDataPlaneBase(new Request('https://jonathanlloyd.me/'), 'not a url', faultableHost)).toBe(CLOUDFRONT_BASE)
+  })
+})
+
+describe('deploy.yml runs the deploy guard (a guard nothing runs guards nothing)', () => {
+  it('runs check-deploy-vars in the deploy job, blocking, before wrangler deploy', async () => {
+    const {readFileSync} = await import('node:fs')
+    const workflow = readFileSync('.github/workflows/deploy.yml', 'utf8')
+    const lines = workflow.split('\n')
+    const guard = lines.findIndex((line) => /run:\s*node scripts\/check-deploy-vars\.mjs\s*$/.test(line))
+    const deploy = lines.findIndex((line) => /run:\s*pnpm exec wrangler deploy\s*$/.test(line))
+    expect(guard, 'the guard step').toBeGreaterThan(-1)
+    expect(deploy, 'the deploy step').toBeGreaterThan(guard)
+    // The guard's own step block: from its `- name:` line to the next step.
+    const start = lines.slice(0, guard).findLastIndex((line) => /^\s*- name:/.test(line))
+    const end = guard + 1 + lines.slice(guard + 1).findIndex((line) => /^\s*- name:/.test(line))
+    const step = lines.slice(start, end).join('\n')
+    expect(step).not.toMatch(/continue-on-error/)
+    expect(step).not.toMatch(/^\s*if:/m)
+    // The same job: no `jobs:`-level key between the guard and the deploy.
+    expect(lines.slice(guard, deploy).some((line) => /^ {2}[A-Za-z0-9_-]+:\s*$/.test(line))).toBe(false)
+  })
+})
