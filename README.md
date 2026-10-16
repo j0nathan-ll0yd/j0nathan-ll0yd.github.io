@@ -25,17 +25,31 @@ All UI widgets come from the Design System package (`@j0nathan-ll0yd/web/product
 
 ## Architecture
 
-Astro renders a data-free static page at build time: authored identity copy plus every live widget in its honest `loading` state. The client then fills live data from CloudFront.
+The Cloudflare Worker renders `/` per request from the live data plane (atlas decision 0160, PR B); every other page is prerendered. The Worker reads the focus signal and the eight CloudFront exports through a shared gate, maps them through the Design System's `toDashboardViewModels`, and renders `src/pages/ssr-dashboard.astro` within a 3-second ceiling. A render past the ceiling serves the prerendered data-free page (`dist/client/index.html`) with `X-SSR-Data: fallback`. A render exception serves the prerendered 500 page with status 500 and `X-SSR-Data: error`.
 
 ```text
-@j0nathan-ll0yd/copy ──► index.astro (build time) ──► static HTML ──► Cloudflare Worker (static assets)
-                                                  │
-                                  client hydration │ runtime polling
-                                                  ▼
-                              CloudFront JSON ──► src/lib/runtime/live-data.ts
+        ┌─ CloudFront exports ─┐
+        │  (live data plane)   │
+        └──────────┬───────────┘
+                   │ focus + 8 domains
+                   ▼
+        Worker renders /ssr-dashboard.astro
+                   │
+     ┌─────────────┼─────────────┐
+     │             │             │
+  success       timeout        error
+ (1–3 sec)     (>3 sec)   (exception)
+     │             │             │
+     ▼             ▼             ▼
+  200, X-SSR-Data:   200, data-free      500 page,
+  live|stale|        page (index.html),  X-SSR-Data:
+  partial|           X-SSR-Data:         error
+  suppressed|        fallback
+  unavailable
 ```
 
-- **Astro static output** (`output: 'static'` in `astro.config.mjs`) -- no JavaScript by default; interactivity arrives through selective islands.
+Every live card carries `data-ssr-state` (`live`, `stale`, `empty`, `unavailable` or `suppressed` on the server render; `loading` on the data-free page) and optionally `data-generated-at`. The client runtime (`src/lib/runtime/live-data.ts`) hydrates after page load, polling CloudFront exports and repainting only cards with strictly newer `generatedAt` (no repaint for server-rendered content).
+
 - **Design System** (`@j0nathan-ll0yd/web`, `@j0nathan-ll0yd/tokens`, `@j0nathan-ll0yd/schemas`) -- published from `design-system-Lifegames`. It owns every widget, CSS token and fixture schema, plus the shared browser helpers under `@j0nathan-ll0yd/web/runtime/*` (adapters, updaters, particles, input modality).
 - **Client data runtime** -- app-local under `src/lib/runtime/`, **not** in the Design System package. `src/pages/index.astro` pulls it in as `import '../lib/runtime/live-data'`. That module drives the poll engine, the CloudFront fetch layer and the WebSocket client. `scripts/check-live-data-bundle.mjs` runs in `postbuild` and fails the build if Rollup tree-shakes the side-effect-only import away. `src/lib/mobile-bg.ts` is app-local for the same reason.
 - **CloudFront data layer** -- the client polls after page load on two tiers: fast at 30s, slow at 120s. Once the WebSocket connects, the engine drops to its passive tiers (120s and 300s) and the WebSocket push becomes the authoritative focus-state source.

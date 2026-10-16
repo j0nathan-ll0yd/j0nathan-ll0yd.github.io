@@ -2,16 +2,19 @@
 
 ## Purpose
 
-State what the HTML of `/` may carry before the client reads any data (atlas decision 0160, PR 0a;
-site issue #132). A client that runs no JavaScript reads only this HTML, and a client that does run
-it reads this HTML until its first fetch lands.
+State what the prerendered data-free page may carry (atlas decision 0160, PR 0a; site issue #132).
+The build writes it as `dist/client/index.html`. Since PR B the Worker answers `GET /` with a
+server render (`dashboard-ssr` capability) and serves this page in three cases: as the D2 budget
+fallback, when a render misses its 3 s ceiling (`X-SSR-Data: fallback`); as the answer to `HEAD /`;
+and as the rollback content for every later 0160 change (decision 0160 D9). A render exception
+answers the 500 page, not this page. No fixture rollback exists.
 
 Before PR 0a the build rendered `/` from the design-system fixtures (`getDashboardFixture`), so
-those clients read fabricated vitals, books and repositories under "live" labels. The page now
-carries no fixture data. Every live widget renders its honest `loading` state, and only authored
-identity content is real. The client runtime (`src/lib/runtime/live-data.ts`) fills live data
-after load, under the `client-privacy` capability. This version of `/` is the rollback target for
-every later 0160 change (decision 0160 D9); no fixture rollback exists.
+clients read fabricated vitals, books and repositories under "live" labels. This page carries no
+fixture data. Every live widget renders its honest `loading` state, and only authored identity
+content is real. A client that runs no JavaScript reads only this HTML; a client that does run it
+reads this HTML until the client runtime (`src/lib/runtime/live-data.ts`, `client-privacy`
+capability) fills live data.
 
 Render proof is behavioral DOM assertion, never screenshot comparison. A baseline minted by the
 change it verifies is not evidence.
