@@ -79,8 +79,8 @@ describe('SA collection Function — upstream failure → silent 2xx', () => {
     fetchMock.mockRejectedValueOnce(new Error('fail'))
     const res = await onRequest(makeContext('/simple/append'))
     expect(res.headers.get('Cache-Control')).toBe('no-store')
-    // CDN-Cache-Control is what Cloudflare's edge honors (it overrides the browser
-    // Cache-Control); without it GET /simple/* is edge-cached for ~600s.
+    // CDN-Cache-Control is what a shared cache honors over the browser Cache-Control.
+    // The Worker runs ahead of the zone cache; this keeps any cache behind it out too.
     expect(res.headers.get('CDN-Cache-Control')).toBe('no-store')
   })
 

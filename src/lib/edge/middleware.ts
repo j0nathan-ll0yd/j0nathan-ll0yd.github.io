@@ -218,9 +218,9 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
     headers.set('Content-Type', 'application/javascript')
   }
 
-  // Homepage: disable CDN caching so content negotiation always works
-  // (Cloudflare edge cache bypasses Functions on cache HITs,
-  //  and Pages overrides Function-set Cache-Control for HTML assets)
+  // Homepage: disable CDN caching so content negotiation always works. On Pages the
+  // zone cache answered HITs without running the Function; on Workers the Worker runs
+  // ahead of the zone cache, and this keeps any shared cache behind it from storing `/`.
   if (url.pathname === '/') {
     headers.set('Link', LINK_HEADER)
     headers.set('CDN-Cache-Control', 'no-store')

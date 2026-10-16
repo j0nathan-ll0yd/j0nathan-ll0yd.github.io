@@ -27,7 +27,8 @@ import {
   managedIssueOutcome,
   ORIGIN_CACHE_FRESHNESS_SECONDS,
   runB2Llms,
-  runB2LlmsCli
+  runB2LlmsCli,
+  siteEdgeCacheFailure
 } from '../checks/b2-llms.mjs'
 import type {LlmsCoherenceInput, LlmsResponseSnapshot} from '../checks/b2-llms.mjs'
 import {createDryRunClient, reconcileCheckIssues} from '../lib/file-check-issues.mjs'
@@ -76,7 +77,11 @@ function pureSnapshot(body: string, contentType: string, status = 200, site = fa
     body: encoder.encode(body),
     cacheControl: site ? 'no-store' : ORIGIN_CACHE_CONTROL,
     cdnCacheControl: site ? 'no-store' : null,
-    cfCacheStatus: site ? 'BYPASS' : null,
+    // The site plane as the Worker answers it (measured 2026-10-16 UTC): no CF-Cache-Status, no
+    // Age, and the platform marker. The Worker runs ahead of the zone cache.
+    cfCacheStatus: null,
+    age: null,
+    siteRuntime: site ? 'workers' : null,
     // The coherence evaluator never reads this wire -- it compares two different
     // responses, and the wire-skew arm compares two fields of one. Stated as null so
     // the fixture matches the declared LlmsResponseSnapshot rather than leaning on an
@@ -262,6 +267,66 @@ describe('evaluateLlmsCoherence', () => {
   })
 })
 
+// covers: llms-txt#Canonical llms responses always pass through the privacy gate
+describe('siteEdgeCacheFailure (the Workers-era edge-cache arm, atlas decision 0160)', () => {
+  const site = () => pureSnapshot(discoveryBody(RECENT), 'text/plain; charset=utf-8', 200, true)
+  const edgeFindings = (snapshot: LlmsResponseSnapshot) => {
+    const input = coherentInput()
+    input['llms.txt'].site = snapshot
+    return evaluateLlmsCoherence(input, NOW).filter(({id}) => id === 'llms-site-edge-cache-status')
+  }
+
+  it('accepts a Worker response with no CF-Cache-Status, no Age and CDN-Cache-Control: no-store', () => {
+    expect(siteEdgeCacheFailure(site())).toBeNull()
+    expect(evaluateLlmsCoherence(coherentInput(), NOW)).toEqual([])
+  })
+
+  it.each(['HIT', 'STALE', 'EXPIRED', 'UPDATING', 'REVALIDATED', 'MISS', 'hit'])('rejects CF-Cache-Status %s on a Worker response', (status) => {
+    expect(siteEdgeCacheFailure({...site(), cfCacheStatus: status})).toContain('expected BYPASS or DYNAMIC')
+    expect(edgeFindings({...site(), cfCacheStatus: status})).toHaveLength(1)
+  })
+
+  it.each(['BYPASS', 'DYNAMIC'])('still accepts CF-Cache-Status %s, the uncached Pages-era answers', (status) => {
+    expect(siteEdgeCacheFailure({...site(), cfCacheStatus: status})).toBeNull()
+  })
+
+  it.each([
+    ['a blank CF-Cache-Status reads as absent', {cfCacheStatus: ' '}, null],
+    ['an empty CF-Cache-Status reads as absent', {cfCacheStatus: ''}, null],
+    ['a lower-case uncached status passes', {cfCacheStatus: ' bypass '}, null],
+    ['a combined status value fails closed', {cfCacheStatus: 'BYPASS, HIT'}, 'expected BYPASS or DYNAMIC'],
+    ['a blank Age reads as absent', {age: ' '}, null],
+    ['the platform marker is case-insensitive', {siteRuntime: 'WORKERS'}, null],
+    ['a blank status without the marker still fails', {cfCacheStatus: ' ', siteRuntime: null}, 'only on a Worker response']
+  ])('header shape: %s', (_label, override, expected) => {
+    const result = siteEdgeCacheFailure({...site(), ...override})
+    if (expected === null) {
+      expect(result).toBeNull()
+    } else {
+      expect(result).toContain(expected)
+    }
+  })
+
+  it.each([
+    ['without CF-Cache-Status', null],
+    ['with CF-Cache-Status BYPASS', 'BYPASS'],
+    ['with CF-Cache-Status DYNAMIC', 'DYNAMIC']
+  ])('rejects any Age header, %s', (_label, status) => {
+    expect(siteEdgeCacheFailure({...site(), cfCacheStatus: status, age: '42'})).toContain('Age')
+    expect(edgeFindings({...site(), cfCacheStatus: status, age: '0'})).toHaveLength(1)
+  })
+
+  it.each([null, 'public, max-age=60', 'no-cache'])('rejects an absent CF-Cache-Status when CDN-Cache-Control is %j', (cdnCacheControl) => {
+    expect(siteEdgeCacheFailure({...site(), cdnCacheControl})).toContain('CDN-Cache-Control: no-store')
+    expect(edgeFindings({...site(), cdnCacheControl})).toHaveLength(1)
+  })
+
+  it.each([null, '', 'pages'])('rejects an absent CF-Cache-Status when X-Site-Runtime is %j: the Worker did not answer', (siteRuntime) => {
+    expect(siteEdgeCacheFailure({...site(), siteRuntime})).toContain('only on a Worker response')
+    expect(edgeFindings({...site(), siteRuntime})).toHaveLength(1)
+  })
+})
+
 describe('detection latency', () => {
   // covers: llms-txt#Full-content artifacts stay fresh
   it('derives the worst case from the two contract fields rather than restating it', () => {
@@ -368,7 +433,8 @@ function snapshot(artifact: LlmsArtifact, side: 'origin' | 'site', body = validB
     body: bytes,
     cacheControl: side === 'site' ? 'no-store' : ORIGIN_CACHE_CONTROL,
     cdnCacheControl: side === 'site' ? 'no-store' : null,
-    cfCacheStatus: side === 'site' ? 'BYPASS' : null,
+    cfCacheStatus: null,
+    siteRuntime: side === 'site' ? 'workers' : null,
     // DERIVED FROM THE BODY, NOT RESTATED. The producer computes `composedAt` once and
     // stamps it on both wires (ComposeLlmContent/index.ts:46, :56, :82-:88), so a healthy
     // response agrees by construction -- and so does this fixture. A test that wants skew
