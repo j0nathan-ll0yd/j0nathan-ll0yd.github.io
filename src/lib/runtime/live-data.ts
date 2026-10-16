@@ -50,6 +50,13 @@ const LIVE_CARDS = [
 type GatedKey = Exclude<ResourceKey, 'focus'>
 let lastExports: { [K in GatedKey]?: ArtifactValues[K] } = {}
 const timestamps: Record<string, string | null> = {}
+// The newest generation (epoch ms) each gated export has on the page: the server's
+// `data-generated-at` at load, then the last one applied. Generations compare as instants. Data that
+// is not strictly newer never repaints a card, so an older poll from a lagging edge cannot overwrite
+// newer output (atlas decision 0160, PR B). No entry means no known generation: apply what arrives.
+let generations: Partial<Record<GatedKey, number>> = {}
+// The state a server-rendered card carried at load, per export (`live` or `stale`).
+const serverStates: Partial<Record<GatedKey, string>> = {}
 let engine: PollEngine | null = null
 // ws is hoisted to module scope so pagehide/pageshow lifecycle handlers can
 // reach it. It is null until startFetch() completes (null-guard before use).
@@ -117,12 +124,41 @@ function isSuppressed(): boolean {
   return suppression.kind !== 'none'
 }
 
+// A server-rendered page can hold gated data while the gate is still closing. The reload below would
+// then render data again, see the hiding mode again, and loop. Privacy reloads therefore run at most
+// once per window, counted in sessionStorage so the count survives the reload itself. A blocked
+// reload waits for the end of the window and then runs: it is never dropped.
+const PRIVACY_RELOAD_KEY = 'privacyReloadAtMs'
+const PRIVACY_RELOAD_WINDOW_MS = 15_000
+
+function performPrivacyReload(): void {
+  try {
+    window.sessionStorage.setItem(PRIVACY_RELOAD_KEY, String(Date.now()))
+  } catch {
+    // Storage is unavailable: the window cannot be counted, so the reload still runs.
+  }
+  window.location.reload()
+}
+
 function reloadForPrivacy(): void {
   if (reloading) {
     return
   }
   reloading = true
-  window.location.reload()
+  let waitMs = 0
+  try {
+    const last = Number(window.sessionStorage.getItem(PRIVACY_RELOAD_KEY))
+    if (Number.isFinite(last) && last > 0) {
+      waitMs = Math.min(Math.max(last + PRIVACY_RELOAD_WINDOW_MS - Date.now(), 0), PRIVACY_RELOAD_WINDOW_MS)
+    }
+  } catch {
+    // Storage is unavailable: no earlier reload is known.
+  }
+  if (waitMs > 0) {
+    setTimeout(performPrivacyReload, waitMs)
+    return
+  }
+  performPrivacyReload()
 }
 
 /** Removes every gated value this document holds, if it holds any. */
@@ -167,7 +203,7 @@ function applyFocus(currentFocus: string | null): void {
 }
 
 function enterSuppression(): void {
-  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  LIVE_CARDS.forEach(clearLoading)
   engine?.setSuppressed(true)
   // The freshness re-judgement re-renders cards from these caches. Drop them, so no timer tick can
   // bring a value back after this transition: only a read made after suppression lifts fills a
@@ -375,6 +411,37 @@ function applyNightSummary(sleep: SleepExport, health: HealthExport | null, now:
 // writers internal, and some cards add header markup of their own for `stale` (Theatre's "as of"
 // slot), so writing the state attributes by hand would diverge from the server's markup.
 
+/** An export's generation as an instant, or null when it does not parse. */
+function generationOf(data: {generatedAt: string}): number | null {
+  const ms = Date.parse(data.generatedAt)
+  return Number.isFinite(ms) ? ms : null
+}
+
+/** True when `data` is strictly newer than the generation the page holds for `key`. */
+function isNewerGeneration(key: GatedKey, data: {generatedAt: string}): boolean {
+  const known = generations[key]
+  if (known === undefined) {
+    return true
+  }
+  const ms = generationOf(data)
+  return ms !== null && ms > known
+}
+
+/** True when `data` is older than the generation the page holds: it must never paint a card. */
+function belowKnownGeneration(key: GatedKey, data: {generatedAt: string}): boolean {
+  const known = generations[key]
+  const ms = generationOf(data)
+  return known !== undefined && ms !== null && ms < known
+}
+
+function noteGeneration(key: GatedKey, data: {generatedAt: string}): void {
+  const ms = generationOf(data)
+  const known = generations[key]
+  if (ms !== null && (known === undefined || ms > known)) {
+    generations[key] = ms
+  }
+}
+
 /** One unit of rendering: the export(s) a group of cards reads, and how to render it. */
 interface CardRender {
   /** The freshness judgement the card is rendered with at `now`, or null with no export to show. */
@@ -386,11 +453,11 @@ function exportCard<K extends Exclude<GatedKey, 'health' | 'sleep'>>(key: K, upd
   return {
     judge: (now) => {
       const data = lastExports[key]
-      return data ? exportFreshness(key, data, now).state : null
+      return data && !belowKnownGeneration(key, data) ? exportFreshness(key, data, now).state : null
     },
     render: (now) => {
       const data = lastExports[key]
-      if (data) {
+      if (data && !belowKnownGeneration(key, data)) {
         update(data, exportFreshness(key, data, now))
       }
     }
@@ -399,9 +466,10 @@ function exportCard<K extends Exclude<GatedKey, 'health' | 'sleep'>>(key: K, upd
 
 const CARD_RENDERS = {
   health: {
-    judge: (now: number) => lastExports.health ? exportFreshness('health', lastExports.health, now).state : null,
+    judge: (now: number) =>
+      lastExports.health && !belowKnownGeneration('health', lastExports.health) ? exportFreshness('health', lastExports.health, now).state : null,
     render: (now: number) => {
-      if (lastExports.health) {
+      if (lastExports.health && !belowKnownGeneration('health', lastExports.health)) {
         applyHealth(lastExports.health, lastExports.sleep ?? null, now)
       }
     }
@@ -410,11 +478,11 @@ const CARD_RENDERS = {
   // that lends its score is still live.
   nightSummary: {
     judge: (now: number) =>
-      lastExports.sleep
+      lastExports.sleep && !belowKnownGeneration('sleep', lastExports.sleep)
         ? `${exportFreshness('sleep', lastExports.sleep, now).state}/${exportDomainState('health', lastExports.health ?? null, now).state}`
         : null,
     render: (now: number) => {
-      if (lastExports.sleep) {
+      if (lastExports.sleep && !belowKnownGeneration('sleep', lastExports.sleep)) {
         applyNightSummary(lastExports.sleep, lastExports.health ?? null, now)
       }
     }
@@ -448,6 +516,7 @@ function renderCard(key: CardKey, now: number = Date.now()): void {
 /** Drops every cached gated export, its System Status timestamp, and every judgement made from one. */
 function forgetGatedExports(): void {
   lastExports = {}
+  generations = {}
   renderedJudgement.clear()
   for (const key of Object.keys(timestamps)) {
     if (key !== 'focus') {
@@ -537,15 +606,63 @@ const CARDS_BY_EXPORT: readonly {key: Exclude<ResourceKey, 'focus'>; cards: read
   {key: 'theatreReviews', cards: ['cardTheatreReviews']}
 ]
 
+// ── Server hand-off (atlas decision 0160, PR B) ──────────────────────
+// The server renders every live card from the same exports this runtime fetches. Each card root
+// carries `data-ssr-state` and, in `live` and `stale` only, `data-generated-at`. Read them once at
+// load: they are the generation the page already shows, and they hold gated values in the DOM.
+function seedServerOutput(): void {
+  for (const {key, cards} of CARDS_BY_EXPORT) {
+    let best: {ms: number; state: string} | null = null
+    for (const id of cards) {
+      const el = document.getElementById(id)
+      const state = el?.dataset.ssrState
+      if (state !== 'live' && state !== 'stale') {
+        continue
+      }
+      gatedDataApplied = true
+      const ms = Date.parse(el?.dataset.generatedAt ?? '')
+      if (Number.isFinite(ms) && (best === null || ms > best.ms)) {
+        best = {ms, state}
+      }
+    }
+    if (best) {
+      generations[key] = best.ms
+      serverStates[key] = best.state
+    }
+  }
+}
+seedServerOutput()
+
+/** The judgement a server-rendered card carries, in the form `CardRender.judge` returns. */
+function serverJudgement(key: CardKey): string | null {
+  if (key === 'health') {
+    return serverStates.health ?? null
+  }
+  if (key === 'nightSummary') {
+    return serverStates.sleep ? `${serverStates.sleep}/${serverStates.health ?? 'unavailable'}` : null
+  }
+  return serverStates[key] ?? null
+}
+
+/** Marks the first read and first writes done, success or not. Smoke, visual and behavioral tests wait on it. */
+function markLiveReady(): void {
+  document.body?.setAttribute('data-live-ready', '1')
+}
+
 function handleResourceUpdate<K extends ResourceKey>(key: K, data: ArtifactValues[K]): void {
   // A gated read that was in flight when suppression began can still resolve `ok`. Drop it: no
   // gated value reaches the DOM while suppressed. Focus is the signal itself and always applies.
   if (isSuppressed() && key !== 'focus') {
     return
   }
+  // Gated data applies only when strictly newer than what the page shows (server output included).
+  if (key !== 'focus' && !isNewerGeneration(key, data as ArtifactValues[GatedKey])) {
+    return
+  }
   timestamps[key] = data.generatedAt
   if (key !== 'focus') {
     gatedDataApplied = true
+    noteGeneration(key, data as ArtifactValues[GatedKey])
   }
 
   // Still required after decoding: this guards adapter and updater throws, which are a different
@@ -560,15 +677,30 @@ function handleResourceUpdate<K extends ResourceKey>(key: K, data: ArtifactValue
 }
 
 // ── Skeleton loading ─────────────────────────────────────────────────
-LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.add('is-loading'))
+// A card the server rendered with a state (live, stale, empty, unavailable, suppressed) has no
+// skeleton to show; only a `loading` card, or one with no server state, gets it.
+LIVE_CARDS.forEach((id) => {
+  const state = document.getElementById(id)?.dataset.ssrState
+  if (state === undefined || state === 'loading') {
+    document.getElementById(id)?.classList.add('is-loading')
+  }
+})
+
+/** Removes the skeleton from a card that shows one. A card without it is not written, so a server value stays untouched. */
+function clearLoading(id: string): void {
+  const el = document.getElementById(id)
+  if (el?.classList.contains('is-loading')) {
+    el.classList.remove('is-loading')
+  }
+}
 
 // Fallback: remove skeletons after 8s if data never arrives
 const fallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
-  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  LIVE_CARDS.forEach(clearLoading)
 }, 8000)
 
 // ── Initial fetch + start continuous polling ─────────────────────────
-const startFetch = async () => {
+const firstRead = async () => {
   // Focus overlay (page-level concern). applyFocus drives the overlay immediately and, if
   // focus is already a hiding mode at load, sets suppression intent (engine is still null;
   // it is propagated via engine.setSuppressed(isSuppressed()) below once created).
@@ -620,7 +752,30 @@ const startFetch = async () => {
   const starredRepos = gated(data.starredRepos)
   const articles = gated(data.articles)
   const theatreReviews = gated(data.theatreReviews)
-  gatedDataApplied = [health, sleep, workouts, books, githubEvents, starredRepos, articles, theatreReviews].some((value) => value !== null)
+  gatedDataApplied = gatedDataApplied ||
+    [health, sleep, workouts, books, githubEvents, starredRepos, articles, theatreReviews].some((value) => value !== null)
+
+  // Compare BEFORE any updater runs. A fetched export that is not strictly newer than the page's
+  // generation (the server's, at load) does not repaint its card. It is still cached below, because
+  // health and sleep read each other's export, and its timestamp is still recorded.
+  const read = {health, sleep, workouts, books, githubEvents, starredRepos, articles, theatreReviews}
+  const newer = {} as Record<keyof typeof read, boolean>
+  for (const key of Object.keys(read) as (keyof typeof read)[]) {
+    const value = read[key]
+    newer[key] = value !== null && isNewerGeneration(key, value)
+  }
+  // Health and sleep feed each other (the HeartRate footer; the NightSummary score), so a newer one
+  // repaints both cards.
+  const repaint: Record<CardKey, boolean> = {
+    health: newer.health || newer.sleep,
+    nightSummary: newer.sleep || newer.health,
+    workouts: newer.workouts,
+    books: newer.books,
+    githubEvents: newer.githubEvents,
+    articles: newer.articles,
+    starredRepos: newer.starredRepos,
+    theatreReviews: newer.theatreReviews
+  }
 
   // Cache each export: Health and Sleep read each other's, and the freshness re-judgement renders
   // a card again from its cached export.
@@ -634,10 +789,26 @@ const startFetch = async () => {
     ...(articles && {articles}),
     ...(theatreReviews && {theatreReviews})
   }
+  for (const key of Object.keys(read) as (keyof typeof read)[]) {
+    const value = read[key]
+    if (value !== null && newer[key]) {
+      noteGeneration(key, value)
+    }
+  }
   Object.assign(timestamps, isSuppressed() ? {focus: data.timestamps.focus} : data.timestamps)
 
+  // A card left as the server rendered it counts as rendered with the server's judgement, so the
+  // re-judgement repaints it only when that judgement truly changes (live to stale at the warn age).
+  const startedAt = Date.now()
+  for (const key of CARD_KEYS) {
+    const judgement = serverJudgement(key)
+    if (!repaint[key] && judgement !== null && CARD_RENDERS[key].judge(startedAt) !== null) {
+      renderedJudgement.set(key, judgement)
+    }
+  }
+
   // ── Initial DOM updates: each export with its freshness (`live` or `stale`) ──
-  if (health) {
+  if (health && repaint.health) {
     try {
       renderCard('health')
     } catch (e) {
@@ -647,13 +818,15 @@ const startFetch = async () => {
 
   // NightSummary renders from the sleep export, also when the health read failed (the score alone
   // then shows the no-reading mark).
-  try {
-    renderCard('nightSummary')
-  } catch (e) {
-    console.warn('[live-data] Sleep update failed:', e)
+  if (repaint.nightSummary) {
+    try {
+      renderCard('nightSummary')
+    } catch (e) {
+      console.warn('[live-data] Sleep update failed:', e)
+    }
   }
 
-  if (workouts) {
+  if (workouts && repaint.workouts) {
     try {
       renderCard('workouts')
     } catch (e) {
@@ -661,7 +834,7 @@ const startFetch = async () => {
     }
   }
 
-  if (books) {
+  if (books && repaint.books) {
     try {
       renderCard('books')
     } catch (e) {
@@ -669,7 +842,7 @@ const startFetch = async () => {
     }
   }
 
-  if (githubEvents) {
+  if (githubEvents && repaint.githubEvents) {
     try {
       renderCard('githubEvents')
     } catch (e) {
@@ -677,7 +850,7 @@ const startFetch = async () => {
     }
   }
 
-  if (articles) {
+  if (articles && repaint.articles) {
     try {
       renderCard('articles')
     } catch (e) {
@@ -685,7 +858,7 @@ const startFetch = async () => {
     }
   }
 
-  if (starredRepos) {
+  if (starredRepos && repaint.starredRepos) {
     try {
       renderCard('starredRepos')
     } catch (e) {
@@ -693,7 +866,7 @@ const startFetch = async () => {
     }
   }
 
-  if (theatreReviews) {
+  if (theatreReviews && repaint.theatreReviews) {
     try {
       renderCard('theatreReviews')
     } catch (e) {
@@ -705,7 +878,7 @@ const startFetch = async () => {
 
   // Clean up every loading overlay, including during suppression: the value-free cards are the
   // honest fallback presentation and must not remain hidden behind permanent skeletons.
-  LIVE_CARDS.forEach((id) => document.getElementById(id)?.classList.remove('is-loading'))
+  LIVE_CARDS.forEach(clearLoading)
   if (fallbackTimer) {
     clearTimeout(fallbackTimer)
   }
@@ -771,6 +944,14 @@ const startFetch = async () => {
     }
   })
   ws.connect()
+}
+
+const startFetch = async () => {
+  try {
+    await firstRead()
+  } finally {
+    markLiveReady()
+  }
 }
 
 if ('requestIdleCallback' in window) {

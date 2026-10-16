@@ -358,6 +358,7 @@ describe('live-data → clearing gated values on suppression', () => {
     vi.useFakeTimers()
     clearSpies()
     reload.mockClear()
+    window.sessionStorage.clear()
     document.body.innerHTML = '<div id="focusOverlay" style="display:none"></div>' + '<div id="dndOverlay" style="display:none"></div>'
     Object.defineProperty(window, 'location', {configurable: true, value: {...originalLocation, reload}})
   })

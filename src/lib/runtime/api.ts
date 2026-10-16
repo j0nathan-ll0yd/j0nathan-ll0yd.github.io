@@ -268,6 +268,7 @@ export async function fetchAllEndpoints(): Promise<FetchResult> {
     timestamps: {
       health: generatedAt(health),
       sleep: generatedAt(sleep),
+      workouts: generatedAt(workouts),
       books: generatedAt(books),
       githubEvents: generatedAt(githubEvents),
       starredRepos: generatedAt(starredRepos),
