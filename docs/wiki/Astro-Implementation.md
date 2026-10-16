@@ -22,11 +22,13 @@ Every live card carries `data-ssr-state` (`live`, `stale`, `empty`, `unavailable
 
 ## Data Flow
 
-### Request-Time Render (GET `/`)
+### Precomposed Dashboard (GET `/`)
 
-The Worker renders `/` per request from the live data plane (atlas decision 0160, PR B; spec `openspec/specs/dashboard-ssr`). `src/pages/ssr-dashboard.astro` (private, on-demand, prerender disabled) awaits the eight CloudFront exports through the shared gate (`src/lib/data-plane/loader.ts`, `admission.ts`): a focus signal (1 s timeout), then eight no-store reads (2 s each, 2.5 s total I/O budget, no retry, any 403 suppression body suppresses all). It maps the loads through the Design System's `toDashboardViewModels` and renders `src/layouts/DashboardHome.astro`, which both renders share with the prerendered fallback.
+`/` is precomposed as the data changes, like llms.txt (atlas decision 0160, PR B; owner decision 2026-10-16; spec `openspec/specs/dashboard-ssr`). A backend composer runs `src/lib/composed/compose.ts`, built by `scripts/build-composer.mjs` with this site's compile settings, so its scoped-style hashes equal the site's. It maps the decoded exports through the Design System's view models (`src/lib/data-plane/render-model.ts`), renders the ten live cards, the two focus overlays and System Status with the Astro Container API, and publishes them as the `/dashboard.json` artifact behind the gate. It publishes nothing while the focus value hides or cannot be read.
 
-Each card renders with `data-ssr-state` (live, stale, unavailable, suppressed, or empty) and, in a data state, `data-generated-at` from the export's `generatedAt`. The summary of the ten card states becomes the `X-SSR-Data` response header (`X-SSR-Data: live|stale|partial|suppressed|unavailable`) and a `<meta name="ssr-data">` tag. The Worker buffers the document, so a render exception always answers the prerendered 500 page with status 500 and `X-SSR-Data: error`; a render past 3 seconds answers the data-free page with `X-SSR-Data: fallback`. The response carries `Cache-Control: no-cache` and no CDN storage (D3). `HEAD /` reads no data and answers from the prerendered fallback.
+The Worker renders nothing. `readComposed()` (`src/lib/composed/read.ts`) reads the artifact through the CloudFront proxy factory (`src/lib/edge/proxy.ts`): focus probe first, the admission rules, no-store, no last-known-good copy. `checkArtifact()` (`src/lib/composed/artifact.ts`) refuses a stale (over 10 minutes), future, wrong-schema, wrong-design-system-version or hiding artifact. The Worker splices the fragments into the prerendered data-free page, cut once per isolate (`src/lib/composed/shell.ts`), and refuses a fragment whose scoped-style hash the page does not carry.
+
+Each card carries `data-ssr-state` (live, stale, unavailable, suppressed, or empty) and, in a data state, `data-generated-at`. The artifact's summary becomes the `X-SSR-Data` header and a `<meta name="ssr-data">` tag. A miss answers the data-free page: `suppressed` for a gate suppression, `unavailable` for an unreadable focus, `fallback` otherwise and past the 3-second ceiling. An exception answers the prerendered 500 page with `X-SSR-Data: error`. The response carries `Cache-Control: no-cache` and no CDN storage (D3). `HEAD /` reads no data and answers from the data-free page.
 
 ### Prerendered Fallback (`dist/client/index.html`)
 
@@ -50,7 +52,7 @@ The client runtime (`src/lib/runtime/live-data.ts`) hydrates after page load, po
 
 Every widget comes from `@j0nathan-ll0yd/web/production`; this repo has no `src/components/`. Live widgets take an optional `state` and `generatedAt` (`@j0nathan-ll0yd/web` 4); every browser updater takes an optional trailing freshness (4.1).
 
-The "Props on `/`" columns below name the data-free page (`src/pages/index.astro`). On the server render (`src/pages/ssr-dashboard.astro`) each live widget takes its view model from `toDashboardViewModels` instead: its data props plus `state` and `generatedAt` (`src/layouts/DashboardHome.astro`), and System Status takes rows from `composeSystemLines`.
+The "Props on `/`" columns below name the data-free page (`src/pages/index.astro`). In the composed artifact (`src/lib/composed/compose.ts`) each live widget takes its view model from `toDashboardViewModels` instead: its data props plus `state` and `generatedAt`, and System Status takes rows from `composeSystemLines`.
 
 ### Left Panel
 

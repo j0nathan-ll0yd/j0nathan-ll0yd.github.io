@@ -30,7 +30,7 @@ export default defineConfig({
   // X-SSR-Clock), so relative times and freshness never move with the wall clock.
   webServer: [
     {
-      command: 'pnpm exec tsx tests/data-plane/server.ts',
+      command: 'node scripts/build-composer.mjs && pnpm exec tsx tests/data-plane/server.ts',
       url: 'http://127.0.0.1:4399/__control/requests',
       timeout: 30_000,
       reuseExistingServer: !isCI,

@@ -40,10 +40,7 @@
       "/simple",
       "/simple/*",
       "/mcp",
-      "/mcp/server-card",
-      // The server render's value-free card templates: internal, so the Worker answers 404 to a
-      // public request (atlas decision 0160, PR B, owner decision 2026-10-16).
-      "/ssr-templates"
+      "/mcp/server-card"
     ]
   },
   // NO `routes` key, on purpose (owner decision 2026-10-14, option A). The production route

@@ -1,8 +1,0 @@
-// The parity oracle's test Worker (tests/oracle/edge-harness.worker.ts). Local only, never deployed.
-{
-  "name": "edge-injection-oracle",
-  "main": "./edge-harness.worker.ts",
-  "compatibility_date": "2026-05-06",
-  "compatibility_flags": ["nodejs_compat"],
-  "define": {"__MIRRORED_BOOK_COVERS__": "[]", "__SSR_BUILD_ID__": "\"test\""}
-}

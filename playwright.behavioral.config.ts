@@ -47,7 +47,12 @@ export default defineConfig({
   // Worker reads for the server render of `/` (atlas decision 0160, PR B). The preview runs the real
   // Worker in workerd; write-dev-vars.mjs runs after the build because postbuild deletes the file.
   webServer: [
-    {command: 'pnpm exec tsx tests/data-plane/server.ts', url: 'http://127.0.0.1:4399/__control/requests', timeout: 30_000, reuseExistingServer: !isCI},
+    {
+      command: 'node scripts/build-composer.mjs && pnpm exec tsx tests/data-plane/server.ts',
+      url: 'http://127.0.0.1:4399/__control/requests',
+      timeout: 30_000,
+      reuseExistingServer: !isCI
+    },
     {
       command: process.env.SKIP_BUILD
         ? 'node tests/data-plane/write-dev-vars.mjs && pnpm run preview'

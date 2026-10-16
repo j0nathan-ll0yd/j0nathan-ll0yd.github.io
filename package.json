@@ -32,6 +32,7 @@
     "test": "pnpm run test:unit && pnpm run test:build",
     "test:unit": "vitest run --config vitest.unit.config.ts",
     "test:build": "vitest run --config vitest.build.config.ts",
+    "test:oracle": "node scripts/build-composer.mjs && vitest run --config vitest.oracle.config.ts",
     "test:visual": "./scripts/run-in-docker.sh playwright.config.ts",
     "test:visual:update": "./scripts/run-in-docker.sh playwright.config.ts --update-snapshots --workers=1",
     "test:smoke": "pnpm exec playwright test --config=playwright.smoke.config.ts",

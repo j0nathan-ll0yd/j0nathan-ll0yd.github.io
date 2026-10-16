@@ -154,6 +154,11 @@ jobs:
       - name: build-output
         run: pnpm run test:build
 
+      # The composer parity oracle (atlas decision 0160, PR B): the built composer's fragments equal
+      # the Astro Container render in 27 scenarios, and their scoped-style hashes are in dist/.
+      - name: composer-parity
+        run: pnpm run test:oracle
+
   spec-severity-ratchet:
     runs-on: [self-hosted, linux, arm64, node]
     steps:

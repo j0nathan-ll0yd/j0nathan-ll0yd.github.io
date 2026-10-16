@@ -2,17 +2,25 @@
 
 ## Purpose
 
-State what the Worker's per-request render of `/` reads, renders and answers (atlas decision 0160,
-PR B; site issue #132). Since PR B, `GET /` carries the owner's real data, or an honest state per
-card, for every client: AI answer agents, link previews and browsers with scripting off read the
-same document as a browser that runs the client runtime.
+State what `GET /` reads, composes and answers (atlas decision 0160, PR B; site issue #132). Since
+PR B, `GET /` carries the owner's real data, or an honest state per card, for every client: AI
+answer agents, link previews and browsers with scripting off read the same document as a browser
+that runs the client runtime.
 
-The Worker renders `src/pages/ssr-dashboard.astro` for `GET /` (src/worker.ts,
-src/lib/data-plane/ssr-response.ts). The page reads the focus signal and the eight gated exports
-(src/lib/data-plane/loader.ts) and maps them through the design system's shared view models
-(src/lib/data-plane/render-model.ts; decision 0160 D11 = M1). The prerendered data-free page
-(`dashboard-shell` capability) stays the budget fallback, the `HEAD /` answer and the rollback
-target (D9).
+The page is precomposed as the data changes, like llms.txt (owner decision 2026-10-16). A backend
+composer renders the live cards, the focus overlays and System Status with the design system's
+components (src/lib/composed/compose.ts, built by scripts/build-composer.mjs) and publishes the
+`/dashboard.json` artifact behind the gate. The Worker reads it through the edge proxy
+(src/lib/composed/read.ts: focus probe first, the admission rules, no-store, no last-known-good
+copy), checks it (src/lib/composed/artifact.ts: schema, age, future skew, design-system version,
+hiding focus) and splices its fragments into the prerendered data-free page
+(src/lib/composed/shell.ts, src/lib/data-plane/ssr-response.ts). The Worker renders nothing. The
+data-free page (`dashboard-shell` capability) stays the fallback, the `HEAD /` answer and the
+rollback target (D9).
+
+The loader requirements below (gate, focus, failed read, I/O budget) describe
+src/lib/data-plane/loader.ts, which the composed path no longer calls in production. The post-gate
+website PR replaces them with the composer's and the Worker's read of the artifact.
 
 Render proof is behavioral DOM assertion, never screenshot comparison. A baseline minted by the
 change it verifies is not evidence (D10).
@@ -200,8 +208,7 @@ authored identity content and honest per-card states. The answer SHALL carry
 (D3: no edge HTML cache) and `Content-Type: text/html; charset=utf-8`, plus the site middleware's
 headers (security headers, `Link`, `Vary: Accept`, `No-Vary-Search`).
 
-Verified by `tests/unit/ssr-response.test.ts:97` (every summary answers 200) and
-`tests/unit/ssr-response.test.ts:111` (the cache policy and the charset).
+Verified by `tests/unit/ssr-response.test.ts:102`.
 
 #### Scenario: Every export is unavailable
 
@@ -216,7 +223,7 @@ The Worker SHALL bound the whole render by 3 s: 2.5 s of I/O plus a 0.5 s render
 render that misses it, a stalled document stream included, SHALL be answered with the prerendered
 data-free page, status 200, `X-SSR-Data: fallback`, and no asset validators.
 
-Verified by `tests/unit/ssr-response.test.ts:144`.
+Verified by `tests/unit/ssr-response.test.ts:157`.
 
 #### Scenario: The render never completes
 
@@ -232,7 +239,7 @@ with status 500, `Cache-Control: no-store` and `X-SSR-Data: error`. A client SHA
 200 whose document stops half-way. The 500 page carries no live widget, no gated value and no
 fixture value.
 
-Verified by `tests/unit/ssr-response.test.ts:194`.
+Verified by `tests/unit/ssr-response.test.ts:173`.
 
 #### Scenario: A widget throws while the stream renders
 
@@ -246,7 +253,7 @@ Verified by `tests/unit/ssr-response.test.ts:194`.
 read no export and render nothing, and it SHALL omit `X-SSR-Data`, whose value exists only once a
 body is rendered (RFC 9110 section 9.3.2).
 
-Verified by `tests/unit/ssr-response.test.ts:221`.
+Verified by `tests/unit/ssr-response.test.ts:187`.
 
 #### Scenario: A link checker sends HEAD
 
@@ -262,7 +269,7 @@ Each `GET /` SHALL emit one JSON log line with `event: "ssr_render"`: the summar
 exports, `io_ms`, `render_ms`, `total_ms`, the status and the build id. The line SHALL carry no
 data value.
 
-Verified by `tests/unit/ssr-response.test.ts:118`.
+Verified by `tests/unit/ssr-response.test.ts:124`.
 
 #### Scenario: A healthy render
 
@@ -270,27 +277,13 @@ Verified by `tests/unit/ssr-response.test.ts:118`.
 - **WHEN** a render completes
 - **THEN** exactly one `ssr_render` line SHALL be written, naming states and timings only
 
-### Requirement: Only the Worker reaches the render path
-
-The on-demand page renders at an internal path (`/ssr-dashboard`). A public request for that path
-SHALL get the 404 page and SHALL never reach Astro.
-
-Verified by `tests/unit/worker-entry.test.ts:288` (the Worker routing) and
-`tests/behavioral/ssr-no-js.test.ts:330` (the built Worker in a browser).
-
-#### Scenario: A client requests the internal path
-
-- **GIVEN** the production Worker
-- **WHEN** a client requests `/ssr-dashboard`
-- **THEN** the Worker SHALL answer 404 without rendering
-
 ### Requirement: One document serves every client
 
 The render SHALL NOT branch on the client: no code on the render path reads `User-Agent`, Client
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
 Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
-`tests/behavioral/ssr-no-js.test.ts:381` (the head of the render equals the data-free page's).
+`tests/behavioral/ssr-no-js.test.ts:368` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 

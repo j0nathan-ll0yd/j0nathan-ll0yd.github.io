@@ -12,7 +12,7 @@ import {AGENT_PATHS} from './src/lib/edge/agent-paths.mjs'
 import {SITE_PAGE_PATHS} from './src/lib/edge/site-paths.ts'
 import {contentLastModified} from './src/lib/content-date.ts'
 import {MIRRORED_BOOK_COVERS_DEFINE, mirroredBookCovers} from './src/lib/book-cover-mirror.ts'
-import {TEMPLATES_PAGE_PATH} from './src/lib/edge-render/paths.ts'
+import {readFileSync} from 'node:fs'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -61,7 +61,12 @@ export default defineConfig({
     // Build-time constants. The book-cover mirror list lets the server render choose same-origin
     // covers without a filesystem; the build id stamps the server render's log line (decision 0160,
     // PR B, plan Step 4.6).
-    define: {[MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(mirroredBookCovers()), __SSR_BUILD_ID__: JSON.stringify(process.env.GITHUB_SHA || 'dev')},
+    define: {
+      [MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(mirroredBookCovers()),
+      __SSR_BUILD_ID__: JSON.stringify(process.env.GITHUB_SHA || 'dev'),
+      // The design-system version this build renders with; a composed artifact must name the same.
+      __WEB_VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL('./node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version)
+    },
     // Fails the build when any module resolves to @j0nathan-ll0yd/fixtures, directly or through
     // another module or package (atlas decision 0160, plan Step 6.7). Production pages carry no
     // fixture data; tests serve fixtures by route interception only.
@@ -90,8 +95,7 @@ export default defineConfig({
       // anti-pattern docs/wiki/Metadata-Files-Spec.md names (website #360).
       // tests/build/sitemap.test.ts asserts both halves.
       // Matched on the exact pathname.
-      // TEMPLATES_PAGE_PATH holds the server render's value-free card templates (atlas decision 0160, PR B).
-      filter: (page) => !['/404', '/500', '/offline', SITE_PAGE_PATHS.privacy, TEMPLATES_PAGE_PATH].includes(new URL(page).pathname),
+      filter: (page) => !['/404', '/500', '/offline', SITE_PAGE_PATHS.privacy].includes(new URL(page).pathname),
       changefreq: 'weekly',
       priority: 0.7,
       serialize(item) {

@@ -108,11 +108,9 @@ describe('one document for every client', () => {
   it('reads no client identity: the render path never branches on User-Agent or Client Hints', async () => {
     const {readFileSync, readdirSync} = await import('node:fs')
     const sources = [
-      'src/pages/ssr-templates.astro',
       'src/layouts/DashboardHome.astro',
       ...readdirSync('src/lib/data-plane').map((name) => `src/lib/data-plane/${name}`),
-      ...readdirSync('src/lib/edge-render').filter((name) => name.endsWith('.ts')).map((name) => `src/lib/edge-render/${name}`),
-      ...readdirSync('src/lib/edge-render/cards').map((name) => `src/lib/edge-render/cards/${name}`)
+      ...readdirSync('src/lib/composed').map((name) => `src/lib/composed/${name}`)
     ]
     for (const file of sources) {
       expect(readFileSync(file, 'utf8'), file).not.toMatch(/user-agent|sec-ch-ua|navigator\.|Astro\.request\.headers\.get\(['"]accept/i)

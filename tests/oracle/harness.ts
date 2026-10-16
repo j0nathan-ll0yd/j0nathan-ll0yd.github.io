@@ -1,12 +1,11 @@
-// Shared harness for the edge-injection parity oracle (atlas decision 0160, PR B; owner decision
-// 2026-10-16, option B). Astro renders the design system's widgets through the Container API (the
-// ORACLE; this path never runs in the Worker). The site's injector runs in workerd, with the real
-// HTMLRewriter, through wrangler's local runtime. A test compares the two, card by card.
+// Shared harness for the composer parity oracle (atlas decision 0160, PR B; owner decision
+// 2026-10-16: the page is precomposed as the data changes). Astro renders the design system's
+// widgets through the Container API (the ORACLE; this path never runs in the Worker). The test
+// compares the built composer's fragments with it, card by card.
 import {readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {experimental_AstroContainer as AstroContainer} from 'astro/container'
 import {load} from 'cheerio'
-import {unstable_dev} from 'wrangler'
 import type {ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
 import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
 import {mirroredBookCovers} from '../../src/lib/book-cover-mirror'
@@ -75,17 +74,6 @@ export function renderOf(loaded: DashboardLoad, nowMs: number): DashboardRender 
 /** The Astro side: the design system's components, rendered in Node. */
 export async function astroContainer() {
   return AstroContainer.create()
-}
-
-/** The workerd side: the site's injector with the real HTMLRewriter. */
-export async function startInjector() {
-  return unstable_dev('tests/oracle/edge-harness.worker.ts', {
-    config: 'tests/oracle/wrangler.oracle.jsonc',
-    // wrangler takes each define as `KEY:VALUE`; it splits at the first colon.
-    define: [`__MIRRORED_BOOK_COVERS__:${JSON.stringify(LOCAL_COVERS)}`, `__SSR_BUILD_ID__:${JSON.stringify('test')}`],
-    experimental: {disableExperimentalWarning: true},
-    logLevel: 'error'
-  })
 }
 
 /**

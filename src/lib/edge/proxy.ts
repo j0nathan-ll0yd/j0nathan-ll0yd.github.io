@@ -125,7 +125,15 @@ const SUPPRESSION_RETRY_SECONDS = 60
 export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
-const FOCUS_URL = `${CLOUDFRONT_BASE}${FOCUS_SIGNAL_PATH}`
+/**
+ * Where a proxy reads: the CloudFront data plane through the platform fetch, unless a caller passes
+ * another (the server render's test seams, which apply only on a preview or loopback host).
+ */
+export interface Upstream {
+  base: string
+  fetch: typeof fetch
+}
+const CLOUDFRONT_UPSTREAM: Upstream = Object.freeze({base: CLOUDFRONT_BASE, fetch: (input: RequestInfo | URL, init?: RequestInit) => fetch(input, init)})
 const logger = createEdgeLogger({service: 'cloudfront-pages-proxy'})
 
 interface CacheLike {
@@ -140,6 +148,8 @@ interface CloudflareCacheStorage {
 export interface CloudfrontProxyContext {
   request: Request
   waitUntil(promise: Promise<unknown>): void
+  /** Where to read. Absent: the CloudFront data plane. Only the server render's test seams pass one. */
+  upstream?: Upstream
 }
 
 /**
@@ -178,6 +188,12 @@ export interface CloudfrontProxyConfig {
   contentType: string
   /** Cache directives for the success and stale paths. Defaults to no-store, which every gated route needs. */
   cachePolicy?: CachePolicy
+  /**
+   * Whether the route may keep and serve a last-known-good copy. Defaults to true. The dashboard
+   * passes false: decision 0160 D3 allows no last-known-good copy for it, and its fallback is the
+   * data-free page instead.
+   */
+  lastKnownGood?: boolean
 }
 
 interface UpstreamSuccess {
@@ -306,10 +322,11 @@ function setPublicNoStore(headers: Headers): void {
  * turns that into a 502. The gate fails CLOSED: a focus state this Function could not read is
  * never treated as permission to serve.
  */
-async function probeFocusOnce(budget: RequestBudget): Promise<FocusResult> {
+async function probeFocusOnce(budget: RequestBudget, upstream: Upstream): Promise<FocusResult> {
   let response: Response
   try {
-    response = await withDeadline((signal) => fetch(FOCUS_URL, {cache: 'no-store', signal}), Math.min(FOCUS_TIMEOUT_MS, budget.remainingMs()), 'focus probe')
+    response = await withDeadline((signal) => upstream.fetch(`${upstream.base}${FOCUS_SIGNAL_PATH}`, {cache: 'no-store', signal}),
+      Math.min(FOCUS_TIMEOUT_MS, budget.remainingMs()), 'focus probe')
   } catch (error) {
     return {status: 'unavailable', errorName: errorClass(error), retryable: true}
   }
@@ -340,11 +357,11 @@ async function probeFocusOnce(budget: RequestBudget): Promise<FocusResult> {
 }
 
 /** Bounded retry over the focus probe: one extra attempt for a transport-shaped failure, never for a definite answer. */
-async function probeFocus(budget: RequestBudget): Promise<FocusResult> {
+async function probeFocus(budget: RequestBudget, upstream: Upstream): Promise<FocusResult> {
   let failure: FocusUnavailable = {status: 'unavailable', errorName: 'FocusProbeNotAttempted', retryable: false}
 
   for (let attempt = 1; attempt <= FOCUS_MAX_ATTEMPTS; attempt++) {
-    const result = await probeFocusOnce(budget)
+    const result = await probeFocusOnce(budget, upstream)
     if (result.status !== 'unavailable') {
       return result
     }
@@ -381,8 +398,13 @@ function focusUnavailableResponse(path: string, result: FocusUnavailable): Respo
   return new Response('focus state unavailable', {status: 502, headers})
 }
 
-export async function focusPrivacyResponse(method: string, path: string, budget: RequestBudget = startBudget()): Promise<Response | null> {
-  const focus = await probeFocus(budget)
+export async function focusPrivacyResponse(
+  method: string,
+  path: string,
+  budget: RequestBudget = startBudget(),
+  upstream: Upstream = CLOUDFRONT_UPSTREAM
+): Promise<Response | null> {
+  const focus = await probeFocus(budget, upstream)
   if (focus.status === 'suppressed') {
     logger.info?.('cloudfront_proxy_suppressed', {artifact: path, current_focus: focus.currentFocus})
     return suppressionResponse(method)
@@ -417,15 +439,15 @@ function isSuppressionBody(response: Response, budget: RequestBudget, label: str
   return isSuppressionBodyWithin(response, Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), label)
 }
 
-async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget): Promise<UpstreamResult> {
+async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget, fetchImpl: typeof fetch): Promise<UpstreamResult> {
   let lastResponse: Response | undefined
   let errorName: string | undefined
   let gateOpen = false
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      lastResponse = await withDeadline((signal) => fetch(upstreamUrl, {...GATED_FETCH_INIT, signal}), Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()),
-        `${path} fetch`)
+      lastResponse = await withDeadline((signal) => fetchImpl(upstreamUrl, {...GATED_FETCH_INIT, signal}),
+        Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), `${path} fetch`)
       errorName = undefined
       if (lastResponse.status === 403 && await isSuppressionBody(lastResponse, budget, `${path} 403 body`)) {
         return {ok: false, suppressed: true, attempts: attempt, response: lastResponse}
@@ -488,10 +510,10 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
  * Then the answer is `unknown` and no copy is served: without a gate observation there is no
  * permission to serve one.
  */
-async function observeGate(upstreamUrl: string, path: string, budget: RequestBudget): Promise<GateObservation> {
+async function observeGate(upstreamUrl: string, path: string, budget: RequestBudget, fetchImpl: typeof fetch): Promise<GateObservation> {
   let response: Response
   try {
-    response = await withDeadline((signal) => fetch(upstreamUrl, {...GATED_FETCH_INIT, signal}), Math.min(GATE_PROBE_TIMEOUT_MS, budget.remainingMs()),
+    response = await withDeadline((signal) => fetchImpl(upstreamUrl, {...GATED_FETCH_INIT, signal}), Math.min(GATE_PROBE_TIMEOUT_MS, budget.remainingMs()),
       `${path} gate probe`)
   } catch (error) {
     logger.warn('cloudfront_proxy_gate_probe_failed', {artifact: path, error_class: errorClass(error)})
@@ -618,9 +640,10 @@ interface StaleRequest {
   failure: UpstreamFailure
   policy: CachePolicy
   budget: RequestBudget
+  fetchImpl: typeof fetch
 }
 
-async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure, policy, budget}: StaleRequest): Promise<StaleOutcome> {
+async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure, policy, budget, fetchImpl}: StaleRequest): Promise<StaleOutcome> {
   // A refusal always carries its success-class response, whose status is never retryable, so this
   // one test also withholds the copy from every refusal.
   if (!cache || (failure.response && !isRetryableStatus(failure.response.status))) {
@@ -647,7 +670,7 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
     return {kind: 'none'}
   }
 
-  const gate: GateObservation = failure.gateOpen ? 'open' : await observeGate(upstreamUrl, path, budget)
+  const gate: GateObservation = failure.gateOpen ? 'open' : await observeGate(upstreamUrl, path, budget, fetchImpl)
   if (gate === 'suppressed') {
     discardBody(cached)
     return {kind: 'suppressed'}
@@ -688,9 +711,8 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
 
 /** Builds an onRequest handler that proxies one CloudFront artifact resiliently. */
 export function makeCloudfrontProxy(
-  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY}: CloudfrontProxyConfig
+  {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY, lastKnownGood = true}: CloudfrontProxyConfig
 ): (context: CloudfrontProxyContext) => Promise<Response> {
-  const upstreamUrl = `${CLOUDFRONT_BASE}${path}`
   const artifactName = path.slice(1)
   const isFocusSignal = path === FOCUS_SIGNAL_PATH
 
@@ -712,11 +734,13 @@ export function makeCloudfrontProxy(
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.
     const budget = startBudget()
+    const source = context.upstream ?? CLOUDFRONT_UPSTREAM
+    const upstreamUrl = `${source.base}${path}`
 
     // The focus signal itself is never gated, exactly as the edge gate never gates it
     // (focus-privacy spec, "The focus signal stays retrievable while hiding"). Every
     // other artifact is suppressible and goes through the gate.
-    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget)
+    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget, source)
     if (privacyResponse) {
       return privacyResponse
     }
@@ -724,9 +748,9 @@ export function makeCloudfrontProxy(
     // The focus signal has no last-known-good copy. Like the gate's own probe, it is read fresh
     // (GATED_FETCH_INIT is no-store), so a stored copy could disagree with the probe that a
     // sibling read just consulted.
-    const cache = isFocusSignal ? undefined : defaultCache()
+    const cache = isFocusSignal || !lastKnownGood ? undefined : defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
-    const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS))
+    const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS), source.fetch)
 
     if (upstream.ok) {
       const response = publicResponse(upstream, contentType, cachePolicy)
@@ -748,7 +772,17 @@ export function makeCloudfrontProxy(
       })
     }
 
-    const stale = await staleResponse({cache, cacheKey, contentType, path, upstreamUrl, failure: upstream, policy: cachePolicy, budget})
+    const stale = await staleResponse({
+      cache,
+      cacheKey,
+      contentType,
+      path,
+      upstreamUrl,
+      failure: upstream,
+      policy: cachePolicy,
+      budget,
+      fetchImpl: source.fetch
+    })
     if (stale.kind === 'served') {
       return stale.response
     }

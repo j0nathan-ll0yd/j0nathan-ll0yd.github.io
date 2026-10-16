@@ -1,27 +1,28 @@
 // The Worker's answer to `GET /` and `HEAD /` (atlas decision 0160, PR B; plan Steps 4.3 to 4.6;
-// owner decision 2026-10-16, option B: edge injection).
+// owner decision 2026-10-16, option 1: the PRECOMPOSED PAGE).
 //
-// `GET /` reads the focus signal and the eight exports (./loader.ts), maps them through the shared
-// view models (./render-model.ts), and writes the result into the prerendered data-free page with
-// HTMLRewriter (src/lib/edge-render/). Astro does not run per request. The Worker:
+// The Worker renders nothing. A backend composer renders the live cards whenever the data changes and
+// stores them beside the exports, behind the same CloudFront gate (src/lib/composed/artifact.ts). For
+// `GET /` the Worker reads the focus signal and, when it reads visible, the composed artifact, as the
+// proxy routes read their documents (src/lib/composed/read.ts). Then:
 //
-// 1. Bounds the whole render by SSR_CEILING_MS (D2: 2.5 s of I/O plus a 0.5 s render reserve). A
-//    render that misses it is answered with the data-free page itself and `X-SSR-Data: fallback`.
-// 2. Awaits every read before the first byte, then buffers the rewritten document before it answers.
-//    A failure anywhere, a rewrite handler included, therefore becomes a clean 500 page (D13), never
-//    a 200 whose document stops half-way or mixes two states.
-// 3. Answers every data state 200 (D13), with no edge or browser cache (D3), the summary in
-//    `X-SSR-Data`, and one value-free `ssr_render` log line (Step 4.6).
+// - visible, and the artifact is admitted, fresh and built for this website: the data-free page with
+//   the artifact's fragments spliced in (src/lib/composed/shell.ts), `X-SSR-Data` = its summary;
+// - hiding, or a gate suppression body: the data-free page, `X-SSR-Data: suppressed`;
+// - an unreadable focus signal: the data-free page, `X-SSR-Data: unavailable`;
+// - an artifact that is missing, failed, refused or stale: the data-free page, `X-SSR-Data: fallback`.
 //
-// `HEAD /` answers from the data-free page's headers and reads no data: a HEAD carries no body, so a
-// render would spend the data plane and the CPU budget for nothing. It omits `X-SSR-Data`, whose
-// value exists only once a body is rendered (RFC 9110 section 9.3.2 allows that).
+// The whole answer is bounded by SSR_CEILING_MS (D2) and buffered, so a failure becomes a clean 500
+// page (D13) and every data state answers 200, with no edge or browser cache (D3). One value-free
+// `ssr_render` log line per request (Step 4.6).
+//
+// `HEAD /` answers from the data-free page's headers and reads no data. It omits `X-SSR-Data`, whose
+// value exists only once a body is chosen (RFC 9110 section 9.3.2 allows that).
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
-import {injectDashboard} from '../edge-render/inject'
+import type {ComposedRead} from '../composed/read'
+import {assemble, scopesMatch, type Shell, shellFor} from '../composed/shell'
 import {DATA_FREE_PAGE_PATH} from '../edge-render/paths'
-import {loadTemplates} from '../edge-render/templates'
-import type {DashboardLoad} from './loader'
-import {type SsrRenderRecord, toDashboardRender} from './render-model'
+import type {SsrRenderRecord} from './render-model'
 
 export { DATA_FREE_PAGE_PATH }
 /** The prerendered 500 page (src/pages/500.astro). */
@@ -53,16 +54,16 @@ const BUILD_ID = typeof __SSR_BUILD_ID__ === 'undefined' ? 'unknown' : __SSR_BUI
 const logger = createEdgeLogger({service: 'ssr-dashboard'})
 
 export interface DashboardRenderDeps {
-  /** Reads the data plane for this request (./loader.ts, with the request's test seams). */
-  load(request: Request): Promise<DashboardLoad>
-  /** The render time for this request: Date.now(), or the X-SSR-Clock test seam. */
+  /** Reads the focus signal and the composed artifact for this request (src/lib/composed/read.ts). */
+  read(request: Request, nowMs: number): Promise<ComposedRead>
+  /** The serving time for this request: Date.now(), or the X-SSR-Clock test seam. */
   now(request: Request): number
   /** Reads a built file from the static-asset plane (the ASSETS binding). */
   asset(path: string, method: 'GET' | 'HEAD'): Promise<Response>
   /** Overrides the ceiling, for tests only. */
   ceilingMs?: number
-  /** Overrides the injector, for tests that run outside workerd (Node has no HTMLRewriter). */
-  inject?: typeof injectDashboard
+  /** Overrides the shell, for tests that run outside workerd (Node has no HTMLRewriter). */
+  shell?: () => Promise<Shell>
 }
 
 /** The fields of one `ssr_render` log line. No field carries a data value. */
@@ -74,6 +75,11 @@ export type SsrLogLine = Omit<Partial<SsrRenderRecord>, 'summary'> & {
   total_ms: number
   build: string
   error_class?: string
+  /** What the Worker served: the composed page, or the data-free page and why. */
+  served?: 'composed' | 'data-free'
+  focus_read?: string
+  artifact?: string
+  composed_age_ms?: number
 }
 
 function logRender(line: SsrLogLine): void {
@@ -99,26 +105,41 @@ function withDashboardHeaders(source: Headers, summary: string | null): Headers 
 }
 
 type Outcome =
-  | {kind: 'rendered'; response: Response; body: ArrayBuffer; record: SsrRenderRecord}
+  | {kind: 'composed'; body: string; headers: Headers; summary: string; record: SsrRenderRecord; ioMs: number; ageMs: number}
+  | {kind: 'data-free'; summary: 'suppressed' | 'unavailable' | 'fallback'; focus: string; artifact: string; ioMs: number}
   | {kind: 'failed'; status: number; errorClass: string}
   | {kind: 'ceiling'}
 
 async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Outcome> {
+  const started = Date.now()
   try {
-    const load = await deps.load(request)
     const nowMs = deps.now(request)
-    const render = toDashboardRender(load, nowMs)
-    const read = (path: string) => deps.asset(path, 'GET')
-    const [page, templates] = await Promise.all([read(DATA_FREE_PAGE_PATH), loadTemplates(read)])
-    if (!page.ok) {
-      page.body?.cancel().catch(() => {})
-      return {kind: 'failed', status: 500, errorClass: 'DataFreePageMissing'}
+    const read = await deps.read(request, nowMs)
+    const ioMs = Date.now() - started
+    if (read.kind === 'suppressed') {
+      return {kind: 'data-free', summary: 'suppressed', focus: 'hiding-or-gate', artifact: 'suppressed', ioMs}
     }
-    // One input chunk: each text node of the page then reaches a text slot whole (./fragment.ts).
-    const injected = await (deps.inject ?? injectDashboard)(new Response(await page.text(), {headers: page.headers}), {render, templates, nowMs})
-    // Buffer the document: a failure inside a rewrite handler rejects here.
-    const body = await injected.arrayBuffer()
-    return {kind: 'rendered', response: injected, body, record: render.record}
+    if (read.kind === 'focus-unreadable') {
+      return {kind: 'data-free', summary: 'unavailable', focus: 'unreadable', artifact: 'not-read', ioMs}
+    }
+    if (read.kind !== 'ok') {
+      const reason = read.kind === 'refused' ? `refused:${read.refusal}` : `unavailable:http-${read.status}`
+      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: reason, ioMs}
+    }
+    const shell = await (deps.shell ?? (() => shellFor(BUILD_ID, () => deps.asset(DATA_FREE_PAGE_PATH, 'GET'))))()
+    const value = read.artifact
+    if (!scopesMatch(shell, value.fragments)) {
+      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: 'refused:scopes', ioMs}
+    }
+    return {
+      kind: 'composed',
+      body: assemble(shell, value.fragments, value.summary),
+      headers: shell.headers,
+      summary: value.summary,
+      record: value.record,
+      ioMs,
+      ageMs: nowMs - Date.parse(value.composedAt)
+    }
   } catch (error) {
     return {kind: 'failed', status: 500, errorClass: error instanceof Error ? error.name : 'UnknownError'}
   }
@@ -138,7 +159,7 @@ async function errorPage(deps: DashboardRenderDeps): Promise<Response> {
   return new Response(page.status === 200 ? page.body : 'Internal Server Error', {status: 500, headers})
 }
 
-/** Answers `GET /`: the server render, or the data-free page past the ceiling, or the 500 page. */
+/** Answers `GET /`: the composed page, or the data-free page, or the 500 page. */
 export async function renderDashboard(request: Request, deps: DashboardRenderDeps): Promise<Response> {
   const startedAt = Date.now()
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -150,13 +171,34 @@ export async function renderDashboard(request: Request, deps: DashboardRenderDep
   const totalMs = Date.now() - startedAt
   const base = {event: 'ssr_render' as const, total_ms: totalMs, build: BUILD_ID}
 
-  if (outcome.kind === 'rendered') {
-    const {record} = outcome
-    logRender({...base, ...record, status: 200, render_ms: Math.max(0, totalMs - record.io_ms)})
-    return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.response.headers, record.summary)})
+  if (outcome.kind === 'composed') {
+    logRender({
+      ...base,
+      ...outcome.record,
+      summary: outcome.summary,
+      served: 'composed',
+      status: 200,
+      io_ms: outcome.ioMs,
+      render_ms: Math.max(0, totalMs - outcome.ioMs),
+      composed_age_ms: outcome.ageMs
+    })
+    return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.headers, outcome.summary)})
+  }
+  if (outcome.kind === 'data-free') {
+    logRender({
+      ...base,
+      summary: outcome.summary,
+      served: 'data-free',
+      focus_read: outcome.focus,
+      artifact: outcome.artifact,
+      status: 200,
+      io_ms: outcome.ioMs,
+      render_ms: Math.max(0, totalMs - outcome.ioMs)
+    })
+    return dataFreePage('GET', outcome.summary, deps)
   }
   if (outcome.kind === 'ceiling') {
-    logRender({...base, summary: 'fallback', status: 200, render_ms: totalMs})
+    logRender({...base, summary: 'fallback', served: 'data-free', artifact: 'ceiling', status: 200, render_ms: totalMs})
     return dataFreePage('GET', 'fallback', deps)
   }
   logRender({...base, summary: 'error', status: 500, render_ms: totalMs, error_class: outcome.errorClass})

@@ -1,7 +1,6 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {TEMPLATES_PAGE_PATH} from '../../src/lib/edge-render/paths'
 import {HEADER_OVERRIDE_PATHS} from '../../src/lib/edge/middleware'
 import {EDGE_ROUTES, matchEdgeRoute, routeHandles} from '../../src/lib/edge/routes'
 
@@ -33,8 +32,7 @@ const config = readWranglerConfig()
 describe('wrangler.jsonc', () => {
   it('runs the Worker first on every path that runs code, and on nothing else', () => {
     const routePaths = EDGE_ROUTES.flatMap((route) => (route.catchAll ? [route.path, `${route.path}/*`] : [route.path]))
-    // TEMPLATES_PAGE_PATH: the server render's internal templates, which the Worker hides (404).
-    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...routePaths, TEMPLATES_PAGE_PATH])
+    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...routePaths])
   })
 
   it('sends an unmatched path to the Worker, which renders the 404 page through the middleware', () => {

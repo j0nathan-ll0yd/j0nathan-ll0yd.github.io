@@ -326,19 +326,6 @@ test.describe('server render with JavaScript off: hiding', () => {
   }
 })
 
-test.describe('server render with JavaScript off: the private render path', () => {
-  // covers: dashboard-ssr#Only the Worker reaches the render path
-  test('a public GET /ssr-dashboard answers 404 and never renders the dashboard', async ({request}) => {
-    for (const path of ['/ssr-dashboard', '/ssr-dashboard/']) {
-      const response = await request.get(path)
-      expect(response.status(), path).toBe(404)
-      expect(response.headers()['x-ssr-data'], `${path} carries no render summary`).toBeUndefined()
-      expect(await response.text(), path).not.toContain('id="cardHR"')
-    }
-    expect(await dataPlaneRequests(), 'the public path reads no export').toEqual([])
-  })
-})
-
 test.describe('server render with JavaScript off: build-test counterparts', () => {
   // tests/build/image-pipeline.test.ts judges the prerendered page, which holds no live image.
   // The server render holds the covers, posters and avatars the exports name.

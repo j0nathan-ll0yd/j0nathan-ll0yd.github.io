@@ -7,7 +7,7 @@ declare module 'cloudflare:workers' {
   export const env: Readonly<Record<string, unknown>>
 }
 
-// workerd's streaming HTMLRewriter (lol-html), the edge injection's only HTML writer (atlas decision
+// workerd's streaming HTMLRewriter (lol-html), which cuts the data-free page into the composed shell (atlas decision
 // 0160, PR B, owner decision 2026-10-16). Declared for the members the site uses; the repo does not
 // pull in @cloudflare/workers-types.
 interface HTMLRewriterContentOptions {

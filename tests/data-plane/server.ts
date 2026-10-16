@@ -11,6 +11,7 @@
 import {readFileSync} from 'node:fs'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
 import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {mirroredBookCovers} from '../../src/lib/book-cover-mirror'
 import {BASELINE_BY_PATH} from './baseline'
 import {type Behavior, CONTROL_PREFIX, DEFAULT_PORT, type GeneratedAtMode, SUPPRESSION_BODY} from './protocol'
 
@@ -89,7 +90,7 @@ async function control(request: IncomingMessage, response: ServerResponse, route
     send(response, 200, '{}')
   } else if (route === '/set' && request.method === 'POST') {
     const {path, behavior} = (await readBody(request)) as {path: string; behavior: Behavior}
-    if (!EXPORT_PATHS.has(path)) {
+    if (!EXPORT_PATHS.has(path) && path !== DASHBOARD_PATH) {
       send(response, 400, JSON.stringify({error: `unknown export path ${path}`}))
       return
     }
@@ -102,10 +103,72 @@ async function control(request: IncomingMessage, response: ServerResponse, route
   }
 }
 
+/** The test composer: this website's own build of src/lib/composed/compose.ts (scripts/build-composer.mjs). */
+const COMPOSER = new URL('../../dist-composer/composer.mjs', import.meta.url)
+const DASHBOARD_PATH = '/dashboard.json'
+const FIXTURE_NOW = '2026-03-18T12:00:00.000Z'
+
+/** One export's body as the backend composer would read it from the bucket, or null when unreadable. */
+function exportBody(path: string): unknown {
+  const behavior = overrides.get(path) ?? baselineFor(path)
+  switch (behavior.kind) {
+    case 'fixture':
+    case 'no-cloudfront-id':
+      return stamp(readJson(behavior.file), ('generatedAt' in behavior ? behavior.generatedAt : undefined) ?? DEFAULT_GENERATED_AT)
+    case 'json':
+      return stamp(behavior.body, behavior.generatedAt ?? DEFAULT_GENERATED_AT)
+    case 'malformed':
+      return {generatedAt: null}
+    default:
+      return null
+  }
+}
+
+/**
+ * The composed dashboard, composed now from the exports this server answers: what the backend
+ * composer publishes after each export update. The gate shuts every gated path at once, so a
+ * suppression on any export suppresses the artifact too. A hiding or unreadable focus value publishes
+ * nothing (404). The composition clock is the request's X-SSR-Clock (the Worker forwards a test
+ * clock), else the fixtures' date when they keep their own stamps, else now.
+ */
+async function dashboard(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  const own = overrides.get(DASHBOARD_PATH)
+  if (own) {
+    answer(response, own)
+    return
+  }
+  const behaviors = [...EXPORT_PATHS].filter((path) => path !== ENDPOINTS.focus).map((path) => overrides.get(path) ?? baselineFor(path))
+  if (behaviors.some((behavior) => behavior.kind === 'suppress')) {
+    answer(response, {kind: 'suppress'})
+    return
+  }
+  const {compose} = (await import(COMPOSER.href)) as {compose: (input: unknown) => Promise<{ok: boolean; artifact?: unknown}>}
+  const clock = request.headers['x-ssr-clock']
+  const nowMs = typeof clock === 'string' ? Date.parse(clock) : DEFAULT_GENERATED_AT === 'original' ? Date.parse(FIXTURE_NOW) : Date.now()
+  const keys = Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus')
+  const result = await compose({
+    exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
+    focus: exportBody(ENDPOINTS.focus),
+    nowMs,
+    localCovers: mirroredBookCovers(),
+    web: JSON.parse(readFileSync(new URL('../../node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version
+  })
+  if (!result.ok) {
+    send(response, 404, '{}')
+    return
+  }
+  send(response, 200, JSON.stringify(result.artifact))
+}
+
 const server = createServer((request, response) => {
   const path = new URL(request.url ?? '/', 'http://data-plane.invalid').pathname
   if (path.startsWith(`${CONTROL_PREFIX}/`)) {
     control(request, response, path.slice(CONTROL_PREFIX.length)).catch((error: unknown) => send(response, 500, JSON.stringify({error: String(error)})))
+    return
+  }
+  if (request.method === 'GET' && path === DASHBOARD_PATH) {
+    requests.push(path)
+    dashboard(request, response).catch((error: unknown) => send(response, 500, JSON.stringify({error: String(error)})))
     return
   }
   if (request.method !== 'GET' || !EXPORT_PATHS.has(path)) {

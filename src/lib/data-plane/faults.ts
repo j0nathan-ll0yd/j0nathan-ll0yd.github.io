@@ -140,3 +140,34 @@ export function faultyFetch(fault: Fault, base: typeof fetch = fetch): typeof fe
     }), {status: response.status, statusText: response.statusText, headers: response.headers})
   }
 }
+
+/** The request header that reads the fixture data plane (FIXTURE_DATA_PLANE) instead of CloudFront. */
+export const SSR_DATA_PLANE_HEADER = 'X-SSR-Data-Plane'
+
+/**
+ * A fixed, public, value-free test location for the Step 6.10 measurement of the serving path: the
+ * website repository's own fixture data plane (tests/fixtures/composed/), served by GitHub. It holds a
+ * focus signal and a composed artifact built from the design system's fixtures, never live data.
+ */
+export const FIXTURE_DATA_PLANE = 'https://raw.githubusercontent.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/0160-pr-b-ssr/tests/fixtures/composed'
+
+/**
+ * The fixture data plane for one request, or null (the same two locks as a fault). Its responses
+ * carry no `x-amz-cf-id`, so its fetch stamps one: the admission rules then treat the fixture as a
+ * gate answer, which is what the measurement exercises.
+ */
+export function fixturePlane(request: Request, enabled: unknown): {base: string; fetch: typeof fetch} | null {
+  if (enabled !== '1' || !faultableHost(new URL(request.url).hostname) || request.headers.get(SSR_DATA_PLANE_HEADER) !== 'fixture') {
+    return null
+  }
+  return {
+    base: FIXTURE_DATA_PLANE,
+    fetch: async (input, init) => {
+      const response = await fetch(input, init)
+      const headers = new Headers(response.headers)
+      headers.set('x-amz-cf-id', 'fixture-data-plane')
+      headers.delete('cf-cache-status')
+      return new Response(response.body, {status: response.status, statusText: response.statusText, headers})
+    }
+  }
+}

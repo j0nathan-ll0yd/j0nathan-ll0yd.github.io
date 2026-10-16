@@ -1,21 +1,40 @@
-// One request's data-plane read and render clock (atlas decision 0160, PR B). The test seams apply
-// here and only here: the fixture data plane (DATA_PLANE_BASE), the Step 6.10 fault and the fixed
-// render clock, each only on a preview or loopback host (./config.ts, ./faults.ts).
+// One request's data-plane read and serving clock (atlas decision 0160, PR B). The test seams apply
+// here and only here, each only on a preview or loopback host with SSR_FAULT_INJECTION=1
+// (./config.ts, ./faults.ts): the fixture data plane (DATA_PLANE_BASE or X-SSR-Data-Plane), the Step
+// 6.10 faults and the fixed serving clock.
+import {type ComposedRead, readComposed} from '../composed/read'
+import type {Upstream} from '../edge/proxy'
+import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
 import {DATA_PLANE_BASE_VAR, requestDataPlaneBase} from './config'
-import {faultableHost, faultyFetch, requestClock, requestFault, SSR_FAULT_VAR} from './faults'
-import {type DashboardLoad, loadDashboard} from './loader'
+import {faultableHost, faultyFetch, fixturePlane, requestClock, requestFault, SSR_CLOCK_HEADER, SSR_FAULT_VAR} from './faults'
 
 /** The Worker variables the server render reads. */
 export type RenderVars = Readonly<Record<string, unknown>>
 
-export function loadForRequest(request: Request, vars: RenderVars): Promise<DashboardLoad> {
+declare const __WEB_VERSION__: string | undefined
+/** The design-system version this website was built with; a composed artifact must name the same. */
+export const WEB_VERSION = typeof __WEB_VERSION__ === 'undefined' ? 'unknown' : __WEB_VERSION__
+
+export function readForRequest(request: Request, vars: RenderVars, nowMs: number, waitUntil: (promise: Promise<unknown>) => void): Promise<ComposedRead> {
+  const fixture = fixturePlane(request, vars[SSR_FAULT_VAR])
   // A fixture data plane only on a preview or loopback host; production always reads CloudFront.
-  const base = requestDataPlaneBase(request, vars[DATA_PLANE_BASE_VAR], faultableHost)
+  const base = fixture?.base ?? requestDataPlaneBase(request, vars[DATA_PLANE_BASE_VAR], faultableHost)
   const fault = requestFault(request, vars[SSR_FAULT_VAR])
-  return loadDashboard({base, ...(fault ? {fetch: faultyFetch(fault)} : {})})
+  const clock = requestClock(request, vars[SSR_FAULT_VAR])
+  const plain = fixture?.fetch ?? fetch
+  // A fixed test clock travels to a fixture data plane, which composes at the same instant. Only a
+  // preview or loopback host with the seams enabled ever has one (requestClock).
+  const transport: typeof fetch = clock === null ? plain : (input, init) => {
+    const headers = new Headers(init?.headers)
+    headers.set(SSR_CLOCK_HEADER, new Date(clock).toISOString())
+    return plain(input, {...init, headers})
+  }
+  const testSeam = fixture !== null || fault !== null || clock !== null || base !== CLOUDFRONT_BASE
+  const upstream: Upstream | undefined = testSeam ? {base, fetch: fault ? faultyFetch(fault, transport) : transport} : undefined
+  return readComposed({request, waitUntil, nowMs, renderer: {web: WEB_VERSION}, ...(upstream ? {upstream} : {})})
 }
 
-/** Date.now(), or the fixed clock the visual suite sends (X-SSR-Clock). */
+/** Date.now(), or the fixed clock a test sends (X-SSR-Clock). */
 export function renderClock(request: Request, vars: RenderVars): number {
   return requestClock(request, vars[SSR_FAULT_VAR]) ?? Date.now()
 }
