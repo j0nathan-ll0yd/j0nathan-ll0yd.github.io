@@ -17,17 +17,19 @@
 // be used, the data-free page answers with the same summary.
 //
 // The whole answer is bounded by SSR_CEILING_MS (D2) and buffered, so a failure becomes a clean 500
-// page (D13) and every data state answers 200, with no edge or browser cache (D3). One value-free
+// page (D13) and every data state answers 200, with no edge cache (D3); the composed page is no-store
+// in the browser too (COMPOSED_CACHE_HEADERS). One value-free
 // `ssr_render` log line per request (Step 4.6).
 //
 // `HEAD /` answers from the data-free page's headers and reads no data. It omits `X-SSR-Data`, whose
 // value exists only once a body is chosen (RFC 9110 section 9.3.2 allows that).
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
-import type {ValueFreeSet} from '../composed/artifact'
+import type {CheckedValueFreeSet} from '../composed/artifact'
 import type {ComposedRead} from '../composed/read'
-import {assemble, scopesMatch, type Shell, shellFor} from '../composed/shell'
+import {assemble, fitsShell, type Shell, shellFor} from '../composed/shell'
 import {valueFreeVariant} from '../composed/value-free'
 import {DATA_FREE_PAGE_PATH} from '../composed/paths'
+import {LLM_OUTPUT_CACHE_POLICY} from '../edge/proxy'
 import {BUILD_ID} from './build'
 import type {SsrRenderRecord} from './render-model'
 
@@ -42,14 +44,27 @@ export const SSR_DATA_HEADER = 'X-SSR-Data'
 export const SSR_CEILING_MS = 3_000
 
 /**
- * The cache policy of every answer to `/`, data-bearing or not (D3: no edge HTML cache). `no-cache`
- * lets a browser keep the document for back/forward navigation but never reuse it unrevalidated;
- * the two CDN headers keep every shared cache from storing it.
+ * The cache policy of an answer to `/` that carries no data value: the data-free page and the
+ * value-free pages (D3: no edge HTML cache). `no-cache` lets a browser keep the document for
+ * back/forward navigation but never reuse it unrevalidated; the two CDN headers keep every shared
+ * cache from storing it.
  */
 export const DASHBOARD_CACHE_HEADERS: readonly (readonly [string, string])[] = Object.freeze([
   ['Cache-Control', 'no-cache'],
   ['CDN-Cache-Control', 'no-store'],
   ['Cloudflare-CDN-Cache-Control', 'no-store']
+])
+
+/**
+ * The cache policy of the composed page, which carries gated values: no-store at the browser, the
+ * generic CDN and Cloudflare, the policy of every gated proxy route (src/lib/edge/proxy.ts
+ * LLM_OUTPUT_CACHE_POLICY). `no-cache` let a browser write the values to disk and replay them from
+ * history or session restore after the focus value turned hiding (review 2026-10-16, M1).
+ */
+export const COMPOSED_CACHE_HEADERS: readonly (readonly [string, string])[] = Object.freeze([
+  ['Cache-Control', LLM_OUTPUT_CACHE_POLICY.cacheControl],
+  ['CDN-Cache-Control', LLM_OUTPUT_CACHE_POLICY.cdnCacheControl ?? LLM_OUTPUT_CACHE_POLICY.cacheControl],
+  ['Cloudflare-CDN-Cache-Control', LLM_OUTPUT_CACHE_POLICY.cdnCacheControl ?? LLM_OUTPUT_CACHE_POLICY.cacheControl]
 ])
 
 /** Headers of a static file that must not describe a per-request document. */
@@ -69,7 +84,7 @@ export interface DashboardRenderDeps {
   /** Overrides the shell, for tests that run outside workerd (Node has no HTMLRewriter). */
   shell?: () => Promise<Shell>
   /** The build's value-free pages (src/lib/composed/value-free.ts), or null when they cannot be used. */
-  valueFree?: () => Promise<ValueFreeSet | null>
+  valueFree?: () => Promise<CheckedValueFreeSet | null>
 }
 
 /** The fields of one `ssr_render` log line. No field carries a data value. */
@@ -92,12 +107,12 @@ function logRender(line: SsrLogLine): void {
   logger.info('ssr_render', line)
 }
 
-function withDashboardHeaders(source: Headers, summary: string | null): Headers {
+function withDashboardHeaders(source: Headers, summary: string | null, policy = DASHBOARD_CACHE_HEADERS): Headers {
   const headers = new Headers(source)
   for (const name of ASSET_VALIDATORS) {
     headers.delete(name)
   }
-  for (const [name, value] of DASHBOARD_CACHE_HEADERS) {
+  for (const [name, value] of policy) {
     headers.set(name, value)
   }
   // Pages served the document with its charset; Astro's on-demand response and the asset plane omit it.
@@ -137,19 +152,23 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
         return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-missing`, ioMs}
       }
       const shell = await shellOf(deps)
-      if (!scopesMatch(shell, page.fragments)) {
-        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-scopes`, ioMs}
+      const misfit = fitsShell(shell, page.facts)
+      if (misfit !== null) {
+        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-${misfit}`, ioMs}
       }
       return {kind: 'value-free', body: assemble(shell, page.fragments, summary), headers: shell.headers, summary, focus, artifact, ioMs}
     }
     if (read.kind !== 'ok') {
-      const reason = read.kind === 'refused' ? `refused:${read.refusal}` : `unavailable:http-${read.status}`
+      const reason = read.kind === 'unavailable'
+        ? `unavailable:http-${read.status}`
+        : `refused:${read.refusal}${read.detail === undefined ? '' : `:${read.detail}`}`
       return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: reason, ioMs}
     }
     const shell = await shellOf(deps)
     const value = read.artifact
-    if (!scopesMatch(shell, value.fragments)) {
-      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: 'refused:scopes', ioMs}
+    const misfit = fitsShell(shell, read.facts)
+    if (misfit !== null) {
+      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: `refused:${misfit}`, ioMs}
     }
     return {
       kind: 'composed',
@@ -228,7 +247,7 @@ async function answerDashboard(request: Request, deps: DashboardRenderDeps): Pro
       render_ms: Math.max(0, totalMs - outcome.ioMs),
       composed_age_ms: outcome.ageMs
     })
-    return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.headers, outcome.summary)})
+    return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.headers, outcome.summary, COMPOSED_CACHE_HEADERS)})
   }
   if (outcome.kind === 'value-free') {
     logRender({

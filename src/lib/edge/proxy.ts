@@ -741,6 +741,17 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
   return suppressionResponse(method)
 }
 
+/**
+ * The share of the request budget the artifact attempts may spend. A route with a last-known-good
+ * copy keeps LKG_READ_RESERVE_MS back for the cache read; a route without one (the focus signal,
+ * the composed dashboard) has nothing to reserve for, so its artifact read gets the whole remainder
+ * after the focus probe (review 2026-10-16, I1: the dashboard's 2.5 s budget left the artifact
+ * about 1.5 s).
+ */
+export function artifactBudget(budget: RequestBudget, hasLastKnownGood: boolean): RequestBudget {
+  return hasLastKnownGood ? reserving(budget, LKG_READ_RESERVE_MS) : budget
+}
+
 /** Builds an onRequest handler that proxies one CloudFront artifact resiliently. */
 export function makeCloudfrontProxy(
   {path, contentType, cachePolicy = GATED_ARTIFACT_CACHE_POLICY, lastKnownGood = true}: CloudfrontProxyConfig
@@ -782,7 +793,7 @@ export function makeCloudfrontProxy(
     // sibling read just consulted.
     const cache = isFocusSignal || !lastKnownGood ? undefined : defaultCache()
     const cacheKey = lkgCacheKey(context.request, path)
-    const upstream = await fetchWithRetry(upstreamUrl, path, reserving(budget, LKG_READ_RESERVE_MS), source.fetch)
+    const upstream = await fetchWithRetry(upstreamUrl, path, artifactBudget(budget, cache !== undefined), source.fetch)
 
     if (upstream.ok) {
       const response = publicResponse(upstream, contentType, cachePolicy)

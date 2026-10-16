@@ -11,6 +11,7 @@ import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {WIDGET_STATES, type WidgetState} from '@j0nathan-ll0yd/web/runtime/widget-state'
 import type {GatedKey} from '../data-plane/loader'
 import type {LiveCardId, SsrRenderRecord, SsrSummary} from '../data-plane/render-model'
+import {checkFragment, type FragmentOptions, type FragmentRejection} from './fragment-policy'
 
 /** The artifact's path on the data plane, beside the exports. Gated (SUPPRESSIBLE_PATHS in LP). */
 export const COMPOSED_ARTIFACT_PATH = '/dashboard.json'
@@ -36,6 +37,17 @@ export const COMPOSED_EDGE_TTL_MS = 30 * 1000
 export const COMPOSED_MAX_AGE_MS = 2 * COMPOSER_BACKSTOP_MS + COMPOSER_RUN_TIMEOUT_MS + COMPOSED_EDGE_TTL_MS
 /** A composition stamp this far ahead of the Worker's clock is malformed, not skewed. */
 export const COMPOSED_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
+
+/**
+ * The largest artifact the Worker reads: 128 KiB. Measured 2026-10-16: the committed fixture is
+ * 53,757 bytes, the largest oracle scenario 79,245 and the live artifact 78,092. The cap bounds the
+ * fragment check's CPU on Workers Free: a hostile artifact at the cap costs about 4 ms cold, where
+ * 1 MB cost seconds before the check was linear (review 2026-10-16).
+ */
+export const COMPOSED_MAX_BYTES = 128 * 1024
+
+/** A value-free page names no source age, and shows its hiding value's overlay. */
+export const VALUE_FREE_FRAGMENT_OPTIONS: FragmentOptions = Object.freeze({maxGeneratedAtMs: null, overlayMayShow: true})
 
 /** The elements of the data-free page an artifact replaces, by id: each is its component's root element. */
 export const COMPOSED_FRAGMENT_IDS = Object.freeze([
@@ -84,6 +96,25 @@ export interface ValueFreePage {
   fragments: Record<ComposedFragmentId, string>
 }
 
+/** A value-free page the Worker checked, with what the allowlist read from its fragments (./fragment-policy.ts). */
+export interface CheckedValueFreePage extends ValueFreePage {
+  facts: ArtifactFacts
+}
+
+/** One variant of a checked set: its fragments are checked on first use (`checkedVariant`). */
+export interface ValueFreeEntry {
+  page: ValueFreePage
+  checked?: CheckedValueFreePage | null
+}
+
+/** Every id an artifact's fragments carry, and each fragment's scoped-style hashes, for the shell check (./shell.ts `fitsShell`). */
+export interface ArtifactFacts {
+  ids: ReadonlySet<string>
+  scopes: Readonly<Record<ComposedFragmentId, ReadonlySet<string>>>
+  /** Each fragment root's class tokens and scoped-style hash: its shape against its slot's. */
+  roots: Readonly<Record<ComposedFragmentId, {classes: ReadonlySet<string>; scopes: ReadonlySet<string>}>>
+}
+
 export interface ValueFreeSet {
   /** The build that composed the set; it must be the Worker's own. */
   build: string
@@ -91,8 +122,27 @@ export interface ValueFreeSet {
   variants: Record<string, ValueFreePage>
 }
 
+/**
+ * The value-free set as the Worker read it: its build and every variant's shape are checked at
+ * once; each variant's fragments when it is first served (`checkedVariant`), so a cold isolate
+ * pays for one variant, not four.
+ */
+export interface CheckedValueFreeSet {
+  build: string
+  variants: Record<string, ValueFreeEntry>
+}
+
+/** The variant's checked page, or null when its fragments fail the allowlist. Checked once per set. */
+export function checkedVariant(entry: ValueFreeEntry): CheckedValueFreePage | null {
+  if (entry.checked === undefined) {
+    const checked = checkFragments(entry.page.fragments, VALUE_FREE_FRAGMENT_OPTIONS)
+    entry.checked = checked.ok ? {summary: entry.page.summary, fragments: checked.fragments, facts: checked.facts} : null
+  }
+  return entry.checked
+}
+
 /** The value-free set, when this website built it; otherwise null (the Worker then serves the data-free page). */
-export function checkValueFree(text: string, build: string, required: readonly string[]): ValueFreeSet | null {
+export function checkValueFree(text: string, build: string, required: readonly string[]): CheckedValueFreeSet | null {
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -102,29 +152,20 @@ export function checkValueFree(text: string, build: string, required: readonly s
   if (!isRecord(value) || value.build !== build || !isRecord(value.variants)) {
     return null
   }
-  const variants: Record<string, ValueFreePage> = {}
+  const variants: Record<string, ValueFreeEntry> = {}
   for (const key of required) {
     const page = value.variants[key]
     if (!isRecord(page) || (page.summary !== 'suppressed' && page.summary !== 'unavailable') || !isRecord(page.fragments)) {
       return null
     }
-    const fragments = checkFragments(page.fragments)
-    if (fragments === null) {
+    const fragments = page.fragments
+    if (!COMPOSED_FRAGMENT_IDS.every((id) => typeof fragments[id] === 'string')) {
       return null
     }
-    variants[key] = {summary: page.summary, fragments}
+    // Every id was checked to be a string above.
+    variants[key] = {page: {summary: page.summary, fragments: fragments as Record<ComposedFragmentId, string>}}
   }
   return {build, variants}
-}
-
-/**
- * True when `fragment` opens with the element it replaces (the first tag carries `id`) and closes
- * that tag's kind. The composer's parity oracle proves the stronger property, the root and at most
- * its hidden data carrier (tests/oracle/composer-parity.test.ts); this is the Worker's cheap guard.
- */
-export function opensWithRoot(fragment: string, id: string): boolean {
-  const open = /^<([a-z][a-z0-9-]*)\b[^>]*>/i.exec(fragment)
-  return open !== null && open[0].includes(` id="${id}"`) && fragment.endsWith(`</${open[1]}>`)
 }
 
 /**
@@ -170,25 +211,66 @@ function checkRecord(value: Record<string, unknown>): SsrRenderRecord | null {
   }
 }
 
-/** Markup a fragment never carries: the page loads its own scripts and styles. */
-const FOREIGN_MARKUP = /<(?:script|style|link|meta|base)\b/i
+type FragmentsCheck =
+  | {ok: true; fragments: Record<ComposedFragmentId, string>; facts: ArtifactFacts}
+  | {ok: false; detail: `${ComposedFragmentId}:${FragmentRejection | 'missing'}`}
 
-/** Every fragment id, each opening with its own root element, with no script, style or link; otherwise null. */
-function checkFragments(value: Record<string, unknown>): Record<ComposedFragmentId, string> | null {
+/**
+ * Every fragment id, each admitted by the allowlist (./fragment-policy.ts), with no id carried
+ * twice across the artifact. Otherwise the first fragment refused and why: a closed set, safe for
+ * the log line.
+ */
+function checkFragments(value: Record<string, unknown>, options: FragmentOptions): FragmentsCheck {
   const fragments: Partial<Record<ComposedFragmentId, string>> = {}
+  const ids = new Set<string>()
+  const scopes: Partial<Record<ComposedFragmentId, ReadonlySet<string>>> = {}
+  const roots: Partial<Record<ComposedFragmentId, ArtifactFacts['roots'][ComposedFragmentId]>> = {}
   for (const id of COMPOSED_FRAGMENT_IDS) {
     const fragment = value[id]
-    if (typeof fragment !== 'string' || !opensWithRoot(fragment, id) || FOREIGN_MARKUP.test(fragment)) {
-      return null
+    if (typeof fragment !== 'string') {
+      return {ok: false, detail: `${id}:missing`}
     }
+    const checked = checkFragment(fragment, id, options)
+    if (!checked.ok) {
+      return {ok: false, detail: `${id}:${checked.reason}`}
+    }
+    for (const elementId of checked.facts.ids) {
+      // A card root id inside another fragment, or an id two fragments share, would let one
+      // fragment answer another card's getElementById.
+      if (ids.has(elementId) || (elementId !== id && (COMPOSED_FRAGMENT_IDS as readonly string[]).includes(elementId))) {
+        return {ok: false, detail: `${id}:id`}
+      }
+      ids.add(elementId)
+    }
+    scopes[id] = new Set(checked.facts.scopes)
+    roots[id] = {classes: new Set(checked.facts.root.classes), scopes: new Set(checked.facts.root.scopes)}
     fragments[id] = fragment
   }
   // Every id was checked in the loop above.
-  return fragments as Record<ComposedFragmentId, string>
+  return {
+    ok: true,
+    fragments: fragments as Record<ComposedFragmentId, string>,
+    facts: {ids, scopes: scopes as Record<ComposedFragmentId, ReadonlySet<string>>, roots: roots as ArtifactFacts['roots']}
+  }
+}
+
+/**
+ * The fragment check of the last artifact text this isolate read. The artifact changes once per
+ * composition (minutes apart) and the check costs about 1 ms warm and 4 to 5 ms in a cold isolate
+ * (Node, the 54 KB fixture), so every later request for the same bytes reuses the answer. Keyed on
+ * the whole text: a byte that differs is checked again.
+ */
+let lastFragments: {text: string; check: FragmentsCheck} | null = null
+
+function memoizedFragments(text: string, value: Record<string, unknown>, options: FragmentOptions): FragmentsCheck {
+  if (lastFragments?.text !== text) {
+    lastFragments = {text, check: checkFragments(value, options)}
+  }
+  return lastFragments.check
 }
 
 /** Why an artifact is not served. Value-free: safe for the log line. */
-export type ArtifactRefusal = 'not-json' | 'schema' | 'stale' | 'future' | 'build' | 'hiding' | 'fragments'
+export type ArtifactRefusal = 'oversize' | 'not-json' | 'schema' | 'stale' | 'future' | 'build' | 'hiding' | 'fragments'
 
 const SUMMARIES = new Set(['live', 'stale', 'partial', 'unavailable', 'suppressed'])
 const FOCUS_STATES = new Set(['visible', 'hiding', 'unreadable'])
@@ -205,14 +287,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * The artifact, when the Worker of build `build` may serve it at `nowMs`; otherwise the
  * reason it may not. Every field the Worker uses is checked; each fragment must be the element it
- * replaces, with no script, style or link (`checkFragments`).
+ * replaces, built only from the allowlist (`checkFragments`). A `fragments` refusal names the
+ * fragment and the closed-set reason in `detail`.
  */
 export function checkArtifact(
   text: string,
   nowMs: number,
   build: string,
   hidingModes: ReadonlySet<string>
-): {ok: true; artifact: ComposedArtifact} | {ok: false; refusal: ArtifactRefusal} {
+): {ok: true; artifact: ComposedArtifact; facts: ArtifactFacts} | {ok: false; refusal: ArtifactRefusal; detail?: string} {
+  if (text.length > COMPOSED_MAX_BYTES) {
+    return {ok: false, refusal: 'oversize'}
+  }
   let value: unknown
   try {
     value = JSON.parse(text)
@@ -245,9 +331,11 @@ export function checkArtifact(
   if (hidingModes.has(value.currentFocus) || value.summary === 'suppressed') {
     return {ok: false, refusal: 'hiding'}
   }
-  const fragments = checkFragments(value.fragments)
-  if (fragments === null) {
-    return {ok: false, refusal: 'fragments'}
+  // The composer stamps every card's source age before its own composition stamp; a later one would
+  // freeze the card, because the client repaints only from a strictly newer stamp.
+  const fragments = memoizedFragments(text, value.fragments, {maxGeneratedAtMs: composedMs + COMPOSED_MAX_FUTURE_SKEW_MS, overlayMayShow: false})
+  if (!fragments.ok) {
+    return {ok: false, refusal: 'fragments', detail: fragments.detail}
   }
   const record = checkRecord(value.record)
   if (record === null) {
@@ -263,7 +351,8 @@ export function checkArtifact(
       // Checked against the closed set above.
       summary: value.summary as SsrSummary,
       record,
-      fragments
-    }
+      fragments: fragments.fragments
+    },
+    facts: fragments.facts
   }
 }

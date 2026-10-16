@@ -28,6 +28,13 @@ interface HTMLRewriterElement {
   setInnerContent(content: string, options?: HTMLRewriterContentOptions): HTMLRewriterElement
   remove(): HTMLRewriterElement
   removeAndKeepContent(): HTMLRewriterElement
+  onEndTag(handler: (tag: HTMLRewriterEndTag) => void | Promise<void>): void
+}
+interface HTMLRewriterEndTag {
+  name: string
+  before(content: string, options?: HTMLRewriterContentOptions): HTMLRewriterEndTag
+  after(content: string, options?: HTMLRewriterContentOptions): HTMLRewriterEndTag
+  remove(): HTMLRewriterEndTag
 }
 interface HTMLRewriterTextChunk {
   readonly text: string

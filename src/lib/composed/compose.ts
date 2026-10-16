@@ -44,15 +44,17 @@ import {
 } from '../data-plane/loader'
 import {type DashboardRender, toDashboardRender} from '../data-plane/render-model'
 import {
+  COMPOSED_MAX_FUTURE_SKEW_MS,
   COMPOSED_SCHEMA_VERSION,
   type ComposedArtifact,
   type ComposedFragmentId,
   GATE_VARIANT,
-  opensWithRoot,
   UNREADABLE_VARIANT,
+  VALUE_FREE_FRAGMENT_OPTIONS,
   type ValueFreePage,
   type ValueFreeSet
 } from './artifact'
+import {checkFragment, type FragmentOptions} from './fragment-policy'
 import {COMPOSER_CONTRACT} from './paths'
 
 declare const __SSR_BUILD_ID__: string | undefined
@@ -136,7 +138,7 @@ async function composeLoad(load: DashboardLoad, currentFocus: string, nowMs: num
     currentFocus,
     summary: render.summary,
     record: render.record,
-    fragments: await renderFragments(render.vm, localCovers)
+    fragments: await renderFragments(render.vm, localCovers, {maxGeneratedAtMs: nowMs + COMPOSED_MAX_FUTURE_SKEW_MS, overlayMayShow: false})
   }
 }
 
@@ -183,7 +185,11 @@ export async function composeDashboard(options: ComposeDashboardOptions = {}): P
 }
 
 /** The thirteen fragments for one set of view models, rendered by the design system's components. */
-async function renderFragments(vm: DashboardRender['vm'], localCovers: readonly string[]): Promise<Record<ComposedFragmentId, string>> {
+async function renderFragments(
+  vm: DashboardRender['vm'],
+  localCovers: readonly string[],
+  options: FragmentOptions
+): Promise<Record<ComposedFragmentId, string>> {
   container ??= await AstroContainer.create()
   const parts: [ComposedFragmentId, unknown, object][] = [
     ['focusOverlay', FocusOverlay, vm.focusOverlay],
@@ -204,7 +210,7 @@ async function renderFragments(vm: DashboardRender['vm'], localCovers: readonly 
   for (const [id, Component, props] of parts) {
     // The production components are Astro components; the container renders each with its props.
     const rendered = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
-    fragments[id] = rootOnly(id, rendered)
+    fragments[id] = rootOnly(id, rendered, options)
   }
   // Every id was rendered in the loop above.
   return fragments as Record<ComposedFragmentId, string>
@@ -215,12 +221,14 @@ async function renderFragments(vm: DashboardRender['vm'], localCovers: readonly 
  * hidden data carrier a component emits beside it (Hydration's `#cardHydrationData`). The container
  * appends each module script as a sibling, with a `src` that names this machine's source path; the
  * website page already loads the built, hashed scripts, so a fragment carries none (atlas decision
- * 0160, PR B review H1). The parity oracle proves nothing else sits beside the root.
+ * 0160, PR B review H1). The fragment must pass the Worker's own allowlist (./fragment-policy.ts),
+ * so the composer never publishes an artifact the Worker would refuse.
  */
-function rootOnly(id: ComposedFragmentId, rendered: string): string {
+function rootOnly(id: ComposedFragmentId, rendered: string, options: FragmentOptions): string {
   const fragment = rendered.replace(MODULE_SCRIPT, '').trim()
-  if (!opensWithRoot(fragment, id) || /<(?:script|style|link)\b/i.test(fragment)) {
-    throw new Error(`the ${id} component rendered markup a fragment may not carry`)
+  const checked = checkFragment(fragment, id, options)
+  if (!checked.ok) {
+    throw new Error(`the ${id} component rendered markup the Worker's allowlist refuses (${checked.reason})`)
   }
   return fragment
 }
@@ -242,7 +250,7 @@ async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: 
   if (render.summary !== 'suppressed' && render.summary !== 'unavailable') {
     throw new Error(`value-free state ${state.kind} rendered the summary ${render.summary}`)
   }
-  return {summary: render.summary, fragments: await renderFragments(vm, localCovers)}
+  return {summary: render.summary, fragments: await renderFragments(vm, localCovers, VALUE_FREE_FRAGMENT_OPTIONS)}
 }
 
 /**

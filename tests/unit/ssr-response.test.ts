@@ -7,16 +7,19 @@
 // HTMLRewriter, so the shell is a precut stub here.
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
+  type ArtifactFacts,
+  type CheckedValueFreeSet,
   COMPOSED_FRAGMENT_IDS,
   type ComposedArtifact,
   type ComposedFragmentId,
   GATE_VARIANT,
   UNREADABLE_VARIANT,
-  type ValueFreeSet
+  type ValueFreeEntry
 } from '../../src/lib/composed/artifact'
 import type {ComposedRead} from '../../src/lib/composed/read'
 import type {Shell} from '../../src/lib/composed/shell'
 import {
+  COMPOSED_CACHE_HEADERS,
   DASHBOARD_CACHE_HEADERS,
   type DashboardRenderDeps,
   DATA_FREE_PAGE_PATH,
@@ -29,6 +32,17 @@ import {
 
 const NOW = Date.parse('2026-10-15T12:00:00.000Z')
 const SCOPE = 'data-astro-cid-abc12345'
+/** An id the shell's own page keeps outside the replaced elements. */
+const SHELL_ID = 'identityName'
+
+/** What the allowlist check reads from fragments built by `fragmentsOf` (src/lib/composed/fragment-policy.ts). */
+function factsOf(scope = SCOPE, ids: string[] = [...COMPOSED_FRAGMENT_IDS]): ArtifactFacts {
+  return {
+    ids: new Set(ids),
+    scopes: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, new Set([scope])])) as ArtifactFacts['scopes'],
+    roots: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, {classes: new Set<string>(), scopes: new Set([scope])}])) as ArtifactFacts['roots']
+  }
+}
 
 function artifact(summary: ComposedArtifact['summary'] = 'live', scope = SCOPE): ComposedArtifact {
   const fragments = Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, `<div id="${id}" ${scope}>${id}-value</div>`])) as Record<
@@ -51,7 +65,9 @@ function artifact(summary: ComposedArtifact['summary'] = 'live', scope = SCOPE):
 const SHELL: Shell = {
   pieces: ['<html><head><meta name="robots" content="index">', ...COMPOSED_FRAGMENT_IDS.map(() => '|'), '</body></html>'],
   slots: ['summary', ...COMPOSED_FRAGMENT_IDS],
-  scopes: new Set([SCOPE]),
+  scopes: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, new Set([SCOPE])])) as Shell['scopes'],
+  roots: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, {firstClass: null, scopes: new Set([SCOPE])}])) as Shell['roots'],
+  ids: new Set([SHELL_ID]),
   headers: new Headers({'Content-Type': 'text/html', ETag: '"page"'})
 }
 
@@ -64,14 +80,20 @@ function fragmentsOf(label: string, scope = SCOPE): Record<ComposedFragmentId, s
   return Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, `<div id="${id}" ${scope}>${label}</div>`])) as Record<ComposedFragmentId, string>
 }
 
+/** A value-free variant whose fragments the Worker already checked (src/lib/composed/artifact.ts checkedVariant). */
+function checkedEntry(summary: 'suppressed' | 'unavailable', label: string, scope = SCOPE, ids?: string[]): ValueFreeEntry {
+  const page = {summary, fragments: fragmentsOf(label, scope)}
+  return {page, checked: {...page, facts: factsOf(scope, ids)}}
+}
+
 /** The build's value-free set: one page per hiding value, the gate and an unreadable focus. */
-const VALUE_FREE: ValueFreeSet = {
-  composer: {build: 'test'},
+const VALUE_FREE: CheckedValueFreeSet = {
+  build: 'test',
   variants: {
-    Work: {summary: 'suppressed', fragments: fragmentsOf('work-overlay')},
-    'Do Not Disturb': {summary: 'suppressed', fragments: fragmentsOf('dnd-overlay')},
-    [GATE_VARIANT]: {summary: 'suppressed', fragments: fragmentsOf('gate-no-overlay')},
-    [UNREADABLE_VARIANT]: {summary: 'unavailable', fragments: fragmentsOf('all-unavailable')}
+    Work: checkedEntry('suppressed', 'work-overlay'),
+    'Do Not Disturb': checkedEntry('suppressed', 'dnd-overlay'),
+    [GATE_VARIANT]: checkedEntry('suppressed', 'gate-no-overlay'),
+    [UNREADABLE_VARIANT]: checkedEntry('unavailable', 'all-unavailable')
   }
 }
 
@@ -111,7 +133,7 @@ afterEach(() => {
 
 describe('GET /: the composed page', () => {
   it('splices the admitted artifact into the shell and names its summary', async () => {
-    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact()})).deps)
+    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf()})).deps)
     const body = await response.text()
     expect(response.status).toBe(200)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('live')
@@ -123,14 +145,18 @@ describe('GET /: the composed page', () => {
 
   // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
   it.each(['stale', 'partial', 'unavailable'] as const)('answers 200 for the %s summary too (D13)', async (summary) => {
-    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(summary)})).deps)
+    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(summary), facts: factsOf()})).deps)
     expect(response.status).toBe(200)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
   })
 
-  it('never stores the document at the edge (D3), keeps the charset and drops asset validators', async () => {
-    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact()})).deps)
-    for (const [name, value] of DASHBOARD_CACHE_HEADERS) {
+  // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
+  it('never stores the composed document anywhere, the browser included (D3; review 2026-10-16, M1)', async () => {
+    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf()})).deps)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Cloudflare-CDN-Cache-Control')).toBe('no-store')
+    for (const [name, value] of COMPOSED_CACHE_HEADERS) {
       expect(response.headers.get(name), name).toBe(value)
     }
     expect(response.headers.get('Content-Type')).toBe('text/html; charset=utf-8')
@@ -138,7 +164,8 @@ describe('GET /: the composed page', () => {
   })
 
   it('refuses a fragment whose scoped-style hash the website does not carry', async () => {
-    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact('live', 'data-astro-cid-zzzzzzzz')})).deps)
+    const response = await renderDashboard(REQUEST,
+      deps(async () => ({kind: 'ok', artifact: artifact('live', 'data-astro-cid-zzzzzzzz'), facts: factsOf('data-astro-cid-zzzzzzzz')})).deps)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
     expect(await response.text()).toBe('data-free page')
   })
@@ -146,7 +173,7 @@ describe('GET /: the composed page', () => {
   // covers: dashboard-ssr#Each render logs one value-free line
   it('logs one value-free ssr_render line', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
-    await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact()})).deps)
+    await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf()})).deps)
     const [line] = logLines(info)
     expect(line).toMatchObject({
       message: 'ssr_render',
@@ -162,6 +189,7 @@ describe('GET /: the composed page', () => {
 })
 
 describe('GET /: the data-free page, with an honest summary', () => {
+  // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
   it.each([
     [{kind: 'suppressed', currentFocus: 'Work'}, 'suppressed'],
     [{kind: 'focus-unreadable'}, 'unavailable'],
@@ -172,6 +200,10 @@ describe('GET /: the data-free page, with an honest summary', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
     expect(await response.text()).toBe('data-free page')
+    // The data-free page carries no data value: it keeps the no-cache policy.
+    for (const [name, value] of DASHBOARD_CACHE_HEADERS) {
+      expect(response.headers.get(name), name).toBe(value)
+    }
   })
 })
 
@@ -209,7 +241,7 @@ describe('GET /: the value-free pages', () => {
   it('refuses a value-free page whose scoped-style hash the website does not carry', async () => {
     const foreign: ValueFreeSet = {
       ...VALUE_FREE,
-      variants: {...VALUE_FREE.variants, Work: {summary: 'suppressed', fragments: fragmentsOf('work-overlay', 'data-astro-cid-zzzzzzzz')}}
+      variants: {...VALUE_FREE.variants, Work: checkedEntry('suppressed', 'work-overlay', 'data-astro-cid-zzzzzzzz')}
     }
     const response = await renderDashboard(REQUEST, withValueFree({kind: 'suppressed', currentFocus: 'Work'}, foreign))
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
@@ -258,7 +290,7 @@ describe('GET /: a failure (D13)', () => {
 describe('HEAD /', () => {
   // covers: dashboard-ssr#HEAD reads no data
   it('answers from the data-free page headers and reads nothing', async () => {
-    const {deps: d, calls} = deps(async () => ({kind: 'ok', artifact: artifact()}))
+    const {deps: d, calls} = deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf()}))
     const response = await headDashboard(d)
     expect(calls.reads).toBe(0)
     expect(response.status).toBe(200)
@@ -284,9 +316,42 @@ describe("GET /: the log line keeps the Worker's own fields (review M3)", () => 
       ...artifact(),
       record: {...artifact().record, event: 'spoofed', build: 'spoofed', total_ms: -1} as unknown as ComposedArtifact['record']
     }
-    await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: spoofed})).deps)
+    await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: spoofed, facts: factsOf()})).deps)
     const [line] = logLines(info)
     expect(line).toMatchObject({event: 'ssr_render', build: 'test'})
     expect(line?.total_ms).not.toBe(-1)
+  })
+})
+
+describe('GET /: the fragment allowlist (review 2026-10-16, H1)', () => {
+  // covers: dashboard-ssr#The Worker splices only allowlisted markup
+  it('serves the data-free page and logs the closed-set reason when the read refuses a fragment', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'refused', refusal: 'fragments', detail: 'cardHR:element'})).deps)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
+    expect(await response.text()).toBe('data-free page')
+    const [line] = logLines(info)
+    expect(line).toMatchObject({served: 'data-free', artifact: 'refused:fragments:cardHR:element'})
+  })
+
+  it('refuses a fragment that carries an id the page keeps outside the cards', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const response = await renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf(SCOPE, ['cardHR', SHELL_ID])})).deps)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
+    expect(await response.text()).toBe('data-free page')
+    expect(logLines(info)[0]).toMatchObject({artifact: 'refused:ids'})
+  })
+
+  it('refuses a value-free page that carries an id the page keeps', async () => {
+    const clobbering: CheckedValueFreeSet = {
+      ...VALUE_FREE,
+      variants: {...VALUE_FREE.variants, Work: checkedEntry('suppressed', 'work-overlay', SCOPE, [SHELL_ID])}
+    }
+    const response = await renderDashboard(REQUEST, {
+      ...deps(async () => ({kind: 'suppressed', currentFocus: 'Work'})).deps,
+      valueFree: async () => clobbering
+    })
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
+    expect(await response.text()).toBe('data-free page')
   })
 })

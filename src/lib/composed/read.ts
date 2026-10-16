@@ -6,7 +6,7 @@
 // last-known-good copy (decision 0160 D3). This module only classifies the proxy's answer.
 import {HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {makeCloudfrontProxy, SUPPRESSION_SOURCE, type Upstream} from '../edge/proxy'
-import {type ArtifactRefusal, checkArtifact, COMPOSED_ARTIFACT_PATH, type ComposedArtifact} from './artifact'
+import {type ArtifactFacts, type ArtifactRefusal, checkArtifact, COMPOSED_ARTIFACT_PATH, COMPOSED_MAX_BYTES, type ComposedArtifact} from './artifact'
 
 const HIDING_FOCUS_MODE_SET: ReadonlySet<string> = new Set(HIDING_FOCUS_MODES)
 /** The proxy's `X-Source` on an unreadable focus signal (proxy.ts `focusUnavailableResponse`). */
@@ -23,12 +23,13 @@ export const COMPOSED_READ_BUDGET_MS = 2_500
 const proxyDashboard = makeCloudfrontProxy({path: COMPOSED_ARTIFACT_PATH, contentType: 'application/json; charset=utf-8', lastKnownGood: false})
 
 export type ComposedRead =
-  | {kind: 'ok'; artifact: ComposedArtifact}
+  | {kind: 'ok'; artifact: ComposedArtifact; facts: ArtifactFacts}
   /** `currentFocus`: the hiding value the probe read, or null when the gate shut over a visible one. */
   | {kind: 'suppressed'; currentFocus: string | null}
   | {kind: 'focus-unreadable'}
   | {kind: 'unavailable'; status: number}
-  | {kind: 'refused'; refusal: ArtifactRefusal}
+  /** `detail`: for a `fragments` refusal, the fragment and the closed-set reason (value-free). */
+  | {kind: 'refused'; refusal: ArtifactRefusal; detail?: string}
 
 export interface ComposedReadOptions {
   request: Request
@@ -67,6 +68,14 @@ export async function readComposed(
     response.body?.cancel().catch(() => {})
     return {kind: 'unavailable', status: response.status}
   }
-  const checked = checkArtifact(await response.text(), nowMs, build, HIDING_FOCUS_MODE_SET)
-  return checked.ok ? {kind: 'ok', artifact: checked.artifact} : {kind: 'refused', refusal: checked.refusal}
+  // The proxy already holds the body in memory; the cap bounds the decode and the fragment check.
+  const bytes = await response.arrayBuffer()
+  if (bytes.byteLength > COMPOSED_MAX_BYTES) {
+    return {kind: 'refused', refusal: 'oversize'}
+  }
+  const checked = checkArtifact(new TextDecoder().decode(bytes), nowMs, build, HIDING_FOCUS_MODE_SET)
+  if (checked.ok) {
+    return {kind: 'ok', artifact: checked.artifact, facts: checked.facts}
+  }
+  return checked.detail === undefined ? {kind: 'refused', refusal: checked.refusal} : {kind: 'refused', refusal: checked.refusal, detail: checked.detail}
 }

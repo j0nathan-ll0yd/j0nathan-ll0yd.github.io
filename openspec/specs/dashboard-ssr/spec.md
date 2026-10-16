@@ -21,8 +21,8 @@ credential.
 
 The Worker reads the artifact through the edge proxy (src/lib/composed/read.ts: focus probe first,
 the admission rules, no-store, no last-known-good copy, a 2.5 s budget), checks it
-(src/lib/composed/artifact.ts: schema, age, future skew, composer build, hiding focus, fragments,
-record) and splices its fragments into the prerendered data-free page (src/lib/composed/shell.ts,
+(src/lib/composed/artifact.ts: schema, age, future skew, composer build, hiding focus, record, and
+each fragment against the markup allowlist in src/lib/composed/fragment-policy.ts) and splices its fragments into the prerendered data-free page (src/lib/composed/shell.ts,
 src/lib/data-plane/ssr-response.ts). The Worker renders nothing. The data-free page
 (`dashboard-shell` capability) stays the fallback, the `HEAD /` answer and the rollback target (D9).
 
@@ -211,12 +211,18 @@ Verified by `tests/unit/data-plane-loader.test.ts:336`.
 ### Requirement: Every data state answers 200 and no shared cache stores the document
 
 `GET /` SHALL answer 200 for every summary (D13): an all-unavailable dashboard still carries the
-authored identity content and honest per-card states. The answer SHALL carry
-`Cache-Control: no-cache`, `CDN-Cache-Control: no-store`, `Cloudflare-CDN-Cache-Control: no-store`
-(D3: no edge HTML cache) and `Content-Type: text/html; charset=utf-8`, plus the site middleware's
-headers (security headers, `Link`, `Vary: Accept`, `No-Vary-Search`).
+authored identity content and honest per-card states. Every answer SHALL carry
+`CDN-Cache-Control: no-store` and `Cloudflare-CDN-Cache-Control: no-store` (D3: no edge HTML cache)
+and `Content-Type: text/html; charset=utf-8`, plus the site middleware's headers (security headers,
+`Link`, `Vary: Accept`, `No-Vary-Search`). The composed page carries gated values, so it SHALL carry
+`Cache-Control: no-store` (`COMPOSED_CACHE_HEADERS`, the policy of every gated proxy route,
+`LLM_OUTPUT_CACHE_POLICY`): a browser SHALL NOT write it to disk or replay it from history or session
+restore after the focus value turns hiding. The data-free page and the value-free pages carry no
+export value and SHALL carry `Cache-Control: no-cache` (`DASHBOARD_CACHE_HEADERS`).
 
-Verified by `tests/unit/ssr-response.test.ts:124`.
+Verified by `tests/unit/ssr-response.test.ts:146` (every summary answers 200),
+`tests/unit/ssr-response.test.ts:153` (the composed page is no-store at all three layers), and
+`tests/unit/ssr-response.test.ts:191` (the data-free page keeps no-cache).
 
 #### Scenario: Every export is unavailable
 
@@ -224,6 +230,13 @@ Verified by `tests/unit/ssr-response.test.ts:124`.
 - **WHEN** a client requests `/`
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: unavailable`, and no shared cache SHALL
   store it
+
+#### Scenario: A browser restores a session after the focus value turns hiding
+
+- **GIVEN** a browser loaded the composed page while the focus value was visible
+- **WHEN** the focus value turns `Work` and the browser restores the session
+- **THEN** the browser SHALL hold no stored copy of the composed page to replay, because the
+  composed page was `Cache-Control: no-store`
 
 ### Requirement: Card labels and ages are as of composition, at most 11.5 minutes old
 
@@ -236,7 +249,7 @@ timeout of 60 s and the CloudFront TTL of 30 s. The Worker SHALL refuse an artif
 plus the 60 s run timeout, plus the 30 s TTL) and SHALL serve the data-free page as `fallback`. A
 browser with JavaScript re-judges each card and age on load.
 
-Verified by `tests/unit/composed-read.test.ts:150`.
+Verified by `tests/unit/composed-read.test.ts:151`.
 
 #### Scenario: The runner stops
 
@@ -253,7 +266,7 @@ version.json SHALL name the shipped composer's path, its sha256 and the contract
 deploy never shows a page another build's composer made; `/` stays data-free until the runner
 composes with the new build's composer (at most one backstop run, 5 minutes).
 
-Verified by `tests/unit/composed-read.test.ts:156` (another build's artifact is refused) and
+Verified by `tests/unit/composed-read.test.ts:157` (another build's artifact is refused) and
 `tests/build/worker-output.test.ts:83` (version.json names the shipped composer, its hash and the build).
 
 #### Scenario: The site deploys
@@ -271,14 +284,117 @@ unless it reads the same visible value; an artifact published before the change 
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
-Verified by `tests/oracle/composer-parity.test.ts:350` (race a) and
-`tests/unit/composed-read.test.ts:157` (race b).
+Verified by `tests/oracle/composer-parity.test.ts:393` (race a) and
+`tests/unit/composed-read.test.ts:158` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
 
 - **GIVEN** the composer read a visible focus value and is rendering
 - **WHEN** the focus value turns `Work` before it returns
 - **THEN** it SHALL return the refusal `focus-changed`, and the runner SHALL store nothing
+
+### Requirement: The Worker splices only allowlisted markup
+
+The artifact is not authenticated: any writer of the data-plane bucket can replace it. So the Worker
+SHALL splice a fragment into the page only when a strict tokenizer (src/lib/composed/fragment-policy.ts
+`checkFragment`) reads it as markup the design system's components could have rendered. This is the
+Worker-side guarantee. It SHALL admit only:
+
+- elements on the allowlist: HTML `a`, `button`, `canvas`, `div`, `h2`, `h3`, `img`, `li`, `p`,
+  `picture`, `source`, `span`, `time`, `ul`; inside `svg` only `svg`, `circle`, `line`, `path`,
+  `rect`, `defs`, `filter`, `feGaussianBlur`, `feMerge`, `feMergeNode`;
+- per element, attributes on the allowlist: `class`, `id`, `hidden`, `role`, `tabindex`, the
+  `aria-*` names the components emit (`aria-details`, `aria-hidden`, `aria-label`, `aria-live`), one
+  `data-astro-cid-*` (no value), the `data-*` names the components emit, and the element's own
+  (`href`, `rel`, `target` on `a`; `src`, `srcset`, `alt`, `width`, `height`, `loading`, `decoding`,
+  `referrerpolicy` on `img`; `datetime` on `time`; the SVG geometry and paint attributes), each
+  value double-quoted, no attribute twice, at most 24 per element, `width` and `height` at most
+  480 px or 100 percent;
+- class tokens from the allowlist of the fragment's own component (src/lib/composed/fragment-classes.ts,
+  keyed by fragment id), because the page CSS styles some classes as fixed full-viewport layers or
+  fixed badges, and one card SHALL NOT draw another component's indicator;
+- scoped-style hashes that the fragment's own slot carries in the data-free page (the shell records
+  them per slot), so a fragment cannot borrow another component's scoped styles;
+- each `data-*` value in the grammar of what the client runtime parses from it: `data-book` in the
+  closed shape Bookshelf.astro writes (the Book modal writes several of its fields into `innerHTML`
+  unescaped, so those are numbers or closed words; the link names `www.amazon.com`; the covers are
+  first-party images), `data-generated-at` an ISO instant no later than the composition stamp plus
+  5 minutes, `data-local-covers` and `data-fallback` first-party images, `data-hydration-fixture`
+  plain numbers and words, `data-stroke` a paint, the rest closed words;
+- an `href` that is a same-origin path or `https` to an allowlisted host (`github.com`,
+  `coasttocoastreviews.com` with or without `www.`, and the System Status hosts `www.apple.com`,
+  `www.livelarq.com`, `acaia.co`, `feedly.com`, `www.squarespace.com`), with no credentials, port,
+  or percent-encoded dot, slash or backslash; `target="_blank"` only with `rel` naming `noopener`;
+- a `src` or `srcset` URL that is a same-origin `/images/` path or the data plane's `/images/`, with
+  no dot segment, encoded or not;
+- a `style` attribute whose every declaration names an allowlisted property with a value in that
+  property's grammar (sizes up to 480 px or 100 percent, `position: relative` only, no `url()`, no
+  escape, no `!important`), because the components emit `style` for bar widths, delays and
+  skeletons;
+- `popover` only on System Status's tooltip (`div.sys-tooltip` in `cardSystem`) with no `style`,
+  because the UA styles `[popover]` as a fixed full-viewport layer that any author `display` shows;
+- exactly one `div` root whose `id` is the fragment's id, with no `style` or `popover` (a
+  value-free page alone may show its hiding value's overlay root, `display: flex`), plus, for
+  Hydration only, its empty hidden data carrier `#cardHydrationData` with no other attribute;
+- a root that keeps its slot root's shape in the data-free page: the first class token (`tri-card`
+  for a card, the containing block of the card's own absolute layers; `left-panel-status` for System
+  Status) and the slot root's scoped-style hash (an overlay's hash is what keeps it `display: none`);
+  the root's class tokens SHALL be only its kind, its state (`is-paused`) and its data accents
+  (`FRAGMENT_ROOT_CLASS_TOKENS`), never one of its component's absolute layers; and the built page
+  SHALL keep `.tri-card` a containing block (`container-type`, `overflow: hidden`);
+- at most 32 levels of nesting, and an artifact of at most 128 KiB (`COMPOSED_MAX_BYTES`; measured
+  2026-10-16: the largest oracle scenario 79,245 bytes, the live artifact 78,092), refused as
+  `oversize` before it is decoded or parsed.
+
+It SHALL refuse a comment, a doctype, a processing instruction, a raw-text or form element
+(`script`, `style`, `textarea`, `plaintext`, `noscript`, `iframe`, `template`, `form`, `object`,
+`embed`, `link`, `meta`, `base`), an `on*` or unknown attribute, a `javascript:` or `data:` URL (also
+when entity-encoded), an element the HTML parser would reparent (a block inside `p`, a link inside a
+link, an `li` outside `ul`), an unclosed or mismatched element, an id that two fragments carry, a
+card root id inside another fragment, and an id the page keeps outside the cards. On any refusal the
+Worker SHALL serve the data-free page as `fallback`, with no partial render, and SHALL log the
+fragment and a closed-set reason (`artifact: refused:fragments:<id>:<reason>`), never the offending
+text. The composer SHALL apply the same check and SHALL refuse to publish a fragment it fails. The
+Worker checks one artifact text once per isolate, and a value-free variant when it is first served.
+
+The allowlist bounds the markup, not the values: a bucket writer can still write any text in a
+card and any link to an allowlisted host, the same power it holds over the exports the client
+runtime renders. The allowlist SHALL name only what the components emit: the parity oracle SHALL
+fail when an allowlisted element, class token, `aria-*` name, `data-*` name or link host appears in no
+render of its fragment, or when a render uses a class token or scoped-style hash its fragment's
+allowlist or slot lacks.
+
+Verified by `tests/unit/composed-read.test.ts:310` (the first review's seven probes, the reproducers
+of the two later review rounds, and the other refusal cases), `tests/unit/ssr-response.test.ts:329`
+(the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
+scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
+(`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
+`tests/oracle/composer-parity.test.ts:465` (every scenario's artifact, the shipped value-free set and
+the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
+keeps outside the cards).
+
+#### Scenario: A bucket writer replaces a card with a full-screen overlay link
+
+- **GIVEN** a visible focus signal and an artifact whose `cardHR` fragment holds
+  `<a href="https://evil.example/" style="position:fixed;inset:0">`
+- **WHEN** a client requests `/`
+- **THEN** the Worker SHALL answer the data-free page with `X-SSR-Data: fallback`, and the log line
+  SHALL name `refused:fragments:cardHR:url`
+
+### Requirement: The Worker's read spends its whole budget on the focus probe and the artifact
+
+The Worker's read of the artifact keeps no last-known-good copy, so the proxy SHALL NOT reserve the
+last-known-good window (`PROXY_TIMEOUTS.lkgReadReserveMs`, 1,000 ms) from its budget: the artifact
+read SHALL get the whole 2.5 s budget left after the focus probe (src/lib/edge/proxy.ts
+`artifactBudget`). A route that keeps a copy SHALL still reserve the window.
+
+Verified by `tests/unit/composed-read.test.ts:538`.
+
+#### Scenario: CloudFront answers the artifact slowly
+
+- **GIVEN** the focus probe answers at once
+- **WHEN** the artifact answers after 2 s
+- **THEN** the Worker SHALL serve the composed page, not the data-free page
 
 ### Requirement: A hiding or unreadable focus value answers the build's value-free page
 
@@ -292,8 +408,8 @@ build's clock (the overlay clock stays `--:--:--` until the browser fills it). W
 pages cannot be used, the data-free page SHALL answer with the same summary. A public request for the
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
-Verified by `tests/unit/ssr-response.test.ts:183` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:241` (each variant equals the Astro render, holds no
+Verified by `tests/unit/ssr-response.test.ts:214` (each variant, its summary and its fragments), and by
+`tests/oracle/composer-parity.test.ts:284` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb
@@ -309,7 +425,7 @@ The Worker SHALL bound the whole render by 3 s: 2.5 s of I/O plus a 0.5 s render
 render that misses it, a stalled document stream included, SHALL be answered with the prerendered
 data-free page, status 200, `X-SSR-Data: fallback`, and no asset validators.
 
-Verified by `tests/unit/ssr-response.test.ts:229`.
+Verified by `tests/unit/ssr-response.test.ts:263`.
 
 #### Scenario: The render never completes
 
@@ -325,7 +441,7 @@ with status 500, `Cache-Control: no-store` and `X-SSR-Data: error`. A client SHA
 200 whose document stops half-way. The 500 page carries no live widget, no gated value and no
 fixture value.
 
-Verified by `tests/unit/ssr-response.test.ts:245`.
+Verified by `tests/unit/ssr-response.test.ts:279`.
 
 #### Scenario: A widget throws while the stream renders
 
@@ -339,7 +455,7 @@ Verified by `tests/unit/ssr-response.test.ts:245`.
 read no export and render nothing, and it SHALL omit `X-SSR-Data`, whose value exists only once a
 body is rendered (RFC 9110 section 9.3.2).
 
-Verified by `tests/unit/ssr-response.test.ts:259`.
+Verified by `tests/unit/ssr-response.test.ts:293`.
 
 #### Scenario: A link checker sends HEAD
 
@@ -355,7 +471,7 @@ Each `GET /` SHALL emit one JSON log line with `event: "ssr_render"`: the summar
 exports, `io_ms`, `render_ms`, `total_ms`, the status and the build id. The line SHALL carry no
 data value.
 
-Verified by `tests/unit/ssr-response.test.ts:146`.
+Verified by `tests/unit/ssr-response.test.ts:172`.
 
 #### Scenario: A healthy render
 

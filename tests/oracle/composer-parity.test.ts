@@ -6,7 +6,7 @@
 // hash in it must be one the website's own built page carries, or the Worker refuses it.
 import {existsSync, readFileSync} from 'node:fs'
 import {load} from 'cheerio'
-import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {buildId} from '../../scripts/lib/build-id.mjs'
 import {beforeAll, describe, expect, it} from 'vitest'
 import {
@@ -24,7 +24,18 @@ import {
   TheatreReviews,
   Workouts
 } from '@j0nathan-ll0yd/web/production'
-import {COMPOSED_FRAGMENT_IDS, GATE_VARIANT, UNREADABLE_VARIANT, VALUE_FREE_PATH} from '../../src/lib/composed/artifact'
+import {
+  checkArtifact,
+  checkValueFree,
+  COMPOSED_FRAGMENT_IDS,
+  COMPOSED_MAX_BYTES,
+  type ComposedFragmentId,
+  GATE_VARIANT,
+  UNREADABLE_VARIANT,
+  VALUE_FREE_PATH
+} from '../../src/lib/composed/artifact'
+import {FRAGMENT_CLASS_TOKENS, FRAGMENT_ROOT_CLASS_TOKENS} from '../../src/lib/composed/fragment-classes'
+import {ARIA_ATTRIBUTES, DATA_ATTRIBUTES, HTML_ELEMENTS, LINK_HOSTS, SVG_ELEMENTS} from '../../src/lib/composed/fragment-policy'
 import {VALUE_FREE_VARIANTS} from '../../src/lib/composed/value-free'
 import {type GatedKey, valueFreeLoad, type ValueFreeState} from '../../src/lib/data-plane/loader'
 import {astroContainer, type DomainSpec, fixtureLoad, LOCAL_COVERS, normalized, rawFixture, renderOf} from './harness'
@@ -151,6 +162,47 @@ const SCENARIOS: [string, Partial<Record<GatedKey, DomainSpec>>][] = [
   ['books all completed', {books: {variation: 'allCompleted'}}],
   ['books without covers', {books: {variation: 'noCovers'}}],
   ['books in series', {books: {variation: 'seriesBooks'}}],
+  [
+    'a pending book (the fourth status in the books schema enum)',
+    {
+      books: {
+        variation: 'baseline',
+        change: (raw) => {
+          ;(raw.books as {status: string}[])[0]!.status = 'pending'
+        }
+      }
+    }
+  ],
+  [
+    'books with CloudFront covers, not mirrored',
+    {
+      books: {
+        variation: 'baseline',
+        change: (raw) => {
+          const book = (raw.books as Record<string, unknown>[])[0]!
+          for (const field of ['mainImage', 'mainImageCard', 'mainImageThumb', 'mainImageAvif', 'mainImageCardAvif', 'mainImageThumbAvif']) {
+            book[field] = `${CLOUDFRONT_BASE}/images/books/unmirrored-${field}.${field.endsWith('Avif') ? 'avif' : 'webp'}`
+          }
+        }
+      }
+    }
+  ],
+  [
+    'books with mirrored covers',
+    {
+      books: {
+        variation: 'baseline',
+        change: (raw) => {
+          const book = (raw.books as Record<string, unknown>[])[0]!
+          const cover = (suffix: string) => LOCAL_COVERS.find((path) => path.endsWith(suffix))
+          book.mainImageCard = `${CLOUDFRONT_BASE}${cover('-card.webp')}`
+          book.mainImageThumb = `${CLOUDFRONT_BASE}${cover('-thumb.webp')}`
+          book.mainImageCardAvif = `${CLOUDFRONT_BASE}${cover('-card.avif')}`
+          book.mainImageThumbAvif = `${CLOUDFRONT_BASE}${cover('-thumb.avif')}`
+        }
+      }
+    }
+  ],
   ['theatre without images', {theatreReviews: {variation: 'noImages'}}],
   ['theatre every grade', {theatreReviews: {variation: 'allGrades'}}],
   [
@@ -362,5 +414,143 @@ describe('composeDashboard: the runner entry (owner decision 2026-10-16, the liv
       key === 'focus' && call === 2 ? new Response(JSON.stringify({generatedAt: FRESH, currentFocus: 'Personal'}), {headers: {'x-amz-cf-id': 'test'}}) : null
     )
     expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'focus-changed'})
+  })
+})
+
+describe("the Worker's fragment allowlist admits every render, and names nothing the renders do not use (review 2026-10-16, H1)", () => {
+  const used = {
+    elements: new Set<string>(),
+    data: new Set<string>(),
+    hosts: new Set<string>(),
+    ids: new Set<string>(),
+    aria: new Set<string>(),
+    classes: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, new Set<string>()])) as Record<ComposedFragmentId, Set<string>>,
+    scopes: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, new Set<string>()])) as Record<ComposedFragmentId, Set<string>>,
+    rootClasses: Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, new Set<string>()])) as Record<ComposedFragmentId, Set<string>>,
+    maxBytes: 0,
+    rootMismatches: [] as string[]
+  }
+
+  function record(id: ComposedFragmentId, fragment: string): void {
+    const $ = load(fragment, {xml: false}, false)
+    // The root keeps its slot root's scoped-style hash (src/lib/composed/shell.ts fitsShell, `root`).
+    const rootAttribs = $.root().children().first().attr() ?? {}
+    for (const token of (rootAttribs.class ?? '').split(/\s+/).filter(Boolean)) {
+      used.rootClasses[id].add(token)
+    }
+    for (const name of Object.keys(sitePage(`#${id}`).attr() ?? {}).filter((attr) => attr.startsWith('data-astro-cid-'))) {
+      if (!(name in rootAttribs)) {
+        used.rootMismatches.push(`${id} root lacks ${name}`)
+      }
+    }
+    $('*').each((_, node) => {
+      if (node.type !== 'tag') {
+        return
+      }
+      used.elements.add(node.name)
+      if (node.attribs.id !== undefined) {
+        used.ids.add(node.attribs.id)
+      }
+      for (const token of (node.attribs.class ?? '').split(/\s+/)) {
+        if (token !== '') {
+          used.classes[id].add(token)
+        }
+      }
+      for (const [name, value] of Object.entries(node.attribs)) {
+        if (name.startsWith('data-astro-cid-')) {
+          used.scopes[id].add(name)
+        } else if (name.startsWith('data-')) {
+          used.data.add(name)
+        } else if (name.startsWith('aria-')) {
+          used.aria.add(name)
+        }
+        if (name === 'href' && value.startsWith('https://')) {
+          used.hosts.add(new URL(value).hostname)
+        }
+      }
+    })
+  }
+
+  // covers: dashboard-ssr#The Worker splices only allowlisted markup
+  it('admits the artifact of every scenario, through checkArtifact', async () => {
+    for (const [label, domains] of SCENARIOS) {
+      const exports = Object.fromEntries(KEYS.map((key) => {
+        const spec = domains[key] ?? {variation: 'baseline'}
+        if (spec === 'unavailable' || spec === 'suppressed') {
+          return [key, null]
+        }
+        const raw = rawFixture(key, spec.variation, spec.change)
+        raw.generatedAt = spec.generatedAt ?? FRESH
+        return [key, raw]
+      }))
+      const result = await compose({exports, focus: {generatedAt: FRESH, currentFocus: 'None'}, nowMs: NOW, localCovers: LOCAL_COVERS})
+      expect(result.ok, label).toBe(true)
+      if (!result.ok) {
+        continue
+      }
+      const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>}
+      const checked = checkArtifact(JSON.stringify(artifact), Date.parse(artifact.composedAt), artifact.composer.build, new Set(HIDING_FOCUS_MODES))
+      expect(checked, label).toMatchObject({ok: true})
+      used.maxBytes = Math.max(used.maxBytes, JSON.stringify(artifact).length)
+      for (const id of COMPOSED_FRAGMENT_IDS) {
+        record(id, artifact.fragments[id] ?? '')
+      }
+    }
+  })
+
+  it('admits the value-free set the website build shipped', () => {
+    const built = readFileSync(new URL(`../../dist/client${VALUE_FREE_PATH}`, import.meta.url), 'utf8')
+    const set = checkValueFree(built, BUILD, VALUE_FREE_VARIANTS)
+    expect(set).not.toBeNull()
+    for (const page of Object.values((JSON.parse(built) as ValueFreeSet).variants)) {
+      for (const id of COMPOSED_FRAGMENT_IDS) {
+        record(id, page.fragments[id] ?? '')
+      }
+    }
+  })
+
+  it('admits the committed fixture artifact', () => {
+    const text = readFileSync(new URL('../fixtures/composed/dashboard.json', import.meta.url), 'utf8')
+    const value = JSON.parse(text) as {composedAt: string; composer: {build: string}}
+    expect(checkArtifact(text, Date.parse(value.composedAt), value.composer.build, new Set(HIDING_FOCUS_MODES))).toMatchObject({ok: true})
+  })
+
+  it('allowlists only elements, data attributes and link hosts the renders use', () => {
+    const allowed = [...Object.keys(HTML_ELEMENTS), ...Object.keys(SVG_ELEMENTS)].sort()
+    expect(allowed.filter((name) => !used.elements.has(name)), 'allowlisted elements no render uses').toEqual([])
+    expect([...DATA_ATTRIBUTES].filter((name) => !used.data.has(name)), 'allowlisted data attributes no render uses').toEqual([])
+    expect([...LINK_HOSTS].filter((host) => !used.hosts.has(host)), 'allowlisted link hosts no render uses').toEqual([])
+    for (const id of COMPOSED_FRAGMENT_IDS) {
+      expect([...FRAGMENT_CLASS_TOKENS[id]].filter((token) => !used.classes[id].has(token)), `${id}: allowlisted class tokens no render uses`).toEqual([])
+      expect([...used.classes[id]].filter((token) => !FRAGMENT_CLASS_TOKENS[id].has(token)), `${id}: class tokens a render uses that the allowlist lacks`)
+        .toEqual([])
+      expect([...used.rootClasses[id]].sort(), `${id}: root class tokens`).toEqual([...FRAGMENT_ROOT_CLASS_TOKENS[id]].sort())
+    }
+    expect([...ARIA_ATTRIBUTES].filter((name) => !used.aria.has(name)), 'allowlisted aria attributes no render uses').toEqual([])
+  })
+
+  it("carries only its own slot's scoped-style hashes (src/lib/composed/shell.ts fitsShell)", () => {
+    const page = load(readFileSync(SITE_PAGE, 'utf8'))
+    for (const id of COMPOSED_FRAGMENT_IDS) {
+      const slot = new Set(page.html(page(`#${id}`)).match(/data-astro-cid-[a-z0-9]+/g) ?? [])
+      expect([...used.scopes[id]].filter((scope) => !slot.has(scope)), `${id}: hashes its slot in the data-free page lacks`).toEqual([])
+    }
+    expect(used.rootMismatches).toEqual([])
+  })
+
+  it('stays under the size cap with room to spare', () => {
+    expect(used.maxBytes).toBeGreaterThan(0)
+    expect(used.maxBytes).toBeLessThan(COMPOSED_MAX_BYTES * 0.75)
+  })
+
+  it("carries no id the website's page keeps outside the replaced elements (src/lib/composed/shell.ts fitsShell)", () => {
+    const page = load(readFileSync(SITE_PAGE, 'utf8'))
+    for (const id of COMPOSED_FRAGMENT_IDS) {
+      page(`#${id}`).remove()
+    }
+    const shellIds = new Set(page('[id]').map((_, element) => page(element).attr('id')).get())
+    expect(shellIds.size).toBeGreaterThan(0)
+    expect(used.ids.size).toBeGreaterThan(COMPOSED_FRAGMENT_IDS.length)
+    expect([...used.ids].filter((id) => shellIds.has(id))).toEqual([])
   })
 })

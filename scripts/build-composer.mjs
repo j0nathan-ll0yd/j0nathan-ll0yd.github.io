@@ -5,7 +5,7 @@
  *
  * It must be this website's compile: Astro marks scoped styles with a hash of each component's path
  * relative to the build root, so only this build produces the hashes this website's CSS selects. The
- * Worker refuses a fragment with any other hash (src/lib/composed/shell.ts `scopesMatch`).
+ * Worker refuses a fragment with any other hash (src/lib/composed/shell.ts `fitsShell`).
  *
  * Consumers: the backend runner (through the shipped asset), the test data plane
  * (tests/data-plane/server.ts) and the parity oracle (tests/oracle/).
