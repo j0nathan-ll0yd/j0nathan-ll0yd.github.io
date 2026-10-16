@@ -11,18 +11,24 @@
 // Every value is written through `setInnerContent` (text) or `setAttribute`, which escape it.
 // tests/oracle renders the same props through Astro and pins the two to equal markup.
 import type {DashboardRender, LiveCardId} from '../data-plane/render-model'
+import {MIRRORED_BOOK_COVERS} from '../load-dashboard-data'
 import type {DataState} from './card-state'
+import {prepareBookshelf, registerBookshelf} from './cards/bookshelf'
 import {registerHeartRate} from './cards/heart-rate'
 import {prepareTheatre, registerTheatre} from './cards/theatre'
 import {registerOverlays} from './overlays'
 import {isTemplateState, templateFor, type Templates} from './templates'
 
 /** The cards the edge can write in a data state. A card missing here stays `loading` (spike scope). */
-type DataCardWriter = (rewriter: HTMLRewriter, render: DashboardRender, state: DataState) => Promise<void>
+type DataCardWriter = (rewriter: HTMLRewriter, render: DashboardRender, state: DataState, templates: Templates) => Promise<void>
 
 const DATA_CARD_WRITERS: Partial<Record<LiveCardId, DataCardWriter>> = {
   cardHR: async (rewriter, render, state) => {
     registerHeartRate(rewriter, render.vm.heartRate, state)
+  },
+  cardBooks: async (rewriter, render, state, templates) => {
+    const items = await prepareBookshelf(render.vm.bookshelf, templates, MIRRORED_BOOK_COVERS)
+    registerBookshelf(rewriter, render.vm.bookshelf, state, items)
   },
   cardTheatreReviews: async (rewriter, render, state) => {
     const fill = await prepareTheatre(render.vm.theatreReviews, state)
@@ -51,7 +57,7 @@ export async function injectDashboard(page: Response, {render, templates, nowMs}
       const template = templateFor(templates, cardId, state)
       rewriter.on(`#${cardId}`, {element: (card) => void card.replace(template, {html: true})})
     } else if (state === 'live' || state === 'stale') {
-      await DATA_CARD_WRITERS[cardId]?.(rewriter, render, state)
+      await DATA_CARD_WRITERS[cardId]?.(rewriter, render, state, templates)
     }
   }
   registerOverlays(rewriter, render.vm.focusOverlay.currentFocus, nowMs)

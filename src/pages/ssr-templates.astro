@@ -12,8 +12,23 @@ import {
 import { MIRRORED_BOOK_COVERS } from '../lib/load-dashboard-data';
 import { TEMPLATE_ATTRIBUTE } from '../lib/edge-render/paths';
 import { TEMPLATE_STATES } from '../lib/edge-render/templates';
+import { BOOK_ITEM_TEMPLATES } from '../lib/edge-render/cards/bookshelf';
+import { CLOUDFRONT_BASE } from '@j0nathan-ll0yd/portal-contract/constants';
 
 const localCovers = [...MIRRORED_BOOK_COVERS];
+
+// Value-free SLOT books for the two shelf-item templates (src/lib/edge-render/cards/bookshelf.ts).
+// Every field is a stand-in the edge overwrites; no export or fixture value appears here.
+const slotImage = (name: string) => `${CLOUDFRONT_BASE}/images/books/ssr-slot-${name}`;
+const slotBook = {
+  asin: 'SSRSLOT', title: 'ssr-slot', author: 'ssr-slot',
+  mainImage: slotImage('main'), mainImageThumb: slotImage('thumb'), mainImageCard: slotImage('card'),
+  mainImageAvif: slotImage('main-avif'), mainImageThumbAvif: slotImage('thumb-avif'), mainImageCardAvif: slotImage('card-avif'),
+};
+const itemTemplates = [
+  { key: BOOK_ITEM_TEMPLATES.reading, book: { ...slotBook, status: 'reading', progress: 50 } },
+  { key: BOOK_ITEM_TEMPLATES.shelf, book: { ...slotBook, status: 'finished', rating: 5, finishedAt: '2026-01-01T00:00:00.000Z' } },
+];
 const cards = [
   { id: 'cardHR', Component: HeartRate },
   { id: 'cardMovement', Component: MovementRings },
@@ -34,5 +49,8 @@ const cards = [
 {cards.map(({ id, Component }) => TEMPLATE_STATES.map((state) => (
   <template {...{ [TEMPLATE_ATTRIBUTE]: `${id}:${state}` }}>{id === 'cardBooks' ? <Component state={state} localCovers={localCovers} /> : <Component state={state} />}</template>
 )))}
+{itemTemplates.map(({ key, book }) => (
+  <template {...{ [TEMPLATE_ATTRIBUTE]: key }}><Bookshelf state="live" books={{ books: [book], bookMeta: {}, statusLabels: { finished: 'ssr-slot' } }} /></template>
+))}
 </body>
 </html>
