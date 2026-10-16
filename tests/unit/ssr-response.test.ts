@@ -6,7 +6,14 @@
 // 500 (D13); the response headers (D3); and the value-free `ssr_render` log line. Node has no
 // HTMLRewriter, so the shell is a precut stub here.
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {COMPOSED_FRAGMENT_IDS, type ComposedArtifact, type ComposedFragmentId} from '../../src/lib/composed/artifact'
+import {
+  COMPOSED_FRAGMENT_IDS,
+  type ComposedArtifact,
+  type ComposedFragmentId,
+  GATE_VARIANT,
+  UNREADABLE_VARIANT,
+  type ValueFreeSet
+} from '../../src/lib/composed/artifact'
 import type {ComposedRead} from '../../src/lib/composed/read'
 import type {Shell} from '../../src/lib/composed/shell'
 import {
@@ -51,6 +58,21 @@ const SHELL: Shell = {
 interface Calls {
   reads: number
   assets: string[]
+}
+
+function fragmentsOf(label: string, scope = SCOPE): Record<ComposedFragmentId, string> {
+  return Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, `<div id="${id}" ${scope}>${label}</div>`])) as Record<ComposedFragmentId, string>
+}
+
+/** The build's value-free set: one page per hiding value, the gate and an unreadable focus. */
+const VALUE_FREE: ValueFreeSet = {
+  renderer: {web: '4.2.1'},
+  variants: {
+    Work: {summary: 'suppressed', fragments: fragmentsOf('work-overlay')},
+    'Do Not Disturb': {summary: 'suppressed', fragments: fragmentsOf('dnd-overlay')},
+    [GATE_VARIANT]: {summary: 'suppressed', fragments: fragmentsOf('gate-no-overlay')},
+    [UNREADABLE_VARIANT]: {summary: 'unavailable', fragments: fragmentsOf('all-unavailable')}
+  }
 }
 
 function deps(read: () => Promise<ComposedRead>, ceilingMs?: number): {calls: Calls; deps: DashboardRenderDeps} {
@@ -141,15 +163,65 @@ describe('GET /: the composed page', () => {
 
 describe('GET /: the data-free page, with an honest summary', () => {
   it.each([
-    [{kind: 'suppressed'}, 'suppressed'],
+    [{kind: 'suppressed', currentFocus: 'Work'}, 'suppressed'],
     [{kind: 'focus-unreadable'}, 'unavailable'],
     [{kind: 'unavailable', status: 502}, 'fallback'],
     [{kind: 'refused', refusal: 'stale'}, 'fallback']
-  ] as [ComposedRead, string][])('%o serves the data-free page as %s', async (read, summary) => {
+  ] as [ComposedRead, string][])('%o, with no value-free pages, serves the data-free page as %s', async (read, summary) => {
     const response = await renderDashboard(REQUEST, deps(async () => read).deps)
     expect(response.status).toBe(200)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
     expect(await response.text()).toBe('data-free page')
+  })
+})
+
+describe('GET /: the value-free pages', () => {
+  function withValueFree(read: ComposedRead, set: ValueFreeSet | null = VALUE_FREE): DashboardRenderDeps {
+    return {...deps(async () => read).deps, valueFree: async () => set}
+  }
+
+  // covers: dashboard-ssr#A hiding or unreadable focus value answers the build's value-free page
+  it.each([
+    [{kind: 'suppressed', currentFocus: 'Work'}, 'suppressed', 'work-overlay'],
+    [{kind: 'suppressed', currentFocus: 'Do Not Disturb'}, 'suppressed', 'dnd-overlay'],
+    [{kind: 'suppressed', currentFocus: null}, 'suppressed', 'gate-no-overlay'],
+    [{kind: 'focus-unreadable'}, 'unavailable', 'all-unavailable']
+  ] as [ComposedRead, string, string][])('%o answers its value-free page as %s', async (read, summary, label) => {
+    const response = await renderDashboard(REQUEST, withValueFree(read))
+    const body = await response.text()
+    expect(response.status).toBe(200)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
+    expect(body).toContain(`<meta name="ssr-data" content="${summary}">`)
+    for (const id of COMPOSED_FRAGMENT_IDS) {
+      expect(body).toContain(`<div id="${id}" ${SCOPE}>${label}</div>`)
+    }
+    for (const [name, value] of DASHBOARD_CACHE_HEADERS) {
+      expect(response.headers.get(name), name).toBe(value)
+    }
+  })
+
+  it('a hiding value the build does not know answers the data-free page, still suppressed', async () => {
+    const response = await renderDashboard(REQUEST, withValueFree({kind: 'suppressed', currentFocus: 'Sleep'}))
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
+    expect(await response.text()).toBe('data-free page')
+  })
+
+  it('refuses a value-free page whose scoped-style hash the website does not carry', async () => {
+    const foreign: ValueFreeSet = {
+      ...VALUE_FREE,
+      variants: {...VALUE_FREE.variants, Work: {summary: 'suppressed', fragments: fragmentsOf('work-overlay', 'data-astro-cid-zzzzzzzz')}}
+    }
+    const response = await renderDashboard(REQUEST, withValueFree({kind: 'suppressed', currentFocus: 'Work'}, foreign))
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
+    expect(await response.text()).toBe('data-free page')
+  })
+
+  it('logs the value-free answer without the hiding value', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    await renderDashboard(REQUEST, withValueFree({kind: 'suppressed', currentFocus: 'Do Not Disturb'}))
+    const [line] = logLines(info)
+    expect(line).toMatchObject({event: 'ssr_render', summary: 'suppressed', served: 'value-free', focus_read: 'hiding', status: 200})
+    expect(JSON.stringify(line)).not.toContain('Do Not Disturb')
   })
 })
 

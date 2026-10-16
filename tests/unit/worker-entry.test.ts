@@ -10,7 +10,7 @@ import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-hea
 
 const handled: Request[] = []
 const assetRequests: Request[] = []
-const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js'])
+const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js', '/_ssr/value-free.json'])
 
 vi.mock('@astrojs/cloudflare/handler', () => ({
   handle: vi.fn(async (request: Request) => {
@@ -285,6 +285,15 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
     expect(response.status).toBe(200)
     expect(response.headers.get('Cache-Control')).toBe('no-cache')
     expect(response.headers.get('X-SSR-Data')).toBeNull()
+  })
+
+  it('answers a public request for the value-free pages with the 404 page, though the file exists', async () => {
+    for (const method of ['GET', 'HEAD']) {
+      const response = await request('/_ssr/value-free.json', {method})
+      expect(response.status, method).toBe(404)
+      expect(response.headers.get('Cache-Control'), method).toBe('no-store')
+    }
+    expect(assetRequests.map((r) => new URL(r.url).pathname)).not.toContain('/_ssr/value-free.json')
   })
 
   it('still negotiates Markdown at / before any render', async () => {

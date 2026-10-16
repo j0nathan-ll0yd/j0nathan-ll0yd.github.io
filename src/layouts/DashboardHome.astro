@@ -1,13 +1,8 @@
 ---
-// The dashboard page body (atlas decision 0160).
-//
-// `src/pages/index.astro` prerenders it with no `vm`: the data-free page, every live widget `loading`
-// with its <noscript> note. That file is what the Worker streams for `GET /`, writing each card's
-// state and values into it with HTMLRewriter (src/lib/edge-render/; owner decision 2026-10-16,
-// option B), and it is also the D2 fallback, the `HEAD /` answer and the rollback target (D9).
-//
-// With a `vm` this layout is the TEST ORACLE of that injection (tests/oracle/): Astro renders the
-// same view models, and the injected page must equal it. That path never runs in the Worker.
+// The dashboard page body (atlas decision 0160): the data-free page, prerendered by
+// `src/pages/index.astro`. Every live widget renders `loading` with its <noscript> note. The Worker
+// splices composed fragments into it for `GET /` (src/lib/composed/), and serves it as is for the D2
+// fallback, the `HEAD /` answer and the rollback target (D9).
 //
 // A widget never receives a fixture value.
 import Dashboard from './Dashboard.astro';
@@ -18,27 +13,21 @@ import {
   FocusOverlay, DndOverlay,
   TheatreReviews,
 } from '@j0nathan-ll0yd/web/production';
-import type { DashboardViewModels } from '@j0nathan-ll0yd/web/runtime/view-models';
 import type { DashboardData } from '../lib/load-dashboard-data';
 import { a11y, app, identity } from '@j0nathan-ll0yd/copy';
 
 interface Props {
   /** Authored identity content and the mirrored cover paths (`loadDashboardData`). */
   data: DashboardData;
-  /** The server render's view models. Absent: the data-free page. */
-  vm?: DashboardViewModels;
-  /** The render summary for the `ssr-data` meta (`src/lib/data-plane/render-model.ts`). */
-  ssrData?: string;
 }
 
-const { data, vm, ssrData } = Astro.props;
-const { profile, localCovers } = data;
+const { data } = Astro.props;
+const { profile, localCovers, system } = data;
 const loading = { state: 'loading' } as const;
-const system = vm ? vm.systemStatus.system : data.system;
 ---
-<Dashboard pagePath="/" ssrData={ssrData}>
-  <FocusOverlay {...(vm?.focusOverlay ?? {})} />
-  <DndOverlay {...(vm?.dndOverlay ?? {})} />
+<Dashboard>
+  <FocusOverlay />
+  <DndOverlay />
 
   <canvas id="particle-canvas" aria-hidden="true"></canvas>
 
@@ -70,24 +59,24 @@ const system = vm ? vm.systemStatus.system : data.system;
               Desktop keeps display:contents to preserve the unified grid. */}
           <div class="body-bento">
             <div class="body-bento-col">
-              <HeartRate {...(vm?.heartRate ?? loading)} />
-              <Workouts {...(vm?.workouts ?? loading)} />
+              <HeartRate {...loading} />
+              <Workouts {...loading} />
             </div>
             <div class="body-bento-col">
-              <MovementRings {...(vm?.movementRings ?? loading)} />
-              <Hydration {...(vm?.hydration ?? loading)} />
-              <NightSummary {...(vm?.nightSummary ?? loading)} />
+              <MovementRings {...loading} />
+              <Hydration {...loading} />
+              <NightSummary {...loading} />
             </div>
           </div>
         </section>
 
         <section class="triptych-column triptych-column-mind" aria-label={a11y.region.mind}>
           <h2 class="column-header column-header-green">{app.sections.mind}</h2>
-          <DevActivityLog {...(vm?.devActivityLog ?? loading)} />
-          <ReadingFeed {...(vm?.readingFeed ?? loading)} />
-          <StarredRepoList {...(vm?.starredRepoList ?? loading)} />
-          <Bookshelf {...(vm?.bookshelf ?? loading)} localCovers={localCovers} />
-          <TheatreReviews {...(vm?.theatreReviews ?? loading)} />
+          <DevActivityLog {...loading} />
+          <ReadingFeed {...loading} />
+          <StarredRepoList {...loading} />
+          <Bookshelf {...loading} localCovers={localCovers} />
+          <TheatreReviews {...loading} />
         </section>
 
       </div>

@@ -208,7 +208,7 @@ authored identity content and honest per-card states. The answer SHALL carry
 (D3: no edge HTML cache) and `Content-Type: text/html; charset=utf-8`, plus the site middleware's
 headers (security headers, `Link`, `Vary: Accept`, `No-Vary-Search`).
 
-Verified by `tests/unit/ssr-response.test.ts:102`.
+Verified by `tests/unit/ssr-response.test.ts:124`.
 
 #### Scenario: Every export is unavailable
 
@@ -217,13 +217,36 @@ Verified by `tests/unit/ssr-response.test.ts:102`.
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: unavailable`, and no shared cache SHALL
   store it
 
+### Requirement: A hiding or unreadable focus value answers the build's value-free page
+
+While the focus value hides, the gate is shut over a visible value, or the focus signal cannot be
+read, `GET /` SHALL answer a value-free page: the data-free page with the website build's value-free
+fragments spliced in (src/lib/composed/value-free.ts, built by `scripts/build-composer.mjs
+--value-free`). A hiding value SHALL show its own overlay and every card `suppressed`; the gate SHALL
+show every card `suppressed` and no overlay; an unreadable focus SHALL show every card `unavailable`
+and no overlay. The page SHALL hold no export value and no source age, and SHALL NOT depend on the
+build's clock (the overlay clock stays `--:--:--` until the browser fills it). When the value-free
+pages cannot be used, the data-free page SHALL answer with the same summary. A public request for the
+value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
+
+Verified by `tests/unit/ssr-response.test.ts:183` (each variant, its summary and its fragments), and by
+`tests/oracle/composer-parity.test.ts:187` (each variant equals the Astro render, holds no
+`data-generated-at`, and is the asset the build shipped).
+
+#### Scenario: The owner turns on Do Not Disturb
+
+- **GIVEN** the focus value reads `Do Not Disturb`
+- **WHEN** a client without JavaScript requests `/`
+- **THEN** the Worker SHALL answer 200 with `X-SSR-Data: suppressed`, the Do Not Disturb overlay
+  shown, every card `suppressed`, and no export value, and SHALL fetch no composed artifact
+
 ### Requirement: A render that misses its budget falls back to the data-free page
 
 The Worker SHALL bound the whole render by 3 s: 2.5 s of I/O plus a 0.5 s render reserve (D2). A
 render that misses it, a stalled document stream included, SHALL be answered with the prerendered
 data-free page, status 200, `X-SSR-Data: fallback`, and no asset validators.
 
-Verified by `tests/unit/ssr-response.test.ts:157`.
+Verified by `tests/unit/ssr-response.test.ts:229`.
 
 #### Scenario: The render never completes
 
@@ -239,7 +262,7 @@ with status 500, `Cache-Control: no-store` and `X-SSR-Data: error`. A client SHA
 200 whose document stops half-way. The 500 page carries no live widget, no gated value and no
 fixture value.
 
-Verified by `tests/unit/ssr-response.test.ts:173`.
+Verified by `tests/unit/ssr-response.test.ts:245`.
 
 #### Scenario: A widget throws while the stream renders
 
@@ -253,7 +276,7 @@ Verified by `tests/unit/ssr-response.test.ts:173`.
 read no export and render nothing, and it SHALL omit `X-SSR-Data`, whose value exists only once a
 body is rendered (RFC 9110 section 9.3.2).
 
-Verified by `tests/unit/ssr-response.test.ts:187`.
+Verified by `tests/unit/ssr-response.test.ts:259`.
 
 #### Scenario: A link checker sends HEAD
 
@@ -269,7 +292,7 @@ Each `GET /` SHALL emit one JSON log line with `event: "ssr_render"`: the summar
 exports, `io_ms`, `render_ms`, `total_ms`, the status and the build id. The line SHALL carry no
 data value.
 
-Verified by `tests/unit/ssr-response.test.ts:124`.
+Verified by `tests/unit/ssr-response.test.ts:146`.
 
 #### Scenario: A healthy render
 

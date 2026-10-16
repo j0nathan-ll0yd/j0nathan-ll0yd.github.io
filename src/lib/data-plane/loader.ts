@@ -195,6 +195,33 @@ function allDomains<T>(value: (key: GatedKey) => T): Record<GatedKey, T> {
   return Object.fromEntries(GATED_KEYS.map((key) => [key, value(key)])) as Record<GatedKey, T>
 }
 
+/**
+ * A load that carries no export value: a hiding focus value, the gate shut over a visible one, or an
+ * unreadable focus signal. These are the only loads a page can show without data, so the composer
+ * builds them at website build time (src/lib/composed/compose.ts `composeValueFree`).
+ */
+export type ValueFreeState =
+  | {kind: 'hiding'; currentFocus: string}
+  | {kind: 'gate'; currentFocus: string}
+  | {kind: 'unreadable'; reason: ReadFailure}
+
+export function valueFreeLoad(state: ValueFreeState): DashboardLoad {
+  if (state.kind === 'unreadable') {
+    return {
+      focus: {state: 'unreadable', reason: state.reason},
+      domains: allDomains(() => ({kind: 'unavailable', reason: 'focus-unreadable'})) as DashboardLoad['domains'],
+      suppressed: false,
+      ioMs: 0
+    }
+  }
+  return {
+    focus: state.kind === 'hiding' ? {state: 'hiding', currentFocus: state.currentFocus} : {state: 'visible', currentFocus: state.currentFocus},
+    domains: allDomains(() => ({kind: 'suppressed'})) as DashboardLoad['domains'],
+    suppressed: true,
+    ioMs: 0
+  }
+}
+
 /** Reads the focus signal and, when it reads visible, the eight gated exports. Never throws. */
 export async function loadDashboard(options: LoadOptions): Promise<DashboardLoad> {
   const startedAt = Date.now()
@@ -210,34 +237,21 @@ export async function loadDashboard(options: LoadOptions): Promise<DashboardLoad
     ? focusRead.hidingFocus
     : undefined
   if (hidingFocus !== undefined) {
-    return {
-      focus: {state: 'hiding', currentFocus: hidingFocus},
-      domains: allDomains(() => ({kind: 'suppressed'})) as DashboardLoad['domains'],
-      suppressed: true,
-      ioMs: Date.now() - startedAt
-    }
+    return {...valueFreeLoad({kind: 'hiding', currentFocus: hidingFocus}), ioMs: Date.now() - startedAt}
   }
   if (focusRead.kind !== 'ok') {
     // The focus signal is never gated, so a suppression body cannot arrive here; any other failure is
     // unreadable. The gate fails closed: an unreadable signal is never permission to read.
     const reason = focusRead.kind === 'unavailable' ? focusRead.reason : 'focus-unreadable'
-    return {
-      focus: {state: 'unreadable', reason},
-      domains: allDomains(() => ({kind: 'unavailable', reason: 'focus-unreadable'})) as DashboardLoad['domains'],
-      suppressed: false,
-      ioMs: Date.now() - startedAt
-    }
+    return {...valueFreeLoad({kind: 'unreadable', reason}), ioMs: Date.now() - startedAt}
   }
 
   const reads = await Promise.all(GATED_KEYS.map((key) => readArtifact(key, {...io, capMs: timeouts.artifactMs})))
   const domains = Object.fromEntries(GATED_KEYS.map((key, index) => [key, reads[index]])) as DashboardLoad['domains']
-  const suppressed = reads.some((read) => read.kind === 'suppressed')
-  return {
-    focus: {state: 'visible', currentFocus: focusRead.data.currentFocus},
+  if (reads.some((read) => read.kind === 'suppressed')) {
     // The gate wins every disagreement: one suppression body suppresses every domain, so no value
     // that a sibling read admitted reaches the page.
-    domains: suppressed ? (allDomains(() => ({kind: 'suppressed'})) as DashboardLoad['domains']) : domains,
-    suppressed,
-    ioMs: Date.now() - startedAt
+    return {...valueFreeLoad({kind: 'gate', currentFocus: focusRead.data.currentFocus}), ioMs: Date.now() - startedAt}
   }
+  return {focus: {state: 'visible', currentFocus: focusRead.data.currentFocus}, domains, suppressed: false, ioMs: Date.now() - startedAt}
 }

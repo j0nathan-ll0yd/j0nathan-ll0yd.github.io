@@ -16,11 +16,13 @@ export const COMPOSED_ARTIFACT_PATH = '/dashboard.json'
 export const COMPOSED_SCHEMA_VERSION = 1
 
 /**
- * The oldest artifact the Worker serves: two composition cycles (the composer's backstop schedule is
- * 5 minutes, and every export update composes at once). An older artifact means the composer stopped;
- * its card states may no longer be true, so the Worker serves the data-free page instead.
+ * The oldest artifact the Worker serves. The composer runs on every export update and on the same
+ * 30-minute backstop schedule as ComposeLlmContent (owner decision 2026-10-16); the health export
+ * alone updates every 15 minutes. So an artifact older than the backstop plus 5 minutes (a slow cold
+ * start, a retried invocation, the 30 s CloudFront TTL) means the composer stopped: its card states
+ * may no longer be true, and the Worker serves the data-free page instead.
  */
-export const COMPOSED_MAX_AGE_MS = 10 * 60 * 1000
+export const COMPOSED_MAX_AGE_MS = 35 * 60 * 1000
 /** A composition stamp this far ahead of the Worker's clock is malformed, not skewed. */
 export const COMPOSED_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
 
@@ -53,6 +55,69 @@ export interface ComposedArtifact {
   summary: SsrSummary
   record: SsrRenderRecord
   fragments: Record<ComposedFragmentId, string>
+}
+
+/**
+ * The value-free pages, as the website build composes them (scripts/build-composer.mjs): one per
+ * hiding focus value, one for the gate shut over a visible value, one for an unreadable focus signal.
+ * They hold no export value and depend only on the build, so they are a static asset of the website,
+ * read by the Worker through the ASSETS binding. A public request for the path gets the 404 page.
+ */
+export const VALUE_FREE_PATH = '/_ssr/value-free.json'
+/** The variant for the gate shut over a visible focus value: every card suppressed, no overlay. */
+export const GATE_VARIANT = 'gate'
+/** The variant for an unreadable focus signal: every card unavailable, no overlay. */
+export const UNREADABLE_VARIANT = 'unreadable'
+
+export interface ValueFreePage {
+  summary: 'suppressed' | 'unavailable'
+  fragments: Record<ComposedFragmentId, string>
+}
+
+export interface ValueFreeSet {
+  renderer: {web: string}
+  /** Keyed by hiding focus value, GATE_VARIANT or UNREADABLE_VARIANT. */
+  variants: Record<string, ValueFreePage>
+}
+
+/** The value-free set, when this website built it; otherwise null (the Worker then serves the data-free page). */
+export function checkValueFree(text: string, renderer: {web: string}, required: readonly string[]): ValueFreeSet | null {
+  let value: unknown
+  try {
+    value = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (!isRecord(value) || !isRecord(value.renderer) || value.renderer.web !== renderer.web || !isRecord(value.variants)) {
+    return null
+  }
+  const variants: Record<string, ValueFreePage> = {}
+  for (const key of required) {
+    const page = value.variants[key]
+    if (!isRecord(page) || (page.summary !== 'suppressed' && page.summary !== 'unavailable') || !isRecord(page.fragments)) {
+      return null
+    }
+    const fragments = checkFragments(page.fragments)
+    if (fragments === null) {
+      return null
+    }
+    variants[key] = {summary: page.summary, fragments}
+  }
+  return {renderer: {web: renderer.web}, variants}
+}
+
+/** Every fragment id, each a string that holds the element it replaces; otherwise null. */
+function checkFragments(value: Record<string, unknown>): Record<ComposedFragmentId, string> | null {
+  const fragments: Partial<Record<ComposedFragmentId, string>> = {}
+  for (const id of COMPOSED_FRAGMENT_IDS) {
+    const fragment = value[id]
+    if (typeof fragment !== 'string' || !fragment.includes(`id="${id}"`)) {
+      return null
+    }
+    fragments[id] = fragment
+  }
+  // Every id was checked in the loop above.
+  return fragments as Record<ComposedFragmentId, string>
 }
 
 /** Why an artifact is not served. Value-free: safe for the log line. */
@@ -104,13 +169,9 @@ export function checkArtifact(
   if (hidingModes.has(value.currentFocus) || value.summary === 'suppressed') {
     return {ok: false, refusal: 'hiding'}
   }
-  const fragments: Partial<Record<ComposedFragmentId, string>> = {}
-  for (const id of COMPOSED_FRAGMENT_IDS) {
-    const fragment = value.fragments[id]
-    if (typeof fragment !== 'string' || !fragment.includes(`id="${id}"`)) {
-      return {ok: false, refusal: 'fragments'}
-    }
-    fragments[id] = fragment
+  const fragments = checkFragments(value.fragments)
+  if (fragments === null) {
+    return {ok: false, refusal: 'fragments'}
   }
   return {
     ok: true,
@@ -123,8 +184,7 @@ export function checkArtifact(
       summary: value.summary as SsrSummary,
       // Logged only; the Worker reads no value from it.
       record: value.record as unknown as SsrRenderRecord,
-      // Every id was checked in the loop above.
-      fragments: fragments as Record<ComposedFragmentId, string>
+      fragments
     }
   }
 }

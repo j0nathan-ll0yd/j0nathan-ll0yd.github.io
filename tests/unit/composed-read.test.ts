@@ -79,15 +79,16 @@ describe('readComposed: the gate', () => {
     expect(init).not.toHaveProperty('cf')
   })
 
-  it.each(HIDING_FOCUS_MODES)('a hiding focus (%s) never fetches the artifact', async (mode) => {
+  it.each(HIDING_FOCUS_MODES)('a hiding focus (%s) never fetches the artifact, and names the value for its overlay', async (mode) => {
     const {calls, upstream: u} = upstream({[FOCUS_URL]: focus(mode), [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
-    expect(await read(u)).toEqual({kind: 'suppressed'})
+    expect(await read(u)).toEqual({kind: 'suppressed', currentFocus: mode})
     expect(artifactCalls(calls)).toBe(0)
   })
 
   it('the race: a visible probe, then the gate shuts before the artifact fetch, serves nothing', async () => {
     const {calls, upstream: u} = upstream({[FOCUS_URL]: focus('None'), [ARTIFACT_URL]: fromCloudfront(SUPPRESSION_BODY, {status: 403})})
-    expect(await read(u)).toEqual({kind: 'suppressed'})
+    // The probe read a visible value, so no overlay is named: the gate variant answers.
+    expect(await read(u)).toEqual({kind: 'suppressed', currentFocus: null})
     expect(artifactCalls(calls)).toBe(1)
   })
 

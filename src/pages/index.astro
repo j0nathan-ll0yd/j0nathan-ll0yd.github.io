@@ -4,8 +4,7 @@ import { loadDashboardData } from '../lib/load-dashboard-data';
 
 // The data-free page (atlas decision 0160, PR 0a), prerendered. Only authored identity content is
 // real; every live widget renders `loading` with its <noscript> note. Since PR B the Worker answers
-// `GET /` by streaming this file through HTMLRewriter and writing each card's state and values into
-// it (src/lib/edge-render/). Served as is, it is the D2 fallback, the `HEAD /` answer and the
-// rollback target (D9).
+// `GET /` by splicing composed fragments into this file (src/lib/composed/). Served as is, it is the
+// D2 fallback, the `HEAD /` answer and the rollback target (D9).
 ---
 <DashboardHome data={loadDashboardData()} />

@@ -150,6 +150,11 @@ export interface CloudfrontProxyContext {
   waitUntil(promise: Promise<unknown>): void
   /** Where to read. Absent: the CloudFront data plane. Only the server render's test seams pass one. */
   upstream?: Upstream
+  /**
+   * Told the hiding focus value when the probe denies. Internal: the dashboard picks the overlay of
+   * that value (src/lib/composed/read.ts). The response itself never names the value.
+   */
+  onHidingFocus?(currentFocus: string): void
 }
 
 /**
@@ -402,11 +407,13 @@ export async function focusPrivacyResponse(
   method: string,
   path: string,
   budget: RequestBudget = startBudget(),
-  upstream: Upstream = CLOUDFRONT_UPSTREAM
+  upstream: Upstream = CLOUDFRONT_UPSTREAM,
+  onHidingFocus?: (currentFocus: string) => void
 ): Promise<Response | null> {
   const focus = await probeFocus(budget, upstream)
   if (focus.status === 'suppressed') {
     logger.info?.('cloudfront_proxy_suppressed', {artifact: path, current_focus: focus.currentFocus})
+    onHidingFocus?.(focus.currentFocus)
     return suppressionResponse(method)
   }
   if (focus.status === 'unavailable') {
@@ -740,7 +747,7 @@ export function makeCloudfrontProxy(
     // The focus signal itself is never gated, exactly as the edge gate never gates it
     // (focus-privacy spec, "The focus signal stays retrievable while hiding"). Every
     // other artifact is suppressible and goes through the gate.
-    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget, source)
+    const privacyResponse = isFocusSignal ? null : await focusPrivacyResponse(context.request.method, path, budget, source, context.onHidingFocus)
     if (privacyResponse) {
       return privacyResponse
     }

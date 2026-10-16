@@ -21,8 +21,9 @@ import {
   TheatreReviews,
   Workouts
 } from '@j0nathan-ll0yd/web/production'
-import {COMPOSED_FRAGMENT_IDS} from '../../src/lib/composed/artifact'
-import type {GatedKey} from '../../src/lib/data-plane/loader'
+import {COMPOSED_FRAGMENT_IDS, GATE_VARIANT, UNREADABLE_VARIANT, VALUE_FREE_PATH} from '../../src/lib/composed/artifact'
+import {VALUE_FREE_VARIANTS} from '../../src/lib/composed/value-free'
+import {type GatedKey, valueFreeLoad, type ValueFreeState} from '../../src/lib/data-plane/loader'
 import {astroContainer, type DomainSpec, fixtureLoad, LOCAL_COVERS, normalized, rawFixture, renderOf} from './harness'
 
 const COMPOSER = new URL('../../dist-composer/composer.mjs', import.meta.url)
@@ -49,6 +50,9 @@ const ORACLE = {
   cardTheatreReviews: [TheatreReviews, 'theatreReviews']
 } as const
 
+type ValueFreeSet = {renderer: {web: string}; variants: Record<string, {summary: string; fragments: Record<string, string>}>}
+type ComposeValueFree = (input: {web: string; localCovers: readonly string[]}) => Promise<ValueFreeSet>
+let composeValueFree: ComposeValueFree
 type Compose = (input: unknown) => Promise<{ok: true; artifact: {fragments: Record<string, string>; summary: string}} | {ok: false; refusal: string}>
 let compose: Compose
 let container: Awaited<ReturnType<typeof astroContainer>>
@@ -58,7 +62,7 @@ beforeAll(async () => {
   if (!existsSync(COMPOSER)) {
     throw new Error('dist-composer/composer.mjs is missing: run node scripts/build-composer.mjs')
   }
-  compose = ((await import(COMPOSER.href)) as {compose: Compose}).compose
+  ;({compose, composeValueFree} = (await import(COMPOSER.href)) as {compose: Compose; composeValueFree: ComposeValueFree})
   container = await astroContainer()
   siteScopes = new Set(readFileSync(SITE_PAGE, 'utf8').match(/data-astro-cid-[a-z0-9]+/g) ?? [])
 }, 120_000)
@@ -158,5 +162,57 @@ describe('the composer equals the Astro render', () => {
       ok: false,
       refusal: 'focus-unreadable'
     })
+  })
+})
+
+const VALUE_FREE_STATES: Record<string, ValueFreeState> = {
+  Work: {kind: 'hiding', currentFocus: 'Work'},
+  'Do Not Disturb': {kind: 'hiding', currentFocus: 'Do Not Disturb'},
+  [GATE_VARIANT]: {kind: 'gate', currentFocus: 'None'},
+  [UNREADABLE_VARIANT]: {kind: 'unreadable', reason: 'focus-unreadable'}
+}
+
+describe('the value-free pages equal the Astro render and hold no value', () => {
+  let set: ValueFreeSet
+  beforeAll(async () => {
+    set = await composeValueFree({web: WEB, localCovers: LOCAL_COVERS})
+  }, 120_000)
+
+  it('composes exactly the variants the Worker asks for', () => {
+    expect(Object.keys(set.variants).sort()).toEqual([...VALUE_FREE_VARIANTS].sort())
+    expect(Object.keys(VALUE_FREE_STATES).sort()).toEqual([...VALUE_FREE_VARIANTS].sort())
+    expect(set.renderer.web).toBe(WEB)
+  })
+
+  // covers: dashboard-ssr#A hiding or unreadable focus value answers the build's value-free page
+  it.each(Object.entries(VALUE_FREE_STATES))('%s', async (key, state) => {
+    const page = set.variants[key]
+    const render = renderOf(valueFreeLoad(state), NOW)
+    expect(page?.summary).toBe(render.summary)
+    // The overlay clock is the browser's (clock.js); the build leaves its placeholder.
+    const vm = {...render.vm, focusOverlay: {...render.vm.focusOverlay, now: ''}, dndOverlay: {...render.vm.dndOverlay, now: ''}}
+    for (const id of COMPOSED_FRAGMENT_IDS) {
+      const [Component, model] = ORACLE[id]
+      const props = id === 'cardBooks' ? {...vm.bookshelf, localCovers: LOCAL_COVERS} : vm[model]
+      const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
+      const fragment = page?.fragments[id] ?? ''
+      expect(normalized(fragment, `#${id}`), id).toBe(normalized(oracle, `#${id}`))
+      expect(fragment, `${id} names no source age`).not.toContain('data-generated-at')
+      for (const scope of fragment.match(/data-astro-cid-[a-z0-9]+/g) ?? []) {
+        expect(siteScopes.has(scope), `${id}: ${scope} is not in the website's page`).toBe(true)
+      }
+    }
+    const cardStates = COMPOSED_FRAGMENT_IDS.filter((id) => id.startsWith('card')).map((id) =>
+      /data-ssr-state="([a-z]+)"/.exec(page?.fragments[id] ?? '')?.[1]
+    )
+    expect(new Set(cardStates)).toEqual(new Set([state.kind === 'unreadable' ? 'unavailable' : 'suppressed']))
+    const shown = (id: string) => /style="display: flex"/.test(page?.fragments[id] ?? '')
+    expect(shown('focusOverlay'), 'Work overlay').toBe(key === 'Work')
+    expect(shown('dndOverlay'), 'Do Not Disturb overlay').toBe(key === 'Do Not Disturb')
+  })
+
+  it('is what the website build shipped', () => {
+    const built = readFileSync(new URL(`../../dist/client${VALUE_FREE_PATH}`, import.meta.url), 'utf8')
+    expect(JSON.parse(built)).toEqual(set)
   })
 })

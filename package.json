@@ -26,7 +26,7 @@
     "audit:spec-currency": "node audits/checks/b2-check-spec-currency.mjs",
     "check:covers": "node scripts/openspec-covers.mjs --blocking",
     "build": "astro build",
-    "postbuild": "node scripts/drop-dev-vars.mjs && node scripts/generate-static-plane-rules.mjs && node scripts/check-no-clear-email.mjs && node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
+    "postbuild": "node scripts/drop-dev-vars.mjs && node scripts/build-composer.mjs --value-free && node scripts/generate-static-plane-rules.mjs && node scripts/check-no-clear-email.mjs && node scripts/check-live-data-bundle.mjs && node scripts/check-sw-precache.mjs && node scripts/write-version.mjs",
     "preview": "astro preview",
     "fetch:images": "node scripts/fetch-images.mjs",
     "test": "pnpm run test:unit && pnpm run test:build",

@@ -17,7 +17,8 @@ const proxyDashboard = makeCloudfrontProxy({path: COMPOSED_ARTIFACT_PATH, conten
 
 export type ComposedRead =
   | {kind: 'ok'; artifact: ComposedArtifact}
-  | {kind: 'suppressed'}
+  /** `currentFocus`: the hiding value the probe read, or null when the gate shut over a visible one. */
+  | {kind: 'suppressed'; currentFocus: string | null}
   | {kind: 'focus-unreadable'}
   | {kind: 'unavailable'; status: number}
   | {kind: 'refused'; refusal: ArtifactRefusal}
@@ -33,10 +34,18 @@ export interface ComposedReadOptions {
 }
 
 export async function readComposed({request, waitUntil, nowMs, renderer, upstream}: ComposedReadOptions): Promise<ComposedRead> {
-  const response = await proxyDashboard({request: new Request(request.url, {method: 'GET'}), waitUntil, ...(upstream ? {upstream} : {})})
+  let hidingFocus: string | null = null
+  const response = await proxyDashboard({
+    request: new Request(request.url, {method: 'GET'}),
+    waitUntil,
+    onHidingFocus: (currentFocus) => {
+      hidingFocus = currentFocus
+    },
+    ...(upstream ? {upstream} : {})
+  })
   const source = response.headers.get('X-Source')
   if (source === SUPPRESSION_SOURCE) {
-    return {kind: 'suppressed'}
+    return {kind: 'suppressed', currentFocus: hidingFocus}
   }
   if (source === FOCUS_ERROR_SOURCE) {
     response.body?.cancel().catch(() => {})

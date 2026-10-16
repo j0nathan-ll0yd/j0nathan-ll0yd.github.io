@@ -8,9 +8,13 @@
 //
 // - visible, and the artifact is admitted, fresh and built for this website: the data-free page with
 //   the artifact's fragments spliced in (src/lib/composed/shell.ts), `X-SSR-Data` = its summary;
-// - hiding, or a gate suppression body: the data-free page, `X-SSR-Data: suppressed`;
-// - an unreadable focus signal: the data-free page, `X-SSR-Data: unavailable`;
+// - hiding, or a gate suppression body: the value-free suppressed page for that hiding value (its
+//   overlay shown) or for the gate (no overlay), `X-SSR-Data: suppressed`;
+// - an unreadable focus signal: the value-free page with every card unavailable, `X-SSR-Data: unavailable`;
 // - an artifact that is missing, failed, refused or stale: the data-free page, `X-SSR-Data: fallback`.
+//
+// The value-free pages come from the website build (src/lib/composed/value-free.ts). When they cannot
+// be used, the data-free page answers with the same summary.
 //
 // The whole answer is bounded by SSR_CEILING_MS (D2) and buffered, so a failure becomes a clean 500
 // page (D13) and every data state answers 200, with no edge or browser cache (D3). One value-free
@@ -19,9 +23,11 @@
 // `HEAD /` answers from the data-free page's headers and reads no data. It omits `X-SSR-Data`, whose
 // value exists only once a body is chosen (RFC 9110 section 9.3.2 allows that).
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
+import type {ValueFreeSet} from '../composed/artifact'
 import type {ComposedRead} from '../composed/read'
 import {assemble, scopesMatch, type Shell, shellFor} from '../composed/shell'
-import {DATA_FREE_PAGE_PATH} from '../edge-render/paths'
+import {valueFreeVariant} from '../composed/value-free'
+import {DATA_FREE_PAGE_PATH} from '../composed/paths'
 import type {SsrRenderRecord} from './render-model'
 
 export { DATA_FREE_PAGE_PATH }
@@ -64,6 +70,8 @@ export interface DashboardRenderDeps {
   ceilingMs?: number
   /** Overrides the shell, for tests that run outside workerd (Node has no HTMLRewriter). */
   shell?: () => Promise<Shell>
+  /** The build's value-free pages (src/lib/composed/value-free.ts), or null when they cannot be used. */
+  valueFree?: () => Promise<ValueFreeSet | null>
 }
 
 /** The fields of one `ssr_render` log line. No field carries a data value. */
@@ -75,8 +83,8 @@ export type SsrLogLine = Omit<Partial<SsrRenderRecord>, 'summary'> & {
   total_ms: number
   build: string
   error_class?: string
-  /** What the Worker served: the composed page, or the data-free page and why. */
-  served?: 'composed' | 'data-free'
+  /** What the Worker served: the composed page, a value-free page, or the data-free page and why. */
+  served?: 'composed' | 'value-free' | 'data-free'
   focus_read?: string
   artifact?: string
   composed_age_ms?: number
@@ -106,9 +114,14 @@ function withDashboardHeaders(source: Headers, summary: string | null): Headers 
 
 type Outcome =
   | {kind: 'composed'; body: string; headers: Headers; summary: string; record: SsrRenderRecord; ioMs: number; ageMs: number}
+  | {kind: 'value-free'; body: string; headers: Headers; summary: 'suppressed' | 'unavailable'; focus: string; artifact: string; ioMs: number}
   | {kind: 'data-free'; summary: 'suppressed' | 'unavailable' | 'fallback'; focus: string; artifact: string; ioMs: number}
   | {kind: 'failed'; status: number; errorClass: string}
   | {kind: 'ceiling'}
+
+function shellOf(deps: DashboardRenderDeps): Promise<Shell> {
+  return (deps.shell ?? (() => shellFor(BUILD_ID, () => deps.asset(DATA_FREE_PAGE_PATH, 'GET'))))()
+}
 
 async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Outcome> {
   const started = Date.now()
@@ -116,17 +129,26 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
     const nowMs = deps.now(request)
     const read = await deps.read(request, nowMs)
     const ioMs = Date.now() - started
-    if (read.kind === 'suppressed') {
-      return {kind: 'data-free', summary: 'suppressed', focus: 'hiding-or-gate', artifact: 'suppressed', ioMs}
-    }
-    if (read.kind === 'focus-unreadable') {
-      return {kind: 'data-free', summary: 'unavailable', focus: 'unreadable', artifact: 'not-read', ioMs}
+    if (read.kind === 'suppressed' || read.kind === 'focus-unreadable') {
+      const summary = read.kind === 'suppressed' ? 'suppressed' : 'unavailable'
+      const focus = read.kind === 'focus-unreadable' ? 'unreadable' : read.currentFocus === null ? 'gate' : 'hiding'
+      const artifact = read.kind === 'suppressed' ? 'suppressed' : 'not-read'
+      const set = await deps.valueFree?.() ?? null
+      const page = set === null ? null : valueFreeVariant(set, read)
+      if (page === null || page.summary !== summary) {
+        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-missing`, ioMs}
+      }
+      const shell = await shellOf(deps)
+      if (!scopesMatch(shell, page.fragments)) {
+        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-scopes`, ioMs}
+      }
+      return {kind: 'value-free', body: assemble(shell, page.fragments, summary), headers: shell.headers, summary, focus, artifact, ioMs}
     }
     if (read.kind !== 'ok') {
       const reason = read.kind === 'refused' ? `refused:${read.refusal}` : `unavailable:http-${read.status}`
       return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: reason, ioMs}
     }
-    const shell = await (deps.shell ?? (() => shellFor(BUILD_ID, () => deps.asset(DATA_FREE_PAGE_PATH, 'GET'))))()
+    const shell = await shellOf(deps)
     const value = read.artifact
     if (!scopesMatch(shell, value.fragments)) {
       return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: 'refused:scopes', ioMs}
@@ -181,6 +203,19 @@ export async function renderDashboard(request: Request, deps: DashboardRenderDep
       io_ms: outcome.ioMs,
       render_ms: Math.max(0, totalMs - outcome.ioMs),
       composed_age_ms: outcome.ageMs
+    })
+    return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.headers, outcome.summary)})
+  }
+  if (outcome.kind === 'value-free') {
+    logRender({
+      ...base,
+      summary: outcome.summary,
+      served: 'value-free',
+      focus_read: outcome.focus,
+      artifact: outcome.artifact,
+      status: 200,
+      io_ms: outcome.ioMs,
+      render_ms: Math.max(0, totalMs - outcome.ioMs)
     })
     return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.headers, outcome.summary)})
   }

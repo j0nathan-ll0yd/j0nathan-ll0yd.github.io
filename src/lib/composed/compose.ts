@@ -25,9 +25,17 @@ import {
 } from '@j0nathan-ll0yd/web/production'
 import {HIDING_FOCUS_MODES, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
 import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
-import {type DashboardLoad, type DomainOutcome, GATED_KEYS, type GatedKey} from '../data-plane/loader'
-import {toDashboardRender} from '../data-plane/render-model'
-import {COMPOSED_SCHEMA_VERSION, type ComposedArtifact, type ComposedFragmentId} from './artifact'
+import {type DashboardLoad, type DomainOutcome, GATED_KEYS, type GatedKey, valueFreeLoad, type ValueFreeState} from '../data-plane/loader'
+import {type DashboardRender, toDashboardRender} from '../data-plane/render-model'
+import {
+  COMPOSED_SCHEMA_VERSION,
+  type ComposedArtifact,
+  type ComposedFragmentId,
+  GATE_VARIANT,
+  UNREADABLE_VARIANT,
+  type ValueFreePage,
+  type ValueFreeSet
+} from './artifact'
 
 export interface ComposeInput {
   /** Each export's parsed JSON, or null when it could not be read. */
@@ -77,7 +85,23 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
     ioMs: 0
   }
   const render = toDashboardRender(load, input.nowMs)
-  const vm = render.vm
+  const fragments = await renderFragments(render.vm, input.localCovers)
+  return {
+    ok: true,
+    artifact: {
+      schemaVersion: COMPOSED_SCHEMA_VERSION,
+      composedAt: new Date(input.nowMs).toISOString(),
+      renderer: {web: input.web},
+      currentFocus,
+      summary: render.summary,
+      record: render.record,
+      fragments
+    }
+  }
+}
+
+/** The thirteen fragments for one set of view models, rendered by the design system's components. */
+async function renderFragments(vm: DashboardRender['vm'], localCovers: readonly string[]): Promise<Record<ComposedFragmentId, string>> {
   container ??= await AstroContainer.create()
   const parts: [ComposedFragmentId, unknown, object][] = [
     ['focusOverlay', FocusOverlay, vm.focusOverlay],
@@ -91,7 +115,7 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
     ['cardDevLog', DevActivityLog, vm.devActivityLog],
     ['cardReading', ReadingFeed, vm.readingFeed],
     ['cardStarredRepos', StarredRepoList, vm.starredRepoList],
-    ['cardBooks', Bookshelf, {...vm.bookshelf, localCovers: input.localCovers}],
+    ['cardBooks', Bookshelf, {...vm.bookshelf, localCovers}],
     ['cardTheatreReviews', TheatreReviews, vm.theatreReviews]
   ]
   const fragments: Partial<Record<ComposedFragmentId, string>> = {}
@@ -99,17 +123,44 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
     // The production components are Astro components; the container renders each with its props.
     fragments[id] = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
   }
+  // Every id was rendered in the loop above.
+  return fragments as Record<ComposedFragmentId, string>
+}
+
+/** The states a page can show with no export value, by variant key (./artifact.ts ValueFreeSet). */
+function valueFreeStates(): Record<string, ValueFreeState> {
   return {
-    ok: true,
-    artifact: {
-      schemaVersion: COMPOSED_SCHEMA_VERSION,
-      composedAt: new Date(input.nowMs).toISOString(),
-      renderer: {web: input.web},
-      currentFocus,
-      summary: render.summary,
-      record: render.record,
-      // Every id was rendered in the loop above.
-      fragments: fragments as Record<ComposedFragmentId, string>
-    }
+    ...Object.fromEntries(HIDING_FOCUS_MODES.map((mode) => [mode, {kind: 'hiding', currentFocus: mode}])),
+    // Any visible value: the overlays read only whether the value hides.
+    [GATE_VARIANT]: {kind: 'gate', currentFocus: 'None'},
+    [UNREADABLE_VARIANT]: {kind: 'unreadable', reason: 'focus-unreadable'}
   }
+}
+
+/** One value-free page at `nowMs`. The overlay clock is left to the browser (`--:--:--` until clock.js runs). */
+async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: readonly string[]): Promise<ValueFreePage> {
+  const render = toDashboardRender(valueFreeLoad(state), nowMs)
+  const vm = {...render.vm, focusOverlay: {...render.vm.focusOverlay, now: ''}, dndOverlay: {...render.vm.dndOverlay, now: ''}}
+  if (render.summary !== 'suppressed' && render.summary !== 'unavailable') {
+    throw new Error(`value-free state ${state.kind} rendered the summary ${render.summary}`)
+  }
+  return {summary: render.summary, fragments: await renderFragments(vm, localCovers)}
+}
+
+/**
+ * The value-free pages the website build ships (scripts/build-composer.mjs). Each is composed at two
+ * clocks a year apart and must be identical: a page that depends on the clock would freeze the build
+ * time into every hiding or unreadable answer.
+ */
+export async function composeValueFree(input: {web: string; localCovers: readonly string[]}): Promise<ValueFreeSet> {
+  const variants: Record<string, ValueFreePage> = {}
+  for (const [key, state] of Object.entries(valueFreeStates())) {
+    const page = await valueFreePage(state, Date.UTC(2026, 0, 1), input.localCovers)
+    const later = await valueFreePage(state, Date.UTC(2027, 0, 1, 13, 37), input.localCovers)
+    if (JSON.stringify(page) !== JSON.stringify(later)) {
+      throw new Error(`value-free variant ${key} depends on the clock`)
+    }
+    variants[key] = page
+  }
+  return {renderer: {web: input.web}, variants}
 }
