@@ -222,7 +222,7 @@ export value and SHALL carry `Cache-Control: no-cache` (`DASHBOARD_CACHE_HEADERS
 
 Verified by `tests/unit/ssr-response.test.ts:146` (every summary answers 200),
 `tests/unit/ssr-response.test.ts:153` (the composed page is no-store at all three layers), and
-`tests/unit/ssr-response.test.ts:191` (the data-free page keeps no-cache).
+`tests/unit/ssr-response.test.ts:192` (the data-free page keeps no-cache).
 
 #### Scenario: Every export is unavailable
 
@@ -284,7 +284,7 @@ unless it reads the same visible value; an artifact published before the change 
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
-Verified by `tests/oracle/composer-parity.test.ts:393` (race a) and
+Verified by `tests/oracle/composer-parity.test.ts:402` (race a) and
 `tests/unit/composed-read.test.ts:158` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
@@ -365,11 +365,11 @@ render of its fragment, or when a render uses a class token or scoped-style hash
 allowlist or slot lacks.
 
 Verified by `tests/unit/composed-read.test.ts:310` (the first review's seven probes, the reproducers
-of the two later review rounds, and the other refusal cases), `tests/unit/ssr-response.test.ts:329`
+of the two later review rounds, and the other refusal cases), `tests/unit/ssr-response.test.ts:327`
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
 scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
 (`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
-`tests/oracle/composer-parity.test.ts:465` (every scenario's artifact, the shipped value-free set and
+`tests/oracle/composer-parity.test.ts:474` (every scenario's artifact, the shipped value-free set and
 the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
 keeps outside the cards).
 
@@ -388,7 +388,7 @@ last-known-good window (`PROXY_TIMEOUTS.lkgReadReserveMs`, 1,000 ms) from its bu
 read SHALL get the whole 2.5 s budget left after the focus probe (src/lib/edge/proxy.ts
 `artifactBudget`). A route that keeps a copy SHALL still reserve the window.
 
-Verified by `tests/unit/composed-read.test.ts:538`.
+Verified by `tests/unit/composed-read.test.ts:579`.
 
 #### Scenario: CloudFront answers the artifact slowly
 
@@ -408,8 +408,8 @@ build's clock (the overlay clock stays `--:--:--` until the browser fills it). W
 pages cannot be used, the data-free page SHALL answer with the same summary. A public request for the
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
-Verified by `tests/unit/ssr-response.test.ts:214` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:284` (each variant equals the Astro render, holds no
+Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and its fragments), and by
+`tests/oracle/composer-parity.test.ts:293` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb
@@ -425,7 +425,7 @@ The Worker SHALL bound the whole render by 3 s: 2.5 s of I/O plus a 0.5 s render
 render that misses it, a stalled document stream included, SHALL be answered with the prerendered
 data-free page, status 200, `X-SSR-Data: fallback`, and no asset validators.
 
-Verified by `tests/unit/ssr-response.test.ts:263`.
+Verified by `tests/unit/ssr-response.test.ts:261`.
 
 #### Scenario: The render never completes
 
@@ -441,7 +441,7 @@ with status 500, `Cache-Control: no-store` and `X-SSR-Data: error`. A client SHA
 200 whose document stops half-way. The 500 page carries no live widget, no gated value and no
 fixture value.
 
-Verified by `tests/unit/ssr-response.test.ts:279`.
+Verified by `tests/unit/ssr-response.test.ts:277`.
 
 #### Scenario: A widget throws while the stream renders
 
@@ -455,7 +455,7 @@ Verified by `tests/unit/ssr-response.test.ts:279`.
 read no export and render nothing, and it SHALL omit `X-SSR-Data`, whose value exists only once a
 body is rendered (RFC 9110 section 9.3.2).
 
-Verified by `tests/unit/ssr-response.test.ts:293`.
+Verified by `tests/unit/ssr-response.test.ts:291`.
 
 #### Scenario: A link checker sends HEAD
 
@@ -471,7 +471,7 @@ Each `GET /` SHALL emit one JSON log line with `event: "ssr_render"`: the summar
 exports, `io_ms`, `render_ms`, `total_ms`, the status and the build id. The line SHALL carry no
 data value.
 
-Verified by `tests/unit/ssr-response.test.ts:172`.
+Verified by `tests/unit/ssr-response.test.ts:173`.
 
 #### Scenario: A healthy render
 
