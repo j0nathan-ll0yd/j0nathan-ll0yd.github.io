@@ -7,20 +7,26 @@ PR B, `GET /` carries the owner's real data, or an honest state per card, for ev
 answer agents, link previews and browsers with scripting off read the same document as a browser
 that runs the client runtime.
 
-The page is precomposed as the data changes, like llms.txt (owner decision 2026-10-16). A backend
-composer renders the live cards, the focus overlays and System Status with the design system's
-components (src/lib/composed/compose.ts, built by scripts/build-composer.mjs) and publishes the
-`/dashboard.json` artifact behind the gate. The Worker reads it through the edge proxy
-(src/lib/composed/read.ts: focus probe first, the admission rules, no-store, no last-known-good
-copy), checks it (src/lib/composed/artifact.ts: schema, age, future skew, design-system version,
-hiding focus) and splices its fragments into the prerendered data-free page
-(src/lib/composed/shell.ts, src/lib/data-plane/ssr-response.ts). The Worker renders nothing. The
-data-free page (`dashboard-shell` capability) stays the fallback, the `HEAD /` answer and the
-rollback target (D9).
+The page is precomposed as the data changes, like llms.txt, and the live site supplies the composer
+(owner decisions 2026-10-16). Each website build ships its composer as a public static asset
+(`/_ssr/composer-<build>.mjs`, built by scripts/build-composer.mjs from src/lib/composed/compose.ts)
+and names it, with its sha256 and the contract version, in `/version.json`. One helper,
+scripts/lib/build-id.mjs, gives the build id to version.json, the composer and the Worker. A backend
+runner fetches version.json, then the composer, checks the hash, imports it and calls
+`composeDashboard`. The composer reads the focus signal and the eight exports through the PUBLIC
+gated CloudFront URLs with the loader below (src/lib/data-plane/loader.ts), renders the live cards,
+the focus overlays and System Status with the design system's components, and returns the
+`/dashboard.json` artifact, which the runner stores behind the gate. The runner holds no read
+credential.
 
-The loader requirements below (gate, focus, failed read, I/O budget) describe
-src/lib/data-plane/loader.ts, which the composed path no longer calls in production. The post-gate
-website PR replaces them with the composer's and the Worker's read of the artifact.
+The Worker reads the artifact through the edge proxy (src/lib/composed/read.ts: focus probe first,
+the admission rules, no-store, no last-known-good copy, a 2.5 s budget), checks it
+(src/lib/composed/artifact.ts: schema, age, future skew, composer build, hiding focus, fragments,
+record) and splices its fragments into the prerendered data-free page (src/lib/composed/shell.ts,
+src/lib/data-plane/ssr-response.ts). The Worker renders nothing. The data-free page
+(`dashboard-shell` capability) stays the fallback, the `HEAD /` answer and the rollback target (D9).
+
+The loader requirements below (gate, focus, failed read, I/O budget) describe the composer's reads.
 
 Render proof is behavioral DOM assertion, never screenshot comparison. A baseline minted by the
 change it verifies is not evidence (D10).
@@ -105,9 +111,11 @@ Verified by `tests/unit/data-plane-loader.test.ts:234`.
 
 ### Requirement: Every read ends within the I/O budget
 
-The focus read SHALL end within 1 s, each export read within 2 s, and every read of one render
-within 2.5 s (D2). A Worker request holds six open connections, so two of the eight reads may wait
-in the runtime's queue; an export still unread at the budget SHALL be `unavailable`.
+Every read SHALL end within its bound, and an export still unread at the budget SHALL be
+`unavailable`. The loader's default bounds are 1 s for the focus read, 2 s per export and 2.5 s for
+every read of one load (D2); a runtime may hold six open connections, so two of the eight reads may
+wait in its queue. The composer runs in a backend runner with a 60 s run, so it reads with 5 s, 10 s
+and 30 s (src/lib/composed/compose.ts `RUNNER_TIMEOUTS`).
 
 Verified by `tests/unit/data-plane-loader.test.ts:301`.
 
@@ -217,22 +225,60 @@ Verified by `tests/unit/ssr-response.test.ts:124`.
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: unavailable`, and no shared cache SHALL
   store it
 
-### Requirement: Card labels and ages are as of composition, at most 35 minutes old
+### Requirement: Card labels and ages are as of composition, at most 11.5 minutes old
 
 A composed card's state (`live`, `stale`) and every relative age the artifact renders (System Status
-`<time>` text) are judged when the composer runs, not when the Worker serves. The composer runs on
-every export update and on a 30-minute backstop, so a label trails the truth by at most the time
-since the last composition. The Worker SHALL refuse an artifact older than 35 minutes
-(`COMPOSED_MAX_AGE_MS`: the backstop plus 5 minutes) and SHALL serve the data-free page as
-`fallback`. A browser with JavaScript re-judges each card and age on load.
+`<time>` text) are judged when the composer runs, not when the Worker serves. The runner composes on
+every export update and on a 5-minute backstop (owner decision 2026-10-16). With the runner healthy,
+a label trails the truth by at most 5 minutes plus up to 1.5 minutes of publish and TTL: the run
+timeout of 60 s and the CloudFront TTL of 30 s. The Worker SHALL refuse an artifact older than
+690,000 ms (`COMPOSED_MAX_AGE_MS`, 11.5 minutes: one missed backstop run tolerated, 2 x 5 minutes,
+plus the 60 s run timeout, plus the 30 s TTL) and SHALL serve the data-free page as `fallback`. A
+browser with JavaScript re-judges each card and age on load.
 
 Verified by `tests/unit/composed-read.test.ts:150`.
 
-#### Scenario: The composer stops
+#### Scenario: The runner stops
 
-- **GIVEN** the newest artifact was composed 36 minutes ago
+- **GIVEN** the newest artifact was composed 12 minutes ago
 - **WHEN** a client requests `/`
 - **THEN** the Worker SHALL answer the data-free page with `X-SSR-Data: fallback`
+
+### Requirement: The Worker serves only an artifact its own build composed
+
+The Worker SHALL splice an artifact only when the artifact's `composer.build` equals the Worker's
+own build id, and SHALL serve the data-free page as `fallback` otherwise. version.json, the shipped
+composer and the Worker SHALL take the build id from one helper (scripts/lib/build-id.mjs), and
+version.json SHALL name the shipped composer's path, its sha256 and the contract version. So a site
+deploy never shows a page another build's composer made; `/` stays data-free until the runner
+composes with the new build's composer (at most one backstop run, 5 minutes).
+
+Verified by `tests/unit/composed-read.test.ts:156` (another build's artifact is refused) and
+`tests/build/worker-output.test.ts:83` (version.json names the shipped composer, its hash and the build).
+
+#### Scenario: The site deploys
+
+- **GIVEN** the newest artifact names build N
+- **WHEN** the Worker of build N+1 serves `/`
+- **THEN** it SHALL answer the data-free page with `X-SSR-Data: fallback` until an artifact of build
+  N+1 exists
+
+### Requirement: A composition never outlives a focus change or a site deploy
+
+Two privacy races SHALL publish or serve nothing stale. (a) Focus turns hiding during a composition:
+the composer SHALL read the focus signal again after rendering and SHALL refuse (`focus-changed`)
+unless it still reads visible; an artifact published before the change holds pre-hiding values, and
+the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
+the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
+
+Verified by `tests/oracle/composer-parity.test.ts:350` (race a) and
+`tests/unit/composed-read.test.ts:157` (race b).
+
+#### Scenario: Focus turns hiding while the page renders
+
+- **GIVEN** the composer read a visible focus value and is rendering
+- **WHEN** the focus value turns `Work` before it returns
+- **THEN** it SHALL return the refusal `focus-changed`, and the runner SHALL store nothing
 
 ### Requirement: A hiding or unreadable focus value answers the build's value-free page
 
@@ -247,7 +293,7 @@ pages cannot be used, the data-free page SHALL answer with the same summary. A p
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
 Verified by `tests/unit/ssr-response.test.ts:183` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:236` (each variant equals the Astro render, holds no
+`tests/oracle/composer-parity.test.ts:241` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb

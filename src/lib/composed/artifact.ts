@@ -18,14 +18,22 @@ export const COMPOSED_ARTIFACT_PATH = '/dashboard.json'
 /** The artifact format this Worker reads. A different version is never served. */
 export const COMPOSED_SCHEMA_VERSION = 1
 
+/** The composer's backstop schedule: the runner composes at least this often (owner decision 2026-10-16). */
+export const COMPOSER_BACKSTOP_MS = 5 * 60 * 1000
+/** The runner's Lambda timeout: a composition publishes at most this long after its stamp. */
+export const COMPOSER_RUN_TIMEOUT_MS = 60 * 1000
+/** CloudFront's TTL for the artifact (LP `EXPORT_CACHE`, s-maxage=30). */
+export const COMPOSED_EDGE_TTL_MS = 30 * 1000
+
 /**
- * The oldest artifact the Worker serves. The composer runs on every export update and on the same
- * 30-minute backstop schedule as ComposeLlmContent (owner decision 2026-10-16); the health export
- * alone updates every 15 minutes. So an artifact older than the backstop plus 5 minutes (a slow cold
- * start, a retried invocation, the 30 s CloudFront TTL) means the composer stopped: its card states
- * may no longer be true, and the Worker serves the data-free page instead.
+ * The oldest artifact the Worker serves: 690,000 ms (11.5 minutes). The runner composes on every
+ * export update and on a 5-minute backstop. The bound tolerates one missed backstop run (2 x 5 min),
+ * plus the run timeout (a stamp precedes its publish by up to 60 s), plus the CloudFront TTL (30 s).
+ * An older artifact means the runner stopped: its card states may no longer be true, and the Worker
+ * serves the data-free page instead. With the runner healthy, a label trails the truth by at most
+ * 5 minutes plus 1.5 minutes of publish and TTL.
  */
-export const COMPOSED_MAX_AGE_MS = 35 * 60 * 1000
+export const COMPOSED_MAX_AGE_MS = 2 * COMPOSER_BACKSTOP_MS + COMPOSER_RUN_TIMEOUT_MS + COMPOSED_EDGE_TTL_MS
 /** A composition stamp this far ahead of the Worker's clock is malformed, not skewed. */
 export const COMPOSED_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000
 
@@ -51,8 +59,8 @@ export type ComposedFragmentId = (typeof COMPOSED_FRAGMENT_IDS)[number]
 export interface ComposedArtifact {
   schemaVersion: typeof COMPOSED_SCHEMA_VERSION
   composedAt: string
-  /** The design-system version the fragments came from. It must equal the website's own (./shell.ts). */
-  renderer: {web: string}
+  /** The build whose composer made it. The Worker serves only an artifact of its own build. */
+  composer: {build: string}
   /** The focus value the composer read. Only a visible value is ever composed. */
   currentFocus: string
   summary: SsrSummary
@@ -77,20 +85,21 @@ export interface ValueFreePage {
 }
 
 export interface ValueFreeSet {
-  renderer: {web: string}
+  /** The build that composed the set; it must be the Worker's own. */
+  build: string
   /** Keyed by hiding focus value, GATE_VARIANT or UNREADABLE_VARIANT. */
   variants: Record<string, ValueFreePage>
 }
 
 /** The value-free set, when this website built it; otherwise null (the Worker then serves the data-free page). */
-export function checkValueFree(text: string, renderer: {web: string}, required: readonly string[]): ValueFreeSet | null {
+export function checkValueFree(text: string, build: string, required: readonly string[]): ValueFreeSet | null {
   let value: unknown
   try {
     value = JSON.parse(text)
   } catch {
     return null
   }
-  if (!isRecord(value) || !isRecord(value.renderer) || value.renderer.web !== renderer.web || !isRecord(value.variants)) {
+  if (!isRecord(value) || value.build !== build || !isRecord(value.variants)) {
     return null
   }
   const variants: Record<string, ValueFreePage> = {}
@@ -105,7 +114,7 @@ export function checkValueFree(text: string, renderer: {web: string}, required: 
     }
     variants[key] = {summary: page.summary, fragments}
   }
-  return {renderer: {web: renderer.web}, variants}
+  return {build, variants}
 }
 
 /**
@@ -179,7 +188,7 @@ function checkFragments(value: Record<string, unknown>): Record<ComposedFragment
 }
 
 /** Why an artifact is not served. Value-free: safe for the log line. */
-export type ArtifactRefusal = 'not-json' | 'schema' | 'stale' | 'future' | 'renderer' | 'hiding' | 'fragments'
+export type ArtifactRefusal = 'not-json' | 'schema' | 'stale' | 'future' | 'build' | 'hiding' | 'fragments'
 
 const SUMMARIES = new Set(['live', 'stale', 'partial', 'unavailable', 'suppressed'])
 const FOCUS_STATES = new Set(['visible', 'hiding', 'unreadable'])
@@ -194,14 +203,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * The artifact, when it may be served at `nowMs` by a website built with `renderer`; otherwise the
+ * The artifact, when the Worker of build `build` may serve it at `nowMs`; otherwise the
  * reason it may not. Every field the Worker uses is checked; each fragment must be the element it
  * replaces, with no script, style or link (`checkFragments`).
  */
 export function checkArtifact(
   text: string,
   nowMs: number,
-  renderer: {web: string},
+  build: string,
   hidingModes: ReadonlySet<string>
 ): {ok: true; artifact: ComposedArtifact} | {ok: false; refusal: ArtifactRefusal} {
   let value: unknown
@@ -213,7 +222,7 @@ export function checkArtifact(
   if (
     !isRecord(value) || value.schemaVersion !== COMPOSED_SCHEMA_VERSION || typeof value.composedAt !== 'string' ||
     typeof value.currentFocus !== 'string' || typeof value.summary !== 'string' || !SUMMARIES.has(value.summary) ||
-    !isRecord(value.record) || !isRecord(value.renderer) || !isRecord(value.fragments)
+    !isRecord(value.record) || !isRecord(value.composer) || typeof value.composer.build !== 'string' || !isRecord(value.fragments)
   ) {
     return {ok: false, refusal: 'schema'}
   }
@@ -227,8 +236,10 @@ export function checkArtifact(
   if (nowMs - composedMs > COMPOSED_MAX_AGE_MS) {
     return {ok: false, refusal: 'stale'}
   }
-  if (value.renderer.web !== renderer.web) {
-    return {ok: false, refusal: 'renderer'}
+  // Lockstep: a site deploy changes the build, so an artifact the old composer made (even one
+  // composed during the deploy, privacy race (b)) is never spliced into the new page.
+  if (value.composer.build !== build) {
+    return {ok: false, refusal: 'build'}
   }
   if (hidingModes.has(value.currentFocus) || value.summary === 'suppressed') {
     return {ok: false, refusal: 'hiding'}
@@ -246,7 +257,7 @@ export function checkArtifact(
     artifact: {
       schemaVersion: COMPOSED_SCHEMA_VERSION,
       composedAt: value.composedAt,
-      renderer: {web: value.renderer.web},
+      composer: {build: value.composer.build},
       currentFocus: value.currentFocus,
       // Checked against the closed set above.
       summary: value.summary as SsrSummary,

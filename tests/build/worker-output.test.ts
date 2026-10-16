@@ -1,6 +1,9 @@
+import {createHash} from 'node:crypto'
 import {existsSync, readdirSync, readFileSync} from 'node:fs'
+import {pathToFileURL} from 'node:url'
 import path from 'node:path'
 import {describe, expect, it} from 'vitest'
+import {buildId, COMPOSER_CONTRACT, composerPath} from '../../scripts/lib/build-id.mjs'
 import {clientDir, serverDir} from '../../scripts/lib/build-paths.mjs'
 import {canonicalPagePaths, renderRedirectsFile} from '../../scripts/lib/redirects.mjs'
 import {PROCESS_BANNER_MARKER} from '../../scripts/vite-client-no-process-banner.mjs'
@@ -68,5 +71,34 @@ describe('Worker bundle', () => {
 
   it('carries no local secrets file', () => {
     expect(existsSync(path.join(server, '.dev.vars'))).toBe(false)
+  })
+})
+
+describe('the shipped composer (atlas decision 0160, PR B; owner decision 2026-10-16)', () => {
+  const version = JSON.parse(readFileSync(path.join(client, 'version.json'), 'utf8')) as {
+    build: string
+    composer: {path: string; sha256: string; contract: number}
+  }
+
+  // covers: dashboard-ssr#The Worker serves only an artifact its own build composed
+  it('names this build, its composer path, the composer sha256 and the contract in version.json', () => {
+    expect(version.build).toBe(buildId())
+    expect(version.composer.path).toBe(composerPath(version.build))
+    expect(version.composer.contract).toBe(COMPOSER_CONTRACT)
+    const bytes = readFileSync(path.join(client, version.composer.path))
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(version.composer.sha256)
+  })
+
+  it('ships a composer stamped with the same build, so its artifacts pass the Worker lockstep check', async () => {
+    const composer = (await import(pathToFileURL(path.join(client, version.composer.path)).href)) as {COMPOSER_BUILD: string; COMPOSER_CONTRACT: number}
+    expect(composer.COMPOSER_BUILD).toBe(version.build)
+    expect(composer.COMPOSER_CONTRACT).toBe(version.composer.contract)
+  })
+
+  it('ships exactly one composer, and no machine path or fixture inside it', () => {
+    expect(readdirSync(path.join(client, '_ssr')).filter((file) => file.startsWith('composer-'))).toEqual([path.basename(version.composer.path)])
+    const text = readFileSync(path.join(client, version.composer.path), 'utf8')
+    expect(text).not.toContain(process.cwd())
+    expect(text).not.toMatch(/fixtures\/generated/)
   })
 })

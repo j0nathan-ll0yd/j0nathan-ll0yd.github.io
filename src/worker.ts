@@ -29,7 +29,8 @@ import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/
 import {VALUE_FREE_PATH} from './lib/composed/artifact'
 import {INTERNAL_ASSET_PATHS} from './lib/composed/paths'
 import {valueFreeFor} from './lib/composed/value-free'
-import {readForRequest, renderClock, type RenderVars, WEB_VERSION} from './lib/data-plane/request'
+import {BUILD_ID} from './lib/data-plane/build'
+import {readForRequest, renderClock, type RenderVars} from './lib/data-plane/request'
 import {type DashboardRenderDeps, headDashboard, renderDashboard} from './lib/data-plane/ssr-response'
 import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath, withUtf8Charset} from './lib/edge/security-headers'
 
@@ -110,7 +111,7 @@ function dashboardDeps(request: Request, env: WorkerEnv, context: AstroContext):
     read: (rendered, nowMs) => readForRequest(rendered, vars, nowMs, (promise) => context.waitUntil(promise)),
     now: (rendered) => renderClock(rendered, vars),
     asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method})),
-    valueFree: () => valueFreeFor(WEB_VERSION, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url)), {web: WEB_VERSION})
+    valueFree: () => valueFreeFor(BUILD_ID, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url)))
   }
 }
 

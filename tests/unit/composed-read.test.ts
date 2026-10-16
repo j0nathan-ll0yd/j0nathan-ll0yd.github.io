@@ -23,7 +23,7 @@ const BASE = 'https://data-plane.test'
 const FOCUS_URL = `${BASE}/focus.json`
 const ARTIFACT_URL = `${BASE}${COMPOSED_ARTIFACT_PATH}`
 const ARTIFACT = readFileSync(new URL('../fixtures/composed/dashboard.json', import.meta.url), 'utf8')
-const PARSED = JSON.parse(ARTIFACT) as {composedAt: string; renderer: {web: string}}
+const PARSED = JSON.parse(ARTIFACT) as {composedAt: string; composer: {build: string}}
 const NOW = Date.parse(PARSED.composedAt) + 60_000
 const SUPPRESSION_BODY = JSON.stringify({suppressed: true, reason: 'focus mode active'})
 const HIDING: ReadonlySet<string> = new Set(HIDING_FOCUS_MODES)
@@ -59,7 +59,7 @@ function upstream(answers: Record<string, Answer>): {calls: [string, RequestInit
 }
 
 function read(u: Upstream, nowMs = NOW): Promise<ComposedRead> {
-  return readComposed({request: new Request('https://jonathanlloyd.me/'), waitUntil: () => {}, nowMs, renderer: PARSED.renderer, upstream: u})
+  return readComposed({request: new Request('https://jonathanlloyd.me/'), waitUntil: () => {}, nowMs, build: PARSED.composer.build, upstream: u})
 }
 
 function artifactCalls(calls: [string, RequestInit | undefined][]): number {
@@ -147,16 +147,18 @@ describe('readComposed: the artifact checks', () => {
     expect(await read(u)).toEqual({kind: 'refused', refusal: 'hiding'})
   })
 
-  // covers: dashboard-ssr#Card labels and ages are as of composition, at most 35 minutes old
+  // covers: dashboard-ssr#Card labels and ages are as of composition, at most 11.5 minutes old
   it('refuses an artifact older than its maximum age', async () => {
     const {upstream: u} = upstream({[FOCUS_URL]: focus('None'), [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
     expect(await read(u, Date.parse(PARSED.composedAt) + 24 * 3_600_000)).toEqual({kind: 'refused', refusal: 'stale'})
   })
 
-  it('refuses an artifact another design-system version composed', async () => {
-    const other = JSON.stringify({...JSON.parse(ARTIFACT), renderer: {web: '0.0.0'}})
+  // covers: dashboard-ssr#The Worker serves only an artifact its own build composed
+  // covers: dashboard-ssr#A composition never outlives a focus change or a site deploy
+  it('refuses an artifact another build composed (a site deploy during a composition)', async () => {
+    const other = JSON.stringify({...JSON.parse(ARTIFACT), composer: {build: 'another-build'}})
     const {upstream: u} = upstream({[FOCUS_URL]: focus('None'), [ARTIFACT_URL]: fromCloudfront(other)})
-    expect(await read(u)).toEqual({kind: 'refused', refusal: 'renderer'})
+    expect(await read(u)).toEqual({kind: 'refused', refusal: 'build'})
   })
 })
 
@@ -185,19 +187,19 @@ describe('checkArtifact: fragments and the logged record (review H1, M3)', () =>
   it('refuses a fragment that carries a script beside its root', () => {
     const value = parsed()
     value.fragments.cardHR += '<script type="module" src="/Users/someone/HeartRate.astro?astro&type=script"></script>'
-    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)).toEqual({ok: false, refusal: 'fragments'})
+    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.composer.build, HIDING)).toEqual({ok: false, refusal: 'fragments'})
   })
 
   it('refuses a fragment that is not its own root element', () => {
     const value = parsed()
     value.fragments.cardSystem = `<div class="wrapper">${value.fragments.cardSystem}</div>`
-    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)).toEqual({ok: false, refusal: 'fragments'})
+    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.composer.build, HIDING)).toEqual({ok: false, refusal: 'fragments'})
   })
 
   it('carries only the closed-set record fields into the log record', () => {
     const value = parsed()
     value.record = {...value.record, note: 'Known Answer Title Kappa-7731', event: 'spoofed', build: 'spoofed'}
-    const checked = checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)
+    const checked = checkArtifact(JSON.stringify(value), NOW, PARSED.composer.build, HIDING)
     expect(checked.ok).toBe(true)
     if (checked.ok) {
       expect(Object.keys(checked.artifact.record).sort()).toEqual(['cards', 'degraded', 'domains', 'focus', 'io_ms', 'summary'])
@@ -212,7 +214,7 @@ describe('checkArtifact: fragments and the logged record (review H1, M3)', () =>
   ])('refuses %s as schema', (_label, change) => {
     const value = parsed()
     value.record = change(value.record)
-    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.renderer, HIDING)).toEqual({ok: false, refusal: 'schema'})
+    expect(checkArtifact(JSON.stringify(value), NOW, PARSED.composer.build, HIDING)).toEqual({ok: false, refusal: 'schema'})
   })
 })
 
@@ -228,7 +230,7 @@ describe('readComposed: the D2 budget (review M4)', () => {
       request: new Request('https://jonathanlloyd.me/'),
       waitUntil: () => {},
       nowMs: NOW,
-      renderer: PARSED.renderer,
+      build: PARSED.composer.build,
       upstream: u,
       budgetMs: 300
     })

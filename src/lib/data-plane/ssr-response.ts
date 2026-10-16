@@ -28,6 +28,7 @@ import type {ComposedRead} from '../composed/read'
 import {assemble, scopesMatch, type Shell, shellFor} from '../composed/shell'
 import {valueFreeVariant} from '../composed/value-free'
 import {DATA_FREE_PAGE_PATH} from '../composed/paths'
+import {BUILD_ID} from './build'
 import type {SsrRenderRecord} from './render-model'
 
 export { DATA_FREE_PAGE_PATH }
@@ -53,9 +54,6 @@ export const DASHBOARD_CACHE_HEADERS: readonly (readonly [string, string])[] = O
 
 /** Headers of a static file that must not describe a per-request document. */
 const ASSET_VALIDATORS = ['ETag', 'Last-Modified', 'Age', 'CF-Cache-Status']
-
-declare const __SSR_BUILD_ID__: string | undefined
-const BUILD_ID = typeof __SSR_BUILD_ID__ === 'undefined' ? 'unknown' : __SSR_BUILD_ID__
 
 const logger = createEdgeLogger({service: 'ssr-dashboard'})
 

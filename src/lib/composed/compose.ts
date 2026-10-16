@@ -1,12 +1,18 @@
-// The composer (atlas decision 0160, PR B; owner decision 2026-10-16, option 1: the PRECOMPOSED
-// PAGE). It renders the live cards, the focus overlays and System Status from the decoded exports with
-// the design system's own Astro components (Astro's Container API, in Node), and returns the artifact
-// the Worker serves (./artifact.ts). It never runs in the Worker.
+// The composer (atlas decision 0160, PR B; owner decisions 2026-10-16: the page is precomposed as the
+// data changes, and the live site supplies the composer). It renders the live cards, the focus
+// overlays and System Status with the design system's own Astro components (Astro's Container API,
+// in Node), and returns the artifact the Worker serves (./artifact.ts). It never runs in the Worker.
 //
-// The same module runs in two places: the backend composer (a Node runtime that reads the exports from
-// the data bucket), and the website's test data plane (tests/data-plane/server.ts). It is compiled by
-// the website's own build settings (scripts/build-composer.mjs), so its markup and its scoped-style
-// hashes equal the website's: Astro hashes a component by its path relative to the build root.
+// Each website build ships this module as a public static asset (`/_ssr/composer-<build>.mjs`,
+// named in version.json with its sha256). A backend runner fetches it, checks the hash, imports it
+// and calls `composeDashboard`, which reads the focus signal and the eight exports through the
+// PUBLIC gated CloudFront URLs with the website's own admission rules (../data-plane/loader.ts):
+// the runner needs no read credential. The artifact names this build; the Worker serves only an
+// artifact of its own build. The website's test data plane calls `compose` with raw exports.
+//
+// It is compiled by the website's own build settings (scripts/build-composer.mjs), so its markup and
+// its scoped-style hashes equal the website's: Astro hashes a component by its path relative to the
+// build root.
 import {experimental_AstroContainer as AstroContainer} from 'astro/container'
 import {
   Bookshelf,
@@ -23,9 +29,19 @@ import {
   TheatreReviews,
   Workouts
 } from '@j0nathan-ll0yd/web/production'
-import {HIDING_FOCUS_MODES, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, HIDING_FOCUS_MODES, type ResourceKey} from '@j0nathan-ll0yd/portal-contract/constants'
 import {decodeArtifact} from '@j0nathan-ll0yd/portal-contract/decoders'
-import {type DashboardLoad, type DomainOutcome, GATED_KEYS, type GatedKey, valueFreeLoad, type ValueFreeState} from '../data-plane/loader'
+import {
+  type DashboardLoad,
+  type DomainOutcome,
+  GATED_KEYS,
+  type GatedKey,
+  loadDashboard,
+  type LoaderTimeouts,
+  loadFocus,
+  valueFreeLoad,
+  type ValueFreeState
+} from '../data-plane/loader'
 import {type DashboardRender, toDashboardRender} from '../data-plane/render-model'
 import {
   COMPOSED_SCHEMA_VERSION,
@@ -37,6 +53,22 @@ import {
   type ValueFreePage,
   type ValueFreeSet
 } from './artifact'
+import {COMPOSER_CONTRACT} from './paths'
+
+declare const __SSR_BUILD_ID__: string | undefined
+declare const __MIRRORED_BOOK_COVERS__: readonly string[] | undefined
+
+export { COMPOSER_CONTRACT }
+/** This build's id (scripts/lib/build-id.mjs). Every artifact this module composes names it. */
+export const COMPOSER_BUILD: string = typeof __SSR_BUILD_ID__ === 'string' ? __SSR_BUILD_ID__ : 'unknown'
+/** The website's mirrored cover paths (Bookshelf `localCovers`), fixed at build time. */
+const LOCAL_COVERS: readonly string[] = typeof __MIRRORED_BOOK_COVERS__ === 'undefined' ? [] : __MIRRORED_BOOK_COVERS__
+
+/**
+ * The runner's read bounds. A Lambda run has 60 s, not the request path's 2.5 s, so a slow export
+ * still composes; the whole read stays well inside the run.
+ */
+const RUNNER_TIMEOUTS: Readonly<LoaderTimeouts> = Object.freeze({focusMs: 5_000, artifactMs: 10_000, ioBudgetMs: 30_000})
 
 export interface ComposeInput {
   /** Each export's parsed JSON, or null when it could not be read. */
@@ -44,14 +76,15 @@ export interface ComposeInput {
   /** The focus export's parsed JSON. */
   focus: unknown
   nowMs: number
-  /** The website's mirrored cover paths (Bookshelf `localCovers`). */
-  localCovers: readonly string[]
-  /** The design-system version the composer renders with (its installed @j0nathan-ll0yd/web). */
-  web: string
+  /** Overrides the mirrored cover paths, for tests outside the build. */
+  localCovers?: readonly string[]
 }
 
-/** Why the composer publishes nothing: a hiding or unreadable focus value. */
-export type ComposeRefusal = 'hiding' | 'focus-unreadable'
+/**
+ * Why the composer publishes nothing: a hiding or unreadable focus value, the gate shut over a
+ * visible one, or a focus value that turned hiding or unreadable while the page was rendering.
+ */
+export type ComposeRefusal = 'hiding' | 'focus-unreadable' | 'suppressed' | 'focus-changed'
 
 function outcome(key: GatedKey, raw: unknown): DomainOutcome {
   if (raw === null || raw === undefined) {
@@ -88,20 +121,58 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
     suppressed: false,
     ioMs: 0
   }
-  const render = toDashboardRender(load, input.nowMs)
-  const fragments = await renderFragments(render.vm, input.localCovers)
+  return {ok: true, artifact: await composeLoad(load, currentFocus, input.nowMs, input.localCovers ?? LOCAL_COVERS)}
+}
+
+/** The artifact for one visible load, stamped with this build. */
+async function composeLoad(load: DashboardLoad, currentFocus: string, nowMs: number, localCovers: readonly string[]): Promise<ComposedArtifact> {
+  const render = toDashboardRender(load, nowMs)
   return {
-    ok: true,
-    artifact: {
-      schemaVersion: COMPOSED_SCHEMA_VERSION,
-      composedAt: new Date(input.nowMs).toISOString(),
-      renderer: {web: input.web},
-      currentFocus,
-      summary: render.summary,
-      record: render.record,
-      fragments
-    }
+    schemaVersion: COMPOSED_SCHEMA_VERSION,
+    composedAt: new Date(nowMs).toISOString(),
+    composer: {build: COMPOSER_BUILD},
+    currentFocus,
+    summary: render.summary,
+    record: render.record,
+    fragments: await renderFragments(render.vm, localCovers)
   }
+}
+
+export interface ComposeDashboardOptions {
+  /** The fetch to read with. Tests pass a stub; the runner passes nothing. */
+  fetch?: typeof fetch
+  /** The composition clock. Absent: Date.now(), read when the exports have been read. */
+  nowMs?: number
+  /** The data-plane origin. Absent: the public CloudFront data plane. */
+  base?: string
+}
+
+export type ComposeDashboardResult = {ok: true; artifact: ComposedArtifact; body: string} | {ok: false; refusal: ComposeRefusal}
+
+/**
+ * The runner's entry: reads the focus signal and the eight exports through the public gated URLs,
+ * composes, then reads the focus signal again. It publishes nothing when focus hides or cannot be
+ * read, when the gate is shut, or when focus turned hiding or unreadable during the render (privacy
+ * race (a), openspec/specs/dashboard-ssr). `body` is the JSON the runner stores, byte for byte.
+ */
+export async function composeDashboard(options: ComposeDashboardOptions = {}): Promise<ComposeDashboardResult> {
+  const io = {base: options.base ?? CLOUDFRONT_BASE, timeouts: RUNNER_TIMEOUTS, ...(options.fetch ? {fetch: options.fetch} : {})}
+  const load = await loadDashboard(io)
+  if (load.focus.state === 'hiding') {
+    return {ok: false, refusal: 'hiding'}
+  }
+  if (load.focus.state === 'unreadable') {
+    return {ok: false, refusal: 'focus-unreadable'}
+  }
+  if (load.suppressed) {
+    return {ok: false, refusal: 'suppressed'}
+  }
+  const artifact = await composeLoad(load, load.focus.currentFocus, options.nowMs ?? Date.now(), LOCAL_COVERS)
+  const after = await loadFocus(io)
+  if (after.state !== 'visible') {
+    return {ok: false, refusal: 'focus-changed'}
+  }
+  return {ok: true, artifact, body: JSON.stringify(artifact)}
 }
 
 /** The thirteen fragments for one set of view models, rendered by the design system's components. */
@@ -172,15 +243,16 @@ async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: 
  * clocks a year apart and must be identical: a page that depends on the clock would freeze the build
  * time into every hiding or unreadable answer.
  */
-export async function composeValueFree(input: {web: string; localCovers: readonly string[]}): Promise<ValueFreeSet> {
+export async function composeValueFree(input: {localCovers?: readonly string[]} = {}): Promise<ValueFreeSet> {
+  const localCovers = input.localCovers ?? LOCAL_COVERS
   const variants: Record<string, ValueFreePage> = {}
   for (const [key, state] of Object.entries(valueFreeStates())) {
-    const page = await valueFreePage(state, Date.UTC(2026, 0, 1), input.localCovers)
-    const later = await valueFreePage(state, Date.UTC(2027, 0, 1, 13, 37), input.localCovers)
+    const page = await valueFreePage(state, Date.UTC(2026, 0, 1), localCovers)
+    const later = await valueFreePage(state, Date.UTC(2027, 0, 1, 13, 37), localCovers)
     if (JSON.stringify(page) !== JSON.stringify(later)) {
       throw new Error(`value-free variant ${key} depends on the clock`)
     }
     variants[key] = page
   }
-  return {renderer: {web: input.web}, variants}
+  return {build: COMPOSER_BUILD, variants}
 }

@@ -5,15 +5,12 @@
 import {type ComposedRead, readComposed} from '../composed/read'
 import type {Upstream} from '../edge/proxy'
 import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
+import {BUILD_ID} from './build'
 import {DATA_PLANE_BASE_VAR, requestDataPlaneBase} from './config'
-import {faultableHost, faultyFetch, fixturePlane, requestClock, requestFault, SSR_CLOCK_HEADER, SSR_FAULT_VAR} from './faults'
+import {faultableHost, faultyFetch, FIXTURE_BUILD, fixturePlane, requestClock, requestFault, SSR_CLOCK_HEADER, SSR_FAULT_VAR} from './faults'
 
 /** The Worker variables the server render reads. */
 export type RenderVars = Readonly<Record<string, unknown>>
-
-declare const __WEB_VERSION__: string | undefined
-/** The design-system version this website was built with; a composed artifact must name the same. */
-export const WEB_VERSION = typeof __WEB_VERSION__ === 'undefined' ? 'unknown' : __WEB_VERSION__
 
 export function readForRequest(request: Request, vars: RenderVars, nowMs: number, waitUntil: (promise: Promise<unknown>) => void): Promise<ComposedRead> {
   const fixture = fixturePlane(request, vars[SSR_FAULT_VAR])
@@ -33,7 +30,9 @@ export function readForRequest(request: Request, vars: RenderVars, nowMs: number
   }
   const testSeam = fixture !== null || fault !== null || clock !== null || base !== CLOUDFRONT_BASE
   const upstream: Upstream | undefined = testSeam ? {base, fetch: fault ? faultyFetch(fault, transport) : transport} : undefined
-  return readComposed({request, waitUntil, nowMs, renderer: {web: WEB_VERSION}, ...(upstream ? {upstream} : {})})
+  // The fixture artifact names FIXTURE_BUILD: no committed file can know the preview's build id.
+  const build = fixture === null ? BUILD_ID : FIXTURE_BUILD
+  return readComposed({request, waitUntil, nowMs, build, ...(upstream ? {upstream} : {})})
 }
 
 /** Date.now(), or the fixed clock a test sends (X-SSR-Clock). */

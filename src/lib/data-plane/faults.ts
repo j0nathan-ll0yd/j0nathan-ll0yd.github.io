@@ -162,6 +162,12 @@ export const FIXTURE_REF = typeof __SSR_FIXTURE_REF__ === 'string' && /^(?:[0-9a
 export const FIXTURE_DATA_PLANE = `https://raw.githubusercontent.com/j0nathan-ll0yd/j0nathan-ll0yd.github.io/${FIXTURE_REF}/tests/fixtures/composed`
 
 /**
+ * The composer build the fixture artifact names (tests/fixtures/composed/generate.mjs). The Worker
+ * accepts it only through the fixture data plane, on a preview or loopback host.
+ */
+export const FIXTURE_BUILD = 'fixture'
+
+/**
  * The fixture data plane for one request, or null (the same two locks as a fault). Its responses
  * carry no `x-amz-cf-id`, so its fetch stamps one: the admission rules then treat the fixture as a
  * gate answer, which is what the measurement exercises.

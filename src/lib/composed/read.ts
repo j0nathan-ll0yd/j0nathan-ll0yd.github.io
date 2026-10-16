@@ -34,8 +34,8 @@ export interface ComposedReadOptions {
   request: Request
   waitUntil(promise: Promise<unknown>): void
   nowMs: number
-  /** The website's own renderer: the design-system version it was built with. */
-  renderer: {web: string}
+  /** The build the artifact must name: the Worker's own (or the fixture seam's, on a preview). */
+  build: string
   /** The test seams' upstream; absent in production. */
   upstream?: Upstream
   /** Overrides the read budget, for tests only. */
@@ -43,7 +43,7 @@ export interface ComposedReadOptions {
 }
 
 export async function readComposed(
-  {request, waitUntil, nowMs, renderer, upstream, budgetMs = COMPOSED_READ_BUDGET_MS}: ComposedReadOptions
+  {request, waitUntil, nowMs, build, upstream, budgetMs = COMPOSED_READ_BUDGET_MS}: ComposedReadOptions
 ): Promise<ComposedRead> {
   let hidingFocus: string | null = null
   const response = await proxyDashboard({
@@ -67,6 +67,6 @@ export async function readComposed(
     response.body?.cancel().catch(() => {})
     return {kind: 'unavailable', status: response.status}
   }
-  const checked = checkArtifact(await response.text(), nowMs, renderer, HIDING_FOCUS_MODE_SET)
+  const checked = checkArtifact(await response.text(), nowMs, build, HIDING_FOCUS_MODE_SET)
   return checked.ok ? {kind: 'ok', artifact: checked.artifact} : {kind: 'refused', refusal: checked.refusal}
 }

@@ -222,6 +222,33 @@ export function valueFreeLoad(state: ValueFreeState): DashboardLoad {
   }
 }
 
+/**
+ * The focus state one focus read shows. A body that names a hiding mode hides, even when it fails
+ * its contract. The focus signal is never gated, so a suppression body cannot arrive here; any other
+ * failure is unreadable. The gate fails closed: an unreadable signal is never permission to read.
+ */
+function focusOutcome(read: ReadResult<ArtifactValues['focus']>): FocusOutcome {
+  const hidingFocus = read.kind === 'ok'
+    ? (HIDING_FOCUS_MODE_SET.has(read.data.currentFocus) ? read.data.currentFocus : undefined)
+    : read.kind === 'unavailable'
+    ? read.hidingFocus
+    : undefined
+  if (hidingFocus !== undefined) {
+    return {state: 'hiding', currentFocus: hidingFocus}
+  }
+  if (read.kind !== 'ok') {
+    return {state: 'unreadable', reason: read.kind === 'unavailable' ? read.reason : 'focus-unreadable'}
+  }
+  return {state: 'visible', currentFocus: read.data.currentFocus}
+}
+
+/** The focus signal alone, read and judged as loadDashboard reads it. The composer re-reads it after rendering. */
+export async function loadFocus(options: LoadOptions): Promise<FocusOutcome> {
+  const timeouts = {...LOADER_TIMEOUTS, ...options.timeouts}
+  const budget = startBudget(timeouts.focusMs)
+  return focusOutcome(await readArtifact('focus', {base: options.base, fetchImpl: options.fetch ?? fetch, capMs: timeouts.focusMs, budget}))
+}
+
 /** Reads the focus signal and, when it reads visible, the eight gated exports. Never throws. */
 export async function loadDashboard(options: LoadOptions): Promise<DashboardLoad> {
   const startedAt = Date.now()
@@ -231,18 +258,12 @@ export async function loadDashboard(options: LoadOptions): Promise<DashboardLoad
   const io = {base: options.base, fetchImpl, budget}
 
   const focusRead = await readArtifact('focus', {...io, capMs: timeouts.focusMs})
-  const hidingFocus = focusRead.kind === 'ok'
-    ? (HIDING_FOCUS_MODE_SET.has(focusRead.data.currentFocus) ? focusRead.data.currentFocus : undefined)
-    : focusRead.kind === 'unavailable'
-    ? focusRead.hidingFocus
-    : undefined
-  if (hidingFocus !== undefined) {
-    return {...valueFreeLoad({kind: 'hiding', currentFocus: hidingFocus}), ioMs: Date.now() - startedAt}
+  const focus = focusOutcome(focusRead)
+  if (focus.state === 'hiding') {
+    return {...valueFreeLoad({kind: 'hiding', currentFocus: focus.currentFocus}), ioMs: Date.now() - startedAt}
   }
-  if (focusRead.kind !== 'ok') {
-    // The focus signal is never gated, so a suppression body cannot arrive here; any other failure is
-    // unreadable. The gate fails closed: an unreadable signal is never permission to read.
-    const reason = focusRead.kind === 'unavailable' ? focusRead.reason : 'focus-unreadable'
+  if (focus.state === 'unreadable' || focusRead.kind !== 'ok') {
+    const reason = focus.state === 'unreadable' ? focus.reason : 'focus-unreadable'
     return {...valueFreeLoad({kind: 'unreadable', reason}), ioMs: Date.now() - startedAt}
   }
 

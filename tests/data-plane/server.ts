@@ -157,8 +157,7 @@ async function dashboard(request: IncomingMessage, response: ServerResponse): Pr
     exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
     focus: exportBody(ENDPOINTS.focus),
     nowMs,
-    localCovers: mirroredBookCovers(),
-    web: JSON.parse(readFileSync(new URL('../../node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version
+    localCovers: mirroredBookCovers()
   })
   if (!result.ok) {
     send(response, 404, '{}')
@@ -174,8 +173,7 @@ async function warmComposer(): Promise<void> {
     exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
     focus: exportBody(ENDPOINTS.focus),
     nowMs: Date.parse(FIXTURE_NOW),
-    localCovers: mirroredBookCovers(),
-    web: 'warm-up'
+    localCovers: mirroredBookCovers()
   })
 }
 

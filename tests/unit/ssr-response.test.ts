@@ -38,7 +38,7 @@ function artifact(summary: ComposedArtifact['summary'] = 'live', scope = SCOPE):
   return {
     schemaVersion: 1,
     composedAt: new Date(NOW - 60_000).toISOString(),
-    renderer: {web: '4.2.1'},
+    composer: {build: 'test'},
     currentFocus: 'None',
     summary,
     // A value-free record, as the composer writes it.
@@ -66,7 +66,7 @@ function fragmentsOf(label: string, scope = SCOPE): Record<ComposedFragmentId, s
 
 /** The build's value-free set: one page per hiding value, the gate and an unreadable focus. */
 const VALUE_FREE: ValueFreeSet = {
-  renderer: {web: '4.2.1'},
+  composer: {build: 'test'},
   variants: {
     Work: {summary: 'suppressed', fragments: fragmentsOf('work-overlay')},
     'Do Not Disturb': {summary: 'suppressed', fragments: fragmentsOf('dnd-overlay')},

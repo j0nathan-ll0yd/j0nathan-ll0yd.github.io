@@ -28,12 +28,13 @@ const result = await compose({
   exports: Object.fromEntries(keys.map((key) => [key, fixture(key)])),
   focus,
   nowMs: COMPOSED_AT,
-  localCovers: mirroredBookCovers(),
-  web: JSON.parse(readFileSync(new URL('../../../node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version
+  localCovers: mirroredBookCovers()
 })
 if (!result.ok) {
   throw new Error(`the composer refused the fixture: ${result.refusal}`)
 }
 writeFileSync(new URL('focus.json', HERE), JSON.stringify(focus))
-writeFileSync(new URL('dashboard.json', HERE), JSON.stringify(result.artifact))
+// The preview's build id is unknowable here; the Worker accepts FIXTURE_BUILD only through the fixture
+// data plane (src/lib/data-plane/faults.ts).
+writeFileSync(new URL('dashboard.json', HERE), JSON.stringify({...result.artifact, composer: {build: 'fixture'}}))
 console.log(`[composed-fixture] wrote tests/fixtures/composed/dashboard.json, summary ${result.artifact.summary}`)

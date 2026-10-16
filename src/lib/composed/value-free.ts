@@ -11,10 +11,11 @@ export const VALUE_FREE_VARIANTS: readonly string[] = Object.freeze([...HIDING_F
 
 let cached: {key: string; set: Promise<ValueFreeSet | null>} | null = null
 
-/** The checked set, once per isolate and build; null when the asset is missing or not this build's. */
-export function valueFreeFor(key: string, read: () => Promise<Response>, renderer: {web: string}): Promise<ValueFreeSet | null> {
+/** The checked set for build `build`, once per isolate; null when the asset is missing or another build's. */
+export function valueFreeFor(build: string, read: () => Promise<Response>): Promise<ValueFreeSet | null> {
+  const key = build
   if (!cached || cached.key !== key) {
-    const set = read().then(async (response) => (response.ok ? checkValueFree(await response.text(), renderer, VALUE_FREE_VARIANTS) : null))
+    const set = read().then(async (response) => (response.ok ? checkValueFree(await response.text(), build, VALUE_FREE_VARIANTS) : null))
     cached = {key, set}
     // A failed read is not cached: the next request reads the asset again.
     set.then((value) => {

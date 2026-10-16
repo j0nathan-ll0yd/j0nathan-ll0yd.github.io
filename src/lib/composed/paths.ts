@@ -16,3 +16,15 @@ export const VALUE_FREE_PATH = '/_ssr/value-free.json'
  * request reaches the Worker, which answers with the 404 page; the ASSETS binding still serves them.
  */
 export const INTERNAL_ASSET_PATHS: readonly string[] = Object.freeze([VALUE_FREE_PATH])
+
+/**
+ * The version of the contract between the composer and the backend runner that loads it: what
+ * version.json names (`composer.path`, `composer.sha256`, `composer.contract`) and what the module
+ * exports (`COMPOSER_CONTRACT`, `COMPOSER_BUILD`, `composeDashboard`). The runner refuses any other.
+ */
+export const COMPOSER_CONTRACT = 1
+
+/** The public path of a build's composer, served by the static-asset plane with no Worker CPU. */
+export function composerAssetPath(build: string): string {
+  return `/_ssr/composer-${build}.mjs`
+}

@@ -7,35 +7,63 @@
  * relative to the build root, so only this build produces the hashes this website's CSS selects. The
  * Worker refuses a fragment with any other hash (src/lib/composed/shell.ts `scopesMatch`).
  *
- * Consumers: the test data plane (tests/data-plane/server.ts) and, later, the backend composer.
+ * Consumers: the backend runner (through the shipped asset), the test data plane
+ * (tests/data-plane/server.ts) and the parity oracle (tests/oracle/).
  *
- * With `--value-free` (postbuild) it also writes the value-free pages the Worker serves while the focus
- * value hides or cannot be read (src/lib/composed/paths.ts VALUE_FREE_PATH) into the built static
- * assets. They hold no export value, so the website build owns them, not the backend. */
+ * With `--ship` (postbuild) it also copies the composer into the built static assets at
+ * `/_ssr/composer-<build>.mjs`, where the backend runner fetches it (atlas decision 0160, owner decision
+ * 2026-10-16: the live site supplies the composer), and writes the value-free pages the Worker serves
+ * while the focus value hides or cannot be read (src/lib/composed/paths.ts VALUE_FREE_PATH). Neither
+ * holds an export value. */
 import {createRequire} from 'node:module'
+import {homedir, tmpdir} from 'node:os'
 import path from 'node:path'
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {getViteConfig} from 'astro/config'
 import {MIRRORED_BOOK_COVERS_DEFINE, mirroredBookCovers} from '../src/lib/book-cover-mirror.ts'
 import {VALUE_FREE_PATH} from '../src/lib/composed/paths.ts'
+import {buildId, composerPath} from './lib/build-id.mjs'
 import {clientDir} from './lib/build-paths.mjs'
+import {leakedNames, secretValues} from './lib/env-secrets.mjs'
+import {forbidFixtures} from './vite-forbid-fixtures.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const COMPOSER_OUT_DIR = path.join(ROOT, 'dist-composer')
+
+// The composer is PUBLIC. Astro's env plugin inlines the value of any private variable whose name
+// appears in a module's source (scripts/lib/env-secrets.mjs), so the build sees no environment but
+// this allowlist, and no .env file (envDir is an empty directory). The build id is read first.
+const BUILD = buildId()
+const COVERS = mirroredBookCovers()
+const originalSecrets = secretValues({...process.env})
+const KEEP = new Set(['PATH', 'HOME', 'TMPDIR', 'TEMP', 'TMP', 'NODE_ENV', 'LANG', 'SystemRoot'])
+for (const name of Object.keys(process.env)) {
+  if (!KEEP.has(name)) {
+    delete process.env[name]
+  }
+}
+const EMPTY_ENV_DIR = mkdtempSync(path.join(tmpdir(), 'composer-env-'))
 
 // vite is astro's own dependency, not the site's: resolve it through astro.
 const astroRequire = createRequire(createRequire(import.meta.url).resolve('astro/package.json'))
 const {build} = await import(pathToFileURL(astroRequire.resolve('vite')).href)
 
 // The same compile settings as astro.config.mjs for markup: compressHTML true.
-const base = await getViteConfig({}, {configFile: false, root: new URL('..', import.meta.url), compressHTML: true})({mode: 'production', command: 'build'})
+const base = await getViteConfig({}, {configFile: false, root: new URL('..', import.meta.url), compressHTML: true, vite: {envDir: EMPTY_ENV_DIR}})({
+  mode: 'production',
+  command: 'build'
+})
 await build({
   ...base,
   configFile: false,
   publicDir: false,
   logLevel: 'warn',
-  define: {[MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(mirroredBookCovers()), __SSR_BUILD_ID__: '"composer"'},
+  // The same build id as the Worker and version.json (scripts/lib/build-id.mjs): every artifact this
+  // composer makes names it, and the Worker serves only an artifact of its own build.
+  define: {[MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(COVERS), __SSR_BUILD_ID__: JSON.stringify(BUILD)},
+  // The composer is a public asset: no module may resolve to the test fixtures (atlas 0160 Step 6.7).
+  plugins: [...(base.plugins ?? []), forbidFixtures()],
   ssr: {noExternal: true, target: 'node'},
   build: {
     ssr: path.join(ROOT, 'src/lib/composed/compose.ts'),
@@ -45,13 +73,32 @@ await build({
     rollupOptions: {output: {format: 'esm', entryFileNames: 'composer.mjs', codeSplitting: false}}
   }
 })
-console.log(`[build-composer] wrote ${path.relative(ROOT, path.join(COMPOSER_OUT_DIR, 'composer.mjs'))}`)
+// Astro passes each component's absolute source path to `$$createComponent` as its module id. The
+// composer is a public asset, so this machine's paths become `/site/...`: the ids only label
+// components (the scope hashes are already compiled in), and the parity oracle runs on this file.
+const bundle = path.join(COMPOSER_OUT_DIR, 'composer.mjs')
+const neutral = readFileSync(bundle, 'utf8').replaceAll(ROOT, '/site/')
+for (const leak of [ROOT, homedir()]) {
+  if (neutral.includes(leak)) {
+    throw new Error(`the composer bundle still names a local path (${leak})`)
+  }
+}
+const leaked = leakedNames(neutral, originalSecrets)
+if (leaked.length > 0 || /\{_:`/.test(neutral)) {
+  throw new Error(`the composer bundle holds an environment value (${leaked.join(', ') || '_'})`)
+}
+writeFileSync(bundle, neutral)
+console.log(`[build-composer] wrote ${path.relative(ROOT, bundle)}`)
 
-if (process.argv.includes('--value-free')) {
+if (process.argv.includes('--ship')) {
+  // Ships this build's composer as a public static asset (served with no Worker CPU), and the
+  // value-free pages it composes. scripts/write-version.mjs names the composer and its sha256.
+  const composer = path.join(clientDir(ROOT), composerPath(BUILD))
+  mkdirSync(path.dirname(composer), {recursive: true})
+  copyFileSync(path.join(COMPOSER_OUT_DIR, 'composer.mjs'), composer)
+  console.log(`[build-composer] shipped ${path.relative(ROOT, composer)}`)
   const {composeValueFree} = await import(pathToFileURL(path.join(COMPOSER_OUT_DIR, 'composer.mjs')).href)
-  const web = JSON.parse(readFileSync(path.join(ROOT, 'node_modules/@j0nathan-ll0yd/web/package.json'), 'utf8')).version
   const out = path.join(clientDir(ROOT), VALUE_FREE_PATH)
-  mkdirSync(path.dirname(out), {recursive: true})
-  writeFileSync(out, JSON.stringify(await composeValueFree({web, localCovers: mirroredBookCovers()})))
+  writeFileSync(out, JSON.stringify(await composeValueFree()))
   console.log(`[build-composer] wrote ${path.relative(ROOT, out)}`)
 }

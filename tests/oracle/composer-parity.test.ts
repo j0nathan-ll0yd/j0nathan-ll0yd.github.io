@@ -6,6 +6,8 @@
 // hash in it must be one the website's own built page carries, or the Worker refuses it.
 import {existsSync, readFileSync} from 'node:fs'
 import {load} from 'cheerio'
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {buildId} from '../../scripts/lib/build-id.mjs'
 import {beforeAll, describe, expect, it} from 'vitest'
 import {
   Bookshelf,
@@ -33,7 +35,7 @@ const NOW = Date.parse('2026-03-18T12:00:00.000Z')
 const FRESH = new Date(NOW - 60_000).toISOString()
 const OLD = new Date(NOW - 30 * 24 * 60 * 60 * 1000).toISOString()
 const KEYS: GatedKey[] = ['health', 'sleep', 'workouts', 'books', 'githubEvents', 'starredRepos', 'articles', 'theatreReviews']
-const WEB = JSON.parse(readFileSync(new URL('../../node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version as string
+const BUILD = buildId()
 
 /**
  * The id of a fragment's first element. The Worker replaces the page element with the fragment's id,
@@ -92,9 +94,15 @@ const ORACLE = {
   cardTheatreReviews: [TheatreReviews, 'theatreReviews']
 } as const
 
-type ValueFreeSet = {renderer: {web: string}; variants: Record<string, {summary: string; fragments: Record<string, string>}>}
-type ComposeValueFree = (input: {web: string; localCovers: readonly string[]}) => Promise<ValueFreeSet>
+type ValueFreeSet = {build: string; variants: Record<string, {summary: string; fragments: Record<string, string>}>}
+type ComposeValueFree = (input: {localCovers: readonly string[]}) => Promise<ValueFreeSet>
 let composeValueFree: ComposeValueFree
+type ComposeDashboard = (options: {fetch?: typeof fetch; nowMs?: number; base?: string}) => Promise<
+  {ok: true; artifact: {composer: {build: string}; summary: string; fragments: Record<string, string>}; body: string} | {ok: false; refusal: string}
+>
+let composeDashboard: ComposeDashboard
+let COMPOSER_CONTRACT: number
+let COMPOSER_BUILD: string
 type Compose = (input: unknown) => Promise<{ok: true; artifact: {fragments: Record<string, string>; summary: string}} | {ok: false; refusal: string}>
 let compose: Compose
 let container: Awaited<ReturnType<typeof astroContainer>>
@@ -105,7 +113,13 @@ beforeAll(async () => {
   if (!existsSync(COMPOSER)) {
     throw new Error('dist-composer/composer.mjs is missing: run node scripts/build-composer.mjs')
   }
-  ;({compose, composeValueFree} = (await import(COMPOSER.href)) as {compose: Compose; composeValueFree: ComposeValueFree})
+  ;({compose, composeValueFree, composeDashboard, COMPOSER_CONTRACT, COMPOSER_BUILD} = (await import(COMPOSER.href)) as {
+    compose: Compose
+    composeValueFree: ComposeValueFree
+    composeDashboard: ComposeDashboard
+    COMPOSER_CONTRACT: number
+    COMPOSER_BUILD: string
+  })
   container = await astroContainer()
   const site = readFileSync(SITE_PAGE, 'utf8')
   siteScopes = new Set(site.match(/data-astro-cid-[a-z0-9]+/g) ?? [])
@@ -173,7 +187,7 @@ describe('the composer equals the Astro render', () => {
       raw.generatedAt = spec.generatedAt ?? FRESH
       return [key, raw]
     }))
-    const result = await compose({exports, focus: {generatedAt: FRESH, currentFocus: 'None'}, nowMs: NOW, localCovers: LOCAL_COVERS, web: WEB})
+    const result = await compose({exports, focus: {generatedAt: FRESH, currentFocus: 'None'}, nowMs: NOW, localCovers: LOCAL_COVERS})
     expect(result.ok).toBe(true)
     if (!result.ok) {
       return
@@ -198,19 +212,10 @@ describe('the composer equals the Astro render', () => {
 
   it('publishes nothing under a hiding or unreadable focus value', async () => {
     for (const currentFocus of ['Work', 'Do Not Disturb']) {
-      const result = await compose({
-        exports: {},
-        focus: {generatedAt: FRESH, currentFocus, hidingSince: FRESH},
-        nowMs: NOW,
-        localCovers: LOCAL_COVERS,
-        web: WEB
-      })
+      const result = await compose({exports: {}, focus: {generatedAt: FRESH, currentFocus, hidingSince: FRESH}, nowMs: NOW, localCovers: LOCAL_COVERS})
       expect(result).toEqual({ok: false, refusal: 'hiding'})
     }
-    expect(await compose({exports: {}, focus: {currentFocus: 42}, nowMs: NOW, localCovers: LOCAL_COVERS, web: WEB})).toEqual({
-      ok: false,
-      refusal: 'focus-unreadable'
-    })
+    expect(await compose({exports: {}, focus: {currentFocus: 42}, nowMs: NOW, localCovers: LOCAL_COVERS})).toEqual({ok: false, refusal: 'focus-unreadable'})
   })
 })
 
@@ -224,13 +229,13 @@ const VALUE_FREE_STATES: Record<string, ValueFreeState> = {
 describe('the value-free pages equal the Astro render and hold no value', () => {
   let set: ValueFreeSet
   beforeAll(async () => {
-    set = await composeValueFree({web: WEB, localCovers: LOCAL_COVERS})
+    set = await composeValueFree({localCovers: LOCAL_COVERS})
   }, 120_000)
 
   it('composes exactly the variants the Worker asks for', () => {
     expect(Object.keys(set.variants).sort()).toEqual([...VALUE_FREE_VARIANTS].sort())
     expect(Object.keys(VALUE_FREE_STATES).sort()).toEqual([...VALUE_FREE_VARIANTS].sort())
-    expect(set.renderer.web).toBe(WEB)
+    expect(set.build).toBe(BUILD)
   })
 
   // covers: dashboard-ssr#A hiding or unreadable focus value answers the build's value-free page
@@ -267,5 +272,88 @@ describe('the value-free pages equal the Astro render and hold no value', () => 
   it('is what the website build shipped', () => {
     const built = readFileSync(new URL(`../../dist/client${VALUE_FREE_PATH}`, import.meta.url), 'utf8')
     expect(JSON.parse(built)).toEqual(set)
+  })
+})
+
+describe('composeDashboard: the runner entry (owner decision 2026-10-16, the live site supplies the composer)', () => {
+  const KEY_BY_PATH = Object.fromEntries(Object.entries(ENDPOINTS).map(([key, path]) => [path, key])) as Record<string, GatedKey | 'focus'>
+
+  /** A public data plane answering like CloudFront: each export from its baseline fixture, stamped fresh. */
+  function dataPlane(answer: (key: GatedKey | 'focus', call: number) => Response | null = () => null) {
+    const calls: string[] = []
+    const fetchStub = (async (input: RequestInfo | URL) => {
+      const path = new URL(String(input)).pathname
+      const key = KEY_BY_PATH[path]
+      calls.push(path)
+      const own = key ? answer(key, calls.filter((p) => p === path).length) : null
+      if (own) {
+        return own
+      }
+      if (!key) {
+        return new Response('{}', {status: 404, headers: {'x-amz-cf-id': 'test'}})
+      }
+      const raw = key === 'focus' ? {generatedAt: FRESH, currentFocus: 'None'} : {...rawFixture(key, 'baseline'), generatedAt: FRESH}
+      return new Response(JSON.stringify(raw), {headers: {'content-type': 'application/json', 'x-amz-cf-id': 'test'}})
+    }) as typeof fetch
+    return {calls, fetch: fetchStub}
+  }
+
+  it('exports the contract version and this build', () => {
+    expect(COMPOSER_CONTRACT).toBe(1)
+    expect(COMPOSER_BUILD).toBe(BUILD)
+  })
+
+  it('reads the public data plane, composes, and stamps this build', async () => {
+    const plane = dataPlane()
+    const result = await composeDashboard({fetch: plane.fetch, nowMs: NOW})
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.artifact.composer.build).toBe(BUILD)
+      expect(result.artifact.summary).toBe('live')
+      expect(JSON.parse(result.body)).toEqual(result.artifact)
+    }
+    expect(plane.calls.every((path) => path.startsWith('/'))).toBe(true)
+    expect(plane.calls.filter((path) => path === ENDPOINTS.focus)).toHaveLength(2)
+  })
+
+  it('reads CloudFront by default', async () => {
+    const seen: string[] = []
+    const plane = dataPlane()
+    await composeDashboard({
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => (seen.push(String(input)), plane.fetch(input, init))) as typeof fetch,
+      nowMs: NOW
+    })
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every((url) => url.startsWith(`${CLOUDFRONT_BASE}/`))).toBe(true)
+  })
+
+  it.each(['Work', 'Do Not Disturb'])('publishes nothing and reads no export under %s', async (mode) => {
+    const plane = dataPlane((key) =>
+      key === 'focus' ? new Response(JSON.stringify({generatedAt: FRESH, currentFocus: mode, hidingSince: FRESH}), {headers: {'x-amz-cf-id': 'test'}}) : null
+    )
+    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'hiding'})
+    expect(plane.calls).toEqual([ENDPOINTS.focus])
+  })
+
+  it('publishes nothing when the focus signal cannot be read', async () => {
+    const plane = dataPlane((key) => (key === 'focus' ? new Response('{}', {status: 503, headers: {'x-amz-cf-id': 'test'}}) : null))
+    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'focus-unreadable'})
+  })
+
+  it('publishes nothing when the gate is shut over a visible value', async () => {
+    const plane = dataPlane((key) =>
+      key === 'books' ? new Response(JSON.stringify({suppressed: true, reason: 'focus mode active'}), {status: 403, headers: {'x-amz-cf-id': 'test'}}) : null
+    )
+    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'suppressed'})
+  })
+
+  // covers: dashboard-ssr#A composition never outlives a focus change or a site deploy
+  it('privacy race (a): focus turns hiding while the page renders, so nothing is published', async () => {
+    const plane = dataPlane((key, call) =>
+      key === 'focus' && call === 2
+        ? new Response(JSON.stringify({generatedAt: FRESH, currentFocus: 'Work', hidingSince: FRESH}), {headers: {'x-amz-cf-id': 'test'}})
+        : null
+    )
+    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'focus-changed'})
   })
 })

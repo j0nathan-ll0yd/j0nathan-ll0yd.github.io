@@ -12,7 +12,7 @@ import {AGENT_PATHS} from './src/lib/edge/agent-paths.mjs'
 import {SITE_PAGE_PATHS} from './src/lib/edge/site-paths.ts'
 import {contentLastModified} from './src/lib/content-date.ts'
 import {MIRRORED_BOOK_COVERS_DEFINE, mirroredBookCovers} from './src/lib/book-cover-mirror.ts'
-import {readFileSync} from 'node:fs'
+import {buildId} from './scripts/lib/build-id.mjs'
 
 // Host portion of CLOUDFRONT_BASE, regex-escaped for use in service-worker
 // urlPattern RegExps so the CloudFront host is never hardcoded here.
@@ -63,9 +63,9 @@ export default defineConfig({
     // PR B, plan Step 4.6).
     define: {
       [MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(mirroredBookCovers()),
-      __SSR_BUILD_ID__: JSON.stringify(process.env.GITHUB_SHA || 'dev'),
-      // The design-system version this build renders with; a composed artifact must name the same.
-      __WEB_VERSION__: JSON.stringify(JSON.parse(readFileSync(new URL('./node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')).version),
+      // One build id for the Worker, version.json and the composer (scripts/lib/build-id.mjs). The Worker
+      // serves a composed page only when the artifact's composer build equals this.
+      __SSR_BUILD_ID__: JSON.stringify(buildId()),
       // The commit the preview's fixture data plane reads (src/lib/data-plane/faults.ts FIXTURE_REF).
       __SSR_FIXTURE_REF__: JSON.stringify(process.env.SSR_FIXTURE_REF || 'main')
     },
