@@ -20,10 +20,10 @@
     {
       "file": "ard-entry.schema.json",
       "spec": "ARD v0.91 ArdEntry and ArdManifest (ards-project/ard-spec)",
-      "url": "https://raw.githubusercontent.com/ards-project/ard-spec/b76f235a8f461876ad4f1e77abd0eb0eb302b48d/spec/schemas/ard-entry.schema.json",
-      "commit": "b76f235a8f461876ad4f1e77abd0eb0eb302b48d",
-      "sha256": "011b86d55fd5d2883dffae3f0577d26f5efb56ca866eb079edbc78a628f95499",
-      "retrieved": "2026-10-07"
+      "url": "https://raw.githubusercontent.com/ards-project/ard-spec/9d33ea17164be2e7255a9d4761fb451a1692f28b/spec/schemas/ard-entry.schema.json",
+      "commit": "9d33ea17164be2e7255a9d4761fb451a1692f28b",
+      "sha256": "3032dad432607ddae0ec088db5759fa456f36308e0e9f340165aaed504d535f4",
+      "retrieved": "2026-10-16"
     }
   ]
 }
