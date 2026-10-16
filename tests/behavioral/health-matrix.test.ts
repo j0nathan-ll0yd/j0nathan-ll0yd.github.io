@@ -2,7 +2,7 @@ import {expect, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {expectNoNewAxeViolations} from './a11y'
 import {createRequire} from 'node:module'
-import {fixture, interceptDashboard, loadDashboard} from './dashboard-fixtures'
+import {expectLiveReady, fixture, interceptDashboard, loadDashboard, serveBody} from './dashboard-fixtures'
 
 // Health vertical render conformance: heart rate, movement rings, hydration, night summary,
 // workouts, and the system-status sync line. Behavioral DOM assertions only -- the widget
@@ -23,7 +23,7 @@ const HR_PAUSED_CHARGING = 'Heart-rate tracking paused while the watch is chargi
 test.describe('Health Render Conformance', () => {
   // covers: health-render#Loading state keeps the heart-rate card in its loading presentation
   test('keeps the loading presentation while the health request is pending', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`, () => new Promise(() => {}))
 
     await page.goto('/', {waitUntil: 'domcontentloaded'})
@@ -37,15 +37,13 @@ test.describe('Health Render Conformance', () => {
   test('renders the no-data dash for every absent quantity, and the empty state for none', async ({page}) => {
     // A heart rate and nothing else: every other slot is the dash, never a 0.
     await interceptDashboard(page)
-    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`,
-      (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({date: '2026-03-17', generatedAt: '2026-03-18T12:00:00.000Z', quantities: {heartRate: {value: 63, unit: 'count/min'}}})
-        }))
+    await serveBody(page, ENDPOINTS.health, {
+      date: '2026-03-17',
+      generatedAt: '2026-03-18T12:00:00.000Z',
+      quantities: {heartRate: {value: 63, unit: 'count/min'}}
+    })
     await page.goto('/')
-    await expect(page.locator('#cardHR')).not.toHaveClass(/is-loading/)
+    await expectLiveReady(page)
     await expect(page.locator('#pulseBpm')).toHaveText('63')
     await expect(page.locator('#hrHrvValue')).toHaveText('—')
     await expect(page.locator('#hrFooterRhr')).toHaveText('—')
@@ -289,21 +287,15 @@ test.describe('Health Render Conformance', () => {
     // The export schema is `additionalProperties: false`, so this is a body the producer could not
     // have published. 199 is a heart rate no fixture in this suite uses, which makes its absence
     // from the DOM a positive result rather than a coincidence.
-    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`,
-      (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            date: '2026-09-08',
-            generatedAt: '2026-09-08T12:00:00Z',
-            quantities: {heartRate: {value: 199, unit: 'count/min'}},
-            unexpectedField: true
-          })
-        }))
+    await serveBody(page, ENDPOINTS.health, {
+      date: '2026-09-08',
+      generatedAt: '2026-09-08T12:00:00Z',
+      quantities: {heartRate: {value: 199, unit: 'count/min'}},
+      unexpectedField: true
+    })
 
     await page.goto('/')
-    await expect(page.locator('#cardHR')).not.toHaveClass(/is-loading/)
+    await expectLiveReady(page)
 
     // The page is data-free (atlas decision 0160), so the card keeps its value-free `loading`
     // scaffold: an empty readout proves the live update never ran at all. 199 with its "Peak Zone"

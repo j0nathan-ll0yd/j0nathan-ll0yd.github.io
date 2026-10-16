@@ -24,6 +24,8 @@
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {BASELINE_BY_PATH} from '../data-plane/baseline'
+import {syncServerPlane} from './dashboard-fixtures'
 
 const require = createRequire(import.meta.url)
 
@@ -46,6 +48,8 @@ const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfF
  * optional per-endpoint overrides (pathname → absolute fixture file).
  */
 async function interceptRoutes(page: Page, overrides: Record<string, string> = {}): Promise<void> {
+  // The Worker renders `/` from the fixture data plane (atlas decision 0160, PR B): same files.
+  await syncServerPlane(page, {...BASELINE_BY_PATH, ...overrides})
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
     const url = new URL(route.request().url())
     const fixtureMap: Record<string, string> = {
@@ -93,7 +97,7 @@ async function interceptRoutes(page: Page, overrides: Record<string, string> = {
 /** Navigate to the dashboard and wait for live-data hydration to complete. */
 async function navigateAndWaitForHydration(page: Page): Promise<void> {
   await page.goto('/')
-  await page.waitForFunction(() => document.querySelectorAll('.is-loading').length === 0, {timeout: 15_000})
+  await page.waitForFunction(() => document.body.dataset.liveReady === '1', {timeout: 15_000})
 }
 
 test.describe('Mobile layout — system-status alignment + reading-feed truncation', () => {

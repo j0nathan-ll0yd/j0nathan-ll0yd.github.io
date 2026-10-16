@@ -2,11 +2,13 @@ import {readFileSync} from 'node:fs'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {expectNoNewAxeViolations} from './a11y'
-import {fixture, interceptDashboard} from './dashboard-fixtures'
+import {expectLiveReady, fixture, interceptDashboard} from './dashboard-fixtures'
 
-// The browser's honest card states on the data-free `/` (atlas decision 0160, PR 0a;
-// openspec/specs/dashboard-shell). @j0nathan-ll0yd/web 4.1 gives the browser the server's rules:
-// a failed first read renders `unavailable`, an export older than its registry `audit.warn` age
+// The browser's honest card states when the client alone paints (atlas decision 0160, PR 0a;
+// openspec/specs/dashboard-shell). Since PR B the Worker renders `/` itself, so every test here
+// answers `/` with the data-free page (`{dataFree: true}`), the fallback the Worker serves when a
+// render misses its ceiling. The server side of the same states is tests/behavioral/ssr-no-js.test.ts.
+// @j0nathan-ll0yd/web 4.1 gives the browser the server's rules: a failed first read renders `unavailable`, an export older than its registry `audit.warn` age
 // renders `stale` with an "as of" time, Hydration draws its target bands, and Bookshelf loads a
 // mirrored cover from the same origin. Behavioral DOM assertions only, never a screenshot.
 
@@ -30,14 +32,14 @@ function healthAged(ageMs: number): Record<string, unknown> {
 }
 
 async function settle(page: Page): Promise<void> {
-  // live-data.ts clears every skeleton once its first fetch round settles, success or not.
-  await expect(page.locator('.is-loading')).toHaveCount(0, {timeout: 15_000})
+  // live-data.ts sets data-live-ready once its first read and first writes end, success or not.
+  await expectLiveReady(page)
 }
 
 test.describe('Client card states', () => {
   // covers: dashboard-shell#A failed first read renders the unavailable state
   test('renders unavailable on the cards a failed health read feeds, and keeps Night Summary on the sleep export', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.health}**`, (route) => route.abort())
     await page.goto('/')
     await settle(page)
@@ -57,7 +59,7 @@ test.describe('Client card states', () => {
 
   // covers: dashboard-shell#A failed first read renders the unavailable state
   test('renders unavailable on the Night Summary card when the sleep read fails', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.sleep}**`, (route) => route.abort())
     await page.goto('/')
     await settle(page)
@@ -73,7 +75,7 @@ test.describe('Client card states', () => {
   // covers: dashboard-shell#An export older than its warning age renders stale with an as-of time
   test('renders stale with an "as of" time for a health export older than its warning age', async ({page}) => {
     const old = healthAged(HEALTH_WARN_MS + 30 * MINUTE)
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await serve(page, ENDPOINTS.health, old)
     await page.goto('/')
     await settle(page)
@@ -89,7 +91,7 @@ test.describe('Client card states', () => {
   })
 
   test('renders live, with no "as of" time, for a health export inside its warning age (control)', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await serve(page, ENDPOINTS.health, healthAged(5 * MINUTE))
     await page.goto('/')
     await settle(page)
@@ -101,7 +103,7 @@ test.describe('Client card states', () => {
 
   // covers: dashboard-shell#Hydration draws its target-range bands in the browser
   test('draws both Hydration target-range bands from the export', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await page.goto('/')
     await settle(page)
 
@@ -130,7 +132,7 @@ test.describe('Client card states', () => {
     })
     const body = {...books, books: [{...books.books[0], ...cover(mirrored)}, {...books.books[1], ...cover(unmirrored)}]}
 
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await serve(page, ENDPOINTS.books, body)
     // An unmirrored cover answers from "CloudFront", so it keeps its URL instead of falling back.
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
@@ -156,7 +158,7 @@ test.describe('Client card states', () => {
     await page.clock.install({time: Date.now()})
     // Live at load, and past the warning age 5 min later.
     const old = healthAged(HEALTH_WARN_MS - 5 * MINUTE)
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await serve(page, ENDPOINTS.health, old)
     await page.goto('/')
     await settle(page)

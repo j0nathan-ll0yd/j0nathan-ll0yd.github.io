@@ -52,7 +52,10 @@ gate shut over a visible signal, and KeyValueStore propagation.
 
 Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible signal),
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
-`tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing).
+`tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
+browser by `tests/behavioral/ssr-no-js.test.ts:260` (one 403 suppresses the page) and
+`tests/behavioral/ssr-no-js.test.ts:306` (each hiding mode: the overlay shows, nothing is read, no
+gated value is in the DOM).
 
 #### Scenario: A failed focus publication
 
@@ -115,7 +118,9 @@ with an empty list is `empty`, not a failure. An export older than its `audit.er
 `stale` and the render record names it as degraded.
 
 Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
-`tests/unit/data-plane-loader.test.ts:290` (an old source).
+`tests/unit/data-plane-loader.test.ts:290` (an old source), and per export in a scripts-off browser by
+`tests/behavioral/ssr-no-js.test.ts:232` (5xx, malformed, old and empty answers, with `data-ssr-state`,
+the meta and `X-SSR-Data` in agreement).
 
 #### Scenario: An old export
 
@@ -123,6 +128,40 @@ Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
 - **WHEN** the page renders
 - **THEN** the Reading Feed card SHALL render `stale` with the export's `generatedAt`, and the
   render record SHALL list `articles` as degraded
+
+### Requirement: Rendered values equal the decoded exports
+
+For each live card, named DOM fields SHALL equal the projection of its export: the heart rate
+rounded, the newest dev-log title, the first starred repository, the first shelf title in the
+documented sort, the newest article title, the workout count, and the other fields the widgets
+document. Production is checked daily by web audit B11, through an oracle that imports none of the
+shared adapters.
+
+Verified by `tests/behavioral/ssr-no-js.test.ts:87` (the `ssrKnownAnswer` fixture variation, whose
+distinctive values occur in no other variation, `tests/build/ssr-known-answer.test.ts`).
+
+#### Scenario: A client without JavaScript reads the dashboard
+
+- **GIVEN** the data plane serves the known-answer exports
+- **WHEN** a browser with JavaScript disabled loads `/`
+- **THEN** every live card SHALL show the exact projection of its export
+
+### Requirement: The server render carries no fixture and no location value
+
+The server render SHALL carry no value from the legacy fixture baselines (computed as that set minus
+every known-answer value, so a correct render cannot trip it), none of the five rows the focus
+overlay used to hard-code, and no coordinates, place or visit data (D14). Authored identity copy,
+such as the Person address, is allowed. Production builds cannot reach `@j0nathan-ll0yd/fixtures`
+(the `forbid-fixtures` build plugin).
+
+Verified by `tests/behavioral/ssr-no-js.test.ts:182` (legacy markers and retired overlay rows) and
+`tests/behavioral/ssr-no-js.test.ts:211` (D14).
+
+#### Scenario: A crawler reads the dashboard
+
+- **GIVEN** the data plane serves real exports
+- **WHEN** a client without JavaScript loads `/`
+- **THEN** the HTML SHALL contain no legacy fixture value and no location data
 
 ### Requirement: A missing measurement renders as no reading
 
@@ -236,7 +275,8 @@ Verified by `tests/unit/ssr-response.test.ts:118`.
 The on-demand page renders at an internal path (`/ssr-dashboard`). A public request for that path
 SHALL get the 404 page and SHALL never reach Astro.
 
-Verified by `tests/unit/worker-entry.test.ts:288`.
+Verified by `tests/unit/worker-entry.test.ts:288` (the Worker routing) and
+`tests/behavioral/ssr-no-js.test.ts:330` (the built Worker in a browser).
 
 #### Scenario: A client requests the internal path
 
@@ -249,7 +289,8 @@ Verified by `tests/unit/worker-entry.test.ts:288`.
 The render SHALL NOT branch on the client: no code on the render path reads `User-Agent`, Client
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
-Verified by `tests/unit/data-plane-config.test.ts:107`.
+Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
+`tests/behavioral/ssr-no-js.test.ts:381` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 
@@ -316,6 +357,9 @@ cannot loop renders. While a reload is held, the tab SHALL clear every gated val
 (each live card to its suppressed state, System Status ages, canvas data attributes, the book
 modal), then reload at the end of the window; a held reload is never dropped (D12b: gated DOM
 values clear on suppression).
+
+The browser suite for the service worker (`sw-ssr-privacy`, under tests/behavioral) runs the real
+worker against the server render and finds no gated value replayed.
 
 Verified by `tests/unit/live-data.handoff.test.ts:476` (a startup that reads a hiding focus) and
 `tests/unit/live-data.handoff.test.ts:492` (the reload window).

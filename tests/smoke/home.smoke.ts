@@ -16,10 +16,10 @@
  *   - Asserts on STRUCTURE and HYDRATION SIGNALS, never on data CONTENT
  *     (counts, values, text of live widgets) — robust to legitimately empty
  *     states (e.g. a day with zero GitHub activity).
- *   - `.is-loading` clearing is the same readiness predicate the visual suite
- *     uses (tests/visual/helpers.ts) — the live-data runtime adds it to live
- *     cards and removes it when each updater runs (or via an 8s fallback), so
- *     reaching zero proves the runtime executed without throwing.
+ *   - `data-live-ready` on <body> is the same readiness predicate the visual and behavioral
+ *     suites use (tests/visual/helpers.ts). The live-data runtime sets it after its first read
+ *     and first writes, success or failure, so it proves the runtime executed without throwing.
+ *     The poll status dot leaving its server-rendered `off` state proves the first read ran.
  *   - CSP-violation and chunk-load assertions live in the fixture teardown
  *     (tests/smoke/fixtures.ts) and run automatically for every test.
  */
@@ -86,10 +86,10 @@ function gatedStatusMessage(path: string, probe: SuppressionProbe): string {
   return `${path} did not return 200 (focus probe ${probe.status}: ${probe.reason})`
 }
 
-// Statically server-rendered containers that must always be present. These are
-// structural — present in the data-free HTML regardless of live data. Every live
-// card ships in its `loading` state (atlas decision 0160); `@j0nathan-ll0yd/web` 4
-// renders `#cardWorkouts` visible in every state, so it is structural too.
+// Server-rendered containers that must always be present. These are structural: present in the
+// HTML whatever the live data says. The Worker renders every live card per request in one of its
+// honest states (atlas decision 0160, PR B); `@j0nathan-ll0yd/web` 4 renders `#cardWorkouts`
+// visible in every state, so it is structural too.
 const REQUIRED_CONTAINERS = [
   '#identityCard',
   '#cardBio',
@@ -105,6 +105,9 @@ const REQUIRED_CONTAINERS = [
   '#cardBooks',
   '#cardTheatreReviews'
 ]
+
+/** The ten live cards: each carries `data-ssr-state` once the Worker renders `/`. */
+const LIVE_CARDS = REQUIRED_CONTAINERS.filter((selector) => !['#identityCard', '#cardBio', '#cardSystem'].includes(selector))
 
 test.describe('production home dashboard', () => {
   test('serves 200 and the document shell renders', async ({page}) => {
@@ -123,18 +126,33 @@ test.describe('production home dashboard', () => {
     }
   })
 
-  test('live-data runtime hydrates (skeletons clear, no throw)', async ({page}) => {
+  test('live-data runtime hydrates (first read done, poll status changed, no throw)', async ({page}) => {
     await page.goto('/', {waitUntil: 'domcontentloaded'})
 
-    // The live-data runtime marks live cards with `is-loading`, then removes it
-    // when each updater completes or an 8s fallback fires. If the runtime chunk
-    // failed to load, the SSR `is-loading` cards never clear and this times out.
-    // This is the same readiness predicate the visual suite relies on.
-    await expect.poll(() => page.locator('.is-loading').count(), {
-      message: 'live-data runtime never cleared skeleton states — the hydration runtime likely failed to load',
-      timeout: 20_000,
-      intervals: [500, 1000, 2000]
-    }).toBe(0)
+    // The server render already fills the cards, so a card state proves nothing about the
+    // runtime. The runtime sets `data-live-ready` after its first read and first writes, and its
+    // first read moves the poll dot off the server-rendered `off` state. If the runtime chunk
+    // failed to load, neither happens and this times out.
+    await expect(page.locator('body'), 'live-data runtime never finished its first read -- the hydration runtime likely failed to load').toHaveAttribute(
+      'data-live-ready',
+      '1',
+      {timeout: 20_000}
+    )
+    await expect(page.locator('.poll-dot'), 'the poll status never left its server-rendered state').not.toHaveClass(/poll-dot--off/)
+  })
+
+  test('/ is server-rendered: the summary header equals the meta and no live card is loading', async ({page}) => {
+    // Holds on production once the Worker renders `/` (atlas decision 0160, PR B). `fallback`
+    // (the render missed its ceiling) and `error` fail on purpose: the cards would be data-free.
+    const response = await page.goto('/', {waitUntil: 'domcontentloaded'})
+    const summary = response!.headers()['x-ssr-data']
+    expect(summary, 'X-SSR-Data header missing: the Worker did not render /').toBeTruthy()
+    expect(['live', 'stale', 'partial', 'unavailable', 'suppressed'], `X-SSR-Data was "${summary}"`).toContain(summary)
+    await expect(page.locator('meta[name="ssr-data"]')).toHaveAttribute('content', summary)
+
+    for (const selector of LIVE_CARDS) {
+      await expect(page.locator(selector), `${selector} data-ssr-state`).toHaveAttribute('data-ssr-state', /^(live|empty|stale|unavailable|suppressed)$/)
+    }
   })
 
   test('bio terminal hydrates and types its content (#50 regression guard)', async ({page}) => {
@@ -194,7 +212,7 @@ test.describe('production home dashboard', () => {
     })
 
     await page.goto('/', {waitUntil: 'domcontentloaded'})
-    await expect.poll(() => page.locator('.is-loading').count(), {timeout: 20_000}).toBe(0)
+    await expect(page.locator('body')).toHaveAttribute('data-live-ready', '1', {timeout: 20_000})
     await page.evaluate(async () => {
       const scrollables = [document.scrollingElement, ...document.querySelectorAll<HTMLElement>('*')].filter((element): element is HTMLElement =>
         Boolean(element && element.scrollHeight > element.clientHeight)

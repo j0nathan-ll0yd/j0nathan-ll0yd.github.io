@@ -34,7 +34,7 @@ rendered (`tests/shared/fixture-sentinels.ts`), and a test proves it still occur
 fixtures package, so a renamed fixture value fails the check rather than emptying it.
 
 Verified by `tests/build/data-free-index.test.ts:39` (the built HTML, fixed sentinels and every
-derived baseline collection) and `tests/behavioral/data-free-shell.test.ts:57` (scripts off,
+derived baseline collection) and `tests/behavioral/data-free-shell.test.ts:64` (scripts off,
 scripts on with the data plane held open, scripts on with the data plane down).
 
 #### Scenario: A client without JavaScript reads the page
@@ -64,7 +64,7 @@ timestamp: an OFFLINE or ACTIVE label would be a claim the page has not measured
 overlay SHALL show.
 
 Verified by `tests/build/data-free-index.test.ts:87` (every card, its state, skeleton and note
-text; the System Status rows) and `tests/behavioral/data-free-shell.test.ts:63` (scripts off: each
+text; the System Status rows) and `tests/behavioral/data-free-shell.test.ts:70` (scripts off: each
 card visible, its note visible; the overlays hidden).
 
 #### Scenario: Every card announces that live data needs JavaScript
@@ -87,7 +87,7 @@ and a suppressed card is never written. A later successful read fills the card t
 updater.
 
 Verified by `tests/behavioral/client-states.test.ts:39` (a failed health read and a failed sleep
-read, in the browser), `tests/behavioral/data-free-shell.test.ts:116` (the whole data plane down)
+read, in the browser), `tests/behavioral/data-free-shell.test.ts:124` (the whole data plane down)
 and `tests/unit/live-data.web4.test.ts:247` (the card mapping, and nothing new on a suppressed
 page).
 
@@ -108,7 +108,7 @@ workouts 12 h; books, articles and GitHub events 7 d; starred repositories and t
 one freshness value per export. Night Summary takes the sleep export's freshness, and the health
 export lends its score only while `live`.
 
-Verified by `tests/behavioral/client-states.test.ts:73` (a health export 75 min old renders
+Verified by `tests/behavioral/client-states.test.ts:75` (a health export 75 min old renders
 `stale` with "as of"; a 5 min old one renders `live`, the control) and
 `tests/unit/live-data.web4.test.ts:234` (Night Summary's freshness and score source).
 
@@ -149,7 +149,7 @@ writes nothing and brings nothing back), `tests/unit/live-data.freshness.test.ts
 Summary drops the score of a health export that turns stale),
 `tests/unit/live-data.freshness.test.ts:269` (a gate denial during the ageing writes nothing and
 brings nothing back), `tests/unit/live-data.freshness.test.ts:287` (a restored page re-judges only
-after its focus read) and `tests/behavioral/client-states.test.ts:153` (an open tab in the browser
+after its focus read) and `tests/behavioral/client-states.test.ts:155` (an open tab in the browser
 turns `stale` while its polls fail).
 
 #### Scenario: A live health export ages while every poll fails
@@ -173,7 +173,7 @@ caffeine, with the server's markup and the export's scale (`updateHydration`,
 `@j0nathan-ll0yd/web` 4.1). Before 4.1 only server markup drew them, so the data-free page showed
 no bands.
 
-Verified by `tests/behavioral/client-states.test.ts:102`.
+Verified by `tests/behavioral/client-states.test.ts:104`.
 
 #### Scenario: The health export arrives
 
@@ -189,7 +189,7 @@ card carries the list in every state, `loading` included. A cover whose localize
 on the list SHALL load from the same origin; every other cover SHALL keep its CloudFront URL and the
 W6 fallback.
 
-Verified by `tests/behavioral/client-states.test.ts:116`.
+Verified by `tests/behavioral/client-states.test.ts:118`.
 
 #### Scenario: One mirrored and one unmirrored cover
 
@@ -208,7 +208,7 @@ SHALL read them from the copy package and nowhere else. It SHALL read no locatio
 0160 D14).
 
 Verified by `tests/build/data-free-index.test.ts:112` (the built HTML) and
-`tests/behavioral/data-free-shell.test.ts:82` (scripts off, every string visible).
+`tests/behavioral/data-free-shell.test.ts:89` (scripts off, every string visible).
 
 #### Scenario: The identity card reads the copy package
 

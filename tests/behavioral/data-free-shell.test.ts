@@ -2,8 +2,14 @@ import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {FIXTURE_SENTINELS, LIVE_CARD_IDS, RETIRED_OVERLAY_ROWS} from '../shared/fixture-sentinels'
+import {expectLiveReady, serveDataFreePage} from './dashboard-fixtures'
 
 // The data-free `/` in a real browser (atlas decision 0160, PR 0a; openspec/specs/dashboard-shell).
+//
+// Since PR B the Worker renders `/` per request, so the data-free page is the prerendered fallback
+// (served when a render misses its ceiling, and the rollback content, decisions D2 and D9). Each
+// test answers `/` with that page (`serveDataFreePage`, byte for byte dist/client/index.html); the
+// server render itself is tests/behavioral/ssr-no-js.test.ts.
 //
 // Before PR 0a the page shipped design-system fixture values as its server HTML, so a client that
 // runs no JavaScript read fabricated vitals, books and repos under "live" badges, for good, and a
@@ -51,6 +57,7 @@ test.describe('Data-free dashboard with JavaScript disabled', () => {
 
   test.beforeEach(async ({page}) => {
     await stayLocal(page)
+    await serveDataFreePage(page)
     await page.goto('/')
   })
 
@@ -101,6 +108,7 @@ test.describe('Data-free dashboard with JavaScript enabled', () => {
   // covers: dashboard-shell#The built page carries no fixture value
   test('shows no fixture value while the first data request is outstanding', async ({page}) => {
     await stayLocal(page)
+    await serveDataFreePage(page)
     // Hold every CloudFront request open: the slow-link case the fixture shell used to fill.
     await page.route(`${CLOUDFRONT_BASE}/**`, () => new Promise(() => {}))
     await page.goto('/', {waitUntil: 'domcontentloaded'})
@@ -116,10 +124,11 @@ test.describe('Data-free dashboard with JavaScript enabled', () => {
   // covers: dashboard-shell#A failed first read renders the unavailable state
   test('renders every card unavailable, value-free, when the data plane is down', async ({page}) => {
     await stayLocal(page)
+    await serveDataFreePage(page)
     await page.route(`${CLOUDFRONT_BASE}/**`, (route) => route.abort())
     await page.goto('/')
-    // live-data.ts clears every skeleton once its first fetch round settles, success or not.
-    await expect(page.locator('.is-loading')).toHaveCount(0, {timeout: 15_000})
+    // live-data.ts sets data-live-ready once its first read and first writes end, success or not.
+    await expectLiveReady(page)
 
     await expectNoFixtureValue(page)
     // The focus read failed too, so every gated read is unreadable: each card shows the server's

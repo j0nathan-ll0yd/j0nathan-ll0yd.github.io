@@ -19,13 +19,14 @@ about the pixel it lands on.
 ### Requirement: Loading state keeps the heart-rate card in its loading presentation
 
 While the health request is pending, the system SHALL keep the Heart Rate card in its loading
-presentation. The server renders no vitals (`dashboard-shell`), so the card shows only its value-free
+presentation. The data-free fallback page (`dashboard-shell`), which the Worker serves when a server
+render misses its budget (`dashboard-ssr`), renders no vitals, so the card shows only its value-free
 `loading` scaffold until fresh data arrives.
 Verified by `tests/behavioral/health-matrix.test.ts:24`.
 
 #### Scenario: The heart-rate card stays in its loading presentation while health.json is outstanding
 
-- **GIVEN** the dashboard loads with the health.json response held open
+- **GIVEN** the Worker serves the data-free fallback page and the dashboard loads with the health.json response held open
 - **WHEN** the page reaches DOMContentLoaded before the health data arrives
 - **THEN** the Heart Rate card SHALL still be visible carrying its `is-loading` presentation
 
@@ -55,7 +56,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:36`.
 When the baseline health fixture is served, the system SHALL render the measured heart rate, its
 classified zone, and the footer vitals strip, distinguishing an absent quantity from a measured
 zero. Heart-rate variability SHALL reach the DOM under its renamed key.
-Verified by `tests/behavioral/health-matrix.test.ts:68`.
+Verified by `tests/behavioral/health-matrix.test.ts:66`.
 
 #### Scenario: The baseline export renders its heart rate, HRV, zone and a signed zero temperature
 
@@ -71,7 +72,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:68`.
 
 When the heart rate falls into a zone, the system SHALL render that zone's badge and SHALL apply
 that zone's card accent, replacing any previous accent.
-Verified by `tests/behavioral/health-matrix.test.ts:85`.
+Verified by `tests/behavioral/health-matrix.test.ts:83`.
 
 #### Scenario: A bradycardic and a peak reading render different badges and accents
 
@@ -85,7 +86,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:85`.
 When the export reports the watch as unworn, the system SHALL show the paused block on both
 watch-driven cards and SHALL hide their data wrappers, so no stale reading is presented as live.
 The paused copy SHALL name the cause.
-Verified by `tests/behavioral/health-matrix.test.ts:106`.
+Verified by `tests/behavioral/health-matrix.test.ts:104`.
 
 #### Scenario: An off-wrist watch and a charging watch each hide the heart-rate data and name their cause
 
@@ -102,7 +103,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:106`.
 When the export carries synced goals and solar facts, the system SHALL render the rings and legend
 against those goals rather than the client-side defaults, SHALL take stand from the achieved ring
 count, and SHALL render the daylight and solar footer from the export.
-Verified by `tests/behavioral/health-matrix.test.ts:133`.
+Verified by `tests/behavioral/health-matrix.test.ts:131`.
 
 #### Scenario: A goals-bearing export renders its own denominators and solar times
 
@@ -117,7 +118,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:133`.
 
 When the export carries hydration quantities, the system SHALL render water converted from
 millilitres to ounces and caffeine converted from grams to milligrams, in both vessels.
-Verified by `tests/behavioral/health-matrix.test.ts:154`.
+Verified by `tests/behavioral/health-matrix.test.ts:152`.
 
 #### Scenario: A zero and a scale-max export both render their converted totals
 
@@ -131,7 +132,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:154`.
 
 When the sleep export carries phase durations, the system SHALL render the total sleep duration and
 one populated pill per phase, counting only the asleep phases toward the total.
-Verified by `tests/behavioral/health-matrix.test.ts:172`.
+Verified by `tests/behavioral/health-matrix.test.ts:170`.
 
 #### Scenario: The baseline night renders its duration and four phase pills
 
@@ -144,7 +145,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:172`.
 
 When the sleep phase mix changes, the system SHALL render the restorative caption percentages as
 proportions of total sleep rather than of time in bed.
-Verified by `tests/behavioral/health-matrix.test.ts:186`.
+Verified by `tests/behavioral/health-matrix.test.ts:184`.
 
 #### Scenario: A deep-dominant night renders its own deep and REM percentages
 
@@ -156,7 +157,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:186`.
 
 When the sleep export records no sleep at all, the system SHALL render placeholders across the card
 and SHALL NOT render a zero-valued night as a measured one.
-Verified by `tests/behavioral/health-matrix.test.ts:199`.
+Verified by `tests/behavioral/health-matrix.test.ts:197`.
 
 #### Scenario: A zero-second night renders placeholders and the no-data timestamp
 
@@ -169,7 +170,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:199`.
 
 When the workouts export carries sessions, the system SHALL render one
 sub-card per session with its activity type, duration, energy burned and distance.
-Verified by `tests/behavioral/health-matrix.test.ts:215`.
+Verified by `tests/behavioral/health-matrix.test.ts:213`.
 
 #### Scenario: A three-session export renders one sub-card per session
 
@@ -184,7 +185,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:215`.
 When a session carries a generic activity type that maps to a known studio, the system SHALL render
 the mapped label as a safe outbound link, and SHALL omit the distance stat when no distance was
 recorded.
-Verified by `tests/behavioral/health-matrix.test.ts:235`.
+Verified by `tests/behavioral/health-matrix.test.ts:233`.
 
 #### Scenario: A generic studio session renders its brand, its link and no distance stat
 
@@ -200,7 +201,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:235`.
 When the workouts export is empty, the system SHALL show the Workouts card in its recovery-day
 empty state (`data-ssr-state="empty"`) and SHALL NOT render a session. `@j0nathan-ll0yd/web` 4
 renders Workouts visible in every state; the card is never hidden.
-Verified by `tests/behavioral/health-matrix.test.ts:253`.
+Verified by `tests/behavioral/health-matrix.test.ts:251`.
 
 #### Scenario: An empty workouts export shows the recovery day while the rest of health renders
 
@@ -213,7 +214,7 @@ Verified by `tests/behavioral/health-matrix.test.ts:253`.
 
 When an export lands, the system SHALL mark that source's status line active in the system-status
 panel, and SHALL omit the location line from the production build.
-Verified by `tests/behavioral/health-matrix.test.ts:269`.
+Verified by `tests/behavioral/health-matrix.test.ts:267`.
 
 #### Scenario: A fully served dashboard reports seven active sources and no location line
 
@@ -230,7 +231,7 @@ value-free `unavailable` state. It
 SHALL NOT record a timestamp for a refused export, so the system-status panel reports that source
 offline rather than dating the dashboard from data the contract rejected. A well-formed HTTP 200
 response is not by itself grounds to display its contents.
-Verified by `tests/behavioral/health-matrix.test.ts:285`.
+Verified by `tests/behavioral/health-matrix.test.ts:283`.
 
 #### Scenario: A health export carrying an unmapped property renders none of its values
 

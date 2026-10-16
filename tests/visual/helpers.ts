@@ -6,6 +6,7 @@
 import path from 'path'
 import {expect, type Locator, type Page} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {resetDataPlane, serveFixtures} from '../data-plane/control'
 import {getScenarioFixtures, scenarioHasWorkouts, type ScenarioName} from './fixtures'
 
 export const stylePath = path.join(import.meta.dirname, 'screenshot.css')
@@ -67,6 +68,17 @@ const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfF
  */
 export async function interceptRoutes(page: Page, scenario: ScenarioName): Promise<void> {
   const fixtures = getScenarioFixtures(scenario)
+
+  // The Worker renders `/` from the fixture data plane (atlas decision 0160, PR B). It serves the
+  // scenario's own files with their own generatedAt (the visual config sets
+  // DATA_PLANE_GENERATED_AT=original), and the render clock is pinned to FROZEN_NOW_MS, so the
+  // server render matches what the browser's frozen clock produces for the same files.
+  await resetDataPlane()
+  await serveFixtures(fixtures, 'original')
+  await page.route((url) => url.origin === 'http://localhost:4321' && url.pathname === '/', (route) =>
+    route.request().resourceType() === 'document'
+      ? route.continue({headers: {...route.request().headers(), 'x-ssr-clock': new Date(FROZEN_NOW_MS).toISOString()}})
+      : route.fallback())
 
   await page.route(`${CLOUDFRONT_BASE}/**`, async (route) => {
     const url = new URL(route.request().url())
@@ -133,10 +145,11 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
   await page.goto('/')
   await page.evaluate(() => document.fonts.ready)
 
-  // Wait for all skeleton loading states to be removed -- this is the real
-  // readiness signal (data has populated the DOM). Replaces `networkidle`,
-  // which is unreliable on this page due to PollEngine and SW background fetches.
-  await page.waitForFunction(() => document.querySelectorAll('.is-loading').length === 0, {timeout: 10000})
+  // Wait for the runtime's first read and first writes to end -- the real readiness signal. The
+  // server already rendered the cards, so a skeleton count proves nothing; `data-live-ready` is set
+  // by the live-data runtime (success or failure). Replaces `networkidle`, which is unreliable on
+  // this page due to PollEngine and SW background fetches.
+  await page.waitForFunction(() => document.body.dataset.liveReady === '1', {timeout: 10000})
 
   // Wait for every <img> in the document to finish loading (complete === true
   // OR naturalWidth === 0 for blocked images). Without this, an image that
@@ -153,7 +166,7 @@ export async function navigateAndWait(page: Page, options: NavigateOptions = {})
   })
 
   // @j0nathan-ll0yd/web 4 renders #cardWorkouts visible in every state, so this is a layout
-  // check only: the `.is-loading` wait above already covers updateWorkouts, which runs first.
+  // check only: the `data-live-ready` wait above already covers updateWorkouts, which runs first.
   if (options.waitForWorkouts) {
     await page.locator('#cardWorkouts').waitFor({state: 'visible', timeout: 10000})
   }

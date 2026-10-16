@@ -17,7 +17,7 @@ const HOODLINE_SOURCE = 'Hoodline — San Francisco Bay Area Neighborhood News a
 test.describe('Reading Feed Render Conformance', () => {
   // covers: articles-render#Loading state keeps the reading feed in its loading presentation
   test('keeps the loading presentation while the articles request is pending', async ({page}) => {
-    await interceptDashboard(page)
+    await interceptDashboard(page, {}, {dataFree: true})
     await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.articles}**`, () => new Promise(() => {}))
 
     await page.goto('/', {waitUntil: 'domcontentloaded'})

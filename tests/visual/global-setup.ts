@@ -9,9 +9,8 @@ import type {FullConfig} from '@playwright/test'
  * site and every snapshot drifts. Fail fast with a clear message instead.
  */
 export default async function globalSetup(config: FullConfig): Promise<void> {
-  const url = config.webServer && !Array.isArray(config.webServer)
-    ? config.webServer.url
-    : undefined
+  const servers = [config.webServer ?? []].flat()
+  const url = servers.find((server) => server.url?.includes(':4321'))?.url
   if (!url) {
     return
   }
