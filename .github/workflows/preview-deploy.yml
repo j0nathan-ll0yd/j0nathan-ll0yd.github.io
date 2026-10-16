@@ -86,7 +86,9 @@ jobs:
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
           PREVIEW_ALIAS: pr-${{ github.event.pull_request.number }}
         run: |
-          pnpm exec wrangler versions upload --preview-alias "$PREVIEW_ALIAS" --message "PR #${{ github.event.pull_request.number }} ${GITHUB_SHA}"
+          # SSR_FAULT_INJECTION: the Step 6.10 fault header (src/lib/data-plane/faults.ts), honored
+          # only on *.workers.dev hosts, which Access guards. deploy.yml refuses the variable.
+          pnpm exec wrangler versions upload --preview-alias "$PREVIEW_ALIAS" --var SSR_FAULT_INJECTION:1 --message "PR #${{ github.event.pull_request.number }} ${GITHUB_SHA}"
           node --input-type=module -e '
             import {appendFileSync, readFileSync} from "node:fs"
             const entries = readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, "utf8").trim().split("\n").map((line) => JSON.parse(line))

@@ -92,7 +92,9 @@ export function toDashboardRender(load: DashboardLoad, now: number): DashboardRe
   const exports: DashboardExports = {
     // An unreadable focus signal passes no focus export: the overlays stay hidden and every gated
     // domain arrives `unavailable` from the loader.
-    ...(load.focus.state === 'unreadable' ? {} : {focus: {data: load.focus.data}}),
+    // The view models read only `currentFocus` from the focus export. A hiding signal whose body
+    // failed its contract still names its mode, so it carries no `generatedAt` of its own here.
+    ...(load.focus.state === 'unreadable' ? {} : {focus: {data: {generatedAt: '', currentFocus: load.focus.currentFocus}}}),
     health: domainInput(load.domains.health),
     sleep: domainInput(load.domains.sleep),
     workouts: domainInput(load.domains.workouts),

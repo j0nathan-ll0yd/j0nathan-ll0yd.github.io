@@ -17,6 +17,12 @@
 export const SSR_FAULT_VAR = 'SSR_FAULT_INJECTION'
 /** The request header that names the fault for one render. */
 export const SSR_FAULT_HEADER = 'X-SSR-Fault'
+/**
+ * The request header that fixes the render clock for one render (an ISO-8601 instant). The reads stay
+ * real; only the `now` the view models judge freshness and relative times against moves. The visual
+ * suite uses it so its baselines do not drift with the calendar. Same two locks as a fault.
+ */
+export const SSR_CLOCK_HEADER = 'X-SSR-Clock'
 
 /** One fault, applied to every gated export read (the focus read is left alone unless named). */
 export type Fault =
@@ -55,12 +61,26 @@ export function parseFault(value: string | null): Fault | null {
   return null
 }
 
+function testSeamsAllowed(request: Request, enabled: unknown): boolean {
+  return enabled === '1' && faultableHost(new URL(request.url).hostname)
+}
+
 /** The fault for one request, or null: the variable, the host and the header must all allow it. */
 export function requestFault(request: Request, enabled: unknown): Fault | null {
-  if (enabled !== '1' || !faultableHost(new URL(request.url).hostname)) {
+  return testSeamsAllowed(request, enabled) ? parseFault(request.headers.get(SSR_FAULT_HEADER)) : null
+}
+
+/** The fixed render clock for one request, in epoch milliseconds, or null (the same locks as a fault). */
+export function requestClock(request: Request, enabled: unknown): number | null {
+  if (!testSeamsAllowed(request, enabled)) {
     return null
   }
-  return parseFault(request.headers.get(SSR_FAULT_HEADER))
+  const value = request.headers.get(SSR_CLOCK_HEADER)?.trim() ?? ''
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return null
+  }
+  const ms = Date.parse(value)
+  return Number.isFinite(ms) ? ms : null
 }
 
 function never(signal: AbortSignal | null | undefined): Promise<never> {

@@ -44,8 +44,14 @@ export const GATED_KEYS = Object.freeze([
 
 export type GatedKey = (typeof GATED_KEYS)[number]
 
+export interface LoaderTimeouts {
+  focusMs: number
+  artifactMs: number
+  ioBudgetMs: number
+}
+
 /** The wall-clock bounds of one load. Exported so tests assert against the real numbers. */
-export const LOADER_TIMEOUTS = Object.freeze({
+export const LOADER_TIMEOUTS: Readonly<LoaderTimeouts> = Object.freeze({
   /** The focus read, body included. */
   focusMs: 1_000,
   /** One export read, body included. */
@@ -73,8 +79,8 @@ export type DomainOutcome<K extends GatedKey = GatedKey> =
   | {kind: 'unavailable'; reason: ReadFailure}
 
 export type FocusOutcome =
-  | {state: 'visible'; data: ArtifactValues['focus']}
-  | {state: 'hiding'; data: ArtifactValues['focus']}
+  | {state: 'visible'; currentFocus: string}
+  | {state: 'hiding'; currentFocus: string}
   | {state: 'unreadable'; reason: ReadFailure}
 
 export interface DashboardLoad {
@@ -92,10 +98,26 @@ export interface LoadOptions {
   /** The fetch to use. Tests pass a stub; the Worker passes nothing. */
   fetch?: typeof fetch
   /** Overrides the bounds, for tests only. */
-  timeouts?: Partial<typeof LOADER_TIMEOUTS>
+  timeouts?: Partial<LoaderTimeouts>
 }
 
-type ReadResult<T> = {kind: 'ok'; data: T} | {kind: 'suppressed'} | {kind: 'unavailable'; reason: ReadFailure}
+type ReadResult<T> =
+  | {kind: 'ok'; data: T}
+  | {kind: 'suppressed'}
+  | {kind: 'unavailable'; reason: ReadFailure; hidingFocus?: string}
+
+/**
+ * The hiding focus mode a body names, read without the contract. A focus body that fails its
+ * contract but still names a hiding mode (for example `Work` without `hidingSince`) is a hiding
+ * signal: the overlay shows and nothing is read, as the CloudFront proxy routes treat it.
+ */
+function namedHidingFocus(body: unknown): string | undefined {
+  if (typeof body !== 'object' || body === null || Array.isArray(body) || !('currentFocus' in body)) {
+    return undefined
+  }
+  const {currentFocus} = body
+  return typeof currentFocus === 'string' && HIDING_FOCUS_MODE_SET.has(currentFocus) ? currentFocus : undefined
+}
 
 function failureOf(error: unknown): ReadFailure {
   return error instanceof DeadlineError || errorClass(error) === 'AbortError' ? 'timeout' : 'network'
@@ -139,7 +161,8 @@ async function readArtifact<K extends ResourceKey>(
   try {
     return {kind: 'ok', data: decodeArtifact(key, body)}
   } catch {
-    return {kind: 'unavailable', reason: 'decode'}
+    const hidingFocus = key === 'focus' ? namedHidingFocus(body) : undefined
+    return {kind: 'unavailable', reason: 'decode', ...(hidingFocus ? {hidingFocus} : {})}
   }
 }
 
@@ -156,8 +179,21 @@ export async function loadDashboard(options: LoadOptions): Promise<DashboardLoad
   const io = {base: options.base, fetchImpl, budget}
 
   const focusRead = await readArtifact('focus', {...io, capMs: timeouts.focusMs})
+  const hidingFocus = focusRead.kind === 'ok'
+    ? (HIDING_FOCUS_MODE_SET.has(focusRead.data.currentFocus) ? focusRead.data.currentFocus : undefined)
+    : focusRead.kind === 'unavailable'
+    ? focusRead.hidingFocus
+    : undefined
+  if (hidingFocus !== undefined) {
+    return {
+      focus: {state: 'hiding', currentFocus: hidingFocus},
+      domains: allDomains(() => ({kind: 'suppressed'})) as DashboardLoad['domains'],
+      suppressed: true,
+      ioMs: Date.now() - startedAt
+    }
+  }
   if (focusRead.kind !== 'ok') {
-    // The focus signal is never gated, so a suppression body cannot arrive here; any failure is
+    // The focus signal is never gated, so a suppression body cannot arrive here; any other failure is
     // unreadable. The gate fails closed: an unreadable signal is never permission to read.
     const reason = focusRead.kind === 'unavailable' ? focusRead.reason : 'focus-unreadable'
     return {
@@ -167,20 +203,12 @@ export async function loadDashboard(options: LoadOptions): Promise<DashboardLoad
       ioMs: Date.now() - startedAt
     }
   }
-  if (HIDING_FOCUS_MODE_SET.has(focusRead.data.currentFocus)) {
-    return {
-      focus: {state: 'hiding', data: focusRead.data},
-      domains: allDomains(() => ({kind: 'suppressed'})) as DashboardLoad['domains'],
-      suppressed: true,
-      ioMs: Date.now() - startedAt
-    }
-  }
 
   const reads = await Promise.all(GATED_KEYS.map((key) => readArtifact(key, {...io, capMs: timeouts.artifactMs})))
   const domains = Object.fromEntries(GATED_KEYS.map((key, index) => [key, reads[index]])) as DashboardLoad['domains']
   const suppressed = reads.some((read) => read.kind === 'suppressed')
   return {
-    focus: {state: 'visible', data: focusRead.data},
+    focus: {state: 'visible', currentFocus: focusRead.data.currentFocus},
     // The gate wins every disagreement: one suppression body suppresses every domain, so no value
     // that a sibling read admitted reaches the page.
     domains: suppressed ? (allDomains(() => ({kind: 'suppressed'})) as DashboardLoad['domains']) : domains,

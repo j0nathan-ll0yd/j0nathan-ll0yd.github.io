@@ -96,7 +96,7 @@ describe('static-asset plane, through the Worker', () => {
   })
 
   it('passes the request itself to the ASSETS binding, so a conditional request can answer 304', async () => {
-    const response = await request('/', {headers: {'If-None-Match': '"v1"'}})
+    const response = await request('/privacy', {headers: {'If-None-Match': '"v1"'}})
     expect(response.status).toBe(304)
     expect(assetRequests[0].headers.get('If-None-Match')).toBe('"v1"')
   })
@@ -261,5 +261,39 @@ describe('analytics routes on a local run', () => {
     await request('/sa')
     await request('/simple/simple.gif')
     expect(handled.map((r) => new URL(r.url).pathname)).toEqual(['/llms.txt', '/sa', '/simple/simple.gif'])
+  })
+})
+
+describe('the dashboard at / (atlas decision 0160, PR B)', () => {
+  it('renders GET / at the private server-render path through Astro, never from the static file', async () => {
+    const response = await request('/')
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['GET /ssr-dashboard'])
+    // The stub answers without a render record, which the Worker treats as a render failure.
+    expect(response.status).toBe(500)
+    expect(response.headers.get('X-SSR-Data')).toBe('error')
+    // The middleware still wraps it.
+    expect(response.headers.get('Link')).toBe(LINK_HEADER)
+    expect(response.headers.get(SITE_RUNTIME_HEADER)).toBe(SITE_RUNTIME)
+  })
+
+  it('answers HEAD / from the data-free file, and renders nothing', async () => {
+    const response = await request('/', {method: 'HEAD'})
+    expect(handled).toHaveLength(0)
+    expect(assetRequests.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['HEAD /'])
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Cache-Control')).toBe('no-cache')
+    expect(response.headers.get('X-SSR-Data')).toBeNull()
+  })
+
+  it('keeps the private render path private: a public request gets the 404 page and never reaches Astro', async () => {
+    const response = await request('/ssr-dashboard')
+    expect(response.status).toBe(404)
+    expect(handled).toHaveLength(0)
+  })
+
+  it('still negotiates Markdown at / before any render', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('focus unavailable', {status: 503})))
+    await request('/', {headers: {Accept: 'text/markdown'}})
+    expect(handled).toHaveLength(0)
   })
 })

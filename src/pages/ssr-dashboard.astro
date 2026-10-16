@@ -12,7 +12,7 @@ import { env } from 'cloudflare:workers';
 import DashboardHome from '../layouts/DashboardHome.astro';
 import { loadDashboardData } from '../lib/load-dashboard-data';
 import { dataPlaneBase, DATA_PLANE_BASE_VAR } from '../lib/data-plane/config';
-import { faultyFetch, requestFault, SSR_FAULT_VAR } from '../lib/data-plane/faults';
+import { faultyFetch, requestClock, requestFault, SSR_FAULT_VAR } from '../lib/data-plane/faults';
 import { loadDashboard } from '../lib/data-plane/loader';
 import { toDashboardRender } from '../lib/data-plane/render-model';
 import { SSR_RECORD_HEADER } from '../lib/data-plane/ssr-response';
@@ -24,7 +24,8 @@ const base = dataPlaneBase(vars[DATA_PLANE_BASE_VAR]);
 // Step 6.10 fault injection: preview and loopback hosts only, and only when the Worker variable is set.
 const fault = requestFault(Astro.request, vars[SSR_FAULT_VAR]);
 const load = await loadDashboard({ base, ...(fault ? { fetch: faultyFetch(fault) } : {}) });
-const render = toDashboardRender(load, Date.now());
+// Step 6.6 clock seam: the visual suite fixes the render clock; production always renders at Date.now().
+const render = toDashboardRender(load, requestClock(Astro.request, vars[SSR_FAULT_VAR]) ?? Date.now());
 Astro.response.headers.set(SSR_RECORD_HEADER, JSON.stringify(render.record));
 ---
 <DashboardHome data={loadDashboardData()} vm={render.vm} ssrData={render.summary} />
