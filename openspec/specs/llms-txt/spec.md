@@ -269,11 +269,22 @@ aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.t
 
 The non-deploying weekly audit also SHALL inspect active account- and zone-level Cache Rules,
 Cache Response Rules, and Page Rules through read-only Cloudflare API requests for exactly the
-three canonical URLs. An applicable origin-ignoring Edge/Browser TTL, cache-control override, or
-custom key that prevents the exact three-URL purge SHALL fail. Missing permissions, incomplete API
+five gated URLs. An applicable origin-ignoring Edge/Browser TTL, cache-control override, or
+custom key that prevents an exact bare-URL purge of those five URLs SHALL fail. Missing permissions, incomplete API
 responses, executed rulesets that cannot be expanded, and unsupported applicability expressions
 SHALL be indeterminate and nonzero rather than clean. The audit SHALL never call a mutation, Trace,
 or purge endpoint and SHALL emit an uploadable credential-free evidence file.
+
+Since atlas decision 0160 that audit watches ONE seam, `zone-cache-on-worker-bypass`, and SHALL
+state it in its evidence file and output. The Worker runs before the zone cache, so a zone rule
+cannot store a response the Worker builds, and the edge-cache arm above measures that path. Zone
+rules apply only to a request that reaches the zone without the Worker: the fail-open bypass (the
+route `jonathanlloyd.me/*` carries `request_limit_fail_open: true`) and the route-deletion
+rollback. Both end at the `human-datastream` Pages project, the apex CNAME's origin. The seam, and
+the audit with it, closes when decision 0160 D7 retires the Pages project.
+
+Verified by `audits/__tests__/cloudflare-llms-cache-rules.test.ts:907` (the seam statement in
+the constant, the passing evidence line, the evidence file and the first log line).
 
 #### Scenario: A focus transition cannot be bypassed by a public cache hit
 
@@ -393,7 +404,7 @@ included"); whether that ends the replay depends on the rule's mode, which
 `audits/checks/b2-check-cloudflare-llms-cache-rules.mjs` measures for all five paths. The zone
 change is an owner decision.
 
-Verified by `tests/unit/cloudfront-proxy.test.ts:688` (gate shut over a visible signal, every
+Verified by `tests/unit/cloudfront-proxy.test.ts:706` (gate shut over a visible signal, every
 Cloudflare cache status, an unattributed 200, a 203, 204 and 206, a redirect that is not followed,
 CloudFront 500, 502, 503 and 504 that are not evidence until a probe returns 200, a stale, an
 unstamped and a loosely stamped copy, and a transport failure with an open, a suppressing and a
@@ -480,7 +491,7 @@ that explicit output, not the process step outcome; missing output SHALL remain 
 Therefore suppressed, incomplete, and uncaught-unknown runs neither open nor close the managed
 issue, a definitive finding opens or reopens it, and only an all-passed run can close it.
 
-Verified by `audits/__tests__/b2-llms.test.ts:514` (orchestration and issue-outcome channel) and
+Verified by `audits/__tests__/b2-llms.test.ts:522` (orchestration and issue-outcome channel) and
 `audits/__tests__/audit-web-workflow.test.ts:90` (workflow wiring).
 Those tests cover the suppression short-circuit, transport observation, the tri-state fold, the
 output mapping, uncaught failure, and the issue lifecycle. The workflow suite
@@ -529,7 +540,7 @@ arm reading it, so an origin TTL drifting upward would have broken the window's 
 silently, and B2 would have stayed green until observed skew exceeded the very interval the broken
 derivation no longer justified.
 
-Verified by `audits/__tests__/b2-llms.test.ts:688` (the agreeing header, a drift on each directive
+Verified by `audits/__tests__/b2-llms.test.ts:696` (the agreeing header, a drift on each directive
 and on both, the absent header, and the site plane which must never fire).
 
 #### Scenario: The origin TTL drifts away from the contract
@@ -566,9 +577,9 @@ A response missing EITHER wire SHALL produce no finding. An absent body stamp is
 by `llms-{side}-composition-time`; an absent or unparseable header means the hop did not forward
 usable metadata, and an absent wire is not a disagreeing one.
 
-Verified by `audits/__tests__/b2-llms.test.ts:364` (the pure `compositionWireSkew` evaluator over
+Verified by `audits/__tests__/b2-llms.test.ts:372` (the pure `compositionWireSkew` evaluator over
 agreement, equivalent ISO spellings, both skew directions, both trailer syntaxes, and every absence
-case) and `audits/__tests__/b2-llms.test.ts:628` (the orchestration arm: per-side emission, a
+case) and `audits/__tests__/b2-llms.test.ts:636` (the orchestration arm: per-side emission, a
 fleet-wide skew as six findings, and exit 0 throughout).
 
 This requirement exists because nothing in the estate held both wires for one response.
@@ -594,7 +605,12 @@ Atlas decision 0160 (plan D3) forbids a Cloudflare artifact cache on any gated p
 and stale responses of every route -- /llms.txt, /llms-full.txt, /index.md, /feed.xml and
 /feed.json -- SHALL carry `Cache-Control: no-store`, `CDN-Cache-Control: no-store` and
 `Cloudflare-CDN-Cache-Control: no-store`. That policy is the factory default. The stale path SHALL
-write the route's policy over whatever headers the stored copy carries.
+write the route's policy over whatever headers the stored copy carries. It SHALL also drop the
+Cache API's read state, `CF-Cache-Status` and `Age`. workerd returns a match only when the cache
+answered `CF-Cache-Status: HIT`, and it passes that answer's headers through
+(`src/workerd/api/cache.c++`, `Cache::match`). Kept, they would make a permitted fallback read as a
+zone-cache hit and fail the weekly edge-cache arm. `Warning: 110`, `X-Proxy-Stale: true` and
+`X-Source: cloudfront-proxy-stale` state what the copy is.
 
 Responses no route may ever have cached -- suppression, focus-error, terminal-error and
 method-not-allowed -- remain unconditionally no-store as before.
@@ -666,7 +682,7 @@ keep the static HTML 404.
 Verified by `tests/unit/middleware-negotiation.test.ts:62` (decision table, scope, response classes),
 by `tests/unit/middleware-negotiation.test.ts:297` (the 404 exception),
 by `tests/unit/worker-entry.test.ts:148` (the 404 exception through the Worker),
-and verified by `tests/unit/cloudfront-proxy.test.ts:642` (explicit routes ignore Accept).
+and verified by `tests/unit/cloudfront-proxy.test.ts:660` (explicit routes ignore Accept).
 
 #### Scenario: An agent asks the homepage for markdown
 
@@ -783,8 +799,8 @@ recomposition freshness.
 Verified by `audits/__tests__/b2-llms.test.ts:139` (the pure evaluator), which injects a fixed clock
 and synthetic response snapshots to exercise the exact age boundary logic without network and
 asserts the evaluator configuration equals the contract's `coherencePolicy`, by
-`audits/__tests__/b2-llms.test.ts:330` (the derived detection interval and the line the run prints),
-and by `audits/__tests__/b2-llms.test.ts:807` (the presence arm). The old `spec-cases.test.ts` covers
+`audits/__tests__/b2-llms.test.ts:338` (the derived detection interval and the line the run prints),
+and by `audits/__tests__/b2-llms.test.ts:815` (the presence arm). The old `spec-cases.test.ts` covers
 claim was removed: that harness only proved operational rules had no cases and never exercised
 freshness.
 

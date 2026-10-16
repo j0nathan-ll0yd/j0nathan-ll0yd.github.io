@@ -11,6 +11,7 @@ import zoneRequest200 from './fixtures/cloudflare-cache-rules/zone-request-entry
 import zoneResponse404 from './fixtures/cloudflare-cache-rules/zone-response-entrypoint.404.json'
 import {
   auditCloudflareLlmsCacheRules,
+  CLOUDFLARE_CACHE_RULES_SEAM,
   CLOUDFLARE_FEED_TARGETS,
   CLOUDFLARE_GATED_TARGETS,
   CLOUDFLARE_LLMS_TARGETS,
@@ -427,7 +428,7 @@ describe('Cloudflare cache-rule measurement declaration', () => {
 
   // The evidence artifact carries the same three numbers the declaration is derived from,
   // so a reader of the upload can check the declaration rather than trust it.
-  it('records the held/refused census in the evidence artifact under specVersion 3', async () => {
+  it('records the held/refused census in the evidence artifact under specVersion 4', async () => {
     const evidence = await auditCloudflareLlmsCacheRules({
       accountId: 'account-id',
       zoneId: 'zone-id',
@@ -435,7 +436,7 @@ describe('Cloudflare cache-rule measurement declaration', () => {
       fetchImpl: refuse(403),
       observedAt: '2026-08-29T22:00:00.000Z'
     })
-    expect(evidence.specVersion).toBe(3)
+    expect(evidence.specVersion).toBe(4)
     expect(evidence.measurement).toEqual({sources: 5, held: 0, refused: 5, notApplicable: 0})
     expect(measurementDeclaration(evidence)).toBe(0)
   })
@@ -896,5 +897,70 @@ describe('Cloudflare cache-rule expression evaluator certainty', () => {
       expect(measurementDeclaration(evidence)).toBe(2)
       expect(measurementDeclaration({measurement: {sources: 5, held: 2, refused: 3, notApplicable: 2}})).toBe(0)
     })
+  })
+})
+
+// THE NARROWED SEAM (atlas decision 0128, after decision 0160). On Workers the zone cache is behind
+// the Worker, so this runner watches only the paths that skip it. The statement travels with every
+// run: in the evidence artifact, in the passing evidence line, and in the first log line.
+// covers: llms-txt#Canonical llms responses always pass through the privacy gate
+describe('the seam this runner watches', () => {
+  const refuse = (status: number) => vi.fn(async () => new Response(JSON.stringify({success: false, errors: [{message: 'nope'}]}), {status}))
+
+  it('names the fail-open bypass and the rollback to the Pages origin, and what it leaves to B2 llms', () => {
+    expect(CLOUDFLARE_CACHE_RULES_SEAM.id).toBe('zone-cache-on-worker-bypass')
+    expect(CLOUDFLARE_CACHE_RULES_SEAM.watches).toContain('request_limit_fail_open: true')
+    expect(CLOUDFLARE_CACHE_RULES_SEAM.watches).toContain('rollback')
+    expect(CLOUDFLARE_CACHE_RULES_SEAM.watches).toContain('human-datastream Pages project')
+    expect(CLOUDFLARE_CACHE_RULES_SEAM.notWatched).toContain('siteEdgeCacheFailure')
+    expect(CLOUDFLARE_CACHE_RULES_SEAM.retiresWith).toContain('0160 D7')
+    expect(Object.isFrozen(CLOUDFLARE_CACHE_RULES_SEAM)).toBe(true)
+  })
+
+  it('states the seam on a clean evaluation, in the evidence artifact and in the first log line', async () => {
+    expect(evaluateCloudflareLlmsCacheRules({}).results).toEqual([
+      expect.objectContaining({id: 'cloudflare-llms-cache-rules', status: 'passed', evidence: expect.stringContaining('zone-cache-on-worker-bypass')})
+    ])
+
+    const evidence = await auditCloudflareLlmsCacheRules({
+      accountId: 'account-id',
+      zoneId: 'zone-id',
+      apiToken: 'secret-token',
+      fetchImpl: refuse(403),
+      observedAt: '2026-10-16T00:00:00.000Z'
+    })
+    expect(evidence.seam).toEqual(CLOUDFLARE_CACHE_RULES_SEAM)
+
+    const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
+    scratchDirectories.push(scratch)
+    const logger = {log: vi.fn(), error: vi.fn()}
+    await runCloudflareLlmsCacheRuleCli({
+      arguments_: ['--evidence-out', join(scratch, 'evidence.json')],
+      environment: {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_ZONE_ID: 'zone-id', CLOUDFLARE_API_TOKEN: 'secret-token'},
+      fetchImpl: refuse(403),
+      now: () => new Date('2026-10-16T00:00:00.000Z'),
+      logger
+    })
+    expect(logger.log.mock.calls[0]?.[0]).toBe(`seam: zone-cache-on-worker-bypass -- ${CLOUDFLARE_CACHE_RULES_SEAM.watches}`)
+    expect(JSON.parse(await readFile(join(scratch, 'evidence.json'), 'utf8')).seam).toEqual(CLOUDFLARE_CACHE_RULES_SEAM)
+  })
+
+  it('states the seam on the crashed-before-measuring path too, with no measurement block', async () => {
+    const scratch = await mkdtemp(join(tmpdir(), 'cloudflare-llms-rules-'))
+    scratchDirectories.push(scratch)
+    const logger = {log: vi.fn(), error: vi.fn()}
+    const exitCode = await runCloudflareLlmsCacheRuleCli({
+      arguments_: ['--evidence-out', join(scratch, 'evidence.json')],
+      environment: {CLOUDFLARE_ACCOUNT_ID: 'account-id', CLOUDFLARE_API_TOKEN: 'secret-token'},
+      fetchImpl: refuse(403),
+      now: () => new Date('2026-10-16T00:00:00.000Z'),
+      logger
+    })
+    const evidence = JSON.parse(await readFile(join(scratch, 'evidence.json'), 'utf8'))
+    expect(exitCode).toBe(1)
+    expect(evidence).toMatchObject({specVersion: 4, status: 'unknown', seam: CLOUDFLARE_CACHE_RULES_SEAM})
+    expect(evidence).not.toHaveProperty('measurement')
+    expect(measurementDeclaration(evidence)).toBeNull()
+    expect(logger.log.mock.calls[0]?.[0]).toContain('seam: zone-cache-on-worker-bypass')
   })
 })

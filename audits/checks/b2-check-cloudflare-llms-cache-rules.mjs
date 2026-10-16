@@ -20,7 +20,7 @@ export const CLOUDFLARE_LLMS_TARGETS = Object.freeze([
 ])
 
 // The two feed URLs (atlas decision 0160, PR 0b). They are gated paths
-// of the same backend focus gate and are served by the same proxy factory, but a zone edge
+// of the same backend focus gate and are served by the same proxy factory. On Pages a zone edge
 // cache stored and replayed them ahead of the Pages Function: on 2026-10-08 both answered
 // `cf-cache-status: HIT` with `Age` up to 796 s while sending `s-maxage=60`. Any rule that
 // can make Cloudflare store them is the same defect as for the trio. Derived from the feed
@@ -30,8 +30,38 @@ export const CLOUDFLARE_FEED_TARGETS = Object.freeze(FEED_ARTIFACTS.map((artifac
 // Every gated proxy URL this runner judges.
 export const CLOUDFLARE_GATED_TARGETS = Object.freeze([...CLOUDFLARE_LLMS_TARGETS, ...CLOUDFLARE_FEED_TARGETS])
 
+// THE SEAM THIS RUNNER WATCHES (atlas decision 0128 criterion; narrowed after decision 0160).
+//
+// On Pages the zone cache sat in front of the code on every request, so a storing rule was a
+// defect on the main path. On Workers it is not: the Worker runs before the zone cache
+// (https://developers.cloudflare.com/workers/reference/how-the-cache-works/), no zone rule can
+// store a response it builds, and audits/checks/b2-llms.mjs `siteEdgeCacheFailure` measures the
+// served Worker path. Zone cache rules apply only to a request that reaches the zone WITHOUT the
+// Worker. Two paths do that, and both end at the `human-datastream` Pages project, which the apex
+// CNAME still names as the origin (docs/decision-0160/cutover-rehearsal-runbook.md):
+//
+// 1. The fail-open bypass. The route `jonathanlloyd.me/*` carries `request_limit_fail_open: true`,
+//    so once the Workers daily request limit runs out, requests skip the Worker.
+// 2. The rollback. Deleting that route sends every request to Pages.
+//
+// Both paths reach the Pages project's last build behind the zone cache, so a storing rule there
+// can store gated content and replay it past the focus gate, as it did before the cutover. No
+// other measurer sees this seam except by chance: the B2 llms check samples whichever path
+// answers at audit time, normally the Worker, and only this runner reads the rules that would
+// apply on the bypass before traffic takes it.
+// The seam closes when decision 0160 D7 (Step 8.9) retires the Pages project; this runner retires
+// with it, and that retirement names the deleted origin as its upstream guarantee.
+export const CLOUDFLARE_CACHE_RULES_SEAM = Object.freeze({
+  id: 'zone-cache-on-worker-bypass',
+  watches: 'zone cache rules on the paths that reach the zone without the Worker: the fail-open bypass ' +
+    '(route jonathanlloyd.me/* request_limit_fail_open: true) and the route-deletion rollback, both to the ' +
+    'human-datastream Pages project origin',
+  notWatched: 'the Worker path; audits/checks/b2-llms.mjs siteEdgeCacheFailure measures it',
+  retiresWith: 'atlas decision 0160 D7 (Step 8.9): retiring the Pages project removes the bypass origin'
+})
+
 // A18 coverage declaration (atlas decision 0145). The registered estate surface this
-// runner measures. The artifact it holds is the Cloudflare rule inventory, but the
+// runner measures, on the seam above. The artifact it holds is the Cloudflare rule inventory, but the
 // property it judges is a DECLARED property of llm-outputs: that surface's registry
 // node carries `external_dependency.cloudflare_edge_cache_ttl: required-unverified`
 // ("account-level rules can override response headers"), and every finding here is
@@ -771,7 +801,8 @@ export function evaluateCloudflareLlmsCacheRules(inventory) {
       id: 'cloudflare-llms-cache-rules',
       status: 'passed',
       target: null,
-      evidence: 'no applicable Edge Cache TTL, Cache Response Rule, Page Rule, browser TTL override, or unsafe custom cache key was found'
+      evidence: 'no applicable Edge Cache TTL, Cache Response Rule, Page Rule, browser TTL override, or unsafe custom cache key was found ' +
+        `on the ${CLOUDFLARE_CACHE_RULES_SEAM.id} seam`
     })
   }
   const status = results.some((result) => result.status === 'failed')
@@ -941,10 +972,13 @@ export async function auditCloudflareLlmsCacheRules({accountId, zoneId, apiToken
   }
   const evaluation = evaluateCloudflareLlmsCacheRules(inventory)
   return {
-    specVersion: 3,
+    specVersion: 4,
     checkId: 'cloudflare-llms-cache-rules',
     status: evaluation.status,
     observedAt,
+    // specVersion 4 added `seam` (atlas decision 0128): the path this runner watches since the
+    // Worker took the main path. A reader of the artifact sees what a finding is about.
+    seam: CLOUDFLARE_CACHE_RULES_SEAM,
     targets: [...CLOUDFLARE_GATED_TARGETS],
     // specVersion 3 added `notApplicable`: reads Cloudflare answered with "phase not allowed at
     // account level". `held` INCLUDES them; the published `measured` (measurementDeclaration)
@@ -1040,11 +1074,14 @@ export async function runCloudflareLlmsCacheRuleCli(
       observedAt
     })
   } catch (error) {
+    // The current spec version, WITHOUT the `measurement` block on purpose: a run that never
+    // classified a read makes no declaration, which is the crashed-before-measuring signal.
     evidence = {
-      specVersion: 1,
+      specVersion: 4,
       checkId: 'cloudflare-llms-cache-rules',
       status: 'unknown',
       observedAt,
+      seam: CLOUDFLARE_CACHE_RULES_SEAM,
       targets: [...CLOUDFLARE_GATED_TARGETS],
       results: [{id: 'cloudflare-rule-audit-unavailable', status: 'unknown', target: null, evidence: error instanceof Error ? error.message : String(error)}]
     }
@@ -1054,6 +1091,7 @@ export async function runCloudflareLlmsCacheRuleCli(
     await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
     await writeGithubOutput(environment.GITHUB_OUTPUT, evidence)
   }
+  logger.log(`seam: ${CLOUDFLARE_CACHE_RULES_SEAM.id} -- ${CLOUDFLARE_CACHE_RULES_SEAM.watches}`)
   for (const result of evidence.results) {
     const writer = result.status === 'passed' ? logger.log : logger.error
     writer.call(logger, `${result.status.toUpperCase()}: ${result.id}: ${result.evidence}`)
