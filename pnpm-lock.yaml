@@ -121,6 +121,9 @@ importers:
       pa11y-ci:
         specifier: ^4.1.1
         version: 4.1.1(supports-color@10.2.2)(typescript@5.9.3)
+      parse5:
+        specifier: 7.3.0
+        version: 7.3.0
       pixelmatch:
         specifier: ^7.2.0
         version: 7.2.0
