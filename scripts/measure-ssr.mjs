@@ -13,7 +13,7 @@
  *
  * Usage:
  *   node scripts/measure-ssr.mjs --base <url> [--count 100] [--concurrency 4] [--fault <spec>]
- *        [--gap-ms 0] [--label warm] [--out /tmp/file.jsonl]
+ *        [--gap-ms 0] [--label warm] [--out /tmp/file.jsonl] [--path /]
  *   node scripts/measure-ssr.mjs --summarize /tmp/a.jsonl [/tmp/b.jsonl ...]
  *
  * `--fault` sends `X-SSR-Fault` (src/lib/data-plane/faults.ts); the preview honors it only because
@@ -30,12 +30,14 @@ export const D2 = Object.freeze({usefulRate: 0.995, pagesBaselineTtfbP75Ms: 124.
 const USEFUL = new Set(['live', 'stale'])
 
 function parseArgs(argv) {
-  const args = {count: 100, concurrency: 4, gapMs: 0, label: 'run', fault: null, base: null, out: null, summarize: []}
+  const args = {path: '/', count: 100, concurrency: 4, gapMs: 0, label: 'run', fault: null, base: null, out: null, summarize: []}
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i]
     const next = () => argv[++i]
     if (flag === '--base') {
       args.base = next()
+    } else if (flag === '--path') {
+      args.path = next()
     } else if (flag === '--count') {
       args.count = Number(next())
     } else if (flag === '--concurrency') {
@@ -143,7 +145,7 @@ async function run(args) {
   if (!args.base) {
     throw new Error('--base is required')
   }
-  const url = new URL('/', args.base).href
+  const url = new URL(args.path, args.base).href
   const dir = mkdtempSync(path.join(tmpdir(), 'measure-ssr-'))
   const headerFile = path.join(dir, 'headers')
   const headers = [...accessHeaders(), 'Accept: text/html', ...(args.fault ? [`X-SSR-Fault: ${args.fault}`] : [])]
