@@ -285,6 +285,7 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
     expect(response.headers.get('X-SSR-Data')).toBeNull()
   })
 
+  // covers: dashboard-ssr#Only the Worker reaches the render path
   it('keeps the private render path private: a public request gets the 404 page and never reaches Astro', async () => {
     const response = await request('/ssr-dashboard')
     expect(response.status).toBe(404)

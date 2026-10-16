@@ -40,6 +40,7 @@ describe('fault injection (Step 6.10)', () => {
     }
   })
 
+  // covers: dashboard-ssr#Test seams never reach production
   it('needs both locks: the Worker variable AND a preview or loopback host', () => {
     expect(requestFault(preview({[SSR_FAULT_HEADER]: 'stall'}), '1')).toEqual({kind: 'stall'})
     expect(requestFault(preview({[SSR_FAULT_HEADER]: 'stall'}), undefined)).toBeNull()
@@ -93,10 +94,26 @@ describe('check-deploy-vars (the production deploy guard)', () => {
     expect([...FORBIDDEN_DEPLOY_VARS].sort()).toEqual(['DATA_PLANE_BASE', 'SSR_FAULT_INJECTION'])
   })
 
+  // covers: dashboard-ssr#Test seams never reach production
   it('fails on either variable in the Worker config or the deploy environment, and passes on neither', () => {
     expect(forbiddenVars({vars: {DATA_PLANE_BASE: 'http://x'}}, {})).toEqual(['DATA_PLANE_BASE (wrangler.json vars)'])
     expect(forbiddenVars({}, {SSR_FAULT_INJECTION: '1'})).toEqual(['SSR_FAULT_INJECTION (deploy environment)'])
     expect(forbiddenVars({vars: {OTHER: 'x'}}, {SSR_FAULT_INJECTION: ''})).toEqual([])
     expect(forbiddenVars({name: 'human-datastream'}, {})).toEqual([])
+  })
+})
+
+describe('one document for every client', () => {
+  // covers: dashboard-ssr#One document serves every client
+  it('reads no client identity: the render path never branches on User-Agent or Client Hints', async () => {
+    const {readFileSync, readdirSync} = await import('node:fs')
+    const sources = [
+      'src/pages/ssr-dashboard.astro',
+      'src/layouts/DashboardHome.astro',
+      ...readdirSync('src/lib/data-plane').map((name) => `src/lib/data-plane/${name}`)
+    ]
+    for (const file of sources) {
+      expect(readFileSync(file, 'utf8'), file).not.toMatch(/user-agent|sec-ch-ua|navigator\.|Astro\.request\.headers\.get\(['"]accept/i)
+    }
   })
 })

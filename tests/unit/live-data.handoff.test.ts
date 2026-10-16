@@ -190,6 +190,7 @@ describe('live-data hand-off → startup compares generations as instants', () =
   ]
 
   for (const c of cases) {
+    // covers: dashboard-ssr#Live updates never repaint equal or older data over server output
     it(`${c.resource}: an older export does not repaint`, async () => {
       document.body.innerHTML = c.page(c.server)
       network.boot[c.resource] = ok(c.exp(new Date(Date.parse(c.server) - MINUTE).toISOString()))
@@ -261,6 +262,7 @@ describe('live-data hand-off → polls never overwrite newer output', () => {
     network.boot.workouts = ok(workoutsExport(WORKOUTS_GEN))
   })
 
+  // covers: dashboard-ssr#Live updates never repaint equal or older data over server output
   it('drops an older poll from a lagging edge, then applies a newer one', async () => {
     await boot()
     network.poll.health = ok(healthExport(at(-20 * MINUTE), 70))
@@ -304,6 +306,7 @@ describe('live-data hand-off → polls never overwrite newer output', () => {
 })
 
 describe('live-data hand-off → shared dependencies', () => {
+  // covers: dashboard-ssr#Cards that read two exports repaint from the newest pair
   it('repaints NightSummary and the HeartRate footer from the newest health and sleep pair after a sleep-only update', async () => {
     document.body.innerHTML = serverPage({health: HEALTH_GEN, sleep: SLEEP_GEN})
     network.boot.health = ok(healthExport(HEALTH_GEN, 55))
@@ -340,6 +343,7 @@ describe('live-data hand-off → shared dependencies', () => {
 describe('live-data hand-off → Hydration keeps the server value', () => {
   const hydrationProps = {health: {hydration: {waterOz: 40, waterMax: 100, caffeineMg: 80, caffeineMax: 400, waterRangeLo: 50, waterRangeHi: 80}}}
 
+  // covers: dashboard-ssr#Live updates never repaint equal or older data over server output
   it('runs no count-up over a live server render', () => {
     document.body.innerHTML = serverPage({health: HEALTH_GEN})
     const raf = vi.spyOn(window, 'requestAnimationFrame')
@@ -386,6 +390,7 @@ describe('live-data hand-off → unchanged data causes no value mutation', () =>
     return {value, label}
   }
 
+  // covers: dashboard-ssr#Live updates never repaint equal or older data over server output
   it('counts zero value mutations over startup and several poll cycles', async () => {
     document.body.innerHTML = serverPage({health: HEALTH_GEN, sleep: SLEEP_GEN, workouts: WORKOUTS_GEN})
     network.boot.health = ok(healthExport(HEALTH_GEN))
@@ -468,6 +473,7 @@ describe('live-data hand-off → data-live-ready', () => {
 describe('live-data hand-off → privacy reload', () => {
   const RELOAD_KEY = 'privacyReloadAtMs'
 
+  // covers: dashboard-ssr#Hiding clears server-rendered values
   it('reloads at startup when focus is hiding and the server rendered gated values', async () => {
     document.body.innerHTML = serverPage({health: HEALTH_GEN})
     network.poll.focus = focus('Do Not Disturb')
@@ -483,6 +489,7 @@ describe('live-data hand-off → privacy reload', () => {
     expect(reload).toHaveBeenCalledOnce()
   })
 
+  // covers: dashboard-ssr#Hiding clears server-rendered values
   it('holds a blocked reload until the end of the 15 s window, then runs it once', async () => {
     document.body.innerHTML = serverPage({health: HEALTH_GEN})
     window.sessionStorage.setItem(RELOAD_KEY, String(T0 - 5000))

@@ -94,6 +94,7 @@ describe('GET /: a completed render', () => {
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('live')
   })
 
+  // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
   it('never stores the document at the edge or reuses it unrevalidated (D3), and keeps the charset', async () => {
     const response = await renderDashboard(REQUEST, deps(async () => rendered()).deps)
     for (const [name, value] of DASHBOARD_CACHE_HEADERS) {
@@ -107,12 +108,14 @@ describe('GET /: a completed render', () => {
     expect(response.headers.get(SSR_RECORD_HEADER)).toBeNull()
   })
 
+  // covers: dashboard-ssr#Every data state answers 200 and no shared cache stores the document
   it.each(['stale', 'partial', 'unavailable', 'suppressed'] as const)('answers 200 for the %s summary too (D13)', async (summary) => {
     const response = await renderDashboard(REQUEST, deps(async () => rendered(PAGE, {...RECORD, summary})).deps)
     expect(response.status).toBe(200)
     expect(response.headers.get(SSR_DATA_HEADER)).toBe(summary)
   })
 
+  // covers: dashboard-ssr#Each render logs one value-free line
   it('logs one value-free ssr_render line with the record, the timings and the build', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
     await renderDashboard(REQUEST, deps(async () => rendered()).deps)
@@ -138,6 +141,7 @@ describe('GET /: a completed render', () => {
 })
 
 describe('GET /: the D2 ceiling', () => {
+  // covers: dashboard-ssr#A render that misses its budget falls back to the data-free page
   it('serves the prerendered data-free page with X-SSR-Data: fallback when the render misses the ceiling', async () => {
     const info = vi.spyOn(console, 'info').mockImplementation(() => {})
     const {deps: d, calls} = deps(() => new Promise<Response>(() => {}), 50)
@@ -187,6 +191,7 @@ describe('GET /: a render exception (D13, Step 4.5)', () => {
     expectErrorPage(await renderDashboard(REQUEST, d), calls)
   })
 
+  // covers: dashboard-ssr#A render exception answers a clean 500
   it('a throw while the stream renders answers the 500 page, never a half document with status 200', async () => {
     const broken = new ReadableStream<Uint8Array>({
       start(controller) {
@@ -213,6 +218,7 @@ describe('GET /: a render exception (D13, Step 4.5)', () => {
 })
 
 describe('HEAD /', () => {
+  // covers: dashboard-ssr#HEAD reads no data
   it('answers from the data-free page headers, reads no data and renders nothing', async () => {
     const {deps: d, calls} = deps(async () => rendered())
     const response = await headDashboard(d)

@@ -99,6 +99,7 @@ function baselineValues(): string[] {
 }
 
 describe('loader: a visible focus signal and a healthy data plane', () => {
+  // covers: dashboard-ssr#The server render reads every export through the gate
   it('reads focus first, then all eight exports, with no-store, and admits each one', async () => {
     const p = plane()
     const result = await load(p)
@@ -123,6 +124,7 @@ describe('loader: a visible focus signal and a healthy data plane', () => {
 describe('loader: the gate wins every disagreement (disclosure model)', () => {
   const allSuppressed = Object.fromEntries(GATED_KEYS.map((key) => [key, () => suppressed403()]))
 
+  // covers: dashboard-ssr#The gate wins every disagreement
   it('gate shut over a visible signal: every artifact 403 suppresses the whole page', async () => {
     const render = toDashboardRender(await load(plane(allSuppressed)), NOW)
     expect(render.summary).toBe('suppressed')
@@ -138,6 +140,7 @@ describe('loader: the gate wins every disagreement (disclosure model)', () => {
     }
   })
 
+  // covers: dashboard-ssr#The gate wins every disagreement
   it('propagation: one artifact 403 while the others answer 200 suppresses everything; no admitted value reaches the view models', async () => {
     const render = toDashboardRender(await load(plane({books: () => suppressed403()})), NOW)
     expect(render.summary).toBe('suppressed')
@@ -150,6 +153,7 @@ describe('loader: the gate wins every disagreement (disclosure model)', () => {
     }
   })
 
+  // covers: dashboard-ssr#The gate wins every disagreement
   it('a hiding focus value suppresses every gated domain and fetches no gated export', async () => {
     for (const currentFocus of ['Work', 'Do Not Disturb']) {
       const p = plane({focus: () => json({generatedAt: FRESH, currentFocus, hidingSince: FRESH})})
@@ -189,6 +193,7 @@ describe('loader: an unreadable focus signal fails closed', () => {
     ['a network failure', () => Promise.reject(new TypeError('fetch failed'))]
   ]
 
+  // covers: dashboard-ssr#An unreadable focus signal fails closed
   it.each(unreadable)('%s: every gated domain is unavailable, and no gated export is fetched', async (_label, answer) => {
     const p = plane({focus: answer})
     const result = await load(p)
@@ -202,6 +207,7 @@ describe('loader: an unreadable focus signal fails closed', () => {
 })
 
 describe('loader: admission refuses a 200 that cannot prove it passed the gate', () => {
+  // covers: dashboard-ssr#The server render reads every export through the gate
   it.each(['HIT', 'STALE', 'UPDATING', 'REVALIDATED'])('cf-cache-status %s makes that export unavailable', async (status) => {
     const result = await load(plane({health: () => json(fixture('health'), {...CF, 'cf-cache-status': status})}))
     expect(result.domains.health).toEqual({kind: 'unavailable', reason: 'cloudflare-cache'})
@@ -225,6 +231,7 @@ describe('loader: admission refuses a 200 that cannot prove it passed the gate',
 })
 
 describe('loader: failures mark one export only, with no retry and no stored copy (D3)', () => {
+  // covers: dashboard-ssr#A failed read marks one export, with no retry and no stored copy
   it.each([408, 429, 500, 502, 503, 504])('HTTP %i: that export is unavailable after one attempt', async (status) => {
     const p = plane({githubEvents: () => new Response('error', {status, headers: CF})})
     const result = await load(p)
@@ -259,6 +266,7 @@ describe('loader: failures mark one export only, with no retry and no stored cop
 })
 
 describe('loader: valid exports render honest states', () => {
+  // covers: dashboard-ssr#A missing measurement renders as no reading
   it('a sparse health export renders "no reading" for every missing measurement, never 0', async () => {
     const render = toDashboardRender(await load(plane({health: () => json(fixture('health', 'sparse'))})), NOW)
     const sparse = fixture('health', 'sparse') as {quantities: Record<string, unknown>}
@@ -272,12 +280,14 @@ describe('loader: valid exports render honest states', () => {
     expect(JSON.stringify(render.vm.movementRings)).not.toMatch(/"exerciseTime":0\b/)
   })
 
+  // covers: dashboard-ssr#Each card renders one honest state
   it('a valid export with an empty list is empty, not a failure', async () => {
     const render = toDashboardRender(await load(plane({githubEvents: () => json(fixture('githubEvents', 'empty'))})), NOW)
     expect(render.cards.cardDevLog).toBe('empty')
     expect(render.summary).toBe('live')
   })
 
+  // covers: dashboard-ssr#Each card renders one honest state
   it('an old source is stale with its generatedAt kept for the "as of" time, and is logged as degraded', async () => {
     const render = toDashboardRender(await load(plane({articles: () => json(fixture('articles', 'baseline', OLD))})), NOW)
     expect(render.cards.cardReading).toBe('stale')
@@ -288,6 +298,7 @@ describe('loader: valid exports render honest states', () => {
 })
 
 describe('loader: the six-connection queue', () => {
+  // covers: dashboard-ssr#Every read ends within the I/O budget
   it('answers by the I/O budget when every export is slow, with each late export unavailable', async () => {
     let open = 0
     const queue: (() => void)[] = []
@@ -322,6 +333,7 @@ describe('loader: the six-connection queue', () => {
 })
 
 describe('summarize: the X-SSR-Data rule, first match wins', () => {
+  // covers: dashboard-ssr#One summary names the page state
   it.each([
     ['all live', ['live', 'live'], false, 'live'],
     ['all empty', ['empty', 'empty'], false, 'live'],
