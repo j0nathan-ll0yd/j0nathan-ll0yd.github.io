@@ -28,8 +28,8 @@ export const FRAGMENT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Readonly
     'ecg-canvas hr-data hr-ecg-bg hr-empty hr-empty-label hr-footer hr-footer-cell hr-footer-label ' +
       'hr-footer-unit hr-footer-value hr-hrv-label hr-hrv-unit hr-hrv-value hr-layout hr-overlay ' +
       'hr-overlay-left hr-overlay-right hr-paused hr-paused-desc hr-paused-icon hr-paused-label ' +
-      'is-paused live-dot live-dot-pink live-dot-red pulse-bpm pulse-bpm-unit pulse-status-badge ' +
-      'skeleton-bar skeleton-state tri-card tri-card-accent-pink tri-card-accent-red widget-body ' +
+      'is-paused live-dot live-dot-amber live-dot-pink live-dot-red pulse-bpm pulse-bpm-unit pulse-status-badge ' +
+      'skeleton-bar skeleton-state tri-card tri-card-accent-amber tri-card-accent-pink tri-card-accent-red widget-body ' +
       'widget-empty widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale'
   ),
@@ -79,7 +79,8 @@ export const FRAGMENT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Readonly
       'widget-timestamp-stale'
   ),
   cardReading: tokens(
-    'article-list article-list-date article-list-item article-list-source article-list-title live-dot ' +
+    'article-list article-list-date article-list-item article-list-note article-list-note-icon article-list-source ' +
+      'article-list-title live-dot ' +
       'skeleton-bar skeleton-state tri-card tri-card-accent-amber widget-body widget-empty ' +
       'widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale'
@@ -117,7 +118,7 @@ export const FRAGMENT_ROOT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Rea
   focusOverlay: new Set<string>([]),
   dndOverlay: new Set<string>([]),
   cardSystem: new Set<string>(['left-panel-status']),
-  cardHR: new Set<string>(['is-paused', 'tri-card', 'tri-card-accent-pink', 'tri-card-accent-red']),
+  cardHR: new Set<string>(['is-paused', 'tri-card', 'tri-card-accent-amber', 'tri-card-accent-pink', 'tri-card-accent-red']),
   cardMovement: new Set<string>(['is-paused', 'tri-card', 'tri-card-accent-red']),
   cardHydration: new Set<string>(['tri-card', 'tri-card-accent-pink']),
   cardSleep: new Set<string>(['tri-card', 'tri-card-accent-purple']),

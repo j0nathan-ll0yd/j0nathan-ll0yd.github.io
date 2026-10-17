@@ -67,8 +67,8 @@ gate shut over a visible signal, and KeyValueStore propagation.
 Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible signal),
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
 `tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
-browser by `tests/behavioral/ssr-no-js.test.ts:263` (one 403 suppresses the page) and
-`tests/behavioral/ssr-no-js.test.ts:320` (each hiding mode: the overlay shows, nothing is read, no
+browser by `tests/behavioral/ssr-no-js.test.ts:291` (one 403 suppresses the page) and
+`tests/behavioral/ssr-no-js.test.ts:348` (each hiding mode: the overlay shows, nothing is read, no
 gated value is in the DOM).
 
 #### Scenario: A failed focus publication
@@ -135,7 +135,7 @@ with an empty list is `empty`, not a failure. An export older than its `audit.er
 
 Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
 `tests/unit/data-plane-loader.test.ts:290` (an old source), and per export in a scripts-off browser by
-`tests/behavioral/ssr-no-js.test.ts:235` (5xx, malformed, old and empty answers, with `data-ssr-state`,
+`tests/behavioral/ssr-no-js.test.ts:263` (5xx, malformed, old and empty answers, with `data-ssr-state`,
 the meta and `X-SSR-Data` in agreement).
 
 #### Scenario: An old export
@@ -153,7 +153,7 @@ documented sort, the newest article title, the workout count, and the other fiel
 document. Production is checked daily by web audit B11, through an oracle that imports none of the
 shared adapters.
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:90` (the `ssrKnownAnswer` fixture variation, whose
+Verified by `tests/behavioral/ssr-no-js.test.ts:91` (the `ssrKnownAnswer` fixture variation, whose
 distinctive values occur in no other variation, `tests/build/ssr-known-answer.test.ts`).
 
 #### Scenario: A client without JavaScript reads the dashboard
@@ -170,8 +170,8 @@ overlay used to hard-code, and no coordinates, place or visit data (D14). Author
 such as the Person address, is allowed. Production builds cannot reach `@j0nathan-ll0yd/fixtures`
 (the `forbid-fixtures` build plugin).
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:185` (legacy markers and retired overlay rows) and
-`tests/behavioral/ssr-no-js.test.ts:214` (D14).
+Verified by `tests/behavioral/ssr-no-js.test.ts:213` (legacy markers and retired overlay rows) and
+`tests/behavioral/ssr-no-js.test.ts:242` (D14).
 
 #### Scenario: A crawler reads the dashboard
 
@@ -284,7 +284,7 @@ unless it reads the same visible value; an artifact published before the change 
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
-Verified by `tests/oracle/composer-parity.test.ts:402` (race a) and
+Verified by `tests/oracle/composer-parity.test.ts:413` (race a) and
 `tests/unit/composed-read.test.ts:158` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
@@ -322,9 +322,20 @@ Worker-side guarantee. It SHALL admit only:
   5 minutes, `data-local-covers` and `data-fallback` first-party images, `data-hydration-fixture`
   plain numbers and words, `data-stroke` a paint, the rest closed words;
 - an `href` that is a same-origin path or `https` to an allowlisted host (`github.com`,
-  `coasttocoastreviews.com` with or without `www.`, and the System Status hosts `www.apple.com`,
-  `www.livelarq.com`, `acaia.co`, `feedly.com`, `www.squarespace.com`), with no credentials, port,
-  or percent-encoded dot, slash or backslash; `target="_blank"` only with `rel` naming `noopener`;
+  `coasttocoastreviews.com` with or without `www.`, the Workouts share link host `share.barrys.com`,
+  and the System Status hosts `www.apple.com`, `www.livelarq.com`, `acaia.co`, `feedly.com`,
+  `www.squarespace.com`), with no credentials, port, or percent-encoded dot, slash or backslash;
+  `target="_blank"` only with `rel` naming `noopener`;
+- one exception, the Reading card's article link (OWNER DECISION PENDING, option A): an `a` in
+  `cardReading` whose raw `class` is exactly `article-list-title`, `target` exactly `_blank` and `rel`
+  exactly `noopener noreferrer` may name any `https` URL the design system emits for an article: it
+  starts `https://` in any case, holds no control character or backslash, parses as https with no
+  credentials and the default port, names a DNS host (two or more labels, an alphabetic or punycode
+  last label, so no IP literal) that is not the site, the data plane or `*.workers.dev`, and is at
+  most 2,048 characters (`ARTICLE_LINK`, `MAX_ARTICLE_HREF`); the same href anywhere else is refused
+  (`url`, or `attribute` where the element carries no `href`);
+- a `title` attribute on a `span` only (the Reading card's note icon), escaped (no raw `<` or `>`),
+  at most 16,384 characters (`MAX_TITLE`);
 - a `src` or `srcset` URL that is a same-origin `/images/` path or the data plane's `/images/`, with
   no dot segment, encoded or not;
 - a `style` attribute whose every declaration names an allowlisted property with a value in that
@@ -354,22 +365,33 @@ link, an `li` outside `ul`), an unclosed or mismatched element, an id that two f
 card root id inside another fragment, and an id the page keeps outside the cards. On any refusal the
 Worker SHALL serve the data-free page as `fallback`, with no partial render, and SHALL log the
 fragment and a closed-set reason (`artifact: refused:fragments:<id>:<reason>`), never the offending
-text. The composer SHALL apply the same check and SHALL refuse to publish a fragment it fails. The
+text. The composer SHALL apply the same check and SHALL refuse to publish a fragment it fails. Before
+that check, the composer SHALL degrade what the Reading card would otherwise fail on, because the
+design system links any https article URL and joins notes into one uncapped `title`: a link the
+Worker would refuse SHALL render as the title text (`span.article-list-title`, the row kept), and a
+note title above 16,384 characters SHALL be cut, ending in an ellipsis
+(`src/lib/composed/reading-links.ts`). One named value, `READING_LINKS` in
+`src/lib/composed/reading-option.ts`, carries the owner's choice: `allow` (option A) links titles as
+above; `strip` (option B) renders every title as text in the composer and turns the Worker's any-host
+exception off. The
 Worker checks one artifact text once per isolate, and a value-free variant when it is first served.
 
 The allowlist bounds the markup, not the values: a bucket writer can still write any text in a
-card and any link to an allowlisted host, the same power it holds over the exports the client
+card, any link to an allowlisted host, and, on the Reading card's article titles only, a link to any
+https host, the same power it holds over the exports the client
 runtime renders. The allowlist SHALL name only what the components emit: the parity oracle SHALL
 fail when an allowlisted element, class token, `aria-*` name, `data-*` name or link host appears in no
 render of its fragment, or when a render uses a class token or scoped-style hash its fragment's
-allowlist or slot lacks.
+allowlist or slot lacks. The oracle SHALL also compose every fixture variation the fixtures package
+ships, one export at a time, and fail when any is refused, so a data-driven class or link that no
+named scenario reaches cannot turn the composed page off in production.
 
 Verified by `tests/unit/composed-read.test.ts:310` (the first review's seven probes, the reproducers
 of the two later review rounds, and the other refusal cases), `tests/unit/ssr-response.test.ts:327`
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
 scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
 (`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
-`tests/oracle/composer-parity.test.ts:474` (every scenario's artifact, the shipped value-free set and
+`tests/oracle/composer-parity.test.ts:485` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
 the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
 keeps outside the cards).
 
@@ -409,7 +431,7 @@ pages cannot be used, the data-free page SHALL answer with the same summary. A p
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
 Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:293` (each variant equals the Astro render, holds no
+`tests/oracle/composer-parity.test.ts:304` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb
@@ -485,7 +507,7 @@ The render SHALL NOT branch on the client: no code on the render path reads `Use
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
 Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
-`tests/behavioral/ssr-no-js.test.ts:382` (the head of the render equals the data-free page's).
+`tests/behavioral/ssr-no-js.test.ts:410` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 

@@ -4,7 +4,9 @@
 // renders the same view models through the Container API (the oracle, never deployed). Every fragment
 // must be byte-identical after attribute ordering (./harness.ts `normalized`), and every scoped-style
 // hash in it must be one the website's own built page carries, or the Worker refuses it.
-import {existsSync, readFileSync} from 'node:fs'
+import {existsSync, readdirSync, readFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
+import {dirname} from 'node:path'
 import {load} from 'cheerio'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {buildId} from '../../scripts/lib/build-id.mjs'
@@ -35,7 +37,10 @@ import {
   VALUE_FREE_PATH
 } from '../../src/lib/composed/artifact'
 import {FRAGMENT_CLASS_TOKENS, FRAGMENT_ROOT_CLASS_TOKENS} from '../../src/lib/composed/fragment-classes'
-import {ARIA_ATTRIBUTES, DATA_ATTRIBUTES, HTML_ELEMENTS, LINK_HOSTS, SVG_ELEMENTS} from '../../src/lib/composed/fragment-policy'
+import {ARIA_ATTRIBUTES, DATA_ATTRIBUTES, HTML_ELEMENTS, LINK_HOSTS, MAX_TITLE, SVG_ELEMENTS} from '../../src/lib/composed/fragment-policy'
+import {composableReading} from '../../src/lib/composed/reading-links'
+import {READING_LINKS} from '../../src/lib/composed/reading-option'
+import {REFUSED_ARTICLE_URLS} from '../shared/refused-article-urls'
 import {VALUE_FREE_VARIANTS} from '../../src/lib/composed/value-free'
 import {type GatedKey, valueFreeLoad, type ValueFreeState} from '../../src/lib/data-plane/loader'
 import {astroContainer, type DomainSpec, fixtureLoad, LOCAL_COVERS, normalized, rawFixture, renderOf} from './harness'
@@ -149,11 +154,13 @@ const SCENARIOS: [string, Partial<Record<GatedKey, DomainSpec>>][] = [
   ['watch charging', {health: {variation: 'pausedCharging'}}],
   ['watch off the wrist', {health: {variation: 'pausedHrGap'}}],
   ['heart-rate peak', {health: {variation: 'peak'}}],
+  ['heart-rate fat burn (the amber accent)', {health: {variation: 'fatBurn'}}],
   ['zero hydration', {health: {variation: 'zeroHydration'}}],
   ['missing optional health', {health: {variation: 'missingOptional'}}],
   ['long sleep', {sleep: {variation: 'longSleep'}}],
   ['multiple workouts', {workouts: {variation: 'multiWorkout'}}],
   ['workouts without distance', {workouts: {variation: 'noDistance'}}],
+  ["a Barry's Bootcamp workout (the share.barrys.com link)", {workouts: {variation: 'barrysBootcamp'}}],
   ['commits only', {githubEvents: {variation: 'commitsOnly'}}],
   ['over ten events', {githubEvents: {variation: 'overTen'}}],
   ['old starred repos', {starredRepos: {variation: 'oldTimestamp'}}],
@@ -248,7 +255,11 @@ describe('the composer equals the Astro render', () => {
     expect(result.artifact.summary).toBe(render.summary)
     for (const id of COMPOSED_FRAGMENT_IDS) {
       const [Component, model] = ORACLE[id]
-      const props = id === 'cardBooks' ? {...render.vm.bookshelf, localCovers: LOCAL_COVERS} : render.vm[model]
+      const props = id === 'cardBooks'
+        ? {...render.vm.bookshelf, localCovers: LOCAL_COVERS}
+        : id === 'cardReading'
+        ? composableReading(render.vm.readingFeed)
+        : render.vm[model]
       const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
       const fragment = result.artifact.fragments[id] ?? ''
       expect(rootId(fragment), `${id} is its component's root`).toBe(id)
@@ -299,7 +310,7 @@ describe('the value-free pages equal the Astro render and hold no value', () => 
     const vm = {...render.vm, focusOverlay: {...render.vm.focusOverlay, now: ''}, dndOverlay: {...render.vm.dndOverlay, now: ''}}
     for (const id of COMPOSED_FRAGMENT_IDS) {
       const [Component, model] = ORACLE[id]
-      const props = id === 'cardBooks' ? {...vm.bookshelf, localCovers: LOCAL_COVERS} : vm[model]
+      const props = id === 'cardBooks' ? {...vm.bookshelf, localCovers: LOCAL_COVERS} : id === 'cardReading' ? composableReading(vm.readingFeed) : vm[model]
       const oracle = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
       const fragment = page?.fragments[id] ?? ''
       expect(rootId(fragment), `${id} is its component's root`).toBe(id)
@@ -498,6 +509,41 @@ describe("the Worker's fragment allowlist admits every render, and names nothing
     }
   })
 
+  // The scenarios above name the variations parity needs; this sweep composes EVERY variation the
+  // fixtures package ships, one export at a time, so a data-driven class or link no scenario names
+  // (the fat-burn accent and the Barry's link both refused the page before this sweep) reds here.
+  it('admits every fixture variation of every export, through checkArtifact', async () => {
+    const require = createRequire(import.meta.url)
+    let composed = 0
+    for (const key of KEYS) {
+      const dir = dirname(require.resolve(`@j0nathan-ll0yd/fixtures/generated/${ENDPOINTS[key].replace(/^\//, '').replace(/\.json$/, '')}/baseline.json`))
+      for (const variation of readdirSync(dir).filter((file) => file.endsWith('.json')).map((file) => file.slice(0, -'.json'.length))) {
+        const exports = Object.fromEntries(KEYS.map((other) => {
+          const raw = rawFixture(other, other === key ? variation : 'baseline')
+          raw.generatedAt = FRESH
+          return [other, raw]
+        }))
+        const label = `${key}/${variation}`
+        const result = await compose({exports, focus: {generatedAt: FRESH, currentFocus: 'None'}, nowMs: NOW, localCovers: LOCAL_COVERS}).catch((
+          error: Error
+        ) => ({ok: false as const, refusal: error.message}))
+        expect(result, label).toMatchObject({ok: true})
+        if (!result.ok) {
+          continue
+        }
+        const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>}
+        const checked = checkArtifact(JSON.stringify(artifact), Date.parse(artifact.composedAt), artifact.composer.build, new Set(HIDING_FOCUS_MODES))
+        expect(checked, label).toMatchObject({ok: true})
+        used.maxBytes = Math.max(used.maxBytes, JSON.stringify(artifact).length)
+        for (const id of COMPOSED_FRAGMENT_IDS) {
+          record(id, artifact.fragments[id] ?? '')
+        }
+        composed++
+      }
+    }
+    expect(composed).toBeGreaterThan(KEYS.length)
+  })
+
   it('admits the value-free set the website build shipped', () => {
     const built = readFileSync(new URL(`../../dist/client${VALUE_FREE_PATH}`, import.meta.url), 'utf8')
     const set = checkValueFree(built, BUILD, VALUE_FREE_VARIANTS)
@@ -552,5 +598,51 @@ describe("the Worker's fragment allowlist admits every render, and names nothing
     expect(shellIds.size).toBeGreaterThan(0)
     expect(used.ids.size).toBeGreaterThan(COMPOSED_FRAGMENT_IDS.length)
     expect([...used.ids].filter((id) => shellIds.has(id))).toEqual([])
+  })
+})
+
+// One article the Worker would refuse must never turn the composed page off (review of #386, M):
+// the BUILT composer degrades the link to the title as text and cuts an over-long note title, the
+// artifact passes the Worker's check, and the Reading card keeps every row.
+describe('the composer degrades a Reading link or note the Worker would refuse (src/lib/composed/reading-links.ts)', () => {
+  /** The composed artifact with the known-answer articles, the first one changed by `change`. */
+  async function composeArticles(change: (article: Record<string, unknown>) => void) {
+    const articles = rawFixture('articles', 'ssrKnownAnswer', (raw) => change((raw.articles as Record<string, unknown>[])[0]!))
+    articles.generatedAt = FRESH
+    const exports = Object.fromEntries(KEYS.map((key) => {
+      const raw = key === 'articles' ? articles : rawFixture(key, 'baseline')
+      raw.generatedAt = FRESH
+      return [key, raw]
+    }))
+    const result = await compose({exports, focus: {generatedAt: FRESH, currentFocus: 'None'}, nowMs: NOW, localCovers: LOCAL_COVERS})
+    expect(result.ok).toBe(true)
+    const artifact = (result as {artifact: {composedAt: string; composer: {build: string}; fragments: Record<string, string>}}).artifact
+    const checked = checkArtifact(JSON.stringify(artifact), Date.parse(artifact.composedAt), artifact.composer.build, new Set(HIDING_FOCUS_MODES))
+    expect(checked).toMatchObject({ok: true})
+    return {articles: articles.articles as {articleTitle: string; articleUrl: string}[], reading: load(artifact.fragments.cardReading ?? '', null, false)}
+  }
+
+  it.each(REFUSED_ARTICLE_URLS)('renders an article URL with %s as a span with the same text, in an admitted artifact', async (_label, url) => {
+    const {articles, reading} = await composeArticles((article) => {
+      article.articleUrl = url
+    })
+    expect(reading('#cardReading').attr('data-ssr-state'), 'the card is live: the export decoded').toBe('live')
+    expect(reading('.article-list-item')).toHaveLength(articles.length)
+    const first = reading('.article-list-item').first().find('.article-list-title')
+    expect(first.prop('tagName')).toBe('SPAN')
+    expect(first.text()).toBe(articles[0]!.articleTitle)
+    expect(first.attr('href')).toBeUndefined()
+    // The other rows keep their links (option A).
+    expect(reading('a.article-list-title')).toHaveLength(READING_LINKS === 'allow' ? articles.length - 1 : 0)
+  })
+
+  it('cuts a joined note title above MAX_TITLE, in an admitted artifact', async () => {
+    const {reading} = await composeArticles((article) => {
+      article.notes = [{comment: 'n'.repeat(MAX_TITLE), createdAt: FRESH}, {comment: 'more', createdAt: FRESH}]
+    })
+    const title = reading('.article-list-note').first().attr('title') ?? ''
+    expect(title.length).toBeGreaterThan(0)
+    expect(title.length).toBeLessThanOrEqual(MAX_TITLE)
+    expect(title.endsWith('…')).toBe(true)
   })
 })
