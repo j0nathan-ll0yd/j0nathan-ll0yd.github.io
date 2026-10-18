@@ -105,10 +105,10 @@ async function notFoundPage(request: Request, env: WorkerEnv, codeFree: boolean)
 }
 
 /** The dashboard's dependencies: the composed-artifact read, the clock and the static-asset plane. */
-function dashboardDeps(request: Request, env: WorkerEnv, context: AstroContext): DashboardRenderDeps {
+function dashboardDeps(request: Request, env: WorkerEnv): DashboardRenderDeps {
   const vars: RenderVars = {...env}
   return {
-    read: (rendered, nowMs) => readForRequest(rendered, vars, nowMs, (promise) => context.waitUntil(promise)),
+    read: (rendered, nowMs) => readForRequest(rendered, vars, nowMs),
     now: (rendered) => renderClock(rendered, vars),
     asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method})),
     valueFree: () => valueFreeFor(BUILD_ID, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url)))
@@ -120,10 +120,10 @@ async function route(request: Request, env: WorkerEnv, context: AstroContext, co
   const url = new URL(request.url)
   if (url.pathname === '/' && !codeFree) {
     if (request.method === 'GET') {
-      return renderDashboard(request, dashboardDeps(request, env, context))
+      return renderDashboard(request, dashboardDeps(request, env))
     }
     if (request.method === 'HEAD') {
-      return headDashboard(dashboardDeps(request, env, context))
+      return headDashboard(dashboardDeps(request, env))
     }
   }
   if (INTERNAL_ASSET_PATHS.includes(url.pathname)) {

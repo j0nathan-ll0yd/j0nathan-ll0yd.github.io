@@ -19,8 +19,10 @@ the focus overlays and System Status with the design system's components, and re
 `/dashboard.json` artifact, which the runner stores behind the gate. The runner holds no read
 credential.
 
-The Worker reads the artifact through the edge proxy (src/lib/composed/read.ts: focus probe first,
-the admission rules, no-store, no last-known-good copy, a 2.5 s budget), checks it
+The Worker reads the artifact with the edge proxy's rules (src/lib/composed/read.ts and
+src/lib/edge/proxy.ts `readGatedConcurrently`: the focus probe and the artifact fetch in flight
+together, the focus value deciding first, the admission rules, no-store, no last-known-good copy, a
+2.5 s budget), checks it
 (src/lib/composed/artifact.ts: schema, age, future skew, composer build, hiding focus, record, and
 each fragment against the markup allowlist in src/lib/composed/fragment-policy.ts) and splices its fragments into the prerendered data-free page (src/lib/composed/shell.ts,
 src/lib/data-plane/ssr-response.ts). The Worker renders nothing. The data-free page
@@ -249,7 +251,7 @@ timeout of 60 s and the CloudFront TTL of 30 s. The Worker SHALL refuse an artif
 plus the 60 s run timeout, plus the 30 s TTL) and SHALL serve the data-free page as `fallback`. A
 browser with JavaScript re-judges each card and age on load.
 
-Verified by `tests/unit/composed-read.test.ts:151`.
+Verified by `tests/unit/composed-read.test.ts:132`.
 
 #### Scenario: The runner stops
 
@@ -266,7 +268,7 @@ version.json SHALL name the shipped composer's path, its sha256 and the contract
 deploy never shows a page another build's composer made; `/` stays data-free until the runner
 composes with the new build's composer (at most one backstop run, 5 minutes).
 
-Verified by `tests/unit/composed-read.test.ts:157` (another build's artifact is refused) and
+Verified by `tests/unit/composed-read.test.ts:138` (another build's artifact is refused) and
 `tests/build/worker-output.test.ts:83` (version.json names the shipped composer, its hash and the build).
 
 #### Scenario: The site deploys
@@ -285,7 +287,7 @@ the gate blocks it while focus hides. (b) The site deploys during a composition:
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
 Verified by `tests/oracle/composer-parity.test.ts:413` (race a) and
-`tests/unit/composed-read.test.ts:158` (race b).
+`tests/unit/composed-read.test.ts:139` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
 
@@ -386,7 +388,7 @@ allowlist or slot lacks. The oracle SHALL also compose every fixture variation t
 ships, one export at a time, and fail when any is refused, so a data-driven class or link that no
 named scenario reaches cannot turn the composed page off in production.
 
-Verified by `tests/unit/composed-read.test.ts:310` (the first review's seven probes, the reproducers
+Verified by `tests/unit/composed-read.test.ts:286` (the first review's seven probes, the reproducers
 of the two later review rounds, and the other refusal cases), `tests/unit/ssr-response.test.ts:327`
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
 scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
@@ -405,18 +407,52 @@ keeps outside the cards).
 
 ### Requirement: The Worker's read spends its whole budget on the focus probe and the artifact
 
-The Worker's read of the artifact keeps no last-known-good copy, so the proxy SHALL NOT reserve the
-last-known-good window (`PROXY_TIMEOUTS.lkgReadReserveMs`, 1,000 ms) from its budget: the artifact
-read SHALL get the whole 2.5 s budget left after the focus probe (src/lib/edge/proxy.ts
-`artifactBudget`). A route that keeps a copy SHALL still reserve the window.
+The Worker's read of the artifact keeps no last-known-good copy, so it SHALL NOT reserve the
+last-known-good window (`PROXY_TIMEOUTS.lkgReadReserveMs`, 1,000 ms) from its budget. The read SHALL
+issue the focus probe and the artifact fetch together, both inside ONE 2.5 s budget
+(`COMPOSED_READ_BUDGET_MS`), so it takes about the slower of the two, not their sum (soak,
+2026-10-17: the serial probe-then-fetch timed out from colos far from CloudFront). A route that keeps
+a copy SHALL still reserve the window and SHALL still probe focus before it fetches. The `ssr_render`
+line SHALL carry `focus_ms` and, when the read waited for the artifact, `artifact_ms`.
 
-Verified by `tests/unit/composed-read.test.ts:579`.
+Verified by `tests/unit/composed-read.test.ts:555` (the reserve),
+`tests/unit/composed-read-concurrent.test.ts:138` (both legs at 1,400 ms fit the budget) and
+`tests/unit/ssr-response.test.ts:360` (the leg timings in the log line).
 
 #### Scenario: CloudFront answers the artifact slowly
 
 - **GIVEN** the focus probe answers at once
 - **WHEN** the artifact answers after 2 s
 - **THEN** the Worker SHALL serve the composed page, not the data-free page
+
+#### Scenario: Both legs are slow
+
+- **GIVEN** a visible focus value that answers after 1.4 s
+- **WHEN** the artifact also answers after 1.4 s
+- **THEN** the Worker SHALL serve the composed page within the 2.5 s budget
+
+### Requirement: The focus value decides before any artifact byte is read
+
+The read SHALL answer exactly as a probe-then-fetch read answers, whatever order the two legs finish
+in. The Worker SHALL serve composed data only when the same request read a VISIBLE focus value AND
+the artifact answer passed the admission rules (a CloudFront 200, not a suppression body, not served
+from the Cloudflare cache, `x-amz-cf-id` present). A suppression body under a visible value SHALL
+answer `suppressed` (the gate wins). A hiding value SHALL answer `suppressed` even over an artifact
+200 (the signal wins, for the KeyValueStore propagation window): the read SHALL abort a fetch still in
+flight, start no further attempt, and cancel a body that arrived without reading, parsing or logging
+it. An unreadable value SHALL answer `focus-unreadable` even when the artifact arrived. The read SHALL
+open no cache, keep no last-known-good copy and schedule no work (`waitUntil`) after its answer.
+
+Verified by `tests/unit/composed-read-concurrent.test.ts:194` (a hiding value cancels the body
+unread), `tests/unit/composed-read-concurrent.test.ts:180` (the gate wins),
+`tests/unit/composed-read-concurrent.test.ts:241` (an unreadable value fails closed) and
+`tests/unit/composed-read-concurrent.test.ts:269` (no cache, no copy).
+
+#### Scenario: The signal turns hiding before the gate closes
+
+- **GIVEN** the focus value reads `Work`
+- **WHEN** the artifact fetch answers a CloudFront 200
+- **THEN** the Worker SHALL answer the Work value-free page and SHALL cancel the artifact body unread
 
 ### Requirement: A hiding or unreadable focus value answers the build's value-free page
 
@@ -439,7 +475,8 @@ Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and
 - **GIVEN** the focus value reads `Do Not Disturb`
 - **WHEN** a client without JavaScript requests `/`
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: suppressed`, the Do Not Disturb overlay
-  shown, every card `suppressed`, and no export value, and SHALL fetch no composed artifact
+  shown, every card `suppressed`, and no export value, and SHALL read no byte of the composed
+  artifact (a fetch in flight is aborted, a body that arrived is cancelled unread)
 
 ### Requirement: A render that misses its budget falls back to the data-free page
 

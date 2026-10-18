@@ -59,8 +59,10 @@ function upstream(answers: Record<string, Answer>): {calls: [string, RequestInit
   return {calls, upstream: {base: BASE, fetch: fetchStub}}
 }
 
-function read(u: Upstream, nowMs = NOW): Promise<ComposedRead> {
-  return readComposed({request: new Request('https://jonathanlloyd.me/'), waitUntil: () => {}, nowMs, build: PARSED.composer.build, upstream: u})
+/** The read's answer without its leg timings, which vary run to run. */
+async function read(u: Upstream, nowMs = NOW): Promise<ComposedRead> {
+  const {timing: _timing, ...answer} = await readComposed({nowMs, build: PARSED.composer.build, upstream: u})
+  return answer as ComposedRead
 }
 
 function artifactCalls(calls: [string, RequestInit | undefined][]): number {
@@ -83,29 +85,8 @@ describe('readComposed: the gate', () => {
     expect(init).not.toHaveProperty('cf')
   })
 
-  it.each(HIDING_FOCUS_MODES)('a hiding focus (%s) never fetches the artifact, and names the value for its overlay', async (mode) => {
-    const {calls, upstream: u} = upstream({[FOCUS_URL]: focus(mode), [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
-    expect(await read(u)).toEqual({kind: 'suppressed', currentFocus: mode})
-    expect(artifactCalls(calls)).toBe(0)
-  })
-
-  it('the race: a visible probe, then the gate shuts before the artifact fetch, serves nothing', async () => {
-    const {calls, upstream: u} = upstream({[FOCUS_URL]: focus('None'), [ARTIFACT_URL]: fromCloudfront(SUPPRESSION_BODY, {status: 403})})
-    // The probe read a visible value, so no overlay is named: the gate variant answers.
-    expect(await read(u)).toEqual({kind: 'suppressed', currentFocus: null})
-    expect(artifactCalls(calls)).toBe(1)
-  })
-
-  it.each([
-    ['a 500', () => fromCloudfront('{}', {status: 500})],
-    ['malformed JSON', () => fromCloudfront('{"currentFocus":')],
-    ['a body with no focus value', () => fromCloudfront('{}')],
-    ['a transport failure', () => Promise.reject(new TypeError('network'))]
-  ])('an unreadable focus (%s) fails closed and never fetches the artifact', async (_name, answer) => {
-    const {calls, upstream: u} = upstream({[FOCUS_URL]: answer as () => Promise<Response>, [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
-    expect(await read(u)).toEqual({kind: 'focus-unreadable'})
-    expect(artifactCalls(calls)).toBe(0)
-  })
+  // The focus matrix of the concurrent read (hiding, unreadable, the gate's suppression body, a body
+  // cancelled unread) is in tests/unit/composed-read-concurrent.test.ts.
 })
 
 describe('readComposed: admission', () => {
@@ -176,7 +157,7 @@ describe('readForRequest: the platform fetch', () => {
     })
     vi.stubGlobal('fetch', strictFetch)
     const {readForRequest} = await import('../../src/lib/data-plane/request')
-    const result = await readForRequest(new Request('http://127.0.0.1:4321/'), {DATA_PLANE_BASE: BASE}, NOW, () => {})
+    const result = await readForRequest(new Request('http://127.0.0.1:4321/'), {DATA_PLANE_BASE: BASE}, NOW)
     expect(strictFetch.mock.calls.map(([url]) => String(url))).toEqual([FOCUS_URL, ARTIFACT_URL])
     expect(result.kind).not.toBe('focus-unreadable')
   })
@@ -227,17 +208,12 @@ describe('readComposed: the D2 budget (review M4)', () => {
   it('answers focus-unreadable within its budget when the focus probe hangs', async () => {
     const {calls, upstream: u} = upstream({[FOCUS_URL]: () => new Promise<Response>(() => {}), [ARTIFACT_URL]: fromCloudfront(ARTIFACT)})
     const started = Date.now()
-    const result = await readComposed({
-      request: new Request('https://jonathanlloyd.me/'),
-      waitUntil: () => {},
-      nowMs: NOW,
-      build: PARSED.composer.build,
-      upstream: u,
-      budgetMs: 300
-    })
-    expect(result).toEqual({kind: 'focus-unreadable'})
+    const result = await readComposed({nowMs: NOW, build: PARSED.composer.build, upstream: u, budgetMs: 300})
+    expect(result.kind).toBe('focus-unreadable')
     expect(Date.now() - started).toBeLessThan(1_500)
-    expect(artifactCalls(calls)).toBe(0)
+    // The artifact leg started beside the probe and was stopped: one attempt, its fetch aborted.
+    expect(artifactCalls(calls)).toBe(1)
+    expect(calls.find(([url]) => url === ARTIFACT_URL)?.[1]?.signal?.aborted).toBe(true)
   })
 })
 
@@ -264,7 +240,7 @@ describe('the fixture data plane never reaches production (review M2)', () => {
       return String(input).endsWith('/focus.json') ? focus('None') : fromCloudfront(ARTIFACT)
     }))
     const {readForRequest} = await import('../../src/lib/data-plane/request')
-    await readForRequest(new Request('https://jonathanlloyd.me/', {headers: SEAMS}), {SSR_FAULT_INJECTION: '1', DATA_PLANE_BASE: BASE}, NOW, () => {})
+    await readForRequest(new Request('https://jonathanlloyd.me/', {headers: SEAMS}), {SSR_FAULT_INJECTION: '1', DATA_PLANE_BASE: BASE}, NOW)
     expect(seen.length).toBeGreaterThan(0)
     for (const url of seen) {
       expect(url.startsWith(`${CLOUDFRONT_BASE}/`), url).toBe(true)
@@ -586,14 +562,7 @@ describe('readComposed: the budget split (review 2026-10-16, I1)', () => {
   it('gives the artifact read the whole budget after the focus probe: no last-known-good reserve', async () => {
     const slow = () => new Promise<Response>((resolve) => setTimeout(() => resolve(fromCloudfront(ARTIFACT)), 400))
     const {upstream: u} = upstream({[FOCUS_URL]: focus('None'), [ARTIFACT_URL]: slow})
-    const result = await readComposed({
-      request: new Request('https://jonathanlloyd.me/'),
-      waitUntil: () => {},
-      nowMs: NOW,
-      build: PARSED.composer.build,
-      upstream: u,
-      budgetMs: 1_200
-    })
+    const result = await readComposed({nowMs: NOW, build: PARSED.composer.build, upstream: u, budgetMs: 1_200})
     expect(result.kind).toBe('ok')
   })
 })

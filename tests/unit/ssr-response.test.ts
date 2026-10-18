@@ -355,3 +355,22 @@ describe('GET /: the fragment allowlist (review 2026-10-16, H1)', () => {
     expect(await response.text()).toBe('data-free page')
   })
 })
+
+describe('GET /: the log line times both legs of the concurrent read (soak fix, 2026-10-17)', () => {
+  // covers: dashboard-ssr#The Worker's read spends its whole budget on the focus probe and the artifact
+  it('logs focus_ms and artifact_ms for a composed answer', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf(), timing: {focusMs: 210, artifactMs: 340}}))
+    await renderDashboard(REQUEST, d)
+    expect(logLines(info)[0]).toMatchObject({served: 'composed', focus_ms: 210, artifact_ms: 340})
+  })
+
+  it('logs focus_ms alone when the read stopped at the focus probe', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = deps(async () => ({kind: 'focus-unreadable', timing: {focusMs: 2_000, artifactMs: null}}))
+    await renderDashboard(REQUEST, d)
+    const [line] = logLines(info)
+    expect(line).toMatchObject({summary: 'unavailable', focus_ms: 2_000})
+    expect(line).not.toHaveProperty('artifact_ms')
+  })
+})
