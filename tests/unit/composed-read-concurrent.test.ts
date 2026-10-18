@@ -296,3 +296,53 @@ describe('invariant 5: no cache, no last-known-good copy, no work after the answ
     expect(readComposed.length).toBe(1)
   })
 })
+
+describe('leg orderings (review 2026-10-18)', () => {
+  it('holds an admitted body unread while the focus probe is still pending', async () => {
+    const artifact = tracedArtifact()
+    const {upstream: u} = upstream({[FOCUS_URL]: after(150, () => focus('None')), [ARTIFACT_URL]: () => artifact.response})
+    const pending = read(u)
+    await sleep(60)
+    expect(artifact.pulls).toBe(0)
+    expect((await pending).kind).toBe('ok')
+    expect(artifact.pulls).toBeGreaterThan(0)
+  })
+
+  it('a hiding value names its overlay even when the suppression body answered first', async () => {
+    const {upstream: u} = upstream({
+      [FOCUS_URL]: after(100, () => focus('Work')),
+      [ARTIFACT_URL]: () => new Response(SUPPRESSION_BODY, {status: 403, headers: cloudfrontHeaders()})
+    })
+    expect(await read(u)).toMatchObject({kind: 'suppressed', currentFocus: 'Work'})
+  })
+
+  it('an unreadable value wins over a suppression body', async () => {
+    const {upstream: u} = upstream({
+      [FOCUS_URL]: after(50, () => new Response('{}', {headers: cloudfrontHeaders()})),
+      [ARTIFACT_URL]: () => new Response(SUPPRESSION_BODY, {status: 403, headers: cloudfrontHeaders()})
+    })
+    expect((await read(u)).kind).toBe('focus-unreadable')
+  })
+
+  it('a hiding value wins over a refused 200', async () => {
+    const {upstream: u} = upstream({
+      [FOCUS_URL]: after(50, () => focus('Do Not Disturb')),
+      [ARTIFACT_URL]: () => new Response(ARTIFACT, {headers: cloudfrontHeaders({'cf-cache-status': 'HIT'})})
+    })
+    expect(await read(u)).toMatchObject({kind: 'suppressed', currentFocus: 'Do Not Disturb'})
+  })
+
+  it('a denial during a retry delay ends the delay and releases the failed answer at once', async () => {
+    let cancelled = false
+    const failed = () =>
+      new Response(new ReadableStream({cancel: () => void (cancelled = true)}, {highWaterMark: 0}), {status: 503, headers: cloudfrontHeaders()})
+    // The first retry delay is 100 ms (RETRY_DELAYS_MS); the denial lands at about 30 ms.
+    const {calls, upstream: u} = upstream({[FOCUS_URL]: after(30, () => focus('Work')), [ARTIFACT_URL]: failed})
+    const started = Date.now()
+    expect(await read(u)).toMatchObject({kind: 'suppressed', currentFocus: 'Work'})
+    await sleep(20)
+    expect(cancelled).toBe(true)
+    expect(Date.now() - started).toBeLessThan(100)
+    expect(artifactCalls(calls)).toHaveLength(1)
+  })
+})

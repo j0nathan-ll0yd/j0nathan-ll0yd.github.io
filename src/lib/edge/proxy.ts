@@ -450,6 +450,19 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** A retry delay that ends early when a concurrent read stops, so a stopped leg never outlives its answer. */
+function delayUnlessStopped(ms: number, stop: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, ms)
+    function done(): void {
+      clearTimeout(timer)
+      stop.removeEventListener('abort', done)
+      resolve()
+    }
+    stop.addEventListener('abort', done)
+  })
+}
+
 /**
  * True when this response is evidence, for the last-known-good path, that the gate is open now: a
  * 200 that passed the gate in this request. No CloudFront error status proves that the gate
@@ -496,6 +509,9 @@ async function fetchWithRetry(
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     // The focus probe can deny during a retry delay: a stopped read starts no further attempt.
     if (hooks?.stop.aborted) {
+      if (lastResponse) {
+        discardBody(lastResponse)
+      }
       return {ok: false, attempts: attempt - 1, response: lastResponse, errorName, gateOpen, abandoned: true}
     }
     try {
@@ -545,6 +561,9 @@ async function fetchWithRetry(
 
     const failure: UpstreamFailure = {ok: false, attempts: attempt, response: lastResponse, errorName, gateOpen}
     if (hooks?.stop.aborted) {
+      if (lastResponse) {
+        discardBody(lastResponse)
+      }
       return {...failure, abandoned: true}
     }
     const retryDelayMs = RETRY_DELAYS_MS[attempt - 1] ?? 0
@@ -552,7 +571,7 @@ async function fetchWithRetry(
       return failure
     }
     logger.warn('cloudfront_proxy_retry', diagnosticFields(path, failure))
-    await delay(retryDelayMs)
+    await (hooks ? delayUnlessStopped(retryDelayMs, hooks.stop) : delay(retryDelayMs))
   }
 
   return {ok: false, attempts: MAX_ATTEMPTS, response: lastResponse, errorName, gateOpen}
@@ -936,11 +955,17 @@ export async function readGatedConcurrently({path, budgetMs, upstream}: GatedRea
       stop.abort()
     }
     return result
+  }, (error: unknown) => {
+    // probeFocus answers every failure itself; should it ever throw, the artifact leg still stops.
+    stop.abort()
+    throw error
   })
   const artifact = fetchWithRetry(`${source.base}${path}`, path, budget, source.fetch, {
     stop: stop.signal,
     focusVisible: () => focus.then((result) => result.status === 'visible')
   })
+  // On a denial nobody awaits the stopped leg; a late rejection must not surface as unhandled.
+  artifact.catch(() => {})
 
   const focusResult = await focus
   if (focusResult.status === 'suppressed') {
