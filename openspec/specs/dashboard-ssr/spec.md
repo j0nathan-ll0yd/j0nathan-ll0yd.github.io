@@ -70,7 +70,7 @@ Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
 `tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
 browser by `tests/behavioral/ssr-no-js.test.ts:291` (one 403 suppresses the page) and
-`tests/behavioral/ssr-no-js.test.ts:348` (each hiding mode: the overlay shows, nothing is read, no
+`tests/behavioral/ssr-no-js.test.ts:350` (each hiding mode: the overlay shows, no export is read, no
 gated value is in the DOM).
 
 #### Scenario: A failed focus publication
@@ -544,7 +544,7 @@ The render SHALL NOT branch on the client: no code on the render path reads `Use
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
 Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
-`tests/behavioral/ssr-no-js.test.ts:410` (the head of the render equals the data-free page's).
+`tests/behavioral/ssr-no-js.test.ts:412` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 

@@ -307,11 +307,12 @@ test.describe('server render with JavaScript off: states', () => {
     await setDataPlane({[ENDPOINTS.focus]: {kind: 'status', status: 500}})
     await expectSummary(page, 'unavailable')
     expect(await cardStates(page)).toEqual(expectedStates('unavailable'))
-    // Only the focus signal is read: once, or twice through the proxy's one bounded retry of a
-    // retryable failure (src/lib/edge/proxy.ts FOCUS_MAX_ATTEMPTS). The composed page never is.
+    // No export is read. Focus is read once, or twice through its one bounded retry (FOCUS_MAX_ATTEMPTS);
+    // the composed page is requested beside it once at most and never used (readGatedConcurrently).
     const reads = await dataPlaneRequests()
-    expect(new Set(reads)).toEqual(new Set([ENDPOINTS.focus]))
-    expect(reads.length).toBeLessThanOrEqual(2)
+    expect(new Set(reads.filter((path) => path !== '/dashboard.json'))).toEqual(new Set([ENDPOINTS.focus]))
+    expect(reads.filter((path) => path === ENDPOINTS.focus).length).toBeLessThanOrEqual(2)
+    expect(reads.filter((path) => path === '/dashboard.json').length).toBeLessThanOrEqual(1)
     expect(await page.content()).not.toContain(TOKEN)
   })
 
@@ -352,7 +353,7 @@ test.describe('server render with JavaScript off: hiding', () => {
       await expect(page.locator(overlay)).toBeVisible()
       await expect(page.locator(other)).toBeHidden()
       expect(await cardStates(page)).toEqual(expectedStates('suppressed'))
-      expect(await dataPlaneRequests(), 'only the focus signal is read').toEqual([ENDPOINTS.focus])
+      expect((await dataPlaneRequests()).filter((path) => path !== '/dashboard.json'), 'no export is read').toEqual([ENDPOINTS.focus])
 
       const html = await page.content()
       const text = await page.locator('body').innerText()
