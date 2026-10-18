@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {DEFAULT_BUDGET_MS} from '../lib/http.mjs'
-import {httpsRedirectProbes, judgeHttpsRedirect, runHttpsRedirectArm, validateHeaders} from '../checks/b7-check-headers.mjs'
+import {collect, httpsRedirectProbes, judgeHttpsRedirect, runHttpsRedirectArm, validateHeaders} from '../checks/b7-check-headers.mjs'
 
 const GOLDEN_CSP = "default-src 'self'; script-src 'self';"
 const TRUSTED_TYPES = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint"
@@ -39,7 +39,6 @@ const DEEP = {url: 'http://jonathanlloyd.me/privacy?b7=1', allowed: ['https://jo
 // Captured 2026-10-18 from http://www.jonathanlloyd.me/ (162 bytes).
 const REDIRECT_BODY =
   '<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>nginx</center>\r\n</body>\r\n</html>\r\n'
-'<html>\r\n<head><title>301 Moved Permanently</title></head>\r\n<body>\r\n<center><h1>301 Moved Permanently</h1></center>\r\n<hr><center>cloudflare</center>\r\n</body>\r\n</html>\r\n'
 
 function answer(status: number, headers: Record<string, string> = {}, body = ''): Response {
   return new Response(status === 204 ? null : body, {status, headers})
@@ -219,5 +218,25 @@ describe('runHttpsRedirectArm', () => {
     const result = await runHttpsRedirectArm({fetchImpl: impl, probes: [ROOT, DEEP]})
     expect(result.measured).toBe(0)
     expect(result.findings.map((f: {id: string}) => f.id)).toEqual(['headers-http-unmeasured', 'headers-http-unmeasured'])
+  })
+})
+
+describe('collect', () => {
+  it('wires the redirect arm into the B7 run: its findings and counts reach the report', async () => {
+    const urls: string[] = []
+    const fetchImpl = async (url: string) => {
+      urls.push(url)
+      if (url.startsWith('https://')) {
+        return new Response('ok', {status: 200, headers: {'content-security-policy': GOLDEN_CSP, 'content-security-policy-report-only': TRUSTED_TYPES}})
+      }
+      return answer(200, {'x-ssr-data': 'live'}, 'x'.repeat(4096))
+    }
+    const result = await collect({fetchImpl, checkCert: async () => ({measured: 1, findings: []}), goldenCsp: GOLDEN_CSP})
+    expect(urls.filter((u) => u.startsWith('http://'))).toEqual(httpsRedirectProbes().map((p: {url: string}) => p.url))
+    // 1 headers response + 1 certificate + 6 redirect probes.
+    expect(result.measured).toBe(8)
+    const ids = result.findings.map((f: {id: string}) => f.id)
+    expect(ids.filter((id: string) => id === 'headers-http-not-redirected')).toHaveLength(6)
+    expect(ids).toContain('headers-http-ssr-data')
   })
 })

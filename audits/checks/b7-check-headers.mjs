@@ -218,9 +218,16 @@ function checkCertExpiry(host, minDaysRemaining = MIN_CERT_DAYS_REMAINING) {
   })
 }
 
-async function main() {
+/**
+ * Runs every B7 arm and returns `{measured, findings}`. `main()` only reports the result;
+ * the seams are injectable so a test proves each arm is wired in.
+ */
+export async function collect({
+  fetchImpl = fetchStable,
+  checkCert = checkCertExpiry,
+  goldenCsp = readFileSync(GOLDEN_CSP_PATH, 'utf-8')
+} = {}) {
   const findings = []
-  const goldenCsp = readFileSync(GOLDEN_CSP_PATH, 'utf-8')
   // Independent transports, counted independently: the HTTPS response whose headers
   // carry the CSP, the raw TLS handshake that carries the certificate, and one plain-HTTP
   // answer per redirect probe. Losing one is a finding; losing all is darkness, and only
@@ -228,7 +235,7 @@ async function main() {
   let measured = 0
 
   try {
-    const res = await fetchStable(SITE_URL)
+    const res = await fetchImpl(SITE_URL)
     if (!res.ok) {
       findings.push({severity: 'fail', id: 'headers-fetch', message: `HTTP ${res.status} fetching ${SITE_URL}`})
     } else {
@@ -240,14 +247,19 @@ async function main() {
   }
 
   const host = new URL(SITE_URL).hostname
-  const cert = await checkCertExpiry(host)
+  const cert = await checkCert(host)
   measured += cert.measured
   findings.push(...cert.findings)
 
-  const redirect = await runHttpsRedirectArm()
+  const redirect = await runHttpsRedirectArm({fetchImpl})
   measured += redirect.measured
   findings.push(...redirect.findings)
 
+  return {measured, findings}
+}
+
+async function main() {
+  const {measured, findings} = await collect()
   process.exit(report('check-headers', findings, measured))
 }
 
