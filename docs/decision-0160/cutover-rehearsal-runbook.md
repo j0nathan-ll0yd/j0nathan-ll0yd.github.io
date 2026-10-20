@@ -357,9 +357,19 @@ behind `if (routesOnly.length > 0)`, `cli.js:164908`). The wrangler route schema
 (`cli.js:26344-26365`); the documented control is the dashboard toggle on the route
 (https://developers.cloudflare.com/workers/platform/limits/).
 
-**Rollback (production):** delete the route. `/tmp/pr-a-rollback.sh --execute` on the operator's Mac
-(wrangler OAuth login; it resolves the id by pattern and script, and `--execute` is required to
-delete), or the equivalent API calls with any credential holding Workers Routes Edit on the zone:
+**Rollback (production):** delete the route with `scripts/rollback-route.sh`, from any directory.
+Set `CLOUDFLARE_API_TOKEN` to a token that holds Zone > Workers Routes > Edit on the zone, such as a
+short-lived user token (My Profile > API Tokens); the script never prints it. The read-only token
+that direnv loads from `.env.local`, `CLOUDFLARE_ACCOUNT_READALL`, runs the dry run but cannot delete:
+`CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_READALL" scripts/rollback-route.sh`. The zone defaults to
+`jonathanlloyd.me` (`4d14ef06a76b6f09918d27d3cca0a9c3`), and `CLOUDFLARE_ZONE_ID` overrides it. The
+script resolves the id by pattern and script, and refuses unless exactly one route matches. Without
+a flag it is a dry run, GETs only: one API GET, plus a public `/version.json` GET when no route
+matches. It prints the route and what the rollback does. `--execute` sends the one DELETE, reads the
+routes back, and checks that Pages answers `/version.json` (no `runtime` key). `--self-test` proves
+the script against a stubbed `curl`, with no network call. Or run the equivalent API calls with any
+credential holding Workers Routes Edit on the zone; they put the token in curl's argv, where `ps`
+shows it:
 
 ```bash
 ROUTE_ID=$(curl -sS -H "Authorization: Bearer $TOKEN" \
@@ -372,6 +382,10 @@ curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
 
 The CNAME still points at Pages, so the apex returns to Pages in about 2 s (rehearsal Rollback 2a:
 0 errors). CI deploys no longer re-create the route, so the rollback lasts until someone re-creates it.
+The route-deletion rollback ends at D7, because atlas decision 0162 item 3 deletes the route after
+the Custom Domain attach. From the attach on, the Worker answers the apex without the route, so
+deleting the route rolls nothing back. Undo the attach first, with Step 2 (d) of the D7 runbook:
+atlas `decisions/evidence/0162-open-items/item-03-d7-runbook.md` (atlas PR #457).
 
 **Re-creation (production):** create the route, then set fail open again, because a route created
 through the API comes back fail-closed (the documented create body has only `pattern` and `script`):
