@@ -585,7 +585,7 @@ main() {
   if [ -n "$DELETE_PROBLEM" ]; then
     warn 'the DELETE answer was unexpected, but the read-back lists no matching route, so the route is gone.'
   fi
-  say "The route is gone. Waiting up to $WAIT_SECONDS s for Pages to answer $APEX_VERSION_URL."
+  say "The route is gone. Waiting up to about $WAIT_SECONDS s for Pages to answer $APEX_VERSION_URL."
   if ! wait_for_pages; then
     case "$APEX_STATE" in
       worker*)

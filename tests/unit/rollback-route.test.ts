@@ -271,10 +271,11 @@ describe('rollback-route.sh --execute checks that Pages answers the apex', () =>
   }, 30_000)
 
   // A probe may take only the time left before the deadline, so a slow apex cannot stretch the wait.
-  // With a 5 s wait the time left reads 5 s, or 4 s if a second boundary passes between the two reads.
+  // With a 5 s wait the time left is 1 to 5 s, depending on how long the run takes to reach the probe;
+  // a probe that ignored it would get the default 10 s.
   it.each([
     ['0', /--max-time 1 /],
-    ['5', /--max-time [45] /],
+    ['5', /--max-time [1-5] /],
     ['30', /--max-time 10 /]
   ])('with a wait of %s s, the apex probe gets the time left (%s)', (wait, maxTime) => {
     serve([MATCH])
@@ -347,7 +348,7 @@ describe('rollback-route.sh inputs and failures', () => {
     const {status, stdout} = run(['--execute'], {ROLLBACK_ROUTE_WAIT_SECONDS: '09'})
     expect(status).toBe(0)
     expect(sequence()).toEqual(FULL_RUN)
-    expect(stdout).toContain('Waiting up to 9 s')
+    expect(stdout).toContain('Waiting up to about 9 s')
   })
 
   it('refuses an unknown or a second argument with exit 2', () => {
@@ -410,7 +411,8 @@ const BASH4_ONLY: {name: string; pattern: RegExp; flags: string[]}[] = [
     pattern: /\$\{!?\w+(\[[^\]]*\])?(\^\^|,,|\^|,)[^}]*\}/,
     flags: ['${x^^}', '${x,,}', '${x^}', '${x,}', '${x^^[a-z]}', '${list[0]^^}']
   },
-  {name: 'parameter transformation', pattern: /\$\{[^}]*@[A-Za-z]\}/, flags: ['${x@Q}', '${x@U}']},
+  {name: 'parameter transformation', pattern: /\$\{\w+(\[[^\]]*\])?@[A-Za-z]\}/, flags: ['${x@Q}', '${x@U}', '${list[0]@Q}']},
+  {name: 'local - (saved shell options)', pattern: /\blocal\s+-(\s|;|$)/, flags: ['local -', 'f() { local -; set -e; }']},
   {name: 'a |& pipe', pattern: /\|&/, flags: ['cmd |& tee log']},
   {name: 'an &>> redirection', pattern: /&>>/, flags: ['cmd &>>log']},
   {name: 'coproc', pattern: /\bcoproc\b/, flags: ['coproc cat']},
@@ -423,9 +425,9 @@ const BASH4_ONLY: {name: string; pattern: RegExp; flags: string[]}[] = [
   },
   {name: 'a printf %(...)T time format', pattern: /%\([^)]*\)T/, flags: ["printf '%(%F)T' -1"]},
   {name: 'a negative substring length', pattern: /\$\{\w+:[^}:]*:\s*-\s*\d+\}/, flags: ['${x:0:-1}', '${x:1: -2}']},
-  {name: 'a ;& or ;;& case fall-through', pattern: /;;?&/, flags: ['a) echo a ;&', 'a) echo a ;;&']},
+  {name: 'a ;& or ;;& case fall-through', pattern: /;;?&(\s|$)/, flags: ['a) echo a ;&', 'a) echo a ;;&', 'a) echo a ;& b) echo b ;;']},
   {name: 'a named file descriptor', pattern: /(?<!\$)\{\w+\}\s*[<>]/, flags: ['exec {fd}>file', 'exec {fd}<file']},
-  {name: 'read -i', pattern: /\bread\b[^\n;|&]*\s-[a-zA-Z]*i\b/, flags: ['read -e -i default reply', 'read -ri default reply']},
+  {name: 'read -i or -N', pattern: /\bread\b[^\n;|&]*\s-[a-zA-Z]*[iN]\b/, flags: ['read -e -i default reply', 'read -ri default reply', 'read -N 1 key']},
   {
     name: 'a shopt from bash 4',
     pattern: /\bshopt\s+-s\s+(globstar|lastpipe|inherit_errexit|direxpand|globasciiranges)\b/,
@@ -458,6 +460,10 @@ const BASH32_IDIOMS = [
   'cmd 2>&1',
   'cmd >&2',
   'while IFS="$TAB" read -r kind id _; do',
+  'read -n 1 key',
+  '${EMAIL:-me@x}',
+  'cmd &>/dev/null',
+  'true;&>/dev/null',
   'x=$(cmd)',
   'n=$((n + 1))'
 ]
