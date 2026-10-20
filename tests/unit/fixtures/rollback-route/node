@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# node wrapper for tests/unit/rollback-route.test.ts. It records the argv of every node run that
+# scripts/rollback-route.sh starts, so a test can prove that no token is ever in node's argv, then
+# runs the real node ($STUB_REAL_NODE) with the same arguments and stdin. STUB_NODE_CRASH makes the
+# oauth-token run exit with that status instead, as a crashed helper would.
+set -euo pipefail
+
+printf '%s\n' "$*" >>"$STUB_DIR/node-argv.log"
+if [ -n "${STUB_NODE_CRASH:-}" ] && [ "${3:-}" = oauth-token ]; then
+  exit "$STUB_NODE_CRASH"
+fi
+exec "$STUB_REAL_NODE" "$@"

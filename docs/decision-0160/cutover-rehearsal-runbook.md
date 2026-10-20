@@ -358,18 +358,24 @@ behind `if (routesOnly.length > 0)`, `cli.js:164908`). The wrangler route schema
 (https://developers.cloudflare.com/workers/platform/limits/).
 
 **Rollback (production):** delete the route with `scripts/rollback-route.sh`, from any directory.
-Set `CLOUDFLARE_API_TOKEN` to a token that holds Zone > Workers Routes > Edit on the zone, such as a
-short-lived user token (My Profile > API Tokens); the script never prints it. The read-only token
-that direnv loads from `.env.local`, `CLOUDFLARE_ACCOUNT_READALL`, runs the dry run but cannot delete:
-`CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_READALL" scripts/rollback-route.sh`. The zone defaults to
-`jonathanlloyd.me` (`4d14ef06a76b6f09918d27d3cca0a9c3`), and `CLOUDFLARE_ZONE_ID` overrides it. The
-script resolves the id by pattern and script, and refuses unless exactly one route matches. Without
+The dry run uses the read-only token that direnv loads from `.env.local`:
+`CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_READALL" scripts/rollback-route.sh`. `--execute` uses the
+wrangler login, not a token (owner decision, 2026-10-20). It reads the access token with the
+repository's pinned wrangler, `pnpm exec wrangler auth token --json`, and ignores
+`CLOUDFLARE_API_TOKEN`. The default `wrangler login` scopes include `workers_routes:write`, and
+wrangler refreshes an expired login on its own. When it cannot, `--execute` stops before any API
+call: run `pnpm exec wrangler login` from the repository, or check the login with
+`pnpm exec wrangler whoami`. Do not run `wrangler auth token` by hand: it prints the token, and
+wrangler writes it to its log file unless `WRANGLER_WRITE_LOGS=false`. The script never prints a
+token. The zone defaults to `jonathanlloyd.me` (`4d14ef06a76b6f09918d27d3cca0a9c3`), and
+`CLOUDFLARE_ZONE_ID` overrides it. The script resolves the id by pattern and script, and refuses
+unless exactly one route matches. Without
 a flag it is a dry run, GETs only: one API GET, plus a public `/version.json` GET when no route
 matches. It prints the route and what the rollback does. `--execute` sends the one DELETE, reads the
 routes back, and checks that Pages answers `/version.json` (no `runtime` key). `--self-test` proves
-the script against a stubbed `curl`, with no network call. Or run the equivalent API calls with any
-credential holding Workers Routes Edit on the zone; they put the token in curl's argv, where `ps`
-shows it:
+the script against stubbed `curl` and `pnpm`, with no network call. Or run the equivalent API calls
+with any credential holding Workers Routes Edit on the zone; they put the token in curl's argv,
+where `ps` shows it:
 
 ```bash
 ROUTE_ID=$(curl -sS -H "Authorization: Bearer $TOKEN" \

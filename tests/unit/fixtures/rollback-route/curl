@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # curl stand-in for tests/unit/rollback-route.test.ts. It records each call in $STUB_DIR: the argv,
-# the first argument, whether its environment holds the token under any name, and how it
-# authenticated (ok: the Authorization header that scripts/rollback-route.sh sends on stdin; bad;
-# none). It answers from the files in $STUB_DIR: routes.json for a route list, routes-after.json once
-# the route is gone.
+# the first argument, whether its environment holds a token from $STUB_SECRETS under any name, and
+# how it authenticated (ok: the Authorization header that scripts/rollback-route.sh sends on stdin
+# carries $STUB_TOKEN; bad; none). It answers from the files in $STUB_DIR: routes.json for a route
+# list, routes-after.json once the route is gone.
 #
 # Knobs:
 #   STUB_LIST_STATUS      HTTP status of every route list (default 200; others get an error body)
@@ -19,8 +19,10 @@ set -euo pipefail
 
 printf '%s\n' "$*" >>"$STUB_DIR/argv.log"
 printf '%s\n' "$1" >>"$STUB_DIR/first.log"
-others="$(env | grep -v '^STUB_TOKEN=' || true)"
-case "$others" in *"$STUB_TOKEN"*) echo inherited >>"$STUB_DIR/env.log" ;; esac
+others="$(env | grep -v '^STUB_' || true)"
+for secret in $STUB_SECRETS; do
+  case "$others" in *"$secret"*) echo inherited >>"$STUB_DIR/env.log" ;; esac
+done
 case "${STUB_APEX_AFTER:-pages}" in
   pages | worker | error) ;;
   *) echo "curl stand-in: unknown STUB_APEX_AFTER value ${STUB_APEX_AFTER}" >&2; exit 99 ;;

@@ -14,17 +14,26 @@
 # Usage, from any directory:
 #   scripts/rollback-route.sh              dry run, GETs only: the route and what --execute does
 #   scripts/rollback-route.sh --execute    send the one DELETE, read the routes back, check the apex
-#   scripts/rollback-route.sh --self-test  prove the script against a curl stub, with no network call
+#   scripts/rollback-route.sh --self-test  prove the script against curl and pnpm stubs, with no network call
 #
 # The dry run sends one API GET. When no route matches, it also GETs the public /version.json, with
 # no token, to say what answers the apex.
 #
+# Credentials (owner decision, 2026-10-20). The dry run reads the routes with CLOUDFLARE_API_TOKEN,
+# the read-only token: CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_READALL" scripts/rollback-route.sh.
+# --execute ignores that variable. It takes the access token of the wrangler login from the
+# repository's pinned wrangler: pnpm --dir <repository> exec wrangler auth token --json. In wrangler
+# 4.149.0 (node_modules/wrangler/wrangler-dist/cli.js) that command answers {"type": "oauth",
+# "token": ...} (:357187, :357190); it refreshes an expired login on its own (:131043-131062); and the
+# default login scopes include workers_routes:write (:134469, :133400). When wrangler cannot give a
+# token, --execute stops before its first API call: log in with `pnpm exec wrangler login` from the
+# repository, or check the login with `pnpm exec wrangler whoami`. Do not run `wrangler auth token`
+# by hand: it prints the token, and wrangler writes it to its log file unless WRANGLER_WRITE_LOGS is
+# false. The script never prints a token, and no token is in an argv: curl reads the Authorization
+# header from stdin, and node reads the wrangler answer from stdin.
+#
 # Environment:
-#   CLOUDFLARE_API_TOKEN         required, except for --self-test. --execute needs Zone > Workers
-#                                Routes > Edit on jonathanlloyd.me (the API reference names it
-#                                Workers Routes Write); the dry run needs Workers Routes Read or
-#                                Edit. The script never prints the token, and the token is in no
-#                                argv: curl reads the Authorization header from stdin.
+#   CLOUDFLARE_API_TOKEN         the dry run's token: Workers Routes Read or Edit on the zone.
 #   CLOUDFLARE_ZONE_ID           optional; defaults to the jonathanlloyd.me zone.
 #   ROLLBACK_ROUTE_WAIT_SECONDS  optional; how long --execute waits for Pages to answer the apex,
 #                                0 to 600 (default 30).
@@ -34,8 +43,9 @@
 # refuses.
 #
 # Exit codes: 0 done; 1 a failure, with the route unchanged as far as the API shows; 2 a usage
-# error; 3 refused, nothing changed; 4 a DELETE was sent but the read-back failed, so the route
-# state is unknown; 5 the route is gone, but Pages did not answer the apex within the wait.
+# error or a missing credential, with nothing sent; 3 refused, nothing changed; 4 a DELETE was sent
+# but the read-back failed, so the route state is unknown; 5 the route is gone, but Pages did not
+# answer the apex within the wait.
 set -euo pipefail
 
 # A trace (bash -x) would print the token, so the script turns tracing off.
@@ -48,8 +58,16 @@ esac
 # A CDPATH makes `cd` print the directory, which would corrupt a captured path.
 unset CDPATH
 # The environment can export shell functions. One named curl (a wrapper that adds --verbose, for
-# example) would run in place of the binary and print the header, so the script drops both names.
-unset -f curl node
+# example), printf or pnpm would run in place of the real command and could print a token, so the
+# script drops every function it inherited before it defines its own.
+while read -r _ _ inherited; do
+  unset -f -- "$inherited"
+done <<EOF
+$(declare -F)
+EOF
+# The repository that holds this script. --execute runs its pinned wrangler.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+readonly REPO_ROOT
 
 readonly ROUTE_PATTERN='jonathanlloyd.me/*'
 readonly ROUTE_SCRIPT='human-datastream'
@@ -62,7 +80,7 @@ readonly APEX_VERSION_URL='https://jonathanlloyd.me/version.json'
 readonly RUNBOOK='docs/decision-0160/cutover-rehearsal-runbook.md'
 # The D7 runbook lives in the atlas repository; atlas PR #457 adds it.
 readonly D7_RUNBOOK='atlas decisions/evidence/0162-open-items/item-03-d7-runbook.md (atlas PR #457)'
-readonly WRANGLER_ROLLBACK='env -u CLOUDFLARE_API_TOKEN pnpm exec wrangler rollback [version-id] --name human-datastream --message "<reason>"'
+readonly WRANGLER_ROLLBACK='env -u CLOUDFLARE_API_TOKEN pnpm exec wrangler rollback [version-id] --name human-datastream --message "<reason>" --env-file /dev/null'
 readonly HEX32='^[0-9a-f]{32}$'
 readonly TAB=$'\t'
 TMP_ROOT="${TMPDIR:-/tmp}"
@@ -74,23 +92,35 @@ readonly TMP_ROOT="${TMP_ROOT%/}"
 #   deleted FILE ID             checks that a DELETE answer names ID
 #   errors FILE                 prints the errors of an API answer (never fails)
 #   apex FILE STATUS            classifies a /version.json answer: pages, worker or error
+#   oauth-token                 reads a `wrangler auth token --json` answer on stdin and prints its
+#                               token only when the type is "oauth". A failure names no value and
+#                               exits 3 (an environment credential), 4 (not an oauth JSON answer)
+#                               or 5 (no usable token)
 # The routes and deleted modes exit 1 on an answer that is not a successful JSON envelope.
 # shellcheck disable=SC2016 # JavaScript source: bash must not expand its template literals.
 readonly JSON_HELPER='
 const fs = require("node:fs");
 const [mode, file, a, b] = process.argv.slice(1);
 const clean = (v) => (v === undefined || v === null ? "(none)" : String(v).replace(/[\t\r\n]/g, " ") || "(empty)");
-const fail = (why) => {
+const fail = (why, code = 1) => {
   process.stderr.write(`rollback-route: ${why}\n`);
-  process.exit(1);
+  process.exit(code);
 };
 let body;
 try {
-  body = JSON.parse(fs.readFileSync(file, "utf8"));
+  body = JSON.parse(fs.readFileSync(mode === "oauth-token" ? 0 : file, "utf8"));
 } catch {
   body = undefined;
 }
 const isObject = body !== null && typeof body === "object" && !Array.isArray(body);
+if (mode === "oauth-token") {
+  const kind = isObject && ["oauth", "api_token", "api_key"].includes(body.type) ? body.type : "unknown";
+  if (kind === "api_token" || kind === "api_key") fail(`wrangler auth token answered type ${kind}, not oauth`, 3);
+  if (kind !== "oauth") fail(`wrangler auth token answered type ${kind}, not oauth`, 4);
+  if (typeof body.token !== "string" || !/^[\x21-\x7e]+$/.test(body.token)) fail("wrangler auth token answered no usable token", 5);
+  process.stdout.write(body.token);
+  process.exit(0);
+}
 if (mode === "apex") {
   if (a !== "200") process.stdout.write(`error HTTP ${clean(a)}\n`);
   else if (!isObject) process.stdout.write("error a 200 answer that is not a JSON object\n");
@@ -146,13 +176,19 @@ usage() {
 Usage: scripts/rollback-route.sh [--execute | --self-test | --help]
 
 Deletes the Workers Route jonathanlloyd.me/* (script human-datastream), so the apex returns to the
-Pages project. Without a flag it is a dry run, GETs only: it prints the route and what --execute
-does.
-  --execute    send the one DELETE, read the routes back, then check that Pages answers the apex
-  --self-test  prove the script against a curl stub, with no network call
-Environment: CLOUDFLARE_API_TOKEN (Zone > Workers Routes > Edit for --execute), CLOUDFLARE_ZONE_ID
-(optional; defaults to the jonathanlloyd.me zone), ROLLBACK_ROUTE_WAIT_SECONDS (optional; 0 to 600,
-default 30).
+Pages project. Without a flag it is a dry run, GETs only, with the read-only token: it prints the
+route and what --execute does.
+  --execute    take the token of the wrangler login (pnpm exec wrangler auth token --json, with
+               the repository's wrangler), send the one DELETE, read the routes back, then check
+               that Pages answers the apex. CLOUDFLARE_API_TOKEN plays no part.
+  --self-test  prove the script against curl and pnpm stubs, with no network call
+Environment: CLOUDFLARE_API_TOKEN, the dry run's read-only token
+(CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_READALL"); CLOUDFLARE_ZONE_ID (optional; defaults to the
+jonathanlloyd.me zone); ROLLBACK_ROUTE_WAIT_SECONDS (optional; 0 to 600, default 30).
+A missing or expired wrangler login stops --execute before any API call. Run pnpm exec wrangler
+login from the repository, or check the login with pnpm exec wrangler whoami. Do not run wrangler
+auth token by hand: it prints the token, and wrangler writes it to its log file.
+--self-test needs the repository's node_modules (pnpm install).
 EOF
 }
 
@@ -174,11 +210,61 @@ request() {
 
 permission_hint() { # permission_hint STATUS
   case "$1" in
-    400 | 401 | 403) printf ' A %s usually means that the token is malformed or lacks a permission: the dry run needs Workers Routes Read or Edit, and --execute needs Workers Routes Edit.' "$1" ;;
+    400 | 401 | 403) printf ' A %s usually means that the token is malformed or lacks a permission: the dry run needs Workers Routes Read or Edit, and --execute needs a wrangler login with the workers_routes:write scope.' "$1" ;;
   esac
 }
 
 api_errors() { node -e "$JSON_HELPER" errors "$1"; }
+
+login_failed() { # login_failed REASON
+  die 2 "$1, so --execute has no credential and sent nothing. Check the wrangler login with pnpm exec wrangler whoami, and log in again with pnpm exec wrangler login; run both from $REPO_ROOT."
+}
+
+# login_token: puts the access token of the wrangler login in API_TOKEN (owner decision, 2026-10-20),
+# from the repository's pinned wrangler (4.149.0, node_modules/wrangler/wrangler-dist/cli.js):
+#   - wrangler answers an environment credential before the login (:357167-357178, through
+#     :139750-139752 and :129541-129555; the names at :132034-132045), so the six credential names are
+#     cleared, and the answer must say "oauth";
+#   - --env-file /dev/null, because at startup wrangler loads .env and .env.local from the repository
+#     into process.env, which would put a cleared name back (:366300-366304, :191028-191035,
+#     :190959-190969); the flag replaces that file list (:366250-366254);
+#   - WRANGLER_WRITE_LOGS=false, because wrangler otherwise appends every message it logs, this token
+#     included, to its log file on disk (:69710-69716, :69632-69666);
+#   - WRANGLER_SEND_METRICS=false, because the telemetry path can print a notice to stdout and write
+#     its config (:162147-162173);
+#   - WRANGLER_LOG=log, the default level, so that an inherited debug level puts nothing else on
+#     stdout (:69695-69708; info and debug lines go to stdout, :69850-69857).
+# The token goes from wrangler's stdout into a shell variable, then to node on stdin. It is never
+# printed, written to a file, or put in an argv, and wrangler's stderr is dropped. wrangler refreshes
+# an expired login itself (:131043-131062), which writes wrangler's own credential store. The login
+# profile follows the directory, so `pnpm exec wrangler login` from the repository reaches this login.
+login_token() {
+  local answer status=0
+  if [ ! -f "$REPO_ROOT/wrangler.jsonc" ] || [ ! -x "$REPO_ROOT/node_modules/.bin/wrangler" ]; then
+    die 2 "--execute runs the repository's pinned wrangler, but $REPO_ROOT has no wrangler.jsonc and node_modules/.bin/wrangler. Run the script from the repository, after pnpm install."
+  fi
+  command -v pnpm >/dev/null 2>&1 || die 2 '--execute runs the repository wrangler with pnpm exec, and pnpm is not on PATH.'
+  warn 'reading the token of the wrangler login (wrangler refreshes an expired login, which can take a few seconds)'
+  answer="$(
+    unset CLOUDFLARE_API_TOKEN CF_API_TOKEN CLOUDFLARE_API_KEY CF_API_KEY CLOUDFLARE_EMAIL CF_EMAIL
+    WRANGLER_WRITE_LOGS=false WRANGLER_SEND_METRICS=false WRANGLER_LOG=log \
+      pnpm --dir "$REPO_ROOT" exec wrangler auth token --json --env-file /dev/null </dev/null 2>/dev/null
+  )" || status=$?
+  if [ "$status" -ne 0 ]; then
+    answer=''
+    login_failed "wrangler auth token exited $status: the login is missing or expired, or wrangler failed"
+  fi
+  status=0
+  API_TOKEN="$(printf '%s' "$answer" | node -e "$JSON_HELPER" oauth-token)" || status=$?
+  answer=''
+  case "$status" in
+    0) ;;
+    3) login_failed 'wrangler answered a credential from the environment, not the wrangler login' ;;
+    4) login_failed 'wrangler printed something other than its JSON answer' ;;
+    5) login_failed 'the wrangler answer held no usable token' ;;
+    *) login_failed "the token helper failed with status $status" ;;
+  esac
+}
 
 ROUTES=''
 MATCH_COUNT=0
@@ -296,7 +382,7 @@ What --execute does:
     $D7_RUNBOOK.
 For a fault in the composed page, a Worker version rollback is the safer path. It keeps the route,
 so the apex stays on a recent Worker build, not the frozen Pages build. Run it from the repository
-with your wrangler login (env -u keeps wrangler off a routes-only CLOUDFLARE_API_TOKEN):
+with your wrangler login (env -u and --env-file /dev/null keep wrangler off any other token):
   $WRANGLER_ROLLBACK
 EOF
 }
@@ -339,8 +425,10 @@ set -euo pipefail
 here="$(dirname "$0")"
 printf '%s\n' "$1" >>"$here/first.log"
 printf '%s\n' "$*" >>"$here/argv.log"
-others="$(env | grep -v '^STUB_TOKEN=' || true)"
-case "$others" in *"$STUB_TOKEN"*) echo inherited >>"$here/env.log" ;; esac
+others="$(env | grep -v '^STUB_' || true)"
+for secret in $STUB_SECRETS; do
+  case "$others" in *"$secret"*) echo inherited >>"$here/env.log" ;; esac
+done
 method=GET out='' url='' auth=none
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -382,6 +470,36 @@ STUB
   chmod 700 "$1"
 }
 
+# The pnpm stand-in for --self-test. It logs its arguments and every credential variable it
+# received, and it answers `--dir <repository> exec wrangler auth token --json` with a fake oauth
+# token, or, when the login-missing marker exists, fails as wrangler does with no login.
+write_self_test_pnpm() { # write_self_test_pnpm FILE
+  cat >"$1" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+here="$(dirname "$0")"
+printf '%s\n' "$*" >>"$here/pnpm.log"
+for name in CLOUDFLARE_API_TOKEN CF_API_TOKEN CLOUDFLARE_API_KEY CF_API_KEY CLOUDFLARE_EMAIL CF_EMAIL; do
+  if [ -n "${!name:-}" ]; then echo "$name" >>"$here/pnpm-env.log"; fi
+done
+others="$(env | grep -v '^STUB_' || true)"
+for secret in $STUB_SECRETS; do
+  case "$others" in *"$secret"*) echo "a token in its environment" >>"$here/pnpm-env.log" ;; esac
+done
+if [ "${WRANGLER_WRITE_LOGS:-}" != false ]; then echo WRANGLER_WRITE_LOGS >>"$here/pnpm-env.log"; fi
+if [ "$#" -ne 9 ] || [ "$1" != --dir ] || [ "$3 $4 $5 $6 $7 $8 $9" != 'exec wrangler auth token --json --env-file /dev/null' ]; then
+  echo 'pnpm stand-in: unexpected arguments' >&2
+  exit 64
+fi
+if [ -e "$here/login-missing" ]; then
+  echo 'Not logged in. Please run wrangler login to authenticate.' >&2
+  exit 1
+fi
+printf '{\n  "type": "oauth",\n  "token": "%s"\n}\n' "$STUB_LOGIN_TOKEN"
+STUB
+  chmod 700 "$1"
+}
+
 # self_test_calls LOG: the calls the stub saw, as "GET:ok DELETE:<id>:ok GET:ok APEX:none". The
 # suffix is how the call authenticated: ok (the header on stdin), bad, or none.
 self_test_calls() {
@@ -404,20 +522,34 @@ self_test_calls() {
 SELF_TEST_PASSED=0
 SELF_TEST_FAILED=0
 SELF_TEST_SCRIPT=''
-SELF_TEST_TOKEN=''
+SELF_TEST_READONLY=''
+SELF_TEST_OAUTH=''
+# The self-test runs its cases against a zone that does not exist, so that no case could reach the
+# real route, even if a stub failed to load.
+readonly SELF_TEST_ZONE='00000000000000000000000000000000'
 
-# self_test_case NAME STATUS CALLS FIXTURE [ARG]: runs this script from a scratch directory with
-# the stub first on PATH and the default zone. Then it checks the exit status and the calls, and
-# that every call put --disable first, that no call inherited the token, and that the token reached
-# no argv and no output.
+# self_test_case NAME STATUS CALLS FIXTURE LOGIN [ARG]: runs this script from a scratch directory,
+# with the stubs first on PATH and CLOUDFLARE_API_TOKEN set to the fake read-only token. LOGIN is
+# "login" (the pnpm stand-in gives a fake oauth token) or "no-login" (it fails as wrangler does).
+# Then it checks the exit status and the calls, that the dry run used the read-only token and
+# --execute the login token, that only --execute asked wrangler (once, with the arguments the
+# script must use and no credential variable), that every curl call put --disable first, that no
+# child inherited a token, and that no token reached an argv or the output.
 self_test_case() {
-  local name="$1" want_status="$2" want_calls="$3" fixture="$4" dir="$CLEANUP_DIR" status=0 calls why=''
-  shift 4
-  : >"$dir/bin/argv.log"
-  : >"$dir/bin/calls.log"
-  : >"$dir/bin/env.log"
-  : >"$dir/bin/first.log"
-  rm -f "$dir/bin/deleted"
+  local name="$1" want_status="$2" want_calls="$3" fixture="$4" login="$5" dir="$CLEANUP_DIR" status=0
+  local calls why='' expected_token="$SELF_TEST_READONLY" want_pnpm=''
+  shift 5
+  if [ "${1:-}" = --execute ]; then
+    expected_token="$SELF_TEST_OAUTH"
+    want_pnpm="--dir $REPO_ROOT exec wrangler auth token --json --env-file /dev/null"
+  fi
+  for log in argv calls env first pnpm pnpm-env; do
+    : >"$dir/bin/$log.log"
+  done
+  rm -f "$dir/bin/deleted" "$dir/bin/login-missing"
+  if [ "$login" = no-login ]; then
+    : >"$dir/bin/login-missing"
+  fi
   cp "$dir/$fixture.json" "$dir/bin/routes.json"
   if [ -e "$dir/$fixture-after.json" ]; then
     cp "$dir/$fixture-after.json" "$dir/bin/routes-after.json"
@@ -425,23 +557,27 @@ self_test_case() {
     cp "$dir/$fixture.json" "$dir/bin/routes-after.json"
   fi
   (
-    unset CLOUDFLARE_ZONE_ID
     cd "$dir/cwd"
-    PATH="$dir/bin:$PATH" CLOUDFLARE_API_TOKEN="$SELF_TEST_TOKEN" STUB_TOKEN="$SELF_TEST_TOKEN" \
-      STUB_ZONE="$DEFAULT_ZONE_ID" ROLLBACK_ROUTE_WAIT_SECONDS=0 \
-      "$BASH" "$SELF_TEST_SCRIPT" "$@" </dev/null >"$dir/out" 2>&1
+    PATH="$dir/bin:$PATH" CLOUDFLARE_API_TOKEN="$SELF_TEST_READONLY" CLOUDFLARE_ZONE_ID="$SELF_TEST_ZONE" \
+      STUB_TOKEN="$expected_token" STUB_LOGIN_TOKEN="$SELF_TEST_OAUTH" STUB_ZONE="$SELF_TEST_ZONE" \
+      STUB_SECRETS="$SELF_TEST_READONLY $SELF_TEST_OAUTH" \
+      ROLLBACK_ROUTE_WAIT_SECONDS=0 "$BASH" "$SELF_TEST_SCRIPT" "$@" </dev/null >"$dir/out" 2>&1
   ) || status=$?
   calls="$(self_test_calls "$dir/bin/calls.log")"
   if [ "$status" != "$want_status" ]; then
     why="exit $status, want $want_status"
   elif [ "$calls" != "$want_calls" ]; then
     why="calls [$calls], want [$want_calls]"
+  elif [ "$(cat "$dir/bin/pnpm.log")" != "$want_pnpm" ]; then
+    why="pnpm calls [$(tr '\n' ';' <"$dir/bin/pnpm.log")], want [$want_pnpm]"
+  elif [ -s "$dir/bin/pnpm-env.log" ]; then
+    why="pnpm received $(tr '\n' ' ' <"$dir/bin/pnpm-env.log")"
   elif grep -q -v -x -e '--disable' "$dir/bin/first.log"; then
     why='a curl call did not put --disable first'
   elif grep -q inherited "$dir/bin/env.log"; then
-    why='curl inherited the token in its environment'
-  elif grep -q -F -e "$SELF_TEST_TOKEN" "$dir/bin/argv.log" "$dir/out"; then
-    why='the token reached an argv or the output'
+    why='curl inherited a token in its environment'
+  elif grep -q -F -e "$SELF_TEST_READONLY" -e "$SELF_TEST_OAUTH" "$dir/bin/argv.log" "$dir/bin/pnpm.log" "$dir/out"; then
+    why='a token reached an argv or the output'
   fi
   if [ -z "$why" ]; then
     SELF_TEST_PASSED=$((SELF_TEST_PASSED + 1))
@@ -453,27 +589,39 @@ self_test_case() {
   fi
 }
 
-# --self-test: no case can change the zone. curl is a stub first on PATH, and the token is fake, so
-# even a stub that failed to load would meet a refusal (HTTP 400 or 403) at the first GET, before any
-# DELETE.
+# --self-test: no case can change a real route. curl and pnpm are stubs first on PATH, and the
+# self-test stops unless both resolve to its stubs; the tokens are fake; and every case runs against
+# a zone that does not exist.
 self_test() {
+  local tool
   command -v node >/dev/null 2>&1 || die 1 'node is not on PATH (the script reads the API answers with it).'
+  if [ ! -x "$REPO_ROOT/node_modules/.bin/wrangler" ]; then
+    die 1 "self-test: the --execute cases need the repository's node_modules: run pnpm install in $REPO_ROOT."
+  fi
   SELF_TEST_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
-  SELF_TEST_TOKEN="self-test-token-$$"
+  SELF_TEST_READONLY="self-test-readonly-$$"
+  SELF_TEST_OAUTH="self-test-oauth-$$"
   CLEANUP_DIR="$(mktemp -d "$TMP_ROOT/rollback-route-self-test.XXXXXX")"
   mkdir "$CLEANUP_DIR/bin" "$CLEANUP_DIR/cwd"
   write_self_test_stub "$CLEANUP_DIR/bin/curl"
+  write_self_test_pnpm "$CLEANUP_DIR/bin/pnpm"
   write_self_test_fixtures "$CLEANUP_DIR"
-  say "rollback-route self-test with $BASH ($BASH_VERSION). No network call: curl is a stub, the token is fake."
+  for tool in curl pnpm; do
+    if [ "$(PATH="$CLEANUP_DIR/bin:$PATH" command -v "$tool")" != "$CLEANUP_DIR/bin/$tool" ]; then
+      die 1 "self-test: $tool does not resolve to the stub, so no case runs."
+    fi
+  done
+  say "rollback-route self-test with $BASH ($BASH_VERSION). No network call: curl and pnpm are stubs, the tokens are fake."
   self_test_case 'no matching route: the dry run refuses (exit 3) and sends no DELETE' 3 \
-    'GET:ok APEX:none' none
+    'GET:ok APEX:none' none login
   self_test_case 'no matching route: --execute refuses (exit 3) and sends no DELETE' 3 \
-    'GET:ok APEX:none' none --execute
-  self_test_case 'two matching routes: the dry run refuses (exit 3) and sends no DELETE' 3 'GET:ok' two
-  self_test_case 'two matching routes: --execute refuses (exit 3) and sends no DELETE' 3 'GET:ok' two --execute
-  self_test_case 'one matching route: the dry run sends one GET and no DELETE' 0 'GET:ok' one
+    'GET:ok APEX:none' none login --execute
+  self_test_case 'two matching routes: the dry run refuses (exit 3) and sends no DELETE' 3 'GET:ok' two login
+  self_test_case 'two matching routes: --execute refuses (exit 3) and sends no DELETE' 3 'GET:ok' two login --execute
+  self_test_case 'one matching route: the dry run sends one GET and no DELETE' 0 'GET:ok' one login
   self_test_case 'one matching route: --execute sends one DELETE for its id, reads back, checks the apex' 0 \
-    "GET:ok DELETE:$SELF_TEST_ID:ok GET:ok APEX:none" one --execute
+    "GET:ok DELETE:$SELF_TEST_ID:ok GET:ok APEX:none" one login --execute
+  self_test_case 'no wrangler login: --execute stops (exit 2) before any API call' 2 '' one no-login --execute
   say "self-test: $SELF_TEST_PASSED passed, $SELF_TEST_FAILED failed"
   if [ "$SELF_TEST_FAILED" -ne 0 ]; then
     exit 1
@@ -509,14 +657,21 @@ main() {
 
   command -v curl >/dev/null 2>&1 || die 1 'curl is not on PATH.'
   command -v node >/dev/null 2>&1 || die 1 'node is not on PATH (the script reads the API answers with it).'
-  if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
-    die 2 'CLOUDFLARE_API_TOKEN is not set. --execute needs Zone > Workers Routes > Edit on jonathanlloyd.me.'
+  if [ "$mode" = execute ]; then
+    # --execute uses the wrangler login only (owner decision, 2026-10-20).
+    if [ -n "${CLOUDFLARE_API_TOKEN:-}" ]; then
+      warn '--execute ignores CLOUDFLARE_API_TOKEN; it uses the wrangler login.'
+    fi
+  else
+    if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+      die 2 "CLOUDFLARE_API_TOKEN is not set. The dry run reads the routes with the read-only token: CLOUDFLARE_API_TOKEN=\"\$CLOUDFLARE_ACCOUNT_READALL\" $0"
+    fi
+    case "$CLOUDFLARE_API_TOKEN" in
+      *[[:space:]]* | *[[:cntrl:]]*) die 2 'CLOUDFLARE_API_TOKEN holds whitespace or a control character.' ;;
+    esac
+    # Keep the token in this shell only: curl, node and the other children do not inherit it.
+    API_TOKEN="$CLOUDFLARE_API_TOKEN"
   fi
-  case "$CLOUDFLARE_API_TOKEN" in
-    *[[:space:]]* | *[[:cntrl:]]*) die 2 'CLOUDFLARE_API_TOKEN holds whitespace or a control character.' ;;
-  esac
-  # Keep the token in this shell only: curl, node and the other children do not inherit it.
-  API_TOKEN="$CLOUDFLARE_API_TOKEN"
   unset CLOUDFLARE_API_TOKEN
   if [ -n "${CLOUDFLARE_ZONE_ID:-}" ]; then
     ZONE_ID="$CLOUDFLARE_ZONE_ID"
@@ -535,10 +690,13 @@ main() {
     die 2 'ROLLBACK_ROUTE_WAIT_SECONDS must be 0 to 600.'
   fi
   WAIT_SECONDS=$((10#$WAIT_SECONDS))
+  if [ "$mode" = execute ]; then
+    login_token
+  fi
   CLEANUP_DIR="$(mktemp -d "$TMP_ROOT/rollback-route.XXXXXX")"
 
   if [ "$mode" = execute ]; then
-    say "rollback-route --execute: zone $ZONE_ID ($ZONE_SOURCE), pattern $ROUTE_PATTERN, script $ROUTE_SCRIPT."
+    say "rollback-route --execute, with the wrangler login: zone $ZONE_ID ($ZONE_SOURCE), pattern $ROUTE_PATTERN, script $ROUTE_SCRIPT."
   else
     say "rollback-route dry run (GET only): zone $ZONE_ID ($ZONE_SOURCE), pattern $ROUTE_PATTERN, script $ROUTE_SCRIPT."
   fi
