@@ -66,6 +66,16 @@ overrides:
   # loads and `uuid.v4()` returns a UUID on 11.1.1, and `lhci collect` runs.
   # Drop under the same @lhci/cli condition as tmp.
   uuid@<11.1.1: ^11.1.1
+  # Security: extract-zip <= 2.0.1 is GHSA-jmr9-qjv8-65gv and GHSA-7pqw-9j4j-h8q3,
+  # and no fixed extract-zip exists (2.0.1 is the latest; pnpm's ">=2.0.2" is
+  # synthetic). @puppeteer/browsers 2.13.2 pulls it, via puppeteer-core 24.43.1
+  # (lighthouse < @lhci/cli) and puppeteer 24.43.1 (pa11y < pa11y-ci). 3.x drops
+  # extract-zip (deps: yargs, modern-tar), so this is a forced major. Verified
+  # 2026-10-20: 3.2.5 exports every name puppeteer-core 24 and puppeteer 24
+  # read, `pa11y-ci` passed 5/5 URLs and `lhci collect` ran Lighthouse 12.6.1,
+  # both on this override. Atlas decision 0163. Drop once lighthouse and pa11y
+  # move to puppeteer 25 (which pins @puppeteer/browsers 3.2.5 itself).
+  '@puppeteer/browsers@<3': ^3.2.5
 
 # Translated from the npm-only `.npmrc` `legacy-peer-deps=true`. @vite-pwa/astro
 # (<=1.2.0) caps its astro peer at ^5 while this project is on astro 7, so a
