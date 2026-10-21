@@ -1,16 +1,17 @@
 // scripts/rollback-route.sh deletes the Workers Route jonathanlloyd.me/* to roll production back to the
 // Pages project (atlas decisions 0160 PR A and 0162 item 14). The stand-ins in
 // tests/unit/fixtures/rollback-route/ come first on PATH: curl (the API and the apex), pnpm (the
-// wrangler login that --execute reads, owner decision 2026-10-20) and a node wrapper that records
-// node's argv. Each case runs the real script with no network call, from a scratch directory outside
-// the repository. The cases pin what the rollback depends on: zero or two matching routes refuse, the
-// dry run uses the read-only token and sends no DELETE, --execute takes its token from the wrangler
-// login only and fails closed without one, sends exactly one DELETE for the one matching id, then
-// reads the routes back and checks that Pages answers the apex, and no token reaches an argv, the
-// output or a child. The stand-ins are separate from the script's own --self-test stubs, so this gate
-// does not rest on the script's test code.
+// wrangler login that --execute and --check-login read, owner decisions 2026-10-20 and 2026-10-21)
+// and a node wrapper that records node's argv, helper mode and environment. Each case runs the real
+// script with no network call, from a scratch directory outside the repository. The cases pin what
+// the rollback depends on: zero or two matching routes refuse, the dry run uses the read-only token
+// and sends no DELETE, --execute takes its token from the wrangler login only and fails closed
+// without one, sends exactly one DELETE for the one matching id, then reads the routes back and
+// checks that Pages answers the apex, --check-login reads the same login and makes no API call, and
+// no token reaches an argv, the output or a child. The stand-ins are separate from the script's own
+// --self-test stubs, so this gate does not rest on the script's test code.
 import {spawnSync} from 'node:child_process'
-import {copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync} from 'node:fs'
+import {copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {afterEach, beforeAll, beforeEach, describe, expect, it} from 'vitest'
@@ -30,8 +31,9 @@ const D7_RUNBOOK = 'atlas decisions/evidence/0162-open-items/item-03-d7-runbook.
 // The dry run's read-only token, and the token that the pnpm stand-in answers as the wrangler login.
 const TOKEN = 'unit-test-token-not-a-credential'
 const LOGIN_TOKEN = 'unit-test-login-token-not-a-credential'
-// --execute runs default to a zone that does not exist: a second barrier, after the stand-in guard
-// below, between this suite and the real route on a machine that holds a real wrangler login.
+// --execute and --check-login runs default to a zone that does not exist: a second barrier, after the
+// stand-in guard below, between this suite and the real route on a machine that holds a real wrangler
+// login.
 const EXECUTE_ZONE = '00000000000000000000000000000000'
 
 type Route = {id: string; pattern: string; script?: string; request_limit_fail_open?: boolean}
@@ -70,20 +72,20 @@ function serve(routes: Route[], after: Route[] = routes.filter((route) => route 
 
 /**
  * Runs the script from the scratch directory. An `undefined` value removes the variable. The curl
- * stand-in accepts the read-only token on a dry run and the login token on --execute.
+ * stand-in accepts the read-only token on a dry run and the login token on the two login modes.
  */
 function run(args: string[], overrides: Record<string, string | undefined> = {}, shell: string[] = ['bash']) {
-  const execute = args.includes('--execute')
+  const login = args.includes('--execute') || args.includes('--check-login')
   const merged: Record<string, string | undefined> = {
     ...process.env,
     PATH: `${STUB_BIN}:${process.env.PATH}`,
     STUB_DIR: scratch,
-    STUB_TOKEN: execute ? LOGIN_TOKEN : TOKEN,
+    STUB_TOKEN: login ? LOGIN_TOKEN : TOKEN,
     STUB_LOGIN_TOKEN: LOGIN_TOKEN,
     STUB_SECRETS: `${TOKEN} ${LOGIN_TOKEN}`,
     STUB_REAL_NODE: process.execPath,
     CLOUDFLARE_API_TOKEN: TOKEN,
-    CLOUDFLARE_ZONE_ID: execute ? EXECUTE_ZONE : undefined,
+    CLOUDFLARE_ZONE_ID: login ? EXECUTE_ZONE : undefined,
     ROLLBACK_ROUTE_WAIT_SECONDS: '0',
     ...overrides
   }
@@ -408,13 +410,17 @@ describe('rollback-route.sh keeps the tokens out of sight', () => {
       // --disable must be the first argument: it stops curl from reading ~/.curlrc, where --verbose would print the header.
       expect(lines('first.log').every((first) => first === '--disable')).toBe(true)
       expect(lines('env.log')).toEqual([])
+      expect(lines('node-env.log')).toEqual([])
     }
   )
 
-  it('keeps the token from children even when the shell already exports API_TOKEN', () => {
+  // bash also exports a function's `local answer` when the caller exported answer, and login_token
+  // keeps wrangler's raw answer, token included, in that local.
+  it.each(['API_TOKEN', 'answer'])('keeps the token from children even when the shell already exports %s', (name) => {
     serve([MATCH])
-    expect(run(['--execute'], {API_TOKEN: 'exported-by-another-tool'}).status).toBe(0)
+    expect(run(['--execute'], {[name]: 'exported-by-another-tool'}).status).toBe(0)
     expect(lines('env.log')).toEqual([])
+    expect(lines('node-env.log')).toEqual([])
   })
 
   it.each([
@@ -442,6 +448,15 @@ describe('rollback-route.sh keeps the tokens out of sight', () => {
     expect(stderr).not.toContain(TOKEN)
   })
 })
+
+// The cause that each login failure names, and the fix that follows it, for --execute and
+// --check-login alike.
+const exited = (status: number) => `wrangler auth token exited ${status}: the login is missing or expired, or wrangler failed`
+const MISSING = exited(1)
+const ENVIRONMENT = 'wrangler answered a credential from the environment, not the wrangler login'
+const NOT_JSON = 'wrangler printed something other than its JSON answer'
+const NO_TOKEN = 'the wrangler answer held no usable token'
+const FIX = `Check the wrangler login with pnpm exec wrangler whoami, and log in again with pnpm exec wrangler login; run both from ${REPO_ROOT}.`
 
 // Owner decision 2026-10-20: --execute takes its token from the wrangler login, through the repository's
 // pinned wrangler (`pnpm exec wrangler auth token --json`), and the dry run keeps the read-only token.
@@ -477,18 +492,16 @@ describe('rollback-route.sh --execute takes its token from the wrangler login', 
     expect(stderr).not.toContain('ignores CLOUDFLARE_API_TOKEN')
   })
 
-  const MISSING = 'wrangler auth token exited 1: the login is missing or expired, or wrangler failed'
-  const ENVIRONMENT = 'wrangler answered a credential from the environment, not the wrangler login'
-  const NOT_JSON = 'wrangler printed something other than its JSON answer'
-  const NO_TOKEN = 'the wrangler answer held no usable token'
   it.each([
     ['no login', 'missing', MISSING, null],
     ['an expired login that wrangler cannot refresh', 'expired', MISSING, null],
     ['an environment token in place of the login', 'api_token', ENVIRONMENT, 'answered type api_token, not oauth'],
+    ['an environment API key in place of the login', 'api_key', ENVIRONMENT, 'answered type api_key, not oauth'],
     ['an answer that is not JSON', 'not-json', NOT_JSON, 'answered type unknown, not oauth'],
     ['a line on stdout before the JSON', 'noisy', NOT_JSON, 'answered type unknown, not oauth'],
     ['an oauth answer with no token', 'no-token', NO_TOKEN, 'answered no usable token'],
-    ['a token that could inject a header', 'bad-token', NO_TOKEN, 'answered no usable token']
+    ['a token that could inject a header', 'bad-token', NO_TOKEN, 'answered no usable token'],
+    ['a wrangler that fails another way', 'broken', exited(7), null]
   ])('fails closed on %s: exit 2 before any API call, with its cause and the fix', (_name, login, cause, detail) => {
     serve([MATCH])
     const {status, stdout, stderr} = run(['--execute'], {STUB_LOGIN: login})
@@ -500,10 +513,9 @@ describe('rollback-route.sh --execute takes its token from the wrangler login', 
     if (detail) {
       expect(stderr).toContain(detail)
     }
-    expect(stderr).toContain(
-      `Check the wrangler login with pnpm exec wrangler whoami, and log in again with pnpm exec wrangler login; run both from ${REPO_ROOT}.`
-    )
+    expect(stderr).toContain(FIX)
     expect(stdout + stderr).not.toContain(LOGIN_TOKEN)
+    expect(lines('node-env.log')).toEqual([])
   })
 
   it('names a crashed token helper by its status, not as a missing token', () => {
@@ -521,7 +533,7 @@ describe('rollback-route.sh --execute takes its token from the wrangler login', 
     expect(lines('pnpm.log')).toEqual([])
   })
 
-  it('a copy outside the repository refuses --execute before wrangler and before any API call, and still dry-runs', () => {
+  it('a copy outside the repository refuses --execute and --check-login before wrangler and before any API call, and still dry-runs', () => {
     serve([MATCH])
     mkdirSync(path.join(scratch, 'scripts'))
     const copy = path.join(scratch, 'scripts', 'rollback-route.sh')
@@ -537,14 +549,137 @@ describe('rollback-route.sh --execute takes its token from the wrangler login', 
     }
     const refused = spawnSync('bash', [copy, '--execute'], {cwd: scratch, env, encoding: 'utf8'})
     expect(refused.status).toBe(2)
-    expect(refused.stderr).toContain("--execute runs the repository's pinned wrangler")
+    expect(refused.stderr).toContain("reading the wrangler login needs the repository's pinned wrangler")
+    expect(calls()).toEqual([])
+    expect(lines('pnpm.log')).toEqual([])
+    const checked = spawnSync('bash', [copy, '--check-login'], {cwd: scratch, env, encoding: 'utf8'})
+    expect(checked.status).toBe(2)
+    expect(checked.stderr).toContain("reading the wrangler login needs the repository's pinned wrangler")
     expect(calls()).toEqual([])
     expect(lines('pnpm.log')).toEqual([])
     const dry = spawnSync('bash', [copy], {cwd: scratch, env: {...env, CLOUDFLARE_API_TOKEN: TOKEN}, encoding: 'utf8'})
     expect(dry.status).toBe(0)
     const selfTest = spawnSync('bash', [copy, '--self-test'], {cwd: scratch, encoding: 'utf8'})
     expect(selfTest.status).toBe(1)
-    expect(selfTest.stderr).toContain("the --execute cases need the repository's node_modules: run pnpm install")
+    expect(selfTest.stderr).toContain("the --execute and --check-login cases need the repository's node_modules: run pnpm install")
+  })
+})
+
+// Owner decision 2026-10-21: --check-login reads the login token exactly as --execute does and prints OK
+// or NOT OK, with no Cloudflare API call.
+describe('rollback-route.sh --check-login', () => {
+  it('says OK for an oauth answer, after the same wrangler call as --execute, with no API call', () => {
+    const {status, stdout, stderr} = run(['--check-login'])
+    expect(status).toBe(0)
+    expect(stdout).toBe('wrangler login: OK (the answer is an oauth token; no Cloudflare API call was made)\n')
+    expect(calls()).toEqual([])
+    expect(lines('pnpm.log')).toEqual([WRANGLER_CALL])
+    expect(lines('pnpm-env.log')).toEqual([])
+    expect(lines('node-mode.log')).toEqual(['oauth-token'])
+    expect(lines('node-env.log')).toEqual([])
+    for (const token of [TOKEN, LOGIN_TOKEN]) {
+      expect(allArgv()).not.toContain(token)
+      expect(stdout + stderr).not.toContain(token)
+    }
+  })
+
+  it.each([
+    ['missing', MISSING],
+    ['expired', MISSING],
+    ['api_token', ENVIRONMENT],
+    ['api_key', ENVIRONMENT],
+    ['not-json', NOT_JSON],
+    ['noisy', NOT_JSON],
+    ['no-token', NO_TOKEN],
+    ['bad-token', NO_TOKEN],
+    ['broken', exited(7)]
+  ])('says NOT OK on the %s login outcome, with the cause and the fix, and makes no API call', (login, cause) => {
+    const {status, stdout, stderr} = run(['--check-login'], {STUB_LOGIN: login})
+    expect(status).toBe(2)
+    expect(stdout).toBe('')
+    expect(stderr).toContain(`wrangler login: NOT OK: ${cause}.\n${FIX}\n`)
+    expect(stderr).not.toContain('--execute')
+    expect(calls()).toEqual([])
+    expect(lines('pnpm.log')).toEqual([WRANGLER_CALL])
+    // When wrangler fails, the token helper never runs; otherwise it runs once.
+    expect(lines('node-mode.log')).toEqual(['missing', 'expired', 'broken'].includes(login) ? [] : ['oauth-token'])
+    expect(lines('node-env.log')).toEqual([])
+    for (const token of [TOKEN, LOGIN_TOKEN]) {
+      expect(allArgv()).not.toContain(token)
+      expect(stdout + stderr).not.toContain(token)
+    }
+  })
+
+  it('says NOT OK when the token helper crashes', () => {
+    const {status, stdout, stderr} = run(['--check-login'], {STUB_NODE_CRASH: '1'})
+    expect(status).toBe(2)
+    expect(stdout).toBe('')
+    expect(stderr).toContain(`wrangler login: NOT OK: the token helper failed with status 1.\n${FIX}\n`)
+    expect(calls()).toEqual([])
+    expect(lines('node-mode.log')).toEqual(['oauth-token'])
+    expect(lines('node-env.log')).toEqual([])
+    for (const token of [TOKEN, LOGIN_TOKEN]) {
+      expect(allArgv()).not.toContain(token)
+      expect(stdout + stderr).not.toContain(token)
+    }
+  })
+
+  it('keeps the token from the token helper even when the shell exports answer', () => {
+    const {status} = run(['--check-login'], {answer: 'exported-by-another-tool'})
+    expect(status).toBe(0)
+    expect(lines('node-mode.log')).toEqual(['oauth-token'])
+    expect(lines('node-env.log')).toEqual([])
+  })
+
+  it('needs no CLOUDFLARE_API_TOKEN and no zone, and the dry-run path never runs', () => {
+    const {status} = run(['--check-login'], {CLOUDFLARE_API_TOKEN: undefined, CLOUDFLARE_ZONE_ID: 'not-a-zone'})
+    expect(status).toBe(0)
+    expect(calls()).toEqual([])
+    expect(lines('node-mode.log')).toEqual(['oauth-token'])
+    expect(lines('node-env.log')).toEqual([])
+  })
+
+  it('is in --help, with what OK proves and the refresh it can cause', () => {
+    const {status, stdout} = run(['--help'])
+    expect(status).toBe(0)
+    const help = stdout.replace(/\s+/g, ' ')
+    expect(help).toContain('[--execute | --check-login | --self-test | --help]')
+    expect(help).toContain("OK means that wrangler holds an oauth token; it does not prove the token's scopes, or that the API accepts it.")
+    expect(help).toContain("It can refresh an expired login: a POST to Cloudflare's OAuth endpoint and a write to wrangler's own credential store.")
+  })
+})
+
+/** The bash on PATH, by its path: the cases below run with a PATH that holds no bash. */
+const BASH = spawnSync('bash', ['-c', 'printf %s "$BASH"'], {encoding: 'utf8'}).stdout
+
+/**
+ * A PATH that holds only dirname (the script finds its own directory with it) and the stand-ins
+ * other than `missing`, so the script cannot find the missing tool, whatever this machine holds.
+ */
+function pathWithout(missing: string): string {
+  const bin = path.join(scratch, `bin-without-${missing}`)
+  mkdirSync(bin)
+  symlinkSync(spawnSync('bash', ['-c', 'command -v dirname'], {encoding: 'utf8'}).stdout.trim(), path.join(bin, 'dirname'))
+  for (const tool of ['curl', 'node', 'pnpm'].filter((tool) => tool !== missing)) {
+    symlinkSync(path.join(STUB_BIN, tool), path.join(bin, tool))
+  }
+  return bin
+}
+
+describe('rollback-route.sh stops before wrangler when a tool it needs is missing', () => {
+  it('--check-login without node: exit 1, before wrangler and before any API call', () => {
+    const {status, stderr} = run(['--check-login'], {PATH: pathWithout('node')}, [BASH])
+    expect(status).toBe(1)
+    expect(stderr).toContain('node is not on PATH (the script reads the wrangler answer with it).')
+    expect(lines('pnpm.log')).toEqual([])
+    expect(calls()).toEqual([])
+  })
+
+  it.each([['--check-login'], ['--execute']])('%s without pnpm: exit 2, before any API call', (mode) => {
+    const {status, stderr} = run([mode], {PATH: pathWithout('pnpm')}, [BASH])
+    expect(status).toBe(2)
+    expect(stderr).toContain('reading the wrangler login runs pnpm exec, and pnpm is not on PATH.')
+    expect(calls()).toEqual([])
   })
 })
 
@@ -661,7 +796,7 @@ describe('rollback-route.sh runs on bash 3.2', () => {
   it.each(bashes())('--self-test passes every case under %s, with no network call', (bash) => {
     const result = spawnSync(bash, [SCRIPT, '--self-test'], {cwd: scratch, encoding: 'utf8'})
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('self-test: 7 passed, 0 failed')
+    expect(result.stdout).toContain('self-test: 9 passed, 0 failed')
     expect(result.stdout).not.toContain('FAIL')
   }, 30_000)
 
@@ -673,6 +808,6 @@ describe('rollback-route.sh runs on bash 3.2', () => {
       encoding: 'utf8'
     })
     expect(result.status).toBe(0)
-    expect(result.stdout).toContain('self-test: 7 passed, 0 failed')
+    expect(result.stdout).toContain('self-test: 9 passed, 0 failed')
   }, 30_000)
 })

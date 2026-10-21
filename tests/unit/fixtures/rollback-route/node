@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
-# node wrapper for tests/unit/rollback-route.test.ts. It records the argv of every node run that
-# scripts/rollback-route.sh starts, so a test can prove that no token is ever in node's argv, then
-# runs the real node ($STUB_REAL_NODE) with the same arguments and stdin. STUB_NODE_CRASH makes the
+# node wrapper for tests/unit/rollback-route.test.ts. For every node run that
+# scripts/rollback-route.sh starts, it records the argv in $STUB_DIR/node-argv.log, the helper mode
+# (the argument after -e and its script) in $STUB_DIR/node-mode.log, and in $STUB_DIR/node-env.log
+# any token from $STUB_SECRETS in its environment, under any name. A test can then prove that no
+# token is in node's argv or environment, and which helper runs happened. The wrapper then runs the
+# real node ($STUB_REAL_NODE) with the same arguments and stdin. STUB_NODE_CRASH makes the
 # oauth-token run exit with that status instead, as a crashed helper would.
 set -euo pipefail
 
 printf '%s\n' "$*" >>"$STUB_DIR/node-argv.log"
+printf '%s\n' "${3:-}" >>"$STUB_DIR/node-mode.log"
+others="$(env | grep -v '^STUB_' || true)"
+for secret in $STUB_SECRETS; do
+  case "$others" in *"$secret"*) echo 'a token is in its environment' >>"$STUB_DIR/node-env.log" ;; esac
+done
 if [ -n "${STUB_NODE_CRASH:-}" ] && [ "${3:-}" = oauth-token ]; then
   exit "$STUB_NODE_CRASH"
 fi

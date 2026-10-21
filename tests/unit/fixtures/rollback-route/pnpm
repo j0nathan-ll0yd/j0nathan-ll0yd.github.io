@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# pnpm stand-in for tests/unit/rollback-route.test.ts. scripts/rollback-route.sh --execute runs
-# `pnpm --dir <repository> exec wrangler auth token --json --env-file /dev/null` to take the token of
-# the wrangler login; --env-file /dev/null keeps wrangler from loading the repository's .env files.
+# pnpm stand-in for tests/unit/rollback-route.test.ts. scripts/rollback-route.sh --execute and
+# --check-login run `pnpm --dir <repository> exec wrangler auth token --json --env-file /dev/null` to
+# read the token of the wrangler login; --env-file /dev/null keeps wrangler from loading the
+# repository's .env files.
 # This stand-in records its argv in $STUB_DIR/pnpm.log, and in $STUB_DIR/pnpm-env.log every way its
 # environment breaks the rules: a credential variable set (wrangler would answer it before the
 # login), wrangler's disk log, metrics or debug level left on, or a token from $STUB_SECRETS under
 # any name. It answers as wrangler 4.149.0 does (`JSON.stringify(result, null, 2)`).
 #
 # STUB_LOGIN: oauth (default), missing and expired (wrangler's "Not logged in" error, exit 1),
-# api_token (an environment token answered instead of the login), not-json, no-token, bad-token (a
-# token with a newline, which could inject a header), noisy (a line on stdout before the JSON).
+# api_token and api_key (an environment credential answered instead of the login), not-json,
+# no-token, bad-token (a token with a newline, which could inject a header), noisy (a line on stdout
+# before the JSON), broken (wrangler fails another way, exit 7).
 set -euo pipefail
 
 printf '%s\n' "$*" >>"$STUB_DIR/pnpm.log"
@@ -37,6 +39,11 @@ case "${STUB_LOGIN:-oauth}" in
     exit 1
     ;;
   api_token) printf '{\n  "type": "api_token",\n  "token": "%s"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  api_key) printf '{\n  "type": "api_key",\n  "key": "%s",\n  "email": "a@example.invalid"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  broken)
+    echo 'pnpm stand-in: wrangler failed to start' >&2
+    exit 7
+    ;;
   not-json) printf 'Retrieving the token: %s\n' "$STUB_LOGIN_TOKEN" ;;
   no-token) printf '{\n  "type": "oauth"\n}\n' ;;
   bad-token) printf '{\n  "type": "oauth",\n  "token": "%s\\nX-Injected: 1"\n}\n' "$STUB_LOGIN_TOKEN" ;;

@@ -12,9 +12,10 @@
 # `set -u` with no `set -e` (decision 0162 X2).
 #
 # Usage, from any directory:
-#   scripts/rollback-route.sh              dry run, GETs only: the route and what --execute does
-#   scripts/rollback-route.sh --execute    send the one DELETE, read the routes back, check the apex
-#   scripts/rollback-route.sh --self-test  prove the script against curl and pnpm stubs, with no network call
+#   scripts/rollback-route.sh                dry run, GETs only: the route and what --execute does
+#   scripts/rollback-route.sh --execute      send the one DELETE, read the routes back, check the apex
+#   scripts/rollback-route.sh --check-login  check the wrangler login token, with no API call
+#   scripts/rollback-route.sh --self-test    prove the script against curl and pnpm stubs, with no network call
 #
 # The dry run sends one API GET. When no route matches, it also GETs the public /version.json, with
 # no token, to say what answers the apex.
@@ -27,7 +28,9 @@
 # "token": ...} (:357187, :357190); it refreshes an expired login on its own (:131043-131062); and the
 # default login scopes include workers_routes:write (:134469, :133400). When wrangler cannot give a
 # token, --execute stops before its first API call: log in with `pnpm exec wrangler login` from the
-# repository, or check the login with `pnpm exec wrangler whoami`. Do not run `wrangler auth token`
+# repository. --check-login reads the login the same way, prints OK or NOT OK, and makes no API
+# call. `pnpm exec wrangler whoami` also checks the login, but it calls the API (:356870, :356886)
+# and, in a terminal, can start a browser login (:130967-131007). Do not run `wrangler auth token`
 # by hand: it prints the token, and wrangler writes it to its log file unless WRANGLER_WRITE_LOGS is
 # false. The script never prints a token, and no token is in an argv: curl reads the Authorization
 # header from stdin, and node reads the wrangler answer from stdin.
@@ -65,7 +68,7 @@ while read -r _ _ inherited; do
 done <<EOF
 $(declare -F)
 EOF
-# The repository that holds this script. --execute runs its pinned wrangler.
+# The repository that holds this script. --execute and --check-login run its pinned wrangler.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 readonly REPO_ROOT
 
@@ -173,7 +176,7 @@ die() { # die CODE MESSAGE
 
 usage() {
   cat <<'EOF'
-Usage: scripts/rollback-route.sh [--execute | --self-test | --help]
+Usage: scripts/rollback-route.sh [--execute | --check-login | --self-test | --help]
 
 Deletes the Workers Route jonathanlloyd.me/* (script human-datastream), so the apex returns to the
 Pages project. Without a flag it is a dry run, GETs only, with the read-only token: it prints the
@@ -181,20 +184,29 @@ route and what --execute does.
   --execute    take the token of the wrangler login (pnpm exec wrangler auth token --json, with
                the repository's wrangler), send the one DELETE, read the routes back, then check
                that Pages answers the apex. CLOUDFLARE_API_TOKEN plays no part.
+  --check-login
+               read the token of the wrangler login exactly as --execute does, then print OK or
+               NOT OK, with the cause. OK means that wrangler holds an oauth token; it does not
+               prove the token's scopes, or that the API accepts it. It makes no Cloudflare API
+               call and never prints the token. It can refresh an expired login: a POST to
+               Cloudflare's OAuth endpoint and a write to wrangler's own credential store. Without
+               node, pnpm or the repository's wrangler, it stops first, with its own message.
   --self-test  prove the script against curl and pnpm stubs, with no network call
 Environment: CLOUDFLARE_API_TOKEN, the dry run's read-only token
 (CLOUDFLARE_API_TOKEN="$CLOUDFLARE_ACCOUNT_READALL"); CLOUDFLARE_ZONE_ID (optional; defaults to the
 jonathanlloyd.me zone); ROLLBACK_ROUTE_WAIT_SECONDS (optional; 0 to 600, default 30).
-A missing or expired wrangler login stops --execute before any API call. Run pnpm exec wrangler
-login from the repository, or check the login with pnpm exec wrangler whoami. Do not run wrangler
-auth token by hand: it prints the token, and wrangler writes it to its log file.
+A missing or expired wrangler login stops --execute before any API call. Check the login with
+--check-login, or with pnpm exec wrangler whoami, which calls the API and can start a browser login.
+Log in again with pnpm exec wrangler login, from the repository. Do not run wrangler auth token by
+hand: it prints the token, and wrangler writes it to its log file.
 --self-test needs the repository's node_modules (pnpm install).
 EOF
 }
 
 # An exported API_TOKEN keeps its export flag through an assignment and would hand the token to every
-# child, so the name starts unset.
-unset API_TOKEN
+# child, so the name starts unset. So does answer: when the caller exported answer, bash exports a
+# function's `local answer` too, and login_token keeps wrangler's raw answer, token included, in it.
+unset API_TOKEN answer
 API_TOKEN=''
 HTTP_STATUS=''
 
@@ -216,8 +228,15 @@ permission_hint() { # permission_hint STATUS
 
 api_errors() { node -e "$JSON_HELPER" errors "$1"; }
 
+LOGIN_CONTEXT='execute'
 login_failed() { # login_failed REASON
-  die 2 "$1, so --execute has no credential and sent nothing. Check the wrangler login with pnpm exec wrangler whoami, and log in again with pnpm exec wrangler login; run both from $REPO_ROOT."
+  local fix="Check the wrangler login with pnpm exec wrangler whoami, and log in again with pnpm exec wrangler login; run both from $REPO_ROOT."
+  if [ "$LOGIN_CONTEXT" = check-login ]; then
+    note "wrangler login: NOT OK: $1."
+    note "$fix"
+    exit 2
+  fi
+  die 2 "$1, so --execute has no credential and sent nothing. $fix"
 }
 
 # login_token: puts the access token of the wrangler login in API_TOKEN (owner decision, 2026-10-20),
@@ -241,9 +260,9 @@ login_failed() { # login_failed REASON
 login_token() {
   local answer status=0
   if [ ! -f "$REPO_ROOT/wrangler.jsonc" ] || [ ! -x "$REPO_ROOT/node_modules/.bin/wrangler" ]; then
-    die 2 "--execute runs the repository's pinned wrangler, but $REPO_ROOT has no wrangler.jsonc and node_modules/.bin/wrangler. Run the script from the repository, after pnpm install."
+    die 2 "reading the wrangler login needs the repository's pinned wrangler, but $REPO_ROOT has no wrangler.jsonc and node_modules/.bin/wrangler. Run the script from the repository, after pnpm install."
   fi
-  command -v pnpm >/dev/null 2>&1 || die 2 '--execute runs the repository wrangler with pnpm exec, and pnpm is not on PATH.'
+  command -v pnpm >/dev/null 2>&1 || die 2 'reading the wrangler login runs pnpm exec, and pnpm is not on PATH.'
   warn 'reading the token of the wrangler login (wrangler refreshes an expired login, which can take a few seconds)'
   answer="$(
     unset CLOUDFLARE_API_TOKEN CF_API_TOKEN CLOUDFLARE_API_KEY CF_API_KEY CLOUDFLARE_EMAIL CF_EMAIL
@@ -532,14 +551,14 @@ readonly SELF_TEST_ZONE='00000000000000000000000000000000'
 # with the stubs first on PATH and CLOUDFLARE_API_TOKEN set to the fake read-only token. LOGIN is
 # "login" (the pnpm stand-in gives a fake oauth token) or "no-login" (it fails as wrangler does).
 # Then it checks the exit status and the calls, that the dry run used the read-only token and
-# --execute the login token, that only --execute asked wrangler (once, with the arguments the
-# script must use and no credential variable), that every curl call put --disable first, that no
-# child inherited a token, and that no token reached an argv or the output.
+# --execute the login token, that only --execute and --check-login asked wrangler (once, with the
+# arguments the script must use and no credential variable), that every curl call put --disable
+# first, that no child inherited a token, and that no token reached an argv or the output.
 self_test_case() {
   local name="$1" want_status="$2" want_calls="$3" fixture="$4" login="$5" dir="$CLEANUP_DIR" status=0
   local calls why='' expected_token="$SELF_TEST_READONLY" want_pnpm=''
   shift 5
-  if [ "${1:-}" = --execute ]; then
+  if [ "${1:-}" = --execute ] || [ "${1:-}" = --check-login ]; then
     expected_token="$SELF_TEST_OAUTH"
     want_pnpm="--dir $REPO_ROOT exec wrangler auth token --json --env-file /dev/null"
   fi
@@ -596,7 +615,7 @@ self_test() {
   local tool
   command -v node >/dev/null 2>&1 || die 1 'node is not on PATH (the script reads the API answers with it).'
   if [ ! -x "$REPO_ROOT/node_modules/.bin/wrangler" ]; then
-    die 1 "self-test: the --execute cases need the repository's node_modules: run pnpm install in $REPO_ROOT."
+    die 1 "self-test: the --execute and --check-login cases need the repository's node_modules: run pnpm install in $REPO_ROOT."
   fi
   SELF_TEST_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
   SELF_TEST_READONLY="self-test-readonly-$$"
@@ -622,10 +641,27 @@ self_test() {
   self_test_case 'one matching route: --execute sends one DELETE for its id, reads back, checks the apex' 0 \
     "GET:ok DELETE:$SELF_TEST_ID:ok GET:ok APEX:none" one login --execute
   self_test_case 'no wrangler login: --execute stops (exit 2) before any API call' 2 '' one no-login --execute
+  self_test_case 'a wrangler login: --check-login exits 0 and makes no API call' 0 '' one login --check-login
+  self_test_case 'no wrangler login: --check-login exits 2 and makes no API call' 2 '' one no-login --check-login
   say "self-test: $SELF_TEST_PASSED passed, $SELF_TEST_FAILED failed"
   if [ "$SELF_TEST_FAILED" -ne 0 ]; then
     exit 1
   fi
+}
+
+# --check-login (owner decision, 2026-10-21): reads the token of the wrangler login exactly as
+# --execute does (login_token), checks that the answer is an oauth token, and prints OK or NOT OK.
+# main exits after it, before any code that talks to the Cloudflare API. The token is never printed,
+# and CLOUDFLARE_API_TOKEN is unset first, so the token helper does not inherit the read-only token.
+# wrangler can refresh an expired login on the way: a POST to Cloudflare's OAuth endpoint and a
+# write to wrangler's own credential store.
+check_login() {
+  command -v node >/dev/null 2>&1 || die 1 'node is not on PATH (the script reads the wrangler answer with it).'
+  unset CLOUDFLARE_API_TOKEN
+  LOGIN_CONTEXT='check-login'
+  login_token
+  API_TOKEN=''
+  say 'wrangler login: OK (the answer is an oauth token; no Cloudflare API call was made)'
 }
 
 ZONE_ID=''
@@ -641,6 +677,10 @@ main() {
   case "${1:-}" in
     '') ;;
     --execute) mode=execute ;;
+    --check-login)
+      check_login
+      exit 0
+      ;;
     --self-test)
       self_test
       exit 0

@@ -364,9 +364,14 @@ wrangler login, not a token (owner decision, 2026-10-20). It reads the access to
 repository's pinned wrangler, `pnpm exec wrangler auth token --json`, and ignores
 `CLOUDFLARE_API_TOKEN`. The default `wrangler login` scopes include `workers_routes:write`, and
 wrangler refreshes an expired login on its own. When it cannot, `--execute` stops before any API
-call: run `pnpm exec wrangler login` from the repository, or check the login with
-`pnpm exec wrangler whoami`. Do not run `wrangler auth token` by hand: it prints the token, and
-wrangler writes it to its log file unless `WRANGLER_WRITE_LOGS=false`. The script never prints a
+call: run `pnpm exec wrangler login` from the repository. To check the login first, run
+`scripts/rollback-route.sh --check-login`. It runs the same login read as `--execute`, prints OK or
+NOT OK, and makes no Cloudflare API call. OK means that wrangler holds an oauth token; it does not
+prove the token's scopes, or that the API accepts it. `pnpm exec wrangler whoami` also checks the
+login, but it calls the Cloudflare API and, in a terminal, can start a browser login. Either can
+refresh an expired login: a POST to Cloudflare's OAuth endpoint and a write to wrangler's own store.
+Do not run `wrangler auth token` by hand: it prints the token, and wrangler writes it to its log
+file unless `WRANGLER_WRITE_LOGS=false`. The script never prints a
 token. The zone defaults to `jonathanlloyd.me` (`4d14ef06a76b6f09918d27d3cca0a9c3`), and
 `CLOUDFLARE_ZONE_ID` overrides it. The script resolves the id by pattern and script, and refuses
 unless exactly one route matches. Without
