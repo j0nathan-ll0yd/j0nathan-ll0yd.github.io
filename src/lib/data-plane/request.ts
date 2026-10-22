@@ -12,7 +12,7 @@ import {faultableHost, faultyFetch, FIXTURE_BUILD, fixturePlane, requestClock, r
 /** The Worker variables the server render reads. */
 export type RenderVars = Readonly<Record<string, unknown>>
 
-export function readForRequest(request: Request, vars: RenderVars, nowMs: number, waitUntil: (promise: Promise<unknown>) => void): Promise<ComposedRead> {
+export function readForRequest(request: Request, vars: RenderVars, nowMs: number): Promise<ComposedRead> {
   const fixture = fixturePlane(request, vars[SSR_FAULT_VAR])
   // A fixture data plane only on a preview or loopback host; production always reads CloudFront.
   const base = fixture?.base ?? requestDataPlaneBase(request, vars[DATA_PLANE_BASE_VAR], faultableHost)
@@ -32,7 +32,7 @@ export function readForRequest(request: Request, vars: RenderVars, nowMs: number
   const upstream: Upstream | undefined = testSeam ? {base, fetch: fault ? faultyFetch(fault, transport) : transport} : undefined
   // The fixture artifact names FIXTURE_BUILD: no committed file can know the preview's build id.
   const build = fixture === null ? BUILD_ID : FIXTURE_BUILD
-  return readComposed({request, waitUntil, nowMs, build, ...(upstream ? {upstream} : {})})
+  return readComposed({nowMs, build, ...(upstream ? {upstream} : {})})
 }
 
 /** Date.now(), or the fixed clock a test sends (X-SSR-Clock). */

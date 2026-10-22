@@ -100,6 +100,10 @@ export type SsrLogLine = Omit<Partial<SsrRenderRecord>, 'summary'> & {
   served?: 'composed' | 'value-free' | 'data-free'
   focus_read?: string
   artifact?: string
+  /** Wall-clock ms until the focus probe answered (the read runs it beside the artifact fetch). */
+  focus_ms?: number
+  /** Wall-clock ms until the artifact leg answered; absent when focus did not read visible. */
+  artifact_ms?: number
   composed_age_ms?: number
 }
 
@@ -125,10 +129,29 @@ function withDashboardHeaders(source: Headers, summary: string | null, policy = 
   return headers
 }
 
+/** The read's two legs as log fields. */
+type LegFields = Pick<SsrLogLine, 'focus_ms' | 'artifact_ms'>
+
+function legFields(read: ComposedRead): LegFields {
+  if (read.timing === undefined) {
+    return {}
+  }
+  return read.timing.artifactMs === null ? {focus_ms: read.timing.focusMs} : {focus_ms: read.timing.focusMs, artifact_ms: read.timing.artifactMs}
+}
+
 type Outcome =
-  | {kind: 'composed'; body: string; headers: Headers; summary: string; record: SsrRenderRecord; ioMs: number; ageMs: number}
-  | {kind: 'value-free'; body: string; headers: Headers; summary: 'suppressed' | 'unavailable'; focus: string; artifact: string; ioMs: number}
-  | {kind: 'data-free'; summary: 'suppressed' | 'unavailable' | 'fallback'; focus: string; artifact: string; ioMs: number}
+  | {kind: 'composed'; body: string; headers: Headers; summary: string; record: SsrRenderRecord; ioMs: number; ageMs: number; legs: LegFields}
+  | {
+    kind: 'value-free'
+    body: string
+    headers: Headers
+    summary: 'suppressed' | 'unavailable'
+    focus: string
+    artifact: string
+    ioMs: number
+    legs: LegFields
+  }
+  | {kind: 'data-free'; summary: 'suppressed' | 'unavailable' | 'fallback'; focus: string; artifact: string; ioMs: number; legs: LegFields}
   | {kind: 'failed'; status: number; errorClass: string}
   | {kind: 'ceiling'}
 
@@ -142,6 +165,7 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
     const nowMs = deps.now(request)
     const read = await deps.read(request, nowMs)
     const ioMs = Date.now() - started
+    const legs = legFields(read)
     if (read.kind === 'suppressed' || read.kind === 'focus-unreadable') {
       const summary = read.kind === 'suppressed' ? 'suppressed' : 'unavailable'
       const focus = read.kind === 'focus-unreadable' ? 'unreadable' : read.currentFocus === null ? 'gate' : 'hiding'
@@ -149,26 +173,26 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
       const set = await deps.valueFree?.() ?? null
       const page = set === null ? null : valueFreeVariant(set, read)
       if (page === null || page.summary !== summary) {
-        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-missing`, ioMs}
+        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-missing`, ioMs, legs}
       }
       const shell = await shellOf(deps)
       const misfit = fitsShell(shell, page.facts)
       if (misfit !== null) {
-        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-${misfit}`, ioMs}
+        return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-${misfit}`, ioMs, legs}
       }
-      return {kind: 'value-free', body: assemble(shell, page.fragments, summary), headers: shell.headers, summary, focus, artifact, ioMs}
+      return {kind: 'value-free', body: assemble(shell, page.fragments, summary), headers: shell.headers, summary, focus, artifact, ioMs, legs}
     }
     if (read.kind !== 'ok') {
       const reason = read.kind === 'unavailable'
         ? `unavailable:http-${read.status}`
         : `refused:${read.refusal}${read.detail === undefined ? '' : `:${read.detail}`}`
-      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: reason, ioMs}
+      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: reason, ioMs, legs}
     }
     const shell = await shellOf(deps)
     const value = read.artifact
     const misfit = fitsShell(shell, read.facts)
     if (misfit !== null) {
-      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: `refused:${misfit}`, ioMs}
+      return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact: `refused:${misfit}`, ioMs, legs}
     }
     return {
       kind: 'composed',
@@ -177,7 +201,8 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
       summary: value.summary,
       record: value.record,
       ioMs,
-      ageMs: nowMs - Date.parse(value.composedAt)
+      ageMs: nowMs - Date.parse(value.composedAt),
+      legs
     }
   } catch (error) {
     return {kind: 'failed', status: 500, errorClass: error instanceof Error ? error.name : 'UnknownError'}
@@ -244,6 +269,7 @@ async function answerDashboard(request: Request, deps: DashboardRenderDeps): Pro
       served: 'composed',
       status: 200,
       io_ms: outcome.ioMs,
+      ...outcome.legs,
       render_ms: Math.max(0, totalMs - outcome.ioMs),
       composed_age_ms: outcome.ageMs
     })
@@ -258,6 +284,7 @@ async function answerDashboard(request: Request, deps: DashboardRenderDeps): Pro
       artifact: outcome.artifact,
       status: 200,
       io_ms: outcome.ioMs,
+      ...outcome.legs,
       render_ms: Math.max(0, totalMs - outcome.ioMs)
     })
     return new Response(outcome.body, {status: 200, headers: withDashboardHeaders(outcome.headers, outcome.summary)})
@@ -271,6 +298,7 @@ async function answerDashboard(request: Request, deps: DashboardRenderDeps): Pro
       artifact: outcome.artifact,
       status: 200,
       io_ms: outcome.ioMs,
+      ...outcome.legs,
       render_ms: Math.max(0, totalMs - outcome.ioMs)
     })
     return dataFreePage('GET', outcome.summary, deps)
