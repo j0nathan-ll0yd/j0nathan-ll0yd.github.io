@@ -460,7 +460,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: node audits/checks/b2-check-spec-currency.mjs
 
-      - name: B7/B8 -- security headers, TLS/cert expiry, CSP drift
+      - name: B7/B8 -- security headers, TLS/cert expiry, CSP drift, HTTP-to-HTTPS redirect
         id: headers
         continue-on-error: true
         run: node audits/checks/b7-check-headers.mjs
