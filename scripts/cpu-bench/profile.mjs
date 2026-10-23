@@ -4,8 +4,9 @@
 //   PLANE=http://127.0.0.1:8790 [PER_REQUEST=12] [OUT=/tmp/cpu-prof] node scripts/cpu-bench/profile.mjs <label> [warmRequests=50] [samplingUs=100] [extraWranglerArgs...]
 // Needs the fixture plane (scripts/cpu-bench/fixture-plane.mjs) and a built dist/ (pnpm build). Run from the repo root.
 // PER_REQUEST=n profiles each of the first n requests separately (the JIT progression).
+// PUBLISH_BODY=<payload.json> POSTs that body to /_ssr/publish instead of GET / (a publish-time composition prototype).
 import {spawn} from 'node:child_process'
-import {mkdirSync, writeFileSync} from 'node:fs'
+import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {request as httpRequest} from 'node:http'
 import {randomBytes} from 'node:crypto'
 const [, , label = 'run', warmArg = '50', samplingArg = '100', ...extra] = process.argv
@@ -175,13 +176,17 @@ class Cdp {
 }
 async function get(n) {
   const times = []
+  const publish = process.env.PUBLISH_BODY
+  const body = publish ? readFileSync(publish) : null
   for (let i = 0; i < n; i++) {
     const t = performance.now()
-    const r = await fetch(`http://127.0.0.1:${PORT}/`, {headers: {accept: 'text/html'}})
-    const body = await r.text()
+    const r = publish
+      ? await fetch(`http://127.0.0.1:${PORT}/_ssr/publish`, {method: 'POST', headers: {'content-type': 'application/json'}, body})
+      : await fetch(`http://127.0.0.1:${PORT}/`, {headers: {accept: 'text/html'}})
+    const text = await r.text()
     times.push(performance.now() - t)
-    if (r.status !== 200 || !['live', 'stale', 'partial'].includes(r.headers.get('x-ssr-data') ?? '')) {
-      throw new Error(`unexpected ${r.status} ${r.headers.get('x-ssr-data')} ${body.slice(0, 200)}`)
+    if (r.status !== 200 || (!publish && !['live', 'stale', 'partial'].includes(r.headers.get('x-ssr-data') ?? ''))) {
+      throw new Error(`unexpected ${r.status} ${r.headers.get('x-ssr-data')} ${text.slice(0, 200)}`)
     }
   }
   return times
