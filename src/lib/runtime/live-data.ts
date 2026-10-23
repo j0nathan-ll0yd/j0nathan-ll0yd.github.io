@@ -16,6 +16,7 @@ import type {Freshness} from '@j0nathan-ll0yd/web/runtime/freshness'
 import {releaseSuppression, renderWidgetUnavailable} from '@j0nathan-ll0yd/web/runtime/updater-empty'
 import {sleepScoreSource} from '@j0nathan-ll0yd/web/runtime/widget-rules'
 import {NO_READING, stateNoticeHtml} from '@j0nathan-ll0yd/web/runtime/widget-state'
+import {fillRelativeTimes} from '@j0nathan-ll0yd/web/runtime/relative-time-fill'
 import {WSClient} from './ws-client'
 import {
   updateBookshelf,
@@ -669,6 +670,8 @@ function rejudgeFreshness(): void {
   }
   // System Status shows each export's age, which moves with the clock too.
   updateSystemStatus(timestamps, now)
+  // The server prints absolute times (web 4.4.0); the relative labels age here, at least once per poll.
+  fillRelativeTimes(document, now)
   const next = nextFreshnessChange(now)
   if (next !== null) {
     rejudgeTimer = setTimeout(rejudgeFreshness, Math.min(Math.max(next - now, 0), MAX_TIMER_DELAY_MS))
@@ -718,6 +721,9 @@ function seedServerOutput(): void {
   }
 }
 seedServerOutput()
+// The server markup carries absolute times; a normal load applies no newer generation, so no updater
+// writes the relative labels. Fill them once now, before card-reveal.js shows the cards (100 ms on).
+fillRelativeTimes(document)
 
 /** The judgement a server-rendered card carries, in the form `CardRender.judge` returns. */
 function serverJudgement(key: CardKey): string | null {

@@ -73,7 +73,7 @@ gate shut over a visible signal, and KeyValueStore propagation.
 Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible signal),
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
 `tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
-browser by `tests/behavioral/ssr-no-js.test.ts:291` (one 403 suppresses the page) and
+browser by `tests/behavioral/ssr-no-js.test.ts:293` (one 403 suppresses the page) and
 `tests/behavioral/ssr-no-js.test.ts:350` (each hiding mode: the overlay shows, no export is read, no
 gated value is in the DOM).
 
@@ -141,7 +141,7 @@ with an empty list is `empty`, not a failure. An export older than its `audit.er
 
 Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
 `tests/unit/data-plane-loader.test.ts:290` (an old source), and per export in a scripts-off browser by
-`tests/behavioral/ssr-no-js.test.ts:263` (5xx, malformed, old and empty answers, with `data-ssr-state`,
+`tests/behavioral/ssr-no-js.test.ts:265` (5xx, malformed, old and empty answers, with `data-ssr-state`,
 the meta and `X-SSR-Data` in agreement).
 
 #### Scenario: An old export
@@ -176,8 +176,8 @@ overlay used to hard-code, and no coordinates, place or visit data (D14). Author
 such as the Person address, is allowed. Production builds cannot reach `@j0nathan-ll0yd/fixtures`
 (the `forbid-fixtures` build plugin).
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:213` (legacy markers and retired overlay rows) and
-`tests/behavioral/ssr-no-js.test.ts:242` (D14).
+Verified by `tests/behavioral/ssr-no-js.test.ts:215` (legacy markers and retired overlay rows) and
+`tests/behavioral/ssr-no-js.test.ts:244` (D14).
 
 #### Scenario: A crawler reads the dashboard
 
