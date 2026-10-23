@@ -23,7 +23,7 @@
 // 6. On a loopback host only (a local `astro preview` or `wrangler dev`), the analytics routes
 //    answer 404, as the static preview did before PR A, so no test run reaches an upstream.
 
-import {handle} from '@astrojs/cloudflare/handler'
+import type {handle as astroHandle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
 import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
 import {VALUE_FREE_PATH} from './lib/composed/artifact'
@@ -34,8 +34,14 @@ import {readForRequest, renderClock, type RenderVars} from './lib/data-plane/req
 import {type DashboardRenderDeps, headDashboard, renderDashboard} from './lib/data-plane/ssr-response'
 import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath, withUtf8Charset} from './lib/edge/security-headers'
 
-type AstroEnv = Parameters<typeof handle>[1]
-type AstroContext = Parameters<typeof handle>[2]
+type AstroEnv = Parameters<typeof astroHandle>[1]
+type AstroContext = Parameters<typeof astroHandle>[2]
+
+/** Astro's handler, loaded on the first route request: `/` never evaluates the Astro server runtime. */
+async function handle(request: Request, env: AstroEnv, context: AstroContext): Promise<Response> {
+  const astro = await import('@astrojs/cloudflare/handler')
+  return astro.handle(request, env, context)
+}
 
 /** The static-asset binding: wrangler.jsonc `assets.binding`. */
 interface AssetsBinding {
