@@ -20,8 +20,11 @@ the focus overlays and System Status with the design system's components, and re
 credential. The artifact also carries `facts`: what the Worker's own fragment check
 (src/lib/composed/artifact.ts `checkFragments`) reads from its fragments, as plain arrays (atlas
 decision 0164). The Worker's read of `/dashboard.json` ignores the field. Each build also cuts the
-data-free page at build time into a generated module (scripts/build-shell.mjs); the request path
-does not read it yet.
+data-free page at build time into a generated module (scripts/build-shell.mjs) that the Worker
+compiles in. With the `PAGE` KV binding (wrangler.jsonc) the Worker serves `GET /` from the
+published page data instead of the artifact: the `focus` key and the `fragments:<build>` entry the
+backend publishes, spliced into that compiled shell (src/lib/composed/published.ts; the two
+requirements below that name the published read).
 
 The Worker reads the artifact with the edge proxy's rules (src/lib/composed/read.ts and
 src/lib/edge/proxy.ts `readGatedConcurrently`: the focus probe and the artifact fetch in flight
@@ -73,8 +76,8 @@ gate shut over a visible signal, and KeyValueStore propagation.
 Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible signal),
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
 `tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
-browser by `tests/behavioral/ssr-no-js.test.ts:293` (one 403 suppresses the page) and
-`tests/behavioral/ssr-no-js.test.ts:350` (each hiding mode: the overlay shows, no export is read, no
+browser by `tests/behavioral/ssr-no-js.test.ts:297` (one 403 suppresses the page) and
+`tests/behavioral/ssr-no-js.test.ts:355` (each hiding mode: the overlay shows, no export is read, no
 gated value is in the DOM).
 
 #### Scenario: A failed focus publication
@@ -141,7 +144,7 @@ with an empty list is `empty`, not a failure. An export older than its `audit.er
 
 Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
 `tests/unit/data-plane-loader.test.ts:290` (an old source), and per export in a scripts-off browser by
-`tests/behavioral/ssr-no-js.test.ts:265` (5xx, malformed, old and empty answers, with `data-ssr-state`,
+`tests/behavioral/ssr-no-js.test.ts:269` (5xx, malformed, old and empty answers, with `data-ssr-state`,
 the meta and `X-SSR-Data` in agreement).
 
 #### Scenario: An old export
@@ -159,7 +162,7 @@ documented sort, the newest article title, the workout count, and the other fiel
 document. Production is checked daily by web audit B11, through an oracle that imports none of the
 shared adapters.
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:91` (the `ssrKnownAnswer` fixture variation, whose
+Verified by `tests/behavioral/ssr-no-js.test.ts:95` (the `ssrKnownAnswer` fixture variation, whose
 distinctive values occur in no other variation, `tests/build/ssr-known-answer.test.ts`).
 
 #### Scenario: A client without JavaScript reads the dashboard
@@ -176,8 +179,8 @@ overlay used to hard-code, and no coordinates, place or visit data (D14). Author
 such as the Person address, is allowed. Production builds cannot reach `@j0nathan-ll0yd/fixtures`
 (the `forbid-fixtures` build plugin).
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:215` (legacy markers and retired overlay rows) and
-`tests/behavioral/ssr-no-js.test.ts:244` (D14).
+Verified by `tests/behavioral/ssr-no-js.test.ts:219` (legacy markers and retired overlay rows) and
+`tests/behavioral/ssr-no-js.test.ts:248` (D14).
 
 #### Scenario: A crawler reads the dashboard
 
@@ -409,6 +412,62 @@ keeps outside the cards).
 - **THEN** the Worker SHALL answer the data-free page with `X-SSR-Data: fallback`, and the log line
   SHALL name `refused:fragments:cardHR:url`
 
+### Requirement: The Worker splices only fragments its own build's composer published, checked by that composer
+
+On the published read (atlas decision 0164, Variant D), the backend runner publishes to
+`fragments:<build>` the fragments this build's composer rendered, with the facts the composer's own
+fragment check produced (src/lib/composed/compose.ts `checked`: the allowlist above, run by the
+composer through src/lib/composed/artifact.ts `checkFragments`) and the summary, and metadata
+`{build, composedAt, summary}`. The Worker does not run the allowlist on this path; it trusts the KV
+writer. `fitsShell` checks the facts the writer reports about its own fragments, so it catches a
+composer and shell of different builds, not a wrong or hostile writer: the guarantee is that only
+the backend runner writes the namespace. Fragments the runner published as a value-free page (the
+gate, or a hiding value that has since turned visible) are served as they are, under `no-store`,
+until the runner's next run replaces them. Under a visible `focus` value it SHALL splice the fragments into the shell compiled into its
+own bundle (src/lib/composed/compiled-shell.ts, cut at build time from this build's data-free page)
+only when: the value exists; the metadata names the Worker's own build (never `unknown`); its
+`composedAt` is at most 690 s old and at most 300 s ahead; the value is at most 512 KiB in UTF-8
+bytes; the value is `{fragments, facts, summary}` with every fragment id and a closed-set summary
+equal to the metadata's; and the facts fit the compiled shell (src/lib/composed/shell.ts
+`fitsShell`). Otherwise it SHALL serve the data-free page with `X-SSR-Data: fallback` and log one
+closed-set reason: `fragments-missing`, `fragments-build`, `fragments-stale`, `fragments-future`,
+`fragments-oversize`, `fragments-shape`, `fragments-error` or `shell-misfit`. Until atlas decision
+0164 Phase 4, a Worker without the binding serves `/` from the artifact under the requirement above.
+
+Verified by `tests/unit/published-read.test.ts:202` (each reason),
+`tests/unit/published-read.test.ts:237` (the 512 KiB cap in bytes),
+`tests/unit/published-read.test.ts:101` (the fixture entry is admitted) and
+`tests/build/shell-cut.test.ts:128` (the compiled shell equals the Worker's own cut of the page).
+
+#### Scenario: Fragments from another build
+
+- **GIVEN** a visible `focus` value
+- **WHEN** the `fragments:<build>` metadata names another build
+- **THEN** the Worker SHALL serve the data-free page as `fallback` and log `fragments-build`
+
+### Requirement: Gated page data rests only in KV, for at most 690 s
+
+The published read keeps the bound decision 0160 D3 set, as amended by decision 0164 D1 and D4: the
+only gated content at rest is the `fragments:<build>` value and the `focus` state, in Workers KV,
+each with a 690 s TTL. While the focus value hides, the gate is shut or the signal is unreadable,
+each runner run SHALL overwrite `fragments:<build>` with that state's value-free fragments; the last
+visible composition stays in KV until that run or the TTL, and the Worker never reads it under a
+hiding or unreadable `focus` value (the requirement above on the focus value). The Worker SHALL keep
+no copy between requests, open no Cache API, cache no HTML at the edge and schedule no work
+(`waitUntil`) after its answer. The published page SHALL carry `Cache-Control: no-store`
+(`COMPOSED_CACHE_HEADERS`).
+
+Verified by `tests/unit/published-read.test.ts:173` (no Cache API on any outcome, no `waitUntil`)
+and `tests/unit/ssr-response.test.ts:388` (the published page is no-store and its log line holds no
+value).
+
+#### Scenario: The owner turns on Work focus
+
+- **GIVEN** `fragments:<build>` holds a visible composition
+- **WHEN** the runner next runs under the `Work` value
+- **THEN** it SHALL overwrite the key with the Work value-free fragments, and no visible composition
+  SHALL rest in KV after that run
+
 ### Requirement: The Worker's read spends its whole budget on the focus probe and the artifact
 
 The Worker's read of the artifact keeps no last-known-good copy, so it SHALL NOT reserve the
@@ -447,7 +506,22 @@ flight, start no further attempt, and cancel a body that arrived without reading
 it. An unreadable value SHALL answer `focus-unreadable` even when the artifact arrived. The read SHALL
 open no cache, keep no last-known-good copy and schedule no work (`waitUntil`) after its answer.
 
-Verified by `tests/unit/composed-read-concurrent.test.ts:194` (a hiding value cancels the body
+On the published read (atlas decision 0164, Variant D; src/lib/composed/published.ts
+`readPublished`, used when the Worker has the `PAGE` KV binding and a compiled shell), the focus
+value is the `focus` KV key, read with `cacheTtl: 30` beside `fragments:<build>`. The Worker SHALL
+judge `focus` first. A hiding value SHALL answer that value's value-free page, and an unreadable one
+(missing, malformed, a `publishedAt` older than 690 s or more than 300 s ahead, or a failed read) the
+unreadable value-free page. The Worker requests both keys together, so the fragments value can
+arrive in the isolate; under a hiding or unreadable value the Worker SHALL NOT parse, inspect,
+splice or log it. The reads have no budget of their own: a read that stalls ends at the 3 s ceiling,
+which answers the data-free page as `fallback`, also value-free. A hiding value written by the focus
+writer SHALL reach a colo within the 30 s read cache plus KV's own propagation to other locations
+(Cloudflare documents up to 60 s or more).
+
+Verified by `tests/unit/published-read.test.ts:137` (a hiding value never reads the fragments),
+`tests/unit/published-read.test.ts:149` (each unreadable form fails closed) and
+`tests/unit/published-read.test.ts:118` (the 30 s read cache). Before that, on the artifact read:
+`tests/unit/composed-read-concurrent.test.ts:194` (a hiding value cancels the body
 unread), `tests/unit/composed-read-concurrent.test.ts:180` (the gate wins),
 `tests/unit/composed-read-concurrent.test.ts:241` (an unreadable value fails closed) and
 `tests/unit/composed-read-concurrent.test.ts:269` (no cache, no copy).
@@ -457,6 +531,13 @@ unread), `tests/unit/composed-read-concurrent.test.ts:180` (the gate wins),
 - **GIVEN** the focus value reads `Work`
 - **WHEN** the artifact fetch answers a CloudFront 200
 - **THEN** the Worker SHALL answer the Work value-free page and SHALL cancel the artifact body unread
+
+#### Scenario: The focus key turns hiding while visible fragments are still in KV
+
+- **GIVEN** `fragments:<build>` holds a visible composition
+- **WHEN** the `focus` key reads `Work`
+- **THEN** the Worker SHALL answer the Work value-free page and SHALL NOT parse, inspect, splice or
+  log the fragments value
 
 ### Requirement: A hiding or unreadable focus value answers the build's value-free page
 
@@ -532,9 +613,16 @@ Verified by `tests/unit/ssr-response.test.ts:291`.
 Each `GET /` SHALL emit one JSON log line with `event: "ssr_render"`: the summary, the focus state
 (`visible`, `hiding`, `unreadable`), each export's read outcome, each card's state, the degraded
 exports, `io_ms`, `render_ms`, `total_ms`, the status and the build id. The line SHALL carry no
-data value.
+data value. Every line SHALL carry `isolate_first`: true on the first `GET /` answer of the isolate,
+false after (atlas decision 0164: the soak's cold marker, on both read paths; `HEAD /` does not
+count). Every line SHALL carry `read_path`: `published` (the KV values) or `artifact` (the composed
+artifact, the rollback). A published answer (`served: "published"`) SHALL carry `focus_read:
+"visible"`, `focus_kv_ms` and, when the fragments were read, `fragments_kv_ms`, plus `focus_age_ms`
+and `fragments_age_ms` when known. The KV value carries no render record, so the published line
+names no per-export outcome, no card state and no degraded exports.
 
-Verified by `tests/unit/ssr-response.test.ts:173`.
+Verified by `tests/unit/ssr-response.test.ts:173` (one value-free line) and `tests/unit/ssr-response.test.ts:479`
+(`isolate_first` under a fresh module: true, then false on both paths).
 
 #### Scenario: A healthy render
 
@@ -548,7 +636,7 @@ The render SHALL NOT branch on the client: no code on the render path reads `Use
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
 Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
-`tests/behavioral/ssr-no-js.test.ts:412` (the head of the render equals the data-free page's).
+`tests/behavioral/ssr-no-js.test.ts:418` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 
