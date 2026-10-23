@@ -694,3 +694,28 @@ describe('the composer degrades a Reading link or note the Worker would refuse (
     expect(title.endsWith('…')).toBe(true)
   })
 })
+
+// Byte stability (atlas decision 0164; design-system-Lifegames #317): the same exports composed at two
+// clocks 10 minutes apart give byte-equal fragments, so the LP runner can skip a KV write whose value
+// did not change. From @j0nathan-ll0yd/web 4.4.0 the server markup prints absolute times and the
+// browser fills the relative labels; before it, a label such as "5 min ago" moves with the clock.
+// The package exports no ./package.json subpath, so its manifest is read from the install.
+const WEB_VERSION =
+  (JSON.parse(readFileSync(new URL('../../node_modules/@j0nathan-ll0yd/web/package.json', import.meta.url), 'utf8')) as {version: string}).version
+const [WEB_MAJOR = 0, WEB_MINOR = 0] = WEB_VERSION.split('.').map(Number)
+const WEB_PRINTS_ABSOLUTE_TIMES = WEB_MAJOR > 4 || (WEB_MAJOR === 4 && WEB_MINOR >= 4)
+
+describe('byte stability across the composition clock (atlas decision 0164)', () => {
+  it.skipIf(!WEB_PRINTS_ABSOLUTE_TIMES)(`composes byte-equal fragments 10 minutes apart (skipped below web 4.4.0; installed ${WEB_VERSION})`, async () => {
+    const exportsFor = () => Object.fromEntries(KEYS.map((key) => [key, {...rawFixture(key, 'ssrKnownAnswer'), generatedAt: FRESH}]))
+    const focus = {generatedAt: FRESH, currentFocus: 'None'}
+    const first = await compose({exports: exportsFor(), focus, nowMs: NOW, localCovers: LOCAL_COVERS})
+    const later = await compose({exports: exportsFor(), focus, nowMs: NOW + 10 * 60_000, localCovers: LOCAL_COVERS})
+    expect(first.ok && later.ok).toBe(true)
+    if (first.ok && later.ok) {
+      for (const id of COMPOSED_FRAGMENT_IDS) {
+        expect(later.artifact.fragments[id], id).toBe(first.artifact.fragments[id])
+      }
+    }
+  })
+})
