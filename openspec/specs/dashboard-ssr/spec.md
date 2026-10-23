@@ -17,7 +17,11 @@ runner fetches version.json, then the composer, checks the hash, imports it and 
 gated CloudFront URLs with the loader below (src/lib/data-plane/loader.ts), renders the live cards,
 the focus overlays and System Status with the design system's components, and returns the
 `/dashboard.json` artifact, which the runner stores behind the gate. The runner holds no read
-credential.
+credential. The artifact also carries `facts`: what the Worker's own fragment check
+(src/lib/composed/artifact.ts `checkFragments`) reads from its fragments, as plain arrays (atlas
+decision 0164). The Worker's read of `/dashboard.json` ignores the field. Each build also cuts the
+data-free page at build time into a generated module (scripts/build-shell.mjs); the request path
+does not read it yet.
 
 The Worker reads the artifact with the edge proxy's rules (src/lib/composed/read.ts and
 src/lib/edge/proxy.ts `readGatedConcurrently`: the focus probe and the artifact fetch in flight
@@ -286,7 +290,7 @@ unless it reads the same visible value; an artifact published before the change 
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
-Verified by `tests/oracle/composer-parity.test.ts:413` (race a) and
+Verified by `tests/oracle/composer-parity.test.ts:447` (race a) and
 `tests/unit/composed-read.test.ts:139` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
@@ -393,7 +397,7 @@ of the two later review rounds, and the other refusal cases), `tests/unit/ssr-re
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
 scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
 (`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
-`tests/oracle/composer-parity.test.ts:485` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
+`tests/oracle/composer-parity.test.ts:519` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
 the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
 keeps outside the cards).
 
@@ -467,7 +471,7 @@ pages cannot be used, the data-free page SHALL answer with the same summary. A p
 value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
 
 Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:304` (each variant equals the Astro render, holds no
+`tests/oracle/composer-parity.test.ts:310` (each variant equals the Astro render, holds no
 `data-generated-at`, and is the asset the build shipped).
 
 #### Scenario: The owner turns on Do Not Disturb

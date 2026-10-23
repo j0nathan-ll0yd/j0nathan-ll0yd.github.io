@@ -28,14 +28,18 @@ import {
 } from '@j0nathan-ll0yd/web/production'
 import {
   checkArtifact,
+  checkedVariant,
   checkValueFree,
   COMPOSED_FRAGMENT_IDS,
   COMPOSED_MAX_BYTES,
   type ComposedFragmentId,
   GATE_VARIANT,
+  toWireFacts,
   UNREADABLE_VARIANT,
-  VALUE_FREE_PATH
+  VALUE_FREE_PATH,
+  type WireFacts
 } from '../../src/lib/composed/artifact'
+import {PUBLISHED_MAX_BYTES, type PublishedEntry, type PublishedFragments} from '../../src/lib/composed/published'
 import {FRAGMENT_CLASS_TOKENS, FRAGMENT_ROOT_CLASS_TOKENS} from '../../src/lib/composed/fragment-classes'
 import {ARIA_ATTRIBUTES, DATA_ATTRIBUTES, HTML_ELEMENTS, LINK_HOSTS, MAX_TITLE, SVG_ELEMENTS} from '../../src/lib/composed/fragment-policy'
 import {composableReading} from '../../src/lib/composed/reading-links'
@@ -110,13 +114,14 @@ const ORACLE = {
   cardTheatreReviews: [TheatreReviews, 'theatreReviews']
 } as const
 
-type ValueFreeSet = {build: string; variants: Record<string, {summary: string; fragments: Record<string, string>}>}
+type ValueFreeSet = {build: string; variants: Record<string, {summary: string; fragments: Record<string, string>; facts: WireFacts}>}
 type ComposeValueFree = (input: {localCovers: readonly string[]}) => Promise<ValueFreeSet>
 let composeValueFree: ComposeValueFree
 type ComposeDashboard = (options: {fetch?: typeof fetch; nowMs?: number; base?: string}) => Promise<
   {ok: true; artifact: {composer: {build: string}; summary: string; fragments: Record<string, string>}; body: string} | {ok: false; refusal: string}
 >
 let composeDashboard: ComposeDashboard
+let publishedEntry: (source: PublishedFragments, composedAt: string) => PublishedEntry
 let COMPOSER_CONTRACT: number
 let COMPOSER_BUILD: string
 type Compose = (input: unknown) => Promise<{ok: true; artifact: {fragments: Record<string, string>; summary: string}} | {ok: false; refusal: string}>
@@ -129,10 +134,11 @@ beforeAll(async () => {
   if (!existsSync(COMPOSER)) {
     throw new Error('dist-composer/composer.mjs is missing: run node scripts/build-composer.mjs')
   }
-  ;({compose, composeValueFree, composeDashboard, COMPOSER_CONTRACT, COMPOSER_BUILD} = (await import(COMPOSER.href)) as {
+  ;({compose, composeValueFree, composeDashboard, publishedEntry, COMPOSER_CONTRACT, COMPOSER_BUILD} = (await import(COMPOSER.href)) as {
     compose: Compose
     composeValueFree: ComposeValueFree
     composeDashboard: ComposeDashboard
+    publishedEntry: typeof publishedEntry
     COMPOSER_CONTRACT: number
     COMPOSER_BUILD: string
   })
@@ -330,6 +336,11 @@ describe('the value-free pages equal the Astro render and hold no value', () => 
     const shown = (id: string) => /style="display: flex"/.test(page?.fragments[id] ?? '')
     expect(shown('focusOverlay'), 'Work overlay').toBe(key === 'Work')
     expect(shown('dndOverlay'), 'Do Not Disturb overlay').toBe(key === 'Do Not Disturb')
+    // atlas decision 0164: the runner publishes this page's facts while hiding; they are the Worker's own check.
+    const checked = page === undefined
+      ? null
+      : checkedVariant({page: {summary: page.summary as 'suppressed' | 'unavailable', fragments: page.fragments as Record<ComposedFragmentId, string>}})
+    expect(checked && toWireFacts(checked.facts)).toEqual(page?.facts)
   })
 
   it('is what the website build shipped', () => {
@@ -377,6 +388,29 @@ describe('composeDashboard: the runner entry (owner decision 2026-10-16, the liv
     }
     expect(plane.calls.every((path) => path.startsWith('/'))).toBe(true)
     expect(plane.calls.filter((path) => path === ENDPOINTS.focus)).toHaveLength(2)
+  })
+
+  // atlas decision 0164: the body gains `facts` (an added field, so the contract stays 1), and the
+  // composer encodes the KV entry the runner publishes from it.
+  it('returns the facts in the body, and encodes the fragments:<build> entry from it', async () => {
+    const result = await composeDashboard({fetch: dataPlane().fetch, nowMs: NOW})
+    expect(result.ok).toBe(true)
+    if (!result.ok) {
+      return
+    }
+    const body = JSON.parse(result.body) as {
+      composedAt: string
+      summary: PublishedFragments['summary']
+      fragments: PublishedFragments['fragments']
+      facts: WireFacts
+    }
+    expect(Object.keys(body.facts.scopes)).toEqual([...COMPOSED_FRAGMENT_IDS])
+    expect(Object.keys(body.facts.roots)).toEqual([...COMPOSED_FRAGMENT_IDS])
+    const entry = publishedEntry(body, body.composedAt)
+    expect(entry.key).toBe(`fragments:${BUILD}`)
+    expect(entry.metadata).toEqual({build: BUILD, composedAt: body.composedAt, summary: body.summary})
+    expect(JSON.parse(entry.value)).toEqual({fragments: body.fragments, facts: body.facts, summary: body.summary})
+    expect(entry.value.length).toBeLessThan(PUBLISHED_MAX_BYTES)
   })
 
   it('reads CloudFront by default', async () => {
@@ -499,9 +533,11 @@ describe("the Worker's fragment allowlist admits every render, and names nothing
       if (!result.ok) {
         continue
       }
-      const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>}
+      const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>; facts: WireFacts}
       const checked = checkArtifact(JSON.stringify(artifact), Date.parse(artifact.composedAt), artifact.composer.build, new Set(HIDING_FOCUS_MODES))
       expect(checked, label).toMatchObject({ok: true})
+      // atlas decision 0164: the facts the composer publishes are the Worker's own check of its fragments.
+      expect(checked.ok && toWireFacts(checked.facts), label).toEqual(artifact.facts)
       used.maxBytes = Math.max(used.maxBytes, JSON.stringify(artifact).length)
       for (const id of COMPOSED_FRAGMENT_IDS) {
         record(id, artifact.fragments[id] ?? '')
@@ -531,9 +567,11 @@ describe("the Worker's fragment allowlist admits every render, and names nothing
         if (!result.ok) {
           continue
         }
-        const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>}
+        const artifact = result.artifact as unknown as {composedAt: string; composer: {build: string}; fragments: Record<string, string>; facts: WireFacts}
         const checked = checkArtifact(JSON.stringify(artifact), Date.parse(artifact.composedAt), artifact.composer.build, new Set(HIDING_FOCUS_MODES))
         expect(checked, label).toMatchObject({ok: true})
+        // atlas decision 0164: the facts the composer publishes are the Worker's own check of its fragments.
+        expect(checked.ok && toWireFacts(checked.facts), label).toEqual(artifact.facts)
         used.maxBytes = Math.max(used.maxBytes, JSON.stringify(artifact).length)
         for (const id of COMPOSED_FRAGMENT_IDS) {
           record(id, artifact.fragments[id] ?? '')

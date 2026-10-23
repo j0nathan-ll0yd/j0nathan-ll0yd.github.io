@@ -16,7 +16,7 @@
 // Ids: the shell also records every id its own page keeps outside the replaced elements. A fragment
 // that carries one of them is refused, so a fragment never answers a getElementById meant for the
 // page around it.
-import {type ArtifactFacts, COMPOSED_FRAGMENT_IDS, type ComposedFragmentId} from './artifact'
+import {type ArtifactFacts, COMPOSED_FRAGMENT_IDS, type ComposedFragmentId, perFragment} from './artifact'
 
 const SENTINEL = (name: string) => ` ssr-shell:${name} `
 const SUMMARY_SLOT = 'summary'
@@ -48,8 +48,14 @@ const MARKER = / ssr-shell:(?:(summary)|start:([A-Za-z]+)|end:([A-Za-z]+)) /g
 /** Cuts the data-free page. Throws when an element the artifact replaces is missing: a build defect. */
 export async function cutShell(page: Response): Promise<Shell> {
   const headers = new Headers(page.headers)
-  const html = await page.text()
-  // One pass marks each replaced element's start and end; the cut itself is string work (`cutMarked`).
+  return cutMarked(await markPage(await page.text()), headers)
+}
+
+/**
+ * The page with each replaced element's start and end marked, in one HTMLRewriter pass (workerd
+ * only). The cut itself is string work (`cutMarked`).
+ */
+export async function markPage(html: string): Promise<string> {
   let rewriter = new HTMLRewriter().on('meta[name="robots"]', {element: (meta) => void meta.after(SENTINEL(SUMMARY_SLOT))})
   for (const id of COMPOSED_FRAGMENT_IDS) {
     rewriter = rewriter.on(`#${id}`, {
@@ -59,8 +65,73 @@ export async function cutShell(page: Response): Promise<Shell> {
       }
     })
   }
-  const marked = await rewriter.transform(new Response(html, {headers: {'Content-Type': 'text/html; charset=utf-8'}})).text()
-  return cutMarked(marked, headers)
+  return rewriter.transform(new Response(html, {headers: {'Content-Type': 'text/html; charset=utf-8'}})).text()
+}
+
+/**
+ * Where the build cuts the page (atlas decision 0164): the offset just after the robots meta, and
+ * each replaced element's start offset and the offset just after its end tag. scripts/build-shell.mjs
+ * reads them from parse5's source locations.
+ */
+export interface ShellOffsets {
+  summary: number
+  slots: Readonly<Record<ComposedFragmentId, {start: number; end: number}>>
+}
+
+/**
+ * The shell cut at known offsets: the same markers `markPage` writes, put at the offsets, then
+ * `cutMarked`. So the build cut and the Worker's cut derive slots, scopes, roots and ids one way.
+ */
+export function cutAt(html: string, offsets: ShellOffsets, headers: Headers): Shell {
+  const marks: {at: number; order: number; text: string}[] = [{at: offsets.summary, order: 1, text: SENTINEL(SUMMARY_SLOT)}]
+  for (const id of COMPOSED_FRAGMENT_IDS) {
+    const {start, end} = offsets.slots[id]
+    if (!(Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start < end && end <= html.length)) {
+      throw new Error(`bad offsets for ${id}`)
+    }
+    // At one offset, an end marker comes before a start marker, as the rewriter writes them.
+    marks.push({at: start, order: 2, text: START(id)}, {at: end, order: 0, text: END(id)})
+  }
+  marks.sort((a, b) => a.at - b.at || a.order - b.order)
+  let marked = ''
+  let last = 0
+  for (const mark of marks) {
+    marked += html.slice(last, mark.at) + mark.text
+    last = mark.at
+  }
+  return cutMarked(marked + html.slice(last), headers)
+}
+
+/** A shell as plain data, for the generated module the Worker compiles in (src/lib/composed/shell.generated.ts). */
+export interface CompiledShell {
+  pieces: string[]
+  slots: Shell['slots']
+  scopes: Record<ComposedFragmentId, string[]>
+  roots: Record<ComposedFragmentId, {firstClass: string | null; scopes: string[]}>
+  ids: string[]
+  headers: [string, string][]
+}
+
+export function compileShell(shell: Shell): CompiledShell {
+  return {
+    pieces: [...shell.pieces],
+    slots: [...shell.slots],
+    scopes: perFragment((id) => [...shell.scopes[id]]),
+    roots: perFragment((id) => ({firstClass: shell.roots[id].firstClass, scopes: [...shell.roots[id].scopes]})),
+    ids: [...shell.ids],
+    headers: [...shell.headers]
+  }
+}
+
+export function shellFromCompiled(compiled: CompiledShell): Shell {
+  return {
+    pieces: compiled.pieces,
+    slots: compiled.slots,
+    scopes: perFragment((id) => new Set(compiled.scopes[id])),
+    roots: perFragment((id) => ({firstClass: compiled.roots[id].firstClass, scopes: new Set(compiled.roots[id].scopes)})),
+    ids: new Set(compiled.ids),
+    headers: new Headers(compiled.headers)
+  }
 }
 
 /**
