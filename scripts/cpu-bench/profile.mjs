@@ -4,6 +4,7 @@
 //   PLANE=http://127.0.0.1:8790 [PER_REQUEST=12] [OUT=/tmp/cpu-prof] node scripts/cpu-bench/profile.mjs <label> [warmRequests=50] [samplingUs=100] [extraWranglerArgs...]
 // Needs the fixture plane (scripts/cpu-bench/fixture-plane.mjs) and a built dist/ (pnpm build). Run from the repo root.
 // PER_REQUEST=n profiles each of the first n requests separately (the JIT progression).
+// PLANE=none: no fixture data plane; GET / reads the local PAGE namespace (atlas decision 0164).
 // PUBLISH_BODY=<payload.json> POSTs that body to /_ssr/publish instead of GET / (a publish-time composition prototype).
 import {spawn} from 'node:child_process'
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
@@ -25,10 +26,11 @@ function startWrangler() {
     String(PORT),
     '--inspector-port',
     String(INSPECTOR),
-    '--var',
-    `DATA_PLANE_BASE:${process.env.PLANE ?? 'http://127.0.0.1:8790'}`,
-    '--var',
-    'SSR_FAULT_INJECTION:1',
+    // PLANE=none runs the production configuration: GET / reads the PAGE binding's local namespace
+    // (seed it with scripts/cpu-bench/seed-kv.mjs), with no data plane and no test seam variable.
+    ...(process.env.PLANE === 'none'
+      ? []
+      : ['--var', `DATA_PLANE_BASE:${process.env.PLANE ?? 'http://127.0.0.1:8790'}`, '--var', 'SSR_FAULT_INJECTION:1']),
     '--show-interactive-dev-session',
     'false',
     '--log-level',

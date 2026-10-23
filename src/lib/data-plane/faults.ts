@@ -108,7 +108,8 @@ function delay(ms: number, signal: AbortSignal | null | undefined): Promise<void
 export function faultyFetch(fault: Fault, base: typeof fetch = fetch): typeof fetch {
   return async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
-    const isFocus = url.pathname.endsWith('/focus.json')
+    // The focus signal, or the file that stands for the `focus` KV value (./published-seam.ts).
+    const isFocus = /\/(?:kv-)?focus\.json$/.test(url.pathname)
     const signal = init?.signal
     if (fault.kind === 'focus-stall') {
       return isFocus ? never(signal) : base(input, init)

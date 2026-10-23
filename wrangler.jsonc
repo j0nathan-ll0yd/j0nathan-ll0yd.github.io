@@ -57,5 +57,12 @@
   // CI service-token policy. scripts/check-preview-access.mjs verifies it on every PR. Only
   // `wrangler deploy` applies this setting; `wrangler versions upload` reads it.
   "preview_urls": true,
-  "observability": {"enabled": true}
+  "observability": {"enabled": true},
+  // The page data the backend publishes for `/` (atlas decision 0164, Variant D): the `focus` state
+  // and `fragments:<build>` (src/lib/composed/published.ts). ONE namespace, `human-datastream-page`,
+  // for production and the previews (owner decision). A preview reads the production `focus` key
+  // but never finds its own build's fragments, so it answers the value-free or data-free page; with
+  // `X-SSR-Data-Plane: fixture` it reads the committed fixtures instead. The Worker only reads this
+  // namespace. Local runs (wrangler dev, astro preview) simulate a namespace from the binding.
+  "kv_namespaces": [{"binding": "PAGE", "id": "dc9dc20506d1401488e00993370f81b2"}]
 }

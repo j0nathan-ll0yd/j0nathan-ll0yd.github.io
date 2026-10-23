@@ -10,8 +10,9 @@
 // State is per server. Each Playwright run starts its own server and runs its tests serially.
 import {readFileSync} from 'node:fs'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
-import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {mirroredBookCovers} from '../../src/lib/book-cover-mirror'
+import {PUBLISHED_FILES} from '../../src/lib/data-plane/published-files'
 import {BASELINE_BY_PATH} from './baseline'
 import {type Behavior, CONTROL_PREFIX, DEFAULT_PORT, type GeneratedAtMode, SUPPRESSION_BODY} from './protocol'
 
@@ -90,6 +91,7 @@ async function readBody(request: IncomingMessage): Promise<unknown> {
 async function control(request: IncomingMessage, response: ServerResponse, route: string): Promise<void> {
   if (route === '/reset' && request.method === 'POST') {
     overrides = new Map()
+    lastEntry = null
     requests = []
     send(response, 200, '{}')
   } else if (route === '/set' && request.method === 'POST') {
@@ -175,6 +177,116 @@ function stampClockMs(): number {
   return DEFAULT_GENERATED_AT === 'original' ? Date.parse(FIXTURE_NOW) : Date.now()
 }
 
+// ── The published page data (atlas decision 0164, Variant D) ─────────
+// The Worker reads `/` from two KV values; with DATA_PLANE_BASE it reads them from these three files
+// (src/lib/data-plane/published-seam.ts). This server answers them as the backend would have written
+// them for the current exports: the focus writer's `focus` value, and the runner's
+// `fragments:<build>` entry, through the composer's own encoder. While the focus value hides or
+// cannot be read, or the gate is shut, the entry holds that state's value-free fragments (D1).
+const {focus: KV_FOCUS_PATH, fragments: KV_FRAGMENTS_PATH, metadata: KV_METADATA_PATH} = PUBLISHED_FILES
+const HIDING: ReadonlySet<string> = new Set(HIDING_FOCUS_MODES)
+
+interface ComposerModule {
+  compose: (input: unknown) => Promise<{ok: true; artifact: {composedAt: string}} | {ok: false; refusal: string}>
+  composeValueFree: (input: {localCovers: readonly string[]}) => Promise<{variants: Record<string, unknown>}>
+  publishedEntry: (source: unknown, composedAt: string) => {value: string; metadata: unknown}
+}
+
+let valueFree: Promise<{variants: Record<string, unknown>}> | null = null
+let lastEntry: {key: string; entry: Promise<{value: string; metadata: unknown} | null>} | null = null
+
+function clockOf(request: IncomingMessage): number {
+  const clock = request.headers['x-ssr-clock']
+  return typeof clock === 'string' ? Date.parse(clock) : stampClockMs()
+}
+
+/** The current focus value, as the focus writer publishes it, or null when it would write none. */
+function focusValue(): string | null {
+  const body = exportBody(ENDPOINTS.focus)
+  const current = typeof body === 'object' && body !== null ? (body as {currentFocus?: unknown}).currentFocus : undefined
+  return typeof current === 'string' ? current : null
+}
+
+/** The fragments entry the runner would publish for the current exports at `nowMs`, or null for none. */
+function fragmentsEntry(nowMs: number): Promise<{value: string; metadata: unknown} | null> {
+  const key = JSON.stringify([[...overrides], nowMs])
+  if (lastEntry?.key !== key) {
+    lastEntry = {key, entry: composeEntry(nowMs)}
+  }
+  return lastEntry.entry
+}
+
+async function composeEntry(nowMs: number): Promise<{value: string; metadata: unknown} | null> {
+  const composer = (await import(COMPOSER.href)) as ComposerModule
+  const composedAt = new Date(nowMs).toISOString()
+  valueFree ??= composer.composeValueFree({localCovers: mirroredBookCovers()})
+  const variant = async (name: string) => {
+    const page = (await valueFree)?.variants[name]
+    return page === undefined ? null : composer.publishedEntry(page, composedAt)
+  }
+  const focus = focusValue()
+  if (focus === null) {
+    return variant('unreadable')
+  }
+  if (HIDING.has(focus)) {
+    return variant(focus)
+  }
+  const behaviors = [...EXPORT_PATHS].filter((path) => path !== ENDPOINTS.focus).map((path) => overrides.get(path) ?? baselineFor(path))
+  if (behaviors.some((behavior) => behavior.kind === 'suppress')) {
+    return variant('gate')
+  }
+  const keys = Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus')
+  const result = await composer.compose({
+    exports: Object.fromEntries(keys.map(([key, path]) => [key, exportBody(path)])),
+    focus: exportBody(ENDPOINTS.focus),
+    nowMs,
+    localCovers: mirroredBookCovers()
+  })
+  return result.ok ? composer.publishedEntry(result.artifact, result.artifact.composedAt) : null
+}
+
+/** One of the three published files, as the backend's KV writes would leave it now. */
+async function published(request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
+  const nowMs = clockOf(request)
+  if (path === KV_FOCUS_PATH) {
+    const behavior = overrides.get(ENDPOINTS.focus) ?? baselineFor(ENDPOINTS.focus)
+    const reply = () => {
+      if (behavior.kind === 'stall') {
+        answer(response, behavior)
+        return
+      }
+      const focus = focusValue()
+      if (focus === null) {
+        send(response, 404, '{}')
+        return
+      }
+      send(response, 200, JSON.stringify({currentFocus: focus, publishedAt: new Date(nowMs).toISOString()}))
+    }
+    if (behavior.delayMs) {
+      setTimeout(reply, behavior.delayMs)
+    } else {
+      reply()
+    }
+    return
+  }
+  // An override on the artifact path stands for a damaged or missing entry.
+  const own = overrides.get(DASHBOARD_PATH)
+  if (own?.kind === 'status') {
+    send(response, 404, '{}')
+    return
+  }
+  const entry = await fragmentsEntry(nowMs)
+  if (entry === null) {
+    send(response, 404, '{}')
+    return
+  }
+  if (path === KV_METADATA_PATH) {
+    send(response, 200, JSON.stringify(entry.metadata))
+    return
+  }
+  send(response, 200, own?.kind === 'malformed' ? '{"fragments": ' : entry.value)
+}
+
 async function warmComposer(): Promise<void> {
   const {compose} = (await import(COMPOSER.href)) as {compose: (input: unknown) => Promise<unknown>}
   const keys = Object.entries(ENDPOINTS).filter(([key]) => key !== 'focus')
@@ -190,6 +302,11 @@ const server = createServer((request, response) => {
   const path = new URL(request.url ?? '/', 'http://data-plane.invalid').pathname
   if (path.startsWith(`${CONTROL_PREFIX}/`)) {
     control(request, response, path.slice(CONTROL_PREFIX.length)).catch((error: unknown) => send(response, 500, JSON.stringify({error: String(error)})))
+    return
+  }
+  if (request.method === 'GET' && (path === KV_FOCUS_PATH || path === KV_FRAGMENTS_PATH || path === KV_METADATA_PATH)) {
+    requests.push(path)
+    published(request, response, path).catch((error: unknown) => send(response, 500, JSON.stringify({error: String(error)})))
     return
   }
   if (request.method === 'GET' && path === DASHBOARD_PATH) {

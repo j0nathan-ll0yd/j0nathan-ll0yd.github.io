@@ -27,10 +27,12 @@ import {handle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
 import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
 import {VALUE_FREE_PATH} from './lib/composed/artifact'
+import {COMPILED_SHELL} from './lib/composed/compiled-shell'
 import {INTERNAL_ASSET_PATHS} from './lib/composed/paths'
+import type {PageStore} from './lib/composed/published'
 import {valueFreeFor} from './lib/composed/value-free'
 import {BUILD_ID} from './lib/data-plane/build'
-import {readForRequest, renderClock, type RenderVars} from './lib/data-plane/request'
+import {readForRequest, readPublishedForRequest, renderClock, type RenderVars} from './lib/data-plane/request'
 import {type DashboardRenderDeps, headDashboard, renderDashboard} from './lib/data-plane/ssr-response'
 import {ASSET_PLANE_HEADERS, BASE_SECURITY_HEADERS, CSP_HEADERS, isCodeFreePath, withUtf8Charset} from './lib/edge/security-headers'
 
@@ -41,7 +43,8 @@ type AstroContext = Parameters<typeof handle>[2]
 interface AssetsBinding {
   fetch(input: Request | URL | string): Promise<Response>
 }
-type WorkerEnv = AstroEnv & {ASSETS: AssetsBinding}
+/** The published page data (atlas decision 0164): wrangler.jsonc `kv_namespaces`, binding PAGE. */
+type WorkerEnv = AstroEnv & {ASSETS: AssetsBinding; PAGE?: PageStore}
 
 /** The 404 page, as the build writes it (src/pages/404.astro). */
 const NOT_FOUND_PAGE_PATH = '/404'
@@ -107,11 +110,19 @@ async function notFoundPage(request: Request, env: WorkerEnv, codeFree: boolean)
 /** The dashboard's dependencies: the composed-artifact read, the clock and the static-asset plane. */
 function dashboardDeps(request: Request, env: WorkerEnv): DashboardRenderDeps {
   const vars: RenderVars = {...env}
+  const page = env.PAGE
+  // The published read needs the binding and this build's compiled shell (atlas decision 0164).
+  // Without either, `/` is served from the composed artifact, as before: the rollback is to drop
+  // the binding from wrangler.jsonc.
+  const shell = COMPILED_SHELL !== null && COMPILED_SHELL.build === BUILD_ID ? COMPILED_SHELL.shell : null
   return {
     read: (rendered, nowMs) => readForRequest(rendered, vars, nowMs),
     now: (rendered) => renderClock(rendered, vars),
     asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method})),
-    valueFree: () => valueFreeFor(BUILD_ID, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url)))
+    valueFree: () => valueFreeFor(BUILD_ID, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url))),
+    ...(page !== undefined && shell !== null
+      ? {published: {read: (rendered: Request, nowMs: number) => readPublishedForRequest(rendered, vars, page, shell, nowMs), shell}}
+      : {})
   }
 }
 

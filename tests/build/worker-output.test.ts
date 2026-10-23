@@ -54,8 +54,8 @@ describe('Worker bundle', () => {
     expect(generated.main).toBe('entry.mjs')
   })
 
-  it('adds no binding the site does not use (no session KV, no Images)', () => {
-    expect(generated.kv_namespaces ?? []).toEqual([])
+  it('adds no binding the site does not use (no session KV, no Images): only PAGE (atlas decision 0164)', () => {
+    expect(generated.kv_namespaces ?? []).toEqual([{binding: 'PAGE', id: 'dc9dc20506d1401488e00993370f81b2'}])
     expect(generated.images).toBeUndefined()
     expect(generated.vars ?? {}).toEqual({})
   })

@@ -125,6 +125,7 @@ describe('the build-time shell cut (atlas decision 0164)', () => {
     }
   })
 
+  // covers: dashboard-ssr#The Worker splices only fragments its own build's composer published, checked by that composer
   it('equals the shell cutMarked derives from the Worker HTMLRewriter marks: pieces, slots, scopes, roots and ids', () => {
     const runtime = compileShell(cutMarked(marked, new Headers(SHELL_HEADERS as [string, string][])))
     expect(compileShell(SHELL)).toEqual(runtime)
@@ -149,7 +150,7 @@ describe('the build-time shell cut (atlas decision 0164)', () => {
     }
   })
 
-  it('carries only the content type; the rest of the headers are set when the page is served', () => {
-    expect([...SHELL.headers]).toEqual([['content-type', 'text/html; charset=utf-8']])
+  it('carries the asset plane header and the content type; the rest are set when the page is served', () => {
+    expect([...SHELL.headers]).toEqual([['access-control-allow-origin', '*'], ['content-type', 'text/html; charset=utf-8']])
   })
 })

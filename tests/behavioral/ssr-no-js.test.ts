@@ -2,12 +2,16 @@ import {readFileSync} from 'node:fs'
 import {expect, type Page, test} from '@playwright/test'
 import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {type Behavior, dataPlaneRequests, resetDataPlane, serveFixtures, setDataPlane} from '../data-plane/control'
+import {PUBLISHED_FILES} from '../../src/lib/data-plane/published-files'
 import {BASELINE_BY_PATH, fixture, KNOWN_ANSWER_BY_PATH} from '../data-plane/baseline'
 import {isAllowedImageUrl, srcsetCandidates} from '../image-url-allowlist'
 import {LIVE_CARD_IDS} from '../shared/fixture-sentinels'
 import {legacyMarkers, RETIRED_OVERLAY_ROWS} from '../shared/legacy-markers'
 import {headFactsOf, prerenderedIndexHtml, visibleTextOf} from '../shared/ssr-page'
 import {READING_LINKS} from '../../src/lib/composed/reading-option'
+
+/** The files that stand for the published KV values, which the Worker reads instead of any export. */
+const PUBLISHED_PATHS: ReadonlySet<string> = new Set(Object.values(PUBLISHED_FILES))
 
 // The server render of `/`, read with JavaScript off (atlas decision 0160, PR B; plan Step 6.3).
 //
@@ -309,19 +313,19 @@ test.describe('server render with JavaScript off: states', () => {
     await setDataPlane({[ENDPOINTS.focus]: {kind: 'status', status: 500}})
     await expectSummary(page, 'unavailable')
     expect(await cardStates(page)).toEqual(expectedStates('unavailable'))
-    // No export is read. Focus is read once, or twice through its one bounded retry (FOCUS_MAX_ATTEMPTS);
-    // the composed page is requested beside it once at most and never used (readGatedConcurrently).
+    // No export is read: the Worker reads the published `focus` value once, and the fragments beside
+    // it at most once, never used (atlas decision 0164, src/lib/composed/published.ts readPublished).
     const reads = await dataPlaneRequests()
-    expect(new Set(reads.filter((path) => path !== '/dashboard.json'))).toEqual(new Set([ENDPOINTS.focus]))
-    expect(reads.filter((path) => path === ENDPOINTS.focus).length).toBeLessThanOrEqual(2)
-    expect(reads.filter((path) => path === '/dashboard.json').length).toBeLessThanOrEqual(1)
+    expect(reads.filter((path) => !PUBLISHED_PATHS.has(path)), 'no export is read').toEqual([])
+    expect(reads.filter((path) => path === PUBLISHED_FILES.focus)).toHaveLength(1)
+    expect(reads.filter((path) => path === PUBLISHED_FILES.fragments).length).toBeLessThanOrEqual(1)
     expect(await page.content()).not.toContain(TOKEN)
   })
 
-  test('a composed page without a CloudFront request id is refused', async ({page}) => {
-    // The admission rules apply to the Worker's one gated read, the composed artifact. The backend
-    // composer reads the exports from the bucket itself, behind no CloudFront.
-    await setDataPlane({'/dashboard.json': {kind: 'no-cloudfront-id'}})
+  test('a damaged published entry is refused', async ({page}) => {
+    // The Worker checks the published fragments' shape before it splices them (atlas decision 0164);
+    // the data plane answers the fragments file malformed.
+    await setDataPlane({'/dashboard.json': {kind: 'malformed'}})
     const rendered = await open(page)
     expect(rendered.status).toBe(200)
     expect(rendered.summaryHeader, 'X-SSR-Data').toBe('fallback')
@@ -355,7 +359,8 @@ test.describe('server render with JavaScript off: hiding', () => {
       await expect(page.locator(overlay)).toBeVisible()
       await expect(page.locator(other)).toBeHidden()
       expect(await cardStates(page)).toEqual(expectedStates('suppressed'))
-      expect((await dataPlaneRequests()).filter((path) => path !== '/dashboard.json'), 'no export is read').toEqual([ENDPOINTS.focus])
+      // The Worker reads the published `focus` value, and never an export (atlas decision 0164).
+      expect((await dataPlaneRequests()).filter((path) => !PUBLISHED_PATHS.has(path)), 'no export is read').toEqual([])
 
       const html = await page.content()
       const text = await page.locator('body').innerText()
