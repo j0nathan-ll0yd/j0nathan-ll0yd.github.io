@@ -1,0 +1,109 @@
+#!/usr/bin/env bash
+# curl stand-in for tests/unit/rollback-route.test.ts. It records each call in $STUB_DIR: the argv,
+# the first argument, whether its environment holds a token from $STUB_SECRETS under any name, and
+# how it authenticated (ok: the Authorization header that scripts/rollback-route.sh sends on stdin
+# carries $STUB_TOKEN; bad; none). It answers from the files in $STUB_DIR: routes.json for a route
+# list, routes-after.json once the route is gone.
+#
+# Knobs:
+#   STUB_LIST_STATUS      HTTP status of every route list (default 200; others get an error body)
+#   STUB_READBACK_STATUS  HTTP status of a route list after a DELETE was sent
+#   STUB_READBACK_EXIT    curl exit code for a route list after a DELETE was sent
+#   STUB_DELETE_STATUS    HTTP status of the DELETE (default 200)
+#   STUB_DELETE_EXIT      curl exit code for the DELETE (a transport failure)
+#   STUB_DELETE_APPLIES   the route goes even when the DELETE answer is not a success
+#   STUB_DELETE_RESULT_ID the id that a 200 DELETE answer names (default: the id in the URL)
+#   STUB_DELETE_SUCCESS   the success field of a 200 DELETE answer (default true; false keeps the route)
+#   STUB_APEX_AFTER       what answers the apex once the route is gone: pages (default), worker, error
+set -euo pipefail
+
+printf '%s\n' "$*" >>"$STUB_DIR/argv.log"
+printf '%s\n' "$1" >>"$STUB_DIR/first.log"
+others="$(env | grep -v '^STUB_' || true)"
+for secret in $STUB_SECRETS; do
+  case "$others" in *"$secret"*) echo inherited >>"$STUB_DIR/env.log" ;; esac
+done
+case "${STUB_APEX_AFTER:-pages}" in
+  pages | worker | error) ;;
+  *) echo "curl stand-in: unknown STUB_APEX_AFTER value ${STUB_APEX_AFTER}" >&2; exit 99 ;;
+esac
+method=GET out='' url='' auth=none
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --request) method="$2"; shift 2 ;;
+    --output) out="$2"; shift 2 ;;
+    --header)
+      if [ "$2" = @- ] && [ "$(cat)" = "Authorization: Bearer $STUB_TOKEN" ]; then auth=ok; else auth=bad; fi
+      shift 2
+      ;;
+    --connect-timeout | --max-time | --write-out) shift 2 ;;
+    -*) shift ;;
+    *) url="$1"; shift ;;
+  esac
+done
+printf '%s\t%s\t%s\n' "$auth" "$method" "$url" >>"$STUB_DIR/calls.log"
+
+refusal='{"success":false,"errors":[{"code":10000,"message":"Authentication error"}],"messages":[],"result":null}'
+
+case "$url" in
+  https://jonathanlloyd.me/version.json\?*)
+    if [ ! -e "$STUB_DIR/deleted" ]; then
+      printf '{"build":"0000000000000000000000000000000000000000","runtime":"workers"}' >"$out"
+      printf '200'
+    elif [ "${STUB_APEX_AFTER:-pages}" = worker ]; then
+      printf '{"build":"0000000000000000000000000000000000000000","runtime":"workers"}' >"$out"
+      printf '200'
+    elif [ "${STUB_APEX_AFTER:-pages}" = error ]; then
+      printf '<html>error code: 522</html>' >"$out"
+      printf '522'
+    else
+      printf '{"build":"c9fc69f551bfd85eb64ccc39d3c5d4dc1e259e11","builtAt":"2026-10-13T18:25:43.140Z"}' >"$out"
+      printf '200'
+    fi
+    exit 0
+    ;;
+esac
+
+if [ "$method" = GET ] && [ "${url%/workers/routes}" != "$url" ]; then
+  status="${STUB_LIST_STATUS:-200}"
+  if [ -e "$STUB_DIR/delete-sent" ]; then
+    if [ -n "${STUB_READBACK_EXIT:-}" ]; then
+      echo 'curl: (28) Operation timed out' >&2
+      printf '000'
+      exit "$STUB_READBACK_EXIT"
+    fi
+    status="${STUB_READBACK_STATUS:-$status}"
+  fi
+  if [ "$status" != 200 ]; then
+    printf '%s' "$refusal" >"$out"
+  elif [ -e "$STUB_DIR/deleted" ]; then
+    cp "$STUB_DIR/routes-after.json" "$out"
+  else
+    cp "$STUB_DIR/routes.json" "$out"
+  fi
+  printf '%s' "$status"
+elif [ "$method" = DELETE ]; then
+  : >"$STUB_DIR/delete-sent"
+  if [ -n "${STUB_DELETE_APPLIES:-}" ]; then
+    : >"$STUB_DIR/deleted"
+  fi
+  if [ -n "${STUB_DELETE_EXIT:-}" ]; then
+    echo 'curl: (28) Operation timed out' >&2
+    printf '000'
+    exit "$STUB_DELETE_EXIT"
+  fi
+  status="${STUB_DELETE_STATUS:-200}"
+  if [ "$status" != 200 ]; then
+    printf '%s' "$refusal" >"$out"
+  else
+    success="${STUB_DELETE_SUCCESS:-true}"
+    if [ "$success" = true ]; then
+      : >"$STUB_DIR/deleted"
+    fi
+    printf '{"success":%s,"errors":[],"messages":[],"result":{"id":"%s"}}' "$success" "${STUB_DELETE_RESULT_ID:-${url##*/}}" >"$out"
+  fi
+  printf '%s' "$status"
+else
+  printf '{"success":false,"errors":[{"code":7003,"message":"no stubbed answer"}],"messages":[],"result":null}' >"$out"
+  printf '404'
+fi

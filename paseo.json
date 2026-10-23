@@ -1,12 +1,12 @@
 {
   "_notes": [
     "Paseo worktree lifecycle. The six @j0nathan-ll0yd/* deps resolve from GitHub Packages (npm.pkg.github.com); `pnpm install` needs the registry token. pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc (atlas decision 0032 removed that line), so the token comes from the machine-global ~/.npmrc, which a worktree inherits.",
-    ".env.local is gitignored and is copied from the main checkout. .envrc is tracked, so a worktree takes it from its own commit; copying the main checkout's .envrc over it would revert the tracked file to whatever the main checkout has. direnv users still need `direnv allow`.",
+    ".env.local is gitignored and is copied from the main checkout with `install -m 600`, so the copy is mode 0600 whatever the source mode is. It holds the Cloudflare and Access credentials. The plain `cp` this replaced kept the source mode, and every copy was -rw-r--r-- on 2026-10-18 (atlas decision 0162, X3). scripts/worktree-setup.sh, which .husky/post-checkout runs, copies it the same way. A copy error, a missing source included, does not fail the setup. .envrc is tracked, so a worktree takes it from its own commit; copying the main checkout's .envrc over it would revert the tracked file to whatever the main checkout has. direnv users still need `direnv allow`.",
     "Astro dev/preview binds fixed port 4321 — do not run two worktrees' dev servers concurrently without overriding the port."
   ],
   "worktree": {
     "setup": [
-      "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && { cp \"$MAIN/.env.local\" .env.local 2>/dev/null || true; }",
+      "MAIN=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && { install -m 600 \"$MAIN/.env.local\" .env.local 2>/dev/null || true; }",
       "pnpm install --frozen-lockfile"
     ]
   },

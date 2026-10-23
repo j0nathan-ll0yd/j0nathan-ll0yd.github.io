@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# pnpm stand-in for tests/unit/rollback-route.test.ts. scripts/rollback-route.sh --execute and
+# --check-login run `pnpm --dir <repository> exec wrangler auth token --json --env-file /dev/null` to
+# read the token of the wrangler login; --env-file /dev/null keeps wrangler from loading the
+# repository's .env files.
+# This stand-in records its argv in $STUB_DIR/pnpm.log, and in $STUB_DIR/pnpm-env.log every way its
+# environment breaks the rules: a credential variable set (wrangler would answer it before the
+# login), wrangler's disk log, metrics or debug level left on, or a token from $STUB_SECRETS under
+# any name. It answers as wrangler 4.149.0 does (`JSON.stringify(result, null, 2)`).
+#
+# STUB_LOGIN: oauth (default), missing and expired (wrangler's "Not logged in" error, exit 1),
+# api_token and api_key (an environment credential answered instead of the login), not-json,
+# no-token, bad-token (a token with a newline, which could inject a header), noisy (a line on stdout
+# before the JSON), broken (wrangler fails another way, exit 7).
+set -euo pipefail
+
+printf '%s\n' "$*" >>"$STUB_DIR/pnpm.log"
+for name in CLOUDFLARE_API_TOKEN CF_API_TOKEN CLOUDFLARE_API_KEY CF_API_KEY CLOUDFLARE_EMAIL CF_EMAIL; do
+  if [ -n "${!name:-}" ]; then echo "$name is set" >>"$STUB_DIR/pnpm-env.log"; fi
+done
+if [ "${WRANGLER_WRITE_LOGS:-}" != false ]; then echo 'WRANGLER_WRITE_LOGS is not false' >>"$STUB_DIR/pnpm-env.log"; fi
+if [ "${WRANGLER_SEND_METRICS:-}" != false ]; then echo 'WRANGLER_SEND_METRICS is not false' >>"$STUB_DIR/pnpm-env.log"; fi
+if [ "${WRANGLER_LOG:-}" != log ]; then echo 'WRANGLER_LOG is not log' >>"$STUB_DIR/pnpm-env.log"; fi
+others="$(env | grep -v '^STUB_' || true)"
+for secret in $STUB_SECRETS; do
+  case "$others" in *"$secret"*) echo 'a token is in its environment' >>"$STUB_DIR/pnpm-env.log" ;; esac
+done
+
+if [ "$#" -ne 9 ] || [ "$1" != --dir ] || [ "$3 $4 $5 $6 $7 $8 $9" != 'exec wrangler auth token --json --env-file /dev/null' ]; then
+  echo 'pnpm stand-in: unexpected arguments' >&2
+  exit 64
+fi
+
+case "${STUB_LOGIN:-oauth}" in
+  oauth) printf '{\n  "type": "oauth",\n  "token": "%s"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  missing | expired)
+    # shellcheck disable=SC2016 # wrangler's own message, backticks and all (cli.js:357183).
+    echo 'Not logged in. Please run `wrangler login` to authenticate.' >&2
+    exit 1
+    ;;
+  api_token) printf '{\n  "type": "api_token",\n  "token": "%s"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  api_key) printf '{\n  "type": "api_key",\n  "key": "%s",\n  "email": "a@example.invalid"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  broken)
+    echo 'pnpm stand-in: wrangler failed to start' >&2
+    exit 7
+    ;;
+  not-json) printf 'Retrieving the token: %s\n' "$STUB_LOGIN_TOKEN" ;;
+  no-token) printf '{\n  "type": "oauth"\n}\n' ;;
+  bad-token) printf '{\n  "type": "oauth",\n  "token": "%s\\nX-Injected: 1"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  noisy) printf 'Usage metrics tracking has changed since you last granted permission.\n{\n  "type": "oauth",\n  "token": "%s"\n}\n' "$STUB_LOGIN_TOKEN" ;;
+  *)
+    echo "pnpm stand-in: unknown STUB_LOGIN value ${STUB_LOGIN}" >&2
+    exit 99
+    ;;
+esac
