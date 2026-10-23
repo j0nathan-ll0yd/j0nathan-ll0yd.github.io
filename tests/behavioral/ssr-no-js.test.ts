@@ -165,7 +165,9 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     await expect(rows).toHaveCount(articles.length)
     await expect(page.locator('#cardReading .article-list-title')).toHaveText(articles.map((a) => a.articleTitle))
     await expect(page.locator('#cardReading .article-list-source')).toHaveText(articles.map((a) => `(${a.sourceTitle})`))
-    await expect(page.locator('#cardReading time.article-list-date')).toHaveText(articles.map(() => /\d+(w|d|h|m) ago|just now/))
+    await expect(page.locator('#cardReading time.article-list-date')).toHaveText(
+      articles.map((a) => `${new Date(a.savedAt).toISOString().slice(0, 16).replace('T', ' ')} UTC`)
+    )
     await expect(page.locator('#cardReading time.article-list-date').first()).toHaveAttribute('datetime', articles[0].savedAt)
     if (READING_LINKS === 'allow') {
       await expect(links).toHaveCount(articles.length)

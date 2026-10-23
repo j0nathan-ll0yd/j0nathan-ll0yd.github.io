@@ -44,24 +44,30 @@ import {
 } from '../data-plane/loader'
 import {type DashboardRender, toDashboardRender} from '../data-plane/render-model'
 import {
+  checkFragments,
   COMPOSED_MAX_FUTURE_SKEW_MS,
   COMPOSED_SCHEMA_VERSION,
-  type ComposedArtifact,
+  type ComposedArtifactBody,
   type ComposedFragmentId,
+  type ComposedValueFreePage,
   GATE_VARIANT,
+  toWireFacts,
   UNREADABLE_VARIANT,
   VALUE_FREE_FRAGMENT_OPTIONS,
-  type ValueFreePage,
-  type ValueFreeSet
+  type ValueFreeSet,
+  type WireFacts
 } from './artifact'
-import {checkFragment, type FragmentOptions} from './fragment-policy'
+import type {FragmentOptions} from './fragment-policy'
 import {COMPOSER_CONTRACT} from './paths'
+import {type PublishedEntry, publishedEntry as entryFor, type PublishedFragments} from './published'
 import {composableReading} from './reading-links'
 
 declare const __SSR_BUILD_ID__: string | undefined
 declare const __MIRRORED_BOOK_COVERS__: readonly string[] | undefined
 
 export { COMPOSER_CONTRACT }
+/** The KV contract (./published.ts), for the runner and the focus writer: one encoder per value. */
+export { PUBLISHED_FOCUS_KEY, PUBLISHED_TTL_S, publishedFocusValue, publishedFragmentsKey } from './published'
 /** This build's id (scripts/lib/build-id.mjs). Every artifact this module composes names it. */
 export const COMPOSER_BUILD: string = typeof __SSR_BUILD_ID__ === 'string' ? __SSR_BUILD_ID__ : 'unknown'
 /** The website's mirrored cover paths (Bookshelf `localCovers`), fixed at build time. */
@@ -91,6 +97,13 @@ export interface ComposeInput {
  */
 export type ComposeRefusal = 'hiding' | 'focus-unreadable' | 'suppressed' | 'focus-changed'
 
+/**
+ * A refusal as the composer returns it. `hiding` names the hiding value it read, so the runner
+ * publishes that value's value-free page (`composeValueFree().variants[currentFocus]`, atlas
+ * decision 0164 D1); every other refusal carries its word alone.
+ */
+export type ComposeRefused = {ok: false; refusal: 'hiding'; currentFocus: string} | {ok: false; refusal: Exclude<ComposeRefusal, 'hiding'>}
+
 function outcome(key: GatedKey, raw: unknown): DomainOutcome {
   if (raw === null || raw === undefined) {
     return {kind: 'unavailable', reason: 'http-404'}
@@ -108,8 +121,11 @@ let container: Awaited<ReturnType<typeof AstroContainer.create>> | null = null
 /** A module script element, as the container emits it after a component. */
 const MODULE_SCRIPT = /<script\b[^>]*>[\s\S]*?<\/script>/gi
 
-/** The artifact for these inputs, or why none may be published. */
-export async function compose(input: ComposeInput): Promise<{ok: true; artifact: ComposedArtifact} | {ok: false; refusal: ComposeRefusal}> {
+/**
+ * The artifact for these inputs, or why none may be published. The artifact carries `facts`, what
+ * the Worker's fragment check reads from its fragments (atlas decision 0164).
+ */
+export async function compose(input: ComposeInput): Promise<{ok: true; artifact: ComposedArtifactBody} | ComposeRefused> {
   let currentFocus: string
   try {
     currentFocus = decodeArtifact('focus', input.focus).currentFocus
@@ -118,7 +134,7 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
   }
   if ((HIDING_FOCUS_MODES as readonly string[]).includes(currentFocus)) {
     // A hiding page holds no value, and the Worker never fetches the artifact while hiding.
-    return {ok: false, refusal: 'hiding'}
+    return {ok: false, refusal: 'hiding', currentFocus}
   }
   const load: DashboardLoad = {
     focus: {state: 'visible', currentFocus},
@@ -130,8 +146,9 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
 }
 
 /** The artifact for one visible load, stamped with this build. */
-async function composeLoad(load: DashboardLoad, currentFocus: string, nowMs: number, localCovers: readonly string[]): Promise<ComposedArtifact> {
+async function composeLoad(load: DashboardLoad, currentFocus: string, nowMs: number, localCovers: readonly string[]): Promise<ComposedArtifactBody> {
   const render = toDashboardRender(load, nowMs)
+  const {fragments, facts} = await renderFragments(render.vm, localCovers, {maxGeneratedAtMs: nowMs + COMPOSED_MAX_FUTURE_SKEW_MS, overlayMayShow: false})
   return {
     schemaVersion: COMPOSED_SCHEMA_VERSION,
     composedAt: new Date(nowMs).toISOString(),
@@ -139,7 +156,8 @@ async function composeLoad(load: DashboardLoad, currentFocus: string, nowMs: num
     currentFocus,
     summary: render.summary,
     record: render.record,
-    fragments: await renderFragments(render.vm, localCovers, {maxGeneratedAtMs: nowMs + COMPOSED_MAX_FUTURE_SKEW_MS, overlayMayShow: false})
+    fragments,
+    facts
   }
 }
 
@@ -152,7 +170,7 @@ export interface ComposeDashboardOptions {
   base?: string
 }
 
-export type ComposeDashboardResult = {ok: true; artifact: ComposedArtifact; body: string} | {ok: false; refusal: ComposeRefusal}
+export type ComposeDashboardResult = {ok: true; artifact: ComposedArtifactBody; body: string} | ComposeRefused
 
 /**
  * The runner's entry: reads the focus signal and the eight exports through the public gated URLs,
@@ -168,7 +186,7 @@ export async function composeDashboard(options: ComposeDashboardOptions = {}): P
   const io = {base: options.base ?? CLOUDFRONT_BASE, timeouts: RUNNER_TIMEOUTS, ...(options.fetch ? {fetch: options.fetch} : {})}
   const load = await loadDashboard(io)
   if (load.focus.state === 'hiding') {
-    return {ok: false, refusal: 'hiding'}
+    return {ok: false, refusal: 'hiding', currentFocus: load.focus.currentFocus}
   }
   if (load.focus.state === 'unreadable') {
     return {ok: false, refusal: 'focus-unreadable'}
@@ -185,12 +203,15 @@ export async function composeDashboard(options: ComposeDashboardOptions = {}): P
   return {ok: true, artifact, body: JSON.stringify(artifact)}
 }
 
-/** The thirteen fragments for one set of view models, rendered by the design system's components. */
+/**
+ * The thirteen fragments for one set of view models, rendered by the design system's components,
+ * and the facts the Worker's own fragment check reads from them.
+ */
 async function renderFragments(
   vm: DashboardRender['vm'],
   localCovers: readonly string[],
   options: FragmentOptions
-): Promise<Record<ComposedFragmentId, string>> {
+): Promise<{fragments: Record<ComposedFragmentId, string>; facts: WireFacts}> {
   container ??= await AstroContainer.create()
   const parts: [ComposedFragmentId, unknown, object][] = [
     ['focusOverlay', FocusOverlay, vm.focusOverlay],
@@ -212,10 +233,9 @@ async function renderFragments(
   for (const [id, Component, props] of parts) {
     // The production components are Astro components; the container renders each with its props.
     const rendered = await container.renderToString(Component as Parameters<typeof container.renderToString>[0], {props: props as Record<string, unknown>})
-    fragments[id] = rootOnly(id, rendered, options)
+    fragments[id] = rootOnly(rendered)
   }
-  // Every id was rendered in the loop above.
-  return fragments as Record<ComposedFragmentId, string>
+  return checked(fragments, options)
 }
 
 /**
@@ -223,16 +243,28 @@ async function renderFragments(
  * hidden data carrier a component emits beside it (Hydration's `#cardHydrationData`). The container
  * appends each module script as a sibling, with a `src` that names this machine's source path; the
  * website page already loads the built, hashed scripts, so a fragment carries none (atlas decision
- * 0160, PR B review H1). The fragment must pass the Worker's own allowlist (./fragment-policy.ts),
- * so the composer never publishes an artifact the Worker would refuse.
+ * 0160, PR B review H1).
  */
-function rootOnly(id: ComposedFragmentId, rendered: string, options: FragmentOptions): string {
-  const fragment = rendered.replace(MODULE_SCRIPT, '').trim()
-  const checked = checkFragment(fragment, id, options)
-  if (!checked.ok) {
-    throw new Error(`the ${id} component rendered markup the Worker's allowlist refuses (${checked.reason})`)
+function rootOnly(rendered: string): string {
+  return rendered.replace(MODULE_SCRIPT, '').trim()
+}
+
+/**
+ * The fragments with their facts, when the Worker's own check admits them all (./artifact.ts
+ * `checkFragments`: each fragment against the allowlist, and no id shared across fragments), so the
+ * composer never publishes fragments the Worker would refuse. Throws otherwise.
+ */
+function checked(
+  fragments: Partial<Record<ComposedFragmentId, string>>,
+  options: FragmentOptions
+): {fragments: Record<ComposedFragmentId, string>; facts: WireFacts} {
+  const result = checkFragments(fragments, options)
+  if (!result.ok) {
+    const at = result.detail.indexOf(':')
+    const [id, reason] = [result.detail.slice(0, at), result.detail.slice(at + 1)]
+    throw new Error(`the ${id} component rendered markup the Worker's allowlist refuses (${reason})`)
   }
-  return fragment
+  return {fragments: result.fragments, facts: toWireFacts(result.facts)}
 }
 
 /** The states a page can show with no export value, by variant key (./artifact.ts ValueFreeSet). */
@@ -246,13 +278,13 @@ function valueFreeStates(): Record<string, ValueFreeState> {
 }
 
 /** One value-free page at `nowMs`. The overlay clock is left to the browser (`--:--:--` until clock.js runs). */
-async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: readonly string[]): Promise<ValueFreePage> {
+async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: readonly string[]): Promise<ComposedValueFreePage> {
   const render = toDashboardRender(valueFreeLoad(state), nowMs)
   const vm = {...render.vm, focusOverlay: {...render.vm.focusOverlay, now: ''}, dndOverlay: {...render.vm.dndOverlay, now: ''}}
   if (render.summary !== 'suppressed' && render.summary !== 'unavailable') {
     throw new Error(`value-free state ${state.kind} rendered the summary ${render.summary}`)
   }
-  return {summary: render.summary, fragments: await renderFragments(vm, localCovers, VALUE_FREE_FRAGMENT_OPTIONS)}
+  return {summary: render.summary, ...await renderFragments(vm, localCovers, VALUE_FREE_FRAGMENT_OPTIONS)}
 }
 
 /**
@@ -262,7 +294,7 @@ async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: 
  */
 export async function composeValueFree(input: {localCovers?: readonly string[]} = {}): Promise<ValueFreeSet> {
   const localCovers = input.localCovers ?? LOCAL_COVERS
-  const variants: Record<string, ValueFreePage> = {}
+  const variants: Record<string, ComposedValueFreePage> = {}
   for (const [key, state] of Object.entries(valueFreeStates())) {
     const page = await valueFreePage(state, Date.UTC(2026, 0, 1), localCovers)
     const later = await valueFreePage(state, Date.UTC(2027, 0, 1, 13, 37), localCovers)
@@ -272,4 +304,15 @@ export async function composeValueFree(input: {localCovers?: readonly string[]} 
     variants[key] = page
   }
   return {build: COMPOSER_BUILD, variants}
+}
+
+/**
+ * The KV entry the runner publishes for one composition of this build (atlas decision 0164): the
+ * `fragments:<build>` key, the value text and its metadata (./published.ts). `source` is a composed
+ * artifact, or a value-free page of `composeValueFree` while the focus value hides, the gate is shut
+ * or the signal is unreadable. `composedAt` is the artifact's own stamp, or the run's time for a
+ * value-free page.
+ */
+export function publishedEntry(source: PublishedFragments, composedAt: string): PublishedEntry {
+  return entryFor(source, COMPOSER_BUILD, composedAt)
 }

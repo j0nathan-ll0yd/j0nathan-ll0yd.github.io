@@ -19,6 +19,12 @@ const postAdapterDir = path.join(fixturesRoot, 'src', 'post-adapter')
 
 /** The smallest string worth treating as a marker: shorter ones collide with ordinary page text. */
 const MIN_MARKER_LENGTH = 12
+/**
+ * An absolute time as the design system's server markup writes it (`@j0nathan-ll0yd/web` 4.4.0:
+ * `<time>` text `YYYY-MM-DD HH:MM UTC`). A baseline timestamp in that form is a date, not a leaked
+ * legacy value, and the known-answer render may print the same instant.
+ */
+const ABSOLUTE_TIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/
 
 function stringLeaves(node: unknown, into: Set<string>): void {
   if (typeof node === 'string') {
@@ -44,7 +50,10 @@ export function legacyBaselineStrings(): string[] {
  * `allowedText` (the known-answer inputs and the data-free page text).
  */
 export function legacyMarkers(allowedText: string): string[] {
-  const candidates = [...legacyBaselineStrings().filter((value) => value.length >= MIN_MARKER_LENGTH), ...FIXTURE_SENTINELS.map((s) => s.text)]
+  const candidates = [
+    ...legacyBaselineStrings().filter((value) => value.length >= MIN_MARKER_LENGTH && !ABSOLUTE_TIME.test(value)),
+    ...FIXTURE_SENTINELS.map((s) => s.text)
+  ]
   return [...new Set(candidates)].filter((value) => !allowedText.includes(value))
 }
 

@@ -42,6 +42,7 @@
 // Cost: one linear pass. Every per-element check is O(1) (counters, not stack scans), and the
 // caller caps the artifact size (./artifact.ts COMPOSED_MAX_BYTES).
 import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {isRelativeStyle} from '@j0nathan-ll0yd/web/runtime/relative-time'
 import {WIDGET_STATES} from '@j0nathan-ll0yd/web/runtime/widget-state'
 import {FRAGMENT_CLASS_TOKENS, FRAGMENT_ROOT_CLASS_TOKENS} from './fragment-classes'
 import {READING_LINKS} from './reading-option'
@@ -114,6 +115,8 @@ const DATA_GRAMMAR: Readonly<Record<string, (value: string, options: FragmentOpt
   'data-local-covers': (value) => jsonOf(value, (parsed) => Array.isArray(parsed) && parsed.every((path) => typeof path === 'string' && imageAllowed(path))),
   'data-hydration-fixture': (value) => jsonOf(value, (parsed) => plainData(parsed, 0)),
   'data-generated-at': (value, options) => ISO_INSTANT.test(value) && options.maxGeneratedAtMs !== null && Date.parse(value) <= options.maxGeneratedAtMs,
+  // The relative label form the browser writes into a server-rendered <time> (web 4.4.0, fillRelativeTimes).
+  'data-relative': (value) => isRelativeStyle(value),
   'data-ssr-state': (value) => WIDGET_STATE_SET.has(value),
   'data-state-notice': (value) => WIDGET_STATE_SET.has(value),
   'data-state-scaffold': (value) => value === '',

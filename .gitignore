@@ -62,3 +62,7 @@ missing-images.txt
 
 # The dashboard composer bundle (scripts/build-composer.mjs)
 dist-composer/
+
+# The data-free page cut at build time (scripts/build-shell.mjs, atlas decision 0164): every build
+# rewrites it from dist/client/index.html.
+src/lib/composed/shell.generated.ts

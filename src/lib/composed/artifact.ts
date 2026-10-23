@@ -81,6 +81,25 @@ export interface ComposedArtifact {
 }
 
 /**
+ * What the allowlist read from an artifact's fragments, as plain arrays (atlas decision 0164): the
+ * wire form of ArtifactFacts. Every fragment id is a key of `scopes` and of `roots`. The composer
+ * publishes it beside the fragments, and the Worker that reads them turns it back into sets
+ * (`fromWireFacts`) for the shell check (./shell.ts `fitsShell`).
+ */
+export interface WireFacts {
+  ids: string[]
+  scopes: Record<ComposedFragmentId, string[]>
+  roots: Record<ComposedFragmentId, {classes: string[]; scopes: string[]}>
+}
+
+/**
+ * The artifact as the composer returns it: the artifact the Worker checks, plus the facts the
+ * composer's own fragment check produced (atlas decision 0164). An added field: `checkArtifact`
+ * ignores it, so a Worker that reads `/dashboard.json` serves the body as before.
+ */
+export type ComposedArtifactBody = ComposedArtifact & {facts: WireFacts}
+
+/**
  * The value-free pages (./paths.ts VALUE_FREE_PATH) hold no export value and depend only on the
  * build, so they are a static asset of the website, read by the Worker through the ASSETS binding. A
  * public request for the path gets the 404 page.
@@ -115,11 +134,42 @@ export interface ArtifactFacts {
   roots: Readonly<Record<ComposedFragmentId, {classes: ReadonlySet<string>; scopes: ReadonlySet<string>}>>
 }
 
+/** A value-free page as the composer returns it, with the facts its fragment check produced (atlas decision 0164). */
+export type ComposedValueFreePage = ValueFreePage & {facts: WireFacts}
+
 export interface ValueFreeSet {
   /** The build that composed the set; it must be the Worker's own. */
   build: string
   /** Keyed by hiding focus value, GATE_VARIANT or UNREADABLE_VARIANT. */
-  variants: Record<string, ValueFreePage>
+  variants: Record<string, ComposedValueFreePage>
+}
+
+/** One value per fragment id, in fragment-id order. */
+export function perFragment<T>(value: (id: ComposedFragmentId) => T): Record<ComposedFragmentId, T> {
+  const out: Partial<Record<ComposedFragmentId, T>> = {}
+  for (const id of COMPOSED_FRAGMENT_IDS) {
+    out[id] = value(id)
+  }
+  // Every fragment id was set in the loop above.
+  return out as Record<ComposedFragmentId, T>
+}
+
+/** The facts as plain arrays, in fragment-id order. */
+export function toWireFacts(facts: ArtifactFacts): WireFacts {
+  return {
+    ids: [...facts.ids],
+    scopes: perFragment((id) => [...facts.scopes[id]]),
+    roots: perFragment((id) => ({classes: [...facts.roots[id].classes], scopes: [...facts.roots[id].scopes]}))
+  }
+}
+
+/** The facts as sets. The caller checks the wire shape first. */
+export function fromWireFacts(wire: WireFacts): ArtifactFacts {
+  return {
+    ids: new Set(wire.ids),
+    scopes: perFragment((id) => new Set(wire.scopes[id])),
+    roots: perFragment((id) => ({classes: new Set(wire.roots[id].classes), scopes: new Set(wire.roots[id].scopes)}))
+  }
 }
 
 /**
@@ -211,16 +261,17 @@ function checkRecord(value: Record<string, unknown>): SsrRenderRecord | null {
   }
 }
 
-type FragmentsCheck =
+export type FragmentsCheck =
   | {ok: true; fragments: Record<ComposedFragmentId, string>; facts: ArtifactFacts}
   | {ok: false; detail: `${ComposedFragmentId}:${FragmentRejection | 'missing'}`}
 
 /**
  * Every fragment id, each admitted by the allowlist (./fragment-policy.ts), with no id carried
  * twice across the artifact. Otherwise the first fragment refused and why: a closed set, safe for
- * the log line.
+ * the log line. The Worker runs it on an artifact it reads; the composer runs it on what it renders,
+ * so it never publishes fragments the Worker would refuse, and its facts are the Worker's.
  */
-function checkFragments(value: Record<string, unknown>, options: FragmentOptions): FragmentsCheck {
+export function checkFragments(value: Record<string, unknown>, options: FragmentOptions): FragmentsCheck {
   const fragments: Partial<Record<ComposedFragmentId, string>> = {}
   const ids = new Set<string>()
   const scopes: Partial<Record<ComposedFragmentId, ReadonlySet<string>>> = {}
