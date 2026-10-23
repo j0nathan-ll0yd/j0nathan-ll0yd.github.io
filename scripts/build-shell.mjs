@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /* Cuts the data-free page at build time (atlas decision 0164, Variant D, Phase 1.2) into the
- * generated module src/lib/composed/shell.generated.ts, which the Worker compiles in. Every
- * `pnpm build` runs it (package.json postbuild); git ignores its output.
+ * generated module src/lib/composed/shell.generated.ts, which the Worker compiles in
+ * (src/lib/composed/compiled-shell.ts). git ignores its output. Every `pnpm build` runs it between
+ * two `astro build` passes (scripts/build-site.mjs): the first pass writes the page, the second
+ * compiles its cut into the Worker. The page does not depend on the Worker bundle, so the second
+ * pass writes the same page; `--check` proves it, and that the Worker bundle holds the shell.
  *
  * The cut is the one the Worker makes once per isolate today (src/lib/composed/shell.ts `cutShell`),
  * made here instead: parse5 gives the source offsets of the robots meta and of the 13 replaced
@@ -10,27 +13,34 @@
  * dist/client/index.html. tests/build/shell-cut.test.ts checks the cut against the page and against
  * the Worker's HTMLRewriter cut of the same page.
  *
- * Headers: the shell carries only `Content-Type: text/html; charset=utf-8`. The Worker took the
- * asset response's headers at run time; at build time there is no response. Every other header of
+ * Headers: the shell carries `Access-Control-Allow-Origin: *` (the asset plane's header) and
+ * `Content-Type: text/html; charset=utf-8`. The Worker took the asset response's headers at run
+ * time; at build time there is no response. Every other header of
  * the answer to `/` is set when it is served: the cache policy and `X-SSR-Data` by
  * src/lib/data-plane/ssr-response.ts `withDashboardHeaders` (which also drops the asset validators),
  * the security headers by the site middleware (src/lib/edge/middleware.ts).
  *
  * Run with tsx: it imports the TypeScript cut from src/. */
 import {createHash} from 'node:crypto'
-import {readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {parse} from 'parse5'
 import {COMPOSED_FRAGMENT_IDS} from '../src/lib/composed/artifact.ts'
 import {compileShell, cutAt} from '../src/lib/composed/shell.ts'
+import {ASSET_PLANE_HEADERS} from '../src/lib/edge/security-headers.ts'
 import {buildId} from './lib/build-id.mjs'
-import {clientDir} from './lib/build-paths.mjs'
+import {clientDir, serverDir} from './lib/build-paths.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const SHELL_MODULE = path.join(ROOT, 'src/lib/composed/shell.generated.ts')
-/** The headers the compiled shell carries (see the header comment). */
-export const SHELL_HEADERS = Object.freeze([['Content-Type', 'text/html; charset=utf-8']])
+/**
+ * The headers the compiled shell carries (see the header comment): the asset plane's own header,
+ * which `_headers` adds to the page the run-time cut read (src/lib/edge/security-headers.ts
+ * ASSET_PLANE_HEADERS), and the content type. Measured 2026-10-23 on wrangler dev: with these, the
+ * published `/` carries exactly the headers of the composed `/` from the same fragments.
+ */
+export const SHELL_HEADERS = Object.freeze([...ASSET_PLANE_HEADERS, ['Content-Type', 'text/html; charset=utf-8']])
 
 /** Every element under `node`, in document order. */
 function* elements(node) {
@@ -102,9 +112,31 @@ export function shellModule(html, build) {
   ].join('\n')
 }
 
+/** The Worker bundle's modules that name `sha256`: exactly one when the shell is compiled in. */
+export function bundlesNaming(sha256, dir = serverDir(ROOT)) {
+  return readdirSync(dir, {recursive: true}).map(String).filter((name) =>
+    name.endsWith('.mjs') && readFileSync(path.join(dir, name), 'utf8').includes(sha256)
+  )
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const page = path.join(clientDir(ROOT), 'index.html')
-  const source = shellModule(readFileSync(page, 'utf8'), buildId())
-  writeFileSync(SHELL_MODULE, source)
-  console.log(`[build-shell] wrote ${path.relative(ROOT, SHELL_MODULE)} (${source.length} bytes) from ${path.relative(ROOT, page)}`)
+  const html = readFileSync(page, 'utf8')
+  const source = shellModule(html, buildId())
+  if (process.argv.includes('--check')) {
+    // After the second `astro build` (package.json `build`): the module that build compiled in must be
+    // the cut of the page it shipped, and the Worker bundle must hold it.
+    if (!existsSync(SHELL_MODULE) || readFileSync(SHELL_MODULE, 'utf8') !== source) {
+      throw new Error('[build-shell] the compiled shell is not the cut of dist/client/index.html; the page changed between the two builds')
+    }
+    const sha256 = createHash('sha256').update(html).digest('hex')
+    const holders = bundlesNaming(sha256)
+    if (holders.length !== 1) {
+      throw new Error(`[build-shell] ${holders.length} Worker modules hold the compiled shell, not 1`)
+    }
+    console.log(`[build-shell] OK: dist/server/${holders[0]} holds the cut of dist/client/index.html (sha256 ${sha256.slice(0, 12)})`)
+  } else {
+    writeFileSync(SHELL_MODULE, source)
+    console.log(`[build-shell] wrote ${path.relative(ROOT, SHELL_MODULE)} (${source.length} bytes) from ${path.relative(ROOT, page)}`)
+  }
 }

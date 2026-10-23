@@ -17,6 +17,7 @@ interface WranglerConfig {
   workers_dev: boolean
   preview_urls: boolean
   observability: {enabled: boolean}
+  kv_namespaces?: {binding: string; id: string}[]
   assets: {binding: string; html_handling: string; not_found_handling: string; run_worker_first: string[]}
   [key: string]: unknown
 }
@@ -69,8 +70,8 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('cache')
   })
 
-  it('declares no binding beyond the static assets', () => {
-    for (const key of ['kv_namespaces', 'images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'durable_objects']) {
+  it('declares no binding beyond the static assets and the PAGE namespace (pinned below)', () => {
+    for (const key of ['images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'durable_objects']) {
       expect(config, key).not.toHaveProperty(key)
     }
     expect(config.observability).toEqual({enabled: true})
@@ -128,5 +129,11 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       const source = readFileSync(resolve(process.cwd(), 'src/pages', file), 'utf8')
       expect(source, file).toMatch(/^export const prerender = false$/m)
     }
+  })
+})
+
+describe('wrangler.jsonc: the published page data (atlas decision 0164)', () => {
+  it('binds ONE KV namespace as PAGE, the owner-created human-datastream-page', () => {
+    expect(config.kv_namespaces).toEqual([{binding: 'PAGE', id: 'dc9dc20506d1401488e00993370f81b2'}])
   })
 })
