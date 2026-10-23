@@ -282,7 +282,7 @@ describe('the composer equals the Astro render', () => {
   it('publishes nothing under a hiding or unreadable focus value', async () => {
     for (const currentFocus of ['Work', 'Do Not Disturb']) {
       const result = await compose({exports: {}, focus: {generatedAt: FRESH, currentFocus, hidingSince: FRESH}, nowMs: NOW, localCovers: LOCAL_COVERS})
-      expect(result).toEqual({ok: false, refusal: 'hiding'})
+      expect(result).toEqual({ok: false, refusal: 'hiding', currentFocus})
     }
     expect(await compose({exports: {}, focus: {currentFocus: 42}, nowMs: NOW, localCovers: LOCAL_COVERS})).toEqual({ok: false, refusal: 'focus-unreadable'})
   })
@@ -438,7 +438,7 @@ describe('composeDashboard: the runner entry (owner decision 2026-10-16, the liv
     const plane = dataPlane((key) =>
       key === 'focus' ? new Response(JSON.stringify({generatedAt: FRESH, currentFocus: mode, hidingSince: FRESH}), {headers: {'x-amz-cf-id': 'test'}}) : null
     )
-    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'hiding'})
+    expect(await composeDashboard({fetch: plane.fetch, nowMs: NOW})).toEqual({ok: false, refusal: 'hiding', currentFocus: mode})
     expect(plane.calls).toEqual([ENDPOINTS.focus])
   })
 

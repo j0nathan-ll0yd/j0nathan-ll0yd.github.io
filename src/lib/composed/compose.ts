@@ -97,6 +97,13 @@ export interface ComposeInput {
  */
 export type ComposeRefusal = 'hiding' | 'focus-unreadable' | 'suppressed' | 'focus-changed'
 
+/**
+ * A refusal as the composer returns it. `hiding` names the hiding value it read, so the runner
+ * publishes that value's value-free page (`composeValueFree().variants[currentFocus]`, atlas
+ * decision 0164 D1); every other refusal carries its word alone.
+ */
+export type ComposeRefused = {ok: false; refusal: 'hiding'; currentFocus: string} | {ok: false; refusal: Exclude<ComposeRefusal, 'hiding'>}
+
 function outcome(key: GatedKey, raw: unknown): DomainOutcome {
   if (raw === null || raw === undefined) {
     return {kind: 'unavailable', reason: 'http-404'}
@@ -118,7 +125,7 @@ const MODULE_SCRIPT = /<script\b[^>]*>[\s\S]*?<\/script>/gi
  * The artifact for these inputs, or why none may be published. The artifact carries `facts`, what
  * the Worker's fragment check reads from its fragments (atlas decision 0164).
  */
-export async function compose(input: ComposeInput): Promise<{ok: true; artifact: ComposedArtifactBody} | {ok: false; refusal: ComposeRefusal}> {
+export async function compose(input: ComposeInput): Promise<{ok: true; artifact: ComposedArtifactBody} | ComposeRefused> {
   let currentFocus: string
   try {
     currentFocus = decodeArtifact('focus', input.focus).currentFocus
@@ -127,7 +134,7 @@ export async function compose(input: ComposeInput): Promise<{ok: true; artifact:
   }
   if ((HIDING_FOCUS_MODES as readonly string[]).includes(currentFocus)) {
     // A hiding page holds no value, and the Worker never fetches the artifact while hiding.
-    return {ok: false, refusal: 'hiding'}
+    return {ok: false, refusal: 'hiding', currentFocus}
   }
   const load: DashboardLoad = {
     focus: {state: 'visible', currentFocus},
@@ -163,7 +170,7 @@ export interface ComposeDashboardOptions {
   base?: string
 }
 
-export type ComposeDashboardResult = {ok: true; artifact: ComposedArtifactBody; body: string} | {ok: false; refusal: ComposeRefusal}
+export type ComposeDashboardResult = {ok: true; artifact: ComposedArtifactBody; body: string} | ComposeRefused
 
 /**
  * The runner's entry: reads the focus signal and the eight exports through the public gated URLs,
@@ -179,7 +186,7 @@ export async function composeDashboard(options: ComposeDashboardOptions = {}): P
   const io = {base: options.base ?? CLOUDFRONT_BASE, timeouts: RUNNER_TIMEOUTS, ...(options.fetch ? {fetch: options.fetch} : {})}
   const load = await loadDashboard(io)
   if (load.focus.state === 'hiding') {
-    return {ok: false, refusal: 'hiding'}
+    return {ok: false, refusal: 'hiding', currentFocus: load.focus.currentFocus}
   }
   if (load.focus.state === 'unreadable') {
     return {ok: false, refusal: 'focus-unreadable'}
