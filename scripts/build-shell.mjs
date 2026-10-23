@@ -50,7 +50,8 @@ const attr = (element, name) => element.attrs.find((a) => a.name === name)?.valu
  * exactly one robots meta and exactly one element with each fragment id, each with an end tag.
  */
 export function shellOffsets(html) {
-  const document = parse(html, {sourceCodeLocationInfo: true})
+  // scriptingEnabled false: parse5 then reads <noscript> content as elements, as HTMLRewriter does.
+  const document = parse(html, {sourceCodeLocationInfo: true, scriptingEnabled: false})
   const robots = []
   const found = new Map(COMPOSED_FRAGMENT_IDS.map((id) => [id, []]))
   for (const element of elements(document)) {

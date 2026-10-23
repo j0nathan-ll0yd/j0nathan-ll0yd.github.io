@@ -16,7 +16,8 @@ import {
   publishedEntry,
   publishedFocusValue,
   type PublishedFragments,
-  publishedFragmentsKey
+  publishedFragmentsKey,
+  utf8Bytes
 } from '../../src/lib/composed/published'
 
 const fixture = (name: string) => readFileSync(new URL(`../fixtures/composed/${name}`, import.meta.url), 'utf8')
@@ -65,9 +66,19 @@ describe('the KV values (src/lib/composed/published.ts)', () => {
     expect(entry.metadata).toEqual({build: 'abc123', composedAt: ARTIFACT.composedAt, summary: ARTIFACT.summary})
   })
 
-  it('refuses metadata over the KV limit', () => {
+  it('refuses metadata over the KV limit, counted in UTF-8 bytes', () => {
     const source = ARTIFACT as unknown as PublishedFragments
     expect(() => publishedEntry(source, 'b'.repeat(PUBLISHED_METADATA_MAX_BYTES), ARTIFACT.composedAt)).toThrow(/metadata limit/)
+    // 400 characters, 1,200 bytes: a character count would admit it.
+    expect(() => publishedEntry(source, '\u20ac'.repeat(400), ARTIFACT.composedAt)).toThrow(/metadata limit/)
+  })
+
+  it('refuses a value over the 512 KiB cap, counted in UTF-8 bytes', () => {
+    // Under the cap in characters, over it in bytes: each euro sign is 3 bytes.
+    const big = '\u20ac'.repeat(Math.ceil(PUBLISHED_MAX_BYTES / 3))
+    expect(big.length).toBeLessThan(PUBLISHED_MAX_BYTES)
+    const source = {...ARTIFACT, fragments: {...ARTIFACT.fragments, cardBooks: big}} as unknown as PublishedFragments
+    expect(() => publishedEntry(source, 'abc123', ARTIFACT.composedAt)).toThrow(/PUBLISHED_MAX_BYTES/)
   })
 
   it('encodes the focus value with only its two fields', () => {
@@ -82,7 +93,7 @@ describe('the KV fixtures (tests/fixtures/composed/generate.mjs)', () => {
   it('hold the artifact fragments, facts and summary, under the fixture build', () => {
     const value = fixture('kv-fragments.json')
     expect(value).toBe(publishedEntry(ARTIFACT as unknown as PublishedFragments, 'fixture', ARTIFACT.composedAt).value)
-    expect(value.length).toBeLessThan(PUBLISHED_MAX_BYTES)
+    expect(utf8Bytes(value)).toBeLessThan(PUBLISHED_MAX_BYTES)
     expect(JSON.parse(fixture('kv-fragments.metadata.json'))).toEqual({build: 'fixture', composedAt: ARTIFACT.composedAt, summary: 'live'})
   })
 

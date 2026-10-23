@@ -12,11 +12,11 @@ import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {COMPOSED_FRAGMENT_IDS} from '../../src/lib/composed/artifact'
-import {compileShell, cutMarked} from '../../src/lib/composed/shell'
+import {compileShell, cutAt, cutMarked} from '../../src/lib/composed/shell'
 import {SHELL, SHELL_BUILD, SHELL_PAGE_SHA256} from '../../src/lib/composed/shell.generated'
 import {buildId} from '../../scripts/lib/build-id.mjs'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
-import {SHELL_HEADERS, shellModule} from '../../scripts/build-shell.mjs'
+import {SHELL_HEADERS, shellModule, shellOffsets} from '../../scripts/build-shell.mjs'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 const MARKER = / ssr-shell:(?:summary|start:[A-Za-z]+|end:[A-Za-z]+) /g
@@ -31,9 +31,28 @@ interface MiniflareLike {
   dispose(): Promise<void>
 }
 
+/** wrangler.jsonc's runtime pins: the rewriter runs under the Worker's own compatibility date and flags. */
+function workerRuntime(): {compatibilityDate: string; compatibilityFlags: string[]} {
+  const source = readFileSync(path.join(ROOT, 'wrangler.jsonc'), 'utf8')
+  // The file carries whole-line comments only (tests/unit/worker-routing.test.ts reads it the same way).
+  const config = JSON.parse(source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')) as {
+    compatibility_date: string
+    compatibility_flags: string[]
+  }
+  return {compatibilityDate: config.compatibility_date, compatibilityFlags: config.compatibility_flags}
+}
+
 let html: string
 let marked: string
 let miniflare: MiniflareLike | undefined
+
+/** The page as the Worker's HTMLRewriter pass marks it (src/lib/composed/shell.ts `markPage`). */
+async function markInWorker(page: string): Promise<string> {
+  if (miniflare === undefined) {
+    throw new Error('Miniflare did not start')
+  }
+  return (await miniflare.dispatchFetch('http://shell.test/', {method: 'POST', body: page})).text()
+}
 
 beforeAll(async () => {
   html = readFileSync(path.join(clientDir(ROOT), 'index.html'), 'utf8')
@@ -57,15 +76,10 @@ beforeAll(async () => {
   }
   miniflare = new Miniflare(
     convertV4MiniflareOptions({
-      workers: [{
-        name: 'shell-cut',
-        compatibilityDate: '2026-05-06',
-        compatibilityFlags: ['nodejs_compat'],
-        modules: [{type: 'ESModule', path: 'shell-cut.mjs', contents: bundle.outputFiles[0]?.text ?? ''}]
-      }]
+      workers: [{name: 'shell-cut', ...workerRuntime(), modules: [{type: 'ESModule', path: 'shell-cut.mjs', contents: bundle.outputFiles[0]?.text ?? ''}]}]
     })
   )
-  marked = await (await miniflare.dispatchFetch('http://shell.test/', {method: 'POST', body: html})).text()
+  marked = await markInWorker(html)
 }, 60_000)
 
 afterAll(async () => {
@@ -116,6 +130,23 @@ describe('the build-time shell cut (atlas decision 0164)', () => {
     expect(compileShell(SHELL)).toEqual(runtime)
     // A cut that read no scoped style at all is blind: the page carries some (four slots, measured 2026-10-23).
     expect(COMPOSED_FRAGMENT_IDS.some((id) => SHELL.scopes[id].size > 0)).toBe(true)
+  })
+
+  // The built page has whitespace between every cut, so it never meets a tie at one offset.
+  it('orders the markers at one offset as the rewriter does: a root that ends where the next begins, the meta just before a root', async () => {
+    const roots = COMPOSED_FRAGMENT_IDS.map((id) => `<div class="tri-card" id="${id}"><span>${id}</span></div>`).join('')
+    const pages = [
+      `<!DOCTYPE html><html><head><meta name="robots" content="index"></head><body><main>${roots}</main></body></html>`,
+      // A <noscript> before the roots: parse5 reads its content as elements, as the rewriter does.
+      `<!DOCTYPE html><html><head><meta name="robots" content="index"><noscript><p>x</p></noscript></head><body>${roots}</body></html>`,
+      `<!DOCTYPE html><html><head></head><body><meta name="robots" content="index">${roots}</body></html>`
+    ]
+    for (const page of pages) {
+      const fromWorker = cutMarked(await markInWorker(page), new Headers())
+      expect(compileShell(cutAt(page, shellOffsets(page), new Headers()))).toEqual(compileShell(fromWorker))
+      // Touching roots leave empty pieces between their slots: the tie was met.
+      expect(fromWorker.pieces.filter((piece) => piece === '').length).toBeGreaterThanOrEqual(COMPOSED_FRAGMENT_IDS.length - 1)
+    }
   })
 
   it('carries only the content type; the rest of the headers are set when the page is served', () => {

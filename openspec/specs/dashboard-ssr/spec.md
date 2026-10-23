@@ -290,7 +290,7 @@ unless it reads the same visible value; an artifact published before the change 
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
-Verified by `tests/oracle/composer-parity.test.ts:447` (race a) and
+Verified by `tests/oracle/composer-parity.test.ts:457` (race a) and
 `tests/unit/composed-read.test.ts:139` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
@@ -397,7 +397,7 @@ of the two later review rounds, and the other refusal cases), `tests/unit/ssr-re
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
 scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
 (`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
-`tests/oracle/composer-parity.test.ts:519` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
+`tests/oracle/composer-parity.test.ts:529` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
 the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
 keeps outside the cards).
 

@@ -66,6 +66,8 @@ declare const __SSR_BUILD_ID__: string | undefined
 declare const __MIRRORED_BOOK_COVERS__: readonly string[] | undefined
 
 export { COMPOSER_CONTRACT }
+/** The KV contract (./published.ts), for the runner and the focus writer: one encoder per value. */
+export { PUBLISHED_FOCUS_KEY, PUBLISHED_TTL_S, publishedFocusValue, publishedFragmentsKey } from './published'
 /** This build's id (scripts/lib/build-id.mjs). Every artifact this module composes names it. */
 export const COMPOSER_BUILD: string = typeof __SSR_BUILD_ID__ === 'string' ? __SSR_BUILD_ID__ : 'unknown'
 /** The website's mirrored cover paths (Bookshelf `localCovers`), fixed at build time. */

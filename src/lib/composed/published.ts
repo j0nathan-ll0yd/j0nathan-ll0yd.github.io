@@ -6,12 +6,13 @@
 // - `fragments:<build>`: the fragments this build's composer rendered and checked, with the facts its
 //   check produced (./artifact.ts `WireFacts`) and the summary, written by the ComposeDashboard runner
 //   after its composer run. While the focus value hides, the gate is shut or the signal is
-//   unreadable, the runner writes that state's value-free fragments to the same key (decision D1), so
-//   no gated bytes rest in KV while hiding.
+//   unreadable, each run writes that state's value-free fragments to the same key (decision D1). The
+//   last visible composition stays in KV from the moment the focus value turns hiding until the
+//   runner's next run overwrites it (at most its 5-minute backstop) or the key expires.
 //
 // Both keys expire after PUBLISHED_TTL_S. The Worker judges `focus` first and never reads the
-// fragments' bytes before that verdict. The composer exports `publishedEntry`, so the runner writes
-// exactly the shape this module defines.
+// fragments' bytes before that verdict, so it never serves that composition while hiding. The
+// composer exports the encoders, so the runner writes exactly the shapes this module defines.
 import type {SsrSummary} from '../data-plane/render-model'
 import {COMPOSED_MAX_AGE_MS, type ComposedFragmentId, type WireFacts} from './artifact'
 
@@ -26,11 +27,16 @@ export function publishedFragmentsKey(build: string): string {
 /** Both keys' TTL, in seconds: the composed artifact's age bound (690 s). */
 export const PUBLISHED_TTL_S = COMPOSED_MAX_AGE_MS / 1000
 
-/** The largest fragments value the Worker reads: 512 KiB. */
+/** The largest fragments value the Worker reads: 512 KiB, in UTF-8 bytes. */
 export const PUBLISHED_MAX_BYTES = 512 * 1024
 
-/** KV's limit on a key's metadata, serialized. */
+/** KV's limit on a key's metadata, serialized, in bytes. */
 export const PUBLISHED_METADATA_MAX_BYTES = 1024
+
+/** A string's UTF-8 length: KV counts bytes, and a fragment's text may hold any character. */
+export function utf8Bytes(text: string): number {
+  return new TextEncoder().encode(text).byteLength
+}
 
 /** The `focus` value. */
 export interface PublishedFocus {
@@ -62,14 +68,19 @@ export interface PublishedEntry {
 /**
  * The `fragments:<build>` entry for one composition (a composed artifact, or a value-free page) of
  * build `build`, composed at `composedAt` (ISO 8601). Only the three published fields are kept.
+ * Throws when the value is over PUBLISHED_MAX_BYTES or the metadata over the KV limit, so the runner
+ * never publishes an entry the Worker refuses.
  */
 export function publishedEntry(source: PublishedFragments, build: string, composedAt: string): PublishedEntry {
-  const value: PublishedFragments = {fragments: source.fragments, facts: source.facts, summary: source.summary}
+  const value = JSON.stringify({fragments: source.fragments, facts: source.facts, summary: source.summary} satisfies PublishedFragments)
   const metadata: PublishedMetadata = {build, composedAt, summary: source.summary}
-  if (JSON.stringify(metadata).length > PUBLISHED_METADATA_MAX_BYTES) {
+  if (utf8Bytes(JSON.stringify(metadata)) > PUBLISHED_METADATA_MAX_BYTES) {
     throw new Error('the fragments metadata is over the KV metadata limit')
   }
-  return {key: publishedFragmentsKey(build), value: JSON.stringify(value), metadata}
+  if (utf8Bytes(value) > PUBLISHED_MAX_BYTES) {
+    throw new Error('the fragments value is over PUBLISHED_MAX_BYTES')
+  }
+  return {key: publishedFragmentsKey(build), value, metadata}
 }
 
 /** The `focus` value. */

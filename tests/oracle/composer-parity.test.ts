@@ -377,6 +377,16 @@ describe('composeDashboard: the runner entry (owner decision 2026-10-16, the liv
     expect(COMPOSER_BUILD).toBe(BUILD)
   })
 
+  // atlas decision 0164: the runner and the focus writer encode the KV values with the website's own code.
+  it('exports the KV contract: both keys, the TTL and both encoders', async () => {
+    const module = (await import(COMPOSER.href)) as Record<string, unknown>
+    expect(module.PUBLISHED_FOCUS_KEY).toBe('focus')
+    expect(module.PUBLISHED_TTL_S).toBe(690)
+    expect((module.publishedFragmentsKey as (build: string) => string)(BUILD)).toBe(`fragments:${BUILD}`)
+    expect(typeof module.publishedFocusValue).toBe('function')
+    expect(typeof module.publishedEntry).toBe('function')
+  })
+
   it('reads the public data plane, composes, and stamps this build', async () => {
     const plane = dataPlane()
     const result = await composeDashboard({fetch: plane.fetch, nowMs: NOW})
@@ -410,7 +420,7 @@ describe('composeDashboard: the runner entry (owner decision 2026-10-16, the liv
     expect(entry.key).toBe(`fragments:${BUILD}`)
     expect(entry.metadata).toEqual({build: BUILD, composedAt: body.composedAt, summary: body.summary})
     expect(JSON.parse(entry.value)).toEqual({fragments: body.fragments, facts: body.facts, summary: body.summary})
-    expect(entry.value.length).toBeLessThan(PUBLISHED_MAX_BYTES)
+    expect(new TextEncoder().encode(entry.value).byteLength).toBeLessThan(PUBLISHED_MAX_BYTES)
   })
 
   it('reads CloudFront by default', async () => {

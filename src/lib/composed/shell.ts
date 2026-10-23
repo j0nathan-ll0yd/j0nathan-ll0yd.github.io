@@ -83,10 +83,14 @@ export interface ShellOffsets {
  * `cutMarked`. So the build cut and the Worker's cut derive slots, scopes, roots and ids one way.
  */
 export function cutAt(html: string, offsets: ShellOffsets, headers: Headers): Shell {
+  const inPage = (at: number) => Number.isInteger(at) && at >= 0 && at <= html.length
+  if (!inPage(offsets.summary)) {
+    throw new Error('bad offset for the summary slot')
+  }
   const marks: {at: number; order: number; text: string}[] = [{at: offsets.summary, order: 1, text: SENTINEL(SUMMARY_SLOT)}]
   for (const id of COMPOSED_FRAGMENT_IDS) {
     const {start, end} = offsets.slots[id]
-    if (!(Number.isInteger(start) && Number.isInteger(end) && start >= 0 && start < end && end <= html.length)) {
+    if (!(inPage(start) && inPage(end) && start < end)) {
       throw new Error(`bad offsets for ${id}`)
     }
     // At one offset, an end marker comes before a start marker, as the rewriter writes them.
