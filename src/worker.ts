@@ -170,3 +170,6 @@ async function serve(request: Request, env: WorkerEnv, context: AstroContext): P
 }
 
 export default {fetch: serve}
+
+// The developer API's rate-limit counter (wrangler.jsonc `durable_objects`): the main module exports it.
+export { ApiRateLimiter } from './durable/ApiRateLimiter'
