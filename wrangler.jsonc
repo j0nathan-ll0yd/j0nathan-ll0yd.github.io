@@ -65,26 +65,31 @@
   // `X-SSR-Data-Plane: fixture` it reads the committed fixtures instead. The Worker only reads this
   // namespace. Local runs (wrangler dev, astro preview) simulate a namespace from the binding.
   "kv_namespaces": [{"binding": "PAGE", "id": "dc9dc20506d1401488e00993370f81b2"}],
-  // The developer API facade's rate-limit counter (owner decision 2026-10-24, option B): one Durable
-  // Object per client. The class runs in its own Worker, human-datastream-rate-limiter
-  // (workers/rate-limiter/), and this binding reaches it through `script_name`
-  // (developers.cloudflare.com/workers/wrangler/configuration/, Durable Objects: "The name of the
-  // Worker where the Durable Object is defined, if it is external to this Worker"). It moved out
+  // The developer API facade's rate-limit counter (owner decision 2026-10-24, option B) runs in its
+  // own Worker, human-datastream-rate-limiter (workers/rate-limiter/, class ClientRateLimitWindow),
   // because Cloudflare generates no Version URL for a Worker that implements a Durable Object
   // (developers.cloudflare.com/workers/configuration/previews/, Limitations: "Version URLs are not
   // generated for Workers that implement a Durable Object, including Containers and Sandbox
-  // Workers."), and every PR preview of this Worker needs one. deploy.yml deploys the rate-limiter
-  // Worker first, so the class exists before this binding names it.
-  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ClientRateLimitWindow", "script_name": "human-datastream-rate-limiter"}]},
+  // Workers."), and every PR preview of this Worker needs one. This Worker declares NO
+  // `durable_objects` binding until the v2 delete below has applied: the facade (#395) adds
+  // {"name": "API_RATE_LIMITER", "class_name": "ClientRateLimitWindow", "script_name":
+  // "human-datastream-rate-limiter"} in a later deploy, with no new migration. No route calls the
+  // counter before then.
+  //
   // Migration history, legacy `migrations` array (not `exports`, which makes every `wrangler versions
   // upload` fail). Wrangler applies only the tags after the one the published Worker carries, so an
   // applied tag stays listed and is never edited. v1 created ApiRateLimiter in this Worker (#396); v2
   // deletes it here, with its stored windows, which last 60 s and are worth nothing
   // (developers.cloudflare.com/durable-objects/reference/durable-object-class-migrations-legacy/,
-  // Delete migration). The live class is the rate-limiter Worker's, ClientRateLimitWindow. The two
-  // names MUST differ: Cloudflare refuses a delete while any binding names the deleted class, even one
-  // that points at another Worker through `script_name`. The #397 rollout (2026-10-24) failed with
-  // "Cannot apply --delete-class migration to class 'ApiRateLimiter' without also removing the
-  // binding that references it. [code: 10061]". Never bind a class named ApiRateLimiter here again.
+  // Delete migration: "first remove the binding from the Worker").
+  //
+  // Cloudflare refused the delete twice on 2026-10-24 with "Cannot apply --delete-class migration to
+  // class 'ApiRateLimiter' without also removing the binding that references it. [code: 10061]":
+  // - the #397 rollout, with the binding {API_RATE_LIMITER, class ApiRateLimiter, script_name
+  //   human-datastream-rate-limiter};
+  // - the #398 rollout, with the class renamed to ClientRateLimitWindow in the rate-limiter Worker
+  //   and the binding pointing at it. The rename did not satisfy the check.
+  // The binding had to go in the same deploy as the delete. Add a binding back only once v2 is the
+  // published tag.
   "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}, {"tag": "v2", "deleted_classes": ["ApiRateLimiter"]}]
 }
