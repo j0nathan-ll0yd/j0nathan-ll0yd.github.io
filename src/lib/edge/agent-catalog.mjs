@@ -38,6 +38,14 @@ export const MCP_SERVER_VERSION = '1.0.0'
 export const OPENAPI_DOCUMENT_VERSION = '1.0.0'
 
 /**
+ * The facade's per-client request budget: `limit` requests per fixed window of `windowSeconds`,
+ * keyed on the client IP (owner decision 2026-10-24, option B). The route, the OpenAPI generator,
+ * the tests and the copy check read this one constant. `policy` names the quota policy item in the
+ * RateLimit-Policy and RateLimit fields (draft-ietf-httpapi-ratelimit-headers-11 sections 3 and 4).
+ */
+export const API_V1_RATE_LIMIT = Object.freeze({policy: 'default', limit: 60, windowSeconds: 60})
+
+/**
  * How long a client may cache the server card and the MCP list results (`server/discover`,
  * `tools/list`, `resources/list`). All of them change only on deploy. `resources/read` keeps
  * the SDK default (ttl 0, private), because focus state can hide an artifact at any moment.

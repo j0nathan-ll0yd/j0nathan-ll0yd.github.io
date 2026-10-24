@@ -1,10 +1,32 @@
 /// <reference types="astro/client" />
 
 // The Worker bindings and variables (atlas decision 0160, PR B). The server render reads only
-// DATA_PLANE_BASE and SSR_FAULT_INJECTION (src/lib/data-plane/request.ts); the repo does not pull
-// in @cloudflare/workers-types for one import.
+// DATA_PLANE_BASE and SSR_FAULT_INJECTION (src/lib/data-plane/request.ts); the API rate limiter is a
+// Durable Object (src/durable/ApiRateLimiter.ts, binding API_RATE_LIMITER). The repo does not pull in
+// @cloudflare/workers-types for these few members.
 declare module 'cloudflare:workers' {
   export const env: Readonly<Record<string, unknown>>
+
+  // The Durable Object base class and the members the API rate limiter uses
+  // (src/durable/ApiRateLimiter.ts; developers.cloudflare.com/durable-objects/api/base/).
+  interface DurableObjectSyncKv {
+    get(key: string): unknown
+    put(key: string, value: unknown): void
+    delete(key: string): boolean
+  }
+  interface DurableObjectStorage {
+    readonly kv: DurableObjectSyncKv
+    setAlarm(scheduledTime: number | Date): Promise<void>
+    deleteAll(): Promise<void>
+  }
+  interface DurableObjectState {
+    readonly storage: DurableObjectStorage
+  }
+  export abstract class DurableObject<Env = unknown> {
+    protected ctx: DurableObjectState
+    protected env: Env
+    constructor(ctx: DurableObjectState, env: Env)
+  }
 }
 
 // workerd's streaming HTMLRewriter (lol-html), which cuts the data-free page into the composed shell (atlas decision
