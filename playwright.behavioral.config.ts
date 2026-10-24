@@ -17,7 +17,7 @@ const isCI = !!process.env.CI
 const WRANGLER_DEV_PORT = process.env.WRANGLER_DEV_PORT ?? '8788'
 /** The rate-limiter Worker's `wrangler dev` port. */
 const RATE_LIMITER_DEV_PORT = process.env.RATE_LIMITER_DEV_PORT ?? '8790'
-const NO_JS_SPECS = ['**/ssr-no-js.test.ts']
+const NO_JS_SPECS = ['**/ssr-no-js.test.ts', '**/site-footer-nav.test.ts']
 
 export default defineConfig({
   testDir: './tests/behavioral',
@@ -34,6 +34,7 @@ export default defineConfig({
     '**/data-free-shell.test.ts',
     '**/devlog-matrix.test.ts',
     '**/health-matrix.test.ts',
+    '**/site-footer-nav.test.ts',
     '**/ssr-no-js.test.ts',
     '**/theatre-reviews-matrix.test.ts'
   ],
