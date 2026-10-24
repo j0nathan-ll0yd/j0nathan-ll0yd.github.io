@@ -27,6 +27,7 @@ import {createRequire} from 'node:module'
 import {expect, test} from './fixtures'
 import type {APIRequestContext, APIResponse} from '@playwright/test'
 import {probeSuppression, suppressionMessage} from '../../audits/lib/suppression.mjs'
+import {findClearEmails} from '../../scripts/check-no-clear-email.mjs'
 import {isAllowedImageUrl} from '../image-url-allowlist'
 
 // All navigations use page.goto('/'), resolved against `baseURL` in
@@ -397,10 +398,11 @@ test.describe('production home dashboard', () => {
 // zone Email Address Obfuscation rewrote the HTML at the edge; on Workers (decision 0160) it stopped,
 // and production served the address in clear for a day without any check noticing, because the
 // parity checks compared two hosts without zone features. The build now encodes every address
-// (src/lib/email/), and these tests watch the bytes a visitor actually receives.
+// (src/lib/email/), and these tests watch the bytes a visitor actually receives. The detector is the
+// postbuild gate's own: it admits the organization's contact alias inside the JSON-LD block and
+// nothing else (owner rulings 2026-10-24).
 const copyRequire = createRequire(import.meta.url)
 const identity = copyRequire('@j0nathan-ll0yd/copy/identity.flat.json') as {person: {email: string}}
-const ANY_ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/
 /** Pages that name the address: /privacy, and /contact (decision 0158 W2). */
 const OBFUSCATED_PAGES = ['/privacy', '/contact']
 
@@ -410,8 +412,7 @@ test.describe('email obfuscation on served pages', () => {
       const res = await getStable(page.request, `${path}?cb=${Date.now()}`, {headers: {'Cache-Control': 'no-cache'}})
       expect(res.status(), `${path} did not return HTTP 200`).toBe(200)
       const html = await res.text()
-      expect(html.match(ANY_ADDRESS)?.[0] ?? null, `${path} served an email address in clear`).toBeNull()
-      expect(html, `${path} served a mailto: link in clear`).not.toMatch(/mailto:/i)
+      expect(findClearEmails(html), `${path} served an email address or a mailto: link in clear`).toEqual([])
       expect(html, `${path} carries no encoded address`).toContain('data-email="')
 
       await page.goto(path)

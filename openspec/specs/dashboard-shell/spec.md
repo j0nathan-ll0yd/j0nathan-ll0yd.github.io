@@ -255,6 +255,33 @@ The canonical-URL build test resolves each link to a built page.
 - **THEN** the site nav SHALL be in the document with its four links, and the focus overlay SHALL
   sit on top of the Developers link
 
+### Requirement: The structured data names the organization first, with a contact alias and a PO Box
+
+Every page that carries the JSON-LD `@graph` SHALL open it with an `Organization` node, `@id`
+`<site URL>#organization` (owner rulings 2026-10-24, reversing atlas decision 0158 O5). The node
+SHALL take its name, description, contact type, contact email and postal address from
+`identity.organization` in `@j0nathan-ll0yd/copy`, its URL from the site URL, and its logo from the
+site icon. It SHALL carry `naics` `541511`, the Person as `founder` and `member`, the contact email
+at the top level and in a `ContactPoint`, and a `PostalAddress` with `postOfficeBoxNumber` and no
+street address. `WebSite.publisher` and `Dataset.publisher` SHALL reference it; `Person.memberOf`
+SHALL reference it. The Person's `contactPoint` SHALL carry the same email, and its `address` SHALL
+be the same PO Box address. The contact email is a purpose-made alias: the personal address
+(`identity.person.email`) SHALL appear in no page. `scripts/check-no-clear-email.mjs` SHALL admit
+the alias inside the JSON-LD block only. The build-time shell carries the graph, so the composed,
+data-free and value-free answers to `/` carry the node too.
+
+Verified by `tests/build/json-ld.test.ts:190` (the built pages: the node first, its members, the
+references, the Person's alias and address, no personal address) and
+`tests/unit/email-obfuscation.test.ts:77` (the gate admits the alias in the JSON-LD block only).
+
+#### Scenario: A crawler walks the publisher
+
+- **GIVEN** the built homepage
+- **WHEN** a crawler reads `WebSite.publisher`
+- **THEN** it SHALL resolve to the first graph node, an `Organization` with a `contactPoint` that
+  carries `email` and `contactType`, and an `address` that carries `postOfficeBoxNumber` and
+  `postalCode`
+
 ### Requirement: The production build cannot reach the fixtures package
 
 `@j0nathan-ll0yd/fixtures` SHALL be a devDependency. The production build SHALL fail when any

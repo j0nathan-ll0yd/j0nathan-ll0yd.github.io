@@ -5,7 +5,8 @@
 // `data-email` attribute, in the style of Cloudflare's `data-cfemail`: the first byte is the key and
 // every later byte is one character XOR the key. public/js/email-decode.js turns it back into a
 // mailto link in the browser. This module is the one encoder; ObfuscatedText.astro renders it, and
-// scripts/check-no-clear-email.mjs fails the build if any built HTML still carries an address.
+// scripts/check-no-clear-email.mjs fails the build if any built HTML still carries an address (the
+// organization alias inside the JSON-LD block excepted).
 
 import {createHash} from 'node:crypto'
 import {SITE_PAGE_PATHS} from '../edge/site-paths'

@@ -2,7 +2,7 @@
 import { getEntry } from 'astro:content';
 import { CLOUDFRONT_BASE, LLM_CONTENT_PATHS, DATASET_VARIABLES, DATASET_DISTRIBUTIONS } from '@j0nathan-ll0yd/portal-contract/constants';
 import { LLMS_TXT_PATH } from '../lib/edge/llms-artifacts';
-import { SITE_PAGE_PATHS, SITEMAP_INDEX_PATH } from '../lib/edge/site-paths';
+import { SITE_LOGO, SITE_PAGE_PATHS, SITEMAP_INDEX_PATH } from '../lib/edge/site-paths';
 import { llm } from '@j0nathan-ll0yd/copy';
 const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[Dashboard.astro] @j0nathan-ll0yd/copy identity entry missing — check the @j0nathan-ll0yd/copy install and content.config.ts');
@@ -47,6 +47,54 @@ const isHome = pagePath === '/';
 
 const websiteId = siteUrl + '#website';
 const personId = siteUrl + '#person';
+const organizationId = siteUrl + '#organization';
+const contactUrl = new URL(SITE_PAGE_PATHS.contact, Astro.site).href;
+
+// The organization's contact alias and PO Box (owner rulings 2026-10-24, reversing atlas decision
+// 0158 O5). The alias is a purpose-made, revocable address, not the personal one, which stays
+// obfuscated on /contact; scripts/check-no-clear-email.mjs admits this one address in this block
+// only. The Person carries the same alias and the same mailing address.
+const organizationEmail = identity.organization.contactEmail;
+const poBoxAddress = {
+  '@type': 'PostalAddress',
+  postOfficeBoxNumber: identity.organization.poBox,
+  addressLocality: identity.organization.locality,
+  addressRegion: identity.organization.region,
+  postalCode: identity.organization.postalCode,
+  addressCountry: identity.organization.country,
+};
+
+// First in every @graph: a checker that takes the first Organization, or walks WebSite.publisher,
+// lands here rather than on the nested employer or university.
+const organizationNode = {
+  '@type': 'Organization',
+  '@id': organizationId,
+  name: identity.organization.name,
+  url: siteUrl,
+  logo: {
+    '@type': 'ImageObject',
+    url: new URL(SITE_LOGO.path, Astro.site).href,
+    width: SITE_LOGO.width,
+    height: SITE_LOGO.height,
+  },
+  description: identity.organization.description,
+  // NAICS 541511 (Custom Computer Programming Services): the description is its title.
+  naics: '541511',
+  founder: { '@id': personId },
+  member: { '@id': personId },
+  sameAs: identity.person.sameAs,
+  email: organizationEmail,
+  contactPoint: [
+    {
+      '@type': 'ContactPoint',
+      contactType: identity.organization.contactType,
+      email: organizationEmail,
+      url: contactUrl,
+      availableLanguage: 'en',
+    },
+  ],
+  address: poBoxAddress,
+};
 
 // Real avatar (200x200), preloaded in the head. Distinct from the 1200x630 OG
 // card, which stays reserved for og:image social embeds.
@@ -69,19 +117,16 @@ const personNode = {
   url: siteUrl,
   image: avatarImage,
   sameAs: identity.person.sameAs,
-  // No `email`: the address never appears in clear in a page (atlas decision 0158, owner ruling
-  // 2026-10-15), and no obfuscation reaches inside a <script>. The contact page carries it, encoded.
+  // The organization's alias, never the personal address (identity.person.email), which appears
+  // in clear in no page (atlas decision 0158, owner ruling 2026-10-15).
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: identity.person.contactType,
-    url: new URL(SITE_PAGE_PATHS.contact, Astro.site).href,
+    email: organizationEmail,
+    url: contactUrl,
   },
-  address: {
-    '@type': 'PostalAddress',
-    addressLocality: identity.person.addressLocality,
-    addressRegion: identity.person.addressRegion,
-    addressCountry: identity.person.addressCountry,
-  },
+  address: poBoxAddress,
+  memberOf: { '@id': organizationId },
   knowsAbout: identity.seo.expertise,
   worksFor: {
     '@type': 'Organization',
@@ -107,7 +152,7 @@ const websiteFull = {
   url: siteUrl,
   inLanguage: 'en-US',
   image: { '@type': 'ImageObject', url: ogImage.toString() },
-  publisher: { '@id': personId },
+  publisher: { '@id': organizationId },
 };
 
 // Slim WebSite for non-home pages: identity only, so the full WebSite node is not
@@ -136,6 +181,7 @@ const datasetNode = {
   name: identity.site.name,
   description: llm.dashboard.datasetDescription,
   creator: { '@id': personId },
+  publisher: { '@id': organizationId },
   license: new URL(SITE_PAGE_PATHS.privacy, Astro.site).href,
   isAccessibleForFree: true,
   variableMeasured: [...DATASET_VARIABLES],
@@ -158,8 +204,8 @@ const webPageNode = {
 };
 
 const jsonLdGraph = isHome
-  ? [websiteFull, profilePageNode, personNode, datasetNode]
-  : [websiteSlim, webPageNode, personNode];
+  ? [organizationNode, websiteFull, profilePageNode, personNode, datasetNode]
+  : [organizationNode, websiteSlim, webPageNode, personNode];
 ---
 <!DOCTYPE html>
 <html lang="en">
