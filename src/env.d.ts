@@ -2,13 +2,13 @@
 
 // The Worker bindings and variables (atlas decision 0160, PR B). The server render reads only
 // DATA_PLANE_BASE and SSR_FAULT_INJECTION (src/lib/data-plane/request.ts); the API rate limiter is a
-// Durable Object (workers/rate-limiter/src/ApiRateLimiter.ts, bound here as API_RATE_LIMITER). The
+// Durable Object (workers/rate-limiter/src/ClientRateLimitWindow.ts, bound here as API_RATE_LIMITER). The
 // repo does not pull in @cloudflare/workers-types for these few members.
 declare module 'cloudflare:workers' {
   export const env: Readonly<Record<string, unknown>>
 
   // The Durable Object base class and the members the API rate limiter uses
-  // (workers/rate-limiter/src/ApiRateLimiter.ts; developers.cloudflare.com/durable-objects/api/base/).
+  // (workers/rate-limiter/src/ClientRateLimitWindow.ts; developers.cloudflare.com/durable-objects/api/base/).
   interface DurableObjectSyncKv {
     get(key: string): unknown
     put(key: string, value: unknown): void

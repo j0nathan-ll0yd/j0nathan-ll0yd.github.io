@@ -1,5 +1,5 @@
 // The fixed-window arithmetic of the developer API's rate limit, with no imports at all. Two Workers
-// share it: the rate-limiter Worker (workers/rate-limiter/, which owns the ApiRateLimiter Durable
+// share it: the rate-limiter Worker (workers/rate-limiter/, which owns the ClientRateLimitWindow Durable
 // Object) and the site Worker (src/lib/edge/rate-limit.ts, which re-exports it). Keep it
 // dependency-free, so the rate-limiter Worker bundles nothing else from the site.
 

@@ -54,7 +54,7 @@ jobs:
         run: node scripts/check-deploy-vars.mjs
 
       - name: Deploy the rate-limiter Worker
-        # The developer API's ApiRateLimiter Durable Object runs in its own Worker,
+        # The developer API's ClientRateLimitWindow Durable Object runs in its own Worker,
         # human-datastream-rate-limiter (workers/rate-limiter/wrangler.jsonc), because Cloudflare
         # generates no Version URL for a Worker that implements a Durable Object
         # (developers.cloudflare.com/workers/configuration/previews/, Limitations). It deploys FIRST:

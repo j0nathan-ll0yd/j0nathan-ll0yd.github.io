@@ -135,9 +135,15 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
 
 describe('wrangler.jsonc: the developer API rate limiter (owner decision 2026-10-24, option B)', () => {
   it('binds the class in the rate-limiter Worker through script_name, never through exports', () => {
-    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ApiRateLimiter', script_name: limiterConfig.name}]})
+    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ClientRateLimitWindow', script_name: limiterConfig.name}]})
     // Applied migration tags are history: v1 created the class here (#396), v2 deletes it here.
     expect(config.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}, {tag: 'v2', deleted_classes: ['ApiRateLimiter']}])
+    // Cloudflare refuses a delete while any binding names the deleted class, whatever its script_name
+    // (error 10061, the #397 rollout). The bound class and every deleted class must differ.
+    const deleted = (config.migrations as Array<{deleted_classes?: string[]}>).flatMap((step) => step.deleted_classes ?? [])
+    for (const binding of (config.durable_objects as {bindings: Array<{class_name: string}>}).bindings) {
+      expect(deleted, binding.class_name).not.toContain(binding.class_name)
+    }
     // Durable Object `exports` entries make every `wrangler versions upload` (the PR preview) fail.
     expect(config).not.toHaveProperty('exports')
   })
@@ -148,7 +154,11 @@ describe('wrangler.jsonc: the developer API rate limiter (owner decision 2026-10
     expect(limiterConfig.compatibility_date).toBe(config.compatibility_date)
     expect(limiterConfig.workers_dev).toBe(false)
     expect(limiterConfig.preview_urls).toBe(false)
-    expect(limiterConfig.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}])
+    // v1 is live (#397); the rename to the class the site binds is a migration, never an edit of v1.
+    expect(limiterConfig.migrations).toEqual([
+      {tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']},
+      {tag: 'v2', renamed_classes: [{from: 'ApiRateLimiter', to: 'ClientRateLimitWindow'}]}
+    ])
     for (const key of ['routes', 'route', 'assets', 'durable_objects', 'kv_namespaces', 'vars', 'exports', 'services']) {
       expect(limiterConfig, key).not.toHaveProperty(key)
     }

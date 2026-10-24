@@ -168,7 +168,7 @@ jobs:
         run: |
           out="$RUNNER_TEMP/rate-limiter-dry-run"
           pnpm exec wrangler deploy --dry-run --config workers/rate-limiter/wrangler.jsonc --outdir "$out"
-          grep -q 'ApiRateLimiter' "$out/index.js"
+          grep -q 'ClientRateLimitWindow' "$out/index.js"
 
   spec-severity-ratchet:
     runs-on: [self-hosted, linux, arm64, node]
