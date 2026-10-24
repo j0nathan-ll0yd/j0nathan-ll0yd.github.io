@@ -264,7 +264,7 @@ did not answer, because the fail-open route sent the request past it, so the abs
 nothing.
 
 Verified by `audits/__tests__/b2-llms.test.ts:271` (the edge-cache arm over Worker, cached,
-aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.test.ts:63`
+aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.test.ts:65`
 (no Workers Caching in `wrangler.jsonc`).
 
 The non-deploying weekly audit also SHALL inspect active account- and zone-level Cache Rules,

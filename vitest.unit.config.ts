@@ -18,5 +18,5 @@ export default defineConfig({
   // `cloudflare:workers` is a workerd built-in; Node gets a stand-in (tests/stubs/cloudflare-workers.ts).
   resolve: {alias: {'cloudflare:workers': fileURLToPath(new URL('./tests/stubs/cloudflare-workers.ts', import.meta.url))}},
   define: {[MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(mirroredBookCovers()), __SSR_BUILD_ID__: JSON.stringify('test')},
-  test: {environment: 'jsdom', include: ['tests/unit/**/*.test.ts', 'audits/__tests__/**/*.test.ts'], clearMocks: true}
+  test: {environment: 'jsdom', include: ['tests/unit/**/*.test.ts', 'audits/__tests__/**/*.test.ts', 'workers/*/test/**/*.test.ts'], clearMocks: true}
 })

@@ -5,11 +5,13 @@
 // `ctx.storage.kv`). An alarm at the window end deletes the object's storage, so nothing about a
 // client outlives its window.
 //
-// src/worker.ts exports this class; wrangler.jsonc binds it as API_RATE_LIMITER and creates it with a
-// `new_sqlite_classes` migration.
+// This Worker (human-datastream-rate-limiter, workers/rate-limiter/wrangler.jsonc) exports the class
+// and creates it with a `new_sqlite_classes` migration. The site Worker binds it as API_RATE_LIMITER
+// through `script_name` (wrangler.jsonc), because Cloudflare generates no Version URL for a Worker
+// that implements a Durable Object, and the site's PR previews need one.
 
 import {DurableObject} from 'cloudflare:workers'
-import {consumeWindow, isWindowState, type RateLimitDecision} from '../lib/edge/rate-limit'
+import {consumeWindow, isWindowState, type RateLimitDecision} from '../../../src/lib/edge/rate-limit-window'
 
 const STATE_KEY = 'window'
 

@@ -53,6 +53,20 @@ jobs:
         # (the Step 6.10 fault header) are for tests and the PR preview only.
         run: node scripts/check-deploy-vars.mjs
 
+      - name: Deploy the rate-limiter Worker
+        # The developer API's ApiRateLimiter Durable Object runs in its own Worker,
+        # human-datastream-rate-limiter (workers/rate-limiter/wrangler.jsonc), because Cloudflare
+        # generates no Version URL for a Worker that implements a Durable Object
+        # (developers.cloudflare.com/workers/configuration/previews/, Limitations). It deploys FIRST:
+        # the site Worker binds the class through `script_name`, so the class must exist before the
+        # site deploy names it. A failure here fails the job before the site deploy runs, and
+        # production keeps serving the previous site version. `--config` names this Worker's own
+        # file; the site deploy below reads the build's generated config.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config workers/rate-limiter/wrangler.jsonc
+
       - name: Deploy to Cloudflare Workers
         # atlas decision 0160, PR A. `astro build` wrote dist/server/wrangler.json and the
         # .wrangler/deploy/config.json pointer to it, so `wrangler deploy` reads the generated

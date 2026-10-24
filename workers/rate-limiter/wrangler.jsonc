@@ -1,0 +1,22 @@
+// The rate-limiter Worker: it hosts the developer API's ApiRateLimiter Durable Object and nothing else.
+// The site Worker (../../wrangler.jsonc) binds the class through `script_name`. It lives apart because
+// Cloudflare generates no Version URL for a Worker that implements a Durable Object
+// (developers.cloudflare.com/workers/configuration/previews/, Limitations: "Version URLs are not
+// generated for Workers that implement a Durable Object, including Containers and Sandbox Workers."),
+// and every site PR preview needs one. deploy.yml deploys this Worker before the site Worker.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "human-datastream-rate-limiter",
+  "main": "./src/index.ts",
+  // The site Worker's date (wrangler.jsonc); the class needs nothing newer.
+  "compatibility_date": "2026-05-06",
+  // No public hostname: no workers.dev alias and no Version URLs. Only the site Worker's binding reaches it.
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {"enabled": true},
+  // SQLite storage, the only backend for a new namespace. The legacy `migrations` array, not `exports`:
+  // Durable Object `exports` entries make every `wrangler versions upload` fail
+  // (developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/). Never edit an
+  // applied tag: add a new one.
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}]
+}

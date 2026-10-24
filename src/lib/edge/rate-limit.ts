@@ -1,6 +1,8 @@
 // The developer API facade's per-client rate limit (owner decision 2026-10-24, option B): a fixed
-// window counter that one Durable Object per client owns (src/durable/ApiRateLimiter.ts), so the
-// remaining quota and the window end it reports are exact and global, not per-location estimates.
+// window counter that one Durable Object per client owns, so the remaining quota and the window end
+// it reports are exact and global, not per-location estimates. The object runs in its own Worker
+// (workers/rate-limiter/), bound here through `script_name`; the window arithmetic both Workers run
+// is ./rate-limit-window.ts.
 //
 // The header syntax follows draft-ietf-httpapi-ratelimit-headers-11 (2026-05-23):
 // - section 3.1: `RateLimit-Policy` is a List of quota policy Items; the Item is a String, `q` the
@@ -13,57 +15,12 @@
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {errorClass, withDeadline} from '../data-plane/admission'
 import {API_V1_RATE_LIMIT} from './agent-catalog.mjs'
+import type {RateLimitDecision, RateLimitPolicy} from './rate-limit-window'
 
-export interface RateLimitPolicy {
-  readonly policy: string
-  readonly limit: number
-  readonly windowSeconds: number
-}
-
-/** What the counter stores for one client: the requests counted in the window, and when it ends. */
-export interface WindowState {
-  count: number
-  windowEndMs: number
-}
-
-/** True for a stored window: two non-negative integers. */
-export function isWindowState(value: unknown): value is WindowState {
-  if (typeof value !== 'object' || value === null) {
-    return false
-  }
-  const {count, windowEndMs} = value as Record<string, unknown>
-  return Number.isInteger(count) && (count as number) >= 0 && Number.isInteger(windowEndMs) && (windowEndMs as number) >= 0
-}
-
-export interface RateLimitDecision {
-  allowed: boolean
-  /** The available quota after this request (draft section 4.1.1 `r`). */
-  remaining: number
-  /** Whole seconds until the window ends (draft section 4.1.2 `t`), at least 1. */
-  resetSeconds: number
-}
+export { consumeWindow, isWindowState } from './rate-limit-window'
+export type { RateLimitDecision, RateLimitPolicy, WindowState } from './rate-limit-window'
 
 export const RATE_LIMIT_POLICY: RateLimitPolicy = API_V1_RATE_LIMIT
-
-/**
- * One request against a fixed window. Pure: the Durable Object runs it over its stored state, and
- * the unit tests run it with a fixed clock. A request at or after the window end opens a new window.
- * A refused request is not counted, so the count never exceeds the limit.
- */
-export function consumeWindow(
-  state: WindowState | undefined,
-  nowMs: number,
-  policy: RateLimitPolicy = RATE_LIMIT_POLICY
-): {state: WindowState; decision: RateLimitDecision} {
-  const open = state !== undefined && nowMs < state.windowEndMs
-  const current: WindowState = open ? {...state} : {count: 0, windowEndMs: nowMs + policy.windowSeconds * 1000}
-  const allowed = current.count < policy.limit
-  if (allowed) {
-    current.count += 1
-  }
-  const resetSeconds = Math.max(1, Math.ceil((current.windowEndMs - nowMs) / 1000))
-  return {state: current, decision: {allowed, remaining: policy.limit - current.count, resetSeconds}}
-}
 
 /** The `RateLimit-Policy` field value (draft section 3.1), for example `"default";q=60;w=60`. */
 export function rateLimitPolicyHeader(policy: RateLimitPolicy = RATE_LIMIT_POLICY): string {

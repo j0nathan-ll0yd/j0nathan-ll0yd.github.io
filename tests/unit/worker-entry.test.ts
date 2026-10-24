@@ -19,7 +19,7 @@ vi.mock('@astrojs/cloudflare/handler', () => ({
   })
 }))
 
-const {default: worker, ApiRateLimiter: exportedLimiter} = await import('../../src/worker')
+const {default: worker, ...workerExports} = await import('../../src/worker')
 
 const ASSETS = {
   async fetch(input: Request | URL | string): Promise<Response> {
@@ -304,8 +304,16 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
 })
 
 describe('the rate limiter Durable Object', () => {
-  it('exports the class the API_RATE_LIMITER binding names', async () => {
-    const {ApiRateLimiter} = await import('../../src/durable/ApiRateLimiter')
-    expect(exportedLimiter).toBe(ApiRateLimiter)
+  // Cloudflare generates no Version URL for a Worker that implements a Durable Object
+  // (developers.cloudflare.com/workers/configuration/previews/, Limitations), so the site Worker must
+  // never export one again; the class lives in the rate-limiter Worker (workers/rate-limiter/).
+  it('is not exported by the site Worker, and is exported by the rate-limiter Worker', async () => {
+    expect(Object.keys(workerExports)).toEqual([])
+    const [limiterWorker, {ApiRateLimiter}] = await Promise.all([
+      import('../../workers/rate-limiter/src/index'),
+      import('../../workers/rate-limiter/src/ApiRateLimiter')
+    ])
+    expect(limiterWorker.ApiRateLimiter).toBe(ApiRateLimiter)
+    expect(limiterWorker.default.fetch().status).toBe(404)
   })
 })
