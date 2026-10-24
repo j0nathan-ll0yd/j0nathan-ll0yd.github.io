@@ -12,6 +12,7 @@ import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {errorClass} from '../data-plane/admission'
 import {type RenderVars, upstreamForRequest} from '../data-plane/request'
+import {LLM_WITHHELD_PATHS} from './agent-catalog.mjs'
 import {AGENT_PATHS} from './agent-paths.mjs'
 import {problemResponse} from './problem'
 import {
@@ -62,10 +63,18 @@ const PROXY_DIAGNOSTIC_HEADERS = Object.freeze([
   'Warning'
 ])
 
+/**
+ * The versioning fields a deprecated version's responses carry (RFC 9745 Deprecation, RFC 8594 Sunset,
+ * RFC 8288 Link rel="successor-version"), and the 405 problem's Allow. None is CORS-safelisted, so a
+ * browser agent reads them only when exposed, before the first v2 ships.
+ */
+const VERSIONING_HEADERS = Object.freeze(['Deprecation', 'Sunset', 'Link', 'Allow'])
+
 /** Wildcard CORS: the data is public and no request carries credentials, so no `Vary: Origin`. */
+export const API_V1_EXPOSED_HEADERS: readonly string[] = Object.freeze([...RATE_LIMIT_HEADER_NAMES, ...VERSIONING_HEADERS, ...PROXY_DIAGNOSTIC_HEADERS])
 const CORS_HEADERS: ReadonlyArray<readonly [string, string]> = Object.freeze([
   ['Access-Control-Allow-Origin', '*'],
-  ['Access-Control-Expose-Headers', [...RATE_LIMIT_HEADER_NAMES, ...PROXY_DIAGNOSTIC_HEADERS].join(', ')]
+  ['Access-Control-Expose-Headers', API_V1_EXPOSED_HEADERS.join(', ')]
 ])
 
 /** What one request needs beyond itself: the Worker variables (test seams) and the counter binding. */
@@ -85,10 +94,27 @@ export interface ApiV1Context {
   waitUntil(promise: Promise<unknown>): void
 }
 
+/**
+ * The exports whose readers keep NO last-known-good copy: the raw health, sleep and workouts exports
+ * (`LLM_CHANNEL_POLICY.coarsenedOnly`). Raw point-in-time health values are the estate's sensitive
+ * class (atlas decision 0096: LLM channels carry only a coarsened health band; atlas decision 0158:
+ * the raw exports never reach an LLM channel). A last-known-good copy lives in `caches.default`, the
+ * data-center cache shared with the zone (proxy.ts `saveLastKnownGood`, key `lkgCacheKey`), so these
+ * three never enter it: when CloudFront fails, their reader answers the upstream-unavailable problem.
+ * The other six exports keep the factory default, the copy the MCP readers already store under the
+ * same key (owner decision 2026-10-24, review of #395, M1).
+ */
+export const API_V1_NO_LAST_KNOWN_GOOD_PATHS: readonly string[] = LLM_WITHHELD_PATHS
+
 /** One gated reader per export, built once per isolate (the MCP server's pattern). */
 const readers = new Map<string, (context: CloudfrontProxyContext) => Promise<Response>>(API_V1_PATHS.map((path) => [
   path,
-  makeCloudfrontProxy({path, contentType: API_V1_CONTENT_TYPE, cachePolicy: LLM_OUTPUT_CACHE_POLICY})
+  makeCloudfrontProxy({
+    path,
+    contentType: API_V1_CONTENT_TYPE,
+    cachePolicy: LLM_OUTPUT_CACHE_POLICY,
+    lastKnownGood: !API_V1_NO_LAST_KNOWN_GOOD_PATHS.includes(path)
+  })
 ]))
 
 /** The headers every facade response carries: CORS and the policy, which never changes between requests. */

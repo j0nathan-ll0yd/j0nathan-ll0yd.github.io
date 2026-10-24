@@ -8,9 +8,10 @@
  * is read from the preview.
  *
  * tests/unit/api-v1.test.ts runs the handler in Node with a stub counter. This suite proves the real
- * object: a 61-request burst gets exactly one 429. Each test sends its own CF-Connecting-IP, so each
- * owns a fresh counter (the object is named by the digest of that address). Cloudflare overwrites the
- * header on every proxied request, so a deployed client cannot choose its own counter this way.
+ * object: a 61-request burst gets exactly one 429. Each test sends its own CF-Connecting-IP, an IPv6
+ * address in its own /64, so each owns a fresh counter (the object is named by the digest of the
+ * /64). Cloudflare overwrites the header on every proxied request, so a deployed client cannot choose
+ * its own counter this way.
  */
 import {type APIResponse, expect, test} from '@playwright/test'
 import {ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -23,9 +24,12 @@ const POLICY = `"default";q=${API_V1_RATE_LIMIT.limit};w=${API_V1_RATE_LIMIT.win
 
 let clients = 0
 /** A client address no other test in this run uses. */
+/** This run's IPv6 prefix: a rerun inside one 60 s window against a reused server gets fresh counters. */
+const RUN = (Date.now() % 0xffff).toString(16)
 function client(): Record<string, string> {
   clients += 1
-  return {'CF-Connecting-IP': `198.51.100.${clients}`, 'X-Run': String(Date.now())}
+  // The counter keys on the /64 (src/lib/edge/rate-limit.ts clientPartition), so each client owns one.
+  return {'CF-Connecting-IP': `2001:db8:${RUN}:${clients.toString(16)}::1`}
 }
 
 /** The `r` and `t` of a RateLimit field value. */

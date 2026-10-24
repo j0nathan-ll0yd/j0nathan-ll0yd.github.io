@@ -6,10 +6,20 @@ import {ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {isSuppressionValue} from '../../src/lib/data-plane/admission'
 import {AGENT_PATHS, API_PROBLEMS, API_V1_BASE, API_V1_RATE_LIMIT, DATA_SOURCES} from '../../src/lib/edge/agent-catalog.mjs'
-import {API_V1_VALID_PATHS, apiNotFound, type GatedReader, handleApiV1, resolveApiV1Path, UPSTREAM_RETRY_AFTER_SECONDS} from '../../src/lib/edge/api-v1'
+import {
+  API_V1_EXPOSED_HEADERS,
+  API_V1_NO_LAST_KNOWN_GOOD_PATHS,
+  API_V1_VALID_PATHS,
+  apiNotFound,
+  type GatedReader,
+  handleApiV1,
+  resolveApiV1Path,
+  UPSTREAM_RETRY_AFTER_SECONDS
+} from '../../src/lib/edge/api-v1'
 import {onRequest as siteMiddleware} from '../../src/lib/edge/middleware'
 import {PROBLEM_MEDIA_TYPE, problemBody} from '../../src/lib/edge/problem'
 import {SUPPRESSION_REASON, SUPPRESSION_SOURCE} from '../../src/lib/edge/proxy'
+import {COMPOSED_AT_METADATA_HEADER} from '../../src/lib/edge/feed-artifacts'
 import {onRequest as cspReport} from '../../src/pages/api/csp-report'
 import {clientKey, type RateLimitDecision, type RateLimiterNamespace} from '../../src/lib/edge/rate-limit'
 import {suppressionBody} from '../../audits/lib/suppression.mjs'
@@ -334,6 +344,100 @@ describe('handleApiV1: an unexpected error', () => {
     expect(response.status).toBe(502)
     expect(await problemOf(response)).toMatchObject({status: 502, instance: '/api/v1/books.json'})
     error.mockRestore()
+  })
+})
+
+describe('handleApiV1: last-known-good copies (review of #395, M1 and I2)', () => {
+  /** A Cache API stand-in that records every write and answers every read with a stored copy. */
+  function recordingCache() {
+    const puts: string[] = []
+    const matches: string[] = []
+    vi.stubGlobal('caches', {
+      default: {
+        put: async (request: Request) => void puts.push(new URL(request.url).pathname),
+        match: async (request: Request) => {
+          matches.push(new URL(request.url).pathname)
+          return undefined
+        }
+      }
+    })
+    return {puts, matches}
+  }
+
+  /** CloudFront through the fixture seam: focus visible, the export answering `status`. */
+  function upstream(status: number) {
+    vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/focus.json')) {
+        return new Response(JSON.stringify({generatedAt: new Date().toISOString(), currentFocus: 'None'}), {
+          headers: {'content-type': 'application/json', 'x-amz-cf-id': 'test'}
+        })
+      }
+      // The composition stamp the last-known-good write requires (proxy.ts saveLastKnownGood).
+      const headers = {'content-type': 'application/json', 'x-amz-cf-id': 'test', [COMPOSED_AT_METADATA_HEADER]: new Date().toISOString()}
+      return new Response(status === 200 ? '{"x":1}' : 'boom', {status, headers})
+    })
+  }
+
+  const local = (path: string) => ({
+    request: new Request(`http://localhost/api/v1${path}`),
+    waitUntil: (promise: Promise<unknown>) => void promise.catch(() => {})
+  })
+  const env = {vars: {DATA_PLANE_BASE: 'http://127.0.0.1:4399'}, rateLimiter: limiter(() => allowed())}
+
+  it('keeps no copy of the raw health, sleep and workouts exports (atlas decisions 0096 and 0158)', async () => {
+    expect([...API_V1_NO_LAST_KNOWN_GOOD_PATHS].sort()).toEqual([ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts].sort())
+    const {puts, matches} = recordingCache()
+    upstream(200)
+    for (const path of API_V1_NO_LAST_KNOWN_GOOD_PATHS) {
+      expect((await handleApiV1(local(path), env)).status).toBe(200)
+    }
+    upstream(500)
+    for (const path of API_V1_NO_LAST_KNOWN_GOOD_PATHS) {
+      const response = await handleApiV1(local(path), env)
+      expect(response.status, path).toBe(502)
+      expect((await problemOf(response)).type).toBe(`${SITE_URL}/developers#problem-upstream-unavailable`)
+    }
+    expect(puts).toEqual([])
+    expect(matches).toEqual([])
+  })
+
+  it('keeps the factory default for the other six exports: a 200 stores a copy', async () => {
+    const {puts} = recordingCache()
+    upstream(200)
+    await new Promise<void>((resolve) => {
+      void handleApiV1({request: new Request(`http://localhost/api/v1${ENDPOINTS.books}`), waitUntil: (promise) => void promise.finally(resolve)}, env)
+    })
+    expect(puts).toEqual([ENDPOINTS.books])
+  })
+
+  it('passes a stale copy through with Warning 110, X-Proxy-Stale and the RateLimit fields', async () => {
+    const stale = () =>
+      new Response('{"books":[]}', {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          Warning: '110 - "Response is stale"',
+          'X-Proxy-Stale': 'true',
+          'X-Source': 'cloudfront-proxy-stale'
+        }
+      })
+    const response = await handleApiV1(context(`/api/v1${ENDPOINTS.books}`), {vars: {}, rateLimiter: limiter(() => allowed(12, 30))}, reader(stale))
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Warning')).toBe('110 - "Response is stale"')
+    expect(response.headers.get('X-Proxy-Stale')).toBe('true')
+    expect(response.headers.get('RateLimit')).toBe('"default";r=12;t=30')
+    expect(response.headers.get('RateLimit-Policy')).toBe(POLICY)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+  })
+
+  it('exposes the RateLimit, Retry-After, versioning and Allow fields to cross-origin scripts', async () => {
+    const response = await handleApiV1(context('/api/v1/books.json', {method: 'POST'}), {vars: {}}, reader(proxied.ok))
+    const exposed = (response.headers.get('Access-Control-Expose-Headers') ?? '').split(', ')
+    for (const name of ['RateLimit-Policy', 'RateLimit', 'Retry-After', 'Deprecation', 'Sunset', 'Link', 'Allow', 'Warning', 'X-Proxy-Stale']) {
+      expect(exposed, name).toContain(name)
+    }
+    expect(exposed).toEqual([...API_V1_EXPOSED_HEADERS])
   })
 })
 

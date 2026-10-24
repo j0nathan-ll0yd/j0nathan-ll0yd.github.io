@@ -78,7 +78,7 @@ The audit arm `api-v1-error-shape` in `audits/checks/b2-check-wellknown.mjs` mea
 property as served: `GET /api/v1/__not_a_resource__.json`, `POST /api/v1/books.json` and
 `GET /api/nope` must each answer a problem with `type`, `title`, `status` and `instance`.
 
-Verified by `tests/unit/api-v1.test.ts:147` (path and method first, every problem shape, no
+Verified by `tests/unit/api-v1.test.ts:157` (path and method first, every problem shape, no
 `text/plain` escapes, the markdown 404 exemption) and by
 `audits/__tests__/b2-check-wellknown.test.ts:577` (the audit arm's judges).
 
@@ -118,14 +118,14 @@ answer the counter decided SHALL carry `RateLimit: "default";r=<remaining>;t=<se
 end>` (draft section 4.1). A request over the limit SHALL answer the 429 `rate-limited` problem with
 `Retry-After` equal to `t` (draft section 6), and SHALL NOT read the data plane. An OPTIONS
 preflight costs no quota. When the counter is unbound, fails or takes longer than
-`RATE_LIMIT_TIMEOUT_MS`, the request SHALL go ahead (fail-open, owner decision 2026-10-24) with no
+`RATE_LIMIT_TIMEOUT_MS` (250 ms; a healthy call answers in a few ms), the request SHALL go ahead (fail-open, owner decision 2026-10-24) with no
 `RateLimit` field, because no honest `r` exists. Each isolate SHALL log one structured warning
 (`api_v1_rate_limit_unavailable`) per reason per `UNAVAILABLE_LOG_INTERVAL_MS` (60 s), so a flood
 that exhausts the Durable Object allowance cannot write one line per request. Fail-open means such a
 flood also removes the limit; an outer control in front of the counter is an owner decision. The copy SHALL state the enforced numbers: the generator fails when
 `llm.developers.rateLimitBody` omits the limit or the window.
 
-Verified by `tests/unit/api-v1.test.ts:189` (the headers, the 429, fail-open and the digest key).
+Verified by `tests/unit/api-v1.test.ts:199` (the headers, the 429, fail-open and the digest key).
 
 The fixed window, the IPv6 partition, the throttled warning and the Durable Object's alarm and
 writes have their own suites, `api-rate-limiter.test.ts` and the rate-limiter Worker's
@@ -155,8 +155,22 @@ The facade SHALL read every export through `makeCloudfrontProxy` with `LLM_OUTPU
 the focus probe first, then the artifact through the gate, `no-store` throughout, and no shared
 cache in front. It SHALL never answer data the gate withholds. A 200 SHALL pass the body and the
 proxy's diagnostics through, with `Content-Type: application/json; charset=utf-8`,
-`Access-Control-Allow-Origin: *` and `Access-Control-Expose-Headers` naming the RateLimit and
-`X-Proxy-*` fields; a stale last-known-good copy keeps `Warning: 110` and `X-Proxy-Stale: true`.
+`Access-Control-Allow-Origin: *` and `Access-Control-Expose-Headers` naming the RateLimit fields,
+`Retry-After`, the versioning fields (`Deprecation`, `Sunset`, `Link`), `Allow` and the `X-Proxy-*`
+fields; a stale last-known-good copy keeps `Warning: 110` and `X-Proxy-Stale: true`.
+
+The readers of the raw health, sleep and workouts exports (`LLM_CHANNEL_POLICY.coarsenedOnly`,
+`API_V1_NO_LAST_KNOWN_GOOD_PATHS`) SHALL keep no last-known-good copy (`lastKnownGood: false`):
+raw point-in-time health values are the estate's sensitive class (atlas decision 0096: LLM channels
+carry only a coarsened health band; atlas decision 0158: the raw exports never reach an LLM
+channel). A last-known-good copy lives in `caches.default`, the data-center cache Cloudflare shares
+with the zone's `fetch` cache (developers.cloudflare.com/workers/reference/how-the-cache-works/,
+Cache API), keyed `https://<host>/<file>.json?__cloudfront_proxy_lkg=v1`
+(`src/lib/edge/proxy.ts` `lkgCacheKey`). When CloudFront fails, those three answer the
+`upstream-unavailable` problem. The other six exports keep the factory default; the MCP readers
+already store the same copies under the same keys. A stale copy is served only on fresh gate-open
+evidence and yields to a suppression (`llms-txt` capability, requirement "Gated artifacts are
+admitted only through the CloudFront gate").
 
 A suppression (a hiding focus value, or the gate's 403 body under a visible one) SHALL answer the
 503 `focus-suppressed` problem with `Retry-After`, `X-Source: cloudfront-proxy-suppressed`,
@@ -167,9 +181,13 @@ body (`src/lib/data-plane/admission.ts` `isSuppressionValue`, `audits/lib/suppre
 SHALL NOT cache any facade path (`client-privacy` capability, requirement "No service-worker path
 caches a gated response").
 
-Verified by `tests/unit/api-v1.test.ts:238` (the suppression translation and both recognizers, the
+Verified by `tests/unit/api-v1.test.ts:248` (the suppression translation and both recognizers, the
 502 translation, HEAD, and reads through the real gated proxy that never fetch the export under a
 hiding value).
+
+The same suite proves the three raw exports never touch `caches.default` and answer the 502 problem
+on an upstream failure, that the other six store a copy, and that a stale copy passes through with
+`Warning: 110`, `X-Proxy-Stale` and the RateLimit fields.
 
 #### Scenario: A hiding focus mode is active
 

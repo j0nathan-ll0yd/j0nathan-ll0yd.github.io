@@ -774,7 +774,9 @@ export function judgeRateLimitHeaders({policy, rateLimit}) {
     return [{
       severity: 'fail',
       id,
-      message: `${API_V1_HEADER_PROBE_PATH}: RateLimit ${JSON.stringify(rateLimit)} carries no r and t for policy "${named[0]}"`
+      message: `${API_V1_HEADER_PROBE_PATH}: RateLimit ${JSON.stringify(rateLimit)} carries no r and t for policy "${
+        named[0]
+      }" (the rate-limit counter is unavailable, so the facade failed open, or the header regressed)`
     }]
   }
   return []
