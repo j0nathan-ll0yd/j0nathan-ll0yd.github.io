@@ -42,6 +42,15 @@ function planeForRequest(request: Request, vars: RenderVars): {base: string; ups
   return {base, upstream, build: fixture === null ? BUILD_ID : FIXTURE_BUILD, fixtureOrBase}
 }
 
+/**
+ * The upstream one proxied read uses: undefined (CloudFront through the platform fetch) unless a test
+ * seam applies on a preview or loopback host. The developer API facade (src/lib/edge/api-v1.ts) reads
+ * through it, so the behavioral suite drives the facade with the fixture data plane.
+ */
+export function upstreamForRequest(request: Request, vars: RenderVars): Upstream | undefined {
+  return planeForRequest(request, vars).upstream
+}
+
 export function readForRequest(request: Request, vars: RenderVars, nowMs: number): Promise<ComposedRead> {
   const {upstream, build} = planeForRequest(request, vars)
   return readComposed({nowMs, build, ...(upstream ? {upstream} : {})})

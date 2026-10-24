@@ -4,45 +4,45 @@
       "anchor": "https://jonathanlloyd.me/.well-known/api-catalog",
       "item": [
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/health.json",
+          "href": "https://jonathanlloyd.me/api/v1/health.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/sleep.json",
+          "href": "https://jonathanlloyd.me/api/v1/sleep.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/workouts.json",
+          "href": "https://jonathanlloyd.me/api/v1/workouts.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/books.json",
+          "href": "https://jonathanlloyd.me/api/v1/books.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json",
+          "href": "https://jonathanlloyd.me/api/v1/github-starred-repos.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/github-events.json",
+          "href": "https://jonathanlloyd.me/api/v1/github-events.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/articles.json",
+          "href": "https://jonathanlloyd.me/api/v1/articles.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/focus.json",
+          "href": "https://jonathanlloyd.me/api/v1/focus.json",
           "type": "application/json"
         },
         {
-          "href": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json",
+          "href": "https://jonathanlloyd.me/api/v1/theatre-reviews.json",
           "type": "application/json"
         }
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/health.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/health.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -57,7 +57,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/sleep.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/sleep.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -72,7 +72,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/workouts.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/workouts.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -87,7 +87,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/books.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/books.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -102,7 +102,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/github-starred-repos.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/github-starred-repos.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -117,7 +117,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/github-events.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/github-events.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -132,7 +132,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/articles.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/articles.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -147,7 +147,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/focus.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/focus.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",
@@ -162,7 +162,7 @@
       ]
     },
     {
-      "anchor": "https://d1pfm520aduift.cloudfront.net/theatre-reviews.json",
+      "anchor": "https://jonathanlloyd.me/api/v1/theatre-reviews.json",
       "service-desc": [
         {
           "href": "https://jonathanlloyd.me/openapi.json",

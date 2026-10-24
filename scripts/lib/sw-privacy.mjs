@@ -14,6 +14,7 @@ import {createContext, runInContext, runInNewContext} from 'node:vm'
 import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts.ts'
 import {LLMS_ARTIFACTS, LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts.ts'
+import {AGENT_PATHS} from '../../src/lib/edge/agent-paths.mjs'
 
 /**
  * Runtime caches a retired route wrote, deleted on activate by the purge script and on every page
@@ -73,15 +74,22 @@ export function gatedProbeUrls({cloudfrontBase, endpointPaths, siteUrl, siteGate
 
 /**
  * The production probe set, derived from the same registries the proxy routes and the client read:
- * every CloudFront export, the five site-origin gated routes, and the CloudFront origin of each of
- * those five (the proxy's upstream, also published as a dataset distribution).
+ * every CloudFront export, the five site-origin gated routes, the developer API facade's nine export
+ * paths, and the CloudFront origin of each of the five (the proxy's upstream, also published as a dataset distribution).
  */
 export function siteGatedProbeUrls() {
   return gatedProbeUrls({
     cloudfrontBase: CLOUDFRONT_BASE,
     endpointPaths: Object.values(ENDPOINTS),
     siteUrl: SITE_URL,
-    siteGatedPaths: [LLMS_TXT_PATH, LLM_CONTENT_PATHS.llmsFull, LLM_CONTENT_PATHS.indexMarkdown, ...FEED_ARTIFACTS.map((artifact) => artifact.path)],
+    siteGatedPaths: [
+      LLMS_TXT_PATH,
+      LLM_CONTENT_PATHS.llmsFull,
+      LLM_CONTENT_PATHS.indexMarkdown,
+      ...FEED_ARTIFACTS.map((artifact) => artifact.path),
+      // The developer API facade serves every export through the same gate (src/lib/edge/api-v1.ts).
+      ...Object.values(ENDPOINTS).map((path) => `${AGENT_PATHS.apiV1}${path}`)
+    ],
     originUrls: [...LLMS_ARTIFACTS, ...FEED_ARTIFACTS].map((artifact) => artifact.originUrl)
   })
 }

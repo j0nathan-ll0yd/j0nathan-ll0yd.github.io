@@ -264,7 +264,7 @@ did not answer, because the fail-open route sent the request past it, so the abs
 nothing.
 
 Verified by `audits/__tests__/b2-llms.test.ts:271` (the edge-cache arm over Worker, cached,
-aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.test.ts:63`
+aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.test.ts:69`
 (no Workers Caching in `wrangler.jsonc`).
 
 The non-deploying weekly audit also SHALL inspect active account- and zone-level Cache Rules,
@@ -677,7 +677,9 @@ negotiation. A markdown 404 HEAD response SHALL carry no body. An unknown path r
 `wrangler.jsonc` `run_worker_first` entry: a path with no file runs the Worker
 (`not_found_handling: "none"`), which renders the 404 inside the middleware (`src/worker.ts`). The
 code-free prefixes (`CODE_FREE_PREFIXES`, `src/lib/edge/security-headers.ts`) skip the middleware and
-keep the static HTML 404.
+keep the static HTML 404. A 404 that is already an RFC 9457 problem (`application/problem+json`, the
+developer API under /api, `developer-api` capability) keeps its problem body under every `Accept`:
+/api never negotiates.
 
 Verified by `tests/unit/middleware-negotiation.test.ts:62` (decision table, scope, response classes),
 by `tests/unit/middleware-negotiation.test.ts:297` (the 404 exception),

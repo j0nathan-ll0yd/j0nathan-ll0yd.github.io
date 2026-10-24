@@ -71,6 +71,10 @@ describe('gatedProbeUrls', () => {
       expect(urls).toContain(`https://jonathanlloyd.me${path}`)
     }
     expect(urls.some((url) => url.endsWith('/focus.json'))).toBe(true)
+    // The developer API facade serves every export through the same gate.
+    for (const path of ['/api/v1/books.json', '/api/v1/health.json', '/api/v1/focus.json']) {
+      expect(urls).toContain(`https://jonathanlloyd.me${path}`)
+    }
   })
 })
 

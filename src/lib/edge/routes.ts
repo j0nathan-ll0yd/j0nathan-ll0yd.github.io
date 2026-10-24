@@ -30,6 +30,11 @@ export const EDGE_ROUTES: readonly EdgeRoute[] = Object.freeze([
   {path: '/cf-insights.js', analytics: true},
   {path: '/cf-rum', analytics: true},
   {path: '/api/csp-report', methods: ['POST']},
+  // The developer API facade (src/lib/edge/api-v1.ts), then every other path under /api, which answers
+  // the not-found problem instead of the HTML 404. Both handle every method: the facade answers its
+  // own 405 problem. Order matters: matchEdgeRoute takes the first match.
+  {path: '/api/v1', catchAll: true},
+  {path: '/api', catchAll: true},
   {path: '/simple', catchAll: true, analytics: true},
   // The MCP server and its card (atlas decision 0158). Each handler answers every method itself:
   // /mcp serves POST and answers GET and DELETE 405 with `Allow: POST`; the card serves GET, HEAD

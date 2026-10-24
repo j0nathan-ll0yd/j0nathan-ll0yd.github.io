@@ -19,7 +19,7 @@ vi.mock('@astrojs/cloudflare/handler', () => ({
   })
 }))
 
-const {default: worker} = await import('../../src/worker')
+const {default: worker, ApiRateLimiter: exportedLimiter} = await import('../../src/worker')
 
 const ASSETS = {
   async fetch(input: Request | URL | string): Promise<Response> {
@@ -301,4 +301,23 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
     await request('/', {headers: {Accept: 'text/markdown'}})
     expect(handled).toHaveLength(0)
   })
+})
+
+describe('the developer API routes (is-agentic api-v1 plan)', () => {
+  it('exports the Durable Object class the API_RATE_LIMITER binding names', async () => {
+    const {ApiRateLimiter} = await import('../../src/durable/ApiRateLimiter')
+    expect(exportedLimiter).toBe(ApiRateLimiter)
+  })
+
+  it.each([['GET', '/api/nope'], ['POST', '/api/v1/books.json'], ['DELETE', '/api/v1/books.json'], ['OPTIONS', '/api/v1/books.json'], ['GET', '/api/v1/']])(
+    'hands %s %s to the Astro endpoint, never the asset plane',
+    async (method, path) => {
+      handled.length = 0
+      assetRequests.length = 0
+      const response = await worker.fetch(new Request(`https://jonathanlloyd.me${path}`, {method}), {ASSETS} as never, {waitUntil: () => {}} as never)
+      expect(response.status).toBe(200)
+      expect(handled.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([`${method} ${path.replace(/\/$/, '')}`])
+      expect(assetRequests).toEqual([])
+    }
+  )
 })

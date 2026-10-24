@@ -2,12 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Jonathan Lloyd — Human Datastream",
-    "version": "1.0.0",
-    "description": "Summarised biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON."
+    "version": "2.0.0",
+    "description": "Summarised biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON.\n\nThe path carries the version. Within v1, response schemas only add optional members. A removal or a type change ships as /api/v2, and v1 keeps answering for at least 90 days with Deprecation and Sunset headers and a successor-version link.\n\nEach client IP may send 60 requests per 60 seconds. Every response states the policy in RateLimit-Policy and the remaining room in RateLimit. A 429 response adds Retry-After."
   },
   "servers": [
     {
-      "url": "https://d1pfm520aduift.cloudfront.net"
+      "url": "https://jonathanlloyd.me/api/v1",
+      "description": "The versioned API base is https://jonathanlloyd.me/api/v1. Append an export path, for example /books.json."
     }
   ],
   "paths": {
@@ -19,16 +20,43 @@
         "responses": {
           "200": {
             "description": "Heart rate, HRV, activity, and workout data (latest export, summarised)",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/HealthExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -41,16 +69,43 @@
         "responses": {
           "200": {
             "description": "Sleep phases, duration, and efficiency metrics",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/SleepExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -63,16 +118,43 @@
         "responses": {
           "200": {
             "description": "Workout sessions with type, duration, and calorie burn",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/WorkoutsExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -85,16 +167,43 @@
         "responses": {
           "200": {
             "description": "Books with status, ratings, progress, and cover images",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/BooksExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -107,16 +216,43 @@
         "responses": {
           "200": {
             "description": "GitHub starred repositories with metadata",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/StarredReposExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -129,16 +265,43 @@
         "responses": {
           "200": {
             "description": "Dev activity, languages, contributions, and recent commits",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/GithubEventsExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -151,16 +314,43 @@
         "responses": {
           "200": {
             "description": "Starred articles and RSS feed items",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/ArticlesExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -173,13 +363,40 @@
         "responses": {
           "200": {
             "description": "Current Do Not Disturb and focus mode status",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/FocusExport"
                 }
               }
             }
+          },
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
           }
         }
       }
@@ -192,16 +409,43 @@
         "responses": {
           "200": {
             "description": "Theatre show reviews with ratings and venue info",
+            "headers": {
+              "RateLimit-Policy": {
+                "$ref": "#/components/headers/RateLimit-Policy"
+              },
+              "RateLimit": {
+                "$ref": "#/components/headers/RateLimit"
+              },
+              "Deprecation": {
+                "$ref": "#/components/headers/Deprecation"
+              },
+              "Sunset": {
+                "$ref": "#/components/headers/Sunset"
+              },
+              "Link": {
+                "$ref": "#/components/headers/Link"
+              }
+            },
             "content": {
               "application/json": {
                 "schema": {
+                  "type": "object",
                   "$ref": "#/components/schemas/TheatreReviewsExport"
                 }
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Suppressed"
+          "405": {
+            "$ref": "#/components/responses/MethodNotAllowed"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "502": {
+            "$ref": "#/components/responses/UpstreamUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/FocusSuppressed"
           }
         }
       }
@@ -1416,13 +1660,45 @@
         ],
         "additionalProperties": false
       },
-      "Suppressed": {
+      "Problem": {
         "type": "object",
         "required": [
-          "suppressed",
-          "reason"
+          "type",
+          "title",
+          "status",
+          "detail",
+          "instance"
         ],
         "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "validPaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "retryAfterSeconds": {
+            "type": "integer",
+            "minimum": 0
+          },
           "suppressed": {
             "const": true
           },
@@ -1433,14 +1709,179 @@
       }
     },
     "responses": {
-      "Suppressed": {
-        "description": "Hidden by an active focus mode. The JSON body states suppressed: true and the reason, and carries no data.",
+      "NotFound": {
+        "description": "Resource not found",
+        "headers": {
+          "RateLimit-Policy": {
+            "$ref": "#/components/headers/RateLimit-Policy"
+          }
+        },
         "content": {
-          "application/json": {
+          "application/problem+json": {
             "schema": {
-              "$ref": "#/components/schemas/Suppressed"
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                {
+                  "required": [
+                    "validPaths"
+                  ]
+                }
+              ]
             }
           }
+        }
+      },
+      "MethodNotAllowed": {
+        "description": "Method not allowed",
+        "headers": {
+          "RateLimit-Policy": {
+            "$ref": "#/components/headers/RateLimit-Policy"
+          },
+          "Allow": {
+            "$ref": "#/components/headers/Allow"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Rate limit exceeded",
+        "headers": {
+          "RateLimit-Policy": {
+            "$ref": "#/components/headers/RateLimit-Policy"
+          },
+          "RateLimit": {
+            "$ref": "#/components/headers/RateLimit"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                {
+                  "required": [
+                    "retryAfterSeconds"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "FocusSuppressed": {
+        "description": "Hidden by focus mode",
+        "headers": {
+          "RateLimit-Policy": {
+            "$ref": "#/components/headers/RateLimit-Policy"
+          },
+          "RateLimit": {
+            "$ref": "#/components/headers/RateLimit"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                {
+                  "required": [
+                    "retryAfterSeconds",
+                    "suppressed",
+                    "reason"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      "UpstreamUnavailable": {
+        "description": "Upstream unavailable",
+        "headers": {
+          "RateLimit-Policy": {
+            "$ref": "#/components/headers/RateLimit-Policy"
+          },
+          "RateLimit": {
+            "$ref": "#/components/headers/RateLimit"
+          },
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                {
+                  "required": [
+                    "retryAfterSeconds"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "headers": {
+      "RateLimit-Policy": {
+        "schema": {
+          "type": "string"
+        },
+        "example": "\"default\";q=60;w=60"
+      },
+      "RateLimit": {
+        "schema": {
+          "type": "string"
+        },
+        "example": "\"default\";r=59;t=60"
+      },
+      "Retry-After": {
+        "schema": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "Allow": {
+        "schema": {
+          "type": "string"
+        },
+        "example": "GET, HEAD"
+      },
+      "Deprecation": {
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Sunset": {
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Link": {
+        "schema": {
+          "type": "string"
         }
       }
     }

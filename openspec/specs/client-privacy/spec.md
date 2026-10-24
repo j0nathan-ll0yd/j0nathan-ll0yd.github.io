@@ -18,8 +18,10 @@ requirement "Gated artifacts are admitted only through the CloudFront gate".
 ### Requirement: No service-worker path caches a gated response
 
 The service worker SHALL NOT cache, or answer from a cache, any gated response: the focus signal,
-any CloudFront JSON export, or any of the five site-origin proxy routes (/llms.txt, /llms-full.txt,
-/index.md, /feed.xml, /feed.json), whatever query string or fragment the request carries.
+any CloudFront JSON export, any of the five site-origin proxy routes (/llms.txt, /llms-full.txt,
+/index.md, /feed.xml, /feed.json), or any of the nine developer API export paths
+(`/api/v1/<export>.json`, `developer-api` capability), whatever query string or fragment the
+request carries.
 
 Every runtime route SHALL classify a request by its origin and pathname only, never by its query
 string or fragment. A route matcher SHALL be one of three shapes:
@@ -87,7 +89,7 @@ site-origin feed route, an llms route, a default handler, a catch handler, a raw
 non-regex matcher, an aliased or bracket-called registerRoute, `onfetch`, a bracket fetch listener,
 a fetch listener in an imported script, a missing import, a dynamic import outside the Workbox
 loader, a precached gated URL, the retired cache name and a missing purge import are each rejected;
-the purge is judged by what it does), `tests/unit/sw-privacy.test.ts:132` (the H01 route, query-steered
+the purge is judged by what it does), `tests/unit/sw-privacy.test.ts:136` (the H01 route, query-steered
 regexes, pathname tests that read the query or cover a gated path, unanchored, case-insensitive, trailing-expression
 regexes, a purge that keeps `local-images`, and `additionalManifestEntries` gated URLs are each
 rejected) and `tests/build/sw-update.test.ts:44` (the generated worker and the shipped purge script
@@ -149,7 +151,7 @@ behavior: an online navigation to `/` reaches the server and no cache gains a do
 entry, and with the server down or the browser offline, `/` and `/privacy` render the data-free
 page.
 
-Verified by `tests/unit/sw-privacy.test.ts:572` (the shipped shape passes; no navigation route, a
+Verified by `tests/unit/sw-privacy.test.ts:576` (the shipped shape passes; no navigation route, a
 NetworkFirst or fallback-less navigation route, a fallback to another URL, a second fallback route, a
 catch handler, a default handler, a NavigationRoute, a function route caching a feed, an unmodelled
 Workbox API, a NetworkOnly route carrying any option but `plugins`, a missing `/offline` and any

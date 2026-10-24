@@ -131,6 +131,10 @@ const PUBLIC_NO_STORE = 'no-store'
 const SUPPRESSION_RETRY_SECONDS = 60
 /** The `X-Source` value of a focus-suppression response. Exported so a caller of a proxy handler can tell suppression from failure. */
 export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
+/** The `reason` of the suppression body. The developer API's focus-suppressed problem carries the same value. */
+export const SUPPRESSION_REASON = 'focus mode active'
+/** The `Retry-After` of a suppression response, in seconds. */
+export const SUPPRESSION_RETRY_AFTER_SECONDS = SUPPRESSION_RETRY_SECONDS
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
 /**
@@ -412,7 +416,7 @@ function suppressionResponse(method: string): Response {
     'X-Source': SUPPRESSION_SOURCE
   })
   setPublicNoStore(headers)
-  const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
+  const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: SUPPRESSION_REASON})
   return new Response(body, {status: 503, headers})
 }
 
