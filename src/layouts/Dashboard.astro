@@ -275,8 +275,10 @@ html { overflow-y: scroll; }
 @supports (scrollbar-gutter: stable) { html { overflow-y: auto; scrollbar-gutter: stable; } }
 
 /* Lock viewport scroll only at widths where the bento grid is sized to
-   fit 100dvh. Below 1100px the layout stacks vertically and MUST scroll. */
-@media (min-width: 1100px) {
+   fit 100dvh. At 1100px and below the layout stacks vertically and MUST scroll:
+   the design system's tablet block (layout.css, max-width: 1100px) stacks it at
+   1100px itself, so the lock starts above that. */
+@media (min-width: 1101px) {
   html, body { overflow: hidden; }
 }
 

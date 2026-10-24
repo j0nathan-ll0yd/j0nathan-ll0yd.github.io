@@ -226,21 +226,24 @@ in that order. Paths SHALL come from `SITE_PAGE_PATHS` and `AGENT_PATHS.develope
 from `@j0nathan-ll0yd/copy`. `src/lib/site-nav.ts` builds the list once for the homepage and the
 text pages. No link SHALL carry `aria-current` on `/`. The design system's `SiteFooterNav` renders
 the nav in a `footer.left-panel-footer`, the last child of the left panel, and its `layout.css`
-places that footer. From 1100px up it closes the left column. Below 1100px it ends the page, after
-System Status. A reader SHALL reach each link with a mouse wheel at both widths, with scripts off.
+places that footer. Above 1100px, where `Dashboard.astro` locks the page scroll, it closes the left
+column. At 1100px and below, where the page scrolls, it ends the page after System Status. A reader
+SHALL reach each link with a mouse wheel at every width, with scripts off.
 On the suppressed page the focus overlay covers the whole dashboard, nav included, by design (owner
 decision 2026-10-24): there the nav SHALL be in the document and SHALL sit under the overlay. A
 text page SHALL keep exactly one site nav.
 
-Verified by `tests/behavioral/site-footer-nav.test.ts:77` (the server render),
-`tests/behavioral/site-footer-nav.test.ts:85` (the suppressed page),
-`tests/behavioral/site-footer-nav.test.ts:105` (the data-free page) and
-`tests/behavioral/site-footer-nav.test.ts:123` (390x844: after System Status and every card).
+Verified by `tests/behavioral/site-footer-nav.test.ts:81` (the server render),
+`tests/behavioral/site-footer-nav.test.ts:90` (the suppressed page),
+`tests/behavioral/site-footer-nav.test.ts:110` (the data-free page),
+`tests/behavioral/site-footer-nav.test.ts:121` (a text page keeps one site nav) and
+`tests/behavioral/site-footer-nav.test.ts:138` (390x844 and 1100x800: after System Status and
+every card).
 The canonical-URL build test resolves each link to a built page.
 
 #### Scenario: A reader without JavaScript finds the developer documentation
 
-- **GIVEN** a browser with JavaScript disabled at 1400x900 or at 390x844
+- **GIVEN** a browser with JavaScript disabled at 1400x900, 1100x800 or 390x844
 - **WHEN** it loads `/`, in a live or data-free answer
 - **THEN** `footer nav a[href="/developers"]` SHALL be visible, a mouse wheel SHALL bring it under
   the pointer, and no site-nav link SHALL carry `aria-current`
