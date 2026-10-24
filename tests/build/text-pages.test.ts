@@ -5,7 +5,7 @@ import {describe, expect, it} from 'vitest'
 import {identity, llm} from '@j0nathan-ll0yd/copy'
 import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {CONTENT_USAGE} from '../../src/lib/edge/security-headers'
-import {AGENT_PATHS, DATA_SOURCES, TOOLS} from '../../src/lib/edge/agent-catalog.mjs'
+import {AGENT_PATHS, API_PROBLEMS, API_V1_BASE, DATA_SOURCES, TOOLS} from '../../src/lib/edge/agent-catalog.mjs'
 import {FEED_ARTIFACTS} from '../../src/lib/edge/feed-artifacts'
 import {LLMS_TXT_PATH} from '../../src/lib/edge/llms-artifacts'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
@@ -127,13 +127,42 @@ describe('/developers', () => {
 
   it('renders every developer section heading from copy', () => {
     const headings = $('main section h2').map((_, h) => $(h).text().trim()).get()
-    expect(headings).toEqual([d.apiHeading, d.mcpHeading, d.webmcpHeading, d.llmsHeading, d.feedsHeading, d.cachingHeading, d.focusHeading, d.usageHeading])
+    expect(headings).toEqual([
+      d.apiHeading,
+      d.errorsHeading,
+      d.versioningHeading,
+      d.rateLimitHeading,
+      d.mcpHeading,
+      d.webmcpHeading,
+      d.llmsHeading,
+      d.feedsHeading,
+      d.cachingHeading,
+      d.focusHeading,
+      d.usageHeading
+    ])
   })
 
-  it('lists the nine JSON exports at the host /openapi.json declares, from the agent catalog', () => {
+  it('lists the nine JSON exports at the developer API facade /openapi.json declares, from the agent catalog', () => {
     const exports = $('#api li a').map((_, a) => ({href: $(a).attr('href'), name: $(a).text()})).get()
-    expect(exports).toEqual(DATA_SOURCES.map((s: {url: string; name: string}) => ({href: s.url, name: s.name})))
+    expect(exports).toEqual(DATA_SOURCES.map((s: {apiUrl: string; name: string}) => ({href: s.apiUrl, name: s.name})))
     expect(exports).toHaveLength(9)
+    for (const {href} of exports) {
+      expect(href.startsWith(`${API_V1_BASE}/`), href).toBe(true)
+    }
+  })
+
+  // covers: developer-api#The developers page documents errors, versioning and rate limits
+  it('gives every problem type a heading whose id is the fragment of its type URI', () => {
+    for (const problem of API_PROBLEMS as Array<{anchor: string; type: string; title: string; detail: string}>) {
+      const heading = $(`#errors #${problem.anchor}`)
+      expect(heading, problem.anchor).toHaveLength(1)
+      expect(heading.attr('role')).toBe('heading')
+      expect(heading.attr('aria-level')).toBe('3')
+      expect(heading.text()).toContain(problem.title)
+      expect(heading.next('small').text()).toBe(problem.detail)
+      expect(new URL(problem.type).hash).toBe(`#${problem.anchor}`)
+      expect(new URL(problem.type).pathname).toBe(AGENT_PATHS.developers)
+    }
   })
 
   it('lists the WebMCP tools from the agent catalog', () => {
@@ -155,7 +184,8 @@ describe('/developers', () => {
       LLMS_TXT_PATH,
       LLM_CONTENT_PATHS.llmsFull,
       LLM_CONTENT_PATHS.indexMarkdown,
-      ...FEED_ARTIFACTS.map((f) => f.path)
+      ...FEED_ARTIFACTS.map((f) => f.path),
+      ...DATA_SOURCES.map((s: {apiUrl: string}) => new URL(s.apiUrl).pathname)
     ])
     const sitePaths = $('main a').map((_, a) => $(a).attr('href')).get().filter((h: string) => h.startsWith(SITE_URL)).map((h: string) =>
       new URL(h).pathname

@@ -34,7 +34,12 @@ const config = readWranglerConfig()
 describe('wrangler.jsonc', () => {
   it('runs the Worker first on every path that runs code, and on nothing else', () => {
     const routePaths = EDGE_ROUTES.flatMap((route) => (route.catchAll ? [route.path, `${route.path}/*`] : [route.path]))
-    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...routePaths, ...INTERNAL_ASSET_PATHS])
+    // Wrangler rejects a rule another rule makes redundant ("rule '/api/*' makes it redundant"), so a
+    // path under a catch-all glob is covered by that glob and not listed itself.
+    const globs = routePaths.filter((path) => path.endsWith('/*')).map((glob) => glob.slice(0, -1))
+    const listed = routePaths.filter((path) => !globs.some((prefix) => path !== `${prefix}*` && path.startsWith(prefix)))
+    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...listed, ...INTERNAL_ASSET_PATHS])
+    expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/api', '/api/*']))
   })
 
   it('sends an unmatched path to the Worker, which renders the 404 page through the middleware', () => {
@@ -70,8 +75,8 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('cache')
   })
 
-  it('declares no binding beyond the static assets and the PAGE namespace (pinned below)', () => {
-    for (const key of ['images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'durable_objects']) {
+  it('declares no binding beyond the static assets, the PAGE namespace and the rate limiter (pinned below)', () => {
+    for (const key of ['images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'exports']) {
       expect(config, key).not.toHaveProperty(key)
     }
     expect(config.observability).toEqual({enabled: true})
@@ -89,6 +94,14 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
     ['/llms.txt', '/llms.txt'],
     ['/llms.txt/', '/llms.txt'],
     ['/api/csp-report', '/api/csp-report'],
+    ['/api/v1', '/api/v1'],
+    ['/api/v1/', '/api/v1'],
+    ['/api/v1/books.json', '/api/v1'],
+    ['/api/v1/nested/books.json', '/api/v1'],
+    ['/api', '/api'],
+    ['/api/nope', '/api'],
+    ['/api/csp-report/extra', '/api'],
+    ['/api/v2/books.json', '/api'],
     ['/simple', '/simple'],
     ['/simple/', '/simple'],
     ['/simple/append', '/simple'],
@@ -97,7 +110,7 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
     expect(matchEdgeRoute(pathname)?.path).toBe(expected)
   })
 
-  it.each(['/', '/privacy', '/llms.txt.bak', '/simpleton', '/api', '/api/csp-report/extra', '/llms.txt//'])('%s reaches no route', (pathname) => {
+  it.each(['/', '/privacy', '/llms.txt.bak', '/simpleton', '/apiary', '/llms.txt//'])('%s reaches no route', (pathname) => {
     expect(matchEdgeRoute(pathname)).toBeUndefined()
   })
 
@@ -107,6 +120,16 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
     expect(llms && routeHandles(llms, 'PUT')).toBe(true)
     expect(csp && routeHandles(csp, 'POST')).toBe(true)
     expect(csp && routeHandles(csp, 'GET')).toBe(false)
+  })
+
+  // covers: developer-api#Every path under /api reaches the Worker
+  it('hands every method under /api to the facade, which answers its own 405 problem', () => {
+    for (const pathname of ['/api/v1/books.json', '/api/nope']) {
+      const route = matchEdgeRoute(pathname)
+      for (const method of ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'DELETE']) {
+        expect(route && routeHandles(route, method), `${method} ${pathname}`).toBe(true)
+      }
+    }
   })
 
   it('names every on-demand endpoint under src/pages exactly once', () => {
@@ -120,6 +143,8 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       '/cf-insights.js': 'cf-insights.js.ts',
       '/cf-rum': 'cf-rum.ts',
       '/api/csp-report': 'api/csp-report.ts',
+      '/api/v1': 'api/v1/[...path].ts',
+      '/api': 'api/[...path].ts',
       '/simple': 'simple/[...path].ts',
       '/mcp': 'mcp/index.ts',
       '/mcp/server-card': 'mcp/server-card.ts'
@@ -129,6 +154,16 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       const source = readFileSync(resolve(process.cwd(), 'src/pages', file), 'utf8')
       expect(source, file).toMatch(/^export const prerender = false$/m)
     }
+  })
+})
+
+describe('wrangler.jsonc: the developer API rate limiter (owner decision 2026-10-24, option B)', () => {
+  it('binds ONE Durable Object class, created by a new_sqlite_classes migration, never through exports', () => {
+    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ApiRateLimiter'}]})
+    // An applied migration tag is history: append a new tag, never edit this one.
+    expect(config.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}])
+    // Durable Object `exports` entries make every `wrangler versions upload` (the PR preview) fail.
+    expect(config).not.toHaveProperty('exports')
   })
 })
 

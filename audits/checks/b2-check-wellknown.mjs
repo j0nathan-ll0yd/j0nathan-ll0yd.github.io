@@ -16,7 +16,8 @@
 //   schema this repo vendors, plus the media types a schema cannot see.
 //
 // Then a live GET of every api-catalog item, which must answer a JSON object (or,
-// while hiding, the edge focus gate's JSON suppression body), and a live MCP
+// while hiding, the developer API's focus-suppressed problem), the developer API's
+// failure semantics as served (checkApiV1ErrorShape), and a live MCP
 // exchange against every remote the card declares: both protocol eras, a
 // tools/call per tool, resources/list, and resources/read of the ungated focus
 // signal and llms-full.txt (see probeMcpRemotes).
@@ -46,8 +47,9 @@ export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discov
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
 // this runner holds is the agent-discovery surface (webfinger, ai-catalog.json,
 // ard.json, the MCP server card at its canonical and compatibility URLs,
-// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item
-// and one live MCP exchange, none of which the surface registry registers.
+// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item, the
+// developer API facade's failure answers, and one live MCP exchange, none of which the
+// surface registry registers.
 // Metadata only -- the hub reads it statically.
 export const ARTIFACTS = []
 
@@ -80,9 +82,17 @@ export const EXPECTED_RESOURCE_URIS = Object.freeze([
 export const FOCUS_RESOURCE_URI = `${CLOUDFRONT_BASE}${ENDPOINTS.focus}`
 export const LLMS_FULL_RESOURCE_URI = `${SITE_URL}${LLM_CONTENT_PATHS.llmsFull}`
 
+// The developer API facade's path version (is-agentic api-v1 plan). Restated here rather than
+// imported from src/lib/edge/agent-paths.mjs, so the measurer does not share the value it measures.
+export const API_V1_PATH = '/api/v1'
+
 // The api-catalog items: one per public JSON export, all nine (the catalog is developer
-// documentation, so the raw health exports are listed). Stated from the contract.
-export const EXPECTED_API_CATALOG_ITEMS = Object.freeze(Object.values(ENDPOINTS).map((path) => `${CLOUDFRONT_BASE}${path}`))
+// documentation, so the raw health exports are listed), at the developer API facade. Stated from
+// the contract.
+export const EXPECTED_API_CATALOG_ITEMS = Object.freeze(Object.values(ENDPOINTS).map((path) => `${SITE_URL}${API_V1_PATH}${path}`))
+
+// The facade's focus-signal item, which no focus mode suppresses.
+export const FOCUS_API_ITEM = `${SITE_URL}${API_V1_PATH}${ENDPOINTS.focus}`
 
 // A withheld export the probe asks for by URI. The server must refuse it: listing it is a
 // fail, and so is reading it.
@@ -598,12 +608,12 @@ export function judgeApiCatalogItems(json) {
  * Judge one item's live answer. Pure -- testable without network. An item must answer JSON:
  *
  * - a 2xx `application/json` body that is a JSON object (every export is one); or
- * - while a hiding focus mode is active, the edge focus gate's suppression answer: 403,
- *   `application/json`, `{"suppressed": true, "reason": "<string>"}`. Never for focus.json,
- *   which the edge gate never suppresses (mantle-LifegamesPortal src/edge/focus-gate.js).
+ * - while a hiding focus mode is active, the facade's focus-suppressed problem: 503,
+ *   `application/problem+json`, with `suppressed: true` and a string `reason`. Never for
+ *   focus.json, which the gate never suppresses (mantle-LifegamesPortal src/edge/focus-gate.js).
  *
  * Anything else fails: above all the S3 XML `AccessDenied` 403 the CloudFront root answered
- * when it was the item, and any redirect (the exports are direct S3 keys).
+ * when it was the item, the HTML 404 page, and any redirect.
  */
 export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
   let json
@@ -617,7 +627,8 @@ export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
   if (status >= 200 && status < 300 && jsonType && object) {
     return []
   }
-  if (status === 403 && jsonType && href !== FOCUS_RESOURCE_URI && json?.suppressed === true && typeof json.reason === 'string') {
+  const problemType = /^application\/problem\+json\b/i.test(contentType)
+  if (status === 503 && problemType && href !== FOCUS_API_ITEM && json?.suppressed === true && typeof json.reason === 'string') {
     return []
   }
   return [{
@@ -629,14 +640,18 @@ export function judgeApiCatalogItemAnswer({href, status, contentType, body}) {
   }]
 }
 
-/** Fetch every api-catalog item and judge its answer. `measured` counts the items whose answer was held. */
-export async function probeApiCatalogItems(json, get = fetchStable) {
+/**
+ * Fetch every api-catalog item and judge its answer. `measured` counts the items whose answer was
+ * held. Each item is a site URL, so it is fetched from the deploy under audit (`rebase`).
+ */
+export async function probeApiCatalogItems(json, get = fetchStable, base = SITE_URL) {
   const findings = judgeApiCatalogItems(json)
   let measured = 0
   for (const href of apiCatalogItems(json)) {
     let answer
     try {
-      const res = await get(href, {headers: {Accept: 'application/json'}, redirect: 'manual'})
+      const url = rebase(href, base)
+      const res = await get(url, {headers: {Accept: 'application/json', ...accessHeadersFor(url, base)}, redirect: 'manual'})
       answer = {href, status: res.status, contentType: res.headers.get('content-type') || '', body: await res.text()}
     } catch (err) {
       findings.push({
@@ -658,8 +673,150 @@ async function checkApiCatalog(base) {
   if (catalog.error) {
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-api-catalog-fetch', message: catalog.error}]}
   }
-  const items = await probeApiCatalogItems(catalog.json)
+  const items = await probeApiCatalogItems(catalog.json, fetchStable, base)
   return {measured: 1 + items.measured, findings: [...validateApiCatalogShape(catalog.json, catalog.contentType), ...items.findings]}
+}
+
+// ---------------------------------------------------------------------------
+// Arm `api-v1-error-shape`: the developer API facade's failure semantics as served.
+//
+// Property: every failure under /api answers an RFC 9457 problem, and every facade answer states
+// its rate limit (draft-ietf-httpapi-ratelimit-headers-11). Seam: the Worker route and the
+// Cloudflare edge in front of it. No existing measurer sees it: the item arm above asserts only
+// 2xx bodies and the suppression problem, and B5 lychee follows links and never reads an error body.
+// ---------------------------------------------------------------------------
+
+/** The RFC 9457 media type (section 3). */
+export const PROBLEM_MEDIA_TYPE = 'application/problem+json'
+
+/** The facade probes, each with the status RFC 9457 and RFC 9110 say it must answer. */
+export const API_V1_ERROR_PROBES = Object.freeze([
+  Object.freeze({label: 'unknown export', path: `${API_V1_PATH}/__not_a_resource__.json`, method: 'GET', status: 404}),
+  Object.freeze({label: 'unsafe method', path: `${API_V1_PATH}${ENDPOINTS.books}`, method: 'POST', status: 405}),
+  Object.freeze({label: 'unknown path under /api', path: '/api/nope', method: 'GET', status: 404})
+])
+
+/** The valid facade path the header probe reads: the focus signal, which no focus mode suppresses. */
+export const API_V1_HEADER_PROBE_PATH = `${API_V1_PATH}${ENDPOINTS.focus}`
+
+/**
+ * Judge one failure answer. Pure -- testable without network. It must be the expected status,
+ * served as application/problem+json, with `type` an absolute URI, a string `title`, a `status`
+ * member equal to the HTTP status, and `instance` the request path. A 405 must also send `Allow`.
+ */
+export function judgeProblemAnswer({probe, status, contentType, allow, body}) {
+  const id = 'api-v1-error-shape'
+  const label = `${probe.method} ${probe.path}`
+  if (status !== probe.status) {
+    return [{severity: 'fail', id, message: `${label} (${probe.label}) answered HTTP ${status}; expected ${probe.status}`}]
+  }
+  if (!contentType.toLowerCase().startsWith(PROBLEM_MEDIA_TYPE)) {
+    return [{
+      severity: 'fail',
+      id,
+      message: `${label} answered ${contentType || '(no Content-Type)'}, not ${PROBLEM_MEDIA_TYPE}: ${String(body).slice(0, 120)}`
+    }]
+  }
+  let json
+  try {
+    json = JSON.parse(body)
+  } catch {
+    return [{severity: 'fail', id, message: `${label} answered a problem body that is not JSON: ${String(body).slice(0, 120)}`}]
+  }
+  const findings = []
+  if (typeof json?.type !== 'string' || !URL.canParse(json.type)) {
+    findings.push({severity: 'fail', id, message: `${label}: problem "type" ${JSON.stringify(json?.type)} is not an absolute URI`})
+  }
+  if (typeof json?.title !== 'string' || json.title.length === 0) {
+    findings.push({severity: 'fail', id, message: `${label}: problem has no "title"`})
+  }
+  if (json?.status !== status) {
+    findings.push({severity: 'fail', id, message: `${label}: problem "status" ${JSON.stringify(json?.status)} differs from HTTP ${status}`})
+  }
+  if (json?.instance !== probe.path) {
+    findings.push({severity: 'fail', id, message: `${label}: problem "instance" ${JSON.stringify(json?.instance)} is not the request path`})
+  }
+  if (probe.status === 405 && !/\bGET\b/.test(allow ?? '')) {
+    findings.push({severity: 'fail', id, message: `${label}: a 405 must send Allow naming GET, got ${JSON.stringify(allow)}`})
+  }
+  return findings
+}
+
+/** The parameters of each Structured Field List member (`"name";k=v;k=v`), by member name. */
+export function structuredListParams(value) {
+  const members = new Map()
+  for (const member of String(value ?? '').split(',')) {
+    const [name, ...params] = member.trim().split(';')
+    const key = /^"[^"]*"$/.test(name ?? '') ? name.slice(1, -1) : null
+    if (key === null) {
+      continue
+    }
+    members.set(key, Object.fromEntries(params.map((param) => param.trim().split('=')).filter((pair) => pair.length === 2)))
+  }
+  return members
+}
+
+/**
+ * Judge the RateLimit fields of one facade answer. Pure -- testable without network.
+ * `RateLimit-Policy` must name a policy with an Integer `q` and `w` (draft section 3.1); `RateLimit`
+ * must name that policy with an Integer `r` and `t` (draft section 4.1).
+ */
+export function judgeRateLimitHeaders({policy, rateLimit}) {
+  const id = 'api-v1-error-shape'
+  const integer = (value) => /^\d+$/.test(value ?? '')
+  const policies = structuredListParams(policy)
+  const named = [...policies].find(([, params]) => integer(params.q) && integer(params.w))
+  if (!named) {
+    return [{severity: 'fail', id, message: `${API_V1_HEADER_PROBE_PATH}: RateLimit-Policy ${JSON.stringify(policy)} names no policy with q and w`}]
+  }
+  const limit = structuredListParams(rateLimit).get(named[0])
+  if (!limit || !integer(limit.r) || !integer(limit.t)) {
+    return [{
+      severity: 'fail',
+      id,
+      message: `${API_V1_HEADER_PROBE_PATH}: RateLimit ${JSON.stringify(rateLimit)} carries no r and t for policy "${named[0]}"`
+    }]
+  }
+  return []
+}
+
+/** Probe the facade's failures and its rate-limit fields. `measured` counts the answers held. */
+export async function checkApiV1ErrorShape(base, get = fetchStable) {
+  const findings = []
+  let measured = 0
+  const ask = async (path, method) => {
+    const url = `${base}${path}`
+    return get(url, {method, headers: {Accept: 'application/json', ...accessHeadersFor(url, base)}, redirect: 'manual'})
+  }
+  for (const probe of API_V1_ERROR_PROBES) {
+    try {
+      const res = await ask(probe.path, probe.method)
+      const body = await res.text()
+      measured++
+      findings.push(
+        ...judgeProblemAnswer({probe, status: res.status, contentType: res.headers.get('content-type') || '', allow: res.headers.get('allow'), body})
+      )
+    } catch (err) {
+      findings.push({
+        severity: 'fail',
+        id: 'api-v1-error-shape-unreachable',
+        message: `${probe.method} ${probe.path}: ${err instanceof Error ? err.message : String(err)}`
+      })
+    }
+  }
+  try {
+    const res = await ask(API_V1_HEADER_PROBE_PATH, 'GET')
+    await res.text()
+    measured++
+    findings.push(...judgeRateLimitHeaders({policy: res.headers.get('ratelimit-policy'), rateLimit: res.headers.get('ratelimit')}))
+  } catch (err) {
+    findings.push({
+      severity: 'fail',
+      id: 'api-v1-error-shape-unreachable',
+      message: `GET ${API_V1_HEADER_PROBE_PATH}: ${err instanceof Error ? err.message : String(err)}`
+    })
+  }
+  return {measured, findings}
 }
 
 // Never throws -- every expected failure mode (network error, non-2xx, bad
@@ -774,6 +931,7 @@ async function main() {
     fetchAndValidate(`${base}/.well-known/mcp/server-card.json`, (json) => validateMcpServerCard(json), 'wellknown-mcp-server-card-compat-fetch'),
     fetchAndValidate(`${base}/.well-known/agent-skills/index.json`, validateAgentSkillsIndexShape, 'wellknown-agent-skills-fetch'),
     checkApiCatalog(base),
+    checkApiV1ErrorShape(base),
     checkMcpChain(base)
   ])
   const results = settled.map((result) => {
@@ -784,7 +942,8 @@ async function main() {
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
   // One per discovery artifact held and judged, plus one per api-catalog item whose
-  // answer was held and judged, plus one per MCP remote and protocol era that answered.
+  // answer was held and judged, plus one per developer API probe answered, plus one per MCP
+  // remote and protocol era that answered.
   // A partial sweep is a finding; reaching none of them is the darkness the dead-man
   // reports.
   const measured = results.reduce((total, r) => total + r.measured, 0)

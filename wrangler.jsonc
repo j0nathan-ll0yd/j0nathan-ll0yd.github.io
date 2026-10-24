@@ -21,6 +21,8 @@
     // header the middleware sets beyond `_headers` (HEADER_OVERRIDE_PATHS); `/` also negotiates
     // Markdown. Then the routes in src/lib/edge/routes.ts EDGE_ROUTES, then the built files only the
     // Worker reads (src/lib/composed/paths.ts INTERNAL_ASSET_PATHS), which answer 404 in public.
+    // `/api/*` covers /api/csp-report and the developer API facade under /api/v1: wrangler rejects a
+    // rule another rule makes redundant.
     "run_worker_first": [
       "/",
       "/sw.js",
@@ -37,7 +39,8 @@
       "/sa",
       "/cf-insights.js",
       "/cf-rum",
-      "/api/csp-report",
+      "/api",
+      "/api/*",
       "/simple",
       "/simple/*",
       "/mcp",
@@ -64,5 +67,14 @@
   // but never finds its own build's fragments, so it answers the value-free or data-free page; with
   // `X-SSR-Data-Plane: fixture` it reads the committed fixtures instead. The Worker only reads this
   // namespace. Local runs (wrangler dev, astro preview) simulate a namespace from the binding.
-  "kv_namespaces": [{"binding": "PAGE", "id": "dc9dc20506d1401488e00993370f81b2"}]
+  "kv_namespaces": [{"binding": "PAGE", "id": "dc9dc20506d1401488e00993370f81b2"}],
+  // The developer API facade's rate-limit counter (owner decision 2026-10-24, option B): one Durable
+  // Object per client, src/durable/ApiRateLimiter.ts, exported by src/worker.ts. SQLite storage, the
+  // only backend for a new namespace. The legacy `migrations` array, not `exports`: a config with
+  // Durable Object `exports` entries makes every `wrangler versions upload` fail, and the PR preview
+  // runs one (developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/). The
+  // first `wrangler deploy` that carries tag v1 creates the namespace; until then `wrangler versions
+  // upload` refuses the pending migration. Never edit an applied tag: add a new one.
+  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ApiRateLimiter"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}]
 }
