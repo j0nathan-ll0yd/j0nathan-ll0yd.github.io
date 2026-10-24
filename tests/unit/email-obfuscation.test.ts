@@ -1,7 +1,8 @@
 import {readFileSync} from 'node:fs'
+import {createRequire} from 'node:module'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {findClearEmails} from '../../scripts/check-no-clear-email.mjs'
+import {findClearEmails, JSON_LD_ALLOWED_ADDRESSES} from '../../scripts/check-no-clear-email.mjs'
 import {decodeEmail, encodeEmail, splitEmails} from '../../src/lib/email/obfuscate'
 
 // Build-time email obfuscation (atlas decision 0158; on Workers since decision 0160 the zone feature
@@ -67,5 +68,51 @@ describe('findClearEmails (the postbuild gate)', () => {
 
   it('passes the encoded markup', () => {
     expect(findClearEmails(`<a class="email-link" href="/contact" data-email="${encodeEmail(ADDRESS)}">Contact</a>`)).toEqual([])
+  })
+  // Owner rulings 2026-10-24: the JSON-LD block may name the organization's contact alias, and
+  // nothing else may.
+  const ALIAS = 'alias@example.net'
+  const jsonLd = (body: string) => `<script type="application/ld+json">${body}</script>`
+
+  // covers: dashboard-shell#The structured data names the organization first, with a contact alias and a PO Box
+  it('admits the allowed alias inside the JSON-LD block', () => {
+    expect(findClearEmails(jsonLd(`{"email":"${ALIAS}"}`), {jsonLdAllowed: [ALIAS]})).toEqual([])
+  })
+
+  it('finds the alias outside the JSON-LD block', () => {
+    expect(findClearEmails(`${jsonLd('{}')}\n<p>${ALIAS}</p>`, {jsonLdAllowed: [ALIAS]})).toEqual([`2: ${ALIAS}`])
+  })
+
+  it('finds any other address, and a mailto, inside the JSON-LD block', () => {
+    expect(findClearEmails(jsonLd(`{"a":"${ALIAS}","b":"${ADDRESS}","c":"mailto:${ALIAS}"}`), {jsonLdAllowed: [ALIAS]})).toEqual([
+      `1: ${ADDRESS}`,
+      '1: mailto:'
+    ])
+  })
+
+  it('opens no JSON-LD span from a comment or a script string that only looks like the tag', () => {
+    expect(findClearEmails(`<!-- <script type="application/ld+json"> --><p>${ALIAS}</p><!-- </script> -->`, {jsonLdAllowed: [ALIAS]})).toEqual([
+      `1: ${ALIAS}`
+    ])
+    expect(
+      findClearEmails(`<script type="module">const tag = '<script type="application/ld+json">'; const a = '${ALIAS}'</script>`, {jsonLdAllowed: [ALIAS]})
+    ).toEqual([
+      `1: ${ALIAS}`
+    ])
+  })
+
+  it('finds an address whose @ is a character reference or a JSON escape', () => {
+    expect(findClearEmails('<p>me&#64;example.com and you&#x40;example.com</p>\n<p>them&commat;example.com</p>')).toEqual([
+      '1: me&#64;example.com',
+      '1: you&#x40;example.com',
+      '2: them&commat;example.com'
+    ])
+    expect(findClearEmails(jsonLd('{"email":"me\\u0040example.com"}'))).toEqual(['1: me\\u0040example.com'])
+  })
+
+  it('admits by default exactly the copy organization alias, which is not the personal address', () => {
+    const copy = createRequire(import.meta.url)('@j0nathan-ll0yd/copy/identity.flat.json')
+    expect(JSON_LD_ALLOWED_ADDRESSES).toEqual([copy.organization.contactEmail])
+    expect(JSON_LD_ALLOWED_ADDRESSES).not.toContain(copy.person.email)
   })
 })

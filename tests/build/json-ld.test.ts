@@ -166,28 +166,115 @@ describe('JSON-LD Dataset (sourced from @j0nathan-ll0yd/portal-contract)', () =>
     expect(dataset.license).toBe(SITE_URL + '/privacy')
   })
 
-  // Atlas decision 0158 (O5): the Person carries the contact data; every value is a copy key.
-  // No `email` (owner ruling 2026-10-15): no obfuscation reaches inside a <script>, and no page may
-  // carry the address in clear. The contact page carries it, encoded.
-  it('Person has a contactPoint with the copy contact type and the /contact page, and no email', () => {
+  it('publisher points at the organization', () => {
+    const dataset = graph.find((n: any) => n['@type'] === 'Dataset')
+    expect(dataset.publisher).toEqual({'@id': ORGANIZATION_ID})
+  })
+})
+
+// Owner rulings 2026-10-24 (reversing atlas decision 0158 O5): a Lifegames Organization with the
+// contact alias and the PO Box, first in the graph. Every value is a copy key. The alias is a
+// purpose-made address; the personal address (identity.person.email) appears in no page.
+const ORGANIZATION_ID = SITE_URL + '#organization'
+const PERSON_ID = SITE_URL + '#person'
+const PO_BOX_ADDRESS = {
+  '@type': 'PostalAddress',
+  postOfficeBoxNumber: identity.organization.poBox,
+  addressLocality: identity.organization.locality,
+  addressRegion: identity.organization.region,
+  postalCode: identity.organization.postalCode,
+  addressCountry: identity.organization.country
+}
+
+describe('JSON-LD Organization (sourced from @j0nathan-ll0yd/copy)', () => {
+  // covers: dashboard-shell#The structured data names the organization first, with a contact alias and a PO Box
+  it('is the first graph node', () => {
+    expect(graph[0]['@type']).toBe('Organization')
+    expect(graph[0]['@id']).toBe(ORGANIZATION_ID)
+  })
+
+  it('names Lifegames from copy, at the site URL, with its NAICS code and description', () => {
+    const organization = graph[0]
+    expect(organization.name).toBe(identity.organization.name)
+    expect(organization.url).toBe(SITE_URL)
+    expect(organization.description).toBe(identity.organization.description)
+    expect(organization.naics).toBe('541511')
+  })
+
+  it('carries the site icon as an ImageObject logo', () => {
+    expect(graph[0].logo).toEqual({'@type': 'ImageObject', url: SITE_URL + '/assets/icon-512.png', width: 512, height: 512})
+  })
+
+  it('names the Person as founder and member, and shares its profile links', () => {
+    const organization = graph[0]
+    expect(organization.founder).toEqual({'@id': PERSON_ID})
+    expect(organization.member).toEqual({'@id': PERSON_ID})
+    expect(organization.sameAs).toEqual(identity.person.sameAs)
+  })
+
+  it('carries the alias at the top level and in a contactPoint with the copy contact type', () => {
+    const organization = graph[0]
+    expect(organization.email).toBe(identity.organization.contactEmail)
+    expect(organization.contactPoint).toEqual([
+      {
+        '@type': 'ContactPoint',
+        contactType: identity.organization.contactType,
+        email: identity.organization.contactEmail,
+        url: SITE_URL + '/contact',
+        availableLanguage: 'en'
+      }
+    ])
+    expect(organization.contactPoint[0].email).toBeTruthy()
+    expect(organization.contactPoint[0].contactType).toBeTruthy()
+  })
+
+  it('carries the PO Box PostalAddress with no street address', () => {
+    const organization = graph[0]
+    expect(organization.address).toEqual(PO_BOX_ADDRESS)
+    expect(organization.address.postOfficeBoxNumber).toBeTruthy()
+    expect(organization.address.postalCode).toBeTruthy()
+    expect(organization.address).not.toHaveProperty('streetAddress')
+  })
+
+  it('is the WebSite publisher', () => {
+    const website = graph.find((n: any) => n['@type'] === 'WebSite')
+    expect(website.publisher['@id']).toBe(ORGANIZATION_ID)
+  })
+
+  it('is the Person memberOf', () => {
     const person = graph.find((n: any) => n['@type'] === 'Person')
-    expect(person.contactPoint).toEqual({'@type': 'ContactPoint', contactType: identity.person.contactType, url: SITE_URL + '/contact'})
+    expect(person.memberOf['@id']).toBe(ORGANIZATION_ID)
+  })
+
+  it('Person contactPoint carries the copy contact type, the /contact page, and the organization alias', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.contactPoint).toEqual({
+      '@type': 'ContactPoint',
+      contactType: identity.person.contactType,
+      email: identity.organization.contactEmail,
+      url: SITE_URL + '/contact'
+    })
+    expect(person.contactPoint.email).toBe(graph[0].email)
+  })
+
+  it('Person address is the same PO Box PostalAddress', () => {
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.address).toEqual(PO_BOX_ADDRESS)
+    expect(person.address.postOfficeBoxNumber).toBeTruthy()
+  })
+
+  it('never names the personal address', () => {
+    expect(identity.organization.contactEmail).not.toBe(identity.person.email)
     expect(JSON.stringify(graph)).not.toContain(identity.person.email)
   })
 
-  it('Person has a PostalAddress from the copy locality, region, and country', () => {
+  it('leaves the employer and university nodes nested and typed (round 1)', () => {
     const person = graph.find((n: any) => n['@type'] === 'Person')
-    expect(person.address).toEqual({
-      '@type': 'PostalAddress',
-      addressLocality: identity.person.addressLocality,
-      addressRegion: identity.person.addressRegion,
-      addressCountry: identity.person.addressCountry
-    })
-  })
-
-  it('names no Organization for "Lifegames" anywhere in the graph', () => {
-    const organizations = JSON.stringify(graph).match(/"@type":"Organization","name":"[^"]*"/g) ?? []
-    expect(organizations.filter((o) => /lifegames/i.test(o))).toEqual([])
+    expect(person.worksFor['@type']).toBe('Organization')
+    expect(person.worksFor.name).toBe(identity.person.employer)
+    expect(person.alumniOf['@type']).toBe('EducationalOrganization')
+    expect(person.alumniOf.name).toBe(identity.person.alumniOf)
+    expect(graph.filter((n: any) => n['@type'] === 'Organization').map((n: any) => n['@id'])).toEqual([ORGANIZATION_ID])
   })
 })
 
@@ -227,6 +314,11 @@ describe('JSON-LD @graph per-page shape and @id resolution', () => {
       it('always carries a WebSite and a Person node', () => {
         expect(pageGraph.some((n) => n['@type'] === 'WebSite')).toBe(true)
         expect(pageGraph.some((n) => n['@type'] === 'Person')).toBe(true)
+      })
+
+      it('opens with the Organization node', () => {
+        expect(pageGraph[0]['@type']).toBe('Organization')
+        expect(pageGraph[0]['@id']).toBe(ORGANIZATION_ID)
       })
 
       if (page.isHome) {
