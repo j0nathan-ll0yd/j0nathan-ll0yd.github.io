@@ -49,10 +49,12 @@ export interface RateLimiterNamespace {
 export const RATE_LIMITER_BINDING = 'API_RATE_LIMITER'
 
 /**
- * How long the Worker waits for the counter. A Durable Object call normally answers in a few ms; past
- * this the request goes ahead without a decision (fail-open, owner decision 2026-10-24).
+ * How long the Worker waits for the counter. A Durable Object call answers in a few ms (the 61-request
+ * burst on the #395 preview, through the real cross-Worker binding, never came near it). Past 250 ms
+ * the counter is unhealthy, and fail-open (owner decision 2026-10-24) must not hold every API request
+ * for longer than that before the gated read starts (review of #395, I3).
  */
-export const RATE_LIMIT_TIMEOUT_MS = 1_000
+export const RATE_LIMIT_TIMEOUT_MS = 250
 
 const logger = createEdgeLogger({service: 'api-v1-rate-limit'})
 

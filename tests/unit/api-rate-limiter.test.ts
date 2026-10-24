@@ -12,6 +12,7 @@ import {
   type RateLimiterNamespace,
   rateLimitHeader,
   rateLimitPolicyHeader,
+  UNAVAILABLE_LOG_INTERVAL_MS,
   type WindowState
 } from '../../src/lib/edge/rate-limit'
 
@@ -65,14 +66,36 @@ describe('checkRateLimit', () => {
     warn.mockRestore()
   })
 
-  it('logs one warning per reason per interval, however many requests fail open', async () => {
+  it('logs exactly one warning per reason per interval, and none carries the address or the counter key', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const request = new Request(`${ORIGIN}/api/v1/books.json`)
-    const before = warn.mock.calls.length
+    const ip = '203.0.113.9'
+    const request = new Request(`${ORIGIN}/api/v1/books.json`, {headers: {'CF-Connecting-IP': ip}})
+    // Start one interval past any earlier test's warning for the same reason (the throttle is per isolate).
+    vi.useFakeTimers({now: Date.now() + 10 * UNAVAILABLE_LOG_INTERVAL_MS, toFake: ['Date']})
+    const fail = () => checkRateLimit(request, limiter(() => Promise.reject(new Error('quota'))))
+    const warnings = () => warn.mock.calls.filter((call) => String(call[0]).includes('api_v1_rate_limit_unavailable'))
+
     for (let i = 0; i < 20; i++) {
-      await checkRateLimit(request, limiter(() => Promise.reject(new Error('quota'))))
+      expect(await fail()).toBeNull()
     }
-    expect(warn.mock.calls.length - before).toBeLessThanOrEqual(1)
+    expect(warnings()).toHaveLength(1)
+
+    vi.setSystemTime(Date.now() + UNAVAILABLE_LOG_INTERVAL_MS - 1)
+    await fail()
+    expect(warnings()).toHaveLength(1)
+
+    vi.setSystemTime(Date.now() + 1)
+    await fail()
+    expect(warnings()).toHaveLength(2)
+
+    const fields = warnings().map((call) => JSON.parse(String(call[0])) as Record<string, unknown>)
+    for (const field of fields) {
+      expect(Object.keys(field).sort()).toEqual(['error_class', 'level', 'message', 'reason', 'service', 'timestamp'])
+      expect(field).toMatchObject({reason: 'error', error_class: 'Error', message: 'api_v1_rate_limit_unavailable'})
+    }
+    const logged = JSON.stringify(warn.mock.calls)
+    expect(logged).not.toContain(ip)
+    expect(logged).not.toContain(await clientKey(ip))
     warn.mockRestore()
   })
 })

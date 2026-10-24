@@ -21,9 +21,13 @@ import {basename, dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json' with {type: 'json'}
 import llm from '@j0nathan-ll0yd/copy/llm.flat.json' with {type: 'json'}
-import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {
   AGENT_PATHS,
+  API_DEPRECATION_WINDOW_DAYS,
+  API_PROBLEMS,
+  API_V1_BASE,
+  API_V1_RATE_LIMIT,
   DATA_SOURCES,
   fillTemplate,
   FOCUS_SIGNAL_PATH,
@@ -224,8 +228,8 @@ write(AGENT_PATHS.ard.slice(1), catalog)
 
 // ---------------------------------------------------------------------------
 // RFC 9727 API catalog. The anchor is the catalog's own URL. Each public JSON export is
-// one `item` (all nine, from the contract's CLOUDFRONT_BASE plus ENDPOINTS): every item
-// answers JSON, where the CloudFront root this listed before answers an S3 XML 403. The
+// one `item` (all nine), at its developer API facade URL (API_V1_BASE plus the contract
+// path): every item answers JSON, and every failure answers application/problem+json. The
 // catalog is developer documentation, so the raw health exports are listed too. Each item
 // is described by its own linkset entry (RFC 9727 Appendix A.1): service-desc is
 // /openapi.json, and service-doc names /developers only once that page exists
@@ -237,13 +241,16 @@ const serviceLinks = {
 }
 write(AGENT_PATHS.apiCatalog.slice(1), json({
   linkset: [
-    {anchor: `${SITE_URL}${AGENT_PATHS.apiCatalog}`, item: DATA_SOURCES.map((source) => ({href: source.url, type: 'application/json'}))},
-    ...DATA_SOURCES.map((source) => ({anchor: source.url, ...serviceLinks}))
+    {anchor: `${SITE_URL}${AGENT_PATHS.apiCatalog}`, item: DATA_SOURCES.map((source) => ({href: source.apiUrl, type: 'application/json'}))},
+    ...DATA_SOURCES.map((source) => ({anchor: source.apiUrl, ...serviceLinks}))
   ]
 }))
 
 // ---------------------------------------------------------------------------
-// OpenAPI 3.1 for the nine JSON exports on CLOUDFRONT_BASE. Response schemas are the
+// OpenAPI 3.1 for the nine JSON exports on the developer API facade (API_V1_BASE,
+// src/lib/edge/api-v1.ts). Every failure is an RFC 9457 problem (the Problem schema, one
+// response component per problem type); every response states the rate-limit policy, and every
+// 200 lists the deprecation fields the versioning promise uses. Response schemas are the
 // contract's published raw schemas, one per export, matched by file name and checked
 // as a set in both directions. They are draft-07 documents that use no keyword
 // outside the 2020-12 dialect (no $ref, definitions, dependencies or tuple items), so
@@ -303,32 +310,131 @@ for (const source of DATA_SOURCES) {
   delete schema.$schema
   schemas[`${pascal(source.key)}Export`] = schema
 }
-schemas.Suppressed = {type: 'object', required: ['suppressed', 'reason'], properties: {suppressed: {const: true}, reason: {type: 'string'}}}
+/**
+ * The function-calling-compat experiment (is-agentic api-v1 plan, Design): `type: object` beside
+ * each export `$ref`, legal in OpenAPI 3.1 (JSON Schema 2020-12 allows `$ref` siblings), on the
+ * hypothesis that the scanner reads `schema.type` without resolving `$ref`. If the next production
+ * scan still reports 0/9 typed schemas, set this to false: the revert is this one line.
+ */
+const OPENAPI_REF_TYPE_SIBLING = true
+
+/** The response schema of one export: its component, with the experiment's sibling when on. */
+function exportSchema(source) {
+  const name = `${pascal(source.key)}Export`
+  if (OPENAPI_REF_TYPE_SIBLING && schemas[name].type !== 'object') {
+    throw new Error(`${name} is not a JSON object schema; the type: object sibling would contradict it`)
+  }
+  return {...(OPENAPI_REF_TYPE_SIBLING ? {type: 'object'} : {}), $ref: `#/components/schemas/${name}`}
+}
+
+// RFC 9457 section 3.1 members, plus the extension members the facade uses (section 3.2).
+schemas.Problem = {
+  type: 'object',
+  required: ['type', 'title', 'status', 'detail', 'instance'],
+  properties: {
+    type: {type: 'string', format: 'uri'},
+    title: {type: 'string'},
+    status: {type: 'integer', minimum: 400, maximum: 599},
+    detail: {type: 'string'},
+    instance: {type: 'string', format: 'uri-reference'},
+    validPaths: {type: 'array', items: {type: 'string'}},
+    retryAfterSeconds: {type: 'integer', minimum: 0},
+    suppressed: {const: true},
+    reason: {type: 'string'}
+  }
+}
+
+/** One response component per problem type, and the extension members each always carries. */
+const PROBLEM_RESPONSES = {
+  'not-found': {name: 'NotFound', required: ['validPaths']},
+  'method-not-allowed': {name: 'MethodNotAllowed', required: []},
+  'rate-limited': {name: 'RateLimited', required: ['retryAfterSeconds']},
+  'focus-suppressed': {name: 'FocusSuppressed', required: ['retryAfterSeconds', 'suppressed', 'reason']},
+  'upstream-unavailable': {name: 'UpstreamUnavailable', required: ['retryAfterSeconds']}
+}
+const header = (name) => ({$ref: `#/components/headers/${name}`})
+const policyHeader = {'RateLimit-Policy': header('RateLimit-Policy')}
+const rateLimitHeaders = {...policyHeader, RateLimit: header('RateLimit')}
+const retryHeaders = {...rateLimitHeaders, 'Retry-After': header('Retry-After')}
+const PROBLEM_HEADERS = {
+  'not-found': policyHeader,
+  'method-not-allowed': {...policyHeader, Allow: header('Allow')},
+  'rate-limited': retryHeaders,
+  'focus-suppressed': retryHeaders,
+  'upstream-unavailable': retryHeaders
+}
+const problemSchema = {$ref: '#/components/schemas/Problem'}
+const responses = {}
+for (const problem of API_PROBLEMS) {
+  const entry = PROBLEM_RESPONSES[problem.slug]
+  if (!entry) {
+    throw new Error(`no OpenAPI response component for problem type "${problem.slug}"`)
+  }
+  const schema = entry.required.length > 0 ? {allOf: [problemSchema, {required: entry.required}]} : problemSchema
+  responses[entry.name] = {description: problem.title, headers: PROBLEM_HEADERS[problem.slug], content: {'application/problem+json': {schema}}}
+}
+const responseRef = (slug) => ({$ref: `#/components/responses/${PROBLEM_RESPONSES[slug].name}`})
+
+const stringHeader = {schema: {type: 'string'}}
+const headers = {
+  // draft-ietf-httpapi-ratelimit-headers-11 sections 3 and 4: Structured Field Lists.
+  'RateLimit-Policy': {...stringHeader, example: `"${API_V1_RATE_LIMIT.policy}";q=${API_V1_RATE_LIMIT.limit};w=${API_V1_RATE_LIMIT.windowSeconds}`},
+  RateLimit: {...stringHeader, example: `"${API_V1_RATE_LIMIT.policy}";r=${API_V1_RATE_LIMIT.limit - 1};t=${API_V1_RATE_LIMIT.windowSeconds}`},
+  'Retry-After': {schema: {type: 'integer', minimum: 0}},
+  Allow: {...stringHeader, example: 'GET, HEAD'},
+  // RFC 9745 Deprecation, RFC 8594 Sunset and the RFC 8288 rel="successor-version" Link: sent only
+  // while a successor version is live, for at least API_DEPRECATION_WINDOW_DAYS days.
+  Deprecation: stringHeader,
+  Sunset: stringHeader,
+  Link: stringHeader
+}
 
 const paths = {}
 for (const source of DATA_SOURCES) {
-  const responses = {
-    200: {description: source.description, content: {'application/json': {schema: {$ref: `#/components/schemas/${pascal(source.key)}Export`}}}}
+  const operationResponses = {
+    200: {
+      description: source.description,
+      headers: {...rateLimitHeaders, Deprecation: header('Deprecation'), Sunset: header('Sunset'), Link: header('Link')},
+      content: {'application/json': {schema: exportSchema(source)}}
+    },
+    405: responseRef('method-not-allowed'),
+    429: responseRef('rate-limited'),
+    502: responseRef('upstream-unavailable')
   }
   // The edge gate never suppresses the focus signal; every other export may be hidden.
   if (source.path !== FOCUS_SIGNAL_PATH) {
-    responses[403] = {$ref: '#/components/responses/Suppressed'}
+    operationResponses[503] = responseRef('focus-suppressed')
   }
-  paths[source.path] = {get: {operationId: `get${pascal(source.key)}`, summary: source.name, description: source.description, responses}}
+  paths[source.path] = {get: {operationId: `get${pascal(source.key)}`, summary: source.name, description: source.description, responses: operationResponses}}
+}
+
+// The prose states the numbers the code enforces; a copy release that drops one fails the build.
+// The rate-limit window may read as seconds, or as "minute" when it is exactly 60 seconds.
+const windowPhrases = [`${API_V1_RATE_LIMIT.windowSeconds} seconds`, ...(API_V1_RATE_LIMIT.windowSeconds === 60 ? ['minute'] : [])]
+for (
+  const [key, phrases] of [
+    ['versioningBody', [[`${API_DEPRECATION_WINDOW_DAYS} days`]]],
+    ['rateLimitBody', [[`${API_V1_RATE_LIMIT.limit} requests`], windowPhrases]]
+  ]
+) {
+  for (const alternatives of phrases) {
+    if (!alternatives.some((phrase) => new RegExp(`\\b${phrase}\\b`).test(llm.developers[key]))) {
+      throw new Error(`llm.developers.${key} states none of ${alternatives.join(' / ')}, which the facade enforces`)
+    }
+  }
 }
 
 write(AGENT_PATHS.openapi.slice(1),
   json({
     openapi: '3.1.0',
-    info: {title: identity.site.fullName, version: OPENAPI_DOCUMENT_VERSION, description: llm.dashboard.datasetDescription},
-    servers: [{url: CLOUDFRONT_BASE}],
+    info: {
+      title: identity.site.fullName,
+      version: OPENAPI_DOCUMENT_VERSION,
+      description: [llm.dashboard.datasetDescription, llm.developers.versioningBody, llm.developers.rateLimitBody].join('\n\n')
+    },
+    servers: [{url: API_V1_BASE, description: fillTemplate(llm.developers.apiBaseNote, 'siteUrl', SITE_URL)}],
     paths,
-    components: {
-      schemas,
-      responses: {
-        Suppressed: {description: llm.developers.apiSuppressedResponse, content: {'application/json': {schema: {$ref: '#/components/schemas/Suppressed'}}}}
-      }
-    }
+    components: {schemas, responses, headers}
   }))
 
 if (CHECK) {

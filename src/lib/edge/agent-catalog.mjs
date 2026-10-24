@@ -35,7 +35,13 @@ export const MCP_SERVER_NAME = `${new URL(SITE_URL).hostname.split('.').reverse(
 export const MCP_SERVER_VERSION = '1.0.0'
 
 /** The version of /openapi.json. Bump when an export path, schema, or documented response changes. */
-export const OPENAPI_DOCUMENT_VERSION = '1.0.0'
+export const OPENAPI_DOCUMENT_VERSION = '2.0.0'
+
+/**
+ * The developer API facade's base URL. The Worker serves every export at API_V1_BASE plus its
+ * contract path, through the same focus gate as the CloudFront URL (src/lib/edge/api-v1.ts).
+ */
+export const API_V1_BASE = `${SITE_URL}${AGENT_PATHS.apiV1}`
 
 /**
  * The facade's per-client request budget: `limit` requests per fixed window of `windowSeconds`,
@@ -44,6 +50,9 @@ export const OPENAPI_DOCUMENT_VERSION = '1.0.0'
  * RateLimit-Policy and RateLimit fields (draft-ietf-httpapi-ratelimit-headers-11 sections 3 and 4).
  */
 export const API_V1_RATE_LIMIT = Object.freeze({policy: 'default', limit: 60, windowSeconds: 60})
+
+/** How long a superseded API version keeps answering, with Deprecation and Sunset, after its successor ships (owner decision 2026-10-24). */
+export const API_DEPRECATION_WINDOW_DAYS = 90
 
 /**
  * How long a client may cache the server card and the MCP list results (`server/discover`,
@@ -81,7 +90,32 @@ export const DATA_SOURCES = Object.freeze(Object.entries(ENDPOINTS).map(([key, p
   if (typeof name !== 'string' || typeof description !== 'string') {
     throw new Error(`@j0nathan-ll0yd/copy has no llm.mcp.${stem}Name / ${stem}Desc for portal-contract endpoint "${key}"`)
   }
-  return Object.freeze({key, path, url: `${CLOUDFRONT_BASE}${path}`, name, description})
+  return Object.freeze({key, path, url: `${CLOUDFRONT_BASE}${path}`, apiUrl: `${API_V1_BASE}${path}`, name, description})
+}))
+
+/**
+ * The facade's RFC 9457 problem types, in the order /developers lists them. Each `type` is a
+ * fragment of /developers, where a heading with id `problem-<slug>` explains it. `title` and
+ * `detail` are static copy: variable data travels in extension members (src/lib/edge/problem.ts).
+ * A slug without copy fails here, at build.
+ */
+const PROBLEM_STATUS = Object.freeze({
+  'not-found': 404,
+  'method-not-allowed': 405,
+  'rate-limited': 429,
+  'focus-suppressed': 503,
+  'upstream-unavailable': 502
+})
+export const API_PROBLEMS = Object.freeze(Object.entries(PROBLEM_STATUS).map(([slug, status]) => {
+  const stem = `problem${slug.split('-').map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`).join('')}`
+  const title = llm.developers[`${stem}Title`]
+  const detail = llm.developers[`${stem}Detail`]
+  if (typeof title !== 'string' || typeof detail !== 'string') {
+    throw new Error(`@j0nathan-ll0yd/copy has no llm.developers.${stem}Title / ${stem}Detail for problem type "${slug}"`)
+  }
+  // A detail may name a site URL through {siteUrl}; it is filled once here, so the served detail stays static.
+  const filled = detail.includes('{siteUrl}') ? fillTemplate(detail, 'siteUrl', SITE_URL) : detail
+  return Object.freeze({slug, status, title, detail: filled, anchor: `problem-${slug}`, type: `${SITE_URL}${AGENT_PATHS.developers}#problem-${slug}`})
 }))
 
 const llmsTxt = DATASET_DISTRIBUTIONS.find((d) => d.name === 'LLM discovery index')

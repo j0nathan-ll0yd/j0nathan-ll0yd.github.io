@@ -13,6 +13,10 @@ import {defineConfig} from '@playwright/test'
 // when the dist/ is already current.
 
 const isCI = !!process.env.CI
+/** The `wrangler dev` port of the developer API suite (tests/behavioral/api-v1.spec.ts reads the same variable). */
+const WRANGLER_DEV_PORT = process.env.WRANGLER_DEV_PORT ?? '8788'
+/** The rate-limiter Worker's `wrangler dev` port. */
+const RATE_LIMITER_DEV_PORT = process.env.RATE_LIMITER_DEV_PORT ?? '8790'
 const NO_JS_SPECS = ['**/ssr-no-js.test.ts']
 
 export default defineConfig({
@@ -48,6 +52,15 @@ export default defineConfig({
   // Worker in workerd; write-dev-vars.mjs runs after the build because postbuild deletes the file.
   webServer: [
     {
+      // The rate-limiter Worker (workers/rate-limiter/), first, so the site Worker's API_RATE_LIMITER
+      // binding (`script_name`) finds it in the local dev registry when `wrangler dev` starts below. Its
+      // fetch answers 404 by design, so readiness is the open port, not a URL.
+      command: `pnpm exec wrangler dev --config workers/rate-limiter/wrangler.jsonc --ip 127.0.0.1 --port ${RATE_LIMITER_DEV_PORT}`,
+      port: Number(RATE_LIMITER_DEV_PORT),
+      timeout: 60_000,
+      reuseExistingServer: !isCI
+    },
+    {
       command: 'node scripts/build-composer.mjs && pnpm exec tsx tests/data-plane/server.ts',
       url: 'http://127.0.0.1:4399/__control/requests',
       timeout: 30_000,
@@ -58,6 +71,15 @@ export default defineConfig({
         ? 'node tests/data-plane/write-dev-vars.mjs && pnpm run preview'
         : 'pnpm run build && node tests/data-plane/write-dev-vars.mjs && pnpm run preview',
       url: 'http://localhost:4321/',
+      timeout: 120_000,
+      reuseExistingServer: !isCI
+    },
+    {
+      // The same build under `wrangler dev`, for tests/behavioral/api-v1.spec.ts: `astro preview`
+      // answers an OPTIONS preflight itself, before the Worker, so the developer API's CORS answer and
+      // its Durable Object rate limiter are measured here. It reads the .dev.vars the preview step writes.
+      command: `pnpm exec wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port ${WRANGLER_DEV_PORT}`,
+      url: `http://127.0.0.1:${WRANGLER_DEV_PORT}/version.json`,
       timeout: 120_000,
       reuseExistingServer: !isCI
     }

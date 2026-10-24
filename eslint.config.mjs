@@ -27,7 +27,8 @@ export default [
       'dist/**',
       'dist-composer/**',
       '.astro/**',
-      '.wrangler/**',
+      // Wrangler state at any depth: `wrangler dev` of workers/rate-limiter/ writes its own .wrangler/.
+      '**/.wrangler/**',
       'coverage/**',
       'node_modules/**',
       'previews/**',

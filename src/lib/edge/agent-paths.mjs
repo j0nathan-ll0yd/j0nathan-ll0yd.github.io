@@ -11,7 +11,9 @@ export const AGENT_PATHS = Object.freeze({
   apiCatalog: '/.well-known/api-catalog',
   agentSkillsIndex: '/.well-known/agent-skills/index.json',
   openapi: '/openapi.json',
-  developers: '/developers'
+  developers: '/developers',
+  // The developer API facade (is-agentic api-v1 plan): the Worker serves the nine exports here.
+  apiV1: '/api/v1'
 })
 
 /**
