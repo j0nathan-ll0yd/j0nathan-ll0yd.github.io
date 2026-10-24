@@ -21,6 +21,8 @@
     // header the middleware sets beyond `_headers` (HEADER_OVERRIDE_PATHS); `/` also negotiates
     // Markdown. Then the routes in src/lib/edge/routes.ts EDGE_ROUTES, then the built files only the
     // Worker reads (src/lib/composed/paths.ts INTERNAL_ASSET_PATHS), which answer 404 in public.
+    // `/api/*` covers /api/csp-report and the developer API facade under /api/v1: wrangler rejects a
+    // rule another rule makes redundant.
     "run_worker_first": [
       "/",
       "/sw.js",
@@ -37,7 +39,8 @@
       "/sa",
       "/cf-insights.js",
       "/cf-rum",
-      "/api/csp-report",
+      "/api",
+      "/api/*",
       "/simple",
       "/simple/*",
       "/mcp",

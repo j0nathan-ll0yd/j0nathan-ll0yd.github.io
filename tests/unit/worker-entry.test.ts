@@ -202,17 +202,14 @@ describe('route paths, under the Pages matching rules', () => {
     expect(handled.map((r) => r.method)).toEqual(['PUT'])
   })
 
-  it('sends a GET on the POST-only CSP collector to the 404 page, as Pages did', async () => {
-    const response = await request('/api/csp-report')
-    expect(response.status).toBe(404)
-    expect(response.headers.get('Cache-Control')).toBe('no-store')
-    expect(handled).toHaveLength(0)
+  it('hands a GET on the CSP collector to Astro, which answers the 405 problem, never the 404 page', async () => {
+    await request('/api/csp-report')
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['GET /api/csp-report'])
   })
 
-  it('sends a PUT on the POST-only CSP collector to an empty 405, never to Astro', async () => {
-    const response = await request('/api/csp-report', {method: 'PUT'})
-    expect(response.status).toBe(405)
-    expect(handled).toHaveLength(0)
+  it('hands a PUT on the CSP collector to Astro, never to the asset plane', async () => {
+    await request('/api/csp-report', {method: 'PUT'})
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['PUT /api/csp-report'])
   })
 
   it('hands a POST on the CSP collector to Astro', async () => {
@@ -316,4 +313,18 @@ describe('the rate limiter Durable Object', () => {
     expect(limiterWorker.ClientRateLimitWindow).toBe(ClientRateLimitWindow)
     expect(limiterWorker.default.fetch().status).toBe(404)
   })
+})
+
+describe('the developer API routes (is-agentic api-v1 plan)', () => {
+  it.each([['GET', '/api/nope'], ['POST', '/api/v1/books.json'], ['DELETE', '/api/v1/books.json'], ['OPTIONS', '/api/v1/books.json'], ['GET', '/api/v1/']])(
+    'hands %s %s to the Astro endpoint, never the asset plane',
+    async (method, path) => {
+      handled.length = 0
+      assetRequests.length = 0
+      const response = await worker.fetch(new Request(`https://jonathanlloyd.me${path}`, {method}), {ASSETS} as never, {waitUntil: () => {}} as never)
+      expect(response.status).toBe(200)
+      expect(handled.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([`${method} ${path.replace(/\/$/, '')}`])
+      expect(assetRequests).toEqual([])
+    }
+  )
 })

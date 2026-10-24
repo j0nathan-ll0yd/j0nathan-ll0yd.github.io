@@ -13,6 +13,8 @@ import {defineConfig} from '@playwright/test'
 // when the dist/ is already current.
 
 const isCI = !!process.env.CI
+/** The `wrangler dev` port of the developer API suite (tests/behavioral/api-v1.spec.ts reads the same variable). */
+const WRANGLER_DEV_PORT = process.env.WRANGLER_DEV_PORT ?? '8788'
 const NO_JS_SPECS = ['**/ssr-no-js.test.ts']
 
 export default defineConfig({
@@ -58,6 +60,15 @@ export default defineConfig({
         ? 'node tests/data-plane/write-dev-vars.mjs && pnpm run preview'
         : 'pnpm run build && node tests/data-plane/write-dev-vars.mjs && pnpm run preview',
       url: 'http://localhost:4321/',
+      timeout: 120_000,
+      reuseExistingServer: !isCI
+    },
+    {
+      // The same build under `wrangler dev`, for tests/behavioral/api-v1.spec.ts: `astro preview`
+      // answers an OPTIONS preflight itself, before the Worker, so the developer API's CORS answer and
+      // its Durable Object rate limiter are measured here. It reads the .dev.vars the preview step writes.
+      command: `pnpm exec wrangler dev --config dist/server/wrangler.json --ip 127.0.0.1 --port ${WRANGLER_DEV_PORT}`,
+      url: `http://127.0.0.1:${WRANGLER_DEV_PORT}/version.json`,
       timeout: 120_000,
       reuseExistingServer: !isCI
     }
