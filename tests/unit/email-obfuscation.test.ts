@@ -90,6 +90,26 @@ describe('findClearEmails (the postbuild gate)', () => {
     ])
   })
 
+  it('opens no JSON-LD span from a comment or a script string that only looks like the tag', () => {
+    expect(findClearEmails(`<!-- <script type="application/ld+json"> --><p>${ALIAS}</p><!-- </script> -->`, {jsonLdAllowed: [ALIAS]})).toEqual([
+      `1: ${ALIAS}`
+    ])
+    expect(
+      findClearEmails(`<script type="module">const tag = '<script type="application/ld+json">'; const a = '${ALIAS}'</script>`, {jsonLdAllowed: [ALIAS]})
+    ).toEqual([
+      `1: ${ALIAS}`
+    ])
+  })
+
+  it('finds an address whose @ is a character reference or a JSON escape', () => {
+    expect(findClearEmails('<p>me&#64;example.com and you&#x40;example.com</p>\n<p>them&commat;example.com</p>')).toEqual([
+      '1: me&#64;example.com',
+      '1: you&#x40;example.com',
+      '2: them&commat;example.com'
+    ])
+    expect(findClearEmails(jsonLd('{"email":"me\\u0040example.com"}'))).toEqual(['1: me\\u0040example.com'])
+  })
+
   it('admits by default exactly the copy organization alias, which is not the personal address', () => {
     const copy = createRequire(import.meta.url)('@j0nathan-ll0yd/copy/identity.flat.json')
     expect(JSON_LD_ALLOWED_ADDRESSES).toEqual([copy.organization.contactEmail])

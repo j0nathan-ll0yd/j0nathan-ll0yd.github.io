@@ -85,8 +85,10 @@ page only (`Astro.url.pathname === '/'`) and, on every other page, emit a plain
 `#website`, name = the page title). Following Hawksley's "don't repeat the full
 `WebSite` per page" advice, non-home pages now carry a slimmed `WebSite` reference
 while the full node (with `description`, `image`, and `alternateName`) stays on the
-home page; the full `Person` remains on every page as the site publisher, as he
-recommends. We also stopped faking a date: `ProfilePage.dateModified` was
+home page; the full `Person` remains on every page, as he recommends. Since
+2026-10-24 the site publisher is the Lifegames `Organization` node, first in every
+graph (owner rulings reversing atlas decision 0158 O5); the `Person` is its
+`founder`, `member` and the ProfilePage `mainEntity`. We also stopped faking a date: `ProfilePage.dateModified` was
 `new Date().toISOString()` (the build clock -- non-deterministic and dishonest) and
 was then a hand-maintained constant. That constant went stale and is now
 removed: the ProfilePage omits `dateModified` because no verifiable edit date

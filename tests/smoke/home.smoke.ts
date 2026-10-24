@@ -422,4 +422,12 @@ test.describe('email obfuscation on served pages', () => {
       await expect(page.locator('a[data-email]'), 'an encoded link was left undecoded').toHaveCount(0)
     })
   }
+
+  // The Worker composes / from the compiled shell, which carries the JSON-LD graph, and the
+  // published fragments, which the postbuild gate never sees.
+  test('/ serves no email address in clear outside the JSON-LD alias', async ({page}) => {
+    const res = await getStable(page.request, `/?cb=${Date.now()}`, {headers: {'Cache-Control': 'no-cache'}})
+    expect(res.status(), '/ did not return HTTP 200').toBe(200)
+    expect(findClearEmails(await res.text()), '/ served an email address or a mailto: link in clear').toEqual([])
+  })
 })

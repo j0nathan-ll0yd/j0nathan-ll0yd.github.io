@@ -13,25 +13,59 @@
 import {readdirSync, readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import path from 'node:path'
+import {parse} from 'parse5'
 import {clientDir} from './lib/build-paths.mjs'
 
-const ADDRESS = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g
+// The @ also matches its HTML character references and its JSON escape, so an encoded form of an
+// address is not a way past the gate. Each form keeps its source offset.
+const AT = String.raw`(?:@|&#0*64;|&#x0*40;|&commat;|\\u0040)`
+const ADDRESS = new RegExp(String.raw`[A-Za-z0-9._%+-]+${AT}[A-Za-z0-9.-]+\.[A-Za-z]{2,}`, 'gi')
+const AT_FORMS = new RegExp(AT, 'gi')
 const MAILTO = /mailto:/gi
-const JSON_LD_BLOCK = /<script type="application\/ld\+json">[\s\S]*?<\/script>/gi
+const JSON_LD_TYPE = 'application/ld+json'
+
+const copy = createRequire(import.meta.url)('@j0nathan-ll0yd/copy/identity.flat.json')
+const alias = copy.organization.contactEmail
+if (typeof alias !== 'string' || !alias.includes('@') || alias === copy.person.email) {
+  throw new Error('[check-no-clear-email] copy organization.contactEmail must be an address distinct from person.email')
+}
 
 /** The one address the JSON-LD block may name: the organization's contact alias. */
-export const JSON_LD_ALLOWED_ADDRESSES = Object.freeze([
-  createRequire(import.meta.url)('@j0nathan-ll0yd/copy/identity.flat.json').organization.contactEmail
-])
+export const JSON_LD_ALLOWED_ADDRESSES = Object.freeze([alias])
+
+/**
+ * The source spans of every <script type="application/ld+json"> body, from parse5's source locations,
+ * so a comment or a string that only looks like the tag opens no span.
+ */
+function jsonLdSpans(html) {
+  const spans = []
+  const walk = (node) => {
+    if (
+      node.nodeName === 'script' && node.attrs?.some((attr) => attr.name === 'type' && attr.value.trim().toLowerCase() === JSON_LD_TYPE) &&
+      node.sourceCodeLocation?.startTag && node.sourceCodeLocation.endTag
+    ) {
+      spans.push([node.sourceCodeLocation.startTag.endOffset, node.sourceCodeLocation.endTag.startOffset])
+    }
+    for (const child of node.childNodes ?? []) {
+      walk(child)
+    }
+    if (node.content) {
+      walk(node.content)
+    }
+  }
+  walk(parse(html, {sourceCodeLocationInfo: true}))
+  return spans
+}
 
 /** Every clear address or mailto: in one HTML document, as `line: match`. */
 export function findClearEmails(html, {jsonLdAllowed = JSON_LD_ALLOWED_ADDRESSES} = {}) {
-  const jsonLdSpans = [...html.matchAll(JSON_LD_BLOCK)].map((m) => [m.index, m.index + m[0].length])
-  const inJsonLd = (offset) => jsonLdSpans.some(([start, end]) => offset >= start && offset < end)
+  const spans = jsonLdSpans(html)
+  const inJsonLd = (start, end) => spans.some(([spanStart, spanEnd]) => start >= spanStart && end <= spanEnd)
   const lineOf = (offset) => html.slice(0, offset).split('\n').length
   const findings = []
   for (const match of html.matchAll(ADDRESS)) {
-    if (!(jsonLdAllowed.includes(match[0]) && inJsonLd(match.index))) {
+    const address = match[0].replace(AT_FORMS, '@')
+    if (!(jsonLdAllowed.includes(address) && inJsonLd(match.index, match.index + match[0].length))) {
       findings.push({offset: match.index, text: `${lineOf(match.index)}: ${match[0]}`})
     }
   }
@@ -59,7 +93,7 @@ function main() {
     }
     process.exit(1)
   }
-  console.log(`[check-no-clear-email] OK: no clear email address in ${files.length} HTML file(s)`)
+  console.log(`[check-no-clear-email] OK: no clear email address in ${files.length} HTML file(s), outside the organization alias in JSON-LD`)
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

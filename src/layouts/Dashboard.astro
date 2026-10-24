@@ -82,6 +82,8 @@ const organizationNode = {
   naics: '541511',
   founder: { '@id': personId },
   member: { '@id': personId },
+  // Deliberately the Person's list (owner ruling 2026-10-24: the GitHub and LinkedIn URLs the
+  // Person uses). A link added to the Person later also speaks for the organization.
   sameAs: identity.person.sameAs,
   email: organizationEmail,
   contactPoint: [

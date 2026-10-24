@@ -269,8 +269,12 @@ describe('JSON-LD Organization (sourced from @j0nathan-ll0yd/copy)', () => {
   })
 
   it('leaves the employer and university nodes nested and typed (round 1)', () => {
-    const organizations = JSON.stringify(graph).match(/"@type":"Organization"/g) ?? []
-    expect(organizations.length).toBe(2)
+    const person = graph.find((n: any) => n['@type'] === 'Person')
+    expect(person.worksFor['@type']).toBe('Organization')
+    expect(person.worksFor.name).toBe(identity.person.employer)
+    expect(person.alumniOf['@type']).toBe('EducationalOrganization')
+    expect(person.alumniOf.name).toBe(identity.person.alumniOf)
+    expect(graph.filter((n: any) => n['@type'] === 'Organization').map((n: any) => n['@id'])).toEqual([ORGANIZATION_ID])
   })
 })
 
