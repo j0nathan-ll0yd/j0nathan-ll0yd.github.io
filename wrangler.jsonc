@@ -75,12 +75,16 @@
   // generated for Workers that implement a Durable Object, including Containers and Sandbox
   // Workers."), and every PR preview of this Worker needs one. deploy.yml deploys the rate-limiter
   // Worker first, so the class exists before this binding names it.
-  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ApiRateLimiter", "script_name": "human-datastream-rate-limiter"}]},
+  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ClientRateLimitWindow", "script_name": "human-datastream-rate-limiter"}]},
   // Migration history, legacy `migrations` array (not `exports`, which makes every `wrangler versions
   // upload` fail). Wrangler applies only the tags after the one the published Worker carries, so an
   // applied tag stays listed and is never edited. v1 created ApiRateLimiter in this Worker (#396); v2
   // deletes it here, with its stored windows, which last 60 s and are worth nothing
   // (developers.cloudflare.com/durable-objects/reference/durable-object-class-migrations-legacy/,
-  // Delete migration). The live class is the rate-limiter Worker's.
+  // Delete migration). The live class is the rate-limiter Worker's, ClientRateLimitWindow. The two
+  // names MUST differ: Cloudflare refuses a delete while any binding names the deleted class, even one
+  // that points at another Worker through `script_name`. The #397 rollout (2026-10-24) failed with
+  // "Cannot apply --delete-class migration to class 'ApiRateLimiter' without also removing the
+  // binding that references it. [code: 10061]". Never bind a class named ApiRateLimiter here again.
   "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}, {"tag": "v2", "deleted_classes": ["ApiRateLimiter"]}]
 }

@@ -1,4 +1,4 @@
-// The rate-limiter Worker: it hosts the developer API's ApiRateLimiter Durable Object and nothing else.
+// The rate-limiter Worker: it hosts the developer API's ClientRateLimitWindow Durable Object and nothing else.
 // The site Worker (../../wrangler.jsonc) binds the class through `script_name`. It lives apart because
 // Cloudflare generates no Version URL for a Worker that implements a Durable Object
 // (developers.cloudflare.com/workers/configuration/previews/, Limitations: "Version URLs are not
@@ -17,6 +17,15 @@
   // SQLite storage, the only backend for a new namespace. The legacy `migrations` array, not `exports`:
   // Durable Object `exports` entries make every `wrangler versions upload` fail
   // (developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/). Never edit an
-  // applied tag: add a new one.
-  "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}]
+  // applied tag: add a new one. v1 created the class as ApiRateLimiter (#397). v2 renames it to
+  // ClientRateLimitWindow, keeping its namespace and stored windows
+  // (developers.cloudflare.com/durable-objects/reference/durable-object-class-migrations-legacy/,
+  // Rename migration). The rename exists because the site Worker deletes its own ApiRateLimiter
+  // class, and Cloudflare refuses that delete while a binding names the same class: "Cannot apply
+  // --delete-class migration to class 'ApiRateLimiter' without also removing the binding that
+  // references it. [code: 10061]" (the #397 rollout, 2026-10-24). The site binds ClientRateLimitWindow.
+  "migrations": [
+    {"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]},
+    {"tag": "v2", "renamed_classes": [{"from": "ApiRateLimiter", "to": "ClientRateLimitWindow"}]}
+  ]
 }

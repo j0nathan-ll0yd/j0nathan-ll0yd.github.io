@@ -1,10 +1,10 @@
-// The rate-limiter Worker's ApiRateLimiter Durable Object and the fixed-window arithmetic it runs
+// The rate-limiter Worker's ClientRateLimitWindow Durable Object and the fixed-window arithmetic it runs
 // (src/lib/edge/rate-limit-window.ts), in Node, with an in-memory stand-in for the object's storage.
 // vitest.unit.config.ts includes this directory, and aliases `cloudflare:workers` to a stand-in.
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {API_V1_RATE_LIMIT} from '../../../src/lib/edge/agent-catalog.mjs'
 import {consumeWindow, type RateLimitDecision, type WindowState} from '../../../src/lib/edge/rate-limit-window'
-import {ApiRateLimiter} from '../src/ApiRateLimiter'
+import {ClientRateLimitWindow} from '../src/ClientRateLimitWindow'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -32,7 +32,7 @@ describe('consumeWindow (the fixed window)', () => {
   })
 })
 
-describe('ApiRateLimiter (the Durable Object)', () => {
+describe('ClientRateLimitWindow (the Durable Object)', () => {
   function objectWithStorage() {
     const kv = new Map<string, unknown>()
     const alarms: number[] = []
@@ -51,7 +51,7 @@ describe('ApiRateLimiter (the Durable Object)', () => {
         }
       }
     }
-    const object = new (ApiRateLimiter as unknown as new(ctx: unknown, env: unknown) => ApiRateLimiter)(ctx, {})
+    const object = new (ClientRateLimitWindow as unknown as new(ctx: unknown, env: unknown) => ClientRateLimitWindow)(ctx, {})
     return {object, kv, alarms, deleted: () => deleted}
   }
 

@@ -5,8 +5,9 @@
 // `ctx.storage.kv`). An alarm at the window end deletes the object's storage, so nothing about a
 // client outlives its window.
 //
-// This Worker (human-datastream-rate-limiter, workers/rate-limiter/wrangler.jsonc) exports the class
-// and creates it with a `new_sqlite_classes` migration. The site Worker binds it as API_RATE_LIMITER
+// This Worker (human-datastream-rate-limiter, workers/rate-limiter/wrangler.jsonc) exports the class.
+// Its migration v1 created it as ApiRateLimiter, and v2 renamed it, because the site Worker deletes a
+// class of that old name and Cloudflare refuses the delete while a binding names it (error 10061). The site Worker binds it as API_RATE_LIMITER
 // through `script_name` (wrangler.jsonc), because Cloudflare generates no Version URL for a Worker
 // that implements a Durable Object, and the site's PR previews need one.
 
@@ -15,7 +16,7 @@ import {consumeWindow, isWindowState, type RateLimitDecision} from '../../../src
 
 const STATE_KEY = 'window'
 
-export class ApiRateLimiter extends DurableObject {
+export class ClientRateLimitWindow extends DurableObject {
   /** Counts one request. The policy travels with the call, so the Worker's constant stays the one source. */
   async consume(limit: number, windowSeconds: number): Promise<RateLimitDecision> {
     const stored = this.storedWindow()

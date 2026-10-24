@@ -309,11 +309,11 @@ describe('the rate limiter Durable Object', () => {
   // never export one again; the class lives in the rate-limiter Worker (workers/rate-limiter/).
   it('is not exported by the site Worker, and is exported by the rate-limiter Worker', async () => {
     expect(Object.keys(workerExports)).toEqual([])
-    const [limiterWorker, {ApiRateLimiter}] = await Promise.all([
+    const [limiterWorker, {ClientRateLimitWindow}] = await Promise.all([
       import('../../workers/rate-limiter/src/index'),
-      import('../../workers/rate-limiter/src/ApiRateLimiter')
+      import('../../workers/rate-limiter/src/ClientRateLimitWindow')
     ])
-    expect(limiterWorker.ApiRateLimiter).toBe(ApiRateLimiter)
+    expect(limiterWorker.ClientRateLimitWindow).toBe(ClientRateLimitWindow)
     expect(limiterWorker.default.fetch().status).toBe(404)
   })
 })
