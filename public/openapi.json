@@ -3,12 +3,12 @@
   "info": {
     "title": "Jonathan Lloyd — Human Datastream",
     "version": "2.0.0",
-    "description": "Summarised biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON.\n\nThe path carries the version. Within v1, response schemas only add optional members. A removal or a type change ships as /api/v2, and v1 keeps answering for at least 90 days with Deprecation and Sunset headers and a successor-version link.\n\nEach client IP may send 60 requests per 60 seconds. Every response states the policy in RateLimit-Policy and the remaining room in RateLimit. A 429 response adds Retry-After."
+    "description": "Summarised biometric and cognitive metrics for Jonathan Lloyd, composed on data-change events by a backend Lambda and served as LLM-optimized markdown alongside canonical JSON.\n\nThe path carries the major version: v1. Within a version, response schemas only gain optional members. A removed member or a changed type ships as a new path version, and the old version keeps answering for at least 90 days. During that period its responses carry the Deprecation and Sunset headers and a Link header with rel=\"successor-version\". A major release of the portal contract that removes or retypes an export member triggers a new version.\n\nEach client gets 60 requests per minute. Every response from an export path under /api/v1 carries the RateLimit-Policy and RateLimit header fields from the IETF httpapi draft. A 429 response also carries Retry-After. The limit is a courtesy budget for a free, read-only API."
   },
   "servers": [
     {
       "url": "https://jonathanlloyd.me/api/v1",
-      "description": "The versioned API base is https://jonathanlloyd.me/api/v1. Append an export path, for example /books.json."
+      "description": "The API base is https://jonathanlloyd.me/api/v1, and https://jonathanlloyd.me/openapi.json lists the nine export paths under it."
     }
   ],
   "paths": {
@@ -1710,7 +1710,7 @@
     },
     "responses": {
       "NotFound": {
-        "description": "Resource not found",
+        "description": "Not found",
         "headers": {
           "RateLimit-Policy": {
             "$ref": "#/components/headers/RateLimit-Policy"

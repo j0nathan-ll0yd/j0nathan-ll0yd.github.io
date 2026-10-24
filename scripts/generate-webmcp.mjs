@@ -409,15 +409,17 @@ for (const source of DATA_SOURCES) {
 }
 
 // The prose states the numbers the code enforces; a copy release that drops one fails the build.
+// The rate-limit window may read as seconds, or as "minute" when it is exactly 60 seconds.
+const windowPhrases = [`${API_V1_RATE_LIMIT.windowSeconds} seconds`, ...(API_V1_RATE_LIMIT.windowSeconds === 60 ? ['minute'] : [])]
 for (
-  const [key, values] of [
-    ['versioningBody', [API_DEPRECATION_WINDOW_DAYS]],
-    ['rateLimitBody', [API_V1_RATE_LIMIT.limit, API_V1_RATE_LIMIT.windowSeconds]]
+  const [key, phrases] of [
+    ['versioningBody', [[`${API_DEPRECATION_WINDOW_DAYS} days`]]],
+    ['rateLimitBody', [[`${API_V1_RATE_LIMIT.limit} requests`], windowPhrases]]
   ]
 ) {
-  for (const value of values) {
-    if (!new RegExp(`\\b${value}\\b`).test(llm.developers[key])) {
-      throw new Error(`llm.developers.${key} does not state ${value}, which the facade enforces`)
+  for (const alternatives of phrases) {
+    if (!alternatives.some((phrase) => new RegExp(`\\b${phrase}\\b`).test(llm.developers[key]))) {
+      throw new Error(`llm.developers.${key} states none of ${alternatives.join(' / ')}, which the facade enforces`)
     }
   }
 }

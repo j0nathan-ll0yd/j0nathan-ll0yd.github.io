@@ -77,7 +77,7 @@ The audit arm `api-v1-error-shape` in `audits/checks/b2-check-wellknown.mjs` mea
 property as served: `GET /api/v1/__not_a_resource__.json`, `POST /api/v1/books.json` and
 `GET /api/nope` must each answer a problem with `type`, `title`, `status` and `instance`.
 
-Verified by `tests/unit/api-v1.test.ts:143` (path and method first, every problem shape, no
+Verified by `tests/unit/api-v1.test.ts:147` (path and method first, every problem shape, no
 `text/plain` escapes, the markdown 404 exemption) and by
 `audits/__tests__/b2-check-wellknown.test.ts:577` (the audit arm's judges).
 
@@ -120,7 +120,7 @@ that exhausts the Durable Object allowance cannot write one line per request. Fa
 flood also removes the limit; an outer control in front of the counter is an owner decision. The copy SHALL state the enforced numbers: the generator fails when
 `llm.developers.rateLimitBody` omits the limit or the window.
 
-Verified by `tests/unit/api-v1.test.ts:185` (the headers, the 429, fail-open and the digest key).
+Verified by `tests/unit/api-v1.test.ts:189` (the headers, the 429, fail-open and the digest key).
 
 The fixed window, the IPv6 partition, the throttled warning and the Durable Object's alarm and
 writes have their own suite, `api-rate-limiter.test.ts`.
@@ -161,7 +161,7 @@ body (`src/lib/data-plane/admission.ts` `isSuppressionValue`, `audits/lib/suppre
 SHALL NOT cache any facade path (`client-privacy` capability, requirement "No service-worker path
 caches a gated response").
 
-Verified by `tests/unit/api-v1.test.ts:234` (the suppression translation and both recognizers, the
+Verified by `tests/unit/api-v1.test.ts:238` (the suppression translation and both recognizers, the
 502 translation, HEAD, and reads through the real gated proxy that never fetch the export under a
 hiding value).
 

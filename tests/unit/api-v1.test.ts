@@ -99,14 +99,18 @@ describe('the facade constants', () => {
     for (const problem of API_PROBLEMS as ReadonlyArray<{slug: string; type: string; title: string; detail: string}>) {
       expect(problem.type).toBe(`${SITE_URL}${AGENT_PATHS.developers}#problem-${problem.slug}`)
       expect(Object.values(llm.developers)).toContain(problem.title)
-      expect(Object.values(llm.developers)).toContain(problem.detail)
+      expect(Object.values(llm.developers).map((text) => text.split('{siteUrl}').join(SITE_URL))).toContain(problem.detail)
+      expect(problem.detail).not.toContain('{siteUrl}')
     }
   })
 
   it('states the enforced numbers in the developer copy', () => {
-    expect(llm.developers.rateLimitBody).toMatch(new RegExp(`\\b${API_V1_RATE_LIMIT.limit}\\b`))
-    expect(llm.developers.rateLimitBody).toMatch(new RegExp(`\\b${API_V1_RATE_LIMIT.windowSeconds}\\b`))
-    expect(llm.developers.versioningBody).toMatch(/\b90\b/)
+    expect(llm.developers.rateLimitBody).toMatch(new RegExp(`\\b${API_V1_RATE_LIMIT.limit} requests\\b`))
+    expect(API_V1_RATE_LIMIT.windowSeconds).toBe(60)
+    expect(llm.developers.rateLimitBody).toMatch(/\bminute\b|\b60 seconds\b/)
+    expect(llm.developers.versioningBody).toMatch(/\b90 days\b/)
+    // The published method-neutral wording: one key serves /api/v1 (Allow: GET, HEAD) and the CSP collector (Allow: POST).
+    expect(llm.developers.problemMethodNotAllowedDetail).toBe('This path accepts only the methods listed in the Allow header of the response.')
   })
 })
 
@@ -116,7 +120,7 @@ describe('problemBody', () => {
       type: `${SITE_URL}/developers#problem-not-found`,
       title: llm.developers.problemNotFoundTitle,
       status: 404,
-      detail: llm.developers.problemNotFoundDetail,
+      detail: llm.developers.problemNotFoundDetail.split('{siteUrl}').join(SITE_URL),
       instance: '/api/x',
       validPaths: ['/a']
     })

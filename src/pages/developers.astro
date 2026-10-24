@@ -62,7 +62,7 @@ const sections: Section[] = [
               <b id={problem.anchor} role="heading" aria-level="3">
                 <code>{problem.status}</code> {problem.title}
               </b>
-              <small>{problem.detail}</small>
+              <small>{linkSegments(problem.detail).map((seg) => (linkable(seg.href) ? <a href={seg.href}>{seg.text}</a> : seg.text))}</small>
             </li>
           ))}
         </ul>

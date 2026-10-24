@@ -113,7 +113,9 @@ export const API_PROBLEMS = Object.freeze(Object.entries(PROBLEM_STATUS).map(([s
   if (typeof title !== 'string' || typeof detail !== 'string') {
     throw new Error(`@j0nathan-ll0yd/copy has no llm.developers.${stem}Title / ${stem}Detail for problem type "${slug}"`)
   }
-  return Object.freeze({slug, status, title, detail, anchor: `problem-${slug}`, type: `${SITE_URL}${AGENT_PATHS.developers}#problem-${slug}`})
+  // A detail may name a site URL through {siteUrl}; it is filled once here, so the served detail stays static.
+  const filled = detail.includes('{siteUrl}') ? fillTemplate(detail, 'siteUrl', SITE_URL) : detail
+  return Object.freeze({slug, status, title, detail: filled, anchor: `problem-${slug}`, type: `${SITE_URL}${AGENT_PATHS.developers}#problem-${slug}`})
 }))
 
 const llmsTxt = DATASET_DISTRIBUTIONS.find((d) => d.name === 'LLM discovery index')
