@@ -70,8 +70,8 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('cache')
   })
 
-  it('declares no binding beyond the static assets and the PAGE namespace (pinned below)', () => {
-    for (const key of ['images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'durable_objects']) {
+  it('declares no binding beyond the static assets, the PAGE namespace and the rate limiter (pinned below)', () => {
+    for (const key of ['images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'exports']) {
       expect(config, key).not.toHaveProperty(key)
     }
     expect(config.observability).toEqual({enabled: true})
@@ -129,6 +129,16 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       const source = readFileSync(resolve(process.cwd(), 'src/pages', file), 'utf8')
       expect(source, file).toMatch(/^export const prerender = false$/m)
     }
+  })
+})
+
+describe('wrangler.jsonc: the developer API rate limiter (owner decision 2026-10-24, option B)', () => {
+  it('binds ONE Durable Object class, created by a new_sqlite_classes migration, never through exports', () => {
+    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ApiRateLimiter'}]})
+    // An applied migration tag is history: append a new tag, never edit this one.
+    expect(config.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}])
+    // Durable Object `exports` entries make every `wrangler versions upload` (the PR preview) fail.
+    expect(config).not.toHaveProperty('exports')
   })
 })
 

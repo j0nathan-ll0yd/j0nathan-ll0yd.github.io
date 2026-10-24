@@ -19,7 +19,7 @@ vi.mock('@astrojs/cloudflare/handler', () => ({
   })
 }))
 
-const {default: worker} = await import('../../src/worker')
+const {default: worker, ApiRateLimiter: exportedLimiter} = await import('../../src/worker')
 
 const ASSETS = {
   async fetch(input: Request | URL | string): Promise<Response> {
@@ -300,5 +300,12 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('focus unavailable', {status: 503})))
     await request('/', {headers: {Accept: 'text/markdown'}})
     expect(handled).toHaveLength(0)
+  })
+})
+
+describe('the rate limiter Durable Object', () => {
+  it('exports the class the API_RATE_LIMITER binding names', async () => {
+    const {ApiRateLimiter} = await import('../../src/durable/ApiRateLimiter')
+    expect(exportedLimiter).toBe(ApiRateLimiter)
   })
 })
