@@ -15,6 +15,8 @@ import {defineConfig} from '@playwright/test'
 const isCI = !!process.env.CI
 /** The `wrangler dev` port of the developer API suite (tests/behavioral/api-v1.spec.ts reads the same variable). */
 const WRANGLER_DEV_PORT = process.env.WRANGLER_DEV_PORT ?? '8788'
+/** The rate-limiter Worker's `wrangler dev` port. */
+const RATE_LIMITER_DEV_PORT = process.env.RATE_LIMITER_DEV_PORT ?? '8790'
 const NO_JS_SPECS = ['**/ssr-no-js.test.ts']
 
 export default defineConfig({
@@ -49,6 +51,15 @@ export default defineConfig({
   // Worker reads for the server render of `/` (atlas decision 0160, PR B). The preview runs the real
   // Worker in workerd; write-dev-vars.mjs runs after the build because postbuild deletes the file.
   webServer: [
+    {
+      // The rate-limiter Worker (workers/rate-limiter/), first, so the site Worker's API_RATE_LIMITER
+      // binding (`script_name`) finds it in the local dev registry when `wrangler dev` starts below. Its
+      // fetch answers 404 by design, so readiness is the open port, not a URL.
+      command: `pnpm exec wrangler dev --config workers/rate-limiter/wrangler.jsonc --ip 127.0.0.1 --port ${RATE_LIMITER_DEV_PORT}`,
+      port: Number(RATE_LIMITER_DEV_PORT),
+      timeout: 60_000,
+      reuseExistingServer: !isCI
+    },
     {
       command: 'node scripts/build-composer.mjs && pnpm exec tsx tests/data-plane/server.ts',
       url: 'http://127.0.0.1:4399/__control/requests',

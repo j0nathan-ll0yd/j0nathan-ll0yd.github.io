@@ -17,7 +17,8 @@ LLM-channel data policy). The facade is the developer channel, so it serves all 
 raw health, sleep and workouts exports included (owner decision 2026-10-24).
 
 The code: `src/lib/edge/api-v1.ts` (the handler), `src/lib/edge/problem.ts` (the problem builder),
-`src/lib/edge/rate-limit.ts` and `src/durable/ApiRateLimiter.ts` (the counter),
+`src/lib/edge/rate-limit.ts`, `src/lib/edge/rate-limit-window.ts` and the rate-limiter Worker
+`workers/rate-limiter/` (`ClientRateLimitWindow`, the counter),
 `src/pages/api/v1/[...path].ts` and `src/pages/api/[...path].ts` (the routes), and
 `src/lib/edge/agent-catalog.mjs` (`API_V1_BASE`, `API_V1_RATE_LIMIT`, `API_DEPRECATION_WINDOW_DAYS`,
 `API_PROBLEMS`).
@@ -101,9 +102,13 @@ Verified by `tests/unit/api-v1.test.ts:147` (path and method first, every proble
 Each client SHALL get `API_V1_RATE_LIMIT` (60 requests per fixed window of 60 seconds) on GET and
 HEAD under /api/v1. A client is the address partition of `CF-Connecting-IP` (`clientPartition`): an
 IPv4 address, or the /64 of an IPv6 address, because one subscriber holds a whole /64; an
-IPv4-mapped IPv6 address is its IPv4 address. One Durable Object per client (`ApiRateLimiter`,
-SQLite storage, binding `API_RATE_LIMITER`) SHALL own the count and the window end, so the remaining
-quota is exact and global. The object's name SHALL be the SHA-256 of the partition, never the
+IPv4-mapped IPv6 address is its IPv4 address. One Durable Object per client (`ClientRateLimitWindow`,
+SQLite storage) SHALL own the count and the window end, so the remaining quota is exact and global.
+The class SHALL run in its own Worker, `human-datastream-rate-limiter` (`workers/rate-limiter/`),
+which the site Worker binds as `API_RATE_LIMITER` through `script_name`, because Cloudflare generates
+no Version URL for a Worker that implements a Durable Object
+(developers.cloudflare.com/workers/configuration/previews/, Limitations). The site Worker SHALL NOT
+export a Durable Object class. The object's name SHALL be the SHA-256 of the partition, never the
 address; no log line SHALL carry either. An alarm at the window end SHALL delete the object's
 storage, unless a later request already opened the next window, which keeps its count and its own
 alarm. A refused request writes nothing.
@@ -123,10 +128,11 @@ flood also removes the limit; an outer control in front of the counter is an own
 Verified by `tests/unit/api-v1.test.ts:189` (the headers, the 429, fail-open and the digest key).
 
 The fixed window, the IPv6 partition, the throttled warning and the Durable Object's alarm and
-writes have their own suite, `api-rate-limiter.test.ts`.
+writes have their own suites, `api-rate-limiter.test.ts` and the rate-limiter Worker's
+`ClientRateLimitWindow.test.ts`.
 
-A behavioral spec, `api-v1.spec.ts`, runs a 61-request burst through the built Worker under
-`wrangler dev` with the simulated Durable Object.
+A behavioral spec, `api-v1.spec.ts`, runs a 61-request burst through the built site Worker under
+`wrangler dev`, bound to the rate-limiter Worker under its own `wrangler dev`.
 
 #### Scenario: A client bursts past the limit
 

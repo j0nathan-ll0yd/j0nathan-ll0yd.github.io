@@ -2,7 +2,8 @@
  * The developer API facade through the built Worker under `wrangler dev` (is-agentic api-v1 plan):
  * the run_worker_first routing, the Astro `ALL` endpoints, the site middleware, the gated proxy
  * against the fixture data plane, and the API_RATE_LIMITER Durable Object that wrangler simulates
- * from the binding. playwright.behavioral.config.ts starts it beside `astro preview`, which answers
+ * as the rate-limiter Worker (workers/rate-limiter/, its own `wrangler dev`) behind the site's
+ * `script_name` binding. playwright.behavioral.config.ts starts both beside `astro preview`, which answers
  * an OPTIONS preflight itself and so cannot measure the Worker's CORS answer. /developers, a page,
  * is read from the preview.
  *

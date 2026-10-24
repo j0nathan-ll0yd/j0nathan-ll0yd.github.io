@@ -73,11 +73,12 @@
   // because Cloudflare generates no Version URL for a Worker that implements a Durable Object
   // (developers.cloudflare.com/workers/configuration/previews/, Limitations: "Version URLs are not
   // generated for Workers that implement a Durable Object, including Containers and Sandbox
-  // Workers."), and every PR preview of this Worker needs one. This Worker declares NO
-  // `durable_objects` binding until the v2 delete below has applied: the facade (#395) adds
-  // {"name": "API_RATE_LIMITER", "class_name": "ClientRateLimitWindow", "script_name":
-  // "human-datastream-rate-limiter"} in a later deploy, with no new migration. No route calls the
-  // counter before then.
+  // Workers."), and every PR preview of this Worker needs one. The binding reaches it through
+  // `script_name` (developers.cloudflare.com/workers/wrangler/configuration/, Durable Objects: "The
+  // name of the Worker where the Durable Object is defined, if it is external to this Worker"). It
+  // carries no migration of its own: the facade (#395) added it after #399 applied v2 below, because
+  // Cloudflare refuses a delete in the same deploy as any binding (error 10061, below).
+  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ClientRateLimitWindow", "script_name": "human-datastream-rate-limiter"}]},
   //
   // Migration history, legacy `migrations` array (not `exports`, which makes every `wrangler versions
   // upload` fail). Wrangler applies only the tags after the one the published Worker carries, so an
@@ -92,7 +93,7 @@
   //   human-datastream-rate-limiter};
   // - the #398 rollout, with the class renamed to ClientRateLimitWindow in the rate-limiter Worker
   //   and the binding pointing at it. The rename did not satisfy the check.
-  // The binding had to go in the same deploy as the delete. Add a binding back only once v2 is the
-  // published tag.
+  // The binding had to go in the same deploy as the delete (#399). v2 is now the published tag, so a
+  // binding is safe; any future deleted_classes step needs the same two-deploy sequence.
   "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}, {"tag": "v2", "deleted_classes": ["ApiRateLimiter"]}]
 }
