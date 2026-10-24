@@ -1,0 +1,4 @@
+Chromium, reduced motion, JavaScript on, fixture data plane, after a 20000px wheel. link = [x, y, w, h] in CSS px.
+live-desktop-1400x900 {"link":[307,802,83,17],"statusBottom":786,"underPointer":"link"}
+live-mobile-390x844 {"link":[252,785,78,16],"statusBottom":774,"underPointer":"link"}
+suppressed-desktop-1400x900 {"link":[307,1350,83,17],"statusBottom":1334,"underPointer":null}
