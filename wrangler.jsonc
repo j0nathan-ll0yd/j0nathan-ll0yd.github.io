@@ -66,12 +66,21 @@
   // namespace. Local runs (wrangler dev, astro preview) simulate a namespace from the binding.
   "kv_namespaces": [{"binding": "PAGE", "id": "dc9dc20506d1401488e00993370f81b2"}],
   // The developer API facade's rate-limit counter (owner decision 2026-10-24, option B): one Durable
-  // Object per client, src/durable/ApiRateLimiter.ts, exported by src/worker.ts. SQLite storage, the
-  // only backend for a new namespace. The legacy `migrations` array, not `exports`: a config with
-  // Durable Object `exports` entries makes every `wrangler versions upload` fail, and the PR preview
-  // runs one (developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/). The
-  // first `wrangler deploy` that carries tag v1 creates the namespace; until then `wrangler versions
-  // upload` refuses the pending migration. Never edit an applied tag: add a new one.
-  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ApiRateLimiter"}]},
-  "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}]
+  // Object per client. The class runs in its own Worker, human-datastream-rate-limiter
+  // (workers/rate-limiter/), and this binding reaches it through `script_name`
+  // (developers.cloudflare.com/workers/wrangler/configuration/, Durable Objects: "The name of the
+  // Worker where the Durable Object is defined, if it is external to this Worker"). It moved out
+  // because Cloudflare generates no Version URL for a Worker that implements a Durable Object
+  // (developers.cloudflare.com/workers/configuration/previews/, Limitations: "Version URLs are not
+  // generated for Workers that implement a Durable Object, including Containers and Sandbox
+  // Workers."), and every PR preview of this Worker needs one. deploy.yml deploys the rate-limiter
+  // Worker first, so the class exists before this binding names it.
+  "durable_objects": {"bindings": [{"name": "API_RATE_LIMITER", "class_name": "ApiRateLimiter", "script_name": "human-datastream-rate-limiter"}]},
+  // Migration history, legacy `migrations` array (not `exports`, which makes every `wrangler versions
+  // upload` fail). Wrangler applies only the tags after the one the published Worker carries, so an
+  // applied tag stays listed and is never edited. v1 created ApiRateLimiter in this Worker (#396); v2
+  // deletes it here, with its stored windows, which last 60 s and are worth nothing
+  // (developers.cloudflare.com/durable-objects/reference/durable-object-class-migrations-legacy/,
+  // Delete migration). The live class is the rate-limiter Worker's.
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["ApiRateLimiter"]}, {"tag": "v2", "deleted_classes": ["ApiRateLimiter"]}]
 }

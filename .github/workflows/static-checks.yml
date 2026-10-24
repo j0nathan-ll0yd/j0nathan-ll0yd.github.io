@@ -159,6 +159,17 @@ jobs:
       - name: composer-parity
         run: pnpm run test:oracle
 
+      # The rate-limiter Worker (workers/rate-limiter/) deploys before the site Worker (deploy.yml),
+      # and no PR preview uploads it. Bundle it here with its own config, as the deploy does, and
+      # require the bundle to export the class the site binding names: a config or import defect
+      # then fails the PR, not the production deploy. Runs after the build, so the build's
+      # .wrangler/deploy redirect is present and `--config` is proven to override it.
+      - name: rate-limiter-bundle
+        run: |
+          out="$RUNNER_TEMP/rate-limiter-dry-run"
+          pnpm exec wrangler deploy --dry-run --config workers/rate-limiter/wrangler.jsonc --outdir "$out"
+          grep -q 'ApiRateLimiter' "$out/index.js"
+
   spec-severity-ratchet:
     runs-on: [self-hosted, linux, arm64, node]
     steps:

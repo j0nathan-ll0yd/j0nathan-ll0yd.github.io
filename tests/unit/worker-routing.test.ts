@@ -23,13 +23,14 @@ interface WranglerConfig {
 }
 
 /** wrangler.jsonc with its whole-line comments removed. The file carries no trailing comments. */
-function readWranglerConfig(): WranglerConfig {
-  const source = readFileSync(resolve(process.cwd(), 'wrangler.jsonc'), 'utf8')
+function readWranglerConfig(file = 'wrangler.jsonc'): WranglerConfig {
+  const source = readFileSync(resolve(process.cwd(), file), 'utf8')
   const json = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')
   return JSON.parse(json) as WranglerConfig
 }
 
 const config = readWranglerConfig()
+const limiterConfig = readWranglerConfig('workers/rate-limiter/wrangler.jsonc')
 
 describe('wrangler.jsonc', () => {
   it('runs the Worker first on every path that runs code, and on nothing else', () => {
@@ -133,12 +134,34 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
 })
 
 describe('wrangler.jsonc: the developer API rate limiter (owner decision 2026-10-24, option B)', () => {
-  it('binds ONE Durable Object class, created by a new_sqlite_classes migration, never through exports', () => {
-    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ApiRateLimiter'}]})
-    // An applied migration tag is history: append a new tag, never edit this one.
-    expect(config.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}])
+  it('binds the class in the rate-limiter Worker through script_name, never through exports', () => {
+    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ApiRateLimiter', script_name: limiterConfig.name}]})
+    // Applied migration tags are history: v1 created the class here (#396), v2 deletes it here.
+    expect(config.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}, {tag: 'v2', deleted_classes: ['ApiRateLimiter']}])
     // Durable Object `exports` entries make every `wrangler versions upload` (the PR preview) fail.
     expect(config).not.toHaveProperty('exports')
+  })
+
+  it('runs the class in its own Worker, with no route, no assets and no public URL', () => {
+    expect(limiterConfig.name).toBe('human-datastream-rate-limiter')
+    expect(limiterConfig.main).toBe('./src/index.ts')
+    expect(limiterConfig.compatibility_date).toBe(config.compatibility_date)
+    expect(limiterConfig.workers_dev).toBe(false)
+    expect(limiterConfig.preview_urls).toBe(false)
+    expect(limiterConfig.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}])
+    for (const key of ['routes', 'route', 'assets', 'durable_objects', 'kv_namespaces', 'vars', 'exports', 'services']) {
+      expect(limiterConfig, key).not.toHaveProperty(key)
+    }
+  })
+
+  it('deploys the rate-limiter Worker before the site Worker, in the same job, failing it on error', () => {
+    const workflow = readFileSync(resolve(process.cwd(), '.github/workflows/deploy.yml'), 'utf8')
+    const limiter = workflow.indexOf('pnpm exec wrangler deploy --config workers/rate-limiter/wrangler.jsonc')
+    const site = workflow.indexOf('run: pnpm exec wrangler deploy\n')
+    expect(limiter).toBeGreaterThan(0)
+    expect(site).toBeGreaterThan(limiter)
+    const step = workflow.slice(workflow.lastIndexOf('- name:', limiter), limiter)
+    expect(step).not.toMatch(/continue-on-error/)
   })
 })
 

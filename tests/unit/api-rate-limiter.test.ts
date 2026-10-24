@@ -1,7 +1,7 @@
-// The developer API's rate limiter (src/lib/edge/rate-limit.ts) and its Durable Object
-// (src/durable/ApiRateLimiter.ts), in Node, with an in-memory stand-in for the object's storage.
+// The site Worker's side of the developer API's rate limiter (src/lib/edge/rate-limit.ts), in Node:
+// the counter key, the RateLimit serializers and the fail-open client. The Durable Object and the
+// window arithmetic are tested with the rate-limiter Worker (workers/rate-limiter/test/).
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {ApiRateLimiter} from '../../src/durable/ApiRateLimiter'
 import {API_V1_RATE_LIMIT} from '../../src/lib/edge/agent-catalog.mjs'
 import {
   checkRateLimit,
@@ -48,28 +48,6 @@ describe('clientPartition (the counter key input)', () => {
   })
 })
 
-describe('consumeWindow (the fixed window)', () => {
-  it('counts down r from limit - 1 to 0, then refuses until the window ends', () => {
-    const policy = {policy: 'default', limit: 3, windowSeconds: 60}
-    let state: WindowState | undefined
-    const seen: Array<[boolean, number, number]> = []
-    for (let i = 0; i < 4; i++) {
-      const result = consumeWindow(state, 1_000 + i * 1_000, policy)
-      state = result.state
-      seen.push([result.decision.allowed, result.decision.remaining, result.decision.resetSeconds])
-    }
-    expect(seen).toEqual([[true, 2, 60], [true, 1, 59], [true, 0, 58], [false, 0, 57]])
-    expect(state!.count).toBe(3)
-    const next = consumeWindow(state, 61_000, policy)
-    expect(next.decision).toEqual({allowed: true, remaining: 2, resetSeconds: 60})
-  })
-
-  it('never reports t below 1 inside a window', () => {
-    const {decision} = consumeWindow({count: 1, windowEndMs: 10_000}, 9_999, API_V1_RATE_LIMIT)
-    expect(decision.resetSeconds).toBe(1)
-  })
-})
-
 describe('the RateLimit field serializers (draft-ietf-httpapi-ratelimit-headers-11)', () => {
   it('writes the policy item with q and w, and the service limit item with r and t', () => {
     expect(rateLimitPolicyHeader()).toBe(POLICY)
@@ -96,70 +74,5 @@ describe('checkRateLimit', () => {
     }
     expect(warn.mock.calls.length - before).toBeLessThanOrEqual(1)
     warn.mockRestore()
-  })
-})
-
-describe('ApiRateLimiter (the Durable Object)', () => {
-  function objectWithStorage() {
-    const kv = new Map<string, unknown>()
-    const alarms: number[] = []
-    let deleted = 0
-    const ctx = {
-      storage: {
-        kv: {
-          get: (key: string) => kv.get(key),
-          put: (key: string, value: unknown) => void kv.set(key, value),
-          delete: (key: string) => kv.delete(key)
-        },
-        setAlarm: async (time: number) => void alarms.push(time),
-        deleteAll: async () => {
-          kv.clear()
-          deleted++
-        }
-      }
-    }
-    const object = new (ApiRateLimiter as unknown as new(ctx: unknown, env: unknown) => ApiRateLimiter)(ctx, {})
-    return {object, kv, alarms, deleted: () => deleted}
-  }
-
-  it('counts per object, sets one alarm per window, and forgets the client when it fires', async () => {
-    vi.useFakeTimers({now: 1_000_000})
-    const {object, kv, alarms, deleted} = objectWithStorage()
-    const decisions: RateLimitDecision[] = []
-    for (let i = 0; i < 3; i++) {
-      decisions.push(await object.consume(2, 60))
-    }
-    expect(decisions.map((d) => [d.allowed, d.remaining])).toEqual([[true, 1], [true, 0], [false, 0]])
-    expect(alarms).toEqual([1_060_000])
-    vi.setSystemTime(1_060_000)
-    await object.alarm()
-    expect(kv.size).toBe(0)
-    expect(deleted()).toBe(1)
-    expect((await object.consume(2, 60)).remaining).toBe(1)
-    vi.useRealTimers()
-  })
-
-  it("keeps a newer window when the old window's alarm runs late", async () => {
-    vi.useFakeTimers({now: 2_000_000})
-    const {object, kv, alarms} = objectWithStorage()
-    await object.consume(2, 60)
-    vi.setSystemTime(2_060_001)
-    await object.consume(2, 60)
-    await object.alarm()
-    expect(kv.size).toBe(1)
-    expect(alarms).toEqual([2_060_000, 2_120_001, 2_120_001])
-    expect((await object.consume(2, 60)).remaining).toBe(0)
-    vi.useRealTimers()
-  })
-
-  it('writes nothing for a refused request, and starts fresh over malformed state', async () => {
-    vi.useFakeTimers({now: 3_000_000})
-    const {object, kv} = objectWithStorage()
-    kv.set('window', {count: 'x'})
-    expect((await object.consume(1, 60)).allowed).toBe(true)
-    const stored = kv.get('window')
-    expect((await object.consume(1, 60)).allowed).toBe(false)
-    expect(kv.get('window')).toBe(stored)
-    vi.useRealTimers()
   })
 })
