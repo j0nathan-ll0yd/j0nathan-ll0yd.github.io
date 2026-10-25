@@ -12,8 +12,6 @@ pnpm preview                      # preview the production output
 pnpm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
 pnpm run test:visual              # Playwright visual regression in Docker (arm64-native, CI-parity)
 pnpm run test:visual:update       # regenerate baselines in Docker (the only sanctioned path)
-pnpm run validate:build-fixtures  # Ajv validation of data/*.json against DS schemas
-pnpm run generate:fixtures        # regenerate test/fixtures/build-data/*.json
 pnpm run fetch:images             # download images from CloudFront to public/images/
 node scripts/measure-ssr.mjs --base <version-url>  # plan Step 6.10: renders, TTFB, X-SSR-Data (Access token from .env.local)
 ```
