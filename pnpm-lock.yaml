@@ -62,8 +62,8 @@ importers:
         specifier: ^1.1.0
         version: 1.2.1(eslint@10.7.0(supports-color@10.2.2))(supports-color@10.2.2)(typescript@5.9.3)
       '@j0nathan-ll0yd/estate-contracts':
-        specifier: 0.16.0
-        version: 0.16.0(typescript@5.9.3)
+        specifier: 0.17.0
+        version: 0.17.0(typescript@5.9.3)
       '@j0nathan-ll0yd/fixtures':
         specifier: 1.6.2
         version: 1.6.2
@@ -1896,8 +1896,8 @@ packages:
   '@j0nathan-ll0yd/env@1.0.0':
     resolution: {integrity: sha512-thYcCx5oYJ0ReIfSSTdVM7FsUNJBnmkTkoq5/YywA7ly19nuSwzcJh/U+TRtGpMRtrbmvtkiZl2W/+nr1JMMHA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/env/1.0.0/abd9389d100f1263395c1a1ae3e85b9be9b625ad}
 
-  '@j0nathan-ll0yd/estate-contracts@0.16.0':
-    resolution: {integrity: sha512-QrOMjHxBRvQGzJLsoiJCKx6riW0X4ANYqmDxSc9/I8L1mzvDzYTlzkMfbrDusPtx5ECo1y2cOf4WphuH9luE4Q==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/estate-contracts/0.16.0/a34f30be410775dc9de9c73b7fda435a8f0b64a0}
+  '@j0nathan-ll0yd/estate-contracts@0.17.0':
+    resolution: {integrity: sha512-Db1nO3To2O61TSbudML1cVUiibEDvB9YVcXAf0xqoyM4idzQ9vKaWHjdPEF/WdeC3Ox1apP1cHovZX2wxB8Tnw==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/estate-contracts/0.17.0/f139ee4725ef3dd93cbe6973039d821de75edb66}
     peerDependencies:
       typescript: 5.9.2 || 5.9.3 || 6.0.3
 
@@ -6223,6 +6223,9 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
+
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
@@ -7967,10 +7970,10 @@ snapshots:
 
   '@j0nathan-ll0yd/env@1.0.0': {}
 
-  '@j0nathan-ll0yd/estate-contracts@0.16.0(typescript@5.9.3)':
+  '@j0nathan-ll0yd/estate-contracts@0.17.0(typescript@5.9.3)':
     dependencies:
       typescript: 5.9.3
-      zod: 4.4.3
+      zod: 4.6.7
 
   '@j0nathan-ll0yd/fixtures@1.6.2':
     dependencies:
@@ -12774,5 +12777,7 @@ snapshots:
   zod@3.25.76: {}
 
   zod@4.4.3: {}
+
+  zod@4.6.7: {}
 
   zwitch@2.0.4: {}
