@@ -59,20 +59,20 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   finding; so is a split across two exact versions. A10 records `repos: []` for this contract, so a
   silent re-vendor cannot pass unnoticed.
   `audits/__tests__/llms-structure.integrity.test.ts` checks the SHIPPED bytes against the sidecar shipped
-  beside them — sha256 `6a1afdd8f4981066a915e2b63d40f1c32e8f6a2f0f97fd95b5485737ca3a45e8`, re-read
-  from the installed package at the `0.14.1` bump — and
+  beside them — sha256 `44b210bd15cc863b917329d39e6915fd18b390cb72d80eb2ce7be534f6323e14`, re-read
+  from the installed package at the `0.17.0` bump — and
   asserts the spec version this repo was written against. `LLMS_STRUCTURE_SPEC_VERSION` is **3**.
 - The dependency (atlas decision 0103, new in `0.7.0`): the tier's invariant is no longer "imports
   nothing" but "pinned, version-asserted dependencies" — the property `export-surface/extract.mjs`
   has had since decision 0030, where importing `typescript` stays deterministic because the version
   is pinned exactly and ASSERTED at conformance time. `VERIFIED_ZOD_VERSION` is that assertion for
-  `zod`, currently **4.4.3**. Bytes plus the pinned Zod version determine behavior; bytes alone no
+  `zod`, currently **4.6.7**. Bytes plus the pinned Zod version determine behavior; bytes alone no
   longer do. The tier SPLITS by consumer: `llms-structure` may take the dependency because every
   consumer resolves it through a lockfile, while `openspec-covers` MUST stay zero-import because
   `ios-LifegamesPortal` vendors it as a FILE and runs it on bare node with no `node_modules`.
   Atlas audit A12 item 7 aligns any DECLARED `zod` specifier across governed repos to
   `VERIFIED_ZOD_VERSION`; it is an ALIGNMENT rule, not a mandate, so this repo — which declares no
-  `zod` of its own and resolves `4.4.3` transitively — owes it nothing.
+  `zod` of its own and resolves `4.4.3` transitively outside the package — owes it nothing.
 - Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
   `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.8.1` (atlas decision
   0099). `checkLlmsStructure` is unchanged by every codec release so far, so the RULE version stays
