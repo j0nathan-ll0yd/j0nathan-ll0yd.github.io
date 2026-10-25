@@ -25,8 +25,8 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       '@j0nathan-ll0yd/portal-contract':
-        specifier: 2.7.0
-        version: 2.7.0
+        specifier: 2.8.0
+        version: 2.8.0
       '@j0nathan-ll0yd/schemas':
         specifier: ^2.4.1
         version: 2.4.1
@@ -1907,8 +1907,8 @@ packages:
   '@j0nathan-ll0yd/observability@1.0.0':
     resolution: {integrity: sha512-RXrWGD7E3uFxZJj4XdtHf3Po5kkxV5ajQIkY8J9F+uZ1q/iVeeq0BkZMabbFcq5oX4nK3N2NVlwMqa4LOSvLjQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/observability/1.0.0/4f802427590ea9ba6964a49427faf2c43a75f464}
 
-  '@j0nathan-ll0yd/portal-contract@2.7.0':
-    resolution: {integrity: sha512-IbA5siDDE79gVPMOdSaF6J7oSGJr/Yq6A3WUv3iqQIv/Bp2ShmHV52EReehe4m0kpWsfI4hteZHCHkqeXJLLMA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/2.7.0/aab846c8221e3edbbf2a51ff673d63403c5f9068}
+  '@j0nathan-ll0yd/portal-contract@2.8.0':
+    resolution: {integrity: sha512-bZVNTxugt5F93ggdKcjkwMMj8PyRrIHITR1q46nnXDIo/ymNoGu61lGQBcOZZIPM+67rIWh0q/ZC4IEYx3PfYA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/2.8.0/360a13cd418babaea837f28623aa5f1be62fe2a7}
 
   '@j0nathan-ll0yd/schemas@2.4.1':
     resolution: {integrity: sha512-iHTPZLu8ssis16B0D0jfc5Snvf3mMt6RmuajppjurHoJV3RjePEyfd2FwYPUHKCCSvyCxqwaw1ECzHpEeOQYNg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.4.1/5efc4052e8ad99c4265ea6ff7057e518c14d7d2c}
@@ -7978,7 +7978,7 @@ snapshots:
   '@j0nathan-ll0yd/fixtures@1.6.2':
     dependencies:
       '@j0nathan-ll0yd/copy': 4.3.0
-      '@j0nathan-ll0yd/portal-contract': 2.7.0
+      '@j0nathan-ll0yd/portal-contract': 2.8.0
       '@j0nathan-ll0yd/schemas': 2.4.1
       '@j0nathan-ll0yd/web': 4.5.1
 
@@ -7994,11 +7994,11 @@ snapshots:
       - '@aws-lambda-powertools/jmespath'
       - '@middy/core'
 
-  '@j0nathan-ll0yd/portal-contract@2.7.0': {}
+  '@j0nathan-ll0yd/portal-contract@2.8.0': {}
 
   '@j0nathan-ll0yd/schemas@2.4.1':
     dependencies:
-      '@j0nathan-ll0yd/portal-contract': 2.7.0
+      '@j0nathan-ll0yd/portal-contract': 2.8.0
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
 
@@ -8007,7 +8007,7 @@ snapshots:
   '@j0nathan-ll0yd/web@4.5.1':
     dependencies:
       '@j0nathan-ll0yd/copy': 4.3.0
-      '@j0nathan-ll0yd/portal-contract': 2.7.0
+      '@j0nathan-ll0yd/portal-contract': 2.8.0
       '@j0nathan-ll0yd/tokens': 2.2.1
 
   '@jridgewell/gen-mapping@0.3.13':
