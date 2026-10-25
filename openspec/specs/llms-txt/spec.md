@@ -72,7 +72,7 @@ A valid llms.txt is a grammar, not a data type. Its shape is defined by the rule
   `ios-LifegamesPortal` vendors it as a FILE and runs it on bare node with no `node_modules`.
   Atlas audit A12 item 7 aligns any DECLARED `zod` specifier across governed repos to
   `VERIFIED_ZOD_VERSION`; it is an ALIGNMENT rule, not a mandate, so this repo — which declares no
-  `zod` of its own and resolves `4.4.3` transitively outside the package — owes it nothing.
+  `zod` of its own and resolves the same `4.6.7` transitively outside the package — owes it nothing.
 - Codec: `parseLlmsTxt(rawText)`, `encodeLlmsTxt(doc)`, and `decodeLlmsTxt(rawText)` over the typed
   `LlmsTxtDoc` model — same module, added in `0.4.0` and consumed here from `0.8.1` (atlas decision
   0099). `checkLlmsStructure` is unchanged by every codec release so far, so the RULE version stays
