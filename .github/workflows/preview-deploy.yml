@@ -36,7 +36,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
-          cache: pnpm
 
       # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
       # npm did (atlas decision 0032 removed that line), so the token is written to the

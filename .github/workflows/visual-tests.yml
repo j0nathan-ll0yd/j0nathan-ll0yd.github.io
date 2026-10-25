@@ -274,6 +274,29 @@ jobs:
           path: playwright-report
           retention-days: 14
 
+  visual-gate:
+    # The one context branch protection can require for this workflow (atlas decision 0168 item
+    # 16). A matrix job reports one context per shard, and a required context that never reports
+    # blocks forever, so the shards and the behavioral suite are judged here. `if: always()` makes
+    # the gate run when a needed job fails, is cancelled or is skipped, and the check below fails
+    # on anything but `success`: a skipped shard never passes as green (decision 0152).
+    needs: [visual-tests, behavioral]
+    if: always()
+    runs-on: [self-hosted, linux, arm64, node]
+    timeout-minutes: 5
+    steps:
+      - name: Require every visual and behavioral job to succeed
+        env:
+          VISUAL_RESULT: ${{ needs.visual-tests.result }}
+          BEHAVIORAL_RESULT: ${{ needs.behavioral.result }}
+        run: |
+          echo "visual-tests: $VISUAL_RESULT"
+          echo "behavioral: $BEHAVIORAL_RESULT"
+          if [ "$VISUAL_RESULT" != "success" ] || [ "$BEHAVIORAL_RESULT" != "success" ]; then
+            echo "::error::visual-gate needs visual-tests and behavioral to conclude success (visual-tests: $VISUAL_RESULT, behavioral: $BEHAVIORAL_RESULT)"
+            exit 1
+          fi
+
   commit-baselines:
     # Run whenever an update was requested and the workflow was not cancelled --
     # INCLUDING when a shard failed, so the guard step below can abort loudly. A

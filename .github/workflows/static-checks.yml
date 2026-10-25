@@ -1,17 +1,26 @@
 name: Static Checks
 
-# Hosted static gates for type/lint, rule cases and ratchets, source verification and quote
-# integrity, mutation score, and OpenSpec covers. The network half of source drift remains weekly
-# so third-party uptime cannot block merges. Every job here installs, covers included since atlas
-# decision 0079 item 4 wave 2b moved the covers rule into @j0nathan-ll0yd/estate-contracts; jobs
-# authenticate GitHub Packages through the runner's user npmrc because pnpm does not expand
-# GITHUB_TOKEN from the committed project config.
+# Hosted static gates for format, type/lint, rule cases and ratchets, source verification and quote
+# integrity, build output, mutation score, and OpenSpec covers. The network half of source drift
+# remains weekly so third-party uptime cannot block merges. Every job here installs, covers included
+# since atlas decision 0079 item 4 wave 2b moved the covers rule into
+# @j0nathan-ll0yd/estate-contracts; jobs authenticate GitHub Packages through the runner's user
+# npmrc because pnpm does not expand GITHUB_TOKEN from the committed project config.
+#
+# Atlas decision 0168 item 4: the nine short gates share ONE job and ONE install. Each paid 42 to
+# 49 s of setup for 0 to 12 s of payload. Every gate stays its own named step, and each runs when
+# the install succeeded and the run was not cancelled, so one red gate never hides the others and
+# a failure still names its gate. `spec-mutation-score` stays its own job (about 120 s of payload).
+#
+# No `cache: pnpm` on setup-node (decision 0168 item 5): on this fleet the cache restore took
+# longer (p50 23 s) than the install it saved (p50 10 s).
 on:
   pull_request:
-    # A bare `pull_request:` defaults to [opened, synchronize, reopened]; `ready_for_review`
-    # is not in that set, so flipping a draft to ready re-runs nothing and leaves a stale
-    # green in place. A `types:` key REPLACES the defaults, so all four are listed.
-    types: [opened, synchronize, reopened, ready_for_review]
+    # Drafts already run CI here, and `strict: true` forces a new sha whenever main moves, so the
+    # `ready_for_review` flip re-ran an unchanged head for nothing (decision 0168 item 2, record
+    # F3: 30 of 176 heads, p50 213 s). Listing `types:` replaces the default set, so the three
+    # defaults are listed explicitly. `tests/unit/workflow-triggers.test.ts` pins this.
+    types: [opened, synchronize, reopened]
   push:
     branches: [main]
 
@@ -20,158 +29,11 @@ permissions:
   packages: read
 
 jobs:
-  typecheck:
+  static-checks:
     runs-on: [self-hosted, linux, arm64, node]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
-      # npm did (atlas decision 0032 removed that line), so the token is written to the
-      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Type check (astro check)
-        run: pnpm run typecheck
-
-  lint:
-    runs-on: [self-hosted, linux, arm64, node]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
-      # npm did (atlas decision 0032 removed that line), so the token is written to the
-      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Generate Astro's content-collection types (.astro/*.d.ts) so type-aware
-      # ESLint can resolve `astro:content` in src/content.config.ts. astro check
-      # syncs on its own; eslint does not, so sync explicitly here.
-      - name: Astro sync
-        run: pnpm exec astro sync
-
-      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
-      - name: lint
-        run: pnpm run lint
-
-      # public/js/webmcp.js, the .well-known agent files, public/openapi.json, and the SKILL.md generated
-      # blocks are generated. The build regenerates them,
-      # so a committed copy that drifts from the generator would ship unreviewed.
-      - name: Generated WebMCP files match the generator
-        run: pnpm run check:webmcp
-
-  spec-cases:
-    runs-on: [self-hosted, linux, arm64, node]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
-      # npm did (atlas decision 0032 removed that line), so the token is written to the
-      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # Includes audits/__tests__/spec-cases.test.ts (decisions/0011): every case
-      # declared in audits/specs/**/*.rule.json is read out of the
-      # catalog and asserted against its validator here, on every PR and on
-      # push: main -- not only on the self-hosted visual-tests.yml PR lane.
-      - name: Unit + spec-cases tests (vitest)
-        run: pnpm run test:unit
-
-  build-output:
-    runs-on: [self-hosted, linux, arm64, node]
-    timeout-minutes: 15
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # vitest.build.config.ts globalSetup runs the production build first; these
-      # assertions are meaningless without the emitted dist/ tree.
-      - name: build-output
-        run: pnpm run test:build
-
-      # The composer parity oracle (atlas decision 0160, PR B): the built composer's fragments equal
-      # the Astro Container render in 27 scenarios, and their scoped-style hashes are in dist/.
-      - name: composer-parity
-        run: pnpm run test:oracle
-
-      # The rate-limiter Worker (workers/rate-limiter/) deploys before the site Worker (deploy.yml),
-      # and no PR preview uploads it. Bundle it here with its own config, as the deploy does, and
-      # require the bundle to export the class the site binding names: a config or import defect
-      # then fails the PR, not the production deploy. Runs after the build, so the build's
-      # .wrangler/deploy redirect is present and `--config` is proven to override it.
-      - name: rate-limiter-bundle
-        run: |
-          out="$RUNNER_TEMP/rate-limiter-dry-run"
-          pnpm exec wrangler deploy --dry-run --config workers/rate-limiter/wrangler.jsonc --outdir "$out"
-          grep -q 'ClientRateLimitWindow' "$out/index.js"
-
-  spec-severity-ratchet:
-    runs-on: [self-hosted, linux, arm64, node]
+    # The folded gates' own ceilings were 15 min for spec-cases and build-output and the default
+    # for the rest; their combined payload p50 is under 2 min.
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,7 +51,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
-          cache: pnpm
 
       # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
       # npm did (atlas decision 0032 removed that line), so the token is written to the
@@ -199,41 +60,62 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # The covers gate used to run without an install: the rule was vendored in-repo and imported
+      # only node builtins, so a GitHub Packages outage could not gate a merge. Atlas decision 0079
+      # item 4 wave 2b deleted the vendored copy, so the rule resolves from
+      # @j0nathan-ll0yd/estate-contracts and the install is mandatory. The trade is deliberate: a
+      # stale local copy of a cross-repo rule passes green while enforcing a rule the estate has
+      # moved past, whereas an outage fails loudly and is retryable.
       - name: Install dependencies
+        id: install
         run: pnpm install --frozen-lockfile
+
+      # dprint.json `extends` the shared @j0nathan-ll0yd/config base from node_modules, so the
+      # check runs against the installed tree; the standalone dprint/check action cannot resolve a
+      # package `extends`. Local: `pnpm run format`.
+      - name: dprint check
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run format:check
+
+      - name: Type check (astro check)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run typecheck
+
+      # Generate Astro's content-collection types (.astro/*.d.ts) so type-aware
+      # ESLint can resolve `astro:content` in src/content.config.ts. astro check
+      # syncs on its own; eslint does not, so sync explicitly here.
+      - name: Astro sync
+        id: astro_sync
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm exec astro sync
+
+      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
+      - name: lint
+        if: ${{ !cancelled() && steps.astro_sync.outcome == 'success' }}
+        run: pnpm run lint
+
+      # public/js/webmcp.js, the .well-known agent files, public/openapi.json, and the SKILL.md generated
+      # blocks are generated. The build regenerates them,
+      # so a committed copy that drifts from the generator would ship unreviewed.
+      - name: Generated WebMCP files match the generator
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run check:webmcp
+
+      # Includes audits/__tests__/spec-cases.test.ts (decisions/0011): every case
+      # declared in audits/specs/**/*.rule.json is read out of the
+      # catalog and asserted against its validator here, on every PR and on
+      # push: main -- not only on the self-hosted visual-tests.yml PR lane.
+      - name: Unit + spec-cases tests (vitest)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run test:unit
 
       # Monotonic severity ratchet + deletion assertion (REVERSAL 1) +
       # params_pending ratchet (N6) over audits/specs/**/*.rule.json
       # (decisions/0011). No `tee`, no `|| true` -- a non-zero exit here MUST
       # fail the job (S3 no-op-gate hazard).
       - name: Spec severity ratchet
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node audits/checks/b2-check-spec-severity.mjs
-
-  spec-verification:
-    runs-on: [self-hosted, linux, arm64, node]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
-      # npm did (atlas decision 0032 removed that line), so the token is written to the
-      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       # ADR 0011 follow-up (a): a rule_class: conformance rule may not ship
       # unless its normative_quote is verified against an immutable/pinned
@@ -243,33 +125,8 @@ jobs:
       # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
       - name: spec-verification
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node audits/checks/b2-check-spec-verification.mjs
-
-  spec-quote-integrity:
-    runs-on: [self-hosted, linux, arm64, node]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
-      # npm did (atlas decision 0032 removed that line), so the token is written to the
-      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
 
       # ADR 0011 follow-up (b), OFFLINE half: spec.content_sha256 must still
       # equal sha256(spec.normative_quote). Nothing checked this before --
@@ -277,12 +134,48 @@ jobs:
       # whatever the quote now says, so editing a quote and re-running it
       # produced a green, self-consistent, silently-altered citation.
       #
-      # `--integrity-only` keeps this job OFF the network deliberately: the
+      # `--integrity-only` keeps this gate OFF the network deliberately: the
       # drift half re-fetches third-party sources and runs weekly in
       # audit-web.yml, so their uptime never gates a merge here. No `|| true`
       # -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       - name: Spec quote-integrity gate
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node audits/checks/b2-check-spec-drift.mjs --integrity-only
+
+      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper verifies the SHIPPED
+      # rule against the sidecar the package ships beside it and asserts the covers spec version
+      # this repo was written against, then checks every openspec requirement <-> covers: tether
+      # both ways. No `|| true` -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
+      # Same invocation as `pnpm run check:covers`.
+      - name: Covers conformance (openspec-covers, blocking)
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node scripts/openspec-covers.mjs --blocking
+
+      # The build gates run last: they write dist/ and .wrangler/, which the gates above never read.
+      # vitest.build.config.ts globalSetup runs the production build first; these
+      # assertions are meaningless without the emitted dist/ tree.
+      - name: build-output
+        id: build_output
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run test:build
+
+      # The composer parity oracle (atlas decision 0160, PR B): the built composer's fragments equal
+      # the Astro Container render in 27 scenarios, and their scoped-style hashes are in dist/.
+      - name: composer-parity
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: pnpm run test:oracle
+
+      # The rate-limiter Worker (workers/rate-limiter/) deploys before the site Worker (deploy.yml),
+      # and no PR preview uploads it. Bundle it here with its own config, as the deploy does, and
+      # require the bundle to export the class the site binding names: a config or import defect
+      # then fails the PR, not the production deploy. Runs after the build, so the build's
+      # .wrangler/deploy redirect is present and `--config` is proven to override it.
+      - name: rate-limiter-bundle
+        if: ${{ !cancelled() && steps.build_output.outcome == 'success' }}
+        run: |
+          out="$RUNNER_TEMP/rate-limiter-dry-run"
+          pnpm exec wrangler deploy --dry-run --config workers/rate-limiter/wrangler.jsonc --outdir "$out"
+          grep -q 'ClientRateLimitWindow' "$out/index.js"
 
   spec-mutation-score:
     runs-on: [self-hosted, linux, arm64, node]
@@ -298,7 +191,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
-          cache: pnpm
 
       # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
       # npm did (atlas decision 0032 removed that line), so the token is written to the
@@ -323,47 +215,3 @@ jobs:
       # non-zero below it, no `|| true`.
       - name: Mutation score (stryker)
         run: pnpm exec stryker run
-
-  covers-conformance:
-    runs-on: [self-hosted, linux, arm64, node]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: pnpm
-
-      # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
-      # npm did (atlas decision 0032 removed that line), so the token is written to the
-      # runner's user-level npmrc here. Without this step the @j0nathan-ll0yd/* install 401s.
-      - name: Authenticate to GitHub Packages
-        run: pnpm config set '//npm.pkg.github.com/:_authToken' "$NODE_AUTH_TOKEN"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # THIS JOB USED TO RUN WITHOUT AN INSTALL, and that was a real property worth naming
-      # before trading it away: the covers rule was vendored in-repo and imported nothing but
-      # node builtins, so a GitHub Packages outage could not gate a merge here.
-      #
-      # Atlas decision 0079 item 4 wave 2b deletes the vendored copy, so the rule now resolves
-      # from @j0nathan-ll0yd/estate-contracts and the install is mandatory. The trade is
-      # deliberate: one divergent local copy of a cross-repo rule is a worse failure than a
-      # registry outage, because a stale copy passes green while enforcing a rule the estate has
-      # already moved past, whereas an outage fails loudly and is retryable. Every other job in
-      # this workflow already carried the same dependency.
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      # openspec-covers gate (atlas decision 0072, finding M6). The wrapper verifies the SHIPPED
-      # rule against the sidecar the package ships beside it and asserts the covers spec version
-      # this repo was written against, then checks every openspec requirement <-> covers: tether
-      # both ways. No `|| true` -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
-      # Same invocation as `pnpm run check:covers`.
-      - name: Covers conformance (openspec-covers, blocking)
-        run: node scripts/openspec-covers.mjs --blocking
