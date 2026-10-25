@@ -262,8 +262,9 @@ Every page that carries the JSON-LD `@graph` SHALL open it with an `Organization
 SHALL take its name, description, contact type, contact email and postal address from
 `identity.organization` in `@j0nathan-ll0yd/copy`, its URL from the site URL, and its logo from the
 site icon. It SHALL carry `naics` `541511`, the Person as `founder` and `member`, the contact email
-at the top level and in a `ContactPoint`, and a `PostalAddress` with `postOfficeBoxNumber` and no
-street address. `WebSite.publisher` and `Dataset.publisher` SHALL reference it; `Person.memberOf`
+at the top level and in a `ContactPoint`, and a `PostalAddress` with `postOfficeBoxNumber` and a
+`streetAddress` of `PO Box <box>` (Google's Rich Results Test flags a missing `streetAddress`,
+2026-10-25). `WebSite.publisher` and `Dataset.publisher` SHALL reference it; `Person.memberOf`
 SHALL reference it. The Person's `contactPoint` SHALL carry the same email, and its `address` SHALL
 be the same PO Box address. The contact email is a purpose-made alias: the personal address
 (`identity.person.email`) SHALL appear in no page. `scripts/check-no-clear-email.mjs` SHALL admit

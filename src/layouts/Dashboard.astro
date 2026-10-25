@@ -55,8 +55,13 @@ const contactUrl = new URL(SITE_PAGE_PATHS.contact, Astro.site).href;
 // obfuscated on /contact; scripts/check-no-clear-email.mjs admits this one address in this block
 // only. The Person carries the same alias and the same mailing address.
 const organizationEmail = identity.organization.contactEmail;
+// A USPS address-line convention, not customer prose, so not a copy key. Google's Rich Results Test
+// flags a PostalAddress without streetAddress as an optional issue (2026-10-25); schema.org keeps
+// postOfficeBoxNumber as the typed field, so both carry the box.
+const PO_BOX_LINE_PREFIX = 'PO Box';
 const poBoxAddress = {
   '@type': 'PostalAddress',
+  streetAddress: `${PO_BOX_LINE_PREFIX} ${identity.organization.poBox}`,
   postOfficeBoxNumber: identity.organization.poBox,
   addressLocality: identity.organization.locality,
   addressRegion: identity.organization.region,
