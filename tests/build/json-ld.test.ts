@@ -179,6 +179,7 @@ const ORGANIZATION_ID = SITE_URL + '#organization'
 const PERSON_ID = SITE_URL + '#person'
 const PO_BOX_ADDRESS = {
   '@type': 'PostalAddress',
+  streetAddress: 'PO Box ' + identity.organization.poBox,
   postOfficeBoxNumber: identity.organization.poBox,
   addressLocality: identity.organization.locality,
   addressRegion: identity.organization.region,
@@ -228,12 +229,14 @@ describe('JSON-LD Organization (sourced from @j0nathan-ll0yd/copy)', () => {
     expect(organization.contactPoint[0].contactType).toBeTruthy()
   })
 
-  it('carries the PO Box PostalAddress with no street address', () => {
+  // Google's Rich Results Test flags a PostalAddress without streetAddress (2026-10-25), so the
+  // address line names the box; postOfficeBoxNumber stays the typed field.
+  it('carries the PO Box PostalAddress, its box in both streetAddress and postOfficeBoxNumber', () => {
     const organization = graph[0]
     expect(organization.address).toEqual(PO_BOX_ADDRESS)
-    expect(organization.address.postOfficeBoxNumber).toBeTruthy()
+    expect(organization.address.streetAddress).toBe('PO Box ' + identity.organization.poBox)
+    expect(organization.address.postOfficeBoxNumber).toBe(identity.organization.poBox)
     expect(organization.address.postalCode).toBeTruthy()
-    expect(organization.address).not.toHaveProperty('streetAddress')
   })
 
   it('is the WebSite publisher', () => {
@@ -260,7 +263,8 @@ describe('JSON-LD Organization (sourced from @j0nathan-ll0yd/copy)', () => {
   it('Person address is the same PO Box PostalAddress', () => {
     const person = graph.find((n: any) => n['@type'] === 'Person')
     expect(person.address).toEqual(PO_BOX_ADDRESS)
-    expect(person.address.postOfficeBoxNumber).toBeTruthy()
+    expect(person.address.streetAddress).toBe('PO Box ' + identity.organization.poBox)
+    expect(person.address.postOfficeBoxNumber).toBe(identity.organization.poBox)
   })
 
   it('never names the personal address', () => {
