@@ -66,6 +66,14 @@ overrides:
   # loads and `uuid.v4()` returns a UUID on 11.1.1, and `lhci collect` runs.
   # Drop under the same @lhci/cli condition as tmp.
   uuid@<11.1.1: ^11.1.1
+  # Security: serialize-javascript < 7.1.3 is GHSA-m5mm-p8h7-m29v (Dependabot
+  # #188). Pulled by @rollup/plugin-terser 1.0.0 (`^7.0.3`) < workbox-build <
+  # vite-plugin-pwa, so the range already admits the fix, but
+  # `pnpm update --depth Infinity serialize-javascript` keeps 7.0.5 in the
+  # lockfile snapshot (a fresh install resolves 7.1.x). Same shape as postcss
+  # and brace-expansion above. Drop once `pnpm why serialize-javascript`
+  # resolves >=7.1.3 without this entry.
+  serialize-javascript@<7.1.3: ^7.1.3
 
 # Translated from the npm-only `.npmrc` `legacy-peer-deps=true`. @vite-pwa/astro
 # (<=1.2.0) caps its astro peer at ^5 while this project is on astro 7, so a
