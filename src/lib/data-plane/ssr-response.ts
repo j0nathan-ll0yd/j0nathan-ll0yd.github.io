@@ -30,7 +30,7 @@
 // value exists only once a body is chosen (RFC 9110 section 9.3.2 allows that).
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import type {CheckedValueFreeSet} from '../composed/artifact'
-import type {PublishedRead} from '../composed/published'
+import type {PublishedRead, VisibilityProof} from '../composed/published'
 import type {ComposedRead} from '../composed/read'
 import {assemble, fitsShell, type Shell, shellFor} from '../composed/shell'
 import {valueFreeVariant} from '../composed/value-free'
@@ -132,6 +132,11 @@ export type SsrLogLine = Omit<Partial<SsrRenderRecord>, 'summary'> & {
   focus_age_ms?: number
   /** Age of the fragments (their `composedAt`), when they were served. */
   fragments_age_ms?: number
+  /**
+   * Which evidence admitted a published answer (atlas decision 0170): `focus-key`, a visible `focus`
+   * value within 690 s, or `fragments`, data-bearing fragments within 690 s under an older visible one.
+   */
+  visibility_proof?: VisibilityProof
 }
 
 function logRender(line: SsrLogLine): void {
@@ -178,7 +183,7 @@ function legFields(read: ComposedRead): LegFields {
 
 type Outcome =
   | {kind: 'composed'; body: string; headers: Headers; summary: string; record: SsrRenderRecord; ioMs: number; ageMs: number; legs: LegFields}
-  | {kind: 'published'; body: string; headers: Headers; summary: string; ioMs: number; legs: LegFields}
+  | {kind: 'published'; body: string; headers: Headers; summary: string; proof: VisibilityProof; ioMs: number; legs: LegFields}
   | {
     kind: 'value-free'
     body: string
@@ -216,8 +221,10 @@ function publishedLegs(read: PublishedRead): LegFields {
  * `GET /` from the published page data (atlas decision 0164, Variant D). The focus value decides
  * first (src/lib/composed/published.ts `readPublished`): a hiding or unreadable value answers its
  * value-free page, built into this website, and the fragments are never read. A visible value with
- * admitted fragments answers them spliced into the compiled shell. Anything else answers the
- * data-free page, `fallback`.
+ * admitted fragments answers them spliced into the compiled shell, and the log line names the proof
+ * that admitted them (`visibility_proof`). A visible value older than 690 s whose fragments do not
+ * prove visibility reads unreadable (atlas decision 0170). Anything else answers the data-free
+ * page, `fallback`.
  */
 async function attemptPublished(request: Request, deps: DashboardRenderDeps, published: NonNullable<DashboardRenderDeps['published']>): Promise<Outcome> {
   const started = Date.now()
@@ -229,7 +236,9 @@ async function attemptPublished(request: Request, deps: DashboardRenderDeps, pub
     if (read.kind === 'hiding' || read.kind === 'focus-unreadable') {
       const summary = read.kind === 'hiding' ? 'suppressed' : 'unavailable'
       const focus = read.kind === 'hiding' ? 'hiding' : 'unreadable'
-      const artifact = read.kind === 'hiding' ? 'published:not-used' : `published:${read.reason}`
+      const artifact = read.kind === 'hiding'
+        ? 'published:not-used'
+        : `published:${read.reason}${read.detail === undefined ? '' : `:${read.detail}`}`
       const set = await deps.valueFree?.() ?? null
       const page = set === null
         ? null
@@ -247,7 +256,15 @@ async function attemptPublished(request: Request, deps: DashboardRenderDeps, pub
       const artifact = `published:${read.reason}${read.detail === undefined ? '' : `:${read.detail}`}`
       return {kind: 'data-free', summary: 'fallback', focus: 'visible', artifact, ioMs, legs}
     }
-    return {kind: 'published', body: assemble(shell, read.fragments, read.summary), headers: shell.headers, summary: read.summary, ioMs, legs}
+    return {
+      kind: 'published',
+      body: assemble(shell, read.fragments, read.summary),
+      headers: shell.headers,
+      summary: read.summary,
+      proof: read.proof,
+      ioMs,
+      legs
+    }
   } catch (error) {
     return {kind: 'failed', status: 500, errorClass: error instanceof Error ? error.name : 'UnknownError'}
   }
@@ -387,6 +404,7 @@ async function answerDashboard(request: Request, deps: DashboardRenderDeps, isol
       summary: outcome.summary,
       served: 'published',
       focus_read: 'visible',
+      visibility_proof: outcome.proof,
       status: 200,
       io_ms: outcome.ioMs,
       ...outcome.legs,

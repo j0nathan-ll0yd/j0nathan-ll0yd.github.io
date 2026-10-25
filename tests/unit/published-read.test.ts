@@ -8,15 +8,18 @@
 // 2. The gate wins: the backend writes the gate's value-free fragments, and the Worker serves what
 //    it finds under a visible value; it never serves fragments over a hiding one.
 // 3. Hiding never touches fragment bytes: the value is never read, parsed or logged.
-// 4. An unreadable `focus` (missing, malformed, stale, future, a failed read) fails closed.
+// 4. An unreadable `focus` (missing, malformed, future, a failed read) fails closed.
 // 5. No Cache API, and no `waitUntil` after the answer.
 //
-// Then each closed-set reason and the 512 KiB cap.
+// Then the four focus rules of atlas decision 0170 (a hiding value at any age; a visible value older
+// than 690 s admits only data-bearing fragments, and fails closed otherwise), each closed-set reason
+// and the 512 KiB cap.
 import {readFileSync} from 'node:fs'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {COMPOSED_FRAGMENT_IDS, type WireFacts} from '../../src/lib/composed/artifact'
 import {
+  DATA_BEARING_SUMMARIES,
   FOCUS_CACHE_TTL_S,
   type PageStore,
   PUBLISHED_MAX_BYTES,
@@ -26,6 +29,7 @@ import {
   readPublished
 } from '../../src/lib/composed/published'
 import type {Shell} from '../../src/lib/composed/shell'
+import type {SsrSummary} from '../../src/lib/data-plane/render-model'
 
 const fixture = (name: string) => readFileSync(new URL(`../fixtures/composed/${name}`, import.meta.url), 'utf8')
 const VALUE = fixture('kv-fragments.json')
@@ -112,6 +116,7 @@ describe('invariant 1: fragments only under a visible focus AND admitted fragmen
       expect(Object.keys(result.fragments)).toEqual([...COMPOSED_FRAGMENT_IDS])
       expect(result.fragmentsAgeMs).toBe(60_000)
       expect(result.focusAgeMs).toBe(10_000)
+      expect(result.proof).toBe('focus-key')
     }
   })
 
@@ -152,7 +157,6 @@ describe('invariant 4: an unreadable focus fails closed, and the fragments are n
     ['focus-shape', 'not json'],
     ['focus-shape', JSON.stringify({currentFocus: 'None'})],
     ['focus-shape', JSON.stringify({currentFocus: 'None', publishedAt: 'yesterday'})],
-    ['focus-stale', publishedFocusValue({currentFocus: 'None', publishedAt: new Date(NOW - 690_001).toISOString()})],
     ['focus-future', publishedFocusValue({currentFocus: 'None', publishedAt: new Date(NOW + 300_001).toISOString()})],
     ['focus-error', new Error('kv down')]
   ] as [string, string | null | Error][])('%s', async (reason, focus) => {
@@ -163,9 +167,108 @@ describe('invariant 4: an unreadable focus fails closed, and the fragments are n
     expect(trace.valueReads).toBe(0)
   })
 
-  it('admits a focus value exactly 690 s old', async () => {
+  it('admits a focus value exactly 690 s old on its own proof', async () => {
     const result = await read(traced(publishedFocusValue({currentFocus: 'None', publishedAt: new Date(NOW - 690_000).toISOString()})))
-    expect(result.kind).toBe('ok')
+    expect(result).toMatchObject({kind: 'ok', proof: 'focus-key'})
+  })
+})
+
+/** Every SsrSummary, each once. No gate typechecks tests/, so the rule 4 test also asserts the count. */
+const ALL_SUMMARIES = ['live', 'stale', 'partial', 'unavailable', 'suppressed'] as const satisfies readonly SsrSummary[]
+const focusAt = (currentFocus: string, ageMs: number) => publishedFocusValue({currentFocus, publishedAt: new Date(NOW - ageMs).toISOString()})
+const OLD_VISIBLE = focusAt('None', 690_001)
+const DAY_MS = 86_400_000
+/** The fixture fragments, republished with summary `summary` in the value and the metadata. */
+const withSummary = (summary: string) => ({value: JSON.stringify({...JSON.parse(VALUE) as object, summary}), metadata: {...METADATA, summary}})
+
+describe('decision 0170 rule 1: missing, malformed, future or failed focus reads unreadable, before the hiding check', () => {
+  // covers: dashboard-ssr#The focus value decides before any artifact byte is read
+  it('a hiding value more than 300 s ahead reads unreadable, and the fragments are not read', async () => {
+    const trace = traced(publishedFocusValue({currentFocus: HIDING_FOCUS_MODES[0], publishedAt: new Date(NOW + 300_001).toISOString()}))
+    expect(await read(trace)).toMatchObject({kind: 'focus-unreadable', reason: 'focus-future'})
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    expect(trace.valueReads).toBe(0)
+  })
+})
+
+describe('decision 0170 rule 2: a hiding value answers its page at any age', () => {
+  // covers: dashboard-ssr#The focus value decides before any artifact byte is read
+  it.each(HIDING_FOCUS_MODES)('a %s value a day old answers hiding, and the fragments are never read or parsed', async (mode) => {
+    const parse = vi.spyOn(JSON, 'parse')
+    const trace = traced(focusAt(mode, DAY_MS))
+    parse.mockClear()
+    const result = await read(trace)
+    expect(result).toMatchObject({kind: 'hiding', currentFocus: mode, focusAgeMs: DAY_MS, timing: {fragmentsMs: null}})
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    expect(trace.valueReads).toBe(0)
+    // Only the focus value was parsed.
+    expect(parse).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('decision 0170 rule 3: a visible value within 690 s admits the fragments whatever their summary', () => {
+  // covers: dashboard-ssr#The focus value decides before any artifact byte is read
+  it.each(ALL_SUMMARIES)('%s fragments are served on the focus-key proof', async (summary) => {
+    const {value, metadata} = withSummary(summary)
+    expect(await read(traced(focusAt('None', 690_000), value, metadata))).toMatchObject({kind: 'ok', summary, proof: 'focus-key'})
+  })
+})
+
+describe('decision 0170 rule 4: a visible value older than 690 s admits only data-bearing fragments', () => {
+  it('names live, stale and partial as the data-bearing summaries, from every SsrSummary', () => {
+    expect(new Set(ALL_SUMMARIES).size).toBe(5)
+    expect([...DATA_BEARING_SUMMARIES].sort()).toEqual(['live', 'partial', 'stale'])
+  })
+
+  // covers: dashboard-ssr#The focus value decides before any artifact byte is read
+  it.each(ALL_SUMMARIES.flatMap((summary) => [690_001, DAY_MS].map((ageMs) => [summary, ageMs] as const)))('%s fragments under a visible value %i ms old',
+    async (summary, ageMs) => {
+      const {value, metadata} = withSummary(summary)
+      const result = await read(traced(focusAt('None', ageMs), value, metadata))
+      if (summary === 'live' || summary === 'stale' || summary === 'partial') {
+        expect(result).toMatchObject({kind: 'ok', summary, proof: 'fragments', focusAgeMs: ageMs, fragmentsAgeMs: 60_000})
+      } else {
+        expect(result).toMatchObject({kind: 'focus-unreadable', reason: 'focus-stale', detail: `summary-${summary}`})
+        expect(result).not.toHaveProperty('fragments')
+      }
+    })
+
+  // covers: dashboard-ssr#The focus value decides before any artifact byte is read
+  it.each([
+    ['fragments-missing', null, METADATA],
+    ['fragments-build', VALUE, {...METADATA, build: 'other'}],
+    ['fragments-stale', VALUE, {...METADATA, composedAt: new Date(NOW - 690_001).toISOString()}],
+    ['fragments-future', VALUE, {...METADATA, composedAt: new Date(NOW + 300_001).toISOString()}],
+    ['fragments-shape', '{not json', METADATA],
+    ['fragments-shape', VALUE, {...METADATA, summary: 'stale'}],
+    ['fragments-oversize', `${VALUE.slice(0, -1)},"pad":"${'x'.repeat(PUBLISHED_MAX_BYTES)}"}`, METADATA]
+  ] as [string, string | null, unknown][])('%s fails closed to the unreadable page, never the data-free page', async (reason, value, metadata) => {
+    const result = await read(traced(OLD_VISIBLE, value, metadata))
+    expect(result).toMatchObject({kind: 'focus-unreadable', reason: 'focus-stale', detail: reason})
+    expect(result.timing.fragmentsMs).not.toBeNull()
+  })
+
+  it('admits fragments exactly 690 s old, and a visible value up to 300 s ahead on its own proof', async () => {
+    const edge = {...METADATA, composedAt: new Date(NOW - 690_000).toISOString()}
+    expect(await read(traced(OLD_VISIBLE, VALUE, edge))).toMatchObject({kind: 'ok', proof: 'fragments', fragmentsAgeMs: 690_000})
+    expect(await read(traced(focusAt('None', -300_000)))).toMatchObject({kind: 'ok', proof: 'focus-key'})
+  })
+
+  it('a shell misfit fails closed and names its check', async () => {
+    const value = JSON.stringify({...JSON.parse(VALUE) as {facts: WireFacts}, facts: {...FACTS, ids: [...FACTS.ids, 'identityName']}})
+    const result = await read(traced(OLD_VISIBLE, value))
+    expect(result).toMatchObject({kind: 'focus-unreadable', reason: 'focus-stale'})
+    expect(result.kind === 'focus-unreadable' && result.detail?.startsWith('shell-misfit:')).toBe(true)
+  })
+
+  it('a failed fragments read fails closed', async () => {
+    const store = traced(OLD_VISIBLE).store
+    const failing: PageStore = {get: store.get, getWithMetadata: () => Promise.reject(new Error('kv down'))}
+    expect(await readPublished({store: failing, nowMs: NOW, build: 'fixture', shell: SHELL, hidingModes: HIDING})).toMatchObject({
+      kind: 'focus-unreadable',
+      reason: 'focus-stale',
+      detail: 'fragments-error'
+    })
   })
 })
 

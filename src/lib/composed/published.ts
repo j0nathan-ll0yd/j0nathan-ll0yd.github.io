@@ -1,8 +1,10 @@
 // The page data the backend publishes to Workers KV for `/` (atlas decision 0164, Variant D): the
 // data contract between the LP runner and this Worker.
 //
-// - `focus`: the focus state, written by LP `focus.post.ts` before it returns and rewritten by
-//   `ReconcileFocusGate` every 5 minutes when it differs or is older than 300 s.
+// - `focus`: the focus state, written by LP `focus.post.ts` on every change before it returns, and
+//   repaired by `ReconcileFocusGate` within 5 minutes when it differs from the S3 signal. It is not
+//   refreshed only to stay young (atlas decision 0170), so a visible value may be old: the Worker
+//   then admits only fragments that prove visibility themselves (`readPublished`).
 // - `fragments:<build>`: the fragments this build's composer rendered and checked, with the facts its
 //   check produced (./artifact.ts `WireFacts`) and the summary, written by the ComposeDashboard runner
 //   after its composer run. While the focus value hides, the gate is shut or the signal is
@@ -10,11 +12,11 @@
 //   last visible composition stays in KV from the moment the focus value turns hiding until the
 //   runner's next run overwrites it (at most its 5-minute backstop) or the key expires.
 //
-// Both keys expire after PUBLISHED_TTL_S. The Worker requests both keys together (one KV round
-// trip, not two) and judges `focus` first: under a hiding or unreadable value the fragments value
-// arrives in the isolate but is never parsed, inspected, spliced or logged, so the Worker never
-// serves that composition while hiding. The
-// composer exports the encoders, so the runner writes exactly the shapes this module defines.
+// The fragments keys expire after PUBLISHED_TTL_S; the `focus` key does not expire (atlas decision
+// 0170). The Worker requests both keys together (one KV round trip, not two) and judges `focus`
+// first: under a hiding or unreadable value the fragments value arrives in the isolate but is never
+// parsed, inspected, spliced or logged, so the Worker never serves that composition while hiding.
+// The composer exports the encoders, so the runner writes exactly the shapes this module defines.
 import type {SsrSummary} from '../data-plane/render-model'
 import {COMPOSED_FRAGMENT_IDS, COMPOSED_MAX_AGE_MS, COMPOSED_MAX_FUTURE_SKEW_MS, type ComposedFragmentId, fromWireFacts, type WireFacts} from './artifact'
 import {fitsShell, type Shell} from './shell'
@@ -27,7 +29,10 @@ export function publishedFragmentsKey(build: string): string {
   return `fragments:${build}`
 }
 
-/** Both keys' TTL, in seconds: the composed artifact's age bound (690 s). */
+/**
+ * The fragments keys' TTL, in seconds: the composed artifact's age bound (690 s). The `focus` key
+ * takes no TTL (atlas decision 0170): the backend writes it on each change and on repair only.
+ */
 export const PUBLISHED_TTL_S = COMPOSED_MAX_AGE_MS / 1000
 
 /** The largest fragments value the Worker reads: 512 KiB, in UTF-8 bytes. */
@@ -106,7 +111,10 @@ export interface PageStore {
  */
 export const FOCUS_CACHE_TTL_S = 30
 
-/** Why the focus state reads unreadable. Value-free: safe for the log line. */
+/**
+ * Why the focus state reads unreadable. Value-free: safe for the log line. `focus-stale`: a visible
+ * value older than 690 s, and fragments that do not prove visibility (atlas decision 0170).
+ */
 export type FocusRefusal = 'focus-missing' | 'focus-shape' | 'focus-stale' | 'focus-future' | 'focus-error'
 
 /** Why the fragments are not served. Value-free: safe for the log line. */
@@ -128,14 +136,26 @@ export interface PublishedTiming {
 
 export type PublishedRead =
   & (
-    | {kind: 'ok'; fragments: Record<ComposedFragmentId, string>; summary: SsrSummary; focusAgeMs: number; fragmentsAgeMs: number}
-    /** A hiding focus value: the Worker answers its value-free page and never reads the fragments. */
+    | {
+      kind: 'ok'
+      fragments: Record<ComposedFragmentId, string>
+      summary: SsrSummary
+      focusAgeMs: number
+      fragmentsAgeMs: number
+      /** The evidence that admitted the visible answer: a `focus` value within 690 s, or data-bearing fragments. */
+      proof: VisibilityProof
+    }
+    /** A hiding focus value, at any age: the Worker answers its value-free page and never reads the fragments. */
     | {kind: 'hiding'; currentFocus: string; focusAgeMs: number}
-    | {kind: 'focus-unreadable'; reason: FocusRefusal}
+    /** `detail`: for `focus-stale`, why the fragments did not prove visibility (a fragments reason, or `summary-<summary>`). */
+    | {kind: 'focus-unreadable'; reason: FocusRefusal; detail?: string}
     /** `detail`: for `shell-misfit`, which check failed (shell.ts `fitsShell`). */
     | {kind: 'refused'; reason: FragmentsRefusal; detail?: string; focusAgeMs: number}
   )
   & {timing: PublishedTiming}
+
+/** Which evidence admitted a visible answer (atlas decision 0170). Value-free: safe for the log line. */
+export type VisibilityProof = 'focus-key' | 'fragments'
 
 export interface PublishedReadOptions {
   store: PageStore
@@ -148,7 +168,22 @@ export interface PublishedReadOptions {
   hidingModes: ReadonlySet<string>
 }
 
-const SUMMARIES: ReadonlySet<string> = new Set(['live', 'stale', 'partial', 'unavailable', 'suppressed'])
+/**
+ * Whether a composition with each summary carries data values. Keyed by every SsrSummary, so a new
+ * summary must take a side. The composer emits a data-bearing composition only when its focus read
+ * was visible and no gated export answered the gate's suppression body; every other run publishes a
+ * value-free variant (`unavailable` or `suppressed`). Defined here, not in render-model.ts, so the
+ * Worker graph gains no view-model module.
+ */
+const SUMMARY_BEARS_DATA = {live: true, stale: true, partial: true, unavailable: false, suppressed: false} as const satisfies Record<SsrSummary, boolean>
+
+const SUMMARIES: ReadonlySet<string> = new Set(Object.keys(SUMMARY_BEARS_DATA))
+
+/** The data-bearing summaries: fragments with one prove a visible focus and an open gate at `composedAt`. */
+export const DATA_BEARING_SUMMARIES: ReadonlySet<SsrSummary> = new Set(
+  // The `satisfies` above makes the keys exactly SsrSummary; Object.keys widens them to string.
+  (Object.keys(SUMMARY_BEARS_DATA) as SsrSummary[]).filter((summary) => SUMMARY_BEARS_DATA[summary])
+)
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -156,8 +191,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 const isStrings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string')
 
-/** The `focus` value as the Worker judges it at `nowMs`. */
-function judgeFocus(text: string | null, nowMs: number): {ok: true; currentFocus: string; ageMs: number} | {ok: false; reason: FocusRefusal} {
+/**
+ * The `focus` value as the Worker judges it at `nowMs`: readable, or why not. Its age is not judged
+ * here: a hiding value answers at any age, and a visible one older than 690 s needs the fragments'
+ * proof (`readPublished`).
+ */
+function judgeFocus(
+  text: string | null,
+  nowMs: number
+): {ok: true; currentFocus: string; ageMs: number} | {ok: false; reason: Exclude<FocusRefusal, 'focus-stale'>} {
   if (text === null) {
     return {ok: false, reason: 'focus-missing'}
   }
@@ -176,9 +218,6 @@ function judgeFocus(text: string | null, nowMs: number): {ok: true; currentFocus
   }
   if (publishedMs - nowMs > COMPOSED_MAX_FUTURE_SKEW_MS) {
     return {ok: false, reason: 'focus-future'}
-  }
-  if (nowMs - publishedMs > COMPOSED_MAX_AGE_MS) {
-    return {ok: false, reason: 'focus-stale'}
   }
   return {ok: true, currentFocus: value.currentFocus, ageMs: nowMs - publishedMs}
 }
@@ -269,11 +308,22 @@ async function timed<T>(read: () => Promise<T>): Promise<{ok: true; value: T; ms
 }
 
 /**
- * One request's read of the published page data (atlas decision 0164, Variant D). Both keys are
- * requested together. The `focus` value is judged first: a hiding value answers `hiding` and an
- * unreadable one (missing, malformed, older than 690 s or more than 300 s ahead, or a failed read)
- * `focus-unreadable`, and in both the fragments value is never parsed, inspected, spliced or
- * logged. Only under a visible value are the fragments judged (`judgeFragments`). The reads have no
+ * One request's read of the published page data (atlas decision 0164, Variant D; atlas decision
+ * 0170). Both keys are requested together. The `focus` value is judged first:
+ *
+ * 1. Missing, malformed, more than 300 s ahead, or a failed read: `focus-unreadable`.
+ * 2. A hiding value, at any age: `hiding`.
+ *
+ * In both, the fragments value is never parsed, inspected, spliced or logged.
+ *
+ * 3. A visible value within 690 s: the fragments are judged (`judgeFragments`) and served whatever
+ *    their summary, proof `focus-key`.
+ * 4. A visible value older than 690 s: the fragments are judged the same way and served only with a
+ *    data-bearing summary, proof `fragments`. The composer publishes one only under a visible focus
+ *    and an open gate, and `judgeFragments` holds `composedAt` within 690 s, so the bound is the one
+ *    a fresh `focus` value gives. Anything else fails closed: `focus-unreadable`, `focus-stale`.
+ *
+ * Rules 1 to 3 add no work to the read; rule 4 reuses `judgeFragments`. The reads have no
  * budget of their own: a read that stalls ends at the Worker's 3 s ceiling (SSR_CEILING_MS), which
  * answers the data-free page. No Cache API, no `waitUntil`, no copy kept between requests.
  *
@@ -295,6 +345,29 @@ export async function readPublished(options: PublishedReadOptions): Promise<Publ
   }
   const fragmentsLeg = await fragmentsRead
   const timing = {focusMs: focusLeg.ms, fragmentsMs: fragmentsLeg.ms}
+  if (focus.ageMs > COMPOSED_MAX_AGE_MS) {
+    const judged = fragmentsLeg.ok ? judgeFragments(fragmentsLeg.value, options) : {ok: false as const, reason: 'fragments-error' as const}
+    if (!judged.ok) {
+      return {
+        kind: 'focus-unreadable',
+        reason: 'focus-stale',
+        detail: judged.detail === undefined ? judged.reason : `${judged.reason}:${judged.detail}`,
+        timing
+      }
+    }
+    if (!DATA_BEARING_SUMMARIES.has(judged.summary)) {
+      return {kind: 'focus-unreadable', reason: 'focus-stale', detail: `summary-${judged.summary}`, timing}
+    }
+    return {
+      kind: 'ok',
+      fragments: judged.fragments,
+      summary: judged.summary,
+      focusAgeMs: focus.ageMs,
+      fragmentsAgeMs: judged.ageMs,
+      proof: 'fragments',
+      timing
+    }
+  }
   if (!fragmentsLeg.ok) {
     return {kind: 'refused', reason: 'fragments-error', focusAgeMs: focus.ageMs, timing}
   }
@@ -304,5 +377,13 @@ export async function readPublished(options: PublishedReadOptions): Promise<Publ
       ? {kind: 'refused', reason: judged.reason, focusAgeMs: focus.ageMs, timing}
       : {kind: 'refused', reason: judged.reason, detail: judged.detail, focusAgeMs: focus.ageMs, timing}
   }
-  return {kind: 'ok', fragments: judged.fragments, summary: judged.summary, focusAgeMs: focus.ageMs, fragmentsAgeMs: judged.ageMs, timing}
+  return {
+    kind: 'ok',
+    fragments: judged.fragments,
+    summary: judged.summary,
+    focusAgeMs: focus.ageMs,
+    fragmentsAgeMs: judged.ageMs,
+    proof: 'focus-key',
+    timing
+  }
 }

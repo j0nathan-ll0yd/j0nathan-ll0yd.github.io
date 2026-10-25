@@ -434,9 +434,9 @@ closed-set reason: `fragments-missing`, `fragments-build`, `fragments-stale`, `f
 `fragments-oversize`, `fragments-shape`, `fragments-error` or `shell-misfit`. Until atlas decision
 0164 Phase 4, a Worker without the binding serves `/` from the artifact under the requirement above.
 
-Verified by `tests/unit/published-read.test.ts:202` (each reason),
-`tests/unit/published-read.test.ts:237` (the 512 KiB cap in bytes),
-`tests/unit/published-read.test.ts:101` (the fixture entry is admitted) and
+Verified by `tests/unit/published-read.test.ts:305` (each reason),
+`tests/unit/published-read.test.ts:340` (the 512 KiB cap in bytes),
+`tests/unit/published-read.test.ts:105` (the fixture entry is admitted) and
 `tests/build/shell-cut.test.ts:128` (the compiled shell equals the Worker's own cut of the page).
 
 #### Scenario: Fragments from another build
@@ -448,8 +448,9 @@ Verified by `tests/unit/published-read.test.ts:202` (each reason),
 ### Requirement: Gated page data rests only in KV, for at most 690 s
 
 The published read keeps the bound decision 0160 D3 set, as amended by decision 0164 D1 and D4: the
-only gated content at rest is the `fragments:<build>` value and the `focus` state, in Workers KV,
-each with a 690 s TTL. While the focus value hides, the gate is shut or the signal is unreadable,
+only gated content at rest is the `fragments:<build>` value, in Workers KV with a 690 s TTL. The
+`focus` state holds no data value and takes no TTL (atlas decision 0170): the backend writes it on
+each change and repairs it within 5 minutes. While the focus value hides, the gate is shut or the signal is unreadable,
 each runner run SHALL overwrite `fragments:<build>` with that state's value-free fragments; the last
 visible composition stays in KV until that run or the TTL, and the Worker never reads it under a
 hiding or unreadable `focus` value (the requirement above on the focus value). The Worker SHALL keep
@@ -457,7 +458,7 @@ no copy between requests, open no Cache API, cache no HTML at the edge and sched
 (`waitUntil`) after its answer. The published page SHALL carry `Cache-Control: no-store`
 (`COMPOSED_CACHE_HEADERS`).
 
-Verified by `tests/unit/published-read.test.ts:173` (no Cache API on any outcome, no `waitUntil`)
+Verified by `tests/unit/published-read.test.ts:276` (no Cache API on any outcome, no `waitUntil`)
 and `tests/unit/ssr-response.test.ts:388` (the published page is no-store and its log line holds no
 value).
 
@@ -509,18 +510,39 @@ open no cache, keep no last-known-good copy and schedule no work (`waitUntil`) a
 On the published read (atlas decision 0164, Variant D; src/lib/composed/published.ts
 `readPublished`, used when the Worker has the `PAGE` KV binding and a compiled shell), the focus
 value is the `focus` KV key, read with `cacheTtl: 30` beside `fragments:<build>`. The Worker SHALL
-judge `focus` first. A hiding value SHALL answer that value's value-free page, and an unreadable one
-(missing, malformed, a `publishedAt` older than 690 s or more than 300 s ahead, or a failed read) the
-unreadable value-free page. The Worker requests both keys together, so the fragments value can
-arrive in the isolate; under a hiding or unreadable value the Worker SHALL NOT parse, inspect,
-splice or log it. The reads have no budget of their own: a read that stalls ends at the 3 s ceiling,
-which answers the data-free page as `fallback`, also value-free. A hiding value written by the focus
-writer SHALL reach a colo within the 30 s read cache plus KV's own propagation to other locations
-(Cloudflare documents up to 60 s or more).
+judge `focus` first, by four rules (atlas decision 0170):
 
-Verified by `tests/unit/published-read.test.ts:137` (a hiding value never reads the fragments),
-`tests/unit/published-read.test.ts:149` (each unreadable form fails closed) and
-`tests/unit/published-read.test.ts:118` (the 30 s read cache). Before that, on the artifact read:
+1. A `focus` value that is missing, malformed, more than 300 s ahead, or a failed read SHALL answer
+   the unreadable value-free page.
+2. A hiding value SHALL answer that value's value-free page at any age.
+3. A visible value with a `publishedAt` within 690 s SHALL admit the fragments by the published
+   checks below, whatever their summary.
+4. A visible value with a `publishedAt` older than 690 s SHALL admit the fragments by the same
+   checks (build, a `composedAt` within 690 s and at most 300 s ahead, the size cap, the shape, the
+   summary match, the facts against the shell) and SHALL serve them only when their summary is
+   data-bearing (`live`, `stale` or `partial`). Otherwise it SHALL answer the unreadable value-free
+   page, never a value-free fragments variant and never the data-free page.
+
+Rule 4 holds the privacy bound of a fresh `focus` value: the composer emits a data-bearing
+composition only when its focus read was visible and no gated export answered the suppression body,
+so fresh data-bearing fragments prove the owner was visible and the gate open at most 690 s ago. The
+backend writes `focus` on every change and repairs it within 5 minutes; it does not refresh it only to
+keep it young, and the key does not expire. The Worker requests both keys together, so the fragments
+value can arrive in the isolate; under a hiding or unreadable value the Worker SHALL NOT parse,
+inspect, splice or log it. The reads have no budget of their own: a read that stalls ends at the 3 s
+ceiling, which answers the data-free page as `fallback`, also value-free. A hiding value written by
+the focus writer SHALL reach a colo within the 30 s read cache plus KV's own propagation to other
+locations (Cloudflare documents up to 60 s or more).
+
+Verified by `tests/unit/published-read.test.ts:142` (a hiding value never reads the fragments),
+`tests/unit/published-read.test.ts:154` (each unreadable form fails closed),
+`tests/unit/published-read.test.ts:123` (the 30 s read cache),
+`tests/unit/published-read.test.ts:185` (rule 1 before rule 2),
+`tests/unit/published-read.test.ts:195` (rule 2: an old hiding value never reads or parses the
+fragments), `tests/unit/published-read.test.ts:210` (rule 3),
+`tests/unit/published-read.test.ts:223` (rule 4 for every summary: only `live`, `stale` and
+`partial` serve) and `tests/unit/published-read.test.ts:236` (rule 4: stale, missing or refused
+fragments fail closed). Before that, on the artifact read:
 `tests/unit/composed-read-concurrent.test.ts:194` (a hiding value cancels the body
 unread), `tests/unit/composed-read-concurrent.test.ts:180` (the gate wins),
 `tests/unit/composed-read-concurrent.test.ts:241` (an unreadable value fails closed) and
@@ -538,6 +560,34 @@ unread), `tests/unit/composed-read-concurrent.test.ts:180` (the gate wins),
 - **WHEN** the `focus` key reads `Work`
 - **THEN** the Worker SHALL answer the Work value-free page and SHALL NOT parse, inspect, splice or
   log the fragments value
+
+#### Scenario: An old visible focus value and fresh live fragments
+
+- **GIVEN** the `focus` key reads visible with a `publishedAt` older than 690 s
+- **AND** `fragments:<build>` holds a `live` composition with a `composedAt` within 690 s
+- **WHEN** a visitor requests `/`
+- **THEN** the Worker SHALL serve the fragments, with `visibility_proof: "fragments"`
+
+#### Scenario: An old visible focus value and fresh value-free fragments
+
+- **GIVEN** the `focus` key reads visible with a `publishedAt` older than 690 s
+- **AND** `fragments:<build>` holds a `suppressed` or `unavailable` variant within 690 s
+- **WHEN** a visitor requests `/`
+- **THEN** the Worker SHALL answer the unreadable value-free page
+
+#### Scenario: An old visible focus value and stale or missing fragments
+
+- **GIVEN** the `focus` key reads visible with a `publishedAt` older than 690 s
+- **AND** `fragments:<build>` is missing, or its `composedAt` is older than 690 s
+- **WHEN** a visitor requests `/`
+- **THEN** the Worker SHALL answer the unreadable value-free page, not the data-free page
+
+#### Scenario: An old hiding focus value
+
+- **GIVEN** the `focus` key reads `Work` with a `publishedAt` a day old
+- **WHEN** a visitor requests `/`
+- **THEN** the Worker SHALL answer the Work value-free page and SHALL NOT read or parse the fragments
+  value
 
 ### Requirement: A hiding or unreadable focus value answers the build's value-free page
 
@@ -618,11 +668,17 @@ false after (atlas decision 0164: the soak's cold marker, on both read paths; `H
 count). Every line SHALL carry `read_path`: `published` (the KV values) or `artifact` (the composed
 artifact, the rollback). A published answer (`served: "published"`) SHALL carry `focus_read:
 "visible"`, `focus_kv_ms` and, when the fragments were read, `fragments_kv_ms`, plus `focus_age_ms`
-and `fragments_age_ms` when known. The KV value carries no render record, so the published line
-names no per-export outcome, no card state and no degraded exports.
+and `fragments_age_ms` when known, and `visibility_proof`: `focus-key` when a `focus` value within
+690 s admitted it, `fragments` when data-bearing fragments within 690 s admitted it under an older
+visible value (atlas decision 0170). A visible value older than 690 s whose fragments do not prove
+visibility SHALL log `artifact: "published:focus-stale:<why>"`, where `<why>` is the fragments
+reason or `summary-<summary>`. The KV value carries no render record, so the published line names no
+per-export outcome, no card state and no degraded exports.
 
-Verified by `tests/unit/ssr-response.test.ts:173` (one value-free line) and `tests/unit/ssr-response.test.ts:479`
-(`isolate_first` under a fresh module: true, then false on both paths).
+Verified by `tests/unit/ssr-response.test.ts:173` (one value-free line),
+`tests/unit/ssr-response.test.ts:427` (`visibility_proof: "fragments"`) and
+`tests/unit/ssr-response.test.ts:508` (`isolate_first` under a fresh module: true, then false on
+both paths).
 
 #### Scenario: A healthy render
 
