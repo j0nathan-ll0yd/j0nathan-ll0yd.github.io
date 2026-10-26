@@ -15,6 +15,10 @@ import {describe, expect, it} from 'vitest'
 // Item 16: `visual-gate` is the one context branch protection can require for the visual
 // workflow, so it must run on every outcome and fail on anything but `success` (decision 0152:
 // never skip-as-pass).
+//
+// Folded-job A2b binding (owner decision): the `static-checks` job ends in a step named exactly
+// `static-checks`, the required context. It runs on every outcome and fails unless every step
+// from the install on concluded `success`, so each of those steps must carry an id it reads.
 
 const WORKFLOWS_DIR = resolve('.github/workflows')
 const DEFAULT_PULL_REQUEST_TYPES = ['opened', 'synchronize', 'reopened']
@@ -91,5 +95,47 @@ describe('visual-gate (decision 0168 item 16)', () => {
     expect(gate).toMatch(/"\$VISUAL_RESULT" != "success"/)
     expect(gate).toMatch(/"\$BEHAVIORAL_RESULT" != "success"/)
     expect(gate).toMatch(/exit 1/)
+  })
+})
+
+/** The steps of one job body, each from its `- name:` or `- uses:` line to the next. */
+function jobSteps(body: string): string[] {
+  const lines = body.split('\n')
+  const starts = lines.flatMap((line, index) => /^ {6}- /.test(line) ? [index] : [])
+  return starts.map((start, i) => lines.slice(start, starts[i + 1]).join('\n'))
+}
+
+describe('static-checks wrapper step (decision 0168, A2b binding)', () => {
+  const statics = workflows.find(({name}) => name === 'static-checks.yml')?.text ?? ''
+  const steps = jobSteps(jobBody(statics, 'static-checks') ?? '')
+  const wrapper = steps.at(-1) ?? ''
+  const installIndex = steps.findIndex((step) => /^\s+id: install$/m.test(step))
+  const gates = steps.slice(installIndex, -1)
+
+  it('ends the job with a step named exactly static-checks', () => {
+    expect(wrapper).toMatch(/^ {6}- name: static-checks$/m)
+    expect(steps.filter((step) => /^ {6}- name: static-checks$/m.test(step))).toHaveLength(1)
+  })
+
+  it('runs on every outcome', () => {
+    expect(wrapper).toMatch(/^ {8}if: always\(\)$/m)
+  })
+
+  it('reads the outcome of the install and of every step after it', () => {
+    expect(installIndex).toBeGreaterThan(-1)
+    expect(gates.length).toBeGreaterThan(10)
+    for (const step of gates) {
+      const id = /^\s+id: (\S+)$/m.exec(step)?.[1]
+      expect(id, `step without an id:\n${step}`).toBeDefined()
+      expect(wrapper).toContain(`${id}=\${{ steps.${id}.outcome }}`)
+    }
+    const read = [...wrapper.matchAll(/steps\.(\w+)\.outcome/g)].map((match) => match[1])
+    expect(read).toHaveLength(gates.length)
+  })
+
+  it('fails on any outcome but success, an empty one included', () => {
+    expect(wrapper).toMatch(/if \[ "\$outcome" != "success" \]; then/)
+    expect(wrapper).toMatch(/exit "\$failed"/)
+    expect(wrapper).not.toMatch(/continue-on-error/)
   })
 })

@@ -74,10 +74,12 @@ jobs:
       # check runs against the installed tree; the standalone dprint/check action cannot resolve a
       # package `extends`. Local: `pnpm run format`.
       - name: dprint check
+        id: format_check
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run format:check
 
       - name: Type check (astro check)
+        id: typecheck
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run typecheck
 
@@ -91,6 +93,7 @@ jobs:
 
       # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
       - name: lint
+        id: lint
         if: ${{ !cancelled() && steps.astro_sync.outcome == 'success' }}
         run: pnpm run lint
 
@@ -98,6 +101,7 @@ jobs:
       # blocks are generated. The build regenerates them,
       # so a committed copy that drifts from the generator would ship unreviewed.
       - name: Generated WebMCP files match the generator
+        id: webmcp
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run check:webmcp
 
@@ -106,6 +110,7 @@ jobs:
       # catalog and asserted against its validator here, on every PR and on
       # push: main -- not only on the self-hosted visual-tests.yml PR lane.
       - name: Unit + spec-cases tests (vitest)
+        id: unit
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run test:unit
 
@@ -114,6 +119,7 @@ jobs:
       # (decisions/0011). No `tee`, no `|| true` -- a non-zero exit here MUST
       # fail the job (S3 no-op-gate hazard).
       - name: Spec severity ratchet
+        id: spec_severity
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node audits/checks/b2-check-spec-severity.mjs
 
@@ -125,6 +131,7 @@ jobs:
       # a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md)
       - name: spec-verification
+        id: spec_verification
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node audits/checks/b2-check-spec-verification.mjs
 
@@ -139,6 +146,7 @@ jobs:
       # audit-web.yml, so their uptime never gates a merge here. No `|| true`
       # -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       - name: Spec quote-integrity gate
+        id: spec_quote_integrity
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node audits/checks/b2-check-spec-drift.mjs --integrity-only
 
@@ -148,6 +156,7 @@ jobs:
       # both ways. No `|| true` -- a non-zero exit MUST fail the job (S3 no-op-gate hazard).
       # Same invocation as `pnpm run check:covers`.
       - name: Covers conformance (openspec-covers, blocking)
+        id: covers
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/openspec-covers.mjs --blocking
 
@@ -162,6 +171,7 @@ jobs:
       # The composer parity oracle (atlas decision 0160, PR B): the built composer's fragments equal
       # the Astro Container render in 27 scenarios, and their scoped-style hashes are in dist/.
       - name: composer-parity
+        id: composer_parity
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm run test:oracle
 
@@ -171,11 +181,52 @@ jobs:
       # then fails the PR, not the production deploy. Runs after the build, so the build's
       # .wrangler/deploy redirect is present and `--config` is proven to override it.
       - name: rate-limiter-bundle
+        id: rate_limiter_bundle
         if: ${{ !cancelled() && steps.build_output.outcome == 'success' }}
         run: |
           out="$RUNNER_TEMP/rate-limiter-dry-run"
           pnpm exec wrangler deploy --dry-run --config workers/rate-limiter/wrangler.jsonc --outdir "$out"
           grep -q 'ClientRateLimitWindow' "$out/index.js"
+
+      # A2b exact-step binding (atlas audits/gate-can-fail-campaign.md; decision 0168, owner
+      # decision on folded jobs). The required context is `static-checks`, and A2b binds can-fail
+      # evidence to a step named exactly that, as the design-system `governance-gates` step does.
+      # This step judges every step from the install on by its `outcome`. `if: always()` makes it
+      # run when a gate failed, was skipped or was cancelled, and anything but `success` fails it,
+      # an empty outcome included (a step that never ran, or an id this list misnames). It never
+      # passes a skipped gate as green (decision 0152). `tests/unit/workflow-triggers.test.ts`
+      # fails when a step after the install has no id or is missing here.
+      - name: static-checks
+        if: always()
+        # `<<<` is bash.
+        shell: bash
+        env:
+          STEP_OUTCOMES: |
+            install=${{ steps.install.outcome }}
+            format_check=${{ steps.format_check.outcome }}
+            typecheck=${{ steps.typecheck.outcome }}
+            astro_sync=${{ steps.astro_sync.outcome }}
+            lint=${{ steps.lint.outcome }}
+            webmcp=${{ steps.webmcp.outcome }}
+            unit=${{ steps.unit.outcome }}
+            spec_severity=${{ steps.spec_severity.outcome }}
+            spec_verification=${{ steps.spec_verification.outcome }}
+            spec_quote_integrity=${{ steps.spec_quote_integrity.outcome }}
+            covers=${{ steps.covers.outcome }}
+            build_output=${{ steps.build_output.outcome }}
+            composer_parity=${{ steps.composer_parity.outcome }}
+            rate_limiter_bundle=${{ steps.rate_limiter_bundle.outcome }}
+        run: |
+          failed=0
+          while IFS='=' read -r id outcome; do
+            [ -n "$id" ] || continue
+            echo "$id: ${outcome:-<empty>}"
+            if [ "$outcome" != "success" ]; then
+              echo "::error::static-checks needs step '$id' to conclude success (outcome: ${outcome:-<empty>})"
+              failed=1
+            fi
+          done <<< "$STEP_OUTCOMES"
+          exit "$failed"
 
   spec-mutation-score:
     runs-on: [self-hosted, linux, arm64, node]

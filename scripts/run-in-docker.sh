@@ -21,6 +21,7 @@ CONFIG="${1:?config path required (e.g. playwright.config.ts)}"
 shift
 
 VERSION=$(./scripts/playwright-version.sh)
+PNPM_STORE_VOLUME=human-datastream-pnpm-store
 
 # The container writes $GITHUB_TOKEN into its npmrc as the npm.pkg.github.com
 # authToken (below). `-e GITHUB_TOKEN` forwards whatever the host has -- and in
@@ -43,6 +44,15 @@ export GITHUB_TOKEN
 # the hosted run. The node_modules shadow volume prevents Linux native packages from overwriting
 # the host's macOS install; keep it after the /work bind. Put pnpm's store inside that volume too,
 # or hundreds of megabytes land in the bind-mounted repository.
+#
+# The store itself is a NAMED volume (PNPM_STORE_VOLUME), mounted inside the anonymous
+# node_modules volume, so it outlives the container: the next run installs from a warm store
+# instead of downloading every package again (atlas decision 0168 item 16). node_modules stays
+# anonymous and fresh per run. The store is content-addressed and safe to share between
+# concurrent containers. `docker volume rm human-datastream-pnpm-store` resets it.
+# Measured 2026-10-26 (1,174 packages): the install takes 6 to 8 s warm or cold, because pnpm
+# copies across the two volumes instead of hard-linking. The gain is no registry download per
+# run, not wall clock.
 #
 # Corepack follows package.json's exact pnpm pin. GITHUB_TOKEN is written to the container user
 # npmrc because pnpm does not expand it from the committed project config.
@@ -95,6 +105,7 @@ docker run --rm --ipc=host --platform linux/arm64 \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
+  -v "${PNPM_STORE_VOLUME}:/work/node_modules/.pnpm-store" \
   -v /work/dist \
   -v /work/.astro \
   -v /work/.wrangler \

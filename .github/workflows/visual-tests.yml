@@ -132,6 +132,8 @@ jobs:
           if-no-files-found: error
 
   visual-tests:
+    # An include-only matrix would name each job after every matrix value, `select` included.
+    name: visual-tests (${{ matrix.shard }})
     needs: setup
     runs-on: [self-hosted, linux, arm64, playwright]
     timeout-minutes: 30
@@ -140,7 +142,23 @@ jobs:
       matrix:
         # 4-shard matrix matches the fleet's MAX_RUNNERS=10 with CONTAINER_CPUS=4
         # comfortably (4 shards * 4 cores = 16 cores out of 28 hardware cores).
-        shard: [1, 2, 3, 4]
+        #
+        # Atlas decision 0168 item 21 (owner decision): shard 1 runs only the three Dashboard
+        # full-page screens at the viewports that pay the 13 s bio-terminal typing wait
+        # (tests/visual/shards/typing-wait.txt), and shards 2 to 4 split every other test. A plain
+        # --shard=k/4 splits by test count in project order, so the wide projects and their waits
+        # landed on shards 1 to 3 (test steps p50 181 / 116 / 66 / 38 s). The serial group at
+        # tests/visual/widgets.spec.ts:58 stays whole: Playwright shards it as one group. The
+        # `shard` numbers keep the artifact names that merge-reports and commit-baselines read.
+        include:
+          - shard: 1
+            select: --test-list=tests/visual/shards/typing-wait.txt
+          - shard: 2
+            select: --test-list-invert=tests/visual/shards/typing-wait.txt --shard=1/3
+          - shard: 3
+            select: --test-list-invert=tests/visual/shards/typing-wait.txt --shard=2/3
+          - shard: 4
+            select: --test-list-invert=tests/visual/shards/typing-wait.txt --shard=3/3
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -181,11 +199,15 @@ jobs:
         env:
           # SKIP_BUILD reuses the dist/ from setup -- saves rebuilding per shard.
           SKIP_BUILD: 'true'
+          # One readable blob file name per matrix entry. With --test-list or --test-list-invert
+          # Playwright puts a command hash in the default name, and shards 2 to 4 number
+          # themselves 1 to 3, so the default names no longer say which matrix entry wrote them.
+          PLAYWRIGHT_BLOB_OUTPUT_NAME: report-${{ matrix.shard }}.zip
         # In update_snapshots mode, force workers=1 to eliminate the within-shard
         # write race that produces truncated PNGs (microsoft/playwright#9760).
         # Validation mode keeps the playwright.config.ts default (workers='50%' in CI).
         # Browsers are PREINSTALLED in the runner image -- do NOT add `playwright install`.
-        run: pnpm exec playwright test --shard=${{ matrix.shard }}/4 ${{ (inputs.update_snapshots || false) && '--update-snapshots --workers=1' || '' }}
+        run: pnpm exec playwright test ${{ matrix.select }} ${{ (inputs.update_snapshots || false) && '--update-snapshots --workers=1' || '' }}
 
       - name: Upload regenerated baselines
         if: ${{ (inputs.update_snapshots || false) && !cancelled() }}
