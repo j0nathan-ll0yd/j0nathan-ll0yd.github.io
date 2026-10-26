@@ -101,4 +101,16 @@ describe('the shipped composer (atlas decision 0160, PR B; owner decision 2026-1
     expect(text).not.toContain(process.cwd())
     expect(text).not.toMatch(/fixtures\/generated/)
   })
+
+  // Astro 7.3 resolves its ambient manifest to every on-demand route in a Vite build;
+  // scripts/build-composer.mjs maps it to astro's plain-Node stub instead. A composer that held the
+  // routes would import `cloudflare:workers` and the Worker's route modules.
+  it('is self-contained: it imports no module, and holds no Worker route', () => {
+    const text = readFileSync(path.join(client, version.composer.path), 'utf8')
+    expect(text.match(/(?:^|[;}\s])import\s*(?:[\w$*{][^;]*?from\s*)?["'][^"']+["']/g) ?? []).toEqual([])
+    expect(text.match(/(?:^|[;}\s])export\s*(?:\*(?:\s*as\s+[\w$]+)?|\{[^}]*\})\s*from\s*["'][^"']+["']/g) ?? []).toEqual([])
+    expect(text.match(/\bimport\(\s*["'][^"']+["']\s*\)/g) ?? []).toEqual([])
+    expect(text).not.toContain('cloudflare:')
+    expect(text).not.toMatch(/src\/pages\//)
+  })
 })

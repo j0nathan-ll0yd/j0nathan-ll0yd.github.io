@@ -19,17 +19,11 @@ overrides:
   # override is the pin; Dependabot's normal patch bumps still apply on top. Drop
   # once every parent's range floats to >=3.3.18 on its own.
   nanoid@<3.3.18: ^3.3.18
-  # Security: postcss <= 8.5.22 is GHSA-fxqj-rqcc-2cmp. Pulled by vite 8.1.5
-  # (astro, vitest, vite-plugin-pwa), whose `^8.5.17` range already admits the
-  # fix, but `pnpm update --depth Infinity postcss` re-resolves 8.5.29 and then
-  # keeps 8.5.20 inside vite's peer-variant snapshot. Drop once vite moves (an
-  # astro or vitest bump) and `pnpm why postcss` shows >=8.5.23 without this.
-  postcss@<8.5.23: ^8.5.23
   # Security: brace-expansion 2.x < 2.1.7 is GHSA-q2hr-2g5m-vwhr. Pulled by
   # minimatch 5.1.9 < filelist < jake < ejs < workbox-build (vite-plugin-pwa).
   # minimatch's `^2.0.1` already admits the fix; the lockfile snapshot does not
-  # move under `pnpm update --depth Infinity`. Drop under the same condition as
-  # postcss: `pnpm why brace-expansion` shows no 2.x below 2.1.7 without this.
+  # move under `pnpm update --depth Infinity`. Drop once
+  # `pnpm why brace-expansion` shows no 2.x below 2.1.7 without this.
   brace-expansion@>=2.0.0 <2.1.7: ^2.1.7
   # Security: qs < 6.16.0 is GHSA-q8mj-m7cp-5q26 (6.11.1-6.15.1, the Dependabot
   # alert), GHSA-x5fp-wj9c-mxmx (6.14.2-6.15.3) and GHSA-4mjr-xmp4-gh2g
@@ -70,8 +64,8 @@ overrides:
   # #188). Pulled by @rollup/plugin-terser 1.0.0 (`^7.0.3`) < workbox-build <
   # vite-plugin-pwa, so the range already admits the fix, but
   # `pnpm update --depth Infinity serialize-javascript` keeps 7.0.5 in the
-  # lockfile snapshot (a fresh install resolves 7.1.x). Same shape as postcss
-  # and brace-expansion above. Drop once `pnpm why serialize-javascript`
+  # lockfile snapshot (a fresh install resolves 7.1.x). Same shape as
+  # brace-expansion above. Drop once `pnpm why serialize-javascript`
   # resolves >=7.1.3 without this entry.
   serialize-javascript@<7.1.3: ^7.1.3
 

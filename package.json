@@ -51,12 +51,12 @@
     "@j0nathan-ll0yd/tokens": "^2.2.1",
     "@j0nathan-ll0yd/web": "4.5.3",
     "@modelcontextprotocol/server": "2.3.1",
-    "astro": "~7.2.8",
+    "astro": "~7.3.3",
     "fast-xml-validator": "^1.4.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
-    "@astrojs/cloudflare": "14.2.6",
+    "@astrojs/cloudflare": "14.3.4",
     "@astrojs/sitemap": "^3.7.3",
     "@axe-core/playwright": "^4.13.0",
     "@j0nathan-ll0yd/config": "^1.1.0",
