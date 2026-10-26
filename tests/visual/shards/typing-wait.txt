@@ -1,0 +1,10 @@
+# Visual shard 1 (atlas decision 0168 item 21, owner decision): the three Dashboard full-page
+# screens at the three viewports of 768 px and wider. Each spends about 13 s in the bio-terminal
+# typing wait (tests/visual/helpers.ts:188), about 15 s per test. Below 768 px the lines show at
+# once. Shard 1 runs this list (--test-list). Shards 2 to 4 run every other test
+# (--test-list-invert, then --shard=k/3), so the two sets cannot overlap or miss a test.
+# Project names stay as they are: a renamed project would move its baselines
+# (snapshotPathTemplate starts at {projectName}). tests/unit/visual-shards.test.ts pins the split.
+[desktop-1400] › dashboard.spec.ts
+[tablet-1100] › dashboard.spec.ts
+[tablet-768] › dashboard.spec.ts
