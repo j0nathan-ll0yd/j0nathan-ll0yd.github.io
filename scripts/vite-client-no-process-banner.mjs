@@ -8,6 +8,7 @@
 // `process`. This plugin clears the banner for the `client` environment only.
 //
 // tests/build/worker-output.test.ts fails if any built client chunk starts with the banner again.
+// @astrojs/cloudflare 14.3.4 sets the banner on `ssr` and `prerender` only, so this is a no-op today; it stays as a guard.
 
 export const PROCESS_BANNER_MARKER = 'globalThis.process'
 
