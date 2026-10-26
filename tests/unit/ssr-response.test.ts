@@ -394,6 +394,7 @@ describe('GET /: the published page (atlas decision 0164, Variant D)', () => {
       summary: 'live',
       focusAgeMs: 20_000,
       fragmentsAgeMs: 90_000,
+      proof: 'focus-key',
       timing: TIMING
     }))
     const response = await renderDashboard(REQUEST, d)
@@ -417,9 +418,27 @@ describe('GET /: the published page (atlas decision 0164, Variant D)', () => {
       focus_kv_ms: 3,
       fragments_kv_ms: 4,
       focus_age_ms: 20_000,
-      fragments_age_ms: 90_000
+      fragments_age_ms: 90_000,
+      visibility_proof: 'focus-key'
     })
     expect(JSON.stringify(line)).not.toContain('kv-value')
+  })
+
+  // covers: dashboard-ssr#Each render logs one value-free line
+  it('names the fragments as the proof when they admitted the answer under an old visible focus value', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = published(async () => ({
+      kind: 'ok',
+      fragments: fragmentsOf('kv-value'),
+      summary: 'stale',
+      focusAgeMs: 86_400_000,
+      fragmentsAgeMs: 90_000,
+      proof: 'fragments',
+      timing: TIMING
+    }))
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('stale')
+    expect(logLines(info)[0]).toMatchObject({served: 'published', focus_read: 'visible', visibility_proof: 'fragments', focus_age_ms: 86_400_000})
   })
 
   it('answers the hiding value-free page from the build, never the fragments', async () => {
@@ -441,6 +460,16 @@ describe('GET /: the published page (atlas decision 0164, Variant D)', () => {
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('unavailable')
     expect(await response.text()).toContain('all-unavailable')
     expect(logLines(info)[0]).toMatchObject({served: 'value-free', focus_read: 'unreadable', artifact: 'published:focus-stale'})
+  })
+
+  it('names why the fragments did not prove visibility under an old visible focus value, and names no proof', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = published(async () => ({kind: 'focus-unreadable', reason: 'focus-stale', detail: 'summary-suppressed', timing: TIMING}))
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('unavailable')
+    const [line] = logLines(info)
+    expect(line).toMatchObject({served: 'value-free', focus_read: 'unreadable', artifact: 'published:focus-stale:summary-suppressed', fragments_kv_ms: 4})
+    expect(line).not.toHaveProperty('visibility_proof')
   })
 
   it.each(['fragments-missing', 'fragments-build', 'fragments-stale', 'fragments-shape', 'shell-misfit'] as const)(
