@@ -30,7 +30,8 @@ export const COMPOSED_EDGE_TTL_MS = 30 * 1000
  * The oldest artifact the Worker serves: 690,000 ms (11.5 minutes). The runner composes on a
  * 5-minute backstop and on each export update, except that an update of `githubEvents`,
  * `starredRepos`, `books`, `articles` or `theatreReviews` waits for the backstop (atlas decision
- * 0170). The bound tolerates one missed backstop run (2 x 5 min), plus the run timeout (a stamp precedes its publish by up to 60 s), plus the CloudFront TTL (30 s).
+ * 0170). The bound tolerates one missed backstop run (2 x 5 min), plus the run timeout (a stamp
+ * precedes its publish by up to 60 s), plus the CloudFront TTL (30 s).
  * An older artifact means the runner stopped: its card states may no longer be true, and the Worker
  * serves the data-free page instead. With the runner healthy, a label trails the truth by at most
  * 5 minutes plus 1.5 minutes of publish and TTL.

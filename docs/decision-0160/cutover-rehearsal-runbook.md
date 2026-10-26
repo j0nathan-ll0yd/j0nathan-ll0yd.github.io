@@ -373,6 +373,14 @@ curl -sS -X DELETE -H "Authorization: Bearer $TOKEN" \
 The CNAME still points at Pages, so the apex returns to Pages in about 2 s (rehearsal Rollback 2a:
 0 errors). CI deploys no longer re-create the route, so the rollback lasts until someone re-creates it.
 
+**Worker version rollback after decision 0170:** after LP #404 (decision 0170) is live, roll back
+LP #404 first (it restores the 240 s refresh and the TTL), then the website. This applies to a
+revert, a redeploy of an older commit, `wrangler rollback`, and a Cloudflare dashboard version
+rollback to any Worker version before #409. Such a version requires a `focus` key under 690 s old,
+and LP #404 writes `focus` only on changes and repairs, so `/` fails closed (the unreadable
+value-free page) 690 s after the last focus write. Deleting the route to return to Pages reads no
+KV and needs no order.
+
 **Re-creation (production):** create the route, then set fail open again, because a route created
 through the API comes back fail-closed (the documented create body has only `pattern` and `script`):
 
