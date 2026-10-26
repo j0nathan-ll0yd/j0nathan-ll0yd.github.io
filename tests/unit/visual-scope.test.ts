@@ -70,7 +70,14 @@ describe('visual-scope.sh (decision 0168 item 16)', () => {
     'package.json',
     'pnpm-lock.yaml',
     'astro.config.mjs',
-    'playwright.config.ts'
+    'playwright.config.ts',
+    'scripts/build-composer.mjs',
+    'tests/data-plane/server.ts',
+    'tests/shared/chromium-launch-args.ts',
+    'tests/fixtures/composed/kv-focus.json',
+    'wrangler.jsonc',
+    'tsconfig.json',
+    'pnpm-workspace.yaml'
   ])('runs for a change to %s', (path) => {
     const sha = commit(path, 'rendered')
     const {status, reason} = scope(pushLine(sha))
@@ -127,5 +134,63 @@ describe('visual-scope.sh (decision 0168 item 16)', () => {
     const {status, reason} = scope(pushLine('1234567890123456789012345678901234567890'))
     expect(status).toBe(0)
     expect(reason).toMatch(/cannot diff/)
+  })
+})
+
+// The hook glue: `.husky/pre-push` must skip the suite on an exact exit 1 from the scope and run
+// it on any other status, a missing script included. A stub `pnpm` on PATH records each call, and
+// a stub scope script exits with the status under test.
+describe('.husky/pre-push scope mapping (decision 0168 item 16)', () => {
+  const HOOK = resolve('.husky/pre-push')
+  let dir = ''
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'pre-push-'))
+    mkdirSync(join(dir, 'bin'))
+    writeFileSync(join(dir, 'bin', 'pnpm'), '#!/bin/sh\necho "$*" >> "$PNPM_LOG"\n', {mode: 0o755})
+  })
+
+  afterEach(() => {
+    rmSync(dir, {recursive: true, force: true})
+  })
+
+  function hook(scopeStatus: number | 'missing', env: Record<string, string> = {}): {status: number | null; calls: string[]; stdout: string} {
+    if (scopeStatus !== 'missing') {
+      mkdirSync(join(dir, 'scripts'), {recursive: true})
+      writeFileSync(join(dir, 'scripts', 'visual-scope.sh'), `echo "stub reason"\nexit ${scopeStatus}\n`)
+    }
+    const log = join(dir, 'pnpm.log')
+    const result = spawnSync('sh', ['-e', HOOK], {
+      cwd: dir,
+      encoding: 'utf8',
+      input: pushLine('1234567890123456789012345678901234567890'),
+      env: {...process.env, ...env, PATH: `${join(dir, 'bin')}:${process.env.PATH ?? ''}`, PNPM_LOG: log, SKIP_VISUAL: env.SKIP_VISUAL ?? ''}
+    })
+    const calls = spawnSync('cat', [log], {encoding: 'utf8'}).stdout.split('\n').filter(Boolean)
+    return {status: result.status, calls, stdout: result.stdout}
+  }
+
+  it('skips the suite on exit 1 and keeps the static gates', () => {
+    const {status, calls, stdout} = hook(1)
+    expect(status).toBe(0)
+    expect(calls).toEqual(['run doctor:install', 'run format:check', 'run typecheck', 'run lint'])
+    expect(stdout).toContain('Visual suite skipped: stub reason')
+  })
+
+  it.each([0, 2, 127, 130])('runs the suite when the scope exits %i', (scopeStatus) => {
+    const {status, calls} = hook(scopeStatus)
+    expect(status).toBe(0)
+    expect(calls.at(-1)).toBe('run test:visual')
+  })
+
+  it('runs the suite when the scope script is missing', () => {
+    const {calls, stdout} = hook('missing')
+    expect(calls.at(-1)).toBe('run test:visual')
+    expect(stdout).toMatch(/exited 127, so the suite runs \(fail closed\)/)
+  })
+
+  it('honors SKIP_VISUAL=1 before the scope runs', () => {
+    const {calls} = hook(0, {SKIP_VISUAL: '1'})
+    expect(calls).not.toContain('run test:visual')
   })
 })

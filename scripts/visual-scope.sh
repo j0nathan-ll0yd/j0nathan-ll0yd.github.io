@@ -13,7 +13,11 @@
 #
 # `tests/unit/visual-scope.test.ts` drives each path against a scratch repository.
 
-RENDERED_INPUTS='src/ public/ tests/visual/ package.json pnpm-lock.yaml astro.config.mjs playwright.config.ts'
+# The owner's list (src/ to playwright.config.ts), plus the inputs the visual suite also reads:
+# scripts/ (the build, the composer and the Docker image pin), tests/data-plane/ (the fixture data
+# plane behind the server render), tests/shared/ (the Chromium launch flags), tests/fixtures/
+# (the published-read seam files), and the Worker, TypeScript and pnpm workspace configs.
+RENDERED_INPUTS='src/ public/ tests/visual/ package.json pnpm-lock.yaml astro.config.mjs playwright.config.ts scripts/ tests/data-plane/ tests/shared/ tests/fixtures/ wrangler.jsonc tsconfig.json pnpm-workspace.yaml'
 ZERO_SHA=0000000000000000000000000000000000000000
 
 if ! git symbolic-ref -q HEAD >/dev/null 2>&1; then

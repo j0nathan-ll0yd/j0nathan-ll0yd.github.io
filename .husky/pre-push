@@ -62,9 +62,16 @@ if [ "${SKIP_VISUAL:-0}" = "1" ]; then
   exit 0
 fi
 
-if ! VISUAL_SCOPE=$(printf '%s\n' "$PUSH_REFS" | sh scripts/visual-scope.sh); then
+# Only an exact exit 1 skips. Any other status (a missing script exits 127, a syntax error 2,
+# a signal 128+n) runs the suite: the scope fails closed even when it cannot run at all.
+scope_status=0
+VISUAL_SCOPE=$(printf '%s\n' "$PUSH_REFS" | sh scripts/visual-scope.sh) || scope_status=$?
+if [ "$scope_status" -eq 1 ]; then
   echo "[pre-push] Visual suite skipped: $VISUAL_SCOPE. CI visual-gate re-verifies."
   exit 0
+fi
+if [ "$scope_status" -ne 0 ]; then
+  VISUAL_SCOPE="scripts/visual-scope.sh exited $scope_status, so the suite runs (fail closed)"
 fi
 
 echo "[pre-push] Running visual regression suite in Docker (arm64-native, CI-parity image): $VISUAL_SCOPE."

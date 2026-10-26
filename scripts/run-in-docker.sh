@@ -50,6 +50,9 @@ export GITHUB_TOKEN
 # instead of downloading every package again (atlas decision 0168 item 16). node_modules stays
 # anonymous and fresh per run. The store is content-addressed and safe to share between
 # concurrent containers. `docker volume rm human-datastream-pnpm-store` resets it.
+# Measured 2026-10-26 (1,174 packages): the install takes 6 to 8 s warm or cold, because pnpm
+# copies across the two volumes instead of hard-linking. The gain is no registry download per
+# run, not wall clock.
 #
 # Corepack follows package.json's exact pnpm pin. GITHUB_TOKEN is written to the container user
 # npmrc because pnpm does not expand it from the committed project config.

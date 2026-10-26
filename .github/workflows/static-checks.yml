@@ -198,6 +198,8 @@ jobs:
       # fails when a step after the install has no id or is missing here.
       - name: static-checks
         if: always()
+        # `<<<` is bash.
+        shell: bash
         env:
           STEP_OUTCOMES: |
             install=${{ steps.install.outcome }}

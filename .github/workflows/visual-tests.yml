@@ -132,6 +132,8 @@ jobs:
           if-no-files-found: error
 
   visual-tests:
+    # An include-only matrix would name each job after every matrix value, `select` included.
+    name: visual-tests (${{ matrix.shard }})
     needs: setup
     runs-on: [self-hosted, linux, arm64, playwright]
     timeout-minutes: 30
@@ -197,9 +199,9 @@ jobs:
         env:
           # SKIP_BUILD reuses the dist/ from setup -- saves rebuilding per shard.
           SKIP_BUILD: 'true'
-          # One blob file name per matrix entry. Shard 1 runs no --shard and shards 2 to 4 run
-          # --shard=k/3, so the default names (report.zip, report-1.zip ...) no longer say which
-          # matrix entry wrote them.
+          # One readable blob file name per matrix entry. With --test-list or --test-list-invert
+          # Playwright puts a command hash in the default name, and shards 2 to 4 number
+          # themselves 1 to 3, so the default names no longer say which matrix entry wrote them.
           PLAYWRIGHT_BLOB_OUTPUT_NAME: report-${{ matrix.shard }}.zip
         # In update_snapshots mode, force workers=1 to eliminate the within-shard
         # write race that produces truncated PNGs (microsoft/playwright#9760).

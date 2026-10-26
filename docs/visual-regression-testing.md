@@ -270,13 +270,13 @@ Two jobs:
 
 Both jobs run in this repo on self-hosted lanes (`.github/workflows/visual-tests.yml`); the earlier dispatch into the private companion repo `ci-runners-private` no longer appears in the workflow. The previous standalone `update-snapshots.yml` is retired; dispatch `visual-tests.yml` with `update_snapshots=true` instead.
 
-### 5.2 `web-visual-tests.yml` (companion) — the actual runner
+### 5.2 The `visual-tests.yml` jobs
 
-Lives in `ci-runners-private/.github/workflows/`. Triggered only by `workflow_call` from `visual-tests.yml`. Runs on `[self-hosted, linux, arm64, playwright]` — the `runner-playwright` micro-VM image, which is `FROM mcr.microsoft.com/playwright:v${VERSION}-noble` (browsers preinstalled in `/ms-playwright`).
+The jobs run in this repo's `visual-tests.yml`, on `[self-hosted, linux, arm64, playwright]` — the `runner-playwright` micro-VM image, which is `FROM mcr.microsoft.com/playwright:v${VERSION}-noble` (browsers preinstalled in `/ms-playwright`).
 
 Jobs:
 
-- `setup` — checks out this repo at `ref`, runs `ppnpm install --frozen-lockfile` (resolves the `@j0nathan-ll0yd/*` packages from GitHub Packages), builds the Astro site (the data-free page: identity copy and every live widget `loading`; no fixture reaches the build), uploads the `dist` artifact.
+- `setup` — checks out this repo at `ref`, runs `pnpm install --frozen-lockfile` (resolves the `@j0nathan-ll0yd/*` packages from GitHub Packages), builds the Astro site (the data-free page: identity copy and every live widget `loading`; no fixture reaches the build), uploads the `dist` artifact.
 - `visual-tests` — 4-shard matrix (`fail-fast: false`). Each shard downloads the setup artifact and runs `pnpm exec playwright test` with `SKIP_BUILD=true`. Shard 1 runs `--test-list=tests/visual/shards/typing-wait.txt`: the three Dashboard full-page screens at the three viewports of 768 px and wider, each about 15 s because of the bio-terminal typing wait. Shards 2 to 4 run `--test-list-invert` of the same file with `--shard=k/3` (atlas decision 0168 item 21). `tests/unit/visual-shards.test.ts` proves every test runs in exactly one shard. In `update_snapshots` mode forces `workers=1` to eliminate the intra-shard write race (microsoft/playwright#9760).
 - `commit-baselines` — only runs in `update_snapshots` mode; downloads regen artifacts, auto-commits via `stefanzweifel/git-auto-commit-action` with `file_pattern: 'tests/visual/__screenshots__/**'`.
 - `merge-reports` — merges blob reports from each shard into a single HTML report.

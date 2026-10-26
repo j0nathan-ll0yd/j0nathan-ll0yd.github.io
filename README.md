@@ -21,7 +21,7 @@ pnpm preview           # preview the production build
 
 All UI widgets come from the Design System package (`@j0nathan-ll0yd/web/production`), published to GitHub Packages; this repository contains no widget source. The committed `.npmrc` maps the `@j0nathan-ll0yd` scope to `https://npm.pkg.github.com` and carries no auth token: local installs read it from your machine-global `~/.npmrc`, and each installing workflow writes it at the user level with `pnpm config set`.
 
-`.husky/pre-push` gates every push with `doctor:install`, `format:check`, `typecheck` and `lint`. It runs the visual suite in Docker only when a pushed commit changes a rendered input against `origin/main` (`scripts/visual-scope.sh`, which runs the suite when it cannot compute the diff); the required `visual-gate` context binds the pixel gate in CI. `SKIP_VISUAL=1 git push` skips the local suite.
+`.husky/pre-push` gates every push with `doctor:install`, `format:check`, `typecheck` and `lint`. It runs the visual suite in Docker only when a pushed commit changes a rendered input against `origin/main` (`scripts/visual-scope.sh` lists the inputs, and runs the suite when it cannot compute the diff); the required `visual-gate` context binds the pixel gate in CI. `SKIP_VISUAL=1 git push` skips the local suite.
 
 ## Architecture
 
