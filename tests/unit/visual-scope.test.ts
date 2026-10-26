@@ -186,7 +186,8 @@ describe('.husky/pre-push scope mapping (decision 0168 item 16)', () => {
   it('runs the suite when the scope script is missing', () => {
     const {calls, stdout} = hook('missing')
     expect(calls.at(-1)).toBe('run test:visual')
-    expect(stdout).toMatch(/exited 127, so the suite runs \(fail closed\)/)
+    // A missing script exits 127 under bash (macOS sh) and 2 under dash (the Linux runners' sh).
+    expect(stdout).toMatch(/exited (127|2), so the suite runs \(fail closed\)/)
   })
 
   it('honors SKIP_VISUAL=1 before the scope runs', () => {
