@@ -71,6 +71,23 @@ export GITHUB_TOKEN
 # recorded PID: "Another astro preview server is already running", before any test ran. A PID
 # means nothing outside its container, so the lock must not outlive it. `astro build` regenerates
 # everything else in .astro/ inside the container.
+#
+# Both Miniflare state directories get a shadow volume: .wrangler/ (`astro preview`) and
+# workers/rate-limiter/.wrangler/ (the behavioral suite's rate-limiter `wrangler dev`). Each holds
+# SQLite databases in WAL mode, and workerd memory-maps their -shm files. When two containers run
+# from the same worktree at once (a background behavioral run beside the pre-push visual run), both
+# open the same databases through the macOS bind mount, and workerd dies with
+#   *** Received signal #7: Bus error
+# then MiniflareCoreError [ERR_RUNTIME_FAILURE], at startup or mid-suite. A rate-limiter that dies
+# after the burst test fails open, so a run can pass with the error in its log. Measured 2026-10-25:
+# two containers on one bind-mounted persist directory crash every time. These setups all stay up:
+# one container with two workerd processes, two containers on one Docker volume, two containers on
+# separate directories, and a host workerd beside a container. Native Linux CI never sees it: each
+# job owns its checkout, with no bind mount and no second container. The shadow is safe because
+# the state is local simulation state that each run rebuilds. No test reads state an earlier run
+# left: the suites read the published KV values over HTTP from the fixture data plane, and
+# tests/behavioral/api-v1.spec.ts gives each run its own client addresses. The build in the
+# container writes .wrangler/deploy/config.json into the shadow, where `astro preview` reads it.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
@@ -80,6 +97,8 @@ docker run --rm --ipc=host --platform linux/arm64 \
   -v /work/node_modules \
   -v /work/dist \
   -v /work/.astro \
+  -v /work/.wrangler \
+  -v /work/workers/rate-limiter/.wrangler \
   -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "corepack enable pnpm \
