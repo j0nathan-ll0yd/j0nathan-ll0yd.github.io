@@ -49,8 +49,31 @@ for (const name of Object.keys(process.env)) {
 const EMPTY_ENV_DIR = mkdtempSync(path.join(tmpdir(), 'composer-env-'))
 
 // vite is astro's own dependency, not the site's: resolve it through astro.
-const astroRequire = createRequire(createRequire(import.meta.url).resolve('astro/package.json'))
+const astroPackageJson = createRequire(import.meta.url).resolve('astro/package.json')
+const astroRequire = createRequire(astroPackageJson)
 const {build} = await import(pathToFileURL(astroRequire.resolve('vite')).href)
+
+// Astro 7.3's core runtime imports `#astro-internal/ambient-manifest`, and in every Vite server
+// environment astro's serialized-manifest plugin resolves it to `virtual:astro:manifest`, which imports
+// every on-demand route of this site (the Worker's routes, `cloudflare:workers` among them). The
+// composer only uses the Container API, which never reads the ambient manifest, so it takes the
+// plain-Node module astro's own `imports` field maps that specifier to, and the public bundle holds no
+// route code. `tests/build/worker-output.test.ts` fails if the bundle imports any module.
+const AMBIENT_MANIFEST = '#astro-internal/ambient-manifest'
+const ambientManifestStub = (() => {
+  const target = JSON.parse(readFileSync(astroPackageJson, 'utf8')).imports?.[AMBIENT_MANIFEST]?.default
+  if (typeof target !== 'string') {
+    throw new Error(`astro no longer maps ${AMBIENT_MANIFEST} in its imports field; update this resolver`)
+  }
+  return path.join(path.dirname(astroPackageJson), target)
+})()
+const plainNodeAmbientManifest = {
+  name: 'composer-plain-node-ambient-manifest',
+  enforce: 'pre',
+  resolveId(id) {
+    return id === AMBIENT_MANIFEST ? ambientManifestStub : null
+  }
+}
 
 // The same compile settings as astro.config.mjs for markup: compressHTML true.
 const base = await getViteConfig({}, {configFile: false, root: new URL('..', import.meta.url), compressHTML: true, vite: {envDir: EMPTY_ENV_DIR}})({
@@ -66,7 +89,7 @@ await build({
   // composer makes names it, and the Worker serves only an artifact of its own build.
   define: {[MIRRORED_BOOK_COVERS_DEFINE]: JSON.stringify(COVERS), __SSR_BUILD_ID__: JSON.stringify(BUILD)},
   // The composer is a public asset: no module may resolve to the test fixtures (atlas 0160 Step 6.7).
-  plugins: [...(base.plugins ?? []), forbidFixtures()],
+  plugins: [plainNodeAmbientManifest, ...(base.plugins ?? []), forbidFixtures()],
   ssr: {noExternal: true, target: 'node'},
   build: {
     ssr: path.join(ROOT, 'src/lib/composed/compose.ts'),
