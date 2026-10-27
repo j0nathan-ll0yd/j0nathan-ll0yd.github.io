@@ -285,7 +285,6 @@ const jsonLdGraph = isHome
       that copy: every runtime read is `cache: 'no-store'` (src/lib/runtime/api.ts). The preconnect
       keeps the connection warm without storing any data. */}
   {!dataFree && <link rel="preconnect" href={CLOUDFRONT_BASE} crossorigin>}
-  {import.meta.env.DEV && <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" media="print" id="leafletCss">}
   {/* Keep this style processed so Astro resolves package imports and inlines them at build time. */}
   <style is:global>
     @import '@j0nathan-ll0yd/tokens/preamble';
@@ -441,8 +440,6 @@ html { overflow-y: scroll; }
   <slot />
   {/* The delegated analytics handler stays external to satisfy CSP. */}
   {import.meta.env.PROD && !dataFree && <script is:inline src="/js/social-click-track.js" defer></script>}
-  {/* Defer Leaflet until a map enters view to avoid its initial-load cost. */}
-  {import.meta.env.DEV && <script is:inline src="/js/leaflet-lazy.js"></script>}
   <script is:inline src="/js/sw-register.js"></script>
   {import.meta.env.PROD && !dataFree && (
     <Fragment>

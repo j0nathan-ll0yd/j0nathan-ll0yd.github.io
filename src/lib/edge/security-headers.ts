@@ -29,7 +29,7 @@ export const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com ${CLOUDFRONT_BASE}`,
+  `img-src 'self' data: ${CLOUDFRONT_BASE}`,
   `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
   "worker-src 'self'",
   "object-src 'none'",

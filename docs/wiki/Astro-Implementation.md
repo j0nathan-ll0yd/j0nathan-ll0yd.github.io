@@ -108,7 +108,7 @@ Showcase pages live in `src/showcase/` (not `src/pages/`) and import the real `.
 - **SEO**: OpenGraph tags, Twitter Card tags, JSON-LD Person schema
 - **Fonts**: Space Grotesk via Google Fonts (preconnect + stylesheet)
 - **CSS**: 5 stylesheets loaded from `/css/` (tokens, base, layout, components, effects)
-- **Body**: Skip link, `<slot />` for page content, CDN scripts (Three.js, Leaflet), service worker registration, Simple Analytics
+- **Body**: Skip link, `<slot />` for page content, CDN scripts (Three.js), service worker registration, Simple Analytics
 - **Accessibility**: `<a href="#main-content" class="skip-link">Skip to main content</a>`
 
 ### Showcase Layout
@@ -164,7 +164,6 @@ All client JS uses **ES5 conventions** (IIFE wrappers, `var`, `function` declara
 | Staggered card reveal | Sequentially adds `.visible` class to identity card, bio, system status, then triptych cards with column/row-based delays. |
 | Terminal typing       | Types commands character-by-character, reveals output lines with delays. Triggered after card reveal.                      |
 | Hydration wave        | CSS wave animation with count-up from 0 to target value.                                                                   |
-| Leaflet map           | CartoDB Dark Matter tiles, pulse marker at configured coordinates, no pan/zoom interactions.                               |
 | Workout toggle        | Switches between live and sample workout data sets.                                                                        |
 | Book modal            | Opens on book click, traps focus within modal, Tab cycles through interactive elements, Escape closes.                     |
 

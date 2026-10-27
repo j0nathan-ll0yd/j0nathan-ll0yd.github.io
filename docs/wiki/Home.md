@@ -31,7 +31,6 @@ Deployment is automatic via GitHub Actions on push to `main`.
 | ---------------------------------------------------------------- | ------------------------------------------- |
 | [Astro](https://astro.build)                                     | Static site generation (0 KB JS by default) |
 | [Three.js](https://threejs.org)                                  | Particle background animation               |
-| [Leaflet](https://leafletjs.com)                                 | Interactive map widget                      |
 | [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | Typography                                  |
 | [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa)      | Progressive Web App support                 |
 | [Simple Analytics](https://simpleanalytics.com)                  | Privacy-focused analytics                   |
