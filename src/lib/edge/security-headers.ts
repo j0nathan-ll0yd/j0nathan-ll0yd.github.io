@@ -96,6 +96,7 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
 /**
  * The paths that never ran code on Pages: `public/_routes.json` excluded them from Functions, so
  * their responses carried the `_headers` policy alone, without the CSP trio. They keep exactly that.
+ * `/css/` and `/vendor/` serve no file now and stay only for Pages parity, until atlas decision 0160 D7 deletes the Pages project.
  */
 export const CODE_FREE_PREFIXES = Object.freeze(['/_astro/', '/fonts/', '/css/', '/vendor/', '/assets/'])
 
