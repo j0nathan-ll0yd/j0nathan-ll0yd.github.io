@@ -18,6 +18,7 @@ const REMOVED_IMAGE_HOSTS = [
   'https://m.media-amazon.com',
   'https://images.squarespace-cdn.com',
   'https://books.google.com',
+  // The bare host also catches the https://*. wildcard form, so it is the stronger guard.
   'basemaps.cartocdn.com'
 ]
 
