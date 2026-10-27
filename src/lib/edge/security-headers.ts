@@ -88,7 +88,7 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
   ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains'],
   ['X-Frame-Options', 'DENY'],
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break the cross-origin Carto tile resources.
+  // COEP/CORP omitted -- COEP would block the cross-origin CloudFront images, which send no CORP header.
   ['Cross-Origin-Opener-Policy', 'same-origin-allow-popups'],
   ['Permissions-Policy', PERMISSIONS_POLICY]
 ])

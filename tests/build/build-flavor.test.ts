@@ -16,4 +16,11 @@ describe('build-test output flavour', () => {
   it('carries the import.meta.env.PROD-only scripts', () => {
     expect(scripts).toEqual(expect.arrayContaining(['/js/sa-stub.js', '/js/sa-loader.js', '/js/scroll-depth.js', '/js/social-click-track.js']))
   })
+
+  // src/lib/runtime/api.ts reads `/api/live` (the dev proxy) when import.meta.env.DEV is set.
+  it('ships no client chunk that reads the dev proxy', () => {
+    const chunks = fs.readdirSync(clientDir(), {recursive: true, encoding: 'utf8'}).filter((file) => file.endsWith('.js'))
+    expect(chunks.length).toBeGreaterThan(0)
+    expect(chunks.filter((file) => fs.readFileSync(path.join(clientDir(), file), 'utf8').includes('/api/live'))).toEqual([])
+  })
 })
