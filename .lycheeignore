@@ -1,12 +1,6 @@
 # Link-checker exclusions for lychee (.github/workflows/audit-web.yml, weekly B5
-# job). These are image CDN hosts the CSP img-src directive allow-listed when this
-# list was seeded (atlas decision 0086 has since removed them from it) -- excluded because they
-# routinely rate-limit or bot-block automated HEAD/GET probes from CI IP
-# ranges (403/503/999-style anti-scraping responses), which is CDN noise, not
-# a real dead link. Seeded 2026-07-16; expand only with evidence of the same
-# false-positive class (D4 fix-or-retire review), not preemptively.
-m\.media-amazon\.com
-images-na\.ssl-images-amazon\.com
+# job). Keep each pattern host/path-specific and backed by a verified false
+# positive (D4 fix-or-retire review); never exclude a host preemptively.
 
 # Exact bot-specific false positives verified 2026-08-22. LinkedIn returns its
 # non-standard anti-automation 999 to Lychee while the profile resolves in a
