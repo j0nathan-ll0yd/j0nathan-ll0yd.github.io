@@ -128,7 +128,7 @@ Configured via `@vite-pwa/astro` in `astro.config.mjs`:
 
 ## Analytics
 
-[Simple Analytics](https://simpleanalytics.com) -- privacy-focused, no cookies, no personal data collection. It is served first-party: `public/js/sa-loader.js` loads `/sa` (`src/pages/sa.ts`), and events go to `/simple/*` (`src/pages/simple/[...path].ts`). A `<noscript>` pixel (`/simple/noscript.gif`) covers visitors without JavaScript. Cloudflare Web Analytics is also first-party: `/cf-insights.js` and `/cf-rum`. All of them load only in production builds and never on the data-free page.
+[Simple Analytics](https://simpleanalytics.com) -- privacy-focused, no cookies, no personal data collection. It is served first-party: `public/js/sa-loader.js` loads `/sa` (`src/pages/sa.ts`), and events go to `/simple/*` (`src/pages/simple/[...path].ts`). A `<noscript>` pixel (`/simple/noscript.gif`) covers visitors without JavaScript. Cloudflare Web Analytics is also first-party: `/cf-insights.js` and `/cf-rum`. All of them load only in production builds, and never on `/offline` or `/500` (the `dataFree` layout prop, `src/layouts/Dashboard.astro`).
 
 ## Client-Side JavaScript
 
