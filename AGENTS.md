@@ -66,7 +66,7 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 
 - Import runtime modules from `@j0nathan-ll0yd/web/runtime/*` -- never relative paths like `../lib/` or `../scripts/`.
 - CSS flows from `@j0nathan-ll0yd/tokens` via `@import`; there are no `public/css/*.css` files. Mark `<style>` blocks that import DS CSS with `is:global`.
-- The prebuild hook runs the `@j0nathan-ll0yd/schemas` Ajv validator (`scripts/validate.ts`) over the `consumer` bucket of the package's `fixture-map.json`. That bucket names `data/*.json`, no `data/` directory exists, and the validator skips a missing file silently, so the step validates 0 files (`[schemas:validate] OK: 0 fixture(s) validated successfully.`). The build reads no data file: the data-free page takes only identity copy, and the Worker reads the live data at request time.
+- The build validates no data file because it reads none (atlas decision 0160, PR 0a): the data-free page takes only identity copy, and the Worker reads the live data at request time. The prebuild hook no longer runs the `@j0nathan-ll0yd/schemas` Ajv validator, which validated 0 files here (owner decision 2026-10-27).
 - **Customer-facing identity strings** come from `@j0nathan-ll0yd/copy` (single source of truth; zero duplication). The Astro Content Collection `copy` (`src/content.config.ts`) loads `@j0nathan-ll0yd/copy/identity.flat.json`, validated by the generated flat Zod (`@j0nathan-ll0yd/copy/identity.zod`); `Dashboard.astro` reads `getEntry('copy','identity').data`; `astro.config.mjs` imports the flat JSON for the PWA manifest. Never hardcode bios, names, titles, expertise, or skip/OG-image text -- add or edit them in `design-system-Lifegames/packages/copy/src/identity.en-US.json` (ICU MF1), then publish a new `@j0nathan-ll0yd/copy` version from the DS. Spec: `docs/wiki/Copy-Package-Spec.md`.
 
 ## Conventions
@@ -134,7 +134,6 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 - Create new `src/components/*.astro` files or hand-edit CSS (everything comes from the DS).
 - Import from relative `../lib/` or `../scripts/` paths instead of the `@j0nathan-ll0yd/*` namespace.
 - Hardcode hex colors or pixel values.
-- Bypass prebuild schema validation.
 - Hand-edit `.contract-lock.json` (Husky + CI enforce it; regenerate via `scripts/generate-contract-lock.mjs`).
 - Depend on a `@j0nathan-ll0yd/*` producer change that is not yet published to the registry -- publish a new version from the producer repo first, then bump the caret range / lockfile here (merging to `main` deploys production).
 - Regenerate visual baselines outside Docker (`pnpm run test:visual:update` is the only sanctioned path; host PNGs fail CI).
