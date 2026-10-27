@@ -10,7 +10,6 @@ describe('.lycheeignore scope', () => {
   it('contains only reviewed host/path-specific bot-noise exclusions', () => {
     expect(ignorePatterns).toEqual([
       '^https://www\\.linkedin\\.com/in/lifegames/?$',
-      '^https://jonathanlloyd\\.me/cdn-cgi/l/email-protection$',
       '^https://jonathanlloyd\\.me/mcp$'
     ])
   })

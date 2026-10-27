@@ -2,13 +2,10 @@
 # job). Keep each pattern host/path-specific and backed by a verified false
 # positive (D4 fix-or-retire review); never exclude a host preemptively.
 
-# Exact bot-specific false positives verified 2026-08-22. LinkedIn returns its
+# Exact bot-specific false positive verified 2026-08-22. LinkedIn returns its
 # non-standard anti-automation 999 to Lychee while the profile resolves in a
-# browser. Cloudflare rewrites the privacy-page mailto links to this same-origin
-# email-obfuscation route, which intentionally has no standalone GET resource.
-# Keep both patterns path-specific; GitHub and HTTP error classes stay checked.
+# browser. Keep the pattern path-specific; GitHub and HTTP error classes stay checked.
 ^https://www\.linkedin\.com/in/lifegames/?$
-^https://jonathanlloyd\.me/cdn-cgi/l/email-protection$
 
 # Atlas decision 0158. /developers links the MCP endpoint, which answers JSON-RPC over
 # POST only; a GET is 405 by the MCP Streamable HTTP transport, not a dead link. Its
