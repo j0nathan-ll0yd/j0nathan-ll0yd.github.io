@@ -335,7 +335,9 @@ Worker-side guarantee. It SHALL admit only:
   and the System Status hosts `www.apple.com`, `www.livelarq.com`, `acaia.co`, `feedly.com`,
   `www.squarespace.com`), with no credentials, port, or percent-encoded dot, slash or backslash;
   `target="_blank"` only with `rel` naming `noopener`; `rel` tokens only `noopener`, `noreferrer`
-  and, on the Bookshelf tile link alone, `sponsored`;
+  and, on the Bookshelf tile link alone, `sponsored`, split on ASCII whitespace as HTML splits them,
+  with no character reference and no other whitespace character (U+00A0 and the Unicode spaces) in
+  the value;
 - one exception, the Bookshelf tile link (web 4.6.0, atlas decision 0160 D5): an `a` in `cardBooks`
   whose raw `class` is exactly `shelf-book-link`, `target` exactly `_blank` and `rel` exactly
   `sponsored noopener noreferrer` may name the href the design system's `amazonBookUrl` builds:
@@ -355,7 +357,7 @@ Worker-side guarantee. It SHALL admit only:
 - a `title` attribute on a `span` only (the Reading card's note icon), escaped (no raw `<` or `>`),
   at most 16,384 characters (`MAX_TITLE`);
 - a `src` or `srcset` URL that is a same-origin `/images/` path or the data plane's `/images/`, with
-  no dot segment, encoded or not;
+  no dot segment, encoded or not, and a `srcset` with no whitespace character but ASCII whitespace;
 - a `style` attribute whose every declaration names an allowlisted property with a value in that
   property's grammar (sizes up to 480 px or 100 percent, `position: relative` only, no `url()`, no
   escape, no `!important`), because the components emit `style` for bar widths, delays and

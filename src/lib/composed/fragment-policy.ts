@@ -494,6 +494,14 @@ function httpsUrlAllowed(href: string, hosts: ReadonlySet<string>): boolean {
   }
 }
 
+/**
+ * HTML splits a token list (`rel`) and a `srcset` on ASCII whitespace only. JavaScript's `\s` also
+ * matches U+00A0, U+000B, U+FEFF and the Unicode spaces, so a value the policy split with `\s` could
+ * hold a token the browser never sees. A value with such a character is refused outright.
+ */
+const ASCII_WHITESPACE = /[\t\n\f\r ]+/
+const NON_ASCII_WHITESPACE = /(?![\t\n\f\r ])\s/
+
 /** True for a Bookshelf tile link's href: exactly what `amazonBookUrl` builds for a BOOK_ASIN. */
 export function bookHrefAllowed(href: string): boolean {
   return BOOK_LINK_HREF.test(href) && httpsUrlAllowed(href, new Set([BOOK_LINK_HOST]))
@@ -543,6 +551,9 @@ export function imageAllowed(src: string): boolean {
 }
 
 function srcsetAllowed(srcset: string): boolean {
+  if (NON_ASCII_WHITESPACE.test(srcset)) {
+    return false
+  }
   return srcset.split(',').every((candidate) => {
     const [url, descriptor, extra] = candidate.trim().split(/\s+/)
     return url !== undefined && extra === undefined && imageAllowed(url) && (descriptor === undefined || /^\d+(?:\.\d+)?[wx]$/.test(descriptor))
@@ -653,11 +664,11 @@ function checkAttribute(
     case 'rel':
       // The tag-level checks (noopener, `sponsored`, the link shapes) read the raw value, so a
       // character reference, which no component writes here, would hide a token from them.
-      if (raw !== null && raw.includes('&')) {
+      if ((raw !== null && raw.includes('&')) || NON_ASCII_WHITESPACE.test(value)) {
         return 'attribute'
       }
       // `sponsored` is judged once the whole tag is read: it stands only in the book link's shape.
-      return value.split(/\s+/).every((token) => token === 'noopener' || token === 'noreferrer' || token === 'sponsored') ? null : 'attribute'
+      return value.split(ASCII_WHITESPACE).every((token) => token === 'noopener' || token === 'noreferrer' || token === 'sponsored') ? null : 'attribute'
     case 'role':
       return /^[a-z]{1,20}$/.test(value) ? null : 'attribute'
     case 'title':
@@ -850,7 +861,7 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
         ownId = facts.ids.at(-1) ?? null
       }
       hidden ||= attrName === 'hidden'
-      noopener ||= attrName === 'rel' && (attr[2] ?? '').split(/\s+/).includes('noopener')
+      noopener ||= attrName === 'rel' && (attr[2] ?? '').split(ASCII_WHITESPACE).includes('noopener')
       if (attrName === 'style') {
         style = attr[2] ?? ''
       } else if (attrName === 'class') {
@@ -877,7 +888,7 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
     ) {
       return {ok: false, reason: 'url'}
     }
-    if (relValue !== null && relValue.split(/\s+/).includes('sponsored') && !(deferred.book && bookShape)) {
+    if (relValue !== null && relValue.split(ASCII_WHITESPACE).includes('sponsored') && !(deferred.book && bookShape)) {
       return {ok: false, reason: 'attribute'}
     }
     // The UA styles `[popover]` as a fixed full-viewport layer; only `display: none` keeps it shut.

@@ -165,3 +165,40 @@ describe('the Bookshelf tile link: every other form is refused', () => {
     expect(checkFragment(withReadingRow(article), 'cardReading', OPTIONS)).toMatchObject({ok: true})
   })
 })
+
+// HTML splits `rel` and `srcset` on ASCII whitespace only (tab, LF, FF, CR, space). JavaScript's
+// `\s` also matches U+00A0 and the Unicode spaces, so a policy that split with `\s` admitted
+// `rel="noopener<U+00A0>noreferrer"`, which a browser reads as one unknown token and no `noopener`.
+describe('rel and srcset: ASCII whitespace only, as HTML splits them', () => {
+  const SPACES: [string, string][] = [
+    ['U+00A0 (no-break space)', '\u00a0'],
+    ['U+2003 (em space)', '\u2003'],
+    ['U+000B (vertical tab)', '\u000b'],
+    ['U+FEFF (byte order mark)', '\ufeff']
+  ]
+
+  it.each(SPACES)('refuses rel tokens joined by %s on a first-party link with target', (_label, space) => {
+    const html = withLink(`href="/privacy" target="_blank" rel="noopener${space}noreferrer"`)
+    expect(checkFragment(html, 'cardBooks', OPTIONS)).toMatchObject({ok: false, reason: 'attribute'})
+  })
+
+  it.each(SPACES)('refuses the book link shape with %s in its rel', (_label, space) => {
+    const html = withLink(SHAPE.replace('sponsored noopener', `sponsored${space}noopener`))
+    expect(checkFragment(html, 'cardBooks', OPTIONS)).toMatchObject({ok: false})
+  })
+
+  it.each([
+    ['a tab', '\t'],
+    ['a line feed', '\n']
+  ])('admits rel tokens joined by %s, which HTML also splits on', (_label, space) => {
+    const html = withLink(`href="/privacy" target="_blank" rel="noopener${space}noreferrer"`)
+    expect(checkFragment(html, 'cardBooks', OPTIONS)).toMatchObject({ok: true})
+  })
+
+  it.each(SPACES)('refuses a srcset descriptor joined by %s', (_label, space) => {
+    const srcset = 'srcset="/images/no-cover.svg 1x, /images/no-cover.svg 2x"'
+    expect(BOOKS).toContain(srcset)
+    const html = BOOKS.replace(srcset, `srcset="/images/no-cover.svg 1x, /images/no-cover.svg${space}2x"`)
+    expect(checkFragment(html, 'cardBooks', OPTIONS)).toMatchObject({ok: false, reason: 'url'})
+  })
+})
