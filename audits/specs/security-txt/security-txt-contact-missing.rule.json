@@ -10,6 +10,7 @@
     "quote": "The \"Contact\" field indicates a method that researchers should use for reporting security vulnerabilities such as an email address, a phone number, and/or a web page with contact information. This field MUST always be present in a \"security.txt\" file.",
     "url": "https://www.rfc-editor.org/rfc/rfc9116",
     "version": "RFC 9116 (April 2022)",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
     "retrieved": "2026-07-30",
     "content_sha256": "138340e92882ce60ae153b9cb1423823c76b87f422ad0aad2eeadd20a1654bdb",
     "conformance_testable": true,
