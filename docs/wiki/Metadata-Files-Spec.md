@@ -149,8 +149,9 @@ it reaches the web surface.
 
 Managed in `src/pages/robots.txt.ts`. Contains allow/disallow directives for
 search engines, the named AI training crawlers, and the named AI search/answer
-agents, plus a `Sitemap:` pointer. Read `src/pages/robots.txt.ts` for the current lists. Training crawlers may read `/llms.txt` but are
-blocked from the dashboard; search/answer agents may read the full site. The endpoint
+agents, plus a `Sitemap:` pointer. Read `src/pages/robots.txt.ts` for the current
+lists. Training crawlers may read `/llms.txt` but are blocked from the dashboard;
+search/answer agents may read the full site. The endpoint
 uses only the site's approved `User-agent`, `Allow`, `Disallow`, and `Sitemap`
 directives so unknown extensions cannot regress Lighthouse SEO.
 

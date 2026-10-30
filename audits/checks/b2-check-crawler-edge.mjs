@@ -17,12 +17,13 @@
 // may read only /llms.txt, and 6 search agents, which may read every surface) and 3
 // `*`-group tokens: 11 + 6 x 7 + 3 x 7 = 74 probes. Paths outside the sample (other
 // pages, assets) are not probed. Each response is judged on one question: did the
-// request pass the edge and reach the site? A 403 or the block body is a fail. A response without the site's own
-// Content-Usage header is a fail too: the zone answered (a challenge, a rate limit, an
-// edge error) and the site never saw the request. Every Worker response carries that
-// header (src/lib/edge/middleware.ts, and src/worker.ts on the code-free prefixes), and so
-// does every static asset (dist/client/_headers, written from src/lib/edge/security-headers.ts),
-// so its presence is the proof of reach.
+// request pass the edge and reach the site? A 403 or the block body is a fail. A
+// response without the site's own Content-Usage header is a fail too: the zone
+// answered (a challenge, a rate limit, an edge error) and the site never saw the
+// request. Every Worker response carries that header (src/lib/edge/middleware.ts, and
+// src/worker.ts on the code-free prefixes), and so does every static asset
+// (dist/client/_headers, written from src/lib/edge/security-headers.ts), so its
+// presence is the proof of reach.
 //
 // WHY NO OTHER CHECK SEES THIS. b2-validate-robots.mjs judges robots.txt TEXT with a
 // default User-Agent, and every other audit check fetches the site with one too. None of
