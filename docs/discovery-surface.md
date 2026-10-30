@@ -274,9 +274,11 @@ so both paths are required. This is the HTTP response-header form defined by the
 AI Preferences Working Group drafts
 [`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)
 and
-[`draft-ietf-aipref-vocab-07`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-07.html),
-both verified 2026-08-19. The current vocabulary defines `train-ai` and `search`;
-it does not define an AI-input category.
+[`draft-ietf-aipref-vocab-08`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-08.html)
+(14 September 2026), both re-verified 2026-10-29. vocab-08 defines three categories:
+`train-ai`, `ai-use` and `search`. It also states that "Its contents DO NOT REFLECT
+CONSENSUS of the Working Group". The header deliberately states `train-ai` and `search`
+only: atlas decision 0174 E2 deferred `ai-use=y`, so `ai-use` stays unstated.
 
 The attachment draft also describes a robots extension, but `/robots.txt`
 intentionally omits it. Lighthouse treats directives it does not recognize as an SEO

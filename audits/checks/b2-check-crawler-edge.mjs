@@ -13,11 +13,11 @@
 // agent read it. The agents are every token in every NAMED User-agent group, plus
 // WILDCARD_GROUP_AGENTS, explicit tokens that stand for the `*` group, because a `*` line
 // names no crawler. Each pair is requested once, with the token as the User-Agent. On
-// 2026-10-15 that was 15 named groups (10 training crawlers, which may read only
-// /llms.txt, and 5 search agents, which may read every surface) and 3 `*`-group tokens:
-// 10 + 5 x 7 + 3 x 7 = 66 probes. Paths outside the sample (other pages, assets) are not
-// probed. Each response is judged on one question: did the request pass the edge and reach the
-// site? A 403 or the block body is a fail. A response without the site's own
+// 2026-10-29 (atlas decision 0174) that was 17 named groups (11 training crawlers, which
+// may read only /llms.txt, and 6 search agents, which may read every surface) and 3
+// `*`-group tokens: 11 + 6 x 7 + 3 x 7 = 74 probes. Paths outside the sample (other
+// pages, assets) are not probed. Each response is judged on one question: did the
+// request pass the edge and reach the site? A 403 or the block body is a fail. A response without the site's own
 // Content-Usage header is a fail too: the zone answered (a challenge, a rate limit, an
 // edge error) and the site never saw the request. Every Worker response carries that
 // header (src/lib/edge/middleware.ts, and src/worker.ts on the code-free prefixes), and so
@@ -86,7 +86,7 @@ export const WILDCARD_GROUP_AGENTS = ['Googlebot', 'Bingbot', 'PerplexityBot']
 
 /**
  * Wall-clock bound for the WHOLE probe phase (audits/lib/progress.mjs createDeadline).
- * 66 probes on 2026-10-15 (see the header); a healthy edge answers each in well under a
+ * 74 probes on 2026-10-29 (see the header); a healthy edge answers each in well under a
  * second. Five minutes leaves room for retried edge 5xx while staying far inside the weekly
  * tier's ceiling.
  */

@@ -225,6 +225,10 @@ const jsonLdGraph = isHome
   <meta name="theme-color" content="#06060f">
   <meta name="color-scheme" content="dark">
   <meta name="description" content={description}>
+  {/* Bing has no robots.txt training token. NOCACHE limits Microsoft training and chat answers
+      to URL, title and snippet; search results are unchanged (atlas decision 0174 B1). It sits
+      before the robots meta, which src/lib/composed/shell.ts anchors on. */}
+  <meta name="bingbot" content="nocache">
   <meta name="robots" content={robots}>
   <meta name="keywords" content={identity.seo.keywords.join(', ')}>
   {/* CSP and Referrer-Policy are response headers, so no equivalent meta tags belong here. */}
