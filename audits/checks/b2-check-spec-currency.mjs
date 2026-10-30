@@ -292,11 +292,19 @@ export function classifySource(url) {
  * source of a slow run cannot spend a fresh 20s past an already-exhausted aggregate.
  */
 export async function fetchText(url, {budgetMs = DEFAULT_BUDGET_MS} = {}) {
-  const res = await fetch(url, {signal: AbortSignal.timeout(Math.min(DEFAULT_BUDGET_MS, budgetMs)), headers: {accept: 'text/plain, text/markdown, */*'}})
+  return await (await fetchPublic(url, {budgetMs, accept: 'text/plain, text/markdown, */*'})).text()
+}
+
+/**
+ * One GET with a timeout and NO credential. Only `defaultFetchJson` may carry the GitHub token,
+ * and it stays separate so that token can never leave for another host.
+ */
+async function fetchPublic(url, {budgetMs = DEFAULT_BUDGET_MS, accept}) {
+  const res = await fetch(url, {signal: AbortSignal.timeout(Math.min(DEFAULT_BUDGET_MS, budgetMs)), headers: {accept}})
   if (!res.ok) {
     throw new Error(`HTTP ${res.status}`)
   }
-  return await res.text()
+  return res
 }
 
 /**
@@ -362,16 +370,9 @@ export async function fetchDraftStatus({name, currentUrl}, {fetchJson = fetchPub
   return {rev: record.rev, states}
 }
 
-/**
- * Plain JSON GET with a timeout and NO credential. The datatracker is a public API, and the
- * GitHub token that `defaultFetchJson` sends must never leave for another host.
- */
+/** The datatracker is a public API: a plain JSON GET, with no credential. */
 async function fetchPublicJson(url, {budgetMs = DEFAULT_BUDGET_MS} = {}) {
-  const res = await fetch(url, {signal: AbortSignal.timeout(Math.min(DEFAULT_BUDGET_MS, budgetMs)), headers: {accept: 'application/json'}})
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status}`)
-  }
-  return await res.json()
+  return await (await fetchPublic(url, {budgetMs, accept: 'application/json'})).json()
 }
 
 function sha256(s) {
@@ -650,6 +651,19 @@ function repinWindow(dependents, nowMs) {
  * `spec-source-moved` and the same re-pin grace escalation as a revised GitHub source.
  */
 function judgeDraft(url, source, dependents, dependentList, nowMs) {
+  // The revision check cannot see a quote: the probe never reads the draft text. rule.schema.json
+  // admits no draft citation today; if that ever widens, a quoted draft must not read as current.
+  const quoted = dependents.filter(({rule}) => typeof citation(rule).quote === 'string' && citation(rule).quote.length > 0)
+  if (quoted.length > 0) {
+    return {
+      severity: 'fail',
+      id: 'spec-currency-unclassified-source',
+      message:
+        `${url} -- an IETF draft is judged by its datatracker revision alone, so a quote on it is never compared. ${quoted.length} quoting rule(s) unjudged: ${
+          quoted.map(({rel}) => rel).sort().join(', ')
+        }`
+    }
+  }
   const active = source.draftStates.includes('active')
   if (source.currentRev === source.pinnedRev && active) {
     return {
@@ -704,9 +718,8 @@ function quoteOccursIn(quote, text) {
  *
  * `measured` COUNTS ONLY APPLICABLE SOURCES THE PROBE HELD -- a GitHub source whose both blobs
  * arrived, or an IETF draft whose datatracker record arrived -- and the exclusion
- * of not-applicable sources is the load-bearing part. Today 2 of 4 sources are immutable
- * publications; counting them would let a total raw.githubusercontent outage publish
- * measured=2 and ping a green tile while the probe saw nothing it exists to see -- the
+ * of not-applicable sources is the load-bearing part. Counting the immutable publications
+ * would let a total raw.githubusercontent outage publish a non-zero count and ping a green tile while the probe saw nothing it exists to see -- the
  * transport-dark shape the channel exists to end (atlas decisions 0122, 0125). The cost
  * of that choice is stated rather than hidden: if the catalog ever pinned no GitHub blob
  * at all, this check would measure 0 honestly, and the `spec-currency-no-applicable-source`

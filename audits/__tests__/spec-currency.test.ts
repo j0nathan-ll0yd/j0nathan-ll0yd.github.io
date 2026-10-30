@@ -509,6 +509,14 @@ describe('check-spec-currency: IETF drafts', () => {
     expect(findings[0]!.severity).toBe('fail')
   })
 
+  it('refuses to read a quoted draft citation as current, because the revision check never compares the quote', async () => {
+    const rules = [{rel: 'x/quoted.rule.json', rule: {id: 'quoted', derivedFrom: {pinnedAt: DRAFT_URL, retrieved: '2026-10-29', quote: QUOTE}}}]
+    const sources = await fetchCurrencySources(rules, {fetchText: vi.fn(), fetchCommit: noCommitLookup, fetchDraft: draftAt('08'), log: () => undefined})
+    const findings = judgeCurrency(rules, sources, {nowMs: NOW_MS}) as Finding[]
+    expect(idsOf(findings)).toEqual(['spec-currency-unclassified-source'])
+    expect(findings[0]!.severity).toBe('fail')
+  })
+
   it('reports an unreachable datatracker as INDETERMINATE, never current, and does not count it', async () => {
     const {findings, held} = await judgeDraft(vi.fn().mockRejectedValue(new Error('fetch failed')))
     expect(held).toBe(false)
