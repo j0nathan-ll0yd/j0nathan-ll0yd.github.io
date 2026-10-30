@@ -54,6 +54,16 @@
 // rule.schema.json: a quote's currency is at stake whenever a rule quotes a source, and
 // `conformance_testable: false` says the upstream has no pass/fail concept, not that the
 // citation cannot rot.
+//
+// IETF INTERNET-DRAFTS ARE A SECOND CURRENCY QUESTION (atlas decision 0174 E1). The site's
+// Content-Usage header implements two AIPREF Working Group drafts. A draft revision is published
+// under a new number at a new archive URL, so the pinned archive text never changes and the
+// byte comparison above has nothing to compare. The question becomes "is the pinned revision
+// still the latest one, and is the draft still active?", and the IETF datatracker answers it:
+// its document record carries the latest `rev` and the draft's lifecycle state. vocab moved
+// from -07 to -08 on 2026-09-14 and nothing in the estate noticed until decision 0174 read it by
+// hand. Only WATCHED_SOURCES carry draft URLs: rule.schema.json admits no draft as a rule
+// citation, because a draft is not an immutable publication, so no quote is ever at stake here.
 
 import {createHash} from 'node:crypto'
 import {readFileSync} from 'node:fs'
@@ -89,8 +99,9 @@ export const SOURCES_BUDGET_MS = 120_000
 // A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
 // this runner holds is a pair of upstream specification blobs per pinned source --
 // the pinned commit and the same path at HEAD. It fetches no estate artifact and
-// judges no served byte; `measured` here counts commit-pinned GitHub SOURCES held,
-// never artifacts. Metadata only -- the hub reads it statically.
+// judges no served byte; `measured` here counts applicable SOURCES held (commit-pinned
+// GitHub blobs whose both sides arrived, and IETF drafts whose datatracker record
+// arrived), never artifacts. Metadata only -- the hub reads it statically.
 export const ARTIFACTS = []
 
 /**
@@ -125,6 +136,16 @@ export const REPIN_GRACE_MS = durationToMilliseconds(LLM_FRESHNESS_CONFIG.layers
 const DEFAULT_BRANCH_REF = 'HEAD'
 
 const GITHUB_RAW = /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([0-9a-f]{40})\/(.+)$/
+
+// One revision of an Internet-Draft in the IETF archive: draft-<name>-<two-digit rev>.txt.
+const IETF_DRAFT = /^https:\/\/www\.ietf\.org\/archive\/id\/(draft-[a-z0-9-]+)-([0-9]{2})\.txt$/
+
+/**
+ * The datatracker's draft lifecycle states, keyed by their stable resource ids
+ * (https://datatracker.ietf.org/api/v1/doc/state/<id>/, statetype `draft`, read 2026-10-29).
+ * A document record lists state URIs of several types; only these six describe the draft itself.
+ */
+export const DRAFT_STATES = Object.freeze({1: 'active', 2: 'expired', 3: 'rfc', 4: 'repl', 5: 'auth-rm', 6: 'ietf-rm'})
 
 /**
  * WATCHED SOURCES: moving agent-discovery specifications this site implements but no
@@ -178,6 +199,21 @@ export const WATCHED_SOURCES = Object.freeze([
     pinnedAt: 'https://raw.githubusercontent.com/ards-project/ard-spec/9d33ea17164be2e7255a9d4761fb451a1692f28b/spec/ard.md',
     retrieved: '2026-10-16'
   },
+  {
+    // The vocabulary behind src/lib/edge/security-headers.ts CONTENT_USAGE. vocab-08 (14 September
+    // 2026) defines train-ai, ai-use and search; the header states train-ai and search only, because
+    // atlas decision 0174 E2 deferred ai-use=y. docs/discovery-surface.md cites this revision.
+    label: 'AIPREF vocabulary (draft-ietf-aipref-vocab)',
+    pinnedAt: 'https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-08.txt',
+    retrieved: '2026-10-29'
+  },
+  {
+    // The Content-Usage header field itself, and the robots.txt extension the site deliberately
+    // does not emit (Lighthouse rejects the unknown directive).
+    label: 'AIPREF attachment (draft-ietf-aipref-attach)',
+    pinnedAt: 'https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.txt',
+    retrieved: '2026-10-29'
+  },
   ...VENDORED_SOURCES.map(({spec, url, retrieved}) => ({label: `${spec}, vendored schema`, pinnedAt: url, retrieved}))
 ])
 
@@ -200,7 +236,12 @@ export function watchedRecords() {
  * than filtering them out -- is what keeps the reported denominator honest: a reader
  * sees 17 rules deliberately out of scope, not 17 rules quietly unexamined.
  *
+ * AN INTERNET-DRAFT HAS ONE TOO, ASKED DIFFERENTLY. Its archive URL names one frozen revision,
+ * but the draft itself moves: the current version at the same identity is the datatracker's
+ * latest revision of the same draft name.
+ *
  * @returns {{kind: 'github-raw', owner: string, repo: string, pinnedCommit: string, path: string, currentUrl: string, reason?: undefined}
+ *          | {kind: 'ietf-draft', name: string, pinnedRev: string, currentUrl: string, reason?: undefined}
  *          | {kind: 'immutable-publication' | 'unclassified', reason: string}}
  */
 export function classifySource(url) {
@@ -215,6 +256,11 @@ export function classifySource(url) {
       path,
       currentUrl: `https://raw.githubusercontent.com/${owner}/${repo}/${DEFAULT_BRANCH_REF}/${path}`
     }
+  }
+  const draft = IETF_DRAFT.exec(String(url))
+  if (draft) {
+    const [, name, pinnedRev] = draft
+    return {kind: 'ietf-draft', name, pinnedRev, currentUrl: `https://datatracker.ietf.org/api/v1/doc/document/${name}/?format=json`}
   }
   if (/^https:\/\/www\.rfc-editor\.org\/rfc\/rfc[0-9]+\.txt$/.test(String(url))) {
     return {
@@ -290,6 +336,44 @@ async function defaultFetchJson(url, {budgetMs = DEFAULT_BUDGET_MS} = {}) {
   return await res.json()
 }
 
+/**
+ * Read a draft's latest revision and lifecycle state from its datatracker document record.
+ *
+ * THIS IS THE VERDICT, NOT ENRICHMENT. Unlike the commit lookup above, a draft's currency is
+ * decided by this record alone, so any failure throws and the caller reports INDETERMINATE. A
+ * record that does not name the draft, carries no two-digit `rev`, or lists no draft state is
+ * malformed and throws too: a value the probe cannot read is not evidence of a current draft.
+ *
+ * @returns {Promise<{rev: string, states: string[]}>} states are DRAFT_STATES slugs
+ */
+export async function fetchDraftStatus({name, currentUrl}, {fetchJson = fetchPublicJson, budgetMs = DEFAULT_BUDGET_MS} = {}) {
+  const record = await fetchJson(currentUrl, {budgetMs})
+  if (record?.name !== name) {
+    throw new Error(`datatracker record names ${JSON.stringify(record?.name)}, not ${name}`)
+  }
+  if (typeof record.rev !== 'string' || !/^[0-9]{2}$/.test(record.rev)) {
+    throw new Error(`datatracker record carries no two-digit rev (${JSON.stringify(record.rev)})`)
+  }
+  const states = (Array.isArray(record.states) ? record.states : []).map((uri) => DRAFT_STATES[/^\/api\/v1\/doc\/state\/([0-9]+)\/$/.exec(String(uri))?.[1]])
+    .filter(Boolean)
+  if (states.length === 0) {
+    throw new Error('datatracker record lists no draft lifecycle state')
+  }
+  return {rev: record.rev, states}
+}
+
+/**
+ * Plain JSON GET with a timeout and NO credential. The datatracker is a public API, and the
+ * GitHub token that `defaultFetchJson` sends must never leave for another host.
+ */
+async function fetchPublicJson(url, {budgetMs = DEFAULT_BUDGET_MS} = {}) {
+  const res = await fetch(url, {signal: AbortSignal.timeout(Math.min(DEFAULT_BUDGET_MS, budgetMs)), headers: {accept: 'application/json'}})
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`)
+  }
+  return await res.json()
+}
+
 function sha256(s) {
   return createHash('sha256').update(s, 'utf-8').digest('hex')
 }
@@ -338,6 +422,7 @@ export function probedRules(rules) {
 export async function fetchCurrencySources(rules, {
   fetchText: fetchImpl = fetchText,
   fetchCommit = fetchCurrentCommit,
+  fetchDraft = fetchDraftStatus,
   budgetMs = SOURCES_BUDGET_MS,
   now = Date.now,
   log = console.log
@@ -350,7 +435,7 @@ export async function fetchCurrencySources(rules, {
   for (const [index, url] of urls.entries()) {
     const marker = `[${index + 1}/${urls.length}]`
     const source = classifySource(url)
-    if (source.kind !== 'github-raw') {
+    if (source.kind !== 'github-raw' && source.kind !== 'ietf-draft') {
       progress(`${marker} ${source.kind} -- no current version at this identity, nothing to fetch: ${url}`, {log})
       sources.set(url, {...source, held: false})
       continue
@@ -370,6 +455,24 @@ export async function fetchCurrencySources(rules, {
     }
 
     const startedAt = now()
+    if (source.kind === 'ietf-draft') {
+      // One read: the archive revision is frozen by construction, so only the datatracker
+      // record can say whether it is still the latest.
+      try {
+        const {rev, states} = await withHeartbeat(`datatracker record ${source.currentUrl}`, () => fetchDraft(source, {budgetMs: deadline.remainingMs()}), {
+          log,
+          now
+        })
+        progress(`${marker} datatracker record held in ${now() - startedAt}ms (latest rev ${rev}, ${states.join('/')})`, {log})
+        sources.set(url, {...source, held: true, currentRev: rev, draftStates: states})
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        progress(`${marker} NOT HELD after ${now() - startedAt}ms (${message}): ${source.currentUrl}`, {log})
+        sources.set(url, {...source, held: false, error: message})
+      }
+      continue
+    }
+
     try {
       const pinnedText = await withHeartbeat(`pinned blob ${url}`, () => fetchImpl(url, {budgetMs: deadline.remainingMs()}), {log, now})
       progress(`${marker} pinned blob held in ${now() - startedAt}ms (${pinnedText.length}B)`, {log})
@@ -416,12 +519,27 @@ export function judgeCurrency(rules, sources, {nowMs = Date.now()} = {}) {
     const dependents = probed.filter(({rule}) => citation(rule).pinnedAt === url)
     const dependentList = dependents.map(({rel}) => rel).sort().join(', ')
 
-    if (source.kind !== 'github-raw') {
+    if (source.kind !== 'github-raw' && source.kind !== 'ietf-draft') {
       findings.push({
         severity: source.kind === 'unclassified' ? 'fail' : 'info',
         id: source.kind === 'unclassified' ? 'spec-currency-unclassified-source' : 'spec-currency-not-applicable',
         message: `${url} -- ${source.reason}. ${dependents.length} rule(s) out of scope for currency: ${dependentList}`
       })
+      continue
+    }
+
+    if (!source.held && source.kind === 'ietf-draft') {
+      findings.push({
+        severity: 'fail',
+        id: 'spec-currency-indeterminate',
+        message:
+          `INDETERMINATE -- could not read the datatracker record for ${source.name} (${source.error}). Currency is judged by comparing pinned revision ${source.pinnedRev} against the latest revision at ${source.currentUrl}; without that record the probe could not look, so it reports rather than assumes. ${dependents.length} source(s) unjudged: ${dependentList}`
+      })
+      continue
+    }
+
+    if (source.kind === 'ietf-draft') {
+      findings.push(judgeDraft(url, source, dependents, dependentList, nowMs))
       continue
     }
 
@@ -472,12 +590,9 @@ export function judgeCurrency(rules, sources, {nowMs = Date.now()} = {}) {
       // durable record of when a human last re-read this source, and they need no state carried
       // between runs. The FRESHEST one is what counts: if any dependent has been re-pinned
       // recently, the source has been looked at recently, whatever the others say.
-      const retrievedAt = dependents.map(({rule}) => Date.parse(citation(rule).retrieved ?? '')).filter((value) => Number.isFinite(value))
-      const freshestMs = retrievedAt.length > 0 ? Math.max(...retrievedAt) : null
-      const unrepinnedMs = freshestMs === null ? null : nowMs - freshestMs
-      const runs = unrepinnedMs === null ? null : Math.floor(unrepinnedMs / (REPIN_GRACE_MS / REPIN_GRACE_RUNS))
+      const {runs, overdue} = repinWindow(dependents, nowMs)
 
-      if (unrepinnedMs !== null && unrepinnedMs > REPIN_GRACE_MS) {
+      if (overdue) {
         findings.push({
           severity: 'fail',
           id: 'spec-source-moved-unrepinned',
@@ -513,6 +628,62 @@ export function judgeCurrency(rules, sources, {nowMs = Date.now()} = {}) {
   return findings
 }
 
+/**
+ * How long a revised source has gone un-re-pinned. The dependents' own `retrieved` dates are the
+ * only durable record of when a human last re-read it, and the FRESHEST one counts.
+ */
+function repinWindow(dependents, nowMs) {
+  const retrievedAt = dependents.map(({rule}) => Date.parse(citation(rule).retrieved ?? '')).filter((value) => Number.isFinite(value))
+  const freshestMs = retrievedAt.length > 0 ? Math.max(...retrievedAt) : null
+  const unrepinnedMs = freshestMs === null ? null : nowMs - freshestMs
+  return {
+    runs: unrepinnedMs === null ? null : Math.floor(unrepinnedMs / (REPIN_GRACE_MS / REPIN_GRACE_RUNS)),
+    overdue: unrepinnedMs !== null && unrepinnedMs > REPIN_GRACE_MS
+  }
+}
+
+/**
+ * An Internet-Draft's verdict, from its datatracker record. Current means the pinned revision is
+ * the latest AND the draft is still active. Anything else moved it: a new revision, expiry,
+ * publication as an RFC, replacement or withdrawal. Each one is a prompt to re-read what the site
+ * implements, never a falsified rule (no rule quotes a draft), so it takes the same advisory
+ * `spec-source-moved` and the same re-pin grace escalation as a revised GitHub source.
+ */
+function judgeDraft(url, source, dependents, dependentList, nowMs) {
+  const active = source.draftStates.includes('active')
+  if (source.currentRev === source.pinnedRev && active) {
+    return {
+      severity: 'info',
+      id: 'spec-currency-current',
+      message:
+        `${source.name}-${source.pinnedRev} is still the latest revision and the draft is active (${source.currentUrl}). ${dependents.length} source(s): ${dependentList}`
+    }
+  }
+  const what = [
+    source.currentRev === source.pinnedRev ? null : `the latest revision is ${source.currentRev}, pinned is ${source.pinnedRev}`,
+    active ? null : `the draft is no longer active (datatracker state ${source.draftStates.join('/')})`
+  ].filter(Boolean).join('; ')
+  const provenance = `${what} -- ${url} vs ${source.currentUrl}`
+  const {runs, overdue} = repinWindow(dependents, nowMs)
+  if (overdue) {
+    return {
+      severity: 'fail',
+      id: 'spec-source-moved-unrepinned',
+      message: `${source.name} has moved upstream AND the pin has not been refreshed for ${runs} weekly run(s): ${provenance}. ` +
+        `No rule quotes a draft, so no rule is falsified; this is the SAME fact spec-source-moved reports, escalated past the ` +
+        `${REPIN_GRACE_RUNS}-run grace window. Re-read the new revision against what the site implements, then re-pin pinnedAt and ` +
+        `retrieved. ${dependents.length} source(s): ${dependentList}`
+    }
+  }
+  return {
+    severity: 'warn',
+    id: 'spec-source-moved',
+    message:
+      `${source.name} has moved upstream: ${provenance}. Re-read it against what the site implements and, once checked, re-pin pinnedAt and retrieved to record that the check was made. ${dependents.length} source(s): ${dependentList}` +
+      (runs === null ? '' : ` Un-re-pinned for ${runs} of the ${REPIN_GRACE_RUNS} weekly run(s) this stays advisory for.`)
+  }
+}
+
 /** Ordered segment containment, identical to the drift probe's comparison. */
 function quoteOccursIn(quote, text) {
   const haystack = comparable(text)
@@ -531,7 +702,8 @@ function quoteOccursIn(quote, text) {
 /**
  * Both halves.
  *
- * `measured` COUNTS ONLY APPLICABLE SOURCES WHOSE BOTH BLOBS ARRIVED, and the exclusion
+ * `measured` COUNTS ONLY APPLICABLE SOURCES THE PROBE HELD -- a GitHub source whose both blobs
+ * arrived, or an IETF draft whose datatracker record arrived -- and the exclusion
  * of not-applicable sources is the load-bearing part. Today 2 of 4 sources are immutable
  * publications; counting them would let a total raw.githubusercontent outage publish
  * measured=2 and ping a green tile while the probe saw nothing it exists to see -- the
@@ -552,13 +724,13 @@ export async function checkSpecCurrency(opts = {}) {
   const sources = await fetchCurrencySources(rules, opts)
   findings.push(...judgeCurrency(rules, sources, opts))
 
-  const applicable = [...sources.values()].filter((s) => s.kind === 'github-raw')
+  const applicable = [...sources.values()].filter((s) => s.kind === 'github-raw' || s.kind === 'ietf-draft')
   if (applicable.length === 0) {
     findings.push({
       severity: 'fail',
       id: 'spec-currency-no-applicable-source',
       message:
-        `no rule pins a commit-pinned raw.githubusercontent.com source, so this probe has nothing to compare and measures 0. That is an honest zero, not transport darkness -- but it wedges the tier either way, because a currency probe with no subject is a question worth asking out loud rather than a silent no-op`
+        `no rule or watched source pins a commit-pinned raw.githubusercontent.com blob or an IETF draft revision, so this probe has nothing to compare and measures 0. That is an honest zero, not transport darkness -- but it wedges the tier either way, because a currency probe with no subject is a question worth asking out loud rather than a silent no-op`
     })
   }
 
@@ -576,7 +748,7 @@ export async function checkSpecCurrency(opts = {}) {
 async function main() {
   const {findings, measured, ruleCount, watchedCount, probedCount, applicableCount, notApplicableCount} = await checkSpecCurrency()
   console.log(
-    `  ${ruleCount} rule(s) in catalog, ${probedCount} pinned to a source, plus ${watchedCount} watched source(s): ${applicableCount} commit-pinned GitHub source(s) carry a currency question, ${notApplicableCount} immutable publication(s) do not`
+    `  ${ruleCount} rule(s) in catalog, ${probedCount} pinned to a source, plus ${watchedCount} watched source(s): ${applicableCount} commit-pinned GitHub or IETF draft source(s) carry a currency question, ${notApplicableCount} immutable publication(s) do not`
   )
   process.exit(report(CHECK_ID, findings, measured))
 }
