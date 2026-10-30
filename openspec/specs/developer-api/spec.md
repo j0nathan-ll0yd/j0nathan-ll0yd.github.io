@@ -80,7 +80,7 @@ property as served: `GET /api/v1/__not_a_resource__.json`, `POST /api/v1/books.j
 
 Verified by `tests/unit/api-v1.test.ts:157` (path and method first, every problem shape, no
 `text/plain` escapes, the markdown 404 exemption) and by
-`audits/__tests__/b2-check-wellknown.test.ts:577` (the audit arm's judges).
+`audits/__tests__/b2-check-wellknown.test.ts:585` (the audit arm's judges).
 
 #### Scenario: An agent asks for an export that does not exist
 

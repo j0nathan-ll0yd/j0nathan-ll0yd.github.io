@@ -16,7 +16,8 @@
 //   schema this repo vendors, plus the media types a schema cannot see.
 //
 // Then a live GET of every api-catalog item, which must answer a JSON object (or,
-// while hiding, the developer API's focus-suppressed problem), the developer API's
+// while hiding, the developer API's focus-suppressed problem), a live GET of each
+// distinct `service-desc` target (the OpenAPI document, arm `openapi`), the developer API's
 // failure semantics as served (checkApiV1ErrorShape), and a live MCP
 // exchange against every remote the card declares: both protocol eras, a
 // tools/call per tool, resources/list, and resources/read of the ungated focus
@@ -30,6 +31,8 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {CLOUDFRONT_BASE, ENDPOINTS, LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import Ajv2020 from 'ajv/dist/2020.js'
+import {DATA_SOURCES} from '../../src/lib/edge/agent-catalog.mjs'
+import {AGENT_PATHS, OPENAPI_MEDIA_TYPE} from '../../src/lib/edge/agent-paths.mjs'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
 
 // Pinned per docs/discovery-surface.md "Agent-discovery conformance notes"
@@ -50,13 +53,13 @@ export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discov
 //   arm `api-v1-error-shape` (the facade's RFC 9457 failure answers and rate-limit headers).
 // - site-mcp-server: the SEP-2127 server card at its canonical and compatibility URLs,
 //   plus the live MCP exchange against every remote the card declares (probeMcpRemotes).
-// NOT declared: site-openapi. The api-catalog arm asserts only that each item carries a
-// non-empty `service-desc` link. It never reads that link's href and never fetches
-// /openapi.json, so this runner holds no byte of that surface. The rest of what it holds
-// (webfinger, ai-catalog.json, ard.json, agent-skills/index.json, api-catalog) the
-// surface registry does not register. Metadata only -- the hub reads it statically from
-// the source; nothing imports it.
-export const ARTIFACTS = [{surfaceId: 'site-api-v1'}, {surfaceId: 'site-mcp-server'}]
+// - site-openapi: arm `openapi`, a live GET of each distinct `service-desc` target the
+//   api-catalog names (/openapi.json), judged for status, media type, OpenAPI 3.1, the
+//   facade server and the nine export paths.
+// The rest of what it holds (webfinger, ai-catalog.json, ard.json,
+// agent-skills/index.json, api-catalog) the surface registry does not register.
+// Metadata only -- the hub reads it statically from the source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'site-api-v1'}, {surfaceId: 'site-mcp-server'}, {surfaceId: 'site-openapi'}]
 
 // The MCP server card media type (SEP-2127) and the 2025-era protocol revision the
 // liveness probe speaks. The probe uses the `initialize` handshake on purpose: it is
@@ -672,14 +675,137 @@ export async function probeApiCatalogItems(json, get = fetchStable, base = SITE_
   return {measured, findings}
 }
 
-/** The api-catalog: its shape and media type, then a live answer from every item. */
+// ---------------------------------------------------------------------------
+// Arm `openapi`: the OpenAPI document the api-catalog advertises, as served.
+//
+// Property: the served /openapi.json is the document the api-catalog's `service-desc` links
+// name, with the advertised media type, OpenAPI 3.1, the facade server and every export path.
+// Seam: the production Worker route that serves it (`run_worker_first` plus the middleware that
+// sets the media type), then the asset plane and the zone. No existing measurer sees it:
+// `generate-webmcp --check` and the unit tests run at PR time against the generator and a test
+// harness, never against production. The values come from the site's own modules
+// (AGENT_PATHS, OPENAPI_MEDIA_TYPE, DATA_SOURCES): the arm measures the SERVING seam, and the
+// generator gate already holds the document to those modules.
+// ---------------------------------------------------------------------------
+
+/** The OpenAPI document's absolute URL in production. */
+export const OPENAPI_URL = `${SITE_URL}${AGENT_PATHS.openapi}`
+
+/** The `servers[0].url` the document must name: the developer API facade. */
+export const OPENAPI_SERVER_URL = `${SITE_URL}${AGENT_PATHS.apiV1}`
+
+/** The export paths `paths` must cover, one per DATA_SOURCES entry, relative to the server. */
+export const OPENAPI_EXPECTED_PATHS = Object.freeze(DATA_SOURCES.map((source) => source.path))
+
+/** The distinct `service-desc` hrefs of an api-catalog linkset, in document order. */
+export function serviceDescTargets(json) {
+  const hrefs = Array.isArray(json?.linkset)
+    ? json.linkset.flatMap((entry) => (Array.isArray(entry?.['service-desc']) ? entry['service-desc'] : [])).map((link) => link?.href)
+    : []
+  return [...new Set(hrefs.filter((href) => typeof href === 'string'))]
+}
+
+/** Judge the target set. Pure -- testable without network. Every `service-desc` must name OPENAPI_URL. */
+export function judgeServiceDescTargets(targets) {
+  if (targets.length === 1 && targets[0] === OPENAPI_URL) {
+    return []
+  }
+  return [{
+    severity: 'fail',
+    id: 'wellknown-openapi-target',
+    message: `api-catalog service-desc targets are ${JSON.stringify(targets)}; expected exactly ["${OPENAPI_URL}"]`
+  }]
+}
+
+/** A media type compared without case or whitespace, so `a/b; version=3.1` equals `a/b;version=3.1`. */
+function mediaTypeKey(value) {
+  return String(value).replace(/\s+/g, '').toLowerCase()
+}
+
+/**
+ * Judge one `service-desc` target's answer. Pure -- testable without network. It must answer 200,
+ * as OPENAPI_MEDIA_TYPE, with a JSON object whose `openapi` starts with "3.1.", whose
+ * `servers[0].url` is OPENAPI_SERVER_URL, and whose `paths` names every OPENAPI_EXPECTED_PATHS
+ * entry. The document is static and never focus-gated, so there is no suppressed answer.
+ */
+export function judgeOpenApiAnswer({href, status, contentType, body}) {
+  if (status !== 200) {
+    return [{severity: 'fail', id: 'wellknown-openapi-status', message: `${href} answered HTTP ${status}; expected 200`}]
+  }
+  const findings = []
+  if (mediaTypeKey(contentType) !== mediaTypeKey(OPENAPI_MEDIA_TYPE)) {
+    findings.push({
+      severity: 'fail',
+      id: 'wellknown-openapi-content-type',
+      message: `${href} answered Content-Type "${contentType}"; expected "${OPENAPI_MEDIA_TYPE}", the type the api-catalog advertises`
+    })
+  }
+  let json
+  try {
+    json = JSON.parse(body)
+  } catch {
+    json = undefined
+  }
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) {
+    findings.push({severity: 'fail', id: 'wellknown-openapi-json', message: `${href} is not a JSON object: ${String(body).slice(0, 120)}`})
+    return findings
+  }
+  if (typeof json.openapi !== 'string' || !json.openapi.startsWith('3.1.')) {
+    findings.push({severity: 'fail', id: 'wellknown-openapi-version', message: `${href} declares openapi ${JSON.stringify(json.openapi)}; expected 3.1.x`})
+  }
+  const serverUrl = Array.isArray(json.servers) ? json.servers[0]?.url : undefined
+  if (serverUrl !== OPENAPI_SERVER_URL) {
+    findings.push({
+      severity: 'fail',
+      id: 'wellknown-openapi-server',
+      message: `${href} servers[0].url is ${JSON.stringify(serverUrl)}; expected "${OPENAPI_SERVER_URL}"`
+    })
+  }
+  const paths = json.paths !== null && typeof json.paths === 'object' ? json.paths : {}
+  const missing = OPENAPI_EXPECTED_PATHS.filter((path) => paths[path] === null || typeof paths[path] !== 'object')
+  if (missing.length > 0) {
+    findings.push({severity: 'fail', id: 'wellknown-openapi-paths', message: `${href} paths lacks ${missing.join(', ')}`})
+  }
+  return findings
+}
+
+/**
+ * Fetch each distinct `service-desc` target once and judge its answer. `measured` counts the
+ * targets whose answer was held. A target that cannot be fetched is a finding, never a pass, and
+ * is not measured. Each target is a site URL, so it is fetched from the deploy under audit (`rebase`).
+ */
+export async function probeOpenApiTargets(json, get = fetchStable, base = SITE_URL) {
+  const targets = serviceDescTargets(json)
+  const findings = judgeServiceDescTargets(targets)
+  let measured = 0
+  for (const href of targets) {
+    let answer
+    try {
+      const url = rebase(href, base)
+      const res = await get(url, {headers: {Accept: OPENAPI_MEDIA_TYPE, ...accessHeadersFor(url, base)}, redirect: 'manual'})
+      answer = {href, status: res.status, contentType: res.headers.get('content-type') || '', body: await res.text()}
+    } catch (err) {
+      findings.push({severity: 'fail', id: 'wellknown-openapi-unreachable', message: `${href}: ${err instanceof Error ? err.message : String(err)}`})
+      continue
+    }
+    measured++
+    findings.push(...judgeOpenApiAnswer(answer))
+  }
+  return {measured, findings}
+}
+
+/** The api-catalog: its shape and media type, then a live answer from every item and every service-desc target. */
 async function checkApiCatalog(base) {
   const catalog = await fetchJson(`${base}/.well-known/api-catalog`)
   if (catalog.error) {
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-api-catalog-fetch', message: catalog.error}]}
   }
   const items = await probeApiCatalogItems(catalog.json, fetchStable, base)
-  return {measured: 1 + items.measured, findings: [...validateApiCatalogShape(catalog.json, catalog.contentType), ...items.findings]}
+  const openapi = await probeOpenApiTargets(catalog.json, fetchStable, base)
+  return {
+    measured: 1 + items.measured + openapi.measured,
+    findings: [...validateApiCatalogShape(catalog.json, catalog.contentType), ...items.findings, ...openapi.findings]
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -949,7 +1075,7 @@ async function main() {
     return {measured: 0, findings: [{severity: 'fail', id: 'wellknown-check-rejected', message: `unexpected check rejection: ${message}`}]}
   })
   // One per discovery artifact held and judged, plus one per api-catalog item whose
-  // answer was held and judged, plus one per developer API probe answered, plus one per MCP
+  // answer was held and judged, plus one per service-desc target held and judged, plus one per developer API probe answered, plus one per MCP
   // remote and protocol era that answered.
   // A partial sweep is a finding; reaching none of them is the darkness the dead-man
   // reports.
