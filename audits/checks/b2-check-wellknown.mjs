@@ -44,14 +44,19 @@ export const PINNED_ARD_SPEC_VERSION = '1.0'
 // otherwise be validated by the wrong rules.
 export const PINNED_AGENT_SKILLS_SCHEMA = 'https://schemas.agentskills.io/discovery/0.2.0/schema.json'
 
-// A18 coverage declaration (atlas decision 0145). Empty is a claim, not a gap: what
-// this runner holds is the agent-discovery surface (webfinger, ai-catalog.json,
-// ard.json, the MCP server card at its canonical and compatibility URLs,
-// agent-skills/index.json, api-catalog) plus a live GET of each api-catalog item, the
-// developer API facade's failure answers, and one live MCP exchange, none of which the
-// surface registry registers.
-// Metadata only -- the hub reads it statically.
-export const ARTIFACTS = []
+// A18 coverage declaration (atlas decision 0145). The registered estate surfaces this
+// runner holds bytes for and judges:
+// - site-api-v1: a live GET of each api-catalog item (the nine /api/v1 exports) and
+//   arm `api-v1-error-shape` (the facade's RFC 9457 failure answers and rate-limit headers).
+// - site-mcp-server: the SEP-2127 server card at its canonical and compatibility URLs,
+//   plus the live MCP exchange against every remote the card declares (probeMcpRemotes).
+// NOT declared: site-openapi. The api-catalog arm asserts only that each item carries a
+// non-empty `service-desc` link. It never reads that link's href and never fetches
+// /openapi.json, so this runner holds no byte of that surface. The rest of what it holds
+// (webfinger, ai-catalog.json, ard.json, agent-skills/index.json, api-catalog) the
+// surface registry does not register. Metadata only -- the hub reads it statically from
+// the source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'site-api-v1'}, {surfaceId: 'site-mcp-server'}]
 
 // The MCP server card media type (SEP-2127) and the 2025-era protocol revision the
 // liveness probe speaks. The probe uses the `initialize` handshake on purpose: it is

@@ -32,9 +32,15 @@
 import {appendFileSync, readFileSync} from 'node:fs'
 import {isMain, report} from '../lib/http.mjs'
 
-// A18 coverage declaration (atlas decision 0145). The links B5 follows are third-party
-// pages, not registered estate surfaces. Metadata only -- the hub reads it statically.
-export const ARTIFACTS = []
+// A18 coverage declaration (atlas decision 0145). The registered estate surface this
+// runner judges: site-text-pages. The lychee step in audit-web.yml takes /about,
+// /contact, /developers and /privacy as inputs, and this runner judges every link
+// lychee extracted from them. An input lychee cannot read exits 1, and
+// assertCompletedRun then throws, so an unreadable page wedges the tier. The other
+// inputs (/, llms.txt, feed.xml) belong to surfaces the B2 checks claim, and the
+// third-party pages the links reach are not estate surfaces. Metadata only -- the
+// hub reads it statically from the source; nothing imports it.
+export const ARTIFACTS = [{surfaceId: 'site-text-pages'}]
 
 /** lychee 0.24 `status.details` for a TCP reset at connect time. Matched exactly, never by prefix. */
 export const CONNECTION_REFUSED_DETAIL = 'Connection refused - server may be down or port blocked'
