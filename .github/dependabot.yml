@@ -16,15 +16,21 @@ version: 2
 # `read:packages` is the only scope required.
 #
 # `scope` is required. Keep it equal to the `@j0nathan-ll0yd:registry=` line in
-# .npmrc, which local and CI installs read. With `scope` set, Dependabot builds
-# its .npmrc from these credentials only, and that equals the committed mapping.
-# Without `scope`, Dependabot infers scope mappings: it probes this registry for
-# every lockfile package and maps any scope that answers 200. GitHub Packages
-# answers for `@types/*` and `@microsoft/*` with stale copies, so pnpm fetched
-# `@types` from here (mantle PR #489 has the dependabot-core trace). Weekly run
-# 38301324443 (2026-10-12) failed 18 of 18 updates with
-# `ERR_PNPM_NO_MATCHING_VERSION ... @types/estree@1.0.8 while fetching it from
-# https://npm.pkg.github.com/`. No npm PR has opened since #164 (2026-08-04).
+# .npmrc. The mapping then stays committed in two places: .npmrc for pnpm, and
+# this file for Dependabot. In dependabot-core `1f80af96b`
+# (npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npmrc_builder.rb):
+#   - With `scope` set, `npmrc_content` logs "Generating .npmrc from credential
+#     scope configuration (committed .npmrc ignored)".
+#     `build_npmrc_from_scope_credentials` writes the mapping and the auth line,
+#     and keeps only the allow-git and allow-remote lines of the committed file.
+#     The committed .npmrc holds only the mapping, so the result is equivalent.
+#   - Without `scope`, `registry_scopes` infers scope mappings from each
+#     dependency's resolved URL on this registry. GitHub Packages answers for
+#     `@types/*` with stale copies, so pnpm fetched `@types` from it. Weekly run 38301324443
+#     (2026-10-12) failed 18 of 18 updates with `ERR_PNPM_NO_MATCHING_VERSION
+#     ... @types/estree@1.0.8 while fetching it from https://npm.pkg.github.com/`,
+#     and 252 `@types` probes answered 200. No npm PR opened after #164
+#     (2026-08-04). Same fault and fix as mantle PR #489.
 #
 # Deliberately NOT set:
 #   replaces-base -- would route *every* dependency through GitHub Packages,
