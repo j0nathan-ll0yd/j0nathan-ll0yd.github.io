@@ -15,15 +15,20 @@ version: 2
 # with `GITHUB_`, so `${{secrets.GITHUB_TOKEN}}` is not expressible here.
 # `read:packages` is the only scope required.
 #
+# `scope` is required. Keep it equal to the `@j0nathan-ll0yd:registry=` line in
+# .npmrc, which local and CI installs read. With `scope` set, Dependabot builds
+# its .npmrc from these credentials only, and that equals the committed mapping.
+# Without `scope`, Dependabot infers scope mappings: it probes this registry for
+# every lockfile package and maps any scope that answers 200. GitHub Packages
+# answers for `@types/*` and `@microsoft/*` with stale copies, so pnpm fetched
+# `@types` from here (mantle PR #489 has the dependabot-core trace). Weekly run
+# 38301324443 (2026-10-12) failed 18 of 18 updates with
+# `ERR_PNPM_NO_MATCHING_VERSION ... @types/estree@1.0.8 while fetching it from
+# https://npm.pkg.github.com/`. No npm PR has opened since #164 (2026-08-04).
+#
 # Deliberately NOT set:
 #   replaces-base -- would route *every* dependency through GitHub Packages,
 #     which does not proxy registry.npmjs.org.
-#   scope         -- would make Dependabot regenerate .npmrc purely from these
-#     credentials and discard the committed one. Since the pnpm migration (atlas
-#     decision 0032) the committed .npmrc is nothing BUT the
-#     `@j0nathan-ll0yd:registry=` scope mapping, so regenerating it would be a
-#     near-no-op rather than the breakage it used to be -- but leaving it unset
-#     keeps the mapping under version control, which is where it belongs.
 #
 # `package-ecosystem: npm` is correct under pnpm: Dependabot's npm ecosystem
 # handles package-lock.json, yarn.lock AND pnpm-lock.yaml. It reads the pnpm
@@ -32,6 +37,7 @@ registries:
   github-packages:
     type: npm-registry
     url: https://npm.pkg.github.com
+    scope: "@j0nathan-ll0yd"
     token: ${{secrets.GH_PACKAGES_READ_TOKEN}}
 
 updates:
