@@ -18,7 +18,7 @@ const ARTIFACT = JSON.parse(TEXT) as {composedAt: string; composer: {build: stri
 const OPTIONS = {maxGeneratedAtMs: Date.parse(ARTIFACT.composedAt) + COMPOSED_MAX_FUTURE_SKEW_MS, overlayMayShow: false}
 const BOOKS = ARTIFACT.fragments.cardBooks
 const READING = ARTIFACT.fragments.cardReading
-const ASIN = 'KA7731KAP1'
+const ASIN = 'B0KA7731P1'
 const HREF = amazonBookUrl(ASIN)
 /** The href as the DS serializes it in a double-quoted attribute. */
 const encoded = (href: string): string => href.replaceAll('&', '&amp;')
@@ -53,7 +53,7 @@ describe('the Bookshelf tile link: admitted in its DS shape', () => {
 
   it('tethers the affiliate query, and the Playwright suites copy, to the DS amazonBookUrl', () => {
     expect(amazonBookUrl(ASIN)).toBe(`https://www.amazon.com/dp/${ASIN}${BOOK_LINK_QUERY}`)
-    for (const asin of [ASIN, 'B0FBRJY116', '080413717X', 'C001', 'a/b?c']) {
+    for (const asin of [ASIN, 'B0FBRJY116', '080413717X', '1600000010', 'a/b?c']) {
       expect(bookUrl(asin)).toBe(amazonBookUrl(asin))
     }
   })
@@ -61,7 +61,7 @@ describe('the Bookshelf tile link: admitted in its DS shape', () => {
   it.each([
     ['a 10-character ASIN', 'B0FBRJY116'],
     ['an ISBN-10 ending in X', '080413717X'],
-    ['a fixture ASIN', 'C001']
+    ['a fixture ISBN-10', '1600000010']
   ])('admits the href amazonBookUrl builds for %s', (_label, asin) => {
     expect(bookHrefAllowed(amazonBookUrl(asin))).toBe(true)
     expect(checkFragment(withLink(SHAPE.replace(encoded(HREF), encoded(amazonBookUrl(asin)))), 'cardBooks', OPTIONS)).toMatchObject({ok: true})
@@ -76,10 +76,12 @@ describe('the Bookshelf tile link: every other form is refused', () => {
   it.each([
     ['a non-/dp/ path', `https://www.amazon.com/gp/product/${ASIN}${BOOK_LINK_QUERY}`],
     ['a trailing path segment', `https://www.amazon.com/dp/${ASIN}/ref${BOOK_LINK_QUERY}`],
-    ['a lower-case ASIN', `https://www.amazon.com/dp/ka7731kap1${BOOK_LINK_QUERY}`],
+    ['a lower-case ASIN', `https://www.amazon.com/dp/b0ka7731p1${BOOK_LINK_QUERY}`],
+    ['a 9-character ASIN', `https://www.amazon.com/dp/${ASIN.slice(0, 9)}${BOOK_LINK_QUERY}`],
     ['an 11-character ASIN', `https://www.amazon.com/dp/${ASIN}X${BOOK_LINK_QUERY}`],
+    ['the 4-character ASIN of the old fixtures', `https://www.amazon.com/dp/C001${BOOK_LINK_QUERY}`],
     ['an empty ASIN', `https://www.amazon.com/dp/${BOOK_LINK_QUERY}`],
-    ['an encoded slash in the ASIN', `https://www.amazon.com/dp/KA%2FKAP1${BOOK_LINK_QUERY}`],
+    ['an encoded slash in the ASIN', `https://www.amazon.com/dp/B0KA%2F1P1${BOOK_LINK_QUERY}`],
     ['another host', `https://evil.example/dp/${ASIN}${BOOK_LINK_QUERY}`],
     ['the bare amazon.com host', `https://amazon.com/dp/${ASIN}${BOOK_LINK_QUERY}`],
     ['another Amazon store', `https://www.amazon.co.uk/dp/${ASIN}${BOOK_LINK_QUERY}`],

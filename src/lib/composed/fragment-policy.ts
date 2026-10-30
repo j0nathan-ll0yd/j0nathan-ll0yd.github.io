@@ -217,11 +217,11 @@ export const BOOK_LINK = Object.freeze({fragment: 'cardBooks', className: 'shelf
 /** The query string `amazonBookUrl` appends (tests/unit/composed-book-link.test.ts tethers it to the DS). */
 export const BOOK_LINK_QUERY = '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl'
 /**
- * An ASIN: upper-case alphanumeric, at most 10 characters. The one production writer requires exactly
- * 10 (mantle-LifegamesPortal `addBookRequestSchema`); the bound admits shorter ones because the
- * `@j0nathan-ll0yd/fixtures` variations (1.6.4, 1.6.5) use 4-character ASINs such as `C001`.
+ * An ASIN: exactly 10 upper-case letters or digits, as the one production writer requires
+ * (mantle-LifegamesPortal `addBookRequestSchema`) and the `@j0nathan-ll0yd/fixtures` variations carry
+ * since 1.6.6 (an ISBN-10, which may end in `X`, or a `B0` Amazon id).
  */
-const BOOK_ASIN = '[A-Z0-9]{1,10}'
+const BOOK_ASIN = '[A-Z0-9]{10}'
 const BOOK_LINK_HREF = new RegExp(`^https://${BOOK_LINK_HOST.replaceAll('.', '\\.')}/dp/${BOOK_ASIN}${BOOK_LINK_QUERY.replaceAll(/[?.]/g, '\\$&')}$`)
 /** Longer than any article URL the feed carries (123 characters in production, 2026-10-16). */
 export const MAX_ARTICLE_HREF = 2_048

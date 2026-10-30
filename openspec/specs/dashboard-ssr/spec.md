@@ -341,7 +341,7 @@ Worker-side guarantee. It SHALL admit only:
 - one exception, the Bookshelf tile link (web 4.6.0, atlas decision 0160 D5): an `a` in `cardBooks`
   whose raw `class` is exactly `shelf-book-link`, `target` exactly `_blank` and `rel` exactly
   `sponsored noopener noreferrer` may name the href the design system's `amazonBookUrl` builds:
-  `https://www.amazon.com/dp/` and one to ten upper-case letters or digits, then exactly the
+  `https://www.amazon.com/dp/` and exactly ten upper-case letters or digits, then exactly the
   affiliate query `?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl`
   (`BOOK_LINK`, `BOOK_LINK_QUERY`); `www.amazon.com` is not an allowlisted host, so the same href
   outside this shape and the article link's is refused (`url`), and `sponsored` on any other link is
