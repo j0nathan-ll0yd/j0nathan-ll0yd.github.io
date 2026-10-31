@@ -9,11 +9,8 @@ const ignorePatterns = readFileSync(resolve(process.cwd(), '.lycheeignore'), 'ut
 describe('.lycheeignore scope', () => {
   it('contains only reviewed host/path-specific bot-noise exclusions', () => {
     expect(ignorePatterns).toEqual([
-      'm\\.media-amazon\\.com',
-      'images-na\\.ssl-images-amazon\\.com',
-      'basemaps\\.cartocdn\\.com',
       '^https://www\\.linkedin\\.com/in/lifegames/?$',
-      '^https://jonathanlloyd\\.me/cdn-cgi/l/email-protection$'
+      '^https://jonathanlloyd\\.me/mcp$'
     ])
   })
 
