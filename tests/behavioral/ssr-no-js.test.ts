@@ -9,6 +9,7 @@ import {LIVE_CARD_IDS} from '../shared/fixture-sentinels'
 import {legacyMarkers, RETIRED_OVERLAY_ROWS} from '../shared/legacy-markers'
 import {headFactsOf, prerenderedIndexHtml, visibleTextOf} from '../shared/ssr-page'
 import {READING_LINKS} from '../../src/lib/composed/reading-option'
+import {bookUrl} from '../shared/book-url'
 
 /** The files that stand for the published KV values, which the Worker reads instead of any export. */
 const PUBLISHED_PATHS: ReadonlySet<string> = new Set(Object.values(PUBLISHED_FILES))
@@ -152,6 +153,29 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     // Neither focus overlay shows: the known-answer focus mode is not a hiding mode.
     await expect(page.locator('#focusOverlay')).toBeHidden()
     await expect(page.locator('#dndOverlay')).toBeHidden()
+  })
+
+  // covers: bookshelf-render#Each book card links to its book without JavaScript
+  test('every Bookshelf tile links to its book: the title text, the exact href, target and rel, no dialog semantics', async ({page}) => {
+    await expectSummary(page, 'live')
+    const books = knownAnswer('books').books as {asin: string; title: string}[]
+    const tiles = page.locator('#dashShelfRow .shelf-book')
+    await expect(tiles).toHaveCount(books.length)
+    for (const [index, book] of books.entries()) {
+      const tile = tiles.nth(index)
+      const link = tile.locator('.shelf-book-title > a.shelf-book-link')
+      await expect(link, `${book.asin} link`).toHaveCount(1)
+      await expect(link).toHaveText(book.title)
+      await expect(link).toHaveAttribute('href', bookUrl(book.asin))
+      await expect(link).toHaveAttribute('target', '_blank')
+      await expect(link).toHaveAttribute('rel', 'sponsored noopener noreferrer')
+      // Exactly the four server attributes: the enhancement alone adds aria-haspopup.
+      const names = await link.evaluate((el) => el.getAttributeNames().filter((name) => !name.startsWith('data-astro-cid-')))
+      expect(names.sort()).toEqual(['class', 'href', 'rel', 'target'])
+      // The link names the book and is the tile's only link; the cover adds no second name.
+      await expect(tile.locator('a')).toHaveCount(1)
+      await expect(tile.locator('.shelf-cover-wrapper img')).toHaveAttribute('alt', '')
+    }
   })
 
   // The design system's ReadingFeed server markup (web 4.3.0, DS #312): one client page of at most

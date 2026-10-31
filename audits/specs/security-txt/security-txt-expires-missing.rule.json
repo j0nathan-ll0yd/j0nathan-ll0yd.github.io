@@ -41,7 +41,7 @@
     {
       "name": "Expires present (comfortably in the future) -- this rule does not fire",
       "outcome": "passed",
-      "input_file": "cases/expires-400d.txt",
+      "input_file": "cases/valid.txt",
       "input_kind": "text",
       "now": "2026-07-16T00:00:00.000Z",
       "expect": []

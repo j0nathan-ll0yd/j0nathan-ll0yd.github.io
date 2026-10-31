@@ -14,7 +14,7 @@ While the books request is pending, the system SHALL keep the Bookshelf card in 
 presentation. The data-free fallback page (`dashboard-shell`), which the Worker serves when a server
 render misses its budget (`dashboard-ssr`), renders no items, so the card shows only its skeleton and a
 hidden, empty scaffold until fresh data arrives.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:57`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:62`.
 
 #### Scenario: The shelf stays in its loading presentation while books.json is outstanding
 
@@ -25,7 +25,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:57`.
 ### Requirement: Empty state renders empty state message without book cards
 
 When rendering the empty state, the system SHALL display the empty state message and SHALL NOT display book cards.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:69`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:74`.
 
 #### Scenario: An empty export shows the empty message and no book cards
 
@@ -37,7 +37,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:69`.
 
 When rendering the default populated fixture, the system SHALL render the active, up-next, and
 completed statuses with their expected book cards.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:79`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:84`.
 
 #### Scenario: The baseline export renders one card per status
 
@@ -49,7 +49,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:79`.
 ### Requirement: All completed grouping renders completed section without active groups
 
 When rendering the all-completed fixture, the system SHALL render the completed grouping without active or up-next sections.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:93`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:98`.
 
 #### Scenario: An all-finished export renders no reading chrome
 
@@ -61,7 +61,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:93`.
 ### Requirement: All in progress grouping renders active section without completed groups
 
 When rendering the all-in-progress fixture, the system SHALL render the active grouping without completed or up-next sections.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:105`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:110`.
 
 #### Scenario: An all-reading export renders progress and no finished chrome
 
@@ -74,7 +74,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:105`.
 
 When the no-covers fixture is served, the system SHALL render every expected book card without
 creating phantom books.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:117`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:122`.
 
 #### Scenario: A cover-less export renders every real book and invents none
 
@@ -87,7 +87,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:117`.
 
 When the export has more books than the dashboard shelf can display, the system SHALL retain the
 first five visible shelf slots and omit later cards.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:128`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:133`.
 
 #### Scenario: An oversized export is capped at the five visible slots
 
@@ -96,3 +96,33 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:128`.
 - **THEN** it SHALL render exactly five cards, retaining the first-slot "The Tainted Cup" and
   omitting the later "JavaScript: The Good Parts"
 
+
+### Requirement: Each book card links to its book without JavaScript
+
+The server render SHALL wrap the title text of every Bookshelf card in one link to that book: an
+`a.shelf-book-link` inside `.shelf-book-title`, carrying exactly `class`, `href` (the design
+system's `amazonBookUrl(asin)`, query string included), `target="_blank"` and
+`rel="sponsored noopener noreferrer"`. The cover image SHALL carry `alt=""`, so the link alone
+names the book. Server markup SHALL NOT carry `aria-haspopup`; the book-modal enhancement SHALL add
+`aria-haspopup="dialog"` to each link once it binds. With the enhancement bound, a plain primary
+click on the link SHALL open the book dialog and SHALL NOT navigate; a click with a modifier key
+SHALL navigate to the book and SHALL NOT open the dialog. The composed-page fragment policy admits
+this link only in that exact shape (`BOOK_LINK` in `src/lib/composed/fragment-policy.ts`).
+Verified by `tests/behavioral/ssr-no-js.test.ts:158` (JavaScript off) and
+`tests/behavioral/bookshelf-matrix.test.ts:147` (the dialog enhancement).
+
+#### Scenario: A visitor without JavaScript reaches each book
+
+- **GIVEN** the Worker serves the composed page from the known-answer books export
+- **WHEN** a client with JavaScript off reads the Bookshelf card
+- **THEN** every card SHALL carry one `a.shelf-book-link` around its title text, with the exact
+  `amazonBookUrl` href, `target="_blank"`, `rel="sponsored noopener noreferrer"` and no
+  `aria-haspopup`, and its cover SHALL carry `alt=""`
+
+#### Scenario: A plain click opens the dialog, a modified click navigates
+
+- **GIVEN** the dashboard has loaded and the book-modal enhancement has bound
+- **WHEN** a visitor clicks a book card link with no modifier key
+- **THEN** the book dialog SHALL open for that book and the page SHALL NOT navigate or open a tab
+- **AND WHEN** the visitor Ctrl-clicks or Cmd-clicks the link
+- **THEN** a new tab SHALL open at the book's `amazonBookUrl` and the dialog SHALL stay closed

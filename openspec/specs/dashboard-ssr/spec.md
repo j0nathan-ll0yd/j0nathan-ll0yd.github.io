@@ -76,8 +76,8 @@ gate shut over a visible signal, and KeyValueStore propagation.
 Verified by `tests/unit/data-plane-loader.test.ts:127` (gate shut over a visible signal),
 `tests/unit/data-plane-loader.test.ts:143` (one 403 during propagation) and
 `tests/unit/data-plane-loader.test.ts:156` (a hiding focus value fetches nothing), and in a scripts-off
-browser by `tests/behavioral/ssr-no-js.test.ts:297` (one 403 suppresses the page) and
-`tests/behavioral/ssr-no-js.test.ts:355` (each hiding mode: the overlay shows, no export is read, no
+browser by `tests/behavioral/ssr-no-js.test.ts:321` (one 403 suppresses the page) and
+`tests/behavioral/ssr-no-js.test.ts:379` (each hiding mode: the overlay shows, no export is read, no
 gated value is in the DOM).
 
 #### Scenario: A failed focus publication
@@ -144,7 +144,7 @@ with an empty list is `empty`, not a failure. An export older than its `audit.er
 
 Verified by `tests/unit/data-plane-loader.test.ts:283` (an empty list) and
 `tests/unit/data-plane-loader.test.ts:290` (an old source), and per export in a scripts-off browser by
-`tests/behavioral/ssr-no-js.test.ts:269` (5xx, malformed, old and empty answers, with `data-ssr-state`,
+`tests/behavioral/ssr-no-js.test.ts:293` (5xx, malformed, old and empty answers, with `data-ssr-state`,
 the meta and `X-SSR-Data` in agreement).
 
 #### Scenario: An old export
@@ -179,8 +179,8 @@ overlay used to hard-code, and no coordinates, place or visit data (D14). Author
 such as the Person address, is allowed. Production builds cannot reach `@j0nathan-ll0yd/fixtures`
 (the `forbid-fixtures` build plugin).
 
-Verified by `tests/behavioral/ssr-no-js.test.ts:219` (legacy markers and retired overlay rows) and
-`tests/behavioral/ssr-no-js.test.ts:248` (D14).
+Verified by `tests/behavioral/ssr-no-js.test.ts:243` (legacy markers and retired overlay rows) and
+`tests/behavioral/ssr-no-js.test.ts:272` (D14).
 
 #### Scenario: A crawler reads the dashboard
 
@@ -334,7 +334,18 @@ Worker-side guarantee. It SHALL admit only:
   `coasttocoastreviews.com` with or without `www.`, the Workouts share link host `share.barrys.com`,
   and the System Status hosts `www.apple.com`, `www.livelarq.com`, `acaia.co`, `feedly.com`,
   `www.squarespace.com`), with no credentials, port, or percent-encoded dot, slash or backslash;
-  `target="_blank"` only with `rel` naming `noopener`;
+  `target="_blank"` only with `rel` naming `noopener`; `rel` tokens only `noopener`, `noreferrer`
+  and, on the Bookshelf tile link alone, `sponsored`, split on ASCII whitespace as HTML splits them,
+  with no character reference and no other whitespace character (U+00A0 and the Unicode spaces) in
+  the value;
+- one exception, the Bookshelf tile link (web 4.6.0, atlas decision 0160 D5): an `a` in `cardBooks`
+  whose raw `class` is exactly `shelf-book-link`, `target` exactly `_blank` and `rel` exactly
+  `sponsored noopener noreferrer` may name the href the design system's `amazonBookUrl` builds:
+  `https://www.amazon.com/dp/` and exactly ten upper-case letters or digits, then exactly the
+  affiliate query `?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl`
+  (`BOOK_LINK`, `BOOK_LINK_QUERY`); `www.amazon.com` is not an allowlisted host, so the same href
+  outside this shape and the article link's is refused (`url`), and `sponsored` on any other link is
+  refused (`attribute`, or `url` where an any-host href then misses the article shape);
 - one exception, the Reading card's article link (OWNER DECISION PENDING, option A): an `a` in
   `cardReading` whose raw `class` is exactly `article-list-title`, `target` exactly `_blank` and `rel`
   exactly `noopener noreferrer` may name any `https` URL the design system emits for an article: it
@@ -346,7 +357,7 @@ Worker-side guarantee. It SHALL admit only:
 - a `title` attribute on a `span` only (the Reading card's note icon), escaped (no raw `<` or `>`),
   at most 16,384 characters (`MAX_TITLE`);
 - a `src` or `srcset` URL that is a same-origin `/images/` path or the data plane's `/images/`, with
-  no dot segment, encoded or not;
+  no dot segment, encoded or not, and a `srcset` with no whitespace character but ASCII whitespace;
 - a `style` attribute whose every declaration names an allowlisted property with a value in that
   property's grammar (sizes up to 480 px or 100 percent, `position: relative` only, no `url()`, no
   escape, no `!important`), because the components emit `style` for bar widths, delays and
@@ -398,7 +409,8 @@ named scenario reaches cannot turn the composed page off in production.
 Verified by `tests/unit/composed-read.test.ts:286` (the first review's seven probes, the reproducers
 of the two later review rounds, and the other refusal cases), `tests/unit/ssr-response.test.ts:327`
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
-scoped-style hash and a page id are refused per slot), `tests/build/composed-containment.test.ts:16`
+scoped-style hash and a page id are refused per slot), `tests/unit/composed-book-link.test.ts:42`
+(the Bookshelf tile link's shape, href and `sponsored` bounds), `tests/build/composed-containment.test.ts:16`
 (`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
 `tests/oracle/composer-parity.test.ts:529` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
 the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
@@ -692,7 +704,7 @@ The render SHALL NOT branch on the client: no code on the render path reads `Use
 Hints or any browser state. A crawler and a browser receive the same document for the same data.
 
 Verified by `tests/unit/data-plane-config.test.ts:107` (no client identity on the render path) and
-`tests/behavioral/ssr-no-js.test.ts:418` (the head of the render equals the data-free page's).
+`tests/behavioral/ssr-no-js.test.ts:442` (the head of the render equals the data-free page's).
 
 #### Scenario: A crawler and a browser request `/`
 
