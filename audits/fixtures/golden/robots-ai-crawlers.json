@@ -1,5 +1,5 @@
 {
-  "_comment": "Drift guard for audits/checks/b2-validate-robots.mjs. Lists the AI-crawler User-agent sections that src/pages/robots.txt.ts must preserve: training crawlers are blocked from the dashboard except /llms.txt, while search/answer agents are allowed to read the full site. Captured from the live robots.txt on 2026-07-16. A MISSING entry or effective-policy change is a fail. An EXTRA entry in the live file that isn't listed here is a warn (update this snapshot to intentionally acknowledge the addition).",
+  "_comment": "Drift guard for audits/checks/b2-validate-robots.mjs. Lists the AI-crawler User-agent sections that src/pages/robots.txt.ts must preserve: training crawlers are blocked from the dashboard except /llms.txt, while search/answer agents are allowed to read the full site. Captured from src/pages/robots.txt.ts on 2026-10-29 (atlas decision 0174 D1 and D2). A MISSING entry or effective-policy change is a fail. An EXTRA entry in the live file that isn't listed here is a warn (update this snapshot to intentionally acknowledge the addition).",
   "aiTrainingBotsBlockedExceptLlmsTxt": [
     "GPTBot",
     "ClaudeBot",
@@ -8,15 +8,17 @@
     "Google-CloudVertexBot",
     "Bytespider",
     "Meta-ExternalAgent",
-    "Meta-ExternalFetcher",
     "Applebot-Extended",
-    "Amazonbot"
+    "Amazonbot",
+    "MistralAI-Training",
+    "Webzio-extended"
   ],
   "aiSearchAgentsAllowedFullSite": [
     "OAI-SearchBot",
     "ChatGPT-User",
     "Claude-SearchBot",
     "Claude-User",
-    "Perplexity-User"
+    "Perplexity-User",
+    "Meta-ExternalFetcher"
   ]
 }

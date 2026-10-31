@@ -23,7 +23,7 @@
 // (`script`, `style`, `textarea`, `plaintext`, `noscript`, `iframe`, `template`), `form`, `object`,
 // `embed`, `link`, `meta`, `base`, any `on*` or unknown attribute, a URL that is not a first-party
 // path or an allowlisted https host (an encoded dot, slash or backslash included; the one exception is
-// the Reading card's article link, ARTICLE_LINK below), a `style`
+// the Reading card's article link, ARTICLE_LINK below, and the Bookshelf tile link, BOOK_LINK), a `style`
 // attribute outside the declaration grammar below, and `popover` anywhere but System Status's tooltip
 // (the UA styles `[popover]` as a fixed full-viewport layer, shown by any author `display`).
 //
@@ -205,6 +205,24 @@ export const LINK_HOSTS: ReadonlySet<string> = new Set([
  * Under READING_LINKS 'strip' (option B) the exception is off (./reading-option.ts).
  */
 export const ARTICLE_LINK = Object.freeze({fragment: 'cardReading', className: 'article-list-title', target: '_blank', rel: 'noopener noreferrer'})
+/**
+ * The Bookshelf tile link (DS Bookshelf, web 4.6.0; atlas decision 0160 D5): the title text of each
+ * tile is a real link to the book, so a visitor or crawler without JavaScript reaches it. Its href is
+ * the DS `amazonBookUrl(asin)`: BOOK_LINK_HOST, the path `/dp/<BOOK_ASIN>` and the exact affiliate query
+ * BOOK_LINK_QUERY. The link is admitted only in its exact DS shape, `a.shelf-book-link` in `cardBooks`
+ * with `target="_blank"` and `rel="sponsored noopener noreferrer"`. The `sponsored` token stands only
+ * in this shape, and BOOK_LINK_HOST never joins LINK_HOSTS, so no other card or element gains it.
+ */
+export const BOOK_LINK = Object.freeze({fragment: 'cardBooks', className: 'shelf-book-link', target: '_blank', rel: 'sponsored noopener noreferrer'})
+/** The query string `amazonBookUrl` appends (tests/unit/composed-book-link.test.ts tethers it to the DS). */
+export const BOOK_LINK_QUERY = '?tag=lifegames04-20&linkCode=ll2&language=en_US&ref_=as_li_ss_tl'
+/**
+ * An ASIN: exactly 10 upper-case letters or digits, as the one production writer requires
+ * (mantle-LifegamesPortal `addBookRequestSchema`) and the `@j0nathan-ll0yd/fixtures` variations carry
+ * since 1.6.6 (an ISBN-10, which may end in `X`, or a `B0` Amazon id).
+ */
+const BOOK_ASIN = '[A-Z0-9]{10}'
+const BOOK_LINK_HREF = new RegExp(`^https://${BOOK_LINK_HOST.replaceAll('.', '\\.')}/dp/${BOOK_ASIN}${BOOK_LINK_QUERY.replaceAll(/[?.]/g, '\\$&')}$`)
 /** Longer than any article URL the feed carries (123 characters in production, 2026-10-16). */
 export const MAX_ARTICLE_HREF = 2_048
 /**
@@ -476,6 +494,19 @@ function httpsUrlAllowed(href: string, hosts: ReadonlySet<string>): boolean {
   }
 }
 
+/**
+ * HTML splits a token list (`rel`) and a `srcset` on ASCII whitespace only. JavaScript's `\s` also
+ * matches U+00A0, U+000B, U+FEFF and the Unicode spaces, so a value the policy split with `\s` could
+ * hold a token the browser never sees. A value with such a character is refused outright.
+ */
+const ASCII_WHITESPACE = /[\t\n\f\r ]+/
+const NON_ASCII_WHITESPACE = /(?![\t\n\f\r ])\s/
+
+/** True for a Bookshelf tile link's href: exactly what `amazonBookUrl` builds for a BOOK_ASIN. */
+export function bookHrefAllowed(href: string): boolean {
+  return BOOK_LINK_HREF.test(href) && httpsUrlAllowed(href, new Set([BOOK_LINK_HOST]))
+}
+
 /** True for a link this page may carry: a same-origin path, or https to an allowlisted host. */
 export function hrefAllowed(href: string): boolean {
   if (SAME_ORIGIN_PATH.test(href)) {
@@ -520,6 +551,9 @@ export function imageAllowed(src: string): boolean {
 }
 
 function srcsetAllowed(srcset: string): boolean {
+  if (NON_ASCII_WHITESPACE.test(srcset)) {
+    return false
+  }
   return srcset.split(',').every((candidate) => {
     const [url, descriptor, extra] = candidate.trim().split(/\s+/)
     return url !== undefined && extra === undefined && imageAllowed(url) && (descriptor === undefined || /^\d+(?:\.\d+)?[wx]$/.test(descriptor))
@@ -551,6 +585,16 @@ const VALUE_CHECKED: ReadonlySet<string> = new Set([
   'title'
 ])
 
+/** The href exceptions an attribute raised, judged once the whole tag is read. */
+type DeferredHref = {book: boolean; article: boolean}
+
+type LinkShape = Readonly<{fragment: string; className: string; target: string; rel: string}>
+
+/** True when a tag is the exact DS shape of an exception link: its element, card, class, rel and target. */
+function linkShaped(shape: LinkShape, name: string, id: string, classValue: string | null, relValue: string | null, targetValue: string | null): boolean {
+  return name === 'a' && id === shape.fragment && classValue === shape.className && relValue === shape.rel && targetValue === shape.target
+}
+
 function checkAttribute(
   element: string,
   svg: boolean,
@@ -559,7 +603,7 @@ function checkAttribute(
   facts: FragmentFacts,
   options: FragmentOptions,
   classTokens: ReadonlySet<string>,
-  deferred: {articleHref: string | null}
+  deferred: DeferredHref
 ): FragmentRejection | null {
   if (SCOPE_ATTRIBUTE.test(name)) {
     if (raw !== null && raw !== '') {
@@ -606,13 +650,11 @@ function checkAttribute(
       if (hrefAllowed(value)) {
         return null
       }
-      // Not a first-party or allowlisted link: admitted only as an article link, judged once the
-      // whole tag is read (its class, rel and target may follow the href).
-      if (READING_LINKS !== 'allow' || !articleHrefAllowed(value)) {
-        return 'url'
-      }
-      deferred.articleHref = value
-      return null
+      // Not a first-party or allowlisted link: admitted only as a book link or an article link, judged
+      // once the whole tag is read (its class, rel and target may follow the href).
+      deferred.book = bookHrefAllowed(value)
+      deferred.article = READING_LINKS === 'allow' && articleHrefAllowed(value)
+      return deferred.book || deferred.article ? null : 'url'
     case 'src':
       return imageAllowed(value) ? null : 'url'
     case 'srcset':
@@ -620,7 +662,13 @@ function checkAttribute(
     case 'style':
       return styleAllowed(value) ? null : 'style'
     case 'rel':
-      return value.split(/\s+/).every((token) => token === 'noopener' || token === 'noreferrer') ? null : 'attribute'
+      // The tag-level checks (noopener, `sponsored`, the link shapes) read the raw value, so a
+      // character reference, which no component writes here, would hide a token from them.
+      if ((raw !== null && raw.includes('&')) || NON_ASCII_WHITESPACE.test(value)) {
+        return 'attribute'
+      }
+      // `sponsored` is judged once the whole tag is read: it stands only in the book link's shape.
+      return value.split(ASCII_WHITESPACE).every((token) => token === 'noopener' || token === 'noreferrer' || token === 'sponsored') ? null : 'attribute'
     case 'role':
       return /^[a-z]{1,20}$/.test(value) ? null : 'attribute'
     case 'title':
@@ -787,7 +835,7 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
     let classValue: string | null = null
     let relValue: string | null = null
     let targetValue: string | null = null
-    const deferred: {articleHref: string | null} = {articleHref: null}
+    const deferred: DeferredHref = {book: false, article: false}
     for (;;) {
       ATTRIBUTE.lastIndex = cursor
       const attr = ATTRIBUTE.exec(fragment)
@@ -813,7 +861,7 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
         ownId = facts.ids.at(-1) ?? null
       }
       hidden ||= attrName === 'hidden'
-      noopener ||= attrName === 'rel' && (attr[2] ?? '').split(/\s+/).includes('noopener')
+      noopener ||= attrName === 'rel' && (attr[2] ?? '').split(ASCII_WHITESPACE).includes('noopener')
       if (attrName === 'style') {
         style = attr[2] ?? ''
       } else if (attrName === 'class') {
@@ -831,16 +879,17 @@ export function checkFragment(fragment: string, id: string, options: FragmentOpt
     if (close === null || (seen.has('target') && !noopener)) {
       return {ok: false, reason: 'attribute'}
     }
-    // An any-host link stands only in the article link's exact shape.
+    // A book link stands only in the book link's exact shape, an any-host link only in the article
+    // link's, and the `sponsored` rel token only on a book link.
+    const bookShape = linkShaped(BOOK_LINK, name, id, classValue, relValue, targetValue)
     if (
-      deferred.articleHref !== null &&
-      (name !== 'a' ||
-        id !== ARTICLE_LINK.fragment ||
-        classValue !== ARTICLE_LINK.className ||
-        relValue !== ARTICLE_LINK.rel ||
-        targetValue !== ARTICLE_LINK.target)
+      (deferred.book || deferred.article) && !(deferred.book && bookShape) &&
+      !(deferred.article && linkShaped(ARTICLE_LINK, name, id, classValue, relValue, targetValue))
     ) {
       return {ok: false, reason: 'url'}
+    }
+    if (relValue !== null && relValue.split(ASCII_WHITESPACE).includes('sponsored') && !(deferred.book && bookShape)) {
+      return {ok: false, reason: 'attribute'}
     }
     // The UA styles `[popover]` as a fixed full-viewport layer; only `display: none` keeps it shut.
     // A top-level element carries no `style` or `popover`, so it cannot become a layer over the page.
