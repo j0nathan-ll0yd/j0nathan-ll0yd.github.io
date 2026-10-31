@@ -9,7 +9,7 @@ specifications carry a point-in-time verification date.
 | File                                                | Purpose                                                                   | Produced by                                                                                                                      | Spec / version (verified)             |
 | --------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | `/robots.txt`                                       | Per-agent crawl policy                                                    | `src/pages/robots.txt.ts`                                                                                                        | RFC 9309 directives + Sitemap         |
-| `Content-Usage` response header                     | Machine-readable content-use preference                                   | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                                                    | IETF WG drafts attach-05 / vocab-07   |
+| `Content-Usage` response header                     | Machine-readable content-use preference                                   | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                                                    | IETF WG drafts attach-05 / vocab-08   |
 | `/sitemap-index.xml`                                | URL discovery for search engines                                          | `@astrojs/sitemap` (`astro.config.mjs`)                                                                                          | Sitemaps 0.9                          |
 | `/humans.txt`                                       | Human authorship credits                                                  | `src/pages/humans.txt.ts`                                                                                                        | humanstxt.org                         |
 | `/feed.xml`, `/feed.json`                           | Content feeds                                                             | `src/pages/feed.xml.ts`, `src/pages/feed.json.ts`                                                                                | RSS 2.0 / JSON Feed 1.1               |
@@ -274,9 +274,11 @@ so both paths are required. This is the HTTP response-header form defined by the
 AI Preferences Working Group drafts
 [`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)
 and
-[`draft-ietf-aipref-vocab-07`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-07.html),
-both verified 2026-08-19. The current vocabulary defines `train-ai` and `search`;
-it does not define an AI-input category.
+[`draft-ietf-aipref-vocab-08`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-08.html)
+(14 September 2026), both re-verified 2026-10-29. vocab-08 defines three categories:
+`train-ai`, `ai-use` and `search`. It also states that "Its contents DO NOT REFLECT
+CONSENSUS of the Working Group". The header deliberately states `train-ai` and `search`
+only: atlas decision 0174 E2 deferred `ai-use=y`, so `ai-use` stays unstated.
 
 The attachment draft also describes a robots extension, but `/robots.txt`
 intentionally omits it. Lighthouse treats directives it does not recognize as an SEO
@@ -311,8 +313,12 @@ What re-verifies them automatically:
   catalog's pinned sources (llms.txt, RSS, JSON Feed, RFC 9116) and, since atlas decision
   0158, the agent-discovery `WATCHED_SOURCES`: the WebMCP draft (`index.bs`), SEP-2127, the
   server-card extension's `docs/discovery.md`, the ARD v0.91 specification, and the three
-  vendored schemas. A revision is reported as
-  `spec-source-moved` and escalates to `fail` after the re-pin grace window.
+  vendored schemas. Since atlas decision 0174 E1 it also watches the two AIPREF drafts behind
+  the `Content-Usage` header, `draft-ietf-aipref-vocab-08` and `draft-ietf-aipref-attach-05`:
+  it reads each draft's latest revision and lifecycle state from the IETF datatracker. A
+  revision, or a draft that leaves the active state, is reported as `spec-source-moved` and
+  escalates to `fail` after the re-pin grace window. An unreadable datatracker record is
+  INDETERMINATE, never current.
 - `audits/checks/b2-check-wellknown.mjs` (monthly tier of `audit-web.yml`) validates the served card, `ai-catalog.json`
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
   `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then

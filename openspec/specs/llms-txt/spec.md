@@ -722,7 +722,7 @@ The served llms.txt SHALL begin with an H1, SHALL follow it with a summary block
 contain exactly one H1. Every H2 section list item that carries an http(s) URL SHALL wrap it as a
 well-formed `[name](url)` markdown link — nonempty label, nonempty destination — and every H2
 heading SHALL have content under it.
-Verified by `audits/__tests__/spec-cases.test.ts:123` (the five convention rules, derived cases) and
+Verified by `audits/__tests__/spec-cases.test.ts:127` (the five convention rules, derived cases) and
 `audits/__tests__/b2-validate-llms-txt.property.test.ts:221` (the five structural invariants as
 properties, tethered by its three `covers:` comments at `:221`, `:255`, and `:317`).
 
@@ -820,7 +820,7 @@ or `operational` — SHALL NOT carry a `cites` block at all, and therefore SHALL
 it records an optional `derivedFrom` instead, which SHALL still pin, date and digest any quote it
 carries. There is no `spec` block and no `verification_url`: the two arms replaced that single
 shared object in atlas decision 0129's consumer round.
-Verified by `audits/__tests__/spec-cases.test.ts:124` (blocking).
+Verified by `audits/__tests__/spec-cases.test.ts:128` (blocking).
 
 The anchor is a PROVENANCE claim, not a conformance claim. What these two gates prove is that the
 quoted clause is really what the pinned source says — nothing more. Where a rule departs from the

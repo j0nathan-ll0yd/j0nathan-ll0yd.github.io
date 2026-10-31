@@ -114,6 +114,9 @@ async function clickBookByAsin(page: Page, asin: string): Promise<void> {
   await trigger.click()
 }
 
+/** The title link of the tile for `asin`: the tile's one focusable element and the dialog's trigger. */
+const LINK_SELECTOR = (asin: string): string => `#cardBooks .shelf-book[data-book*="${asin}"] .shelf-book-link`
+
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
@@ -272,18 +275,15 @@ test.describe('BookModal — native <dialog> behavior', () => {
   // -----------------------------------------------------------------------
   // 6. Focus restore: after close, focus returns to the trigger
   // -----------------------------------------------------------------------
-  test('6. closing modal returns focus to the originating shelf-book trigger', async () => {
-    const trigger = page.locator('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]').first()
+  test('6. closing modal returns focus to the originating tile link', async () => {
+    const trigger = page.locator(LINK_SELECTOR('B07QVH2Q2K')).first()
     await trigger.click()
     await expect(page.locator('dialog#bookDialog')).toHaveAttribute('open')
 
     await page.locator('.book-modal-close').click()
     await expect(page.locator('dialog#bookDialog')).not.toHaveAttribute('open')
 
-    const isFocused = await page.evaluate(() => {
-      const trigger = document.querySelector('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]') as HTMLElement | null
-      return document.activeElement === trigger
-    })
+    const isFocused = await page.evaluate((selector) => document.activeElement === document.querySelector(selector), LINK_SELECTOR('B07QVH2Q2K'))
     expect(isFocused).toBe(true)
   })
 
@@ -292,9 +292,11 @@ test.describe('BookModal — native <dialog> behavior', () => {
   //     :focus-visible ring — keyboard users get a visible focus indicator
   //     (WCAG 2.4.7). The global input-modality tracker (runtime/input-modality)
   //     keeps the ring for keyboard input; pointer dismiss suppresses it (6c).
+  //     The trigger is the tile's title link (web 4.6.0); its ring is drawn on
+  //     the link's tile-sized ::after overlay, never on the link itself.
   // -----------------------------------------------------------------------
   test('6b. Escape (keyboard) dismiss returns focus to the trigger WITH a GREEN ring (DS intent)', async () => {
-    const trigger = page.locator('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]').first()
+    const trigger = page.locator(LINK_SELECTOR('B07QVH2Q2K')).first()
     // Open via KEYBOARD so the input-modality tracker records `keyboard`.
     await trigger.focus()
     await page.keyboard.press('Enter')
@@ -303,8 +305,8 @@ test.describe('BookModal — native <dialog> behavior', () => {
     await page.keyboard.press('Escape')
     await expect(page.locator('dialog#bookDialog')).not.toHaveAttribute('open')
 
-    const state = await page.evaluate(() => {
-      const t = document.querySelector('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]') as HTMLElement | null
+    const state = await page.evaluate((selector) => {
+      const t = document.querySelector(selector) as HTMLElement | null
       if (!t) {
         return null
       }
@@ -317,17 +319,19 @@ test.describe('BookModal — native <dialog> behavior', () => {
       return {
         focused: document.activeElement === t,
         modality: document.documentElement.dataset.inputModality,
-        outlineStyle: getComputedStyle(t).outlineStyle,
-        outlineColor: getComputedStyle(t).outlineColor,
+        linkOutlineStyle: getComputedStyle(t).outlineStyle,
+        outlineStyle: getComputedStyle(t, '::after').outlineStyle,
+        outlineColor: getComputedStyle(t, '::after').outlineColor,
         greenRgb
       }
-    })
+    }, LINK_SELECTOR('B07QVH2Q2K'))
     expect(state?.focused).toBe(true)
     // Keyboard modality → the focus ring IS visible on the returned-focus trigger.
     expect(state?.modality).toBe('keyboard')
     expect(state?.outlineStyle).not.toBe('none')
-    // DS intent restored: the book-tile focus ring is green
-    // (base.css .shelf-book:focus-visible), not the old global pink.
+    expect(state?.linkOutlineStyle).toBe('none')
+    // DS intent: the book-tile focus ring is green
+    // (base.css .shelf-book-link:focus-visible::after), not the global pink.
     expect(state?.outlineColor).toBe(state?.greenRgb)
   })
 
@@ -338,27 +342,29 @@ test.describe('BookModal — native <dialog> behavior', () => {
   //     `pointer`, and a11y.css hides the ring under pointer modality).
   // -----------------------------------------------------------------------
   test('6c. pointer dismiss returns focus to the trigger with NO visible ring', async () => {
-    const trigger = page.locator('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]').first()
+    const trigger = page.locator(LINK_SELECTOR('B07QVH2Q2K')).first()
     await trigger.click() // pointer input → modality = pointer
     await expect(page.locator('dialog#bookDialog')).toHaveAttribute('open')
 
     await page.locator('.book-modal-close').click() // pointer dismiss
     await expect(page.locator('dialog#bookDialog')).not.toHaveAttribute('open')
 
-    const state = await page.evaluate(() => {
-      const t = document.querySelector('#cardBooks .shelf-book[data-book*="B07QVH2Q2K"]') as HTMLElement | null
+    const state = await page.evaluate((selector) => {
+      const t = document.querySelector(selector) as HTMLElement | null
       if (!t) {
         return null
       }
       return {
         focused: document.activeElement === t,
         modality: document.documentElement.dataset.inputModality,
-        outlineStyle: getComputedStyle(t).outlineStyle
+        outlineStyle: getComputedStyle(t).outlineStyle,
+        overlayOutlineStyle: getComputedStyle(t, '::after').outlineStyle
       }
-    })
+    }, LINK_SELECTOR('B07QVH2Q2K'))
     expect(state?.focused).toBe(true)
     expect(state?.modality).toBe('pointer')
     expect(state?.outlineStyle).toBe('none')
+    expect(state?.overlayOutlineStyle).toBe('none')
   })
 
   // -----------------------------------------------------------------------
