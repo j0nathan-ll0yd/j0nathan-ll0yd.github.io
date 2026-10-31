@@ -26,5 +26,5 @@ export function isAllowedImageUrl(value: string, baseUrl = SITE_URL): boolean {
     return false
   }
 
-  return url.origin === SITE_ORIGIN || url.origin === CLOUDFRONT_ORIGIN || /^[a-z0-9-]+\.basemaps\.cartocdn\.com$/i.test(url.hostname)
+  return url.origin === SITE_ORIGIN || url.origin === CLOUDFRONT_ORIGIN
 }
