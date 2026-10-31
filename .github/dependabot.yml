@@ -15,15 +15,26 @@ version: 2
 # with `GITHUB_`, so `${{secrets.GITHUB_TOKEN}}` is not expressible here.
 # `read:packages` is the only scope required.
 #
+# `scope` is required. Keep it equal to the `@j0nathan-ll0yd:registry=` line in
+# .npmrc. The mapping then stays committed in two places: .npmrc for pnpm, and
+# this file for Dependabot. In dependabot-core `1f80af96b`
+# (npm_and_yarn/lib/dependabot/npm_and_yarn/file_updater/npmrc_builder.rb):
+#   - With `scope` set, `npmrc_content` logs "Generating .npmrc from credential
+#     scope configuration (committed .npmrc ignored)".
+#     `build_npmrc_from_scope_credentials` writes the mapping and the auth line,
+#     and keeps only the allow-git and allow-remote lines of the committed file.
+#     The committed .npmrc holds only the mapping, so the result is equivalent.
+#   - Without `scope`, `registry_scopes` infers scope mappings from each
+#     dependency's resolved URL on this registry. GitHub Packages answers for
+#     `@types/*` with stale copies, so pnpm fetched `@types` from it. Weekly run 38301324443
+#     (2026-10-12) failed 18 of 18 updates with `ERR_PNPM_NO_MATCHING_VERSION
+#     ... @types/estree@1.0.8 while fetching it from https://npm.pkg.github.com/`,
+#     and 252 `@types` probes answered 200. No npm PR opened after #164
+#     (2026-08-04). Same fault and fix as mantle PR #489.
+#
 # Deliberately NOT set:
 #   replaces-base -- would route *every* dependency through GitHub Packages,
 #     which does not proxy registry.npmjs.org.
-#   scope         -- would make Dependabot regenerate .npmrc purely from these
-#     credentials and discard the committed one. Since the pnpm migration (atlas
-#     decision 0032) the committed .npmrc is nothing BUT the
-#     `@j0nathan-ll0yd:registry=` scope mapping, so regenerating it would be a
-#     near-no-op rather than the breakage it used to be -- but leaving it unset
-#     keeps the mapping under version control, which is where it belongs.
 #
 # `package-ecosystem: npm` is correct under pnpm: Dependabot's npm ecosystem
 # handles package-lock.json, yarn.lock AND pnpm-lock.yaml. It reads the pnpm
@@ -32,6 +43,7 @@ registries:
   github-packages:
     type: npm-registry
     url: https://npm.pkg.github.com
+    scope: "@j0nathan-ll0yd"
     token: ${{secrets.GH_PACKAGES_READ_TOKEN}}
 
 updates:
