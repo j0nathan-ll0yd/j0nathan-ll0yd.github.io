@@ -93,7 +93,7 @@ export const FRAGMENT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Readonly
   ),
   cardBooks: tokens(
     'live-dot shelf-book shelf-book-active shelf-book-author shelf-book-finished-date ' +
-      'shelf-book-progress shelf-book-progress-bar shelf-book-progress-fill shelf-book-stars ' +
+      'shelf-book-link shelf-book-progress shelf-book-progress-bar shelf-book-progress-fill shelf-book-stars ' +
       'shelf-book-status shelf-book-title shelf-cover-wrapper shelf-row shelf-status-finished ' +
       'shelf-status-pending shelf-status-reading shelf-status-upNext skeleton-bar skeleton-state ' +
       'star-off star-on tri-card tri-card-accent-amber widget-body widget-empty widget-empty--stack ' +
