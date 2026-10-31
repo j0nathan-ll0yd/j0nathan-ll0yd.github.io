@@ -1,6 +1,8 @@
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
+import {bookUrl} from '../shared/book-url'
+import {FIXTURE_NOW_ISO} from '../data-plane/baseline'
 import {expectNoNewAxeViolations} from './a11y'
 import {expectLiveReady, serveDataFreePage, syncServerPlane} from './dashboard-fixtures'
 
@@ -46,6 +48,9 @@ async function interceptDashboardData(page: Page, booksFixture: string, dataFree
     await serveDataFreePage(page)
   }
 }
+
+/** The title link of the tile for `asin`: the tile's one focusable element and the dialog's trigger. */
+const TILE_LINK = (asin: string): string => `#cardBooks .shelf-book[data-book*="${asin}"] .shelf-book-link`
 
 async function loadBooksFixture(page: Page, variation: string): Promise<void> {
   await interceptDashboardData(page, fixture('books', variation))
@@ -134,5 +139,64 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks')).not.toContainText('JavaScript: The Good Parts')
 
     await expectNoNewAxeViolations(page, 'bookshelf/full')
+  })
+
+  // The tile link (web 4.6.0, DS #333): the server render links each title to its book; the
+  // book-modal enhancement turns a plain click into the dialog and leaves a modified click alone.
+  // `full` holds a reading, an up-next and a finished book (book-modal.spec.ts).
+  // covers: bookshelf-render#Each book card links to its book without JavaScript
+  test('a plain click on a tile link opens the dialog and does not navigate', async ({page, context}) => {
+    await loadBooksFixture(page, 'full')
+    const opened: string[] = []
+    const bookRequests: string[] = []
+    const navigations: string[] = []
+    context.on('page', (other) => opened.push(other.url()))
+    await context.route('https://www.amazon.com/**', (route) => {
+      bookRequests.push(route.request().url())
+      return route.abort()
+    })
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) {
+        navigations.push(frame.url())
+      }
+    })
+    const url = page.url()
+
+    await page.locator(TILE_LINK('B07QVH2Q2K')).click()
+
+    await expect(page.locator('dialog#bookDialog')).toHaveAttribute('open')
+    await expect(page.locator('.book-modal-title')).toContainText('Shorefall')
+    // The enhancement cancels the click in its own task; a short backstop lets a regressed tab start.
+    await page.waitForTimeout(100)
+    expect(page.url()).toBe(url)
+    expect({opened, bookRequests, navigations}).toEqual({opened: [], bookRequests: [], navigations: []})
+  })
+
+  test('a Ctrl or Cmd click on a tile link opens the book in a new tab and no dialog', async ({page, context}) => {
+    await loadBooksFixture(page, 'full')
+    // The new tab is a page of its own, outside this page's routes: answer the book URL locally.
+    await context.route('https://www.amazon.com/**', (route) => route.fulfill({status: 200, contentType: 'text/html', body: '<title>book</title>'}))
+
+    const [tab] = await Promise.all([
+      context.waitForEvent('page', {timeout: 5_000}),
+      page.locator(TILE_LINK('B07QVH2Q2K')).click({modifiers: ['ControlOrMeta']})
+    ])
+
+    await tab.waitForURL(bookUrl('B07QVH2Q2K'))
+    await expect(page.locator('dialog#bookDialog')).not.toHaveAttribute('open')
+  })
+
+  test('aria-haspopup="dialog" marks every tile link once the enhancement binds, and never the server HTML', async ({page}) => {
+    await loadBooksFixture(page, 'full')
+    const links = page.locator('#cardBooks .shelf-book-link')
+    await expect(links).toHaveCount(await page.locator('#cardBooks .shelf-book').count())
+    expect(await links.evaluateAll((els) => els.filter((el) => el.getAttribute('aria-haspopup') !== 'dialog').length)).toBe(0)
+
+    // The same document the page received: the Worker renders at the fixtures' date (pinRenderClock).
+    const response = await page.request.get('/', {headers: {'x-ssr-clock': FIXTURE_NOW_ISO}})
+    expect(response.headers()['x-ssr-data'], 'the server composed the page').toBe('live')
+    const serverLinks = (await response.text()).match(/<a class="shelf-book-link"[^>]*>/g) ?? []
+    expect(serverLinks.length, 'the server render carries the tile links').toBeGreaterThan(0)
+    expect(serverLinks.filter((tag) => tag.includes('aria-haspopup'))).toEqual([])
   })
 })
