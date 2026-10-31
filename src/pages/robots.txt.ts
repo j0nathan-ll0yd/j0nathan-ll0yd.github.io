@@ -13,12 +13,11 @@ export function GET(): Response {
 User-agent: *
 Allow: /
 
-# AI scraping/training bots -- blocked from visual dashboard,
-# LLM discovery index (${LLMS_TXT_PATH}) allowed per Option A of the
-# LLM Content Delivery plan. Rich variants live on CloudFront
-# (see ${LLMS_TXT_PATH} for URLs) and are governed separately.
-# AI search agents (OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User,
-# Perplexity-User) inherit Allow: / from User-agent: * above.
+# AI training bots -- blocked from the dashboard. The LLM discovery
+# index (${LLMS_TXT_PATH}) stays allowed per Option A of the LLM Content
+# Delivery plan. This file binds this host only. The rich variants and JSON
+# exports that ${LLMS_TXT_PATH} links live on a separate CloudFront origin,
+# which answers for its own /robots.txt.
 User-agent: GPTBot
 Allow: ${LLMS_TXT_PATH}
 Disallow: /
@@ -47,10 +46,6 @@ User-agent: Meta-ExternalAgent
 Allow: ${LLMS_TXT_PATH}
 Disallow: /
 
-User-agent: Meta-ExternalFetcher
-Allow: ${LLMS_TXT_PATH}
-Disallow: /
-
 User-agent: Applebot-Extended
 Allow: ${LLMS_TXT_PATH}
 Disallow: /
@@ -59,8 +54,18 @@ User-agent: Amazonbot
 Allow: ${LLMS_TXT_PATH}
 Disallow: /
 
-# AI search/answer agents -- explicitly allowed to read the full site,
-# matching the search permission sent in the site's HTTP response headers.
+User-agent: MistralAI-Training
+Allow: ${LLMS_TXT_PATH}
+Disallow: /
+
+User-agent: Webzio-extended
+Allow: ${LLMS_TXT_PATH}
+Disallow: /
+
+# AI search/answer agents -- each named in its own group and allowed to read
+# the full site, matching the search permission sent in the site's HTTP
+# response headers. The user-initiated fetchers (ChatGPT-User, Claude-User,
+# Perplexity-User, Meta-ExternalFetcher) sit in this block.
 # PerplexityBot has no separate training token, so it is NOT in the trainer
 # block above -- it inherits Allow: / from User-agent: *.
 User-agent: OAI-SearchBot
@@ -76,6 +81,9 @@ User-agent: Claude-User
 Allow: /
 
 User-agent: Perplexity-User
+Allow: /
+
+User-agent: Meta-ExternalFetcher
 Allow: /
 
 # LLM context: ${SITE_URL}${LLMS_TXT_PATH}

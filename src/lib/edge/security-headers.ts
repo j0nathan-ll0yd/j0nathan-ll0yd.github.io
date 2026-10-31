@@ -55,9 +55,10 @@ export const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/c
 // report per innerHTML sink while it runs.
 export const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint"
 
-// IETF AI Preferences Working Group drafts attach-05/vocab-07 define
+// IETF AI Preferences Working Group drafts attach-05/vocab-08 define
 // Content-Usage as an HTTP Structured Field Dictionary. Keep this out of
 // robots.txt until consumers such as Lighthouse recognize that extension.
+// vocab-08 adds `ai-use`; atlas decision 0174 E2 deferred stating it.
 export const CONTENT_USAGE = 'train-ai=n, search=y'
 
 export const PERMISSIONS_POLICY =
