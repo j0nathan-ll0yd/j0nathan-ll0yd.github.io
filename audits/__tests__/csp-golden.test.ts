@@ -12,9 +12,17 @@ const GOLDEN_PATH = path.resolve(process.cwd(), 'audits/fixtures/golden/csp.txt'
 // @j0nathan-ll0yd/web falls back to the same-origin /images/no-cover.svg, so no
 // image path can reach a third-party host. Re-adding any of these to img-src
 // would silently restore the hot-linking this policy exists to prevent.
-const REMOVED_IMAGE_HOSTS = ['https://m.media-amazon.com', 'https://images.squarespace-cdn.com', 'https://books.google.com']
+// The CARTO basemap tiles left with the Leaflet map (atlas decision 0157 re-review): no
+// page draws a map tile.
+const REMOVED_IMAGE_HOSTS = [
+  'https://m.media-amazon.com',
+  'https://images.squarespace-cdn.com',
+  'https://books.google.com',
+  // The bare host also catches the https://*. wildcard form, so it is the stronger guard.
+  'basemaps.cartocdn.com'
+]
 
-const EXPECTED_IMG_SRC = "img-src 'self' data: https://*.basemaps.cartocdn.com https://d1pfm520aduift.cloudfront.net"
+const EXPECTED_IMG_SRC = "img-src 'self' data: https://d1pfm520aduift.cloudfront.net"
 
 function directive(csp: string, name: string): string {
   const found = csp.split(';').map((d) => d.trim()).find((d) => d === name || d.startsWith(`${name} `))
@@ -31,7 +39,7 @@ describe('CSP golden baseline', () => {
     expect(golden).toBe(CSP)
   })
 
-  it('img-src is exactly self, data:, carto tiles and first-party CloudFront', () => {
+  it('img-src is exactly self, data: and first-party CloudFront', () => {
     expect(directive(CSP, 'img-src')).toBe(EXPECTED_IMG_SRC)
     expect(directive(golden, 'img-src')).toBe(EXPECTED_IMG_SRC)
   })

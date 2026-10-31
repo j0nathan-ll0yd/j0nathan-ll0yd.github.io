@@ -29,7 +29,7 @@ export const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com ${CLOUDFRONT_BASE}`,
+  `img-src 'self' data: ${CLOUDFRONT_BASE}`,
   `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
   "worker-src 'self'",
   "object-src 'none'",
@@ -88,7 +88,7 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
   ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains'],
   ['X-Frame-Options', 'DENY'],
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break the cross-origin Carto tile resources.
+  // COEP/CORP omitted -- COEP would block the cross-origin CloudFront images, which send no CORP header.
   ['Cross-Origin-Opener-Policy', 'same-origin-allow-popups'],
   ['Permissions-Policy', PERMISSIONS_POLICY]
 ])
@@ -96,6 +96,7 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
 /**
  * The paths that never ran code on Pages: `public/_routes.json` excluded them from Functions, so
  * their responses carried the `_headers` policy alone, without the CSP trio. They keep exactly that.
+ * `/css/` and `/vendor/` serve no file now and stay only for Pages parity, until atlas decision 0160 D7 deletes the Pages project.
  */
 export const CODE_FREE_PREFIXES = Object.freeze(['/_astro/', '/fonts/', '/css/', '/vendor/', '/assets/'])
 
