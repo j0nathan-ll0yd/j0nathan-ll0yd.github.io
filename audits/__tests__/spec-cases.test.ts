@@ -26,7 +26,7 @@ import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {artifacts, rules} from '../specs/load.mjs'
-import {validateSecurityTxt} from '../checks/b2-check-security-txt.mjs'
+import {validateSecurityTxt, validateSecurityTxtContentType} from '../checks/b2-check-security-txt.mjs'
 import {validateLlmsTxt} from '../checks/b2-llms.mjs'
 import {validateFeedJson, validateFeedXml} from '../checks/b2-check-feeds.mjs'
 
@@ -52,7 +52,7 @@ interface RuleFile {
   // by atlas decision 0119 D2; the freshness threshold now comes from the
   // packaged estate contract via audits/checks/b2-llms.mjs.
   // Can-fail probe C changes this value in the rule file and observes the
-  // expires-40d/expires-30d cases flip -- the only check that params is the
+  // expires-70d/expires-60d cases flip -- the only check that params is the
   // real comparison operand rather than a coincidental literal.
   params?: Record<string, unknown>
   params_pending?: string
@@ -72,10 +72,14 @@ const ARTIFACT_VALIDATORS: Record<
     invoke: (fn: never, input: unknown, c: Case, R: Record<string, RuleFile>) => Array<{id: string; severity: string}>
   }
 > = {
+  // Two pure validators, one artifact: a text input is a security.txt body, a JSON
+  // input ({contentType}) is the served Content-Type header (security-txt-content-type).
   'security-txt': {
     fn: validateSecurityTxt as never,
     invoke: (fn, input, c, R) =>
-      (fn as typeof validateSecurityTxt)(input as string, new Date(c.now as string), R['security-txt-expiring-soon'].params!.minDaysRemaining as number)
+      typeof input === 'string'
+        ? (fn as typeof validateSecurityTxt)(input, new Date(c.now as string), R['security-txt-expiring-soon'].params!.minDaysRemaining as number)
+        : validateSecurityTxtContentType((input as {contentType: string | null}).contentType)
   },
   'llms-txt': {fn: validateLlmsTxt as never, invoke: (fn, input) => (fn as typeof validateLlmsTxt)(input as string)},
   'feed-json': {
@@ -167,7 +171,7 @@ describe('spec-cases harness: multiset comparison is order-insensitive but count
 })
 
 describe('spec-cases harness: exactness of arithmetically-derived boundary timestamps', () => {
-  it('security-txt expires-30d.txt is exactly 30.0 days after its case now (integral daysRemaining)', () => {
+  it('security-txt expires-60d.txt is exactly 60.0 days after its case now (integral daysRemaining)', () => {
     const R = rules('security-txt') as Record<string, RuleFile>
     const rule = R['security-txt-expiring-soon']
     const boundaryCase = rule.cases!.find((c) => c.name.startsWith('exactly at the threshold'))!
@@ -177,7 +181,8 @@ describe('spec-cases harness: exactness of arithmetically-derived boundary times
     const expires = new Date(match[1].trim())
     const daysRemaining = (expires.getTime() - now.getTime()) / 86_400_000
     expect(Number.isInteger(daysRemaining)).toBe(true)
-    expect(daysRemaining).toBe(30)
+    expect(daysRemaining).toBe(rule.params!.minDaysRemaining)
+    expect(daysRemaining).toBe(60)
   })
 
   it('feed-json exactly-7-days.json is exactly 7.0 days before its case now (integral ageDays)', () => {
