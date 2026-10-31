@@ -14,6 +14,11 @@ const copyRequire = createRequire(import.meta.url)
 const identity = copyRequire('@j0nathan-ll0yd/copy/identity.flat.json') as {person: {email: string}; contact: {title: string}}
 const client = clientDir()
 
+// Every regex metacharacter, not only the first dot: an address may hold several dots and a '+'.
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 describe('built /privacy', () => {
   const html = readFileSync(path.join(client, 'privacy.html'), 'utf8')
   const $ = load(html)
@@ -69,6 +74,6 @@ describe('built /contact', () => {
 describe('built security.txt', () => {
   it('keeps the clear Contact line RFC 9116 requires', () => {
     const text = readFileSync(path.join(client, '.well-known', 'security.txt'), 'utf8')
-    expect(text).toMatch(new RegExp(`^Contact: mailto:${identity.person.email.replace('.', '\\.')}$`, 'm'))
+    expect(text).toMatch(new RegExp(`^Contact: mailto:${escapeRegExp(identity.person.email)}$`, 'm'))
   })
 })

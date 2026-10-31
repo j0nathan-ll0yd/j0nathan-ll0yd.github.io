@@ -54,7 +54,7 @@ describe('planProbes', () => {
     for (const agent of [...GOLDEN.aiSearchAgentsAllowedFullSite, ...WILDCARD_GROUP_AGENTS]) {
       expect(of(agent)).toEqual(surfaces(agent))
     }
-    // 10 training crawlers x 1 + 5 search agents x 7 + 3 * group tokens x 7 = 66 on 2026-10-15.
+    // 11 training crawlers x 1 + 6 search agents x 7 + 3 * group tokens x 7 = 74 on 2026-10-29 (atlas decision 0174).
     expect(probes).toHaveLength(
       GOLDEN.aiTrainingBotsBlockedExceptLlmsTxt.length +
         AGENT_SURFACE_PATHS.length * (GOLDEN.aiSearchAgentsAllowedFullSite.length + WILDCARD_GROUP_AGENTS.length)

@@ -1,0 +1,77 @@
+{
+  "id": "security-txt-web-uri-not-https",
+  "title": "A web URI in an RFC 9116 field must begin with https://",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "cites": {
+    "source": "RFC 9116",
+    "clause": "§2.5.1, §2.5.2, §2.5.3, §2.5.4, §2.5.6, §2.5.7",
+    "quote": "If this field indicates a web URI, then it MUST begin with \"https://\" (as per Section 2.7.2 of [RFC7230]).",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
+    "retrieved": "2026-10-29",
+    "content_sha256": "adaa512163243c56d0dadefa9e4883ae2fcdd9449fa634b71dd4582beabab44e",
+    "conformance_testable": true,
+    "verified_against_source": true,
+    "verified_at": "2026-10-29",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-10-29 (file sha256 79d19ce7a4a35496981095a27fd992797a9fc4d6f3649c2a1e14f494607c61f9). The same sentence appears, word for word, under Acknowledgments (line 248), Canonical (269), Contact (292), Encryption (320), Hiring (359) and Policy (368). CSAF is not an RFC 9116 field; security-txt-csaf-not-https covers it."
+  },
+  "policy_note": "A web URI that does not begin with https:// is one with the http scheme, so the test flags values whose scheme is http (beginning with http:, with or without //, as sectxt keys on the scheme) and nothing else. Values with other schemes (mailto:, tel:, dns:, openpgp4fpr:) are not web URIs and pass. The scheme compares case-insensitively (RFC 3986 §3.1), so HTTP: is flagged too. One finding lists every offending field and value.",
+  "applicability": "A security.txt body with at least one Acknowledgments, Canonical, Contact, Encryption, Hiring or Policy value.",
+  "expectation": "No value of those six fields matches /^http:/i.",
+  "cases": [
+    {
+      "name": "http:// in Policy and HTTP:// in Acknowledgments",
+      "outcome": "failed",
+      "input_file": "cases/web-uri-http.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-web-uri-not-https",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an http:// Canonical also misses the retrieval URI",
+      "outcome": "failed",
+      "input_file": "cases/canonical-http.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-web-uri-not-https",
+          "severity": "fail"
+        },
+        {
+          "id": "security-txt-canonical-mismatch",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an http:// Contact",
+      "outcome": "failed",
+      "input_file": "cases/contact-http.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-web-uri-not-https",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "https:// in every web field, plus a dns: Encryption",
+      "outcome": "passed",
+      "input_file": "cases/web-uri-https.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

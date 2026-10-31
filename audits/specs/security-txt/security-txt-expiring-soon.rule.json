@@ -5,9 +5,9 @@
   "rule_class": "local-policy",
   "severity": "fail",
   "params": {
-    "minDaysRemaining": 30
+    "minDaysRemaining": 60
   },
-  "rationale": "conformance_testable is false because RFC 9116 imposes no minimum-days-remaining threshold -- see policy_note. normative_quote is now the verbatim RECOMMENDED sentence of §2.5.5, transcribed from the immutable rfc9116.txt on 2026-07-30 (identical to the sentence already verified in security-txt-expires-missing). The 30-day floor this rule actually enforces is local operational policy (params.minDaysRemaining), recorded in policy_note, not implied by the quote.",
+  "rationale": "conformance_testable is false because RFC 9116 imposes no minimum-days-remaining threshold -- see policy_note. normative_quote is now the verbatim RECOMMENDED sentence of §2.5.5, transcribed from the immutable rfc9116.txt on 2026-07-30 (identical to the sentence already verified in security-txt-expires-missing). The 60-day floor this rule actually enforces is local operational policy (params.minDaysRemaining), recorded in policy_note, not implied by the quote.",
   "derivedFrom": {
     "source": "RFC 9116",
     "clause": "§2.5.5",
@@ -18,12 +18,12 @@
     "retrieved": "2026-07-30",
     "content_sha256": "b9c46a7d3270a09dbbe31778125bbebd4a14dee2290932f996895846906cddd2"
   },
-  "policy_note": "RFC 9116 §2.5.5 requires only that Expires be future-dated (see security-txt-expired) and RECOMMENDS under one year (OQ5, deferred to the first ratchet increment). The 30-day floor here is a LOCAL operational buffer so the monthly audit cadence (audit-web.yml monthly job) gets at least one warning cycle before the file actually expires. It is supplied by params.minDaysRemaining and read by check-security-txt.mjs on the production path (main()'s call to validateSecurityTxt) -- it is not restated as a separate literal in the validator. RFC 9116 places no lower bound on how far out Expires must be, and does not require a warning window before expiry; the 30-day floor is entirely this repo's operational choice (its prior home in normative_quote as commentary was moved here in the ADR 0011 follow-up (a) review pass).",
+  "policy_note": "RFC 9116 §2.5.5 requires only that Expires be future-dated (see security-txt-expired). Its RECOMMENDED upper bound of one year is security-txt-expires-over-a-year, which closes the OQ5 this note used to defer. The 60-day floor here is a LOCAL operational buffer: the monthly audit-web.yml tier must get at least one warning run before the file expires. That tier tolerates 35 days between runs (atlas audits/checks/a19-scheduled-lane-liveness.mjs:113, \"audit-web.yml's monthly tier tolerates a 35-day window\"). The floor must therefore exceed 35 days. The old 30-day floor broke this note's own promise: one run could pass at 30.5 days remaining and the next, 35 days later, find the file already expired, with no warning run between them. At 60 days, a run that passes sees at least 60 days remaining, so the next run, at most 35 days later, sees at least 25 days and fails before the file expires. That guarantee holds only while runs stay inside the 35-day tolerance. A longer gap (61 days or more after a pass at 60 days) can skip the warning; atlas A19 (scheduled-lane liveness) reports that gap, not this rule. The floor is supplied by params.minDaysRemaining and read by b2-check-security-txt.mjs on the production path (main()'s call to validateSecurityTxt); it is not restated as a separate literal in the validator. RFC 9116 places no lower bound on how far out Expires must be and requires no warning window before expiry; the floor is entirely this repo's operational choice.",
   "applicability": "A security.txt body containing a parseable, non-past Expires value.",
   "expectation": "The parsed Expires instant is at least params.minDaysRemaining days after the evaluation instant.",
   "cases": [
     {
-      "name": "20 days out -- fails the 30-day floor",
+      "name": "20 days out -- fails the 60-day floor",
       "outcome": "failed",
       "input_file": "cases/expires-20d.txt",
       "input_kind": "text",
@@ -36,28 +36,59 @@
       ]
     },
     {
-      "name": "exactly at the threshold passes -- the comparison is strict (<), not (<=)",
-      "outcome": "passed",
+      "name": "30 days out -- passed the old 30-day floor, fails the 60-day floor",
+      "outcome": "failed",
       "input_file": "cases/expires-30d.txt",
       "input_kind": "text",
       "now": "2026-07-16T00:00:00.000Z",
-      "expect": []
+      "expect": [
+        {
+          "id": "security-txt-expiring-soon",
+          "severity": "fail"
+        }
+      ]
     },
     {
-      "name": "40 days out -- probe C perturbs params.minDaysRemaining past this to prove it is the real comparison operand",
-      "outcome": "passed",
+      "name": "40 days out -- inside one 35-day monthly window of the old floor, fails the 60-day floor",
+      "outcome": "failed",
       "input_file": "cases/expires-40d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expiring-soon",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "exactly at the threshold passes -- the comparison is strict (<), not (<=)",
+      "outcome": "passed",
+      "input_file": "cases/expires-60d.txt",
       "input_kind": "text",
       "now": "2026-07-16T00:00:00.000Z",
       "expect": []
     },
     {
-      "name": "400 days out",
+      "name": "70 days out -- probe C perturbs params.minDaysRemaining past this to prove it is the real comparison operand",
+      "outcome": "passed",
+      "input_file": "cases/expires-70d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "400 days out -- this rule does not fire; security-txt-expires-over-a-year warns instead",
       "outcome": "passed",
       "input_file": "cases/expires-400d.txt",
       "input_kind": "text",
       "now": "2026-07-16T00:00:00.000Z",
-      "expect": []
+      "expect": [
+        {
+          "id": "security-txt-expires-over-a-year",
+          "severity": "warn"
+        }
+      ]
     },
     {
       "name": "no Expires field -- this rule is inapplicable, security-txt-expires-missing (and security-txt-contact-missing) fire instead",
