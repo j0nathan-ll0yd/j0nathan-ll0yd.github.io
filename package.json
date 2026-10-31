@@ -51,13 +51,13 @@
     "@j0nathan-ll0yd/tokens": "^2.2.2",
     "@j0nathan-ll0yd/web": "4.6.0",
     "@modelcontextprotocol/server": "2.3.1",
-    "astro": "~7.3.3",
+    "astro": "~7.4.4",
     "fast-xml-validator": "^1.4.0"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.9",
-    "@astrojs/cloudflare": "14.3.4",
-    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/check": "^0.9.12",
+    "@astrojs/cloudflare": "14.4.3",
+    "@astrojs/sitemap": "^3.7.4",
     "@axe-core/playwright": "^4.13.0",
     "@j0nathan-ll0yd/config": "^1.1.0",
     "@j0nathan-ll0yd/estate-contracts": "0.17.0",
