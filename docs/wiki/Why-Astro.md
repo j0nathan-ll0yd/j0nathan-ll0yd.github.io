@@ -38,7 +38,7 @@ Four parallel implementations were built to compare frameworks hands-on.
 
 **Why it wins**:
 - Zero JavaScript by default -- widgets are static data display, rendered as pure HTML/CSS
-- Islands architecture -- selective hydration for Three.js particles, Leaflet map, book modal
+- Islands architecture -- selective hydration for Three.js particles, a Leaflet map (removed 2026-02-28), book modal
 - 14 components map 1:1 to widgets
 - Build-time JSON loading via `fs.readFileSync`
 - Perfect Lighthouse scores (40% faster FCP than Next.js, 90% less JavaScript)

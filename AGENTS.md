@@ -7,7 +7,7 @@ Personal portfolio at `jonathanlloyd.me`, styled as a sci-fi "Human Datastream" 
 ```bash
 pnpm install                      # exact pnpm version comes from packageManager (corepack)
 pnpm dev                          # localhost:4321
-pnpm build                        # production build (reads data/*.json)
+pnpm build                        # production build (reads no data file; identity copy from @j0nathan-ll0yd/copy)
 pnpm preview                      # preview the production output
 pnpm run test:build               # Vitest build-output tests (SEO, JSON-LD, images)
 pnpm run test:visual              # Playwright visual regression in Docker (arm64-native, CI-parity)
@@ -66,7 +66,7 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 
 - Import runtime modules from `@j0nathan-ll0yd/web/runtime/*` -- never relative paths like `../lib/` or `../scripts/`.
 - CSS flows from `@j0nathan-ll0yd/tokens` via `@import`; there are no `public/css/*.css` files. Mark `<style>` blocks that import DS CSS with `is:global`.
-- `data/*.json` is Ajv-validated against `@j0nathan-ll0yd/schemas` in the prebuild hook (`additionalProperties: false` -- any unmapped field fails the build).
+- The build validates no data file because it reads none (atlas decision 0160, PR 0a): the data-free page takes only identity copy, and the Worker reads the live data at request time. The prebuild hook no longer runs the `@j0nathan-ll0yd/schemas` Ajv validator, which validated 0 files here (owner decision 2026-10-27).
 - **Customer-facing identity strings** come from `@j0nathan-ll0yd/copy` (single source of truth; zero duplication). The Astro Content Collection `copy` (`src/content.config.ts`) loads `@j0nathan-ll0yd/copy/identity.flat.json`, validated by the generated flat Zod (`@j0nathan-ll0yd/copy/identity.zod`); `Dashboard.astro` reads `getEntry('copy','identity').data`; `astro.config.mjs` imports the flat JSON for the PWA manifest. Never hardcode bios, names, titles, expertise, or skip/OG-image text -- add or edit them in `design-system-Lifegames/packages/copy/src/identity.en-US.json` (ICU MF1), then publish a new `@j0nathan-ll0yd/copy` version from the DS. Spec: `docs/wiki/Copy-Package-Spec.md`.
 
 ## Conventions
@@ -78,7 +78,7 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 - **No hardcoded values**: all colors, spacing, and typography come from `@j0nathan-ll0yd/tokens` `var()` custom properties.
 - **No new widgets here**: never create `src/components/*.astro`; widgets belong in the Design System.
 - **Raw scripts are ES2017 (SYNTAX rule)**: `<script is:inline>` bodies and any `public/js/*.js` are served raw (never transpiled by Vite), so their syntax floor is **ES2017** -- `const`/`let`, arrow functions, template literals, and `async`/`await` are all allowed. The site's real browser floor (service workers, PWA, canvas islands) is well above ES5, and async/await has had universal browser support since 2017. Avoid post-ES2017 syntax that lacks universal support. Bundled module scripts (processed by Vite) may use any modern syntax. **Enforced for `public/js/**/*.{js,mjs,cjs}`** by `pnpm run lint` (CI `lint` job, pre-push): `eslint.config.mjs` parses those files with espree at `ecmaVersion: 2017` (`sourceType: 'script'`; `.mjs` files are modules), so `?.`, `??`, object spread, class fields and top-level `await` are parse errors; `no-undef`, `no-unused-vars` and `no-empty` run too (an unused catch binding and an empty `catch` are allowed), with browser globals (service-worker globals for `sw-purge.js`). `tests/unit/public-js-floor.test.ts` pins that config. `<script is:inline>` bodies in `.astro` are not covered by this lint; the CSP rule keeps them out. This rule governs SYNTAX only and is independent of the CSP externalization rule below (CSP dictates _where_ scripts load, not what syntax they use).
-- **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (10 page scripts: `card-reveal`, `clock`, `email-decode`, `leaflet-lazy`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp` (generated, loaded first and deferred), `social-click-track`; `book-modal` left with the native `<dialog>` migration in #86). `public/js/sw-purge.js` is not a page script: Workbox `importScripts` loads it into the service worker. CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
+- **Externalize inline scripts (CSP rule)**: all inline scripts live in `public/js/` for CSP compliance (9 page scripts: `card-reveal`, `clock`, `email-decode`, `sa-loader`, `sa-stub`, `scroll-depth`, `sw-register`, `webmcp` (generated, loaded first and deferred), `social-click-track`; `book-modal` left with the native `<dialog>` migration in #86). `public/js/sw-purge.js` is not a page script: Workbox `importScripts` loads it into the service worker. CSP is `script-src 'self'` -- no `'unsafe-inline'`. This is a _where-scripts-load_ rule; it does not constrain syntax.
 - **Generated agent files are checked, never hand-edited**: `public/js/webmcp.js`, the `.well-known` agent files, `public/openapi.json`, and the two generated blocks in `SKILL.md` come from `scripts/generate-webmcp.mjs`. The build regenerates them (prebuild); CI's `lint` job runs `pnpm run check:webmcp` (`--check` mode) so a committed copy that differs from the generator output cannot merge. Regenerate with `pnpm run generate:webmcp`.
 - **No inline `on*=` handlers**: markup event attributes are CSP-rejected without `'unsafe-hashes'`; attach listeners in `public/js/*.js` instead.
 - **Inline-script gate**: `pnpm run audit:inline-scripts` runs as a prebuild gate. Any unavoidable inline JS requires a documented exception.
@@ -134,11 +134,10 @@ Production widgets, CSS, and runtime scripts come from `@j0nathan-ll0yd/web/prod
 - Create new `src/components/*.astro` files or hand-edit CSS (everything comes from the DS).
 - Import from relative `../lib/` or `../scripts/` paths instead of the `@j0nathan-ll0yd/*` namespace.
 - Hardcode hex colors or pixel values.
-- Bypass prebuild schema validation.
 - Hand-edit `.contract-lock.json` (Husky + CI enforce it; regenerate via `scripts/generate-contract-lock.mjs`).
 - Depend on a `@j0nathan-ll0yd/*` producer change that is not yet published to the registry -- publish a new version from the producer repo first, then bump the caret range / lockfile here (merging to `main` deploys production).
 - Regenerate visual baselines outside Docker (`pnpm run test:visual:update` is the only sanctioned path; host PNGs fail CI).
-- Use `npm` in this repo. It is a pnpm project (atlas decision 0032): `packageManager` pins `pnpm@11.13.0`, `pnpm-workspace.yaml` holds the overrides/peer/supply-chain settings, and an `npm install` here would write a foreign lockfile and shunt packages aside (`pnpm run doctor:install` reports it).
+- Use `npm` in this repo. It is a pnpm project (atlas decision 0032): `packageManager` in `package.json` pins the exact pnpm version (deliberately not restated here), `pnpm-workspace.yaml` holds the overrides/peer/supply-chain settings, and an `npm install` here would write a foreign lockfile and shunt packages aside (`pnpm run doctor:install` reports it).
 
 ## Detailed Reference
 
