@@ -8,6 +8,7 @@ import {
   API_V1_ERROR_PROBES,
   API_V1_HEADER_PROBE_PATH,
   apiCatalogItems,
+  ARTIFACTS,
   checkApiV1ErrorShape,
   EXPECTED_API_CATALOG_ITEMS,
   EXPECTED_RESOURCE_URIS,
@@ -17,18 +18,25 @@ import {
   judgeApiCatalogItems,
   judgeMcpExchange,
   judgeModernExchange,
+  judgeOpenApiAnswer,
   judgeProblemAnswer,
   judgeRateLimitHeaders,
   judgeResourceExchange,
+  judgeServiceDescTargets,
   LLMS_FULL_RESOURCE_URI,
   MODERN_PROTOCOL_VERSION,
+  OPENAPI_EXPECTED_PATHS,
+  OPENAPI_SERVER_URL,
+  OPENAPI_URL,
   parseMcpBody,
   PINNED_AGENT_SKILLS_SCHEMA,
   PINNED_ARD_SPEC_VERSION,
   probeApiCatalogItems,
   probeMcpRemotes,
+  probeOpenApiTargets,
   rebase,
   SERVER_CARD_MEDIA_TYPE,
+  serviceDescTargets,
   streamableRemotes,
   validateAgentSkillsIndexShape,
   validateAiCatalogShape,
@@ -669,5 +677,122 @@ describe('accessHeadersFor', () => {
   it('sends nothing without both credentials or without an audited base', () => {
     expect(accessHeadersFor(`${base}/mcp`, base, {CF_ACCESS_CLIENT_ID: 'id'})).toEqual({})
     expect(accessHeadersFor(`${base}/mcp`, undefined, env)).toEqual({})
+  })
+})
+
+// Arm `openapi`. The fixture is the committed document and catalog, the bytes the site serves.
+describe('openapi arm', () => {
+  const catalog = served('.well-known', 'api-catalog')
+  const documentText = readFileSync(join(REPO_ROOT, 'public', 'openapi.json'), 'utf-8')
+  const document = JSON.parse(documentText)
+  const MEDIA_TYPE = 'application/vnd.oai.openapi+json;version=3.1'
+  const answer = (overrides: Partial<{status: number; contentType: string; body: string}> = {}) => ({
+    href: OPENAPI_URL,
+    status: 200,
+    contentType: MEDIA_TYPE,
+    body: documentText,
+    ...overrides
+  })
+  const ids = (findings: Array<{id: string}>) => findings.map((f) => f.id)
+
+  it('names the production document, the facade server and the nine export paths', () => {
+    expect(OPENAPI_URL).toBe('https://jonathanlloyd.me/openapi.json')
+    expect(OPENAPI_SERVER_URL).toBe('https://jonathanlloyd.me/api/v1')
+    expect(OPENAPI_EXPECTED_PATHS).toHaveLength(9)
+    expect([...OPENAPI_EXPECTED_PATHS].sort()).toEqual(Object.keys(document.paths).sort())
+  })
+
+  it('the committed catalog names one distinct target, the document', () => {
+    expect(serviceDescTargets(catalog)).toEqual([OPENAPI_URL])
+    expect(judgeServiceDescTargets(serviceDescTargets(catalog))).toEqual([])
+  })
+
+  it('a missing, extra or foreign target fails', () => {
+    expect(serviceDescTargets({})).toEqual([])
+    expect(serviceDescTargets({linkset: [{'service-desc': [{}]}, {anchor: 'x'}]})).toEqual([])
+    expect(ids(judgeServiceDescTargets([]))).toEqual(['wellknown-openapi-target'])
+    expect(ids(judgeServiceDescTargets([OPENAPI_URL, 'https://jonathanlloyd.me/llms.txt']))).toEqual(['wellknown-openapi-target'])
+    expect(ids(judgeServiceDescTargets(['https://jonathanlloyd.me/llms.txt']))).toEqual(['wellknown-openapi-target'])
+  })
+
+  it('the committed document, served as advertised, passes', () => {
+    expect(judgeOpenApiAnswer(answer())).toEqual([])
+    expect(judgeOpenApiAnswer(answer({contentType: 'Application/VND.OAI.OpenAPI+JSON; version=3.1'}))).toEqual([])
+  })
+
+  it('a non-200 answer fails on its status alone', () => {
+    expect(ids(judgeOpenApiAnswer(answer({status: 404, contentType: 'text/html', body: '<html>'})))).toEqual(['wellknown-openapi-status'])
+    expect(ids(judgeOpenApiAnswer(answer({status: 308})))).toEqual(['wellknown-openapi-status'])
+  })
+
+  it('application/json is not the advertised media type', () => {
+    expect(ids(judgeOpenApiAnswer(answer({contentType: 'application/json'})))).toEqual(['wellknown-openapi-content-type'])
+    expect(ids(judgeOpenApiAnswer(answer({contentType: ''})))).toEqual(['wellknown-openapi-content-type'])
+  })
+
+  it('a body that is not a JSON object fails', () => {
+    expect(ids(judgeOpenApiAnswer(answer({body: 'not json'})))).toEqual(['wellknown-openapi-json'])
+    expect(ids(judgeOpenApiAnswer(answer({body: 'null'})))).toEqual(['wellknown-openapi-json'])
+    expect(ids(judgeOpenApiAnswer(answer({body: '[]'})))).toEqual(['wellknown-openapi-json'])
+  })
+
+  it('an OpenAPI version other than 3.1.x fails', () => {
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, openapi: '3.0.3'})})))).toEqual(['wellknown-openapi-version'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, openapi: '3.10.0'})})))).toEqual(['wellknown-openapi-version'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, openapi: 3.1})})))).toEqual(['wellknown-openapi-version'])
+  })
+
+  it('a server other than the facade fails', () => {
+    const cloudfront = {...document, servers: [{url: 'https://d1.cloudfront.net'}, document.servers[0]]}
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify(cloudfront)})))).toEqual(['wellknown-openapi-server'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, servers: undefined})})))).toEqual(['wellknown-openapi-server'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, servers: []})})))).toEqual(['wellknown-openapi-server'])
+  })
+
+  it('a missing export path fails and names it', () => {
+    const {'/books.json': _books, ...rest} = document.paths
+    const findings = judgeOpenApiAnswer(answer({body: JSON.stringify({...document, paths: {...rest, '/sleep.json': null}})}))
+    expect(ids(findings)).toEqual(['wellknown-openapi-paths'])
+    expect(findings[0].message).toContain('/books.json')
+    expect(findings[0].message).toContain('/sleep.json')
+    expect(findings[0].message).not.toContain('/health.json')
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, paths: null})})))).toEqual(['wellknown-openapi-paths'])
+  })
+
+  it('fetches each distinct target once, from the audited base, and counts what it held', async () => {
+    const asked: Array<{url: string; init: RequestInit}> = []
+    const get = async (url: string, init: RequestInit) => {
+      asked.push({url, init})
+      return new Response(documentText, {headers: {'content-type': MEDIA_TYPE}})
+    }
+    const doubled = {linkset: [...catalog.linkset, ...catalog.linkset]}
+    const result = await probeOpenApiTargets(doubled, get, 'https://pr-1-human-datastream.example.workers.dev')
+    expect(asked.map((a) => a.url)).toEqual(['https://pr-1-human-datastream.example.workers.dev/openapi.json'])
+    expect(asked[0].init.redirect).toBe('manual')
+    expect((asked[0].init.headers as Record<string, string>).Accept).toBe(MEDIA_TYPE)
+    expect(result).toEqual({measured: 1, findings: []})
+  })
+
+  it('an unreachable target is a finding and is not measured, never a pass', async () => {
+    const result = await probeOpenApiTargets(catalog, async () => {
+      throw new Error('ECONNRESET')
+    })
+    expect(result.measured).toBe(0)
+    expect(ids(result.findings)).toEqual(['wellknown-openapi-unreachable'])
+    expect(result.findings[0].message).toContain('ECONNRESET')
+  })
+
+  it('a catalog with no target measures nothing and fails', async () => {
+    const result = await probeOpenApiTargets({linkset: []}, async () => {
+      throw new Error('not called')
+    })
+    expect(result).toEqual({measured: 0, findings: [expect.objectContaining({id: 'wellknown-openapi-target'})]})
+  })
+})
+
+// atlas A18 reads this literal statically; the test keeps a change to it visible.
+describe('ARTIFACTS', () => {
+  it('declares the three registered surfaces this runner measures', () => {
+    expect(ARTIFACTS).toEqual([{surfaceId: 'site-api-v1'}, {surfaceId: 'site-mcp-server'}, {surfaceId: 'site-openapi'}])
   })
 })
