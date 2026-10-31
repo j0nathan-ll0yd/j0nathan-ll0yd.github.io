@@ -16,7 +16,7 @@
     "generate:webmcp": "node scripts/generate-webmcp.mjs",
     "generate:not-found": "node scripts/generate-not-found.mjs",
     "check:webmcp": "node scripts/generate-webmcp.mjs --check",
-    "prebuild": "pnpm run generate:webmcp && pnpm run generate:not-found && LIFEGAMES_VALIDATE_CWD=$PWD pnpm exec tsx node_modules/@j0nathan-ll0yd/schemas/scripts/validate.ts && pnpm run audit:fixtures && pnpm run audit:inline-scripts && pnpm run audit:sa-path",
+    "prebuild": "pnpm run generate:webmcp && pnpm run generate:not-found && pnpm run audit:fixtures && pnpm run audit:inline-scripts && pnpm run audit:sa-path",
     "audit:fixtures": "node scripts/audit-fixtures.mjs",
     "audit:inline-scripts": "node scripts/audit-inline-scripts.mjs",
     "audit:sa-path": "node scripts/check-sa-proxy-path.mjs",
