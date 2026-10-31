@@ -313,8 +313,12 @@ What re-verifies them automatically:
   catalog's pinned sources (llms.txt, RSS, JSON Feed, RFC 9116) and, since atlas decision
   0158, the agent-discovery `WATCHED_SOURCES`: the WebMCP draft (`index.bs`), SEP-2127, the
   server-card extension's `docs/discovery.md`, the ARD v0.91 specification, and the three
-  vendored schemas. A revision is reported as
-  `spec-source-moved` and escalates to `fail` after the re-pin grace window.
+  vendored schemas. Since atlas decision 0174 E1 it also watches the two AIPREF drafts behind
+  the `Content-Usage` header, `draft-ietf-aipref-vocab-08` and `draft-ietf-aipref-attach-05`:
+  it reads each draft's latest revision and lifecycle state from the IETF datatracker. A
+  revision, or a draft that leaves the active state, is reported as `spec-source-moved` and
+  escalates to `fail` after the re-pin grace window. An unreadable datatracker record is
+  INDETERMINATE, never current.
 - `audits/checks/b2-check-wellknown.mjs` (monthly tier of `audit-web.yml`) validates the served card, `ai-catalog.json`
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
   `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then
