@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 /* Step 3.6 parity by normalized invariants (atlas decision 0160, PR A).
  *
- * Sends the same request matrix to a baseline (production Pages, at its origin alias
- * https://human-datastream.pages.dev, which no zone rule touches) and to a candidate (a Worker
- * Version URL, or `wrangler dev`), then compares each pair:
+ * Sends the same request matrix to a baseline and to a candidate (a Worker Version URL, or
+ * `wrangler dev`), then compares each pair. The baseline was production Pages at its origin alias
+ * until atlas decision 0160 D7 retired the Pages project; it has no default now, so name one: the
+ * production site, or another Worker version. Each pair compares:
  *
  * - status, and the redirect target for a 3xx;
  * - every header except transport headers (TRANSPORT_HEADERS), with the version marker as the one
- *   intended difference (X-Site-Runtime on the candidate only);
+ *   intended difference when only the candidate carries it (X-Site-Runtime);
  * - the body: exact bytes for deterministic content, a normalized digest for dynamic content
  *   (the proxy documents carry a composition stamp; sitemap and service-worker revisions vary).
  *
  * Usage:
- *   node scripts/worker-parity.mjs --baseline https://human-datastream.pages.dev \
+ *   node scripts/worker-parity.mjs --baseline <url> \
  *     --candidate https://<version>-human-datastream.<subdomain>.workers.dev \
  *     [--candidate-header 'CF-Access-Client-Id: ...'] [--json out.json]
  * Access credentials may come from CF_ACCESS_CLIENT_ID and CF_ACCESS_CLIENT_SECRET instead.
@@ -285,17 +286,33 @@ function parseHeader(line) {
   return [line.slice(0, at).trim(), line.slice(at + 1).trim()]
 }
 
-async function main() {
+export const USAGE = 'usage: node scripts/worker-parity.mjs --baseline <url> --candidate <url> [--candidate-header "Name: value"] [--json out.json]'
+
+/** The command-line options. Throws a usage error when --baseline or --candidate is missing. */
+export function parseOptions(args) {
   const {values} = parseArgs({
+    args,
     options: {
-      baseline: {type: 'string', default: 'https://human-datastream.pages.dev'},
+      baseline: {type: 'string'},
       candidate: {type: 'string'},
       'candidate-header': {type: 'string', multiple: true, default: []},
       json: {type: 'string'}
     }
   })
-  if (!values.candidate) {
-    console.error('worker-parity: --candidate <url> is required')
+  for (const name of ['baseline', 'candidate']) {
+    if (!values[name]) {
+      throw new Error(`worker-parity: --${name} <url> is required\n${USAGE}`)
+    }
+  }
+  return values
+}
+
+async function main() {
+  let values
+  try {
+    values = parseOptions(process.argv.slice(2))
+  } catch (error) {
+    console.error(error.message.includes(USAGE) ? error.message : `worker-parity: ${error.message}\n${USAGE}`)
     process.exit(2)
   }
   const candidateHeaders = Object.fromEntries(values['candidate-header'].map(parseHeader))

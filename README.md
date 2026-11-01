@@ -1,6 +1,6 @@
 # Human Datastream
 
-A personal portfolio dashboard for Jonathan Lloyd, styled as a sci-fi "Human Datastream" -- a read-only display surface that renders real personal data (health, sleep, workouts, focus, reading, GitHub activity, theatre reviews) as a live, glass-morphism dashboard. Built with [Astro](https://astro.build) 7 and deployed to Cloudflare Pages at [jonathanlloyd.me](https://jonathanlloyd.me).
+A personal portfolio dashboard for Jonathan Lloyd, styled as a sci-fi "Human Datastream" -- a read-only display surface that renders real personal data (health, sleep, workouts, focus, reading, GitHub activity, theatre reviews) as a live, glass-morphism dashboard. Built with [Astro](https://astro.build) 7 and deployed as a Cloudflare Worker at [jonathanlloyd.me](https://jonathanlloyd.me).
 
 > **WARNING: merging to `main` deploys production.** No manual gate, no staging environment, no promotion step. See [Deploy](#deploy).
 
