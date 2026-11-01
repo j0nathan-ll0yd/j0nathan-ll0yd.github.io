@@ -1,7 +1,6 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {INTERNAL_ASSET_PATHS} from '../../src/lib/composed/paths'
 import {HEADER_OVERRIDE_PATHS} from '../../src/lib/edge/middleware'
 import {EDGE_ROUTES, matchEdgeRoute, routeHandles} from '../../src/lib/edge/routes'
 
@@ -39,7 +38,7 @@ describe('wrangler.jsonc', () => {
     // path under a catch-all glob is covered by that glob and not listed itself.
     const globs = routePaths.filter((path) => path.endsWith('/*')).map((glob) => glob.slice(0, -1))
     const listed = routePaths.filter((path) => !globs.some((prefix) => path !== `${prefix}*` && path.startsWith(prefix)))
-    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...listed, ...INTERNAL_ASSET_PATHS])
+    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...listed])
     expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/api', '/api/*']))
   })
 

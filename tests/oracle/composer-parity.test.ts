@@ -28,15 +28,15 @@ import {
 } from '@j0nathan-ll0yd/web/production'
 import {
   checkArtifact,
-  checkedVariant,
-  checkValueFree,
+  checkFragments,
+  checkValueFreeSet,
   COMPOSED_FRAGMENT_IDS,
   COMPOSED_MAX_BYTES,
   type ComposedFragmentId,
   GATE_VARIANT,
   toWireFacts,
   UNREADABLE_VARIANT,
-  VALUE_FREE_PATH,
+  VALUE_FREE_FRAGMENT_OPTIONS,
   type WireFacts
 } from '../../src/lib/composed/artifact'
 import {PUBLISHED_MAX_BYTES, type PublishedEntry, type PublishedFragments} from '../../src/lib/composed/published'
@@ -56,6 +56,15 @@ const FRESH = new Date(NOW - 60_000).toISOString()
 const OLD = new Date(NOW - 30 * 24 * 60 * 60 * 1000).toISOString()
 const KEYS: GatedKey[] = ['health', 'sleep', 'workouts', 'books', 'githubEvents', 'starredRepos', 'articles', 'theatreReviews']
 const BUILD = buildId()
+const VALUE_FREE_MODULE = new URL('../../src/lib/composed/value-free.generated.ts', import.meta.url)
+
+/** The value-free pages the website build compiled into the Worker (scripts/build-value-free.mjs, atlas decision 0164 row 1). */
+async function importCompiledModule(): Promise<{VALUE_FREE_SET: ValueFreeSet; VALUE_FREE_SHA256: string}> {
+  if (!existsSync(VALUE_FREE_MODULE)) {
+    throw new Error('src/lib/composed/value-free.generated.ts is missing: run pnpm build')
+  }
+  return (await import(VALUE_FREE_MODULE.href)) as {VALUE_FREE_SET: ValueFreeSet; VALUE_FREE_SHA256: string}
+}
 
 /**
  * The id of a fragment's first element. The Worker replaces the page element with the fragment's id,
@@ -337,15 +346,13 @@ describe('the value-free pages equal the Astro render and hold no value', () => 
     expect(shown('focusOverlay'), 'Work overlay').toBe(key === 'Work')
     expect(shown('dndOverlay'), 'Do Not Disturb overlay').toBe(key === 'Do Not Disturb')
     // atlas decision 0164: the runner publishes this page's facts while hiding; they are the Worker's own check.
-    const checked = page === undefined
-      ? null
-      : checkedVariant({page: {summary: page.summary as 'suppressed' | 'unavailable', fragments: page.fragments as Record<ComposedFragmentId, string>}})
-    expect(checked && toWireFacts(checked.facts)).toEqual(page?.facts)
+    const checked = page === undefined ? null : checkFragments(page.fragments, VALUE_FREE_FRAGMENT_OPTIONS)
+    expect(checked?.ok && toWireFacts(checked.facts)).toEqual(page?.facts)
   })
 
-  it('is what the website build shipped', () => {
-    const built = readFileSync(new URL(`../../dist/client${VALUE_FREE_PATH}`, import.meta.url), 'utf8')
-    expect(JSON.parse(built)).toEqual(set)
+  it('is what the website build compiled into the Worker, byte for byte (atlas decision 0164 row 1)', async () => {
+    const {VALUE_FREE_SET} = await importCompiledModule()
+    expect(JSON.stringify(VALUE_FREE_SET)).toBe(JSON.stringify(set))
   })
 })
 
@@ -592,11 +599,10 @@ describe("the Worker's fragment allowlist admits every render, and names nothing
     expect(composed).toBeGreaterThan(KEYS.length)
   })
 
-  it('admits the value-free set the website build shipped', () => {
-    const built = readFileSync(new URL(`../../dist/client${VALUE_FREE_PATH}`, import.meta.url), 'utf8')
-    const set = checkValueFree(built, BUILD, VALUE_FREE_VARIANTS)
-    expect(set).not.toBeNull()
-    for (const page of Object.values((JSON.parse(built) as ValueFreeSet).variants)) {
+  it('admits the value-free set the website build compiled into the Worker', async () => {
+    const {VALUE_FREE_SET} = await importCompiledModule()
+    expect(checkValueFreeSet(VALUE_FREE_SET, BUILD, VALUE_FREE_VARIANTS)).toMatchObject({ok: true})
+    for (const page of Object.values(VALUE_FREE_SET.variants)) {
       for (const id of COMPOSED_FRAGMENT_IDS) {
         record(id, page.fragments[id] ?? '')
       }

@@ -22,15 +22,16 @@
  *
  * Run with tsx: it imports the TypeScript cut from src/. */
 import {createHash} from 'node:crypto'
-import {existsSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {existsSync, readFileSync, writeFileSync} from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {parse} from 'parse5'
 import {COMPOSED_FRAGMENT_IDS} from '../src/lib/composed/artifact.ts'
 import {compileShell, cutAt} from '../src/lib/composed/shell.ts'
 import {ASSET_PLANE_HEADERS} from '../src/lib/edge/security-headers.ts'
+import {bundlesNaming, isMainModule} from './lib/build-gates.mjs'
 import {buildId} from './lib/build-id.mjs'
-import {clientDir, serverDir} from './lib/build-paths.mjs'
+import {clientDir} from './lib/build-paths.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const SHELL_MODULE = path.join(ROOT, 'src/lib/composed/shell.generated.ts')
@@ -112,14 +113,7 @@ export function shellModule(html, build) {
   ].join('\n')
 }
 
-/** The Worker bundle's modules that name `sha256`: exactly one when the shell is compiled in. */
-export function bundlesNaming(sha256, dir = serverDir(ROOT)) {
-  return readdirSync(dir, {recursive: true}).map(String).filter((name) =>
-    name.endsWith('.mjs') && readFileSync(path.join(dir, name), 'utf8').includes(sha256)
-  )
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   const page = path.join(clientDir(ROOT), 'index.html')
   const html = readFileSync(page, 'utf8')
   const source = shellModule(html, buildId())

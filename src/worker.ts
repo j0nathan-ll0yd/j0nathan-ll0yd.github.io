@@ -18,17 +18,16 @@
 //    artifact through the CloudFront proxy and splices its fragments into the prerendered data-free
 //    page, under the D2 ceiling (src/lib/data-plane/ssr-response.ts). It renders nothing, and Astro
 //    does not run for `/`. `HEAD /` answers from the data-free page and reads no data. While the focus
-//    value hides or cannot be read, the build's value-free pages answer (src/lib/composed/value-free.ts);
-//    their asset path is internal, and a public request for it gets the 404 page.
+//    value hides or cannot be read, the build's value-free pages answer: the build checked them and
+//    compiled them into this Worker (src/lib/composed/value-free.ts, atlas decision 0164 row 1).
 // 6. On a loopback host only (a local `astro preview` or `wrangler dev`), the analytics routes
 //    answer 404, as the static preview did before PR A, so no test run reaches an upstream.
 
 import {handle} from '@astrojs/cloudflare/handler'
 import {onRequest as siteMiddleware} from './lib/edge/middleware'
 import {isLocalAnalyticsRequest, matchEdgeRoute, routeHandles} from './lib/edge/routes'
-import {VALUE_FREE_PATH} from './lib/composed/artifact'
 import {COMPILED_SHELL} from './lib/composed/compiled-shell'
-import {INTERNAL_ASSET_PATHS} from './lib/composed/paths'
+import {COMPILED_VALUE_FREE} from './lib/composed/compiled-value-free'
 import type {PageStore} from './lib/composed/published'
 import {valueFreeFor} from './lib/composed/value-free'
 import {BUILD_ID} from './lib/data-plane/build'
@@ -119,7 +118,7 @@ function dashboardDeps(request: Request, env: WorkerEnv): DashboardRenderDeps {
     read: (rendered, nowMs) => readForRequest(rendered, vars, nowMs),
     now: (rendered) => renderClock(rendered, vars),
     asset: (path, method) => env.ASSETS.fetch(new Request(new URL(path, request.url), {method})),
-    valueFree: () => valueFreeFor(BUILD_ID, () => env.ASSETS.fetch(new URL(VALUE_FREE_PATH, request.url))),
+    valueFree: () => valueFreeFor(BUILD_ID, COMPILED_VALUE_FREE),
     ...(page !== undefined && shell !== null
       ? {published: {read: (rendered: Request, nowMs: number) => readPublishedForRequest(rendered, vars, page, shell, nowMs), shell}}
       : {})
@@ -136,10 +135,6 @@ async function route(request: Request, env: WorkerEnv, context: AstroContext, co
     if (request.method === 'HEAD') {
       return headDashboard(dashboardDeps(request, env))
     }
-  }
-  if (INTERNAL_ASSET_PATHS.includes(url.pathname)) {
-    // Built for the Worker alone (src/lib/composed/paths.ts); the ASSETS binding still reads it.
-    return notFoundPage(request, env, codeFree)
   }
   const edgeRoute = codeFree ? undefined : matchEdgeRoute(url.pathname)
   if (edgeRoute && isLocalAnalyticsRequest(edgeRoute, url)) {

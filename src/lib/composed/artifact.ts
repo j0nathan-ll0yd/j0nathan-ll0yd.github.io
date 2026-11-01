@@ -101,12 +101,8 @@ export interface WireFacts {
  */
 export type ComposedArtifactBody = ComposedArtifact & {facts: WireFacts}
 
-/**
- * The value-free pages (./paths.ts VALUE_FREE_PATH) hold no export value and depend only on the
- * build, so they are a static asset of the website, read by the Worker through the ASSETS binding. A
- * public request for the path gets the 404 page.
- */
-export { VALUE_FREE_PATH } from './paths'
+// The value-free pages hold no export value and depend only on the build. The build checks them with
+// `checkValueFreeSet` and compiles them into the Worker (./value-free.ts, atlas decision 0164 row 1).
 /** The variant for the gate shut over a visible focus value: every card suppressed, no overlay. */
 export const GATE_VARIANT = 'gate'
 /** The variant for an unreadable focus signal: every card unavailable, no overlay. */
@@ -117,15 +113,9 @@ export interface ValueFreePage {
   fragments: Record<ComposedFragmentId, string>
 }
 
-/** A value-free page the Worker checked, with what the allowlist read from its fragments (./fragment-policy.ts). */
+/** A value-free page the build checked, with what the allowlist read from its fragments (./fragment-policy.ts), as sets. */
 export interface CheckedValueFreePage extends ValueFreePage {
   facts: ArtifactFacts
-}
-
-/** One variant of a checked set: its fragments are checked on first use (`checkedVariant`). */
-export interface ValueFreeEntry {
-  page: ValueFreePage
-  checked?: CheckedValueFreePage | null
 }
 
 /** Every id an artifact's fragments carry, and each fragment's scoped-style hashes, for the shell check (./shell.ts `fitsShell`). */
@@ -174,50 +164,60 @@ export function fromWireFacts(wire: WireFacts): ArtifactFacts {
   }
 }
 
-/**
- * The value-free set as the Worker read it: its build and every variant's shape are checked at
- * once; each variant's fragments when it is first served (`checkedVariant`), so a cold isolate
- * pays for one variant, not four.
- */
+/** The value-free set as the Worker holds it: compiled in by the build that checked it (./value-free.ts). */
 export interface CheckedValueFreeSet {
   build: string
-  variants: Record<string, ValueFreeEntry>
+  variants: Record<string, CheckedValueFreePage>
 }
 
-/** The variant's checked page, or null when its fragments fail the allowlist. Checked once per set. */
-export function checkedVariant(entry: ValueFreeEntry): CheckedValueFreePage | null {
-  if (entry.checked === undefined) {
-    const checked = checkFragments(entry.page.fragments, VALUE_FREE_FRAGMENT_OPTIONS)
-    entry.checked = checked.ok ? {summary: entry.page.summary, fragments: checked.fragments, facts: checked.facts} : null
-  }
-  return entry.checked
-}
+export type ValueFreeSetCheck = {ok: true; set: ValueFreeSet} | {ok: false; detail: string}
 
-/** The value-free set, when this website built it; otherwise null (the Worker then serves the data-free page). */
-export function checkValueFree(text: string, build: string, required: readonly string[]): CheckedValueFreeSet | null {
-  let value: unknown
-  try {
-    value = JSON.parse(text)
-  } catch {
-    return null
+/**
+ * The build's gate on the value-free pages (atlas decision 0164 row 1; owner decision 2026-11-01):
+ * the Worker's own allowlist (`checkFragments`) over every variant, run by the build before it
+ * compiles the set into the Worker (scripts/build-value-free.mjs). The Worker does not check the set
+ * again when it serves it. Admits exactly the `required` variants of build `build`, each with its own
+ * summary and the 13 fragments and nothing else, every fragment admitted by the allowlist, and the
+ * facts the allowlist read from them, in wire form; refuses facts that differ from the composer's,
+ * because the two checks must agree. Otherwise the variant and the reason (`detail`), for the build log.
+ */
+export function checkValueFreeSet(value: unknown, build: string, required: readonly string[]): ValueFreeSetCheck {
+  if (!isRecord(value) || !isRecord(value.variants)) {
+    return {ok: false, detail: 'shape'}
   }
-  if (!isRecord(value) || value.build !== build || !isRecord(value.variants)) {
-    return null
+  if (value.build !== build) {
+    return {ok: false, detail: 'build'}
   }
-  const variants: Record<string, ValueFreeEntry> = {}
+  const unexpected = Object.keys(value.variants).find((key) => !required.includes(key))
+  if (unexpected !== undefined) {
+    return {ok: false, detail: `${unexpected}:unexpected`}
+  }
+  const variants: Record<string, ComposedValueFreePage> = {}
   for (const key of required) {
     const page = value.variants[key]
-    if (!isRecord(page) || (page.summary !== 'suppressed' && page.summary !== 'unavailable') || !isRecord(page.fragments)) {
-      return null
+    if (!isRecord(page)) {
+      return {ok: false, detail: `${key}:missing`}
+    }
+    // The Worker serves a variant only under its own summary: `unavailable` for an unreadable focus,
+    // `suppressed` for a hiding value or the gate (src/lib/data-plane/ssr-response.ts).
+    if ((page.summary !== 'suppressed' && page.summary !== 'unavailable') || page.summary !== (key === UNREADABLE_VARIANT ? 'unavailable' : 'suppressed')) {
+      return {ok: false, detail: `${key}:summary`}
     }
     const fragments = page.fragments
-    if (!COMPOSED_FRAGMENT_IDS.every((id) => typeof fragments[id] === 'string')) {
-      return null
+    if (!isRecord(fragments) || Object.keys(fragments).length !== COMPOSED_FRAGMENT_IDS.length) {
+      return {ok: false, detail: `${key}:fragments`}
     }
-    // Every id was checked to be a string above.
-    variants[key] = {page: {summary: page.summary, fragments: fragments as Record<ComposedFragmentId, string>}}
+    const checked = checkFragments(fragments, VALUE_FREE_FRAGMENT_OPTIONS)
+    if (!checked.ok) {
+      return {ok: false, detail: `${key}:${checked.detail}`}
+    }
+    const facts = toWireFacts(checked.facts)
+    if (JSON.stringify(facts) !== JSON.stringify(page.facts)) {
+      return {ok: false, detail: `${key}:facts`}
+    }
+    variants[key] = {summary: page.summary, fragments: checked.fragments, facts}
   }
-  return {build, variants}
+  return {ok: true, set: {build, variants}}
 }
 
 /**

@@ -6,13 +6,18 @@
 // PER_REQUEST=n profiles each of the first n requests separately (the JIT progression).
 // PLANE=none: no fixture data plane; GET / reads the local PAGE namespace (atlas decision 0164).
 // PUBLISH_BODY=<payload.json> POSTs that body to /_ssr/publish instead of GET / (a publish-time composition prototype).
+// EXPECT=suppressed (comma-separated) accepts those X-SSR-Data values instead of live, stale and partial:
+// the value-free path (seed-kv.mjs FOCUS=<hiding value> or FOCUS=-).
+// PORT and INSPECTOR_PORT override 8798 and 9240, when another session's wrangler dev holds them.
 import {spawn} from 'node:child_process'
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {request as httpRequest} from 'node:http'
-import {randomBytes} from 'node:crypto'
+import {createHash, randomBytes} from 'node:crypto'
+import {loadavg} from 'node:os'
 const [, , label = 'run', warmArg = '50', samplingArg = '100', ...extra] = process.argv
 const WARM = Number(warmArg), SAMPLING_US = Number(samplingArg)
-const PORT = 8798, INSPECTOR = 9240
+const PORT = Number(process.env.PORT ?? 8798), INSPECTOR = Number(process.env.INSPECTOR_PORT ?? 9240)
+const EXPECT = (process.env.EXPECT ?? 'live,stale,partial').split(',')
 const OUT = `${process.env.OUT ?? '/tmp/cpu-prof'}/${label}`
 mkdirSync(OUT, {recursive: true})
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -176,6 +181,8 @@ class Cdp {
     this.ws.close()
   }
 }
+/** The sha256 of the first body this run read: byte identity across builds, per path. */
+let firstBodySha256 = null
 async function get(n) {
   const times = []
   const publish = process.env.PUBLISH_BODY
@@ -187,7 +194,8 @@ async function get(n) {
       : await fetch(`http://127.0.0.1:${PORT}/`, {headers: {accept: 'text/html'}})
     const text = await r.text()
     times.push(performance.now() - t)
-    if (r.status !== 200 || (!publish && !['live', 'stale', 'partial'].includes(r.headers.get('x-ssr-data') ?? ''))) {
+    firstBodySha256 ??= createHash('sha256').update(text).digest('hex')
+    if (r.status !== 200 || (!publish && !EXPECT.includes(r.headers.get('x-ssr-data') ?? ''))) {
       throw new Error(`unexpected ${r.status} ${r.headers.get('x-ssr-data')} ${text.slice(0, 200)}`)
     }
   }
@@ -230,13 +238,14 @@ try {
     const s = [...a].sort((x, y) => x - y)
     return s[Math.min(s.length - 1, Math.max(0, Math.ceil(p / 100 * s.length) - 1))]
   }
-  console.log(
-    JSON.stringify({
-      label,
-      coldWallMs: Number(cold.times[0].toFixed(1)),
-      warmWallMs: {median: Number(q(warm.times, 50).toFixed(1)), p90: Number(q(warm.times, 90).toFixed(1)), min: Number(Math.min(...warm.times).toFixed(1))}
-    })
-  )
+  console.log(JSON.stringify({
+    label,
+    // The host's load average when the run ended: local CPU runs 2 to 3 times higher under CI load.
+    loadavg: loadavg().map((value) => Number(value.toFixed(2))),
+    bodySha256: firstBodySha256,
+    coldWallMs: Number(cold.times[0].toFixed(1)),
+    warmWallMs: {median: Number(q(warm.times, 50).toFixed(1)), p90: Number(q(warm.times, 90).toFixed(1)), min: Number(Math.min(...warm.times).toFixed(1))}
+  }))
   cdp.close()
 } finally {
   w.child.kill('SIGTERM')

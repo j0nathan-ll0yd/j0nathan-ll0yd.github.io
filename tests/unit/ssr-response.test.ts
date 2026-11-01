@@ -8,13 +8,13 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
   type ArtifactFacts,
+  type CheckedValueFreePage,
   type CheckedValueFreeSet,
   COMPOSED_FRAGMENT_IDS,
   type ComposedArtifact,
   type ComposedFragmentId,
   GATE_VARIANT,
-  UNREADABLE_VARIANT,
-  type ValueFreeEntry
+  UNREADABLE_VARIANT
 } from '../../src/lib/composed/artifact'
 import type {PublishedRead} from '../../src/lib/composed/published'
 import type {ComposedRead} from '../../src/lib/composed/read'
@@ -81,10 +81,10 @@ function fragmentsOf(label: string, scope = SCOPE): Record<ComposedFragmentId, s
   return Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, `<div id="${id}" ${scope}>${label}</div>`])) as Record<ComposedFragmentId, string>
 }
 
-/** A value-free variant whose fragments the Worker already checked (src/lib/composed/artifact.ts checkedVariant). */
-function checkedEntry(summary: 'suppressed' | 'unavailable', label: string, scope = SCOPE, ids?: string[]): ValueFreeEntry {
+/** A value-free variant as the Worker holds it: checked by the build and compiled in (src/lib/composed/value-free.ts). */
+function checkedEntry(summary: 'suppressed' | 'unavailable', label: string, scope = SCOPE, ids?: string[]): CheckedValueFreePage {
   const page = {summary, fragments: fragmentsOf(label, scope)}
-  return {page, checked: {...page, facts: factsOf(scope, ids)}}
+  return {...page, facts: factsOf(scope, ids)}
 }
 
 /** The build's value-free set: one page per hiding value, the gate and an unreadable focus. */
@@ -209,8 +209,8 @@ describe('GET /: the data-free page, with an honest summary', () => {
 })
 
 describe('GET /: the value-free pages', () => {
-  function withValueFree(read: ComposedRead, set: ValueFreeSet | null = VALUE_FREE): DashboardRenderDeps {
-    return {...deps(async () => read).deps, valueFree: async () => set}
+  function withValueFree(read: ComposedRead, set: CheckedValueFreeSet | null = VALUE_FREE): DashboardRenderDeps {
+    return {...deps(async () => read).deps, valueFree: () => set}
   }
 
   // covers: dashboard-ssr#A hiding or unreadable focus value answers the build's value-free page
@@ -240,7 +240,7 @@ describe('GET /: the value-free pages', () => {
   })
 
   it('refuses a value-free page whose scoped-style hash the website does not carry', async () => {
-    const foreign: ValueFreeSet = {
+    const foreign: CheckedValueFreeSet = {
       ...VALUE_FREE,
       variants: {...VALUE_FREE.variants, Work: checkedEntry('suppressed', 'work-overlay', 'data-astro-cid-zzzzzzzz')}
     }
@@ -348,10 +348,7 @@ describe('GET /: the fragment allowlist (review 2026-10-16, H1)', () => {
       ...VALUE_FREE,
       variants: {...VALUE_FREE.variants, Work: checkedEntry('suppressed', 'work-overlay', SCOPE, [SHELL_ID])}
     }
-    const response = await renderDashboard(REQUEST, {
-      ...deps(async () => ({kind: 'suppressed', currentFocus: 'Work'})).deps,
-      valueFree: async () => clobbering
-    })
+    const response = await renderDashboard(REQUEST, {...deps(async () => ({kind: 'suppressed', currentFocus: 'Work'})).deps, valueFree: () => clobbering})
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
     expect(await response.text()).toBe('data-free page')
   })
@@ -381,7 +378,7 @@ describe('GET /: the published page (atlas decision 0164, Variant D)', () => {
     const base = deps(async () => {
       throw new Error('the composed artifact must not be read on the published path')
     })
-    return {calls: base.calls, deps: {...base.deps, valueFree: async () => VALUE_FREE, published: {read, shell: SHELL}}}
+    return {calls: base.calls, deps: {...base.deps, valueFree: () => VALUE_FREE, published: {read, shell: SHELL}}}
   }
   const TIMING = {focusMs: 3, fragmentsMs: 4}
 
