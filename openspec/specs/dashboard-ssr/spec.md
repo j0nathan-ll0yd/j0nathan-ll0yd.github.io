@@ -293,7 +293,7 @@ unless it reads the same visible value; an artifact published before the change 
 the gate blocks it while focus hides. (b) The site deploys during a composition: the artifact names
 the old build, and the Worker of the new build SHALL refuse it (the lockstep requirement above).
 
-Verified by `tests/oracle/composer-parity.test.ts:457` (race a) and
+Verified by `tests/oracle/composer-parity.test.ts:464` (race a) and
 `tests/unit/composed-read.test.ts:139` (race b).
 
 #### Scenario: Focus turns hiding while the page renders
@@ -394,7 +394,9 @@ note title above 16,384 characters SHALL be cut, ending in an ellipsis
 `src/lib/composed/reading-option.ts`, carries the owner's choice: `allow` (option A) links titles as
 above; `strip` (option B) renders every title as text in the composer and turns the Worker's any-host
 exception off. The
-Worker checks one artifact text once per isolate, and a value-free variant when it is first served.
+Worker checks one artifact text once per isolate. It does not check the value-free pages when it
+serves them: the build runs this check over every variant and compiles only what it admits into the
+Worker (the value-free requirement below; atlas decision 0164 row 1, owner decision 2026-11-01).
 
 The allowlist bounds the markup, not the values: a bucket writer can still write any text in a
 card, any link to an allowlisted host, and, on the Reading card's article titles only, a link to any
@@ -411,8 +413,12 @@ of the two later review rounds, and the other refusal cases), `tests/unit/ssr-re
 (the data-free page and the logged reason), `tests/unit/composed-shell.test.ts:82` (a borrowed
 scoped-style hash and a page id are refused per slot), `tests/unit/composed-book-link.test.ts:42`
 (the Bookshelf tile link's shape, href and `sponsored` bounds), `tests/build/composed-containment.test.ts:16`
-(`.tri-card` keeps `container-type` and `overflow: hidden` in the built page), and
-`tests/oracle/composer-parity.test.ts:529` (every scenario's artifact, every fixture variation's artifact, the shipped value-free set and
+(`.tri-card` keeps `container-type` and `overflow: hidden` in the built page),
+`tests/unit/value-free.test.ts:54` (the build's gate refuses a value-free set on each closed-set
+reason), `tests/build/value-free-module.test.ts:149` (the build fails on every value-free page the
+allowlist refuses, over the seeded mutation corpus of the fragment property test, and compiles in only
+pages parse5 reads as allowlisted), and
+`tests/oracle/composer-parity.test.ts:536` (every scenario's artifact, every fixture variation's artifact, the value-free set the build compiled into the Worker and
 the committed fixture pass; the allowlist names nothing unused; no fragment id is one the built page
 keeps outside the cards).
 
@@ -471,7 +477,7 @@ no copy between requests, open no Cache API, cache no HTML at the edge and sched
 (`COMPOSED_CACHE_HEADERS`).
 
 Verified by `tests/unit/published-read.test.ts:276` (no Cache API on any outcome, no `waitUntil`)
-and `tests/unit/ssr-response.test.ts:388` (the published page is no-store and its log line holds no
+and `tests/unit/ssr-response.test.ts:385` (the published page is no-store and its log line holds no
 value).
 
 #### Scenario: The owner turns on Work focus
@@ -491,9 +497,9 @@ issue the focus probe and the artifact fetch together, both inside ONE 2.5 s bud
 a copy SHALL still reserve the window and SHALL still probe focus before it fetches. The `ssr_render`
 line SHALL carry `focus_ms` and, when the read waited for the artifact, `artifact_ms`.
 
-Verified by `tests/unit/composed-read.test.ts:555` (the reserve),
+Verified by `tests/unit/composed-read.test.ts:558` (the reserve),
 `tests/unit/composed-read-concurrent.test.ts:138` (both legs at 1,400 ms fit the budget) and
-`tests/unit/ssr-response.test.ts:360` (the leg timings in the log line).
+`tests/unit/ssr-response.test.ts:358` (the leg timings in the log line).
 
 #### Scenario: CloudFront answers the artifact slowly
 
@@ -605,17 +611,30 @@ unread), `tests/unit/composed-read-concurrent.test.ts:180` (the gate wins),
 
 While the focus value hides, the gate is shut over a visible value, or the focus signal cannot be
 read, `GET /` SHALL answer a value-free page: the data-free page with the website build's value-free
-fragments spliced in (src/lib/composed/value-free.ts, built by `scripts/build-composer.mjs
---value-free`). A hiding value SHALL show its own overlay and every card `suppressed`; the gate SHALL
-show every card `suppressed` and no overlay; an unreadable focus SHALL show every card `unavailable`
-and no overlay. The page SHALL hold no export value and no source age, and SHALL NOT depend on the
-build's clock (the overlay clock stays `--:--:--` until the browser fills it). When the value-free
-pages cannot be used, the data-free page SHALL answer with the same summary. A public request for the
-value-free asset (`/_ssr/value-free.json`) SHALL get the 404 page.
+fragments spliced in (src/lib/composed/value-free.ts). A hiding value SHALL show its own overlay and
+every card `suppressed`; the gate SHALL show every card `suppressed` and no overlay; an unreadable
+focus SHALL show every card `unavailable` and no overlay. The page SHALL hold no export value and no
+source age, and SHALL NOT depend on the build's clock (the overlay clock stays `--:--:--` until the
+browser fills it).
 
-Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and its fragments), and by
-`tests/oracle/composer-parity.test.ts:310` (each variant equals the Astro render, holds no
-`data-generated-at`, and is the asset the build shipped).
+The build composes the pages with its own composer (`composeValueFree`), runs the Worker's own
+allowlist over every variant (src/lib/composed/artifact.ts `checkValueFreeSet`, which calls
+`checkFragments`), and SHALL fail on any refusal. It compiles only the admitted pages into the Worker
+(scripts/build-value-free.mjs, src/lib/composed/compiled-value-free.ts), and its post-build check
+SHALL prove that exactly one Worker module holds them (atlas decision 0164 row 1; owner decision
+2026-11-01). No static asset holds them. The Worker SHALL NOT read, parse or re-check them when it
+serves them; it SHALL serve a variant only when the compiled set names the Worker's own build and the
+variant's facts fit the shell (`fitsShell`). When the value-free pages cannot be used, the data-free
+page SHALL answer with the same summary.
+
+Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and its fragments),
+`tests/unit/value-free.test.ts:88` (the Worker serves only the set its own build compiled),
+`tests/build/value-free-module.test.ts:67` (the compiled module is this build's composer's set, byte
+for byte, held by exactly one Worker module, and no value-free asset ships),
+`tests/build/value-free-module.test.ts:202` (each variant is served byte-identical to the splice of the
+composer's fragments into the compiled shell; a set from another build answers the data-free page),
+and by `tests/oracle/composer-parity.test.ts:319` (each variant equals the Astro render, holds no
+`data-generated-at`, and is what the build compiled into the Worker).
 
 #### Scenario: The owner turns on Do Not Disturb
 
@@ -624,6 +643,13 @@ Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: suppressed`, the Do Not Disturb overlay
   shown, every card `suppressed`, and no export value, and SHALL read no byte of the composed
   artifact (a fetch in flight is aborted, a body that arrived is cancelled unread)
+
+#### Scenario: A design-system release renders a value-free card the allowlist refuses
+
+- **GIVEN** a component renders, in a value-free state, markup the allowlist refuses
+- **WHEN** the website builds
+- **THEN** the build SHALL fail, naming the fragment and the closed-set reason, and no Worker SHALL
+  deploy with that page
 
 ### Requirement: A render that misses its budget falls back to the data-free page
 
@@ -688,8 +714,8 @@ reason or `summary-<summary>`. The KV value carries no render record, so the pub
 per-export outcome, no card state and no degraded exports.
 
 Verified by `tests/unit/ssr-response.test.ts:173` (one value-free line),
-`tests/unit/ssr-response.test.ts:427` (`visibility_proof: "fragments"`) and
-`tests/unit/ssr-response.test.ts:508` (`isolate_first` under a fresh module: true, then false on
+`tests/unit/ssr-response.test.ts:424` (`visibility_proof: "fragments"`) and
+`tests/unit/ssr-response.test.ts:505` (`isolate_first` under a fresh module: true, then false on
 both paths).
 
 #### Scenario: A healthy render
