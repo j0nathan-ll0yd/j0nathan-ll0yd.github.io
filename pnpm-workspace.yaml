@@ -125,7 +125,7 @@ allowBuilds:
   # optional deps. Astro's image service needs it at build time.
   sharp: true
   # postinstall installs the workerd platform binary that backs `wrangler`
-  # (Cloudflare Pages Functions local dev / preview).
+  # (`wrangler dev` and the Miniflare test runs).
   workerd: true
   # DENIED DELIBERATELY. Transitive via pa11y-ci. Its postinstall downloads a
   # ~200MB Chrome-for-Testing build that is never used: the only place pa11y-ci

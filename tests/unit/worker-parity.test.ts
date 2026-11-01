@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {ALLOWED_EMPTY_405_CONTENT_TYPE, compare} from '../../scripts/worker-parity.mjs'
+import {ALLOWED_EMPTY_405_CONTENT_TYPE, compare, parseOptions} from '../../scripts/worker-parity.mjs'
 
 // The parity comparison's named allowances (atlas decision 0160, Step 3.6).
 
@@ -24,5 +24,30 @@ describe('compare', () => {
   it('allows the preview noindex only for a workers.dev candidate', () => {
     expect(compare(testCase, side(405, {}), side(405, {'x-robots-tag': 'noindex'}), true)).toEqual([])
     expect(compare(testCase, side(405, {}), side(405, {'x-robots-tag': 'noindex'}), false)).toHaveLength(1)
+  })
+})
+
+// The Pages origin alias was the default baseline until atlas decision 0160 D7 retired the project.
+describe('parseOptions', () => {
+  it('requires --baseline: it has no default', () => {
+    expect(() => parseOptions(['--candidate', 'http://localhost:8787'])).toThrow(/--baseline <url> is required\nusage: /)
+  })
+
+  it('requires --candidate', () => {
+    expect(() => parseOptions(['--baseline', 'https://jonathanlloyd.me'])).toThrow(/--candidate <url> is required\nusage: /)
+  })
+
+  it('reads both URLs and the repeated candidate header', () => {
+    const values = parseOptions([
+      '--baseline',
+      'https://jonathanlloyd.me',
+      '--candidate',
+      'http://localhost:8787',
+      '--candidate-header',
+      'A: 1',
+      '--candidate-header',
+      'B: 2'
+    ])
+    expect(values).toMatchObject({baseline: 'https://jonathanlloyd.me', candidate: 'http://localhost:8787', 'candidate-header': ['A: 1', 'B: 2']})
   })
 })
