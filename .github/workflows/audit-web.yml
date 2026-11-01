@@ -16,7 +16,7 @@
 # Promotion to blocking is a Phase 6 decision, not something this workflow does
 # on its own.
 #
-# MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to Cloudflare Pages
+# MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to the Cloudflare Worker
 # AND is the branch the external scheduler dispatches -- registry fact
 # web-main-autodeploys-prod) -- do not merge without explicit user instruction
 # (B5).

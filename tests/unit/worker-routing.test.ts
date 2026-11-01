@@ -63,7 +63,7 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('route')
   })
 
-  it('declares no route: the production route lives in Cloudflare, so CI deploys never reset its fail-open (owner decision 2026-10-14)', () => {
+  it('declares no route: production is the Workers Custom Domain, kept in Cloudflare outside the config (atlas decision 0162, O3a)', () => {
     expect(config).not.toHaveProperty('routes')
   })
 

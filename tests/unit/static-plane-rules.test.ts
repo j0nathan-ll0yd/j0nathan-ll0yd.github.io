@@ -46,10 +46,19 @@ describe('_headers', () => {
     }
   })
 
-  it.each([['/_astro/a.js', true], ['/assets/icon.png', true], ['/js/clock.js', false], ['/', false], ['/astro', false]])('isCodeFreePath(%s) is %s',
-    (path, expected) => {
-      expect(isCodeFreePath(path)).toBe(expected)
-    })
+  // /css/ and /vendor/ left the list with the Pages project (atlas decision 0160 D7).
+  const cases: Array<[string, boolean]> = [
+    ['/_astro/a.js', true],
+    ['/assets/icon.png', true],
+    ['/js/clock.js', false],
+    ['/', false],
+    ['/astro', false],
+    ['/css/a.css', false],
+    ['/vendor/x.js', false]
+  ]
+  it.each(cases)('isCodeFreePath(%s) is %s', (path, expected) => {
+    expect(isCodeFreePath(path)).toBe(expected)
+  })
 })
 
 describe('_redirects', () => {

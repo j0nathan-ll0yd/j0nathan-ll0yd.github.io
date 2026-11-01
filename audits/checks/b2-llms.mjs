@@ -141,7 +141,7 @@ export function validateLlmsTxt(rawText) {
 
 /**
  * Freshness/skew authority: the packaged estate contract, read in the AUDIT layer
- * only so the Pages Functions runtime bundle stays free of the package (atlas
+ * only so the Worker runtime bundle stays free of the package (atlas
  * decision 0119 D2). The contract owns `maxCompositionAge` (4 hours: the composer
  * runs on a 30-minute EventBridge rate plus an event trigger, bounding missed
  * compositions and the three-hour last-known-good origin fallback) and
