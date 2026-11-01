@@ -48,12 +48,10 @@
       "/_ssr/value-free.json"
     ]
   },
-  // NO `routes` key, on purpose (owner decision 2026-10-14, option A). The production route
-  // `jonathanlloyd.me/*` lives in Cloudflare, outside wrangler, set to fail open by the owner. A deploy
-  // that declares routes replaces the Worker's route set with new route objects (wrangler 4.149.0
-  // `publishRoutes`, PUT .../workers/scripts/:name/routes), which reset request_limit_fail_open to
-  // false; a deploy that declares none makes no route call (`triggersDeploy`: `if (routesOnly.length
-  // > 0)`). Rollback and re-creation: docs/decision-0160/cutover-rehearsal-runbook.md.
+  // NO `routes` key, on purpose (atlas decision 0162, owner answer O3a). Production is the Workers
+  // Custom Domain `jonathanlloyd.me`, attached in Cloudflare outside wrangler on 2026-10-21. The
+  // Workers Route `jonathanlloyd.me/*` it replaced was deleted on 2026-10-22 (atlas decision 0160 D7).
+  // tests/unit/worker-routing.test.ts pins the absence.
   // No public workers.dev alias (decision 0160 D1).
   "workers_dev": false,
   // Version URLs on: the owner put Cloudflare Access on the Worker (gate G3, 2026-10-14), with the
