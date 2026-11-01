@@ -285,13 +285,13 @@ export function urlRegexProblems(regex, gatedUrls, label) {
     ]
   }
   // Compared by PATH against every gated pathname, whatever its origin: the gated routes also run on
-  // hosts the probe set does not name (www, a *.pages.dev preview), and a route anchored on one of
+  // hosts the probe set does not name (www, a *.workers.dev preview), and a route anchored on one of
   // those must not cover them either.
   const origin = new URL(prefix).origin
   const pathPrefix = prefix.slice(origin.length)
   if (pathPrefix === '/') {
     return [
-      `${label}: runtime route ${regex} is anchored on the bare origin ${origin}/ with no literal path segment; the gated routes answer on hosts the guard cannot list (www, a *.pages.dev preview), so a route must also name a literal path that is not gated (^${origin}/<segment>/...)`
+      `${label}: runtime route ${regex} is anchored on the bare origin ${origin}/ with no literal path segment; the gated routes answer on hosts the guard cannot list (www, a *.workers.dev preview), so a route must also name a literal path that is not gated (^${origin}/<segment>/...)`
     ]
   }
   const problems = []

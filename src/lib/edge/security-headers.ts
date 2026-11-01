@@ -97,9 +97,10 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
 /**
  * The paths that never ran code on Pages: `public/_routes.json` excluded them from Functions, so
  * their responses carried the `_headers` policy alone, without the CSP trio. They keep exactly that.
- * `/css/` and `/vendor/` serve no file now and stay only for Pages parity, until atlas decision 0160 D7 deletes the Pages project.
+ * `/css/` and `/vendor/` left the list with the Pages project (atlas decision 0160 D7): they serve
+ * no file, so a request there gets the Worker's 404 with the full header set.
  */
-export const CODE_FREE_PREFIXES = Object.freeze(['/_astro/', '/fonts/', '/css/', '/vendor/', '/assets/'])
+export const CODE_FREE_PREFIXES = Object.freeze(['/_astro/', '/fonts/', '/assets/'])
 
 /**
  * Pages answered every static-asset response, its 404 page and its 405 included, with

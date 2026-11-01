@@ -134,32 +134,3 @@ jobs:
           node scripts/check-preview-access.mjs --unmeasured-ok "$PREVIEW_URL" ${ALIAS_URL:+"$ALIAS_URL"}
           echo "Version URL: $PREVIEW_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "Alias URL: $ALIAS_URL" >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Compare the version with production Pages (decision 0160 Step 3.6, report only)
-        # The PR A parity report: scripts/worker-parity.mjs sends the same request matrix to the
-        # production Pages origin alias and to this version through the service token. Report
-        # only: a later PR that changes behavior on purpose differs by design, and the baseline
-        # retires with the Pages project (plan Step 8.9); remove this step then.
-        if: steps.access.outputs.outcome == 'pass'
-        continue-on-error: true
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
-          PREVIEW_URL: ${{ steps.upload.outputs.preview_url }}
-        run: |
-          set -o pipefail
-          node scripts/worker-parity.mjs --baseline https://human-datastream.pages.dev --candidate "$PREVIEW_URL" --json "$RUNNER_TEMP/worker-parity.json" | tee "$RUNNER_TEMP/worker-parity.txt"
-          {
-            echo '## Worker parity (decision 0160 Step 3.6)'
-            echo
-            echo '```'
-            grep -E '^(DIFF|SKIP)|^        |worker-parity:' "$RUNNER_TEMP/worker-parity.txt" || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Record the parity run as UNMEASURED
-        # Parity needs the same Version URL the Access check could not reach.
-        if: steps.access.outputs.outcome == 'unmeasured'
-        run: |
-          echo "::warning title=Worker parity UNMEASURED::the runner cannot reach the Version URL (see the Access check); run scripts/worker-parity.mjs locally with the service token"
-          printf '%s\n' '## Worker parity (decision 0160 Step 3.6): UNMEASURED' '' 'The runner cannot reach the Version URL (see the Access check above). Run `scripts/worker-parity.mjs` locally with the service token.' >> "$GITHUB_STEP_SUMMARY"
