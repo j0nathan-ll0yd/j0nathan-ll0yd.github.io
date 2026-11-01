@@ -28,8 +28,8 @@ importers:
         specifier: 2.8.0
         version: 2.8.0
       '@j0nathan-ll0yd/schemas':
-        specifier: ^2.4.2
-        version: 2.4.2
+        specifier: ^3.0.0
+        version: 3.0.0
       '@j0nathan-ll0yd/tokens':
         specifier: ^2.2.2
         version: 2.2.2
@@ -1917,9 +1917,6 @@ packages:
   '@j0nathan-ll0yd/portal-contract@2.8.0':
     resolution: {integrity: sha512-bZVNTxugt5F93ggdKcjkwMMj8PyRrIHITR1q46nnXDIo/ymNoGu61lGQBcOZZIPM+67rIWh0q/ZC4IEYx3PfYA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/portal-contract/2.8.0/360a13cd418babaea837f28623aa5f1be62fe2a7}
 
-  '@j0nathan-ll0yd/schemas@2.4.2':
-    resolution: {integrity: sha512-/tXzUQP4UaPdLp6QaSdmTm4wVVbY2Zlaf4eTbpskoXzeZkiVJj9ro3x2yUOlFRurUbiZm/ivI84tEPZJqtggbg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/2.4.2/21d0954b005f377ad4dff2a417ecfbe589d91cd3}
-
   '@j0nathan-ll0yd/schemas@3.0.0':
     resolution: {integrity: sha512-z3thbOqiRYoFgpGC3prpdJP1kVOxfpswnKAU7lPNzvBlVE6ifW3bIdNFnc+3yeiMdjH3cq9s3KuT96C71xqK0g==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/3.0.0/1ecbedb827c3acc86c20af13ba33ca775c13100d}
 
@@ -2484,6 +2481,7 @@ packages:
   '@smithy/core@3.33.3':
     resolution: {integrity: sha512-CsOeKq/9kA3y6VJHt+/+VTCtBaxJ4OTFpgrjIUhPpDIKxBci1k2bJaQASF2h/ELWrulGp+t97DZ0mevfAD8idg==}
     engines: {node: '>=18.0.0'}
+    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -8006,12 +8004,6 @@ snapshots:
       - '@middy/core'
 
   '@j0nathan-ll0yd/portal-contract@2.8.0': {}
-
-  '@j0nathan-ll0yd/schemas@2.4.2':
-    dependencies:
-      '@j0nathan-ll0yd/portal-contract': 2.8.0
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
 
   '@j0nathan-ll0yd/schemas@3.0.0':
     dependencies:
