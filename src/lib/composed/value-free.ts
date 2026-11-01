@@ -25,8 +25,8 @@ export interface GeneratedValueFreeModule {
 export interface CompiledValueFree {
   set: CheckedValueFreeSet
   /**
-   * The sha256 the build checked. Nothing reads it at request time; holding it keeps the marker in
-   * the Worker bundle, where `build-value-free.mjs --check` requires exactly one module to carry it.
+   * The sha256 the build checked: the marker `build-value-free.mjs --check` requires exactly one
+   * Worker module to carry. Nothing reads it at request time.
    */
   sha256: string
 }
