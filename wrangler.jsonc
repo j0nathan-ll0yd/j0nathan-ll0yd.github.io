@@ -51,6 +51,8 @@
   // NO `routes` key, on purpose (atlas decision 0162, owner answer O3a). Production is the Workers
   // Custom Domain `jonathanlloyd.me`, attached in Cloudflare outside wrangler on 2026-10-21. The
   // Workers Route `jonathanlloyd.me/*` it replaced was deleted on 2026-10-22 (atlas decision 0160 D7).
+  // Without `routes`, a deploy writes neither a route nor a Custom Domain (measured on wrangler
+  // 4.149.0, atlas decision 0162 item 3), so CI cannot detach the Custom Domain.
   // tests/unit/worker-routing.test.ts pins the absence.
   // No public workers.dev alias (decision 0160 D1).
   "workers_dev": false,
