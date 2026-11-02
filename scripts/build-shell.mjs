@@ -29,9 +29,10 @@ import {parse} from 'parse5'
 import {COMPOSED_FRAGMENT_IDS} from '../src/lib/composed/artifact.ts'
 import {compileShell, cutAt} from '../src/lib/composed/shell.ts'
 import {ASSET_PLANE_HEADERS} from '../src/lib/edge/security-headers.ts'
-import {bundlesNaming, isMainModule} from './lib/build-gates.mjs'
+import {bundlesNaming} from './lib/build-gates.mjs'
 import {buildId} from './lib/build-id.mjs'
 import {clientDir} from './lib/build-paths.mjs'
+import {isMainModule} from './lib/main-module.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const SHELL_MODULE = path.join(ROOT, 'src/lib/composed/shell.generated.ts')
@@ -131,6 +132,6 @@ if (isMainModule(import.meta.url)) {
     console.log(`[build-shell] OK: dist/server/${holders[0]} holds the cut of dist/client/index.html (sha256 ${sha256.slice(0, 12)})`)
   } else {
     writeFileSync(SHELL_MODULE, source)
-    console.log(`[build-shell] wrote ${path.relative(ROOT, SHELL_MODULE)} (${source.length} bytes) from ${path.relative(ROOT, page)}`)
+    console.log(`[build-shell] wrote ${path.relative(ROOT, SHELL_MODULE)} (${Buffer.byteLength(source)} bytes) from ${path.relative(ROOT, page)}`)
   }
 }

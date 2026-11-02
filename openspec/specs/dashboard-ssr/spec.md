@@ -415,7 +415,7 @@ scoped-style hash and a page id are refused per slot), `tests/unit/composed-book
 (the Bookshelf tile link's shape, href and `sponsored` bounds), `tests/build/composed-containment.test.ts:16`
 (`.tri-card` keeps `container-type` and `overflow: hidden` in the built page),
 `tests/unit/value-free.test.ts:54` (the build's gate refuses a value-free set on each closed-set
-reason), `tests/build/value-free-module.test.ts:149` (the build fails on every value-free page the
+reason), `tests/build/value-free-module.test.ts:182` (the build fails on every value-free page the
 allowlist refuses, over the seeded mutation corpus of the fragment property test, and compiles in only
 pages parse5 reads as allowlisted), and
 `tests/oracle/composer-parity.test.ts:536` (every scenario's artifact, every fixture variation's artifact, the value-free set the build compiled into the Worker and
@@ -621,19 +621,26 @@ The build composes the pages with its own composer (`composeValueFree`), runs th
 allowlist over every variant (src/lib/composed/artifact.ts `checkValueFreeSet`, which calls
 `checkFragments`), and SHALL fail on any refusal. It compiles only the admitted pages into the Worker
 (scripts/build-value-free.mjs, src/lib/composed/compiled-value-free.ts), and its post-build check
-SHALL prove that exactly one Worker module holds them (atlas decision 0164 row 1; owner decision
-2026-11-01). No static asset holds them. The Worker SHALL NOT read, parse or re-check them when it
-serves them; it SHALL serve a variant only when the compiled set names the Worker's own build and the
-variant's facts fit the shell (`fitsShell`). When the value-free pages cannot be used, the data-free
-page SHALL answer with the same summary.
+SHALL prove that the compiled set is the composer's pages byte for byte and that exactly one Worker
+module carries their sha256 (atlas decision 0164 row 1; owner decision 2026-11-01). Only `pnpm build`
+(scripts/build-site.mjs) SHALL compile the generated modules in: any other build that loads one SHALL
+fail (scripts/vite-pnpm-build-only.mjs). No static asset holds them. The Worker SHALL NOT read, parse
+or re-check them when it serves them; it SHALL serve a variant only when the compiled set names the
+Worker's own build and the variant's facts fit the shell (`fitsShell`). A compiled set that does not
+convert when the Worker starts SHALL leave every route up, with the reason in the log. When the
+value-free pages cannot be used, the data-free page SHALL answer with the same summary.
 
 Verified by `tests/unit/ssr-response.test.ts:215` (each variant, its summary and its fragments),
 `tests/unit/value-free.test.ts:88` (the Worker serves only the set its own build compiled),
-`tests/build/value-free-module.test.ts:67` (the compiled module is this build's composer's set, byte
-for byte, held by exactly one Worker module, and no value-free asset ships),
-`tests/build/value-free-module.test.ts:202` (each variant is served byte-identical to the splice of the
-composer's fragments into the compiled shell; a set from another build answers the data-free page),
-and by `tests/oracle/composer-parity.test.ts:319` (each variant equals the Astro render, holds no
+`tests/unit/value-free.test.ts:123` (a compiled set that does not convert answers null and is logged,
+with no throw), `tests/build/value-free-module.test.ts:67` (the compiled module is this build's
+composer's set, byte for byte; exactly one Worker module carries its sha256; the post-build check fails
+on drift from the composer; no value-free asset ships), `tests/build/value-free-module.test.ts:235`
+(each variant is served byte-identical to the splice of the composer's fragments into the compiled
+shell; a set from another build answers the data-free page), `tests/unit/pnpm-build-only.test.ts:67`
+(a build that loads a generated module fails unless `pnpm build` started the pass),
+`tests/build/pnpm-build-only.test.ts:25` (a direct `astro build` fails on the modules a `pnpm build`
+left on disk), and by `tests/oracle/composer-parity.test.ts:319` (each variant equals the Astro render, holds no
 `data-generated-at`, and is what the build compiled into the Worker).
 
 #### Scenario: The owner turns on Do Not Disturb
@@ -643,6 +650,12 @@ and by `tests/oracle/composer-parity.test.ts:319` (each variant equals the Astro
 - **THEN** the Worker SHALL answer 200 with `X-SSR-Data: suppressed`, the Do Not Disturb overlay
   shown, every card `suppressed`, and no export value, and SHALL read no byte of the composed
   artifact (a fetch in flight is aborted, a body that arrived is cancelled unread)
+
+#### Scenario: A direct astro build would compile a module no gate checked
+
+- **GIVEN** a value-free module on disk that `pnpm build` did not just write and check
+- **WHEN** `astro build` runs outside `pnpm build`
+- **THEN** the build SHALL fail and compile no Worker that holds the module
 
 #### Scenario: A design-system release renders a value-free card the allowlist refuses
 

@@ -13,8 +13,10 @@
  *    into the Worker (src/lib/composed/compiled-value-free.ts).
  *
  * The Worker does not read, parse or check these pages when it serves them. `--check`, after the
- * second `astro build`, runs the gate again on the exact values the module holds, proves the module
- * is what this script writes for this build's composer, and that exactly one Worker module holds it.
+ * second `astro build`, runs the gate again on the exact values the module holds, and proves three
+ * things: the module is what this script writes for this build's composer, its set is the composer's
+ * pages byte for byte, and exactly one Worker module carries its sha256. Only that second pass may
+ * compile the module in (scripts/vite-pnpm-build-only.mjs).
  *
  * Run with tsx: it imports the TypeScript check from src/. */
 import {createHash} from 'node:crypto'
@@ -23,8 +25,9 @@ import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {checkValueFreeSet} from '../src/lib/composed/artifact.ts'
 import {VALUE_FREE_VARIANTS} from '../src/lib/composed/value-free.ts'
-import {bundlesNaming, isMainModule} from './lib/build-gates.mjs'
+import {bundlesNaming} from './lib/build-gates.mjs'
 import {buildId} from './lib/build-id.mjs'
+import {isMainModule} from './lib/main-module.mjs'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 export const VALUE_FREE_MODULE = path.join(ROOT, 'src/lib/composed/value-free.generated.ts')
@@ -77,13 +80,18 @@ export async function composedValueFree(build = buildId()) {
 /**
  * The check after the second `astro build`: the module that build compiled in (`moduleText`, and
  * `compiled`, its exported values) must be `source`, what this script writes for this build's composer;
- * the gate must admit the exact values it holds, whose sha256 must be the one it carries; and exactly
- * one module of the Worker bundle in `serverDirectory` must hold that sha256. Throws on any failure;
- * returns the module that holds it.
+ * its set must be `composed`, the composer's own pages, byte for byte as JSON text, so `pnpm build`
+ * itself proves the Worker holds the composer's bytes (review of website #429, I1); the gate must admit
+ * the exact values it holds, whose sha256 must be the one it carries; and exactly one module of the
+ * Worker bundle in `serverDirectory` must carry that sha256. Throws on any failure; returns the module
+ * that carries it.
  */
-export function checkCompiledValueFree({source, moduleText, compiled, build, serverDirectory}) {
+export function checkCompiledValueFree({source, moduleText, compiled, composed, build, serverDirectory}) {
   if (moduleText !== source) {
     throw new Error("[build-value-free] the compiled value-free pages are not the checked pages of this build's composer")
+  }
+  if (JSON.stringify(compiled.VALUE_FREE_SET) !== JSON.stringify(composed)) {
+    throw new Error("[build-value-free] the compiled value-free pages are not this build's composer pages, byte for byte")
   }
   const admitted = gatedValueFree(compiled.VALUE_FREE_SET, build)
   if (valueFreeSha256(compiled.VALUE_FREE_SET) !== compiled.VALUE_FREE_SHA256 || valueFreeSha256(admitted) !== compiled.VALUE_FREE_SHA256) {
@@ -91,25 +99,25 @@ export function checkCompiledValueFree({source, moduleText, compiled, build, ser
   }
   const holders = bundlesNaming(compiled.VALUE_FREE_SHA256, serverDirectory)
   if (holders.length !== 1) {
-    throw new Error(`[build-value-free] ${holders.length} Worker modules hold the value-free pages, not 1`)
+    throw new Error(`[build-value-free] ${holders.length} Worker modules carry the value-free pages' sha256, not 1`)
   }
   return holders[0]
 }
 
 if (isMainModule(import.meta.url)) {
   const build = buildId()
-  const source = valueFreeModule(await composedValueFree(build), build)
+  const composed = await composedValueFree(build)
+  const source = valueFreeModule(composed, build)
   if (process.argv.includes('--check')) {
     if (!existsSync(VALUE_FREE_MODULE)) {
       throw new Error('[build-value-free] src/lib/composed/value-free.generated.ts is missing: the second astro build compiled no value-free pages')
     }
     const compiled = await import(pathToFileURL(VALUE_FREE_MODULE).href)
-    const holder = checkCompiledValueFree({source, moduleText: readFileSync(VALUE_FREE_MODULE, 'utf8'), compiled, build})
-    console.log(`[build-value-free] OK: dist/server/${holder} holds the checked value-free pages (sha256 ${compiled.VALUE_FREE_SHA256.slice(0, 12)})`)
+    const holder = checkCompiledValueFree({source, moduleText: readFileSync(VALUE_FREE_MODULE, 'utf8'), compiled, composed, build})
+    console.log(`[build-value-free] OK: dist/server/${holder} carries the checked value-free pages (sha256 ${compiled.VALUE_FREE_SHA256.slice(0, 12)})`)
   } else {
     writeFileSync(VALUE_FREE_MODULE, source)
-    console.log(
-      `[build-value-free] wrote ${path.relative(ROOT, VALUE_FREE_MODULE)} (${source.length} bytes): ${VALUE_FREE_VARIANTS.length} variants admitted`
-    )
+    const bytes = Buffer.byteLength(source)
+    console.log(`[build-value-free] wrote ${path.relative(ROOT, VALUE_FREE_MODULE)} (${bytes} bytes): ${VALUE_FREE_VARIANTS.length} variants admitted`)
   }
 }

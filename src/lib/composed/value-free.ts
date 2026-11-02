@@ -42,6 +42,26 @@ export function compiledValueFree(generated: GeneratedValueFreeModule): Compiled
 }
 
 /**
+ * The compiled set the Worker holds, or null (review of website #429, M3). It runs at module scope,
+ * when the Worker starts, where a throw would take every route down. A module the build's gate
+ * admitted converts without a throw; one that skipped the gate may not. So a module that does not
+ * convert serves the data-free page wherever a value-free page would answer, logs why, and leaves
+ * every other route up. Null too when the bundle holds no module.
+ */
+export function loadCompiledValueFree(generated: GeneratedValueFreeModule | undefined): CompiledValueFree | null {
+  if (generated === undefined) {
+    return null
+  }
+  try {
+    return compiledValueFree(generated)
+  } catch (error) {
+    // The reason names the conversion that failed (a TypeError on the module's shape), never a value.
+    console.error(`[value-free] the compiled value-free pages cannot be used, so hiding and unreadable answers serve the data-free page: ${String(error)}`)
+    return null
+  }
+}
+
+/**
  * The value-free set the Worker of build `build` serves: the compiled set, when the build that
  * compiled it is this one; otherwise null, and the Worker serves the data-free page. A Worker with no
  * compiled set (a fresh checkout) gets null too. `unknown` is the id of a build without one; two of

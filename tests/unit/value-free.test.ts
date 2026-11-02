@@ -5,7 +5,7 @@
 // Worker's own allowlist and refuses the whole set on any finding, and the Worker's lookup
 // (src/lib/composed/value-free.ts), which serves only a set its own build compiled. These run on a
 // synthetic set, without a build; tests/build/value-free-module.test.ts runs the gate on the real one.
-import {describe, expect, it} from 'vitest'
+import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
   checkFragments,
   checkValueFreeSet,
@@ -14,7 +14,7 @@ import {
   VALUE_FREE_FRAGMENT_OPTIONS,
   type ValueFreeSet
 } from '../../src/lib/composed/artifact'
-import {compiledValueFree, VALUE_FREE_VARIANTS, valueFreeFor, valueFreeVariant} from '../../src/lib/composed/value-free'
+import {compiledValueFree, loadCompiledValueFree, VALUE_FREE_VARIANTS, valueFreeFor, valueFreeVariant} from '../../src/lib/composed/value-free'
 
 const SCOPE = 'data-astro-cid-abc12345'
 
@@ -103,5 +103,40 @@ describe('the compiled set: the Worker serves only its own build', () => {
     for (const currentFocus of ['Sleep', 'constructor', '__proto__', 'toString', 'hasOwnProperty']) {
       expect(valueFreeVariant(set, {kind: 'suppressed', currentFocus}), currentFocus).toBeNull()
     }
+  })
+})
+
+describe('the compiled set at start-up (review of website #429, M3)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  /** A module that skipped the gate: every variant's facts lack `roots`. */
+  function malformed(): ValueFreeSet {
+    const set = composed('b')
+    const variants = Object.fromEntries(
+      Object.entries(set.variants).map(([key, page]) => [key, {...page, facts: {ids: page.facts.ids, scopes: page.facts.scopes}}])
+    )
+    return {...set, variants} as unknown as ValueFreeSet
+  }
+
+  // covers: dashboard-ssr#A hiding or unreadable focus value answers the build's value-free page
+  it('answers null for a module that does not convert, and logs why, where the conversion alone would throw', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const generated = {VALUE_FREE_SET: malformed(), VALUE_FREE_SHA256: 'f'.repeat(64)}
+    // The conversion the Worker runs at module scope throws on this module: unguarded, every route fails.
+    expect(() => compiledValueFree(generated)).toThrow(TypeError)
+    expect(loadCompiledValueFree(generated)).toBeNull()
+    expect(error).toHaveBeenCalledTimes(1)
+    expect(String(error.mock.calls[0]?.[0])).toContain('[value-free] the compiled value-free pages cannot be used')
+    // So the Worker holds no set: hiding and unreadable answers serve the data-free page.
+    expect(valueFreeFor('b', loadCompiledValueFree(generated))).toBeNull()
+  })
+
+  it('loads a module that converts, and nothing from a bundle that has none, without a log line', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(loadCompiledValueFree({VALUE_FREE_SET: composed('b'), VALUE_FREE_SHA256: 'f'.repeat(64)})?.set.build).toBe('b')
+    expect(loadCompiledValueFree(undefined)).toBeNull()
+    expect(error).not.toHaveBeenCalled()
   })
 })

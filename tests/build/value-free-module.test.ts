@@ -85,28 +85,61 @@ describe('the compiled value-free module (atlas decision 0164 row 1)', () => {
     }
   })
 
-  it('is held by exactly one Worker module', () => {
+  it('carries its sha256 in exactly one Worker module', () => {
     expect(bundlesNaming(VALUE_FREE_SHA256)).toHaveLength(1)
   })
 
-  it('fails the post-build check on another module, another sha256, or a bundle that holds it zero or two times', () => {
+  it('fails the post-build check on another module, pages that drift from the composer, another sha256, or zero or two carriers', () => {
     const source = readFileSync(VALUE_FREE_MODULE, 'utf8')
     const bundle = mkdtempSync(path.join(tmpdir(), 'value-free-bundle-'))
     try {
-      const check = (moduleText: string, sha256: string, holders: number) => {
+      // The module is what the script writes (`source` = `moduleText`); each case breaks one other property.
+      const check = (moduleText: string, set: ValueFreeSet, sha256: string, carriers: number) => {
         rmSync(bundle, {recursive: true, force: true})
         mkdirSync(bundle)
-        for (let i = 0; i < holders; i++) {
+        for (let i = 0; i < carriers; i++) {
           writeFileSync(path.join(bundle, `chunk-${i}.mjs`), `var marker = "${sha256}"`)
         }
         return () =>
-          checkCompiledValueFree({source, moduleText, compiled: {VALUE_FREE_SET, VALUE_FREE_SHA256: sha256}, build: BUILD, serverDirectory: bundle})
+          checkCompiledValueFree({
+            source: moduleText,
+            moduleText,
+            compiled: {VALUE_FREE_SET: set, VALUE_FREE_SHA256: sha256},
+            composed,
+            build: BUILD,
+            serverDirectory: bundle
+          })
       }
-      expect(check(source, VALUE_FREE_SHA256, 1)()).toBe('chunk-0.mjs')
-      expect(check(`${source} `, VALUE_FREE_SHA256, 1)).toThrow('not the checked pages')
-      expect(check(source, '0'.repeat(64), 1)).toThrow('do not match the sha256')
-      expect(check(source, VALUE_FREE_SHA256, 0)).toThrow('0 Worker modules')
-      expect(check(source, VALUE_FREE_SHA256, 2)).toThrow('2 Worker modules')
+      expect(check(source, VALUE_FREE_SET, VALUE_FREE_SHA256, 1)()).toBe('chunk-0.mjs')
+      expect(() =>
+        checkCompiledValueFree({
+          source,
+          moduleText: `${source} `,
+          compiled: {VALUE_FREE_SET, VALUE_FREE_SHA256},
+          composed,
+          build: BUILD,
+          serverDirectory: bundle
+        })
+      ).toThrow('not the checked pages')
+      // An emit that drifts from the composer after the gate (review of website #429, I1): the gate
+      // admits the drifted pages and the module is self-consistent, so only the comparison with the
+      // composer's own pages fails the build.
+      const work = VALUE_FREE_SET.variants.Work
+      const drifted: ValueFreeSet = work === undefined
+        ? VALUE_FREE_SET
+        : {
+          ...VALUE_FREE_SET,
+          variants: {
+            ...VALUE_FREE_SET.variants,
+            Work: {...work, fragments: {...work.fragments, cardHR: work.fragments.cardHR.replace(/^(<div\b[^>]*>)/, '$1 ')}}
+          }
+        }
+      const driftedSource = valueFreeModule(drifted, BUILD)
+      expect(driftedSource).not.toBe(source)
+      expect(check(driftedSource, drifted, valueFreeSha256(drifted), 1)).toThrow("not this build's composer pages, byte for byte")
+      expect(check(source, VALUE_FREE_SET, '0'.repeat(64), 1)).toThrow('do not match the sha256')
+      expect(check(source, VALUE_FREE_SET, VALUE_FREE_SHA256, 0)).toThrow("0 Worker modules carry the value-free pages' sha256")
+      expect(check(source, VALUE_FREE_SET, VALUE_FREE_SHA256, 2)).toThrow("2 Worker modules carry the value-free pages' sha256")
     } finally {
       rmSync(bundle, {recursive: true, force: true})
     }

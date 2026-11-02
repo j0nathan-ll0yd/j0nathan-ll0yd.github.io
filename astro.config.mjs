@@ -7,6 +7,7 @@ import {CLOUDFRONT_BASE, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constan
 import identity from '@j0nathan-ll0yd/copy/identity.flat.json'
 import {forbidFixtures} from './scripts/vite-forbid-fixtures.mjs'
 import {clientNoProcessBanner} from './scripts/vite-client-no-process-banner.mjs'
+import {pnpmBuildOnly} from './scripts/vite-pnpm-build-only.mjs'
 import llm from '@j0nathan-ll0yd/copy/llm.flat.json'
 import {AGENT_PATHS} from './src/lib/edge/agent-paths.mjs'
 import {SITE_PAGE_PATHS} from './src/lib/edge/site-paths.ts'
@@ -73,7 +74,9 @@ export default defineConfig({
     // another module or package (atlas decision 0160, plan Step 6.7). Production pages carry no
     // fixture data; tests serve fixtures by route interception only.
     // clientNoProcessBanner: the adapter's Worker banner must not reach the browser bundle.
-    plugins: [forbidFixtures(), clientNoProcessBanner()],
+    // pnpmBuildOnly: only `pnpm build` (scripts/build-site.mjs) may compile the generated modules,
+    // right after their gates checked them (atlas decision 0164 row 1).
+    plugins: [forbidFixtures(), clientNoProcessBanner(), pnpmBuildOnly()],
     build: {
       // Force every bundled JS chunk to emit as an external _astro/*.js file
       // instead of being inlined into the HTML. Required because production CSP
