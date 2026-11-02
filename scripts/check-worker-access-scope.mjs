@@ -21,6 +21,7 @@
  * Exit 0 on pass, 1 on fail, 2 on usage error. */
 import {parseArgs} from 'node:util'
 import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../src/lib/edge/security-headers.ts'
+import {isMainModule} from './lib/main-module.mjs'
 
 const API = 'https://api.cloudflare.com/client/v4'
 const PREVIEWS_ONLY = 'preview_worker'
@@ -106,6 +107,6 @@ async function main() {
   process.exit(failures.length === 0 ? 0 : 1)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   await main()
 }

@@ -28,6 +28,7 @@
 import {createHash} from 'node:crypto'
 import {writeFileSync} from 'node:fs'
 import {parseArgs} from 'node:util'
+import {isMainModule} from './lib/main-module.mjs'
 
 /** Headers that describe the transport or the edge, not the site. */
 export const TRANSPORT_HEADERS = new Set([
@@ -353,6 +354,6 @@ async function main() {
   process.exit(failed.length === 0 ? 0 : 1)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   await main()
 }

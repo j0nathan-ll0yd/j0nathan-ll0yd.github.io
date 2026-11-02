@@ -18,6 +18,7 @@ import {execFileSync} from 'node:child_process'
 import {readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {fileURLToPath} from 'node:url'
+import {isMainModule} from '../../scripts/lib/main-module.mjs'
 import {artifacts, rules} from '../specs/load.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -218,10 +219,6 @@ function main() {
   process.exit(1)
 }
 
-function isMain(importMetaUrl) {
-  return importMetaUrl === `file://${process.argv[1]}`
-}
-
-if (isMain(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

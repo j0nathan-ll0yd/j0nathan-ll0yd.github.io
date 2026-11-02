@@ -5,6 +5,7 @@
 // is not an outage (see web's tests/smoke/home.smoke.ts getStable(), issue #106)
 // but a steady-state 5xx still fails once the retry budget is spent.
 
+import {isMainModule} from '../../scripts/lib/main-module.mjs'
 import {publishMeasured} from './measurement.mjs'
 
 /** Wall-clock budget for one stable fetch. Exported so every bounded fetch in audits/ shares one number. */
@@ -119,5 +120,5 @@ export function report(checkId, findings, measured) {
 
 /** True when this module is being executed directly (`node script.mjs`), not imported by a test. */
 export function isMain(importMetaUrl) {
-  return importMetaUrl === `file://${process.argv[1]}`
+  return isMainModule(importMetaUrl)
 }

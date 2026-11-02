@@ -10,8 +10,8 @@
  * Exit 0: no forbidden variable. Exit 1: one is set; the message names it, never its value. */
 import {existsSync, readFileSync} from 'node:fs'
 import path from 'node:path'
-import {pathToFileURL} from 'node:url'
 import {serverDir} from './lib/build-paths.mjs'
+import {isMainModule} from './lib/main-module.mjs'
 
 /** The Worker variables production must never set. */
 export const FORBIDDEN_DEPLOY_VARS = Object.freeze(['DATA_PLANE_BASE', 'SSR_FAULT_INJECTION'])
@@ -49,6 +49,6 @@ function main() {
   console.log(`[check-deploy-vars] OK: none of ${FORBIDDEN_DEPLOY_VARS.join(', ')} is set`)
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isMainModule(import.meta.url)) {
   main()
 }
