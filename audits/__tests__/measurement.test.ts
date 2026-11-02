@@ -229,10 +229,9 @@ function reportCallArgs(source: string, from: number): string[] {
  * `status: unknown`) and that atlas decision 0120 D2 corrects the read permissions BEFORE
  * the channel lands, so the tile does not go permanently red on a known-open owner action.
  *
- * The owner rejected the waiver. The runner now publishes its real count
- * (`measurementDeclaration` in audits/checks/b2-check-cloudflare-llms-cache-rules.mjs): 0
- * when every read is refused, which wedges the tier. It is an ordinary member of the census
- * below, and its workflow record carries no reason and no `until=` field.
+ * The owner rejected the waiver, and the runner then published its real count until it
+ * retired with the Pages project (atlas decision 0160 D7): the seam it watched, zone cache
+ * rules on the paths that reached the zone without the Worker, has no origin left.
  *
  * Kept as an empty set rather than deleted: it is the seam a future exemption would have
  * to reopen, with its reason, in review.
@@ -248,27 +247,27 @@ describe('every audit check publishes a measurement', () => {
   it('exempts no runner from the census', () => {
     // The exemption that existed was the laundering channel, not a permanent property.
     expect([...DEFERRED_CHANNEL_STEP_IDS]).toEqual([])
-    expect(censusRunners).toContain('audits/checks/b2-check-cloudflare-llms-cache-rules.mjs')
   })
 
   it('censuses the check steps the workflow actually declares', () => {
     // Guards the census itself: a parser that matched nothing would pass every
     // assertion below while proving nothing -- the silent-empty-population shape this
-    // whole channel exists to end. 20 report-only check steps across the three tiers:
-    // 5 daily, 13 weekly, 2 monthly. The weekly count moved from 10 with
+    // whole channel exists to end. 19 report-only check steps across the three tiers:
+    // 5 daily, 12 weekly, 2 monthly. The weekly count moved from 10 with
     // `spec_currency` (atlas decision 0129 C6), which measures CURRENT upstream blobs
     // where its `spec_drift` sibling measures PINNED ones, from 11 with
     // `crawler_edge` (atlas decision 0158), which measures edge responses to crawler tokens,
     // and from 12 with `not_found` (atlas decision 0158 step 5b), which measures the deployed
-    // markdown and HTML 404.
+    // markdown and HTML 404. It fell from 13 when `llms_cache_rules` retired with the Pages
+    // project (atlas decision 0160 D7).
     // The daily count moved from 2 when B6 split into `analytics_beacons` and
     // `analytics_ingestion` (owner decision 2026-10-13, option A), so a dark SA ingestion
     // arm publishes its own 0. It moved again from 3 with `ssr_known_answer` and `ssr_metadata`
     // (atlas decision 0160, plan Steps 6.8 and 6.9), which measure the served page.
     expect(steps.map(({job}) => job).filter((j) => j === 'daily')).toHaveLength(5)
-    expect(steps.map(({job}) => job).filter((j) => j === 'weekly')).toHaveLength(13)
+    expect(steps.map(({job}) => job).filter((j) => j === 'weekly')).toHaveLength(12)
     expect(steps.map(({job}) => job).filter((j) => j === 'monthly')).toHaveLength(2)
-    expect(steps).toHaveLength(20)
+    expect(steps).toHaveLength(19)
     expect(censusRunners.length).toBeGreaterThanOrEqual(8)
   })
 

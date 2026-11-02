@@ -32,6 +32,7 @@ const config = readWranglerConfig()
 const limiterConfig = readWranglerConfig('workers/rate-limiter/wrangler.jsonc')
 
 describe('wrangler.jsonc', () => {
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
   it('runs the Worker first on every path that runs code, and on nothing else', () => {
     const routePaths = EDGE_ROUTES.flatMap((route) => (route.catchAll ? [route.path, `${route.path}/*`] : [route.path]))
     // Wrangler rejects a rule another rule makes redundant ("rule '/api/*' makes it redundant"), so a
@@ -40,6 +41,9 @@ describe('wrangler.jsonc', () => {
     const listed = routePaths.filter((path) => !globs.some((prefix) => path !== `${prefix}*` && path.startsWith(prefix)))
     expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...listed])
     expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/api', '/api/*']))
+    // The five gated paths, by name: the static-asset plane must never answer one, because the zone
+    // cache-rule audit that watched the paths around the Worker retired (atlas decision 0160 D7).
+    expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json']))
   })
 
   it('sends an unmatched path to the Worker, which renders the 404 page through the middleware', () => {
@@ -67,12 +71,24 @@ describe('wrangler.jsonc', () => {
   })
 
   // covers: llms-txt#Canonical llms responses always pass through the privacy gate
-  it('enables no Workers Caching: the Worker answers ahead of every Cloudflare cache', () => {
-    // With `cache.enabled`, Cloudflare checks a cache BEFORE running the Worker and answers a hit
-    // without it (developers.cloudflare.com/workers/cache/). That would replay a stored LLM document
-    // past the proxy's focus gate, and the B2 llms check would see CF-Cache-Status on the site plane
-    // (audits/checks/b2-llms.mjs siteEdgeCacheFailure).
+  it('enables no Workers Cache: the Worker answers ahead of every Cloudflare cache', () => {
+    // THE SEAM THIS PIN WATCHES: Workers Cache, the one Cloudflare cache that sits IN FRONT of the
+    // Worker. The zone cache cannot store a gated response: the Worker runs before it, and Cache
+    // Rules apply only to the Worker's own fetch() subrequest (cloudflare-docs 6e85ac29,
+    // src/content/docs/cache/interaction-cloudflare-products/workers.mdx). That guarantee replaced
+    // the zone cache-rule audit when the Pages origin retired (atlas decision 0160 D7). Workers
+    // Cache is different: with it on, "Cloudflare checks the cache before running your Worker" and
+    // answers a hit without it (src/content/docs/workers/cache/index.mdx), and "No zone
+    // configuration for caching applies" to it, so a hit would replay a gated llms document or
+    // feed past the proxy's focus gate. Its whole configuration surface is the Wrangler file: a
+    // top-level `cache` block, or a per-entrypoint `cache` in `exports`
+    // (src/content/docs/workers/cache/configuration.mdx; the dashboard switch is "Coming soon" in
+    // limitations.mdx). Atlas decision 0164 D6 deferred Workers Cache until a measured hit rate and a
+    // fresh owner decision on the publish-time gate it implies, so enabling it later must change
+    // this test deliberately. The served result stays measured by siteEdgeCacheFailure
+    // (audits/lib/site-edge-cache.mjs), which b2-llms.mjs and b2-check-feeds.mjs apply.
     expect(config).not.toHaveProperty('cache')
+    expect(config).not.toHaveProperty('exports')
   })
 
   it('declares no binding beyond the static assets, the PAGE namespace and the rate limiter (pinned below)', () => {

@@ -257,7 +257,8 @@ jobs:
       # Stryker mutation score over the four catalog-backed pure validators
       # (stryker.conf.json `mutate` + `// Stryker disable all` brackets around
       # network-path plumbing in those files). Four validators across THREE
-      # files -- check-feeds.mjs holds validateFeedXml and validateFeedJson.
+      # files -- check-feeds.mjs holds validateFeedXml and validateFeedJson --
+      # plus the shared site edge-cache rule in audits/lib/site-edge-cache.mjs.
       # The mutate list lost a file, not a validator, when the llms-structure
       # REFERENCE moved into @j0nathan-ll0yd/estate-contracts; see
       # `_comment_llms_structure` in stryker.conf.json for what that costs and

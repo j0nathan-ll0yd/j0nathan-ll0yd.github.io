@@ -47,14 +47,15 @@
 // zone cache ("Cloudflare Workers run before the cache",
 // developers.cloudflare.com/workers/reference/how-the-cache-works/), so a zone
 // rule cannot store a response this module builds. What keeps a cache out in
-// front of the Worker is that wrangler.jsonc enables no Workers Caching
-// (tests/unit/worker-routing.test.ts pins it). The zone rules still matter on one
-// path: the production route fails open, so a request the Worker cannot take goes
-// past it to the zone, where those rules apply.
-// audits/checks/b2-check-cloudflare-llms-cache-rules.mjs measures the rules for
-// all five paths, and audits/checks/b2-llms.mjs `siteEdgeCacheFailure` measures
-// the served result: it reds on any `Age`, on a cache-served `CF-Cache-Status`, and
-// on an absent status without the Worker's platform marker.
+// front of the Worker is that wrangler.jsonc enables no Workers Cache
+// (tests/unit/worker-routing.test.ts pins it). No path reaches the zone without the
+// Worker: production is a Workers Custom Domain, the zone has no Worker route to
+// fail open, and the Pages origin retired (atlas decision 0160 D7).
+// One rule, audits/lib/site-edge-cache.mjs `siteEdgeCacheFailure`, measures the
+// served result: audits/checks/b2-llms.mjs applies it to the llms trio and
+// audits/checks/b2-check-feeds.mjs to the feeds. It reds on any `Age`, on a
+// cache-served `CF-Cache-Status`, and on an absent status without the Worker's
+// platform marker.
 
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -779,7 +780,7 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
 
   const headers = new Headers(cached.headers)
   // Served as read, a permitted fallback would look like a zone-cache hit to every downstream
-  // observer, the B2 llms edge arm (audits/checks/b2-llms.mjs siteEdgeCacheFailure) included.
+  // observer, the B2 edge arms (audits/lib/site-edge-cache.mjs siteEdgeCacheFailure) included.
   // Warning 110, X-Proxy-Stale and X-Source state what the copy is.
   for (const name of CACHE_API_STATE_HEADERS) {
     headers.delete(name)
@@ -829,9 +830,9 @@ export function makeCloudfrontProxy(
     // once. A VISIBLE value is not permission on its own: the backend gate can be shut over a
     // visible signal, so every artifact fetch below still passes the gate itself (no-store), and a
     // suppression body from it wins. Every route's responses, the feeds included, are no-store at
-    // the browser, generic CDN, and Cloudflare-specific layers. A request the Worker takes reaches it
-    // ahead of the zone cache; the fail-open path is the zone's: see the zone-edge-cache note at the
-    // top of this module. No route can enter SWR.
+    // the browser, generic CDN, and Cloudflare-specific layers. Every request reaches the Worker
+    // ahead of the zone cache: see the zone-edge-cache note at the top of this module. No route can
+    // enter SWR.
     // ONE budget for the whole request: the focus probe, its retry, every artifact attempt, every
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.
