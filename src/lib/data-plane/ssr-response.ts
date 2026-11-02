@@ -13,8 +13,9 @@
 // - an unreadable focus signal: the value-free page with every card unavailable, `X-SSR-Data: unavailable`;
 // - an artifact that is missing, failed, refused or stale: the data-free page, `X-SSR-Data: fallback`.
 //
-// The value-free pages come from the website build (src/lib/composed/value-free.ts). When they cannot
-// be used, the data-free page answers with the same summary.
+// The value-free pages come from the website build, which checked them and compiled them into the
+// Worker (src/lib/composed/value-free.ts). When they cannot be used, the data-free page answers with
+// the same summary.
 //
 // The whole answer is bounded by SSR_CEILING_MS (D2) and buffered, so a failure becomes a clean 500
 // page (D13) and every data state answers 200, with no edge cache (D3); the composed page is no-store
@@ -89,8 +90,8 @@ export interface DashboardRenderDeps {
   ceilingMs?: number
   /** Overrides the shell, for tests that run outside workerd (Node has no HTMLRewriter). */
   shell?: () => Promise<Shell>
-  /** The build's value-free pages (src/lib/composed/value-free.ts), or null when they cannot be used. */
-  valueFree?: () => Promise<CheckedValueFreeSet | null>
+  /** The build's value-free pages, compiled into the Worker (src/lib/composed/value-free.ts), or null when this build has none. */
+  valueFree?: () => CheckedValueFreeSet | null
   /**
    * The published page data (atlas decision 0164, Variant D): present when the Worker has the `PAGE`
    * KV binding and a compiled shell (src/lib/composed/compiled-shell.ts). Then `read` and the
@@ -239,7 +240,7 @@ async function attemptPublished(request: Request, deps: DashboardRenderDeps, pub
       const artifact = read.kind === 'hiding'
         ? 'published:not-used'
         : `published:${read.reason}${read.detail === undefined ? '' : `:${read.detail}`}`
-      const set = await deps.valueFree?.() ?? null
+      const set = deps.valueFree?.() ?? null
       const page = set === null
         ? null
         : valueFreeVariant(set, read.kind === 'hiding' ? {kind: 'suppressed', currentFocus: read.currentFocus} : {kind: 'focus-unreadable'})
@@ -284,7 +285,7 @@ async function attempt(request: Request, deps: DashboardRenderDeps): Promise<Out
       const summary = read.kind === 'suppressed' ? 'suppressed' : 'unavailable'
       const focus = read.kind === 'focus-unreadable' ? 'unreadable' : read.currentFocus === null ? 'gate' : 'hiding'
       const artifact = read.kind === 'suppressed' ? 'suppressed' : 'not-read'
-      const set = await deps.valueFree?.() ?? null
+      const set = deps.valueFree?.() ?? null
       const page = set === null ? null : valueFreeVariant(set, read)
       if (page === null || page.summary !== summary) {
         return {kind: 'data-free', summary, focus, artifact: `${artifact}:value-free-missing`, ioMs, legs}

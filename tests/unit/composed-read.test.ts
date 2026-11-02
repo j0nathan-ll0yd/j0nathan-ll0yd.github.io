@@ -10,8 +10,8 @@
 import {readFileSync} from 'node:fs'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {CLOUDFRONT_BASE, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
-import {checkArtifact, checkValueFree, COMPOSED_ARTIFACT_PATH, COMPOSED_MAX_BYTES} from '../../src/lib/composed/artifact'
-import {valueFreeVariant} from '../../src/lib/composed/value-free'
+import {checkArtifact, checkValueFreeSet, COMPOSED_ARTIFACT_PATH, COMPOSED_FRAGMENT_IDS, COMPOSED_MAX_BYTES} from '../../src/lib/composed/artifact'
+import {VALUE_FREE_VARIANTS} from '../../src/lib/composed/value-free'
 import {COMPOSED_READ_BUDGET_MS, type ComposedRead, readComposed} from '../../src/lib/composed/read'
 import {FIXTURE_DATA_PLANE, fixturePlane} from '../../src/lib/data-plane/faults'
 import {SSR_CEILING_MS} from '../../src/lib/data-plane/ssr-response'
@@ -542,12 +542,15 @@ describe('checkArtifact: the fragment allowlist (review 2026-10-16, H1)', () => 
     expect(await read(u)).toEqual({kind: 'refused', refusal: 'oversize'})
   })
 
-  it('refuses a hostile value-free page too, when the variant is first served', () => {
-    const value = parsed()
-    const fragments = {...value.fragments, cardHR: value.fragments.cardHR.replace('>', '><plaintext>')}
-    const set = checkValueFree(JSON.stringify({build: 'b', variants: {Work: {summary: 'suppressed', fragments}}}), 'b', ['Work'])
-    expect(set).not.toBeNull()
-    expect(set === null ? 'no set' : valueFreeVariant(set, {kind: 'suppressed', currentFocus: 'Work'})).toBeNull()
+  it('refuses a hostile value-free page too, at build time (atlas decision 0164 row 1)', () => {
+    // The build runs this gate (scripts/build-value-free.mjs); the Worker serves the pages it admitted unchecked.
+    const fragments = Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, `<div id="${id}"></div>`]))
+    const set = (cardHR: string) => ({
+      build: 'b',
+      variants: Object.fromEntries(VALUE_FREE_VARIANTS.map((key) => [key, {summary: 'suppressed', fragments: {...fragments, cardHR}}]))
+    })
+    expect(checkValueFreeSet(set('<div id="cardHR"></div>'), 'b', VALUE_FREE_VARIANTS)).toEqual({ok: false, detail: 'Work:facts'})
+    expect(checkValueFreeSet(set('<div id="cardHR"><plaintext></div>'), 'b', VALUE_FREE_VARIANTS)).toEqual({ok: false, detail: 'Work:cardHR:element'})
   })
 })
 

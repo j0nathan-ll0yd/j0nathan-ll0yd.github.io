@@ -20,6 +20,7 @@ import {LLM_CONTENT_PATHS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/const
 import {AGENT_PATHS} from '../src/lib/edge/agent-paths.mjs'
 import {LLMS_TXT_PATH} from '../src/lib/edge/llms-artifacts.ts'
 import {SITEMAP_INDEX_PATH} from '../src/lib/edge/site-paths.ts'
+import {isMainModule} from './lib/main-module.mjs'
 
 export const OUTPUT_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'lib', 'edge', 'not-found-markdown.mjs')
 
@@ -90,6 +91,6 @@ function main() {
   console.log(`[generate-not-found] wrote ${OUTPUT_PATH}`)
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isMainModule(import.meta.url)) {
   main()
 }

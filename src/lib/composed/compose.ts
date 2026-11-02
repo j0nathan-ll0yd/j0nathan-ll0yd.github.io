@@ -288,9 +288,11 @@ async function valueFreePage(state: ValueFreeState, nowMs: number, localCovers: 
 }
 
 /**
- * The value-free pages the website build ships (scripts/build-composer.mjs). Each is composed at two
- * clocks a year apart and must be identical: a page that depends on the clock would freeze the build
- * time into every hiding or unreadable answer.
+ * The value-free pages: the website build checks them and compiles them into the Worker
+ * (scripts/build-value-free.mjs), and the backend runner publishes the one for the current state while
+ * the focus value hides, the gate is shut or the signal is unreadable (atlas decision 0164 D1). Each is
+ * composed at two clocks a year apart and must be identical: a page that depends on the clock would
+ * freeze the build time into every hiding or unreadable answer.
  */
 export async function composeValueFree(input: {localCovers?: readonly string[]} = {}): Promise<ValueFreeSet> {
   const localCovers = input.localCovers ?? LOCAL_COVERS

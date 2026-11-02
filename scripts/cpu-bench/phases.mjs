@@ -19,6 +19,13 @@ const PHASES = [
   ['assemble: the string splice', 'assemble'],
   ['withDashboardHeaders', 'withDashboardHeaders'],
   ['logRender: the ssr_render log line', 'logRender'],
+  ['attemptPublished: the published read and its answer (atlas decision 0164)', 'attemptPublished'],
+  ['  readPublished: the two KV reads, judgeFocus, judgeFragments', 'readPublished'],
+  ['    judgeFragments: parse + shape + fromWireFacts + fitsShell', 'judgeFragments'],
+  ['  valueFreeFor: the value-free set (a1b2e846: read once per isolate; since: a lookup)', 'valueFreeFor'],
+  ['  checkValueFree: JSON.parse of the whole set + shape (a1b2e846 only)', 'checkValueFree'],
+  ['  valueFreeVariant: the variant (a1b2e846: inclusive of checkedVariant)', 'valueFreeVariant'],
+  ['    checkedVariant: checkFragments on the variant at first use (a1b2e846 only)', 'checkedVariant'],
   ['onRequest: the middleware (inclusive of the route)', 'onRequest'],
   ['parseAccept / prefersMarkdown', 'prefersMarkdown'],
   ['serve: the whole handler', 'serve']
