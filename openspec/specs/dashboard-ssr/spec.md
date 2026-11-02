@@ -276,7 +276,7 @@ deploy never shows a page another build's composer made; `/` stays data-free unt
 composes with the new build's composer (at most one backstop run, 5 minutes).
 
 Verified by `tests/unit/composed-read.test.ts:138` (another build's artifact is refused) and
-`tests/build/worker-output.test.ts:83` (version.json names the shipped composer, its hash and the build).
+`tests/build/worker-output.test.ts:92` (version.json names the shipped composer, its hash and the build).
 
 #### Scenario: The site deploys
 

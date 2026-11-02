@@ -60,6 +60,15 @@ describe('Worker bundle', () => {
     expect(generated.vars ?? {}).toEqual({})
   })
 
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
+  it('enables no Workers Cache in the deploy config, so no cache answers ahead of the Worker', () => {
+    // The config that deploys, not only wrangler.jsonc: the adapter writes this file. The seam and
+    // its sources are in tests/unit/worker-routing.test.ts ("enables no Workers Cache").
+    expect(generated.cache).toBeUndefined()
+    // Wrangler writes an empty `exports` map here; a per-entrypoint `cache` would be an entry in it.
+    expect(generated.exports ?? {}).toEqual({})
+  })
+
   it('carries no route into the deploy config, so a deploy makes no route call', () => {
     expect(generated.routes ?? []).toEqual([])
   })

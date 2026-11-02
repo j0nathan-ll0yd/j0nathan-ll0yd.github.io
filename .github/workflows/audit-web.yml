@@ -129,7 +129,7 @@ jobs:
 
       # measured=1 when the Stats API answered and ingestion was judged (pass or fail). 0 when the
       # arm held no answer: UNMEASURED, SKIPPED (no SA_API_KEY), or every read threw. 0 wedges this
-      # tier the same day, like the weekly `llms_cache_rules` step.
+      # tier the same day.
       - name: B6 -- SA ingestion (synthetic event -> Stats API)
         id: analytics_ingestion
         continue-on-error: true
@@ -361,31 +361,6 @@ jobs:
         id: llms
         continue-on-error: true
         run: pnpm exec tsx audits/checks/b2-llms.mjs
-
-      - name: B2 -- Cloudflare llms cache rules (read-only)
-        id: llms_cache_rules
-        continue-on-error: true
-        env:
-          # The existing CLOUDFLARE_API_TOKEN (no new secret). The deploy workflows publish with
-          # it too, so reading rules needs read permissions added to it; see the runner header
-          # for the exact permission names. Until it can read, the runner publishes the real
-          # count (0) and the tier wedges, which is the intended signal.
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-        run: >-
-          node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs
-          --evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json
-
-      - name: Upload Cloudflare llms cache-rule evidence
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: llms-cloudflare-cache-rule-evidence
-          path: artifacts/llms-assurance/cloudflare-cache-rules.json
-          if-no-files-found: error
-          retention-days: 30
 
       - name: B2 -- sitemap XSD validator
         id: sitemap
@@ -637,7 +612,6 @@ jobs:
           # into the source text before node parses it, and this job holds `issues: write`.
           FOCUS_MODE_OUTCOME: ${{ steps.focus_mode.outcome }}
           LLMS_ISSUE_OUTCOME: ${{ steps.llms.outputs.issue_outcome }}
-          LLMS_CACHE_RULES_ISSUE_OUTCOME: ${{ steps.llms_cache_rules.outputs.issue_outcome }}
           SITEMAP_OUTCOME: ${{ steps.sitemap.outcome }}
           ROBOTS_OUTCOME: ${{ steps.robots.outcome }}
           CRAWLER_EDGE_OUTCOME: ${{ steps.crawler_edge.outcome }}
@@ -658,7 +632,6 @@ jobs:
               checks: [
                 {id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: process.env.FOCUS_MODE_OUTCOME},
                 {id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: process.env.LLMS_ISSUE_OUTCOME},
-                {id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: process.env.LLMS_CACHE_RULES_ISSUE_OUTCOME},
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: process.env.SITEMAP_OUTCOME},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: process.env.ROBOTS_OUTCOME},
                 {id: 'crawler-edge', title: 'B2 crawler edge access vs robots.txt', outcome: process.env.CRAWLER_EDGE_OUTCOME},
@@ -693,16 +666,8 @@ jobs:
           # swallowed check. Any step claiming 0 wedges the tier; a sum would let one dark check
           # hide behind healthy siblings. Setup steps (chrome, focus_mode) are not checks and
           # never appear here.
-          #
-          # `llms_cache_rules` publishes its REAL count (audits/checks/b2-check-cloudflare-llms-cache-rules.mjs):
-          # n rule collections held and judged, or 0 when the token reads nothing (HTTP 401 or
-          # 403 included). 0 wedges this tier. That is the honest "unmeasured" signal until the
-          # token can read; it is never waived, so the record carries no reason and no `until=`.
-          # A run that dies before classifying publishes nothing and wedges as
-          # `crashed-before-measuring`.
           MEASURED_STEPS: |
             llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
-            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             crawler_edge|${{ steps.crawler_edge.outcome }}|${{ steps.crawler_edge.outputs.measured }}

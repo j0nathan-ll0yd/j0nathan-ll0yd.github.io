@@ -217,8 +217,8 @@ a 30-minute safety-net schedule); the on-demand Worker routes
 `src/pages/feed.xml.ts` and `src/pages/feed.json.ts` proxy the
 CloudFront-hosted canonicals. The directives are not restated here: the feeds
 are the `rss-feed` surface, are gated like the llms trio, and send `no-store`,
-documented with the Cloudflare zone edge cache that sits in front of them in
-[Feed-Spec.md](Feed-Spec.md) and stated normatively in
+documented with the Cloudflare zone edge cache that sat in front of them on
+Pages in [Feed-Spec.md](Feed-Spec.md) and stated normatively in
 `openspec/specs/llms-txt/spec.md`, requirement "Every proxy route is no-store,
 the feed routes included". No route emits `stale-while-revalidate`.
 

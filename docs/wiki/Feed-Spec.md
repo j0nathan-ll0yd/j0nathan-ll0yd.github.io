@@ -67,31 +67,36 @@ composition would make the feed stale by definition.
   same request observed the gate open; stamped `X-Proxy-Stale: true`. See
   the llms-txt spec requirement "Gated artifacts are admitted only through
   the CloudFront gate".
-- **Cloudflare zone edge cache.** A catch-all Edge Cache TTL rule applies to
-  every non-trio path. It rewrote the browser-facing `max-age` to 600 and held
-  the feeds at the edge far longer than the 60 s the old header asked for.
+- **Cloudflare zone edge cache (the Pages era, closed).** On Cloudflare Pages
+  a catch-all Edge Cache TTL rule applied to every non-trio path. It rewrote
+  the browser-facing `max-age` to 600 and held the feeds at the edge far
+  longer than the 60 s the old header asked for.
   Measured with read-only `HEAD` requests:
   - 2026-08-30: `/feed.xml` served at `Age: 1775` (29.6 minutes).
   - 2026-10-08 (review of PR #351): `/feed.xml` `cf-cache-status: HIT`, `Age`
     rising 33, 83, 165, 247, 315, 396, 477, 569 and 610 s over ten minutes.
   - 2026-10-08 16:53 UTC: `/feed.xml` `HIT` at `Age: 796`, `/feed.json` `HIT`
     at `Age: 776`, both still sending `s-maxage=60`.
-  A stored feed is answered by the zone edge cache, ahead of the Pages
-  Function, so the replay has no focus probe and no gate check. The window is
-  therefore set by the zone rule, not by any header this repository sends.
-  Whether the routes' `no-store` ends it depends on the rule's mode: a rule
-  that respects origin cache headers stops caching, one that overrides them
-  does not. `audits/checks/b2-check-cloudflare-llms-cache-rules.mjs` measures
-  the rule's mode and TTL for both feed paths. The zone change (a Cache Rule
-  bypass for both paths, as "Homepage bypass for content negotiation" does for
-  `/`, or a written exception) is an owner decision. Curl the URL to read the
-  served policy; do not infer it from `src/lib/edge/proxy.ts`.
+  The zone edge cache answered a stored feed ahead of the Pages Function, so
+  the replay had no focus probe and no gate check. On Workers (atlas decision
+  0160) the Worker runs before the zone cache, and Cache Rules apply only to
+  the Worker's own `fetch()` subrequest, so no zone rule can store a feed
+  response. `wrangler.jsonc` enables no Workers Cache, the one cache that sits
+  in front of the Worker (`tests/unit/worker-routing.test.ts`). The Pages
+  project retired on 2026-11-02 (decision 0160 D7), and the zone cache-rule
+  audit retired with it. The weekly feed check measures the served result
+  (`feedEdgeCacheFindings` in `audits/checks/b2-check-feeds.mjs`): it fails a
+  feed that carries any `Age`, a cache-served `CF-Cache-Status`, or no status
+  without both the Worker's platform marker and `CDN-Cache-Control: no-store`.
+  It runs only in visible windows, because the workflow skips the feed check
+  during a hiding window. Curl the URL to read the served policy; do not infer
+  it from `src/lib/edge/proxy.ts`.
 - Expected staleness for a live event: the 30-minute compose cadence, plus
-  the 5-minute CloudFront TTL, plus however long the Cloudflare zone edge
-  holds its copy. The Worker adds no cache of its own. The last term
-  is set by the zone rule above and is not visible from this repository, so
-  the total has no ceiling this document can state from source. On
-  2026-08-30 the site plane advertised a `<lastBuildDate>` 30.0 minutes
+  the 5-minute CloudFront TTL. No Cloudflare cache answers a request ahead of
+  the Worker (see above), and the weekly edge-cache arm fails a feed that one
+  answered. When the upstream fetch fails, the last-known-good copy can add up
+  to 3 hours (see the fallback bullet above). On 2026-08-30, on Pages, the
+  site plane advertised a `<lastBuildDate>` 30.0 minutes
   behind the origin's `x-amz-meta-composed-at`. That figure is a single
   measurement, not a bound. No check measures the origin/site feed gap today:
   the `feed-xml-origin-site-coherence` check lived in
