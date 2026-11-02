@@ -21,6 +21,12 @@ const rawScriptRules = {
   'no-empty': ['error', {allowEmptyCatch: true}]
 }
 
+// `process.argv[1]` and `process.argv.at(1)`, the entry path node was given.
+const ENTRY_ARGV_INDEX = "MemberExpression[computed=true][property.value=1][object.property.name='argv'][object.object.name='process']"
+const ENTRY_ARGV_AT =
+  "CallExpression[callee.property.name='at'][arguments.0.value=1][callee.object.property.name='argv'][callee.object.object.name='process']"
+const ENTRY_CHECK_MESSAGE = 'Read the entry path through isMainModule(import.meta.url) from scripts/lib/main-module.mjs.'
+
 export default [
   {
     ignores: [
@@ -66,6 +72,22 @@ export default [
     files: ['**/*.{js,mjs,cjs}'],
     ignores: ['public/js/**'],
     languageOptions: {globals: {...globals.node}}
+  },
+  {
+    // A plain entry check (`process.argv[1]` compared with `import.meta.url`) is false through a
+    // symlinked checkout path or a path that needs encoding, so a gate written that way exits 0 having
+    // checked nothing (review of website #429, I3 and N1). scripts/lib/main-module.mjs resolves both
+    // sides and is the one module that reads `process.argv[1]`. tests/unit/entry-guards.test.ts pins
+    // this block.
+    files: ['**/*.{js,mjs,cjs,ts}'],
+    ignores: ['public/js/**', 'scripts/lib/main-module.mjs'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {selector: ENTRY_ARGV_INDEX, message: ENTRY_CHECK_MESSAGE},
+        {selector: ENTRY_ARGV_AT, message: ENTRY_CHECK_MESSAGE}
+      ]
+    }
   },
   {
     // Raw-served scripts (public/js) skip the bundler, so the browser parses them

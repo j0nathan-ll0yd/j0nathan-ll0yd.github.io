@@ -15,6 +15,7 @@ import {createRequire} from 'node:module'
 import path from 'node:path'
 import {parse} from 'parse5'
 import {clientDir} from './lib/build-paths.mjs'
+import {isMainModule} from './lib/main-module.mjs'
 
 // The @ also matches its HTML character references and its JSON escape, so an encoded form of an
 // address is not a way past the gate. Each form keeps its source offset.
@@ -96,6 +97,6 @@ function main() {
   console.log(`[check-no-clear-email] OK: no clear email address in ${files.length} HTML file(s), outside the organization alias in JSON-LD`)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   main()
 }
