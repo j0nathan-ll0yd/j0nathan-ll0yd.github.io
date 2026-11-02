@@ -38,7 +38,7 @@ its collector behavior exactly: 204 for an accepted report type, 415 for any oth
 method, GET and HEAD included, SHALL answer the 405 `method-not-allowed` problem with
 `Allow: POST`, never the HTML 404 page.
 
-Verified by `tests/unit/worker-routing.test.ts:125` (every method under /api reaches a route).
+Verified by `tests/unit/worker-routing.test.ts:141` (every method under /api reaches a route).
 
 #### Scenario: A scanner probes an unknown API path
 

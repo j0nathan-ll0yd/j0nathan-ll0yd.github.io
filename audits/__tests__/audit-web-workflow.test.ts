@@ -89,8 +89,7 @@ describe('audit-web issue reconciliation wiring', () => {
 
   // covers: llms-txt#Raw and canonical llms artifacts stay coherent
   it('preserves the merged llms command failure for its managed issue bucket', () => {
-    const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- Cloudflare)/)?.[0] ??
-      ''
+    const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
     expect(llmsStep).toContain('id: llms')
     expect(llmsStep).toContain('continue-on-error: true')
     expect(llmsStep).toContain('pnpm exec tsx audits/checks/b2-llms.mjs')
@@ -104,8 +103,8 @@ describe('audit-web issue reconciliation wiring', () => {
   })
 
   it('runs the merged llms check under suppression with no evidence envelope left behind (decision 0119 D1)', () => {
-    const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- Cloudflare)/)?.[0] ??
-      ''
+    const llmsStep = executable.match(/      - name: B2 -- llms structure \+ origin\/site coherence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
+    expect(llmsStep).toContain('id: llms')
     expect(llmsStep).not.toContain("if: steps.focus_mode.outputs.suppressed != 'true'")
     expect(workflow).not.toMatch(/steps\.llms\.outputs\.issue_outcome[^\n]*(\|\||success|failure)/)
 
@@ -116,31 +115,6 @@ describe('audit-web issue reconciliation wiring', () => {
     expect(workflow).not.toContain('B2_EVIDENCE_')
     expect(workflow).not.toContain('Upload B2 llms coherence evidence')
     expect(workflow).not.toContain('llms-assurance-b2-spoke-evidence')
-  })
-
-  it('wires a fail-closed read-only Cloudflare rule audit with the existing API token', () => {
-    const auditStep =
-      executable.match(/      - name: B2 -- Cloudflare llms cache rules \(read-only\)\n[\s\S]*?(?=\n      - name: Upload Cloudflare)/)?.[0] ?? ''
-    expect(auditStep).toContain('id: llms_cache_rules')
-    expect(auditStep).toContain('continue-on-error: true')
-    // The existing CLOUDFLARE_API_TOKEN, and no new secret: the owner chose to widen it.
-    expect(auditStep).toContain('CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}')
-    expect(auditStep).not.toContain('CLOUDFLARE_ACCOUNT_READALL')
-    expect(auditStep).not.toContain('CLOUDFLARE_PAGE_RULES_TOKEN')
-    expect(auditStep).toContain('CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}')
-    expect(auditStep).toContain('CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}')
-    expect(auditStep).toContain('node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs')
-    expect(auditStep).toContain('--evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json')
-
-    const uploadStep = executable.match(/      - name: Upload Cloudflare llms cache-rule evidence\n[\s\S]*?(?=\n      - name: B2 -- sitemap)/)?.[0] ?? ''
-    expect(uploadStep).toContain('if: always()')
-    expect(uploadStep).toContain('path: artifacts/llms-assurance/cloudflare-cache-rules.json')
-    expect(workflow).toContain("{id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: process.env.LLMS_CACHE_RULES_ISSUE_OUTCOME}")
-    expect(workflow).toContain('LLMS_CACHE_RULES_ISSUE_OUTCOME: ${{ steps.llms_cache_rules.outputs.issue_outcome }}')
-    // `steps.<id>.outcome` is what the DEAD-MAN ping reads, deliberately and for a different
-    // question. The reconciler must never see a report-only step's raw process outcome.
-    // Anchored so `steps.llms_cache_rules.outputs.issue_outcome` does not read as a hit.
-    expect(reconcilerScript).not.toMatch(/steps\.llms_cache_rules\.outcome\b/)
   })
 
   it('conditions gated checks on the shared focus probe without touching honest static checks', () => {
@@ -521,9 +495,8 @@ describe('audit-web measurement channel', () => {
 
   /**
    * NO STEP IS WAIVED. `llms_cache_rules` used to carry a `deferred` reason and an `until=`
-   * deadline (atlas decision 0120 D2). The owner rejected the waiver: an all-refused run now
-   * publishes its real count (0), which wedges the tier until the token can read. The record
-   * therefore reads the step and carries no reason and no deadline.
+   * deadline (atlas decision 0120 D2). The owner rejected the waiver, and the step published its
+   * real count until it retired with the Pages project (atlas decision 0160 D7).
    */
   it('declares exactly the three tool runs as not-applicable, and waives nothing', () => {
     const all = tiers.flatMap((tier) => measuredStepRecords(tier))
@@ -537,10 +510,6 @@ describe('audit-web measurement channel', () => {
     // NO LITERAL `deferred` SURVIVES, and no record carries a deadline.
     expect(all.filter((r) => r.measured === 'deferred').map((r) => r.step)).toEqual([])
     expect(all.filter((r) => r.deadline !== '').map((r) => r.step)).toEqual([])
-    const cacheRules = all.filter((r) => r.step === 'llms_cache_rules')
-    expect(cacheRules).toHaveLength(1)
-    expect(cacheRules[0].measured).toBe('${{ steps.llms_cache_rules.outputs.measured }}')
-    expect(cacheRules[0].reason).toBe('')
   })
 
   it.each(tiers)('$key leaves every record undated', (tier) => {

@@ -82,10 +82,11 @@ JOB_STATUS="${JOB_STATUS:-success}"
 # deadline the two behave identically, and the declaration written to make a gap VISIBLE becomes
 # the mechanism that makes it INDEFINITE.
 #
-# That is not hypothetical. `llms_cache_rules` declared `deferred` for atlas 0120 D2 while all five
-# Cloudflare API reads returned HTTP 403 (weekly run 34164468115, 2026-09-07). The check exits 1,
-# `continue-on-error: true` swallows it, `job.status` reads success, the reconciler reads the
-# check's own `indeterminate` and leaves its issue unchanged, and this arm accepted the deferral --
+# That is not hypothetical. The `llms_cache_rules` step (retired with atlas 0160 D7) declared
+# `deferred` for atlas 0120 D2 while all five Cloudflare API reads returned HTTP 403 (weekly run
+# 34164468115, 2026-09-07). The check exited 1, `continue-on-error: true` swallowed it,
+# `job.status` read success, the reconciler read the check's own `indeterminate` and left its
+# issue unchanged, and this arm accepted the deferral --
 # green job, no issue, no wedge, byte-identical to run 34086625518, the receipt decision 0122
 # opened with.
 #

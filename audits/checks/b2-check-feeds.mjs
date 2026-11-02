@@ -13,7 +13,9 @@
 import {XMLParser} from 'fast-xml-parser'
 import {SyntaxValidator} from 'fast-xml-validator'
 import {feedArtifact} from '../../src/lib/edge/feed-artifacts.ts'
+import {SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers.ts'
 import {fetchStable, isMain, report} from '../lib/http.mjs'
+import {siteEdgeCacheFailure} from '../lib/site-edge-cache.mjs'
 import {publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
 import {emit, rules} from '../specs/load.mjs'
@@ -154,11 +156,106 @@ export function validateFeedJson(json, now = new Date()) {
   return findings
 }
 
-// Stryker disable all -- main() is network-path plumbing with no test coverage
-// (decisions/0011, UD1: the mutation gate scopes to the three pure pilot functions).
+/**
+ * The edge-cache arm of a served feed: no Cloudflare cache answered it from a stored copy, which
+ * would replay it with no focus probe and no gate check. The rule is the llms site plane's
+ * (`siteEdgeCacheFailure` in audits/lib/site-edge-cache.mjs), so both gated artifact families are
+ * judged one way.
+ *
+ * THE SEAM IT WATCHES: the served Worker path, from the Worker's response through the public
+ * site. The feeds took a stored replay once: on 2026-10-08, on Pages, /feed.xml and /feed.json
+ * answered `cf-cache-status: HIT` with `Age` up to 796 s. On Workers the Worker runs before the
+ * zone cache and wrangler.jsonc enables no Workers Cache (tests/unit/worker-routing.test.ts), so
+ * this arm measures the result those guarantees promise. It took the feed half of the credit
+ * from the retired zone cache-rule audit (atlas decision 0160 D7), whose seam closed with the
+ * Pages origin. No other measurer reads a feed's served cache state: B2 llms judges only the
+ * llms trio.
+ *
+ * @param {string} artifact the feed file name, for the message
+ * @param {{get(name: string): string | null}} headers the served response headers
+ * @returns {{severity: 'fail', id: string, message: string}[]}
+ */
+export function feedEdgeCacheFindings(artifact, headers) {
+  const failure = siteEdgeCacheFailure({
+    age: headers.get('age'),
+    cfCacheStatus: headers.get('cf-cache-status'),
+    cdnCacheControl: headers.get('cdn-cache-control'),
+    siteRuntime: headers.get(SITE_RUNTIME_HEADER)
+  })
+  return failure === null ? [] : [{severity: 'fail', id: 'feed-site-edge-cache-status', message: `${artifact}: ${failure}`}]
+}
+
+// Stryker disable all -- network-path plumbing (decisions/0011, UD1: the mutation gate scopes to
+// the pure functions above). collectFeedFindings is driven by audits/__tests__/feed-edge-cache.test.ts
+// through an injected fetch, so the wiring of every arm is tested even though it is not mutated.
 // The two artifacts this check measures. Named so the suppression arms below can
 // publish a full count without restating the number.
 const FEED_ARTIFACT_COUNT = 2
+
+/**
+ * Fetches both feeds and judges each one: its body (the catalog validators) and its served
+ * headers (the edge-cache arm). Returns the findings and the count of feeds whose bytes this run
+ * held and judged.
+ *
+ * NB2 (decisions/0011): each body is resolved or parsed INSIDE its fetch try, and every validator
+ * runs OUTSIDE it. The catch pushes the fetch finding; a validator that threw inside the try would
+ * be mislabelled a fetch failure. b2-check-security-txt.mjs and b2-llms.mjs do the same.
+ *
+ * @param {(url: string) => Promise<Response>} [fetchImpl]
+ * @returns {Promise<{findings: Array<{severity: string, id: string, message: string}>, measured: number}>}
+ */
+export async function collectFeedFindings(fetchImpl = fetchStable) {
+  const findings = []
+  // One per feed artifact whose bytes this run held and judged: feed.xml, feed.json.
+  let measured = 0
+
+  let xml = null
+  let xmlHeaders = null
+  try {
+    const res = await fetchImpl(FEED_XML_URL)
+    if (!res.ok) {
+      findings.push(emit(R_XML, 'feed-xml-fetch', `HTTP ${res.status} fetching ${FEED_XML_URL}`))
+    } else {
+      xmlHeaders = res.headers
+      xml = await res.text()
+    }
+  } catch (err) {
+    findings.push(emit(R_XML, 'feed-xml-fetch', `fetch failed: ${err.message}`))
+  }
+  if (xml !== null) {
+    measured++
+    findings.push(...validateFeedXml(xml), ...feedEdgeCacheFindings('feed.xml', xmlHeaders))
+  }
+
+  let json
+  let jsonHeaders = null
+  try {
+    const res = await fetchImpl(FEED_JSON_URL)
+    if (!res.ok) {
+      findings.push({severity: 'fail', id: 'feed-json-fetch', message: `HTTP ${res.status} fetching ${FEED_JSON_URL}`})
+    } else {
+      jsonHeaders = res.headers
+      try {
+        json = await res.json()
+      } catch (err) {
+        findings.push({severity: 'fail', id: 'feed-json-parse', message: `not valid JSON: ${err.message}`})
+        json = null
+      }
+    }
+  } catch (err) {
+    findings.push({severity: 'fail', id: 'feed-json-fetch', message: `fetch failed: ${err.message}`})
+  }
+  // The served headers are judged whenever a 200 arrived, even if its body does not parse.
+  if (jsonHeaders !== null) {
+    findings.push(...feedEdgeCacheFindings('feed.json', jsonHeaders))
+  }
+  if (json) {
+    measured++
+    findings.push(...validateFeedJson(json))
+  }
+
+  return {findings, measured}
+}
 
 async function main() {
   const suppression = suppressionDisposition(await probeSuppression(), 'feed.xml / feed.json validation')
@@ -175,50 +272,7 @@ async function main() {
     process.exit(1)
   }
 
-  const findings = []
-  // One per feed artifact whose bytes this run held and judged: feed.xml, feed.json.
-  let measured = 0
-
-  try {
-    const res = await fetchStable(FEED_XML_URL)
-    if (!res.ok) {
-      findings.push(emit(R_XML, 'feed-xml-fetch', `HTTP ${res.status} fetching ${FEED_XML_URL}`))
-    } else {
-      const xml = await res.text()
-      measured++
-      findings.push(...validateFeedXml(xml))
-    }
-  } catch (err) {
-    findings.push(emit(R_XML, 'feed-xml-fetch', `fetch failed: ${err.message}`))
-  }
-
-  // NB2 (decisions/0011): json is resolved/parsed INSIDE the try, but
-  // validateFeedJson() is called OUTSIDE it. The catch below pushes
-  // feed-json-fetch; if emit() ever threw for an unregistered id while the
-  // call sat inside this try, that throw would be mislabelled a fetch
-  // failure. b2-check-security-txt.mjs and b2-llms.mjs already call
-  // their validators outside their own fetch trys -- this matches them.
-  let json
-  try {
-    const res = await fetchStable(FEED_JSON_URL)
-    if (!res.ok) {
-      findings.push({severity: 'fail', id: 'feed-json-fetch', message: `HTTP ${res.status} fetching ${FEED_JSON_URL}`})
-    } else {
-      try {
-        json = await res.json()
-      } catch (err) {
-        findings.push({severity: 'fail', id: 'feed-json-parse', message: `not valid JSON: ${err.message}`})
-        json = null
-      }
-    }
-  } catch (err) {
-    findings.push({severity: 'fail', id: 'feed-json-fetch', message: `fetch failed: ${err.message}`})
-  }
-  if (json) {
-    measured++
-    findings.push(...validateFeedJson(json))
-  }
-
+  const {findings, measured} = await collectFeedFindings()
   process.exit(report('check-feeds', findings, measured))
 }
 

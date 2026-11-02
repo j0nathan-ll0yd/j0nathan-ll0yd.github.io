@@ -233,58 +233,59 @@ CDN no-store headers. There is no origin fetch cache: every artifact fetch is `n
 "Gated artifacts are admitted only through the CloudFront gate").
 
 Verified by `tests/unit/cloudfront-proxy.test.ts:145` (proxy response policy: three-layer no-store
-headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition) and
-`audits/__tests__/cloudflare-llms-cache-rules.test.ts:48` (external rule audit: applicability,
-GET-only transport, fail-closed permission handling, evidence output, and credential redaction).
-The audit reads the zone rules with the existing `CLOUDFLARE_API_TOKEN` (no new secret) and judges the five gated URLs with last-match-wins per cache setting,
-so a later bypass rule overrides an earlier catch-all caching rule. An expression it cannot
-evaluate is unknown, never a match or a miss. An account-level phase Cloudflare refuses
-("not allowed at account level") is not applicable, a missing zone entrypoint is measured and
-empty, and Page Rules stay unmeasured under an account-owned token. A refused read (HTTP 401
-or 403) is unmeasured and names the missing permission; an all-refused run publishes the real
-count `0` and is never waived.
+headers, private LKG separation, and a warm-visible → suppressed → visible privacy transition).
 
 Cloudflare's response-header contract gives `Cloudflare-CDN-Cache-Control` precedence over
-`CDN-Cache-Control` and `Cache-Control`, and treats `no-store` as BYPASS. An account-level Edge
-Cache TTL or Cache Response Rule can override origin-set headers, so deployment also depends on
-the canonical paths having no such override and on purging representations retained by the old
-rule.
+`CDN-Cache-Control` and `Cache-Control`, and treats `no-store` as BYPASS. On Cloudflare Pages that
+contract was not enough: the zone cache sat in front of the Function, and an account-level Edge
+Cache TTL or Cache Response Rule could override origin-set headers. On 2026-10-08 /feed.xml and
+/feed.json answered `cf-cache-status: HIT` with `Age` up to 796 s.
 
-On Workers (atlas decision 0160) the Worker runs ahead of the zone cache: Cloudflare documents
-that "Cloudflare Workers run before the cache"
-(https://developers.cloudflare.com/workers/reference/how-the-cache-works/), `wrangler.jsonc`
-enables no Workers Caching (the opt-in cache that would sit in front of the Worker), and the
-Worker builds each canonical response from a `no-store` CloudFront fetch with no `cf` cache
-options. Its response therefore carries no `CF-Cache-Status`. The weekly coherence audit makes
-the edge state visible on both planes. It requires the returned browser/CDN policy, and it fails
+On Workers (atlas decision 0160) the Worker SHALL run before every Cloudflare cache on every gated
+path. Cloudflare documents that "Cloudflare Workers run before the cache"
+(https://developers.cloudflare.com/workers/reference/how-the-cache-works/), and that a Cache Rule
+used with Workers "must match the properties of the URL in the `fetch()` (b) request [...] not the
+original visitor URL/host" (cloudflare-docs commit `6e85ac29b353633fb56e309a234772673a3d7944`,
+`src/content/docs/cache/interaction-cloudflare-products/workers.mdx`), so a zone rule reaches only
+the Worker's own `no-store` CloudFront subrequest, never the response the Worker builds. Two
+configuration facts hold that guarantee, and both are pinned:
+
+- `wrangler.jsonc` `run_worker_first` SHALL list each of the five gated paths (`/llms.txt`,
+  `/llms-full.txt`, `/index.md`, `/feed.xml`, `/feed.json`), so the static-asset plane never answers
+  one.
+- The Worker SHALL enable no Workers Cache, the one Cloudflare cache that sits IN FRONT of the
+  Worker and that no zone rule governs: neither a top-level `cache` block nor a per-entrypoint
+  `cache` in `exports`, in `wrangler.jsonc` or in the generated deploy config. Atlas decision 0164
+  D6 deferred Workers Cache, so enabling it SHALL change these pins deliberately.
+
+No request reaches the zone without the Worker. Production is the Workers Custom Domain
+`jonathanlloyd.me`, where "the Worker is the origin"
+(`src/content/docs/workers/configuration/routing/custom-domains.mdx`). Fail open, the mode that
+"Bypasses the Worker", is a setting of a route (`src/content/docs/workers/platform/limits.mdx`),
+and the zone has no Worker route since 2026-10-22. The Pages project, the only origin a bypass
+could reach, was deleted on 2026-11-02 (atlas decision 0160 D7). The weekly zone cache-rule audit
+watched those two bypass paths and retired with them; this guarantee and the arms below hold its
+credit.
+
+Verified by `tests/unit/worker-routing.test.ts:35` (`run_worker_first` lists every code route,
+the five gated paths among them), `tests/unit/worker-routing.test.ts:73` (no Workers Cache in
+`wrangler.jsonc`) and `tests/build/worker-output.test.ts:63` (no Workers Cache in the generated
+deploy config).
+
+The Worker builds each canonical response from a `no-store` CloudFront fetch with no `cf` cache
+options, so its response carries no `CF-Cache-Status`. The weekly audit SHALL make the served edge
+state visible for all five gated paths, with one rule (`audits/lib/site-edge-cache.mjs`): the
+coherence audit for the llms trio, and the feed check for the two feeds in visible windows (see
+Gaps). It requires the returned browser/CDN policy, and it fails
 the site response on any `Age` header and on any present `CF-Cache-Status` other than `BYPASS` or
 `DYNAMIC`. An ABSENT `CF-Cache-Status` passes only on a Worker response (`X-Site-Runtime: workers`)
-that carries `CDN-Cache-Control: no-store` and no `Age`. Without the platform marker the Worker
-did not answer, because the fail-open route sent the request past it, so the absence proves
-nothing.
+that carries `CDN-Cache-Control: no-store` and no `Age`. Without the platform marker the Worker did
+not answer, so the absence proves nothing.
 
 Verified by `audits/__tests__/b2-llms.test.ts:271` (the edge-cache arm over Worker, cached,
-aged, non-no-store and unmarked site responses) and `tests/unit/worker-routing.test.ts:69`
-(no Workers Caching in `wrangler.jsonc`).
-
-The non-deploying weekly audit also SHALL inspect active account- and zone-level Cache Rules,
-Cache Response Rules, and Page Rules through read-only Cloudflare API requests for exactly the
-five gated URLs. An applicable origin-ignoring Edge/Browser TTL, cache-control override, or
-custom key that prevents an exact bare-URL purge of those five URLs SHALL fail. Missing permissions, incomplete API
-responses, executed rulesets that cannot be expanded, and unsupported applicability expressions
-SHALL be indeterminate and nonzero rather than clean. The audit SHALL never call a mutation, Trace,
-or purge endpoint and SHALL emit an uploadable credential-free evidence file.
-
-Since atlas decision 0160 that audit watches ONE seam, `zone-cache-on-worker-bypass`, and SHALL
-state it in its evidence file and output. The Worker runs before the zone cache, so a zone rule
-cannot store a response the Worker builds, and the edge-cache arm above measures that path. Zone
-rules apply only to a request that reaches the zone without the Worker: the fail-open bypass (the
-route `jonathanlloyd.me/*` carries `request_limit_fail_open: true`) and the route-deletion
-rollback. Both end at the `human-datastream` Pages project, the apex CNAME's origin. The seam, and
-the audit with it, closes when decision 0160 D7 retires the Pages project.
-
-Verified by `audits/__tests__/cloudflare-llms-cache-rules.test.ts:907` (the seam statement in
-the constant, the passing evidence line, the evidence file and the first log line).
+aged, non-no-store and unmarked site responses) and `audits/__tests__/feed-edge-cache.test.ts:18`
+(the same arm over /feed.xml and /feed.json: a Worker response passes, `HIT` and a positive `Age`
+fail, and the check run judges both feeds' headers).
 
 #### Scenario: A focus transition cannot be bypassed by a public cache hit
 
@@ -395,14 +396,13 @@ Residual disclosure windows after this requirement, which no proxy rule can clos
 propagation (the backend spec records about 30 s to first denial and about 75 s to convergence,
 with no SLA), and a response that passed the gate before a flip and is still in flight.
 
-One further window sits in front of this Function and is set by the Cloudflare zone, not by any
-header this repo sends: the zone edge cache. On 2026-10-08 /feed.xml and /feed.json answered
+One further window sat in front of the Pages Function and was set by the Cloudflare zone, not by
+any header this repo sends: the zone edge cache. On 2026-10-08 /feed.xml and /feed.json answered
 `cf-cache-status: HIT` with `Age` up to 796 s while they sent `s-maxage=60`, so a zone Edge Cache
-TTL rule, not the response header, set how long a stored feed replays with no focus probe and no
-gate check. The routes now send no-store (see "Every proxy route is no-store, the feed routes
-included"); whether that ends the replay depends on the rule's mode, which
-`audits/checks/b2-check-cloudflare-llms-cache-rules.mjs` measures for all five paths. The zone
-change is an owner decision.
+TTL rule, not the response header, set how long a stored feed replayed with no focus probe and no
+gate check. That window closed with the move to Workers: the Worker runs before the zone cache on
+every gated path, and the weekly feed check fails a served feed that a Cloudflare cache answered
+(see "Canonical llms responses always pass through the privacy gate").
 
 Verified by `tests/unit/cloudfront-proxy.test.ts:706` (gate shut over a visible signal, every
 Cloudflare cache status, an unattributed 200, a 203, 204 and 206, a redirect that is not followed,
@@ -621,8 +621,10 @@ last-known-good copy).
 This requirement replaced "Cache policy is per route, and the feed routes stay edge-cached". The
 feeds carried `public, max-age=0, s-maxage=60`, and on 2026-10-08 Cloudflare's zone edge cache
 served both with `cf-cache-status: HIT` and `Age` up to 796 s, ahead of this Function: a stored feed
-replayed with no focus probe and no gate check. The headers alone may not end that replay; see the
-zone-edge-cache window in "Gated artifacts are admitted only through the CloudFront gate".
+replayed with no focus probe and no gate check. On Pages the headers alone could not end that
+replay. On Workers the Worker answers ahead of every Cloudflare cache, and the weekly feed check
+fails a served feed that a cache answered; see "Canonical llms responses always pass through the
+privacy gate".
 
 #### Scenario: A feed route sends no-store
 
@@ -869,9 +871,15 @@ in the catalog checks its clause as quoted.
   contract's `coherencePolicy` (the stale rules that restated the 4-hour parameter were retired by
   atlas decision 0119 D2); the surviving operational presence rules are exercised through the merged
   check's presence arm in `audits/__tests__/b2-llms.test.ts`.
-- The Cloudflare account's cache rules are external to this repository. A rule that ignores origin
-  cache-control must be removed for the three canonical paths, and old retained objects must be
-  purged; the audit detects but cannot mutate that configuration.
+- The Cloudflare account's cache rules are external to this repository, and no check here reads
+  them since the zone cache-rule audit retired (atlas decision 0160 D7). No such rule reaches a
+  response the Worker builds: a Cache Rule matches only the Worker's own `fetch()` subrequest. The
+  served-path arms would fail a gated path a cache answered. The surface registry still marks
+  `llm-outputs` `cloudflare_edge_cache_ttl: required-unverified`; resolving that entry is an atlas
+  and estate-contracts change, outside this repository.
+- The feed check does not run during a focus hiding window (the workflow skips it), so its
+  edge-cache arm judges the feeds only in visible windows. A cache that would answer a feed also
+  answers in visible windows (`MISS` or `HIT`), and both fail.
 - This repo no longer emits Atlas spoke evidence: atlas decision 0119 D1 retired the B2 envelope,
   its upload, and the emit-time `assertSpokeEvidence` instance (the wire-token drift class that
   assertion caught — the producer once stamped the retired `web-Lifegames-Portal` alias in
