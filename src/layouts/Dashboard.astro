@@ -338,15 +338,6 @@ html { overflow-y: scroll; }
   html, body { overflow: hidden; }
 }
 
-/* Reading-feed items are inserted via body.innerHTML by the live-data
-   updater. Chrome sometimes registers the declared CSS animation
-   (animationPlayState=running) without ever scheduling an actual Web
-   Animation instance, leaving items stuck at the `from` keyframe
-   (opacity: 0). Force the resting state to opacity: 1 so items are
-   visible when the animation never fires; the slide-in still plays
-   when it does fire because the keyframe overrides during the run. */
-.article-list-item { opacity: 1; }
-
 /* ===== @SUPPORTS FALLBACKS ===== */
 @supports not (backdrop-filter: blur(1px)) {
   .top-bar,
@@ -412,8 +403,9 @@ html { overflow-y: scroll; }
   will-change: transform;
 }
 
-/* Focus indicators (.neon-pill, the book tile's .shelf-book-link::after ring, .book-modal-close)
-   are provided by @j0nathan-ll0yd/tokens/reset (base.css lines 117-136) — no duplication here. */
+/* Focus indicators (the global ring, the book tile's .shelf-book-link::after ring, .book-modal-close)
+   are provided by @j0nathan-ll0yd/web/styles/a11y.css (unlayered, imported in the <style is:global>
+   block above). No duplication here. */
 
 /* Critical visibility — inlined to avoid LCP delay from deferred components.css */
 .tri-card { opacity: 0; transform: translateY(20px); transition: opacity 0.6s ease, transform 0.6s ease; }

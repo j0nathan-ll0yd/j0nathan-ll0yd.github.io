@@ -14,7 +14,7 @@ While the books request is pending, the system SHALL keep the Bookshelf card in 
 presentation. The data-free fallback page (`dashboard-shell`), which the Worker serves when a server
 render misses its budget (`dashboard-ssr`), renders no items, so the card shows only its skeleton and a
 hidden, empty scaffold until fresh data arrives.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:62`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:63`.
 
 #### Scenario: The shelf stays in its loading presentation while books.json is outstanding
 
@@ -25,7 +25,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:62`.
 ### Requirement: Empty state renders empty state message without book cards
 
 When rendering the empty state, the system SHALL display the empty state message and SHALL NOT display book cards.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:74`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:75`.
 
 #### Scenario: An empty export shows the empty message and no book cards
 
@@ -37,7 +37,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:74`.
 
 When rendering the default populated fixture, the system SHALL render the active, up-next, and
 completed statuses with their expected book cards.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:84`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:85`.
 
 #### Scenario: The baseline export renders one card per status
 
@@ -49,7 +49,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:84`.
 ### Requirement: All completed grouping renders completed section without active groups
 
 When rendering the all-completed fixture, the system SHALL render the completed grouping without active or up-next sections.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:98`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:100`.
 
 #### Scenario: An all-finished export renders no reading chrome
 
@@ -61,7 +61,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:98`.
 ### Requirement: All in progress grouping renders active section without completed groups
 
 When rendering the all-in-progress fixture, the system SHALL render the active grouping without completed or up-next sections.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:110`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:112`.
 
 #### Scenario: An all-reading export renders progress and no finished chrome
 
@@ -74,7 +74,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:110`.
 
 When the no-covers fixture is served, the system SHALL render every expected book card without
 creating phantom books.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:122`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:124`.
 
 #### Scenario: A cover-less export renders every real book and invents none
 
@@ -87,7 +87,7 @@ Verified by `tests/behavioral/bookshelf-matrix.test.ts:122`.
 
 When the export has more books than the dashboard shelf can display, the system SHALL retain the
 first five visible shelf slots and omit later cards.
-Verified by `tests/behavioral/bookshelf-matrix.test.ts:133`.
+Verified by `tests/behavioral/bookshelf-matrix.test.ts:135`.
 
 #### Scenario: An oversized export is capped at the five visible slots
 
@@ -108,8 +108,8 @@ names the book. Server markup SHALL NOT carry `aria-haspopup`; the book-modal en
 click on the link SHALL open the book dialog and SHALL NOT navigate; a click with a modifier key
 SHALL navigate to the book and SHALL NOT open the dialog. The composed-page fragment policy admits
 this link only in that exact shape (`BOOK_LINK` in `src/lib/composed/fragment-policy.ts`).
-Verified by `tests/behavioral/ssr-no-js.test.ts:158` (JavaScript off) and
-`tests/behavioral/bookshelf-matrix.test.ts:147` (the dialog enhancement).
+Verified by `tests/behavioral/ssr-no-js.test.ts:159` (JavaScript off) and
+`tests/behavioral/bookshelf-matrix.test.ts:149` (the dialog enhancement).
 
 #### Scenario: A visitor without JavaScript reaches each book
 
