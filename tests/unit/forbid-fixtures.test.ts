@@ -130,15 +130,14 @@ describe('forbid-fixtures build guard', () => {
     // through the same guard, server-side, with the first-party scope bundled.
     const entries = globSync(['src/lib/edge/**/*.ts', 'src/pages/**/*.ts'], {cwd: process.cwd()}).map((file) => resolve(process.cwd(), file))
     expect(entries.length).toBeGreaterThan(5)
-    await expect(
-      viteBuild({
-        root: process.cwd(),
-        configFile: false,
-        logLevel: 'silent',
-        plugins: [forbidFixtures()],
-        build: {write: false, ssr: true, rollupOptions: {input: entries}}
-      })
-    ).resolves.toBeDefined()
+    await expect(viteBuild({
+      root: process.cwd(),
+      configFile: false,
+      logLevel: 'silent',
+      plugins: [forbidFixtures()],
+      // `cloudflare:workers` is a workerd built-in, not a package, so it can never resolve to fixtures.
+      build: {write: false, ssr: true, rollupOptions: {input: entries, external: ['cloudflare:workers']}}
+    })).resolves.toBeDefined()
   })
 
   it('is registered in the production Astro config', () => {

@@ -54,10 +54,19 @@ describe('Worker bundle', () => {
     expect(generated.main).toBe('entry.mjs')
   })
 
-  it('adds no binding the site does not use (no session KV, no Images)', () => {
-    expect(generated.kv_namespaces ?? []).toEqual([])
+  it('adds no binding the site does not use (no session KV, no Images): only PAGE (atlas decision 0164)', () => {
+    expect(generated.kv_namespaces ?? []).toEqual([{binding: 'PAGE', id: 'dc9dc20506d1401488e00993370f81b2'}])
     expect(generated.images).toBeUndefined()
     expect(generated.vars ?? {}).toEqual({})
+  })
+
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
+  it('enables no Workers Cache in the deploy config, so no cache answers ahead of the Worker', () => {
+    // The config that deploys, not only wrangler.jsonc: the adapter writes this file. The seam and
+    // its sources are in tests/unit/worker-routing.test.ts ("enables no Workers Cache").
+    expect(generated.cache).toBeUndefined()
+    // Wrangler writes an empty `exports` map here; a per-entrypoint `cache` would be an entry in it.
+    expect(generated.exports ?? {}).toEqual({})
   })
 
   it('carries no route into the deploy config, so a deploy makes no route call', () => {
@@ -100,5 +109,17 @@ describe('the shipped composer (atlas decision 0160, PR B; owner decision 2026-1
     const text = readFileSync(path.join(client, version.composer.path), 'utf8')
     expect(text).not.toContain(process.cwd())
     expect(text).not.toMatch(/fixtures\/generated/)
+  })
+
+  // Astro 7.3 resolves its ambient manifest to every on-demand route in a Vite build;
+  // scripts/build-composer.mjs maps it to astro's plain-Node stub instead. A composer that held the
+  // routes would import `cloudflare:workers` and the Worker's route modules.
+  it('is self-contained: it imports no module, and holds no Worker route', () => {
+    const text = readFileSync(path.join(client, version.composer.path), 'utf8')
+    expect(text.match(/(?:^|[;}\s])import\s*(?:[\w$*{][^;]*?from\s*)?["'][^"']+["']/g) ?? []).toEqual([])
+    expect(text.match(/(?:^|[;}\s])export\s*(?:\*(?:\s*as\s+[\w$]+)?|\{[^}]*\})\s*from\s*["'][^"']+["']/g) ?? []).toEqual([])
+    expect(text.match(/\bimport\(\s*["'][^"']+["']\s*\)/g) ?? []).toEqual([])
+    expect(text).not.toContain('cloudflare:')
+    expect(text).not.toMatch(/src\/pages\//)
   })
 })

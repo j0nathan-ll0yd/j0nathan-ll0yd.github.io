@@ -11,6 +11,7 @@
  * Usage: CLOUDFLARE_API_TOKEN=... CLOUDFLARE_ACCOUNT_ID=... CLOUDFLARE_ZONE_ID=... node scripts/check-deploy-token.mjs
  * Report only: exit 0 always; a non-200 prints a ::warning under GitHub Actions. */
 import {appendFileSync} from 'node:fs'
+import {isMainModule} from './lib/main-module.mjs'
 
 const API = 'https://api.cloudflare.com/client/v4'
 
@@ -52,6 +53,6 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   await main()
 }

@@ -25,6 +25,7 @@ import {dirname, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createHash} from 'node:crypto'
 import {checkCoversDetailed, COVERS_SPEC_VERSION} from '@j0nathan-ll0yd/estate-contracts/openspec-covers'
+import {isMainModule} from './lib/main-module.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -111,6 +112,6 @@ function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (isMainModule(import.meta.url)) {
   main()
 }

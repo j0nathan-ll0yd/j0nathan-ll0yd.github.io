@@ -34,7 +34,10 @@ describe('vendored agent-discovery schemas', () => {
     expect(urls).toContain('modelcontextprotocol/ext-server-card/')
     expect(urls).toContain('seps/2127-mcp-server-cards.md')
     expect(urls).toContain('ards-project/ard-spec/')
-    for (const source of WATCHED_SOURCES) {
+    // The AIPREF drafts (atlas decision 0174 E1) are the one other kind: IETF archive revisions.
+    const drafts = WATCHED_SOURCES.filter((s) => classifySource(s.pinnedAt).kind === 'ietf-draft')
+    expect(drafts).toHaveLength(2)
+    for (const source of WATCHED_SOURCES.filter((s) => !drafts.includes(s))) {
       expect(classifySource(source.pinnedAt).kind).toBe('github-raw')
     }
   })

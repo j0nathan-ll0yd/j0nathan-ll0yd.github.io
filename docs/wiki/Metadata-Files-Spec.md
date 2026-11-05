@@ -148,19 +148,26 @@ it reaches the web surface.
 ### `/robots.txt` — build-time endpoint
 
 Managed in `src/pages/robots.txt.ts`. Contains allow/disallow directives for
-search engines, ten named AI training crawlers, and five named AI search/answer
-agents, plus a `Sitemap:` pointer. Training crawlers may read `/llms.txt` but are
-blocked from the dashboard; search/answer agents may read the full site. The endpoint
+search engines, the named AI training crawlers, and the named AI search/answer
+agents, plus a `Sitemap:` pointer. Read `src/pages/robots.txt.ts` for the current
+lists. Training crawlers may read `/llms.txt` but are blocked from the dashboard;
+search/answer agents may read the full site. The endpoint
 uses only the site's approved `User-agent`, `Allow`, `Disallow`, and `Sitemap`
 directives so unknown extensions cannot regress Lighthouse SEO.
 
 The separate content-use reservation is delivered on site responses as
 `Content-Usage: train-ai=n, search=y` by `src/lib/edge/middleware.ts` for Worker
 responses and the generated `_headers` wildcard (`dist/client/_headers`) for static responses/cache hits. This is
-the HTTP header form in IETF AI Preferences Working Group drafts attach-05 and vocab-07
-(verified 2026-08-19). Although attach-05 also describes a robots extension, this site
-does not emit it in `/robots.txt` until Lighthouse recognizes it. The current WG
-vocabulary defines `train-ai` and `search` only.
+the HTTP header form in IETF AI Preferences Working Group drafts attach-05 and vocab-08
+(re-verified 2026-10-29). Although attach-05 also describes a robots extension, this site
+does not emit it in `/robots.txt` until Lighthouse recognizes it. vocab-08 defines
+`train-ai`, `ai-use` and `search`; the header states `train-ai` and `search` only,
+because atlas decision 0174 E2 deferred `ai-use=y`.
+
+Microsoft has no robots.txt training token. Every HTML page therefore carries
+`<meta name="bingbot" content="nocache">` (`src/layouts/Dashboard.astro`, atlas decision
+0174 B1), which limits Microsoft training and chat answers to URL, title and snippet.
+Bing search results are unchanged.
 
 ### `/sitemap-index.xml` — `@astrojs/sitemap` integration
 
@@ -210,8 +217,8 @@ a 30-minute safety-net schedule); the on-demand Worker routes
 `src/pages/feed.xml.ts` and `src/pages/feed.json.ts` proxy the
 CloudFront-hosted canonicals. The directives are not restated here: the feeds
 are the `rss-feed` surface, are gated like the llms trio, and send `no-store`,
-documented with the Cloudflare zone edge cache that sits in front of them in
-[Feed-Spec.md](Feed-Spec.md) and stated normatively in
+documented with the Cloudflare zone edge cache that sat in front of them on
+Pages in [Feed-Spec.md](Feed-Spec.md) and stated normatively in
 `openspec/specs/llms-txt/spec.md`, requirement "Every proxy route is no-store,
 the feed routes included". No route emits `stale-while-revalidate`.
 

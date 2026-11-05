@@ -27,9 +27,11 @@ export const COMPOSER_RUN_TIMEOUT_MS = 60 * 1000
 export const COMPOSED_EDGE_TTL_MS = 30 * 1000
 
 /**
- * The oldest artifact the Worker serves: 690,000 ms (11.5 minutes). The runner composes on every
- * export update and on a 5-minute backstop. The bound tolerates one missed backstop run (2 x 5 min),
- * plus the run timeout (a stamp precedes its publish by up to 60 s), plus the CloudFront TTL (30 s).
+ * The oldest artifact the Worker serves: 690,000 ms (11.5 minutes). The runner composes on a
+ * 5-minute backstop and on each export update, except that an update of `githubEvents`,
+ * `starredRepos`, `books`, `articles` or `theatreReviews` waits for the backstop (atlas decision
+ * 0170). The bound tolerates one missed backstop run (2 x 5 min), plus the run timeout (a stamp
+ * precedes its publish by up to 60 s), plus the CloudFront TTL (30 s).
  * An older artifact means the runner stopped: its card states may no longer be true, and the Worker
  * serves the data-free page instead. With the runner healthy, a label trails the truth by at most
  * 5 minutes plus 1.5 minutes of publish and TTL.
@@ -81,11 +83,26 @@ export interface ComposedArtifact {
 }
 
 /**
- * The value-free pages (./paths.ts VALUE_FREE_PATH) hold no export value and depend only on the
- * build, so they are a static asset of the website, read by the Worker through the ASSETS binding. A
- * public request for the path gets the 404 page.
+ * What the allowlist read from an artifact's fragments, as plain arrays (atlas decision 0164): the
+ * wire form of ArtifactFacts. Every fragment id is a key of `scopes` and of `roots`. The composer
+ * publishes it beside the fragments, and the Worker that reads them turns it back into sets
+ * (`fromWireFacts`) for the shell check (./shell.ts `fitsShell`).
  */
-export { VALUE_FREE_PATH } from './paths'
+export interface WireFacts {
+  ids: string[]
+  scopes: Record<ComposedFragmentId, string[]>
+  roots: Record<ComposedFragmentId, {classes: string[]; scopes: string[]}>
+}
+
+/**
+ * The artifact as the composer returns it: the artifact the Worker checks, plus the facts the
+ * composer's own fragment check produced (atlas decision 0164). An added field: `checkArtifact`
+ * ignores it, so a Worker that reads `/dashboard.json` serves the body as before.
+ */
+export type ComposedArtifactBody = ComposedArtifact & {facts: WireFacts}
+
+// The value-free pages hold no export value and depend only on the build. The build checks them with
+// `checkValueFreeSet` and compiles them into the Worker (./value-free.ts, atlas decision 0164 row 1).
 /** The variant for the gate shut over a visible focus value: every card suppressed, no overlay. */
 export const GATE_VARIANT = 'gate'
 /** The variant for an unreadable focus signal: every card unavailable, no overlay. */
@@ -96,15 +113,9 @@ export interface ValueFreePage {
   fragments: Record<ComposedFragmentId, string>
 }
 
-/** A value-free page the Worker checked, with what the allowlist read from its fragments (./fragment-policy.ts). */
+/** A value-free page the build checked, with what the allowlist read from its fragments (./fragment-policy.ts), as sets. */
 export interface CheckedValueFreePage extends ValueFreePage {
   facts: ArtifactFacts
-}
-
-/** One variant of a checked set: its fragments are checked on first use (`checkedVariant`). */
-export interface ValueFreeEntry {
-  page: ValueFreePage
-  checked?: CheckedValueFreePage | null
 }
 
 /** Every id an artifact's fragments carry, and each fragment's scoped-style hashes, for the shell check (./shell.ts `fitsShell`). */
@@ -115,57 +126,98 @@ export interface ArtifactFacts {
   roots: Readonly<Record<ComposedFragmentId, {classes: ReadonlySet<string>; scopes: ReadonlySet<string>}>>
 }
 
+/** A value-free page as the composer returns it, with the facts its fragment check produced (atlas decision 0164). */
+export type ComposedValueFreePage = ValueFreePage & {facts: WireFacts}
+
 export interface ValueFreeSet {
   /** The build that composed the set; it must be the Worker's own. */
   build: string
   /** Keyed by hiding focus value, GATE_VARIANT or UNREADABLE_VARIANT. */
-  variants: Record<string, ValueFreePage>
+  variants: Record<string, ComposedValueFreePage>
 }
 
-/**
- * The value-free set as the Worker read it: its build and every variant's shape are checked at
- * once; each variant's fragments when it is first served (`checkedVariant`), so a cold isolate
- * pays for one variant, not four.
- */
+/** One value per fragment id, in fragment-id order. */
+export function perFragment<T>(value: (id: ComposedFragmentId) => T): Record<ComposedFragmentId, T> {
+  const out: Partial<Record<ComposedFragmentId, T>> = {}
+  for (const id of COMPOSED_FRAGMENT_IDS) {
+    out[id] = value(id)
+  }
+  // Every fragment id was set in the loop above.
+  return out as Record<ComposedFragmentId, T>
+}
+
+/** The facts as plain arrays, in fragment-id order. */
+export function toWireFacts(facts: ArtifactFacts): WireFacts {
+  return {
+    ids: [...facts.ids],
+    scopes: perFragment((id) => [...facts.scopes[id]]),
+    roots: perFragment((id) => ({classes: [...facts.roots[id].classes], scopes: [...facts.roots[id].scopes]}))
+  }
+}
+
+/** The facts as sets. The caller checks the wire shape first. */
+export function fromWireFacts(wire: WireFacts): ArtifactFacts {
+  return {
+    ids: new Set(wire.ids),
+    scopes: perFragment((id) => new Set(wire.scopes[id])),
+    roots: perFragment((id) => ({classes: new Set(wire.roots[id].classes), scopes: new Set(wire.roots[id].scopes)}))
+  }
+}
+
+/** The value-free set as the Worker holds it: compiled in by the build that checked it (./value-free.ts). */
 export interface CheckedValueFreeSet {
   build: string
-  variants: Record<string, ValueFreeEntry>
+  variants: Record<string, CheckedValueFreePage>
 }
 
-/** The variant's checked page, or null when its fragments fail the allowlist. Checked once per set. */
-export function checkedVariant(entry: ValueFreeEntry): CheckedValueFreePage | null {
-  if (entry.checked === undefined) {
-    const checked = checkFragments(entry.page.fragments, VALUE_FREE_FRAGMENT_OPTIONS)
-    entry.checked = checked.ok ? {summary: entry.page.summary, fragments: checked.fragments, facts: checked.facts} : null
-  }
-  return entry.checked
-}
+export type ValueFreeSetCheck = {ok: true; set: ValueFreeSet} | {ok: false; detail: string}
 
-/** The value-free set, when this website built it; otherwise null (the Worker then serves the data-free page). */
-export function checkValueFree(text: string, build: string, required: readonly string[]): CheckedValueFreeSet | null {
-  let value: unknown
-  try {
-    value = JSON.parse(text)
-  } catch {
-    return null
+/**
+ * The build's gate on the value-free pages (atlas decision 0164 row 1; owner decision 2026-11-01):
+ * the Worker's own allowlist (`checkFragments`) over every variant, run by the build before it
+ * compiles the set into the Worker (scripts/build-value-free.mjs). The Worker does not check the set
+ * again when it serves it. Admits exactly the `required` variants of build `build`, each with its own
+ * summary and the 13 fragments and nothing else, every fragment admitted by the allowlist, and the
+ * facts the allowlist read from them, in wire form; refuses facts that differ from the composer's,
+ * because the two checks must agree. Otherwise the variant and the reason (`detail`), for the build log.
+ */
+export function checkValueFreeSet(value: unknown, build: string, required: readonly string[]): ValueFreeSetCheck {
+  if (!isRecord(value) || !isRecord(value.variants)) {
+    return {ok: false, detail: 'shape'}
   }
-  if (!isRecord(value) || value.build !== build || !isRecord(value.variants)) {
-    return null
+  if (value.build !== build) {
+    return {ok: false, detail: 'build'}
   }
-  const variants: Record<string, ValueFreeEntry> = {}
+  const unexpected = Object.keys(value.variants).find((key) => !required.includes(key))
+  if (unexpected !== undefined) {
+    return {ok: false, detail: `${unexpected}:unexpected`}
+  }
+  const variants: Record<string, ComposedValueFreePage> = {}
   for (const key of required) {
     const page = value.variants[key]
-    if (!isRecord(page) || (page.summary !== 'suppressed' && page.summary !== 'unavailable') || !isRecord(page.fragments)) {
-      return null
+    if (!isRecord(page)) {
+      return {ok: false, detail: `${key}:missing`}
+    }
+    // The Worker serves a variant only under its own summary: `unavailable` for an unreadable focus,
+    // `suppressed` for a hiding value or the gate (src/lib/data-plane/ssr-response.ts).
+    if ((page.summary !== 'suppressed' && page.summary !== 'unavailable') || page.summary !== (key === UNREADABLE_VARIANT ? 'unavailable' : 'suppressed')) {
+      return {ok: false, detail: `${key}:summary`}
     }
     const fragments = page.fragments
-    if (!COMPOSED_FRAGMENT_IDS.every((id) => typeof fragments[id] === 'string')) {
-      return null
+    if (!isRecord(fragments) || Object.keys(fragments).length !== COMPOSED_FRAGMENT_IDS.length) {
+      return {ok: false, detail: `${key}:fragments`}
     }
-    // Every id was checked to be a string above.
-    variants[key] = {page: {summary: page.summary, fragments: fragments as Record<ComposedFragmentId, string>}}
+    const checked = checkFragments(fragments, VALUE_FREE_FRAGMENT_OPTIONS)
+    if (!checked.ok) {
+      return {ok: false, detail: `${key}:${checked.detail}`}
+    }
+    const facts = toWireFacts(checked.facts)
+    if (JSON.stringify(facts) !== JSON.stringify(page.facts)) {
+      return {ok: false, detail: `${key}:facts`}
+    }
+    variants[key] = {summary: page.summary, fragments: checked.fragments, facts}
   }
-  return {build, variants}
+  return {ok: true, set: {build, variants}}
 }
 
 /**
@@ -211,16 +263,17 @@ function checkRecord(value: Record<string, unknown>): SsrRenderRecord | null {
   }
 }
 
-type FragmentsCheck =
+export type FragmentsCheck =
   | {ok: true; fragments: Record<ComposedFragmentId, string>; facts: ArtifactFacts}
   | {ok: false; detail: `${ComposedFragmentId}:${FragmentRejection | 'missing'}`}
 
 /**
  * Every fragment id, each admitted by the allowlist (./fragment-policy.ts), with no id carried
  * twice across the artifact. Otherwise the first fragment refused and why: a closed set, safe for
- * the log line.
+ * the log line. The Worker runs it on an artifact it reads; the composer runs it on what it renders,
+ * so it never publishes fragments the Worker would refuse, and its facts are the Worker's.
  */
-function checkFragments(value: Record<string, unknown>, options: FragmentOptions): FragmentsCheck {
+export function checkFragments(value: Record<string, unknown>, options: FragmentOptions): FragmentsCheck {
   const fragments: Partial<Record<ComposedFragmentId, string>> = {}
   const ids = new Set<string>()
   const scopes: Partial<Record<ComposedFragmentId, ReadonlySet<string>>> = {}

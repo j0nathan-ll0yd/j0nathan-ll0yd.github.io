@@ -2,15 +2,25 @@
 # Pre-push gates.
 #
 # 1) Static quality gates (fast): dprint format check, astro check (types), and
-#    ESLint. These mirror the CI jobs (format-check.yml + static-checks.yml) so a
-#    red check never reaches the PR. Always run -- SKIP_VISUAL does not skip them.
+#    ESLint. These mirror the CI `static-checks` job so a red check never reaches
+#    the PR. Always run -- SKIP_VISUAL does not skip them.
 #    Order: typecheck before lint, because `astro check` syncs .astro content
 #    types that type-aware ESLint needs to resolve `astro:content`.
 # 2) Visual-regression suite (slow, Docker): runs the full Playwright suite in the
 #    same arm64-native image the self-hosted CI runner is built FROM, so a passing
-#    run means the PNG bytes will match CI. Bypass with `SKIP_VISUAL=1 git push`
-#    (use only for branches that genuinely don't touch rendered output -- e.g.
-#    docs-only edits -- and accept that CI will catch any pixel regression).
+#    run means the PNG bytes will match CI. The required `visual-gate` context
+#    binds the pixel gate in CI (atlas decision 0168 item 16), so the hook runs the
+#    suite only when a pushed commit changes a rendered input against origin/main
+#    (scripts/visual-scope.sh, which fails closed and runs the suite when it cannot
+#    compute the diff). `SKIP_VISUAL=1 git push` skips it on any push.
+
+# git writes the pushed refs to stdin. Read them before any other command can
+# consume them. A manual run from a terminal has no refs, and the scope judges HEAD.
+if [ -t 0 ]; then
+  PUSH_REFS=''
+else
+  PUSH_REFS=$(cat)
+fi
 
 # 0) Install integrity (fast, fs-only). The doctor runs FIRST so a broken
 #    node_modules/.bin symlink is reported clearly here instead of detonating as
@@ -52,8 +62,20 @@ if [ "${SKIP_VISUAL:-0}" = "1" ]; then
   exit 0
 fi
 
-echo "[pre-push] Running visual regression suite in Docker (arm64-native, CI-parity image)."
-echo "[pre-push] To skip on a non-visual change: SKIP_VISUAL=1 git push"
+# Only an exact exit 1 skips. Any other status (a missing script exits 127, a syntax error 2,
+# a signal 128+n) runs the suite: the scope fails closed even when it cannot run at all.
+scope_status=0
+VISUAL_SCOPE=$(printf '%s\n' "$PUSH_REFS" | sh scripts/visual-scope.sh) || scope_status=$?
+if [ "$scope_status" -eq 1 ]; then
+  echo "[pre-push] Visual suite skipped: $VISUAL_SCOPE. CI visual-gate re-verifies."
+  exit 0
+fi
+if [ "$scope_status" -ne 0 ]; then
+  VISUAL_SCOPE="scripts/visual-scope.sh exited $scope_status, so the suite runs (fail closed)"
+fi
+
+echo "[pre-push] Running visual regression suite in Docker (arm64-native, CI-parity image): $VISUAL_SCOPE."
+echo "[pre-push] To skip: SKIP_VISUAL=1 git push"
 
 if ! pnpm run test:visual; then
   echo ""
@@ -69,7 +91,7 @@ if ! pnpm run test:visual; then
   echo "  CI will re-verify the suite on the same image; a clean run here means"
   echo "  the PNG bytes will match CI exactly."
   echo ""
-  echo "  Genuine emergency / docs-only push:  SKIP_VISUAL=1 git push"
+  echo "  Skip the local run (CI visual-gate still blocks the merge):  SKIP_VISUAL=1 git push"
   echo ""
   exit 1
 fi

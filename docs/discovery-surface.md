@@ -9,7 +9,7 @@ specifications carry a point-in-time verification date.
 | File                                                | Purpose                                                                   | Produced by                                                                                                                      | Spec / version (verified)             |
 | --------------------------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | `/robots.txt`                                       | Per-agent crawl policy                                                    | `src/pages/robots.txt.ts`                                                                                                        | RFC 9309 directives + Sitemap         |
-| `Content-Usage` response header                     | Machine-readable content-use preference                                   | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                                                    | IETF WG drafts attach-05 / vocab-07   |
+| `Content-Usage` response header                     | Machine-readable content-use preference                                   | `src/lib/edge/security-headers.ts` (Worker middleware + generated `_headers`)                                                    | IETF WG drafts attach-05 / vocab-08   |
 | `/sitemap-index.xml`                                | URL discovery for search engines                                          | `@astrojs/sitemap` (`astro.config.mjs`)                                                                                          | Sitemaps 0.9                          |
 | `/humans.txt`                                       | Human authorship credits                                                  | `src/pages/humans.txt.ts`                                                                                                        | humanstxt.org                         |
 | `/feed.xml`, `/feed.json`                           | Content feeds                                                             | `src/pages/feed.xml.ts`, `src/pages/feed.json.ts`                                                                                | RSS 2.0 / JSON Feed 1.1               |
@@ -17,6 +17,7 @@ specifications carry a point-in-time verification date.
 | `/.well-known/security.txt`                         | Security contact                                                          | static                                                                                                                           | RFC 9116                              |
 | `/.well-known/api-catalog`                          | API linkset (`item` + `service-desc` to `/openapi.json`)                  | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type)                                                      | RFC 9727                              |
 | `/openapi.json`                                     | OpenAPI document for the nine JSON exports                                | `scripts/generate-webmcp.mjs` + `src/lib/edge/middleware.ts` (content-type)                                                      | OpenAPI 3.1.0                         |
+| `/api/v1/<export>.json`                             | Developer API facade: RFC 9457 problems, RateLimit fields, CORS           | `src/pages/api/v1/[...path].ts`, `src/lib/edge/api-v1.ts`, `src/durable/ApiRateLimiter.ts`                                       | RFC 9457, ratelimit-headers-11        |
 | `/.well-known/webfinger`                            | Fediverse alias (JRD)                                                     | static + `src/lib/edge/middleware.ts`                                                                                            | RFC 7033                              |
 | `/mcp`                                              | Read-only MCP server                                                      | `src/pages/mcp/index.ts`, `src/lib/edge/mcp-server.ts`                                                                           | MCP 2026-07-28, also 2025-11-25       |
 | `/mcp/server-card`                                  | MCP server card (canonical)                                               | `src/pages/mcp/server-card.ts`                                                                                                   | SEP-2127 (ext-server-card `526201bb`) |
@@ -201,18 +202,23 @@ The catalog carries two resources, each with a domain-anchored `urn:air:` identi
 ### API catalog and OpenAPI — RFC 9727
 
 `/.well-known/api-catalog` anchors on its own URL and lists one `item` per public JSON
-export: all nine, from portal-contract `CLOUDFRONT_BASE` plus `ENDPOINTS`, typed
-`application/json`. The catalog is developer documentation, so the raw health, sleep and
+export: all nine, at the developer API facade (`API_V1_BASE`, `https://jonathanlloyd.me/api/v1`,
+plus portal-contract `ENDPOINTS`), typed `application/json`. The catalog is developer documentation, so the raw health, sleep and
 workouts exports are listed too. Each item has its own linkset entry (RFC 9727 Appendix A.1)
 with `service-desc` (`/openapi.json`, `application/vnd.oai.openapi+json;version=3.1`) and
 `service-doc` (`/developers` once that page exists in the tree, the wiki before, so no deploy
 links a 404). Until 2026-10-12 the one item was the CloudFront root, which answers an S3 XML
 `AccessDenied` 403. The monthly `b2-check-wellknown` fetches every item without following
 redirects: each must answer a 2xx `application/json` object, or, while a hiding mode is active,
-the edge focus gate's 403 `application/json` suppression body with a `reason` (never for
-`focus.json`, which the edge never gates). S3 XML fails. `/openapi.json`
-describes the nine GET endpoints on `CLOUDFRONT_BASE`, their response schemas, and the
-focus-suppression 403 on every export except `focus.json`.
+the facade's 503 `application/problem+json` focus-suppressed problem with `suppressed: true` and
+a `reason` (never for `focus.json`, which the gate never suppresses). S3 XML and the HTML 404 fail.
+Its `api-v1-error-shape` arm probes the facade's failures as served: an unknown export, a POST and
+`/api/nope` must each answer an RFC 9457 problem, and `/api/v1/focus.json` must carry
+`RateLimit-Policy` and `RateLimit`. `/openapi.json` describes the nine GET endpoints on the
+facade, their response schemas, one `Problem` schema with a response component per problem type
+(405, 429 and 502 on every export, the 503 focus-suppressed problem on every export except
+`focus.json`), the RateLimit fields, and the `Deprecation`, `Sunset` and `Link` fields of the
+versioning promise. The facade is the `developer-api` OpenSpec capability.
 
 The public data documentation still describes all nine exports, health, sleep and workouts
 included: `/openapi.json`, `/.well-known/api-catalog` (one `item` per export), and the homepage
@@ -224,11 +230,11 @@ only the coarsened band; the public data documentation describes the exports tha
 LLM channel may link that documentation (owner answer, 2026-10-12) but never a raw export
 URL. The owner can reverse this choice.
 
-Known risk: the CloudFront/S3 origin answers a key that does not exist with an XML or HTML
-403, not JSON. If an agent-readiness scorer starts treating the site as an API, its
-`openapi-spec` and `json-error-responses` checks join the essential pool and that answer
-would count against it. No discovery document links such a key: every api-catalog item is an
-export that exists.
+The CloudFront/S3 origin still answers a key that does not exist with an XML or HTML 403, not
+JSON. No discovery document names that origin any more: `/openapi.json` and the api-catalog
+point at the facade, which answers every failure under `/api` with a problem
+(`json-error-responses`). The CloudFront URLs stay valid for the LLM channels and the MCP
+resource URIs.
 
 ### A2A — not advertised
 
@@ -268,9 +274,11 @@ so both paths are required. This is the HTTP response-header form defined by the
 AI Preferences Working Group drafts
 [`draft-ietf-aipref-attach-05`](https://www.ietf.org/archive/id/draft-ietf-aipref-attach-05.html)
 and
-[`draft-ietf-aipref-vocab-07`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-07.html),
-both verified 2026-08-19. The current vocabulary defines `train-ai` and `search`;
-it does not define an AI-input category.
+[`draft-ietf-aipref-vocab-08`](https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-08.html)
+(14 September 2026), both re-verified 2026-10-29. vocab-08 defines three categories:
+`train-ai`, `ai-use` and `search`. It also states that "Its contents DO NOT REFLECT
+CONSENSUS of the Working Group". The header deliberately states `train-ai` and `search`
+only: atlas decision 0174 E2 deferred `ai-use=y`, so `ai-use` stays unstated.
 
 The attachment draft also describes a robots extension, but `/robots.txt`
 intentionally omits it. Lighthouse treats directives it does not recognize as an SEO
@@ -305,8 +313,12 @@ What re-verifies them automatically:
   catalog's pinned sources (llms.txt, RSS, JSON Feed, RFC 9116) and, since atlas decision
   0158, the agent-discovery `WATCHED_SOURCES`: the WebMCP draft (`index.bs`), SEP-2127, the
   server-card extension's `docs/discovery.md`, the ARD v0.91 specification, and the three
-  vendored schemas. A revision is reported as
-  `spec-source-moved` and escalates to `fail` after the re-pin grace window.
+  vendored schemas. Since atlas decision 0174 E1 it also watches the two AIPREF drafts behind
+  the `Content-Usage` header, `draft-ietf-aipref-vocab-08` and `draft-ietf-aipref-attach-05`:
+  it reads each draft's latest revision and lifecycle state from the IETF datatracker. A
+  revision, or a draft that leaves the active state, is reported as `spec-source-moved` and
+  escalates to `fail` after the re-pin grace window. An unreadable datatracker record is
+  INDETERMINATE, never current.
 - `audits/checks/b2-check-wellknown.mjs` (monthly tier of `audit-web.yml`) validates the served card, `ai-catalog.json`
   and `ard.json` against the vendored schemas, and walks catalog, then card, then each
   `remotes[].url` in both protocol eras: `initialize` and `tools/list` (2025-11-25), then

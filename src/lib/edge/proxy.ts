@@ -47,14 +47,15 @@
 // zone cache ("Cloudflare Workers run before the cache",
 // developers.cloudflare.com/workers/reference/how-the-cache-works/), so a zone
 // rule cannot store a response this module builds. What keeps a cache out in
-// front of the Worker is that wrangler.jsonc enables no Workers Caching
-// (tests/unit/worker-routing.test.ts pins it). The zone rules still matter on one
-// path: the production route fails open, so a request the Worker cannot take goes
-// past it to the zone, where those rules apply.
-// audits/checks/b2-check-cloudflare-llms-cache-rules.mjs measures the rules for
-// all five paths, and audits/checks/b2-llms.mjs `siteEdgeCacheFailure` measures
-// the served result: it reds on any `Age`, on a cache-served `CF-Cache-Status`, and
-// on an absent status without the Worker's platform marker.
+// front of the Worker is that wrangler.jsonc enables no Workers Cache
+// (tests/unit/worker-routing.test.ts pins it). No path reaches the zone without the
+// Worker: production is a Workers Custom Domain, the zone has no Worker route to
+// fail open, and the Pages origin retired (atlas decision 0160 D7).
+// One rule, audits/lib/site-edge-cache.mjs `siteEdgeCacheFailure`, measures the
+// served result: audits/checks/b2-llms.mjs applies it to the llms trio and
+// audits/checks/b2-check-feeds.mjs to the feeds. It reds on any `Age`, on a
+// cache-served `CF-Cache-Status`, and on an absent status without the Worker's
+// platform marker.
 
 import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {CLOUDFRONT_BASE, ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
@@ -131,6 +132,10 @@ const PUBLIC_NO_STORE = 'no-store'
 const SUPPRESSION_RETRY_SECONDS = 60
 /** The `X-Source` value of a focus-suppression response. Exported so a caller of a proxy handler can tell suppression from failure. */
 export const SUPPRESSION_SOURCE = 'cloudfront-proxy-suppressed'
+/** The `reason` of the suppression body. The developer API's focus-suppressed problem carries the same value. */
+export const SUPPRESSION_REASON = 'focus mode active'
+/** The `Retry-After` of a suppression response, in seconds. */
+export const SUPPRESSION_RETRY_AFTER_SECONDS = SUPPRESSION_RETRY_SECONDS
 const HIDING_FOCUS_MODE_SET = new Set<string>(HIDING_FOCUS_MODES)
 const FOCUS_SIGNAL_PATH: string = ENDPOINTS.focus
 /**
@@ -246,6 +251,11 @@ interface UpstreamFailure {
    * status is never retryable, so it admits no last-known-good copy.
    */
   refused?: Refusal
+  /**
+   * Set when a concurrent read (`readGatedConcurrently`) stopped because the focus probe did not read
+   * visible: the artifact's body, if any arrived, was cancelled unread.
+   */
+  abandoned?: true
 }
 
 /** The gate answered an artifact request with its 403 suppression body. The gate wins. */
@@ -407,7 +417,7 @@ function suppressionResponse(method: string): Response {
     'X-Source': SUPPRESSION_SOURCE
   })
   setPublicNoStore(headers)
-  const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: 'focus mode active'})
+  const body = method === 'HEAD' ? null : JSON.stringify({suppressed: true, reason: SUPPRESSION_REASON})
   return new Response(body, {status: 503, headers})
 }
 
@@ -445,6 +455,19 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+/** A retry delay that ends early when a concurrent read stops, so a stopped leg never outlives its answer. */
+function delayUnlessStopped(ms: number, stop: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(done, ms)
+    function done(): void {
+      clearTimeout(timer)
+      stop.removeEventListener('abort', done)
+      resolve()
+    }
+    stop.addEventListener('abort', done)
+  })
+}
+
 /**
  * True when this response is evidence, for the last-known-good path, that the gate is open now: a
  * 200 that passed the gate in this request. No CloudFront error status proves that the gate
@@ -465,14 +488,39 @@ function isSuppressionBody(response: Response, budget: RequestBudget, label: str
   return isSuppressionBodyWithin(response, Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), label)
 }
 
-async function fetchWithRetry(upstreamUrl: string, path: string, budget: RequestBudget, fetchImpl: typeof fetch): Promise<UpstreamResult> {
+/**
+ * Hooks of a concurrent read (`readGatedConcurrently`). Absent for every proxy route: they read the
+ * artifact only after the focus probe answered visible.
+ */
+interface ConcurrentHooks {
+  /** Aborted when the focus probe did not read visible: every attempt stops, none is retried. */
+  stop: AbortSignal
+  /** Resolves true once the focus probe reads visible; an admitted body is read only then. */
+  focusVisible(): Promise<boolean>
+}
+
+async function fetchWithRetry(
+  upstreamUrl: string,
+  path: string,
+  budget: RequestBudget,
+  fetchImpl: typeof fetch,
+  hooks?: ConcurrentHooks
+): Promise<UpstreamResult> {
   let lastResponse: Response | undefined
   let errorName: string | undefined
   let gateOpen = false
+  const attemptSignal = (signal: AbortSignal): AbortSignal => hooks ? AbortSignal.any([signal, hooks.stop]) : signal
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // The focus probe can deny during a retry delay: a stopped read starts no further attempt.
+    if (hooks?.stop.aborted) {
+      if (lastResponse) {
+        discardBody(lastResponse)
+      }
+      return {ok: false, attempts: attempt - 1, response: lastResponse, errorName, gateOpen, abandoned: true}
+    }
     try {
-      lastResponse = await withDeadline((signal) => fetchImpl(upstreamUrl, {...GATED_FETCH_INIT, signal}),
+      lastResponse = await withDeadline((signal) => fetchImpl(upstreamUrl, {...GATED_FETCH_INIT, signal: attemptSignal(signal)}),
         Math.min(ARTIFACT_TIMEOUT_MS, budget.remainingMs()), `${path} fetch`)
       errorName = undefined
       if (lastResponse.status === 403 && await isSuppressionBody(lastResponse, budget, `${path} 403 body`)) {
@@ -487,6 +535,12 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
           return {ok: false, attempts: attempt, response: lastResponse, gateOpen: false, refused}
         }
         gateOpen = true
+        // A concurrent read holds an admitted body unread until the focus probe answers. A hiding
+        // or unreadable value cancels it: the bytes are never read, parsed or logged.
+        if (hooks && !(await hooks.focusVisible())) {
+          discardBody(lastResponse)
+          return {ok: false, attempts: attempt, response: lastResponse, gateOpen, abandoned: true}
+        }
         // Read the artifact HERE, under its own deadline, rather than streaming the upstream body
         // to the client. A stalled body is the second half of the hang this bounds, and it is
         // invisible to any deadline placed on the fetch alone. These artifacts are small text
@@ -511,12 +565,18 @@ async function fetchWithRetry(upstreamUrl: string, path: string, budget: Request
     }
 
     const failure: UpstreamFailure = {ok: false, attempts: attempt, response: lastResponse, errorName, gateOpen}
+    if (hooks?.stop.aborted) {
+      if (lastResponse) {
+        discardBody(lastResponse)
+      }
+      return {...failure, abandoned: true}
+    }
     const retryDelayMs = RETRY_DELAYS_MS[attempt - 1] ?? 0
     if (attempt === MAX_ATTEMPTS || budget.remainingMs() <= retryDelayMs) {
       return failure
     }
     logger.warn('cloudfront_proxy_retry', diagnosticFields(path, failure))
-    await delay(retryDelayMs)
+    await (hooks ? delayUnlessStopped(retryDelayMs, hooks.stop) : delay(retryDelayMs))
   }
 
   return {ok: false, attempts: MAX_ATTEMPTS, response: lastResponse, errorName, gateOpen}
@@ -720,7 +780,7 @@ async function staleResponse({cache, cacheKey, contentType, path, upstreamUrl, f
 
   const headers = new Headers(cached.headers)
   // Served as read, a permitted fallback would look like a zone-cache hit to every downstream
-  // observer, the B2 llms edge arm (audits/checks/b2-llms.mjs siteEdgeCacheFailure) included.
+  // observer, the B2 edge arms (audits/lib/site-edge-cache.mjs siteEdgeCacheFailure) included.
   // Warning 110, X-Proxy-Stale and X-Source state what the copy is.
   for (const name of CACHE_API_STATE_HEADERS) {
     headers.delete(name)
@@ -770,9 +830,9 @@ export function makeCloudfrontProxy(
     // once. A VISIBLE value is not permission on its own: the backend gate can be shut over a
     // visible signal, so every artifact fetch below still passes the gate itself (no-store), and a
     // suppression body from it wins. Every route's responses, the feeds included, are no-store at
-    // the browser, generic CDN, and Cloudflare-specific layers. A request the Worker takes reaches it
-    // ahead of the zone cache; the fail-open path is the zone's: see the zone-edge-cache note at the
-    // top of this module. No route can enter SWR.
+    // the browser, generic CDN, and Cloudflare-specific layers. Every request reaches the Worker
+    // ahead of the zone cache: see the zone-edge-cache note at the top of this module. No route can
+    // enter SWR.
     // ONE budget for the whole request: the focus probe, its retry, every artifact attempt, every
     // retry delay, every body read and the gate probe draw from it. Started here, before the first
     // network call.
@@ -843,4 +903,105 @@ export function makeCloudfrontProxy(
     setPublicNoStore(headers)
     return new Response(`${artifactName} unavailable`, {status: 502, headers})
   }
+}
+
+/** Wall-clock milliseconds of a concurrent read's two legs, for the value-free render log. */
+export interface GatedReadTiming {
+  focusMs: number
+  /** Null when the read did not wait for the artifact (the focus probe did not read visible). */
+  artifactMs: number | null
+}
+
+/** The answer of `readGatedConcurrently`. No variant names a data value. */
+export type GatedRead =
+  | {kind: 'ok'; body: ArrayBuffer; timing: GatedReadTiming}
+  /** `currentFocus`: the hiding value the probe read, or null when the gate shut over a visible one. */
+  | {kind: 'suppressed'; currentFocus: string | null; timing: GatedReadTiming}
+  | {kind: 'focus-unreadable'; timing: GatedReadTiming}
+  /** `status`: the status the proxy routes answer for the same failure (502). */
+  | {kind: 'unavailable'; status: number; timing: GatedReadTiming}
+
+export interface GatedReadOptions {
+  /** Artifact path on the CloudFront data plane. */
+  path: string
+  /** The whole read's budget in ms, shared by both legs. */
+  budgetMs: number
+  /** Where to read. Absent: the CloudFront data plane. Only the server render's test seams pass one. */
+  upstream?: Upstream
+}
+
+/**
+ * One gated artifact read with the focus probe and the artifact fetch in FLIGHT TOGETHER, for the
+ * composed dashboard (atlas decision 0160, soak fix). It keeps no last-known-good copy (D3), so it
+ * has no cache read and no gate probe. Its latency is about the slower leg, not the sum: the serial
+ * probe-then-fetch timed out on 2.5 s from colos far from CloudFront (soak, 2026-10-17).
+ *
+ * The answer is decided exactly as the serial proxy decides it, focus first:
+ *
+ * 1. A hiding focus value answers `suppressed` with that value; an unreadable one answers
+ *    `focus-unreadable`. Either way the artifact leg stops: its fetch is aborted, it retries
+ *    nothing, and a body that already arrived is cancelled unread (never read, parsed or logged).
+ * 2. Under a visible value, the gate's suppression body answers `suppressed` with no value.
+ * 3. Under a visible value, only a 200 that passed the admission rules (`successRefusal`) is read,
+ *    and only after the probe answered visible.
+ *
+ * The probe and every artifact attempt draw on ONE budget. No work outlives the answer that touches
+ * artifact bytes: a stopped leg only cancels.
+ */
+export async function readGatedConcurrently({path, budgetMs, upstream}: GatedReadOptions): Promise<GatedRead> {
+  const startedAt = Date.now()
+  const budget = startBudget(budgetMs)
+  const source = upstream ?? CLOUDFRONT_UPSTREAM
+  const stop = new AbortController()
+  let focusMs = 0
+  const focus = probeFocus(budget, source).then((result) => {
+    focusMs = Date.now() - startedAt
+    if (result.status !== 'visible') {
+      stop.abort()
+    }
+    return result
+  }, (error: unknown) => {
+    // probeFocus answers every failure itself; should it ever throw, the artifact leg still stops.
+    stop.abort()
+    throw error
+  })
+  const artifact = fetchWithRetry(`${source.base}${path}`, path, budget, source.fetch, {
+    stop: stop.signal,
+    focusVisible: () => focus.then((result) => result.status === 'visible')
+  })
+  // On a denial nobody awaits the stopped leg; a late rejection must not surface as unhandled.
+  artifact.catch(() => {})
+
+  const focusResult = await focus
+  if (focusResult.status === 'suppressed') {
+    logger.info?.('cloudfront_proxy_suppressed', {artifact: path, current_focus: focusResult.currentFocus})
+    return {kind: 'suppressed', currentFocus: focusResult.currentFocus, timing: {focusMs, artifactMs: null}}
+  }
+  if (focusResult.status === 'unavailable') {
+    logger.error('cloudfront_proxy_focus_probe_failed', {
+      artifact: path,
+      upstream_status: focusResult.upstreamStatus ?? null,
+      error_class: focusResult.errorName ?? null
+    })
+    return {kind: 'focus-unreadable', timing: {focusMs, artifactMs: null}}
+  }
+
+  const result = await artifact
+  const timing = {focusMs, artifactMs: Date.now() - startedAt}
+  if (result.ok) {
+    return {kind: 'ok', body: result.body, timing}
+  }
+  if (result.suppressed) {
+    logger.info?.('cloudfront_proxy_gate_suppressed', {artifact: path, attempts: result.attempts})
+    return {kind: 'suppressed', currentFocus: null, timing}
+  }
+  if (result.refused) {
+    logger.error('cloudfront_proxy_unproven_response', {
+      ...diagnosticFields(path, result, false),
+      reason: result.refused,
+      cf_cache_status: result.response?.headers.get('cf-cache-status') ?? null
+    })
+  }
+  logger.error('cloudfront_proxy_terminal_failure', diagnosticFields(path, result, false))
+  return {kind: 'unavailable', status: 502, timing}
 }

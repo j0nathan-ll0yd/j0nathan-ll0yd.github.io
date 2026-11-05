@@ -21,6 +21,7 @@ CONFIG="${1:?config path required (e.g. playwright.config.ts)}"
 shift
 
 VERSION=$(./scripts/playwright-version.sh)
+PNPM_STORE_VOLUME=human-datastream-pnpm-store
 
 # The container writes $GITHUB_TOKEN into its npmrc as the npm.pkg.github.com
 # authToken (below). `-e GITHUB_TOKEN` forwards whatever the host has -- and in
@@ -43,6 +44,15 @@ export GITHUB_TOKEN
 # the hosted run. The node_modules shadow volume prevents Linux native packages from overwriting
 # the host's macOS install; keep it after the /work bind. Put pnpm's store inside that volume too,
 # or hundreds of megabytes land in the bind-mounted repository.
+#
+# The store itself is a NAMED volume (PNPM_STORE_VOLUME), mounted inside the anonymous
+# node_modules volume, so it outlives the container: the next run installs from a warm store
+# instead of downloading every package again (atlas decision 0168 item 16). node_modules stays
+# anonymous and fresh per run. The store is content-addressed and safe to share between
+# concurrent containers. `docker volume rm human-datastream-pnpm-store` resets it.
+# Measured 2026-10-26 (1,174 packages): the install takes 6 to 8 s warm or cold, because pnpm
+# copies across the two volumes instead of hard-linking. The gain is no registry download per
+# run, not wall clock.
 #
 # Corepack follows package.json's exact pnpm pin. GITHUB_TOKEN is written to the container user
 # npmrc because pnpm does not expand it from the committed project config.
@@ -71,6 +81,23 @@ export GITHUB_TOKEN
 # recorded PID: "Another astro preview server is already running", before any test ran. A PID
 # means nothing outside its container, so the lock must not outlive it. `astro build` regenerates
 # everything else in .astro/ inside the container.
+#
+# Both Miniflare state directories get a shadow volume: .wrangler/ (`astro preview`) and
+# workers/rate-limiter/.wrangler/ (the behavioral suite's rate-limiter `wrangler dev`). Each holds
+# SQLite databases in WAL mode, and workerd memory-maps their -shm files. When two containers run
+# from the same worktree at once (a background behavioral run beside the pre-push visual run), both
+# open the same databases through the macOS bind mount, and workerd dies with
+#   *** Received signal #7: Bus error
+# then MiniflareCoreError [ERR_RUNTIME_FAILURE], at startup or mid-suite. A rate-limiter that dies
+# after the burst test fails open, so a run can pass with the error in its log. Measured 2026-10-25:
+# two containers on one bind-mounted persist directory crash every time. These setups all stay up:
+# one container with two workerd processes, two containers on one Docker volume, two containers on
+# separate directories, and a host workerd beside a container. Native Linux CI never sees it: each
+# job owns its checkout, with no bind mount and no second container. The shadow is safe because
+# the state is local simulation state that each run rebuilds. No test reads state an earlier run
+# left: the suites read the published KV values over HTTP from the fixture data plane, and
+# tests/behavioral/api-v1.spec.ts gives each run its own client addresses. The build in the
+# container writes .wrangler/deploy/config.json into the shadow, where `astro preview` reads it.
 docker run --rm --ipc=host --platform linux/arm64 \
   -e CI=true \
   -e GITHUB_TOKEN \
@@ -78,8 +105,11 @@ docker run --rm --ipc=host --platform linux/arm64 \
   -e COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
   -v "$(pwd):/work" \
   -v /work/node_modules \
+  -v "${PNPM_STORE_VOLUME}:/work/node_modules/.pnpm-store" \
   -v /work/dist \
   -v /work/.astro \
+  -v /work/.wrangler \
+  -v /work/workers/rate-limiter/.wrangler \
   -w /work \
   "mcr.microsoft.com/playwright:v${VERSION}-noble" \
   /bin/bash -c "corepack enable pnpm \

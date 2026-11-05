@@ -32,16 +32,23 @@ var repoRoot = path.resolve(__dirname, '..')
 
 // 1. Derive the route prefix from the filesystem by discovering the catch-all
 // collection route: src/pages/<dir>/[...path].ts → routePrefix = /<dir>.
-// Discovered (not hardcoded) so a rename of the route directory is caught.
+// Discovered (not hardcoded) so a rename of the route directory is caught. Other
+// catch-all routes exist (src/pages/api/[...path].ts, the developer API's not-found
+// problem), so the collection route is the catch-all that forwards to the Simple
+// Analytics collector.
+var SA_COLLECTOR_HOST = 'queue.simpleanalyticscdn.com'
 var pagesDir = path.join(repoRoot, 'src', 'pages')
-var catchAllDirs = fs.readdirSync(pagesDir, {withFileTypes: true}).filter((d) =>
-  d.isDirectory() && fs.existsSync(path.join(pagesDir, d.name, '[...path].ts'))
-).map((d) => d.name)
+var catchAllDirs = fs.readdirSync(pagesDir, {withFileTypes: true}).filter((d) => {
+  var file = path.join(pagesDir, d.name, '[...path].ts')
+  return d.isDirectory() && fs.existsSync(file) && fs.readFileSync(file, 'utf-8').includes(SA_COLLECTOR_HOST)
+}).map((d) => d.name)
 
 if (catchAllDirs.length !== 1) {
   console.error(
     '✗ check-sa-proxy-path: expected exactly ONE catch-all collection route ' +
-      'at src/pages/<dir>/[...path].ts, found ' +
+      'at src/pages/<dir>/[...path].ts forwarding to ' +
+      SA_COLLECTOR_HOST +
+      ', found ' +
       catchAllDirs.length +
       ' [' +
       catchAllDirs.join(', ') +

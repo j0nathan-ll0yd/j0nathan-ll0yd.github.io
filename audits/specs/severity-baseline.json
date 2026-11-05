@@ -27,16 +27,23 @@
     "llms-txt-h2-no-file-list": "warn",
     "llms-txt-non-link-list-item": "fail",
     "llms-txt-second-h1": "fail",
+    "security-txt-bug-bounty-value": "fail",
     "security-txt-canonical-mismatch": "fail",
     "security-txt-canonical-missing": "warn",
     "security-txt-contact-missing": "fail",
+    "security-txt-contact-not-uri": "fail",
+    "security-txt-content-type": "fail",
+    "security-txt-csaf-not-https": "fail",
     "security-txt-expired": "fail",
     "security-txt-expires-duplicate": "fail",
+    "security-txt-expires-format": "fail",
     "security-txt-expires-missing": "fail",
+    "security-txt-expires-over-a-year": "warn",
     "security-txt-expires-unparseable": "fail",
     "security-txt-expiring-soon": "fail",
     "security-txt-fetch": "fail",
     "security-txt-preferred-languages-duplicate": "fail",
-    "security-txt-preferred-languages-malformed": "fail"
+    "security-txt-preferred-languages-malformed": "fail",
+    "security-txt-web-uri-not-https": "fail"
   }
 }

@@ -160,6 +160,11 @@ function markdownNotFound(routed: Response): Response {
   return new Response(NOT_FOUND_MARKDOWN, {status: 404, headers})
 }
 
+/** True for an RFC 9457 problem answer, which keeps its own body under every `Accept`. */
+function isProblemResponse(response: Response): boolean {
+  return (response.headers.get('Content-Type') ?? '').toLowerCase().startsWith('application/problem+json')
+}
+
 /** Merge `Accept` into Vary so every cache layer keys negotiated representations on it. */
 function mergeVaryAccept(headers: Headers): void {
   const existing = headers.get('Vary')
@@ -191,8 +196,10 @@ export async function onRequest(context: MiddlewareContext): Promise<Response> {
 
   // The one exception to homepage-only negotiation: a 404 under the same markdown
   // decision answers with a short markdown body instead of the HTML 404 page. Status
-  // stays 404; the body points at the documents an agent can read instead.
-  const notFoundMarkdown = routed.status === 404 && wantsMarkdown
+  // stays 404; the body points at the documents an agent can read instead. A problem 404 from
+  // the developer API (src/lib/edge/problem.ts) keeps its application/problem+json body: /api
+  // never negotiates.
+  const notFoundMarkdown = routed.status === 404 && wantsMarkdown && !isProblemResponse(routed)
   const response = notFoundMarkdown ? markdownNotFound(routed) : routed
   const headers = new Headers(response.headers)
 

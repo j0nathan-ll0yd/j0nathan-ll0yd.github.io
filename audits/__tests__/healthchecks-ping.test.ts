@@ -229,11 +229,11 @@ describe('healthchecks-ping.sh measurement channel', () => {
     expect(stdout).not.toContain('robots(')
   })
 
-  // The claiming lane that MATTERS after the Cloudflare cache-rule step started publishing
-  // its own declaration (atlas decision 0142 step 5.4): its record now carries a live
-  // waiver -- a stated reason and an `until=` deadline -- alongside an interpolated count.
-  // A run that dies before classifying leaves the count EMPTY, and the waiver must not
-  // cover that. The trailing fields are still present and still parse; they simply grant
+  // The claiming lane that MATTERED when the Cloudflare cache-rule step (retired with atlas
+  // decision 0160 D7) started publishing its own declaration (atlas decision 0142 step 5.4):
+  // a record that carries a live waiver -- a stated reason and an `until=` deadline -- alongside
+  // an interpolated count. A run that dies before classifying leaves the count EMPTY, and the
+  // waiver must not cover that. The trailing fields are still present and still parse; they simply grant
   // nothing, because the waiver attaches to the literal `deferred` and to nothing else.
   it('never lets a trailing deferral waiver cover an empty count', () => {
     stubCurl()
@@ -241,10 +241,10 @@ describe('healthchecks-ping.sh measurement channel', () => {
       HC_URL: PING_URL,
       JOB_STATUS: 'success',
       TODAY_UTC: '2026-09-09',
-      MEASURED_STEPS: 'llms_cache_rules|failure||atlas 0120 D2 owner action|until=2026-12-08\nrobots|success|1\n'
+      MEASURED_STEPS: 'blocked_check|failure||owner action pending|until=2026-12-08\nrobots|success|1\n'
     })
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain('llms_cache_rules(crashed-before-measuring)')
+    expect(stdout).toContain('blocked_check(crashed-before-measuring)')
   })
 
   it('still reports a wedged lane when the /fail ping itself cannot be delivered', () => {
@@ -276,7 +276,7 @@ describe('healthchecks-ping.sh measurement declarations', () => {
         HC_URL: PING_URL,
         JOB_STATUS: 'success',
         TODAY_UTC: '2026-09-09',
-        MEASURED_STEPS: 'llms_cache_rules|failure|deferred|atlas 0120 D2 owner action|until=2026-12-08\nrobots|success|1\n'
+        MEASURED_STEPS: 'blocked_check|failure|deferred|owner action pending|until=2026-12-08\nrobots|success|1\n'
       }).status
     ).toBe(0)
     expect(pingedUrls()).toEqual([PING_URL])
@@ -291,9 +291,9 @@ describe('healthchecks-ping.sh measurement declarations', () => {
 
   it('wedges on an unreasoned deferral for the same reason', () => {
     stubCurl()
-    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'llms_cache_rules|failure|deferred\n'})
+    const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', MEASURED_STEPS: 'blocked_check|failure|deferred\n'})
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain('llms_cache_rules(unreasoned-deferred)')
+    expect(stdout).toContain('blocked_check(unreasoned-deferred)')
   })
 })
 
@@ -301,17 +301,17 @@ describe('healthchecks-ping.sh measurement declarations', () => {
 // structural fact -- a third-party tool run holds no artifact set, and no owner action changes
 // that. `deferred` says the step COULD claim and something outside this repo is in the way, which
 // is temporal by its own definition. Undated, the two behave identically and the declaration
-// written to make a gap VISIBLE is what makes it INDEFINITE: `llms_cache_rules` produced a green
-// job, no managed issue and no wedge on run 34164468115 while all five Cloudflare API reads
-// returned 403 -- the same shape as run 34086625518, the receipt decision 0122 opened with.
+// written to make a gap VISIBLE is what makes it INDEFINITE: the retired `llms_cache_rules` step
+// produced a green job, no managed issue and no wedge on run 34164468115 while all five Cloudflare
+// API reads returned 403 -- the same shape as run 34086625518, the receipt decision 0122 opened with.
 describe('healthchecks-ping.sh deferral expiry', () => {
-  const DEFERRAL = 'llms_cache_rules|failure|deferred|atlas 0120 D2 owner action'
+  const DEFERRAL = 'blocked_check|failure|deferred|owner action pending'
 
   it('wedges on a reasoned deferral that carries no deadline', () => {
     stubCurl()
     const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', TODAY_UTC: '2026-09-09', MEASURED_STEPS: `${DEFERRAL}\nrobots|success|1\n`})
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain('llms_cache_rules(undated-deferred)')
+    expect(stdout).toContain('blocked_check(undated-deferred)')
   })
 
   it('wedges once the deadline has passed, even though the job succeeded', () => {
@@ -323,7 +323,7 @@ describe('healthchecks-ping.sh deferral expiry', () => {
       MEASURED_STEPS: `${DEFERRAL}|until=2026-12-08\nrobots|success|1\n`
     })
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain('llms_cache_rules(expired-deferral:2026-12-08)')
+    expect(stdout).toContain('blocked_check(expired-deferral:2026-12-08)')
   })
 
   // PAST the date, not ON it. A deadline that fires a day early would train the reader to move
@@ -346,7 +346,7 @@ describe('healthchecks-ping.sh deferral expiry', () => {
     stubCurl()
     const {stdout} = runPing({HC_URL: PING_URL, JOB_STATUS: 'success', TODAY_UTC: '2026-09-09', MEASURED_STEPS: `${DEFERRAL}|until=${value}\n`})
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain(`llms_cache_rules(malformed-deferral-date:${value})`)
+    expect(stdout).toContain(`blocked_check(malformed-deferral-date:${value})`)
   })
 
   // The marker is self-describing so it can sit anywhere in the trailing fields, which is what
@@ -358,7 +358,7 @@ describe('healthchecks-ping.sh deferral expiry', () => {
         HC_URL: PING_URL,
         JOB_STATUS: 'success',
         TODAY_UTC: '2026-09-09',
-        MEASURED_STEPS: 'llms_cache_rules|failure|deferred|until=2026-12-08|atlas 0120 D2|five reads return 403\nrobots|success|1\n'
+        MEASURED_STEPS: 'blocked_check|failure|deferred|until=2026-12-08|owner action pending|five reads return 403\nrobots|success|1\n'
       }).status
     ).toBe(0)
     expect(pingedUrls()).toEqual([PING_URL])
@@ -372,10 +372,10 @@ describe('healthchecks-ping.sh deferral expiry', () => {
       HC_URL: PING_URL,
       JOB_STATUS: 'success',
       TODAY_UTC: '2026-09-09',
-      MEASURED_STEPS: 'llms_cache_rules|failure|deferred|until=2026-12-08\n'
+      MEASURED_STEPS: 'blocked_check|failure|deferred|until=2026-12-08\n'
     })
     expect(pingedUrls()).toEqual([`${PING_URL}/fail`])
-    expect(stdout).toContain('llms_cache_rules(unreasoned-deferred)')
+    expect(stdout).toContain('blocked_check(unreasoned-deferred)')
   })
 
   // `n/a` is exempt from the expiry rung by design, not by omission. A structural fact given a

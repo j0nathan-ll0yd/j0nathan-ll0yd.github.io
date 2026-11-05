@@ -14,8 +14,8 @@ export async function setup() {
   // The build-output tests must inspect the bundle that deploys. Vitest runs with NODE_ENV=test,
   // and Vite derives import.meta.env.DEV from NODE_ENV, so an inherited value built a
   // dev-flavoured client bundle (live-data read `/api/live`, the dev proxy). Overriding NODE_ENV
-  // alone was not enough: the inherited DEV, PROD, and MODE still built the dev-only
-  // leaflet-lazy.js into every page and left out the production-only scripts.
+  // alone was not enough: the inherited DEV, PROD, and MODE still built the dev branches and left
+  // out the production-only scripts.
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !VITEST_ENV.test(name)))
   execSync('pnpm run build', {stdio: 'inherit', cwd: process.cwd(), env: {...env, NODE_ENV: 'production'}})
 }

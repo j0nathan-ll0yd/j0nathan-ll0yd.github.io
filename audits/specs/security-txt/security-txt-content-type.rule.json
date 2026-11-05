@@ -1,0 +1,90 @@
+{
+  "id": "security-txt-content-type",
+  "title": "security.txt must be served as text/plain with charset utf-8",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "cites": {
+    "source": "RFC 9116",
+    "clause": "§3",
+    "quote": "It MUST have a Content-Type of \"text/plain\" with the default charset parameter set to \"utf-8\" (as per Section 4.1.3 of [RFC2046]).",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
+    "retrieved": "2026-10-29",
+    "content_sha256": "875c1263f650c679e13feaa0b0da9f3fd35e94caaee41e7f882b51ae2f987831",
+    "conformance_testable": true,
+    "verified_against_source": true,
+    "verified_at": "2026-10-29",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-10-29 (file sha256 79d19ce7a4a35496981095a27fd992797a9fc4d6f3649c2a1e14f494607c61f9). Lines 450-452. The header comes from the serving platform (the Worker's static-asset plane), not from the file, so this rule judges the HTTP response, not the body."
+  },
+  "policy_note": "An absent charset parameter passes. The sentence names utf-8 as the DEFAULT charset, and sectxt (the reference checker, DigitalTrustCenter/sectxt) reads a missing parameter as utf-8 the same way. The IANA alias csUTF8 passes too, as it does in sectxt. Media type, parameter name and charset name compare case-insensitively (RFC 2045 §5.1, RFC 2046 §4.1.2), and a quoted charset value is unquoted first. A missing header fails: the sentence requires the header.",
+  "applicability": "The Content-Type header of a 2xx response for SECURITY_TXT_URL. main() reads it with res.headers.get('content-type') and passes it to validateSecurityTxtContentType; a case input is a JSON object {\"contentType\": <string or null>}.",
+  "expectation": "The header is present; its media type, trimmed and lowercased, is text/plain; every charset parameter, unquoted and lowercased, is utf-8 or csutf8.",
+  "cases": [
+    {
+      "name": "text/html is not text/plain",
+      "outcome": "failed",
+      "input_file": "cases/content-type-html.json",
+      "input_kind": "json",
+      "expect": [
+        {
+          "id": "security-txt-content-type",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "charset iso-8859-1 is not utf-8",
+      "outcome": "failed",
+      "input_file": "cases/content-type-latin1.json",
+      "input_kind": "json",
+      "expect": [
+        {
+          "id": "security-txt-content-type",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "no Content-Type header",
+      "outcome": "failed",
+      "input_file": "cases/content-type-missing.json",
+      "input_kind": "json",
+      "expect": [
+        {
+          "id": "security-txt-content-type",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "text/plain; charset=utf-8 -- the production header on 2026-10-29",
+      "outcome": "passed",
+      "input_file": "cases/content-type-utf8.json",
+      "input_kind": "json",
+      "expect": []
+    },
+    {
+      "name": "text/plain with no charset -- utf-8 is the default",
+      "outcome": "passed",
+      "input_file": "cases/content-type-no-charset.json",
+      "input_kind": "json",
+      "expect": []
+    },
+    {
+      "name": "mixed case and a quoted charset still match",
+      "outcome": "passed",
+      "input_file": "cases/content-type-mixed-case.json",
+      "input_kind": "json",
+      "expect": []
+    },
+    {
+      "name": "the IANA alias csUTF8 names UTF-8",
+      "outcome": "passed",
+      "input_file": "cases/content-type-csutf8.json",
+      "input_kind": "json",
+      "expect": []
+    }
+  ]
+}

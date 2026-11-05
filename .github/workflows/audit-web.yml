@@ -16,7 +16,7 @@
 # Promotion to blocking is a Phase 6 decision, not something this workflow does
 # on its own.
 #
-# MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to Cloudflare Pages
+# MERGING TO main DEPLOYS THIS WORKFLOW (main auto-deploys to the Cloudflare Worker
 # AND is the branch the external scheduler dispatches -- registry fact
 # web-main-autodeploys-prod) -- do not merge without explicit user instruction
 # (B5).
@@ -93,7 +93,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
-          cache: pnpm
 
       # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
       # npm did (atlas decision 0032 removed that line), so the token is written to the
@@ -130,7 +129,7 @@ jobs:
 
       # measured=1 when the Stats API answered and ingestion was judged (pass or fail). 0 when the
       # arm held no answer: UNMEASURED, SKIPPED (no SA_API_KEY), or every read threw. 0 wedges this
-      # tier the same day, like the weekly `llms_cache_rules` step.
+      # tier the same day.
       - name: B6 -- SA ingestion (synthetic event -> Stats API)
         id: analytics_ingestion
         continue-on-error: true
@@ -300,7 +299,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
-          cache: pnpm
 
       # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
       # npm did (atlas decision 0032 removed that line), so the token is written to the
@@ -363,31 +361,6 @@ jobs:
         id: llms
         continue-on-error: true
         run: pnpm exec tsx audits/checks/b2-llms.mjs
-
-      - name: B2 -- Cloudflare llms cache rules (read-only)
-        id: llms_cache_rules
-        continue-on-error: true
-        env:
-          # The existing CLOUDFLARE_API_TOKEN (no new secret). The deploy workflows publish with
-          # it too, so reading rules needs read permissions added to it; see the runner header
-          # for the exact permission names. Until it can read, the runner publishes the real
-          # count (0) and the tier wedges, which is the intended signal.
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-        run: >-
-          node audits/checks/b2-check-cloudflare-llms-cache-rules.mjs
-          --evidence-out artifacts/llms-assurance/cloudflare-cache-rules.json
-
-      - name: Upload Cloudflare llms cache-rule evidence
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: llms-cloudflare-cache-rule-evidence
-          path: artifacts/llms-assurance/cloudflare-cache-rules.json
-          if-no-files-found: error
-          retention-days: 30
 
       - name: B2 -- sitemap XSD validator
         id: sitemap
@@ -584,10 +557,11 @@ jobs:
       # code under `fail: false`, so the judge reads `exit_code` and rejects anything but 0
       # (no link errors) or 2 (link errors). `failIfEmpty` greps the markdown table and never
       # matches JSON, so the judge also owns the empty run: 0 measured wedges the tier.
-      # lychee exits 1 when an INPUT (/, /privacy, /llms.txt, /feed.xml) cannot be read;
-      # the judge then throws, publishes nothing, and the tier wedges as
-      # crashed-before-measuring. The B2 llms and feeds checks own those inputs' health
-      # and file their own managed issues.
+      # lychee exits 1 when any of the seven INPUTS below cannot be read; the judge then
+      # throws, publishes nothing, and the tier wedges as crashed-before-measuring. The B2
+      # llms and feeds checks own the health of /llms.txt and /feed.xml and file their own
+      # managed issues. For /about, /contact, /developers and /privacy (site-text-pages),
+      # this wedge is the signal.
       #
       # No `--cache`: a weekly lane always finds the 1-day cache expired (run 38428346533:
       # "Cache is too old (age: 1d 10h 17m 1s)"), and a cache hit would replace a refusal's
@@ -638,7 +612,6 @@ jobs:
           # into the source text before node parses it, and this job holds `issues: write`.
           FOCUS_MODE_OUTCOME: ${{ steps.focus_mode.outcome }}
           LLMS_ISSUE_OUTCOME: ${{ steps.llms.outputs.issue_outcome }}
-          LLMS_CACHE_RULES_ISSUE_OUTCOME: ${{ steps.llms_cache_rules.outputs.issue_outcome }}
           SITEMAP_OUTCOME: ${{ steps.sitemap.outcome }}
           ROBOTS_OUTCOME: ${{ steps.robots.outcome }}
           CRAWLER_EDGE_OUTCOME: ${{ steps.crawler_edge.outcome }}
@@ -659,7 +632,6 @@ jobs:
               checks: [
                 {id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: process.env.FOCUS_MODE_OUTCOME},
                 {id: 'llms', title: 'B2 llms structure + origin/site coherence', outcome: process.env.LLMS_ISSUE_OUTCOME},
-                {id: 'llms-cache-rules', title: 'B2 Cloudflare llms cache-rule audit', outcome: process.env.LLMS_CACHE_RULES_ISSUE_OUTCOME},
                 {id: 'sitemap', title: 'B2 sitemap XSD validator', outcome: process.env.SITEMAP_OUTCOME},
                 {id: 'robots', title: 'B2 robots.txt validator', outcome: process.env.ROBOTS_OUTCOME},
                 {id: 'crawler-edge', title: 'B2 crawler edge access vs robots.txt', outcome: process.env.CRAWLER_EDGE_OUTCOME},
@@ -694,16 +666,8 @@ jobs:
           # swallowed check. Any step claiming 0 wedges the tier; a sum would let one dark check
           # hide behind healthy siblings. Setup steps (chrome, focus_mode) are not checks and
           # never appear here.
-          #
-          # `llms_cache_rules` publishes its REAL count (audits/checks/b2-check-cloudflare-llms-cache-rules.mjs):
-          # n rule collections held and judged, or 0 when the token reads nothing (HTTP 401 or
-          # 403 included). 0 wedges this tier. That is the honest "unmeasured" signal until the
-          # token can read; it is never waived, so the record carries no reason and no `until=`.
-          # A run that dies before classifying publishes nothing and wedges as
-          # `crashed-before-measuring`.
           MEASURED_STEPS: |
             llms|${{ steps.llms.outcome }}|${{ steps.llms.outputs.measured }}
-            llms_cache_rules|${{ steps.llms_cache_rules.outcome }}|${{ steps.llms_cache_rules.outputs.measured }}
             sitemap|${{ steps.sitemap.outcome }}|${{ steps.sitemap.outputs.measured }}
             robots|${{ steps.robots.outcome }}|${{ steps.robots.outputs.measured }}
             crawler_edge|${{ steps.crawler_edge.outcome }}|${{ steps.crawler_edge.outputs.measured }}
@@ -749,7 +713,6 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
-          cache: pnpm
 
       # pnpm does NOT expand ${GITHUB_TOKEN} from the committed project .npmrc the way
       # npm did (atlas decision 0032 removed that line), so the token is written to the

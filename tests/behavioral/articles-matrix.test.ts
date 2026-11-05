@@ -1,6 +1,7 @@
 import {expect, test} from '@playwright/test'
 import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {expectNoNewAxeViolations} from './a11y'
+import {expectRowsFailVisible} from '../shared/fail-visible'
 import {fixture, interceptDashboard, loadDashboard} from './dashboard-fixtures'
 
 // Reading-feed (articles) render conformance. Behavioral DOM assertions only; the reading-feed
@@ -59,6 +60,7 @@ test.describe('Reading Feed Render Conformance', () => {
 
     // Five articles is one page, so the pager stays absent rather than rendering a lone "1".
     await expect(page.locator('#cardReading .article-page-btn')).toHaveCount(0)
+    await expectRowsFailVisible(items, 'baseline')
 
     await expectNoNewAxeViolations(page, 'articles/baseline')
   })
@@ -103,6 +105,7 @@ test.describe('Reading Feed Render Conformance', () => {
     await expect(page.locator('#cardReading .article-page-btn')).toHaveCount(3)
     await expect(page.locator('#cardReading .article-page-btn').first()).toHaveAttribute('aria-current', 'page')
     await expect(page.locator('#cardReading')).toContainText('Paginated article 1 of twenty-five')
+    await expectRowsFailVisible(page.locator('#cardReading .article-list-item:visible'), 'page 1')
 
     await page.locator('#cardReading .article-page-btn[data-page="3"]').click()
 
@@ -111,6 +114,8 @@ test.describe('Reading Feed Render Conformance', () => {
     await expect(page.locator('#cardReading .article-page-btn[data-page="3"]')).toHaveAttribute('aria-current', 'page')
     await expect(page.locator('#cardReading')).toContainText('Paginated article 25 of twenty-five')
     await expect(page.locator('#cardReading')).not.toContainText('Paginated article 1 of twenty-five')
+    // Showing a page restarts each row's entry animation (web 4.6.2 restarts the stagger per page).
+    await expectRowsFailVisible(page.locator('#cardReading .article-list-item:visible'), 'page 3')
 
     await expectNoNewAxeViolations(page, 'articles/pagination')
   })

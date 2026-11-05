@@ -110,8 +110,8 @@ for (const required of REQUIRED_URLS) {
     problems.push(`missing app-shell URL in precache: "${required}"`)
   }
 }
-// The composer and the value-free pages under _ssr/ are for the backend runner and the Worker, never
-// the browser: a precached composer would download 430 KB into every visitor (atlas decision 0160, PR B).
+// The composer under _ssr/ is for the backend runner, never the browser: a precached composer would
+// download 430 KB into every visitor (atlas decision 0160, PR B). Any other file there is refused too.
 for (const url of urls.filter((entry) => entry.replace(/^\//, '').startsWith('_ssr/'))) {
   problems.push(`precache lists a build-internal asset: "${url}"`)
 }

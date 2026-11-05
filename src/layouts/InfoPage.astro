@@ -1,14 +1,12 @@
 ---
 import { getEntry } from 'astro:content';
 import { TextPage } from '@j0nathan-ll0yd/web/components';
-import { llm } from '@j0nathan-ll0yd/copy';
 import Dashboard from './Dashboard.astro';
-import { SITE_PAGE_PATHS } from '../lib/edge/site-paths';
-import { AGENT_PATHS } from '../lib/edge/agent-paths.mjs';
+import { siteNavLinks } from '../lib/site-nav';
 
 // The document shell for /about, /contact, /developers, and /privacy: the Dashboard head,
 // then the design system's TextPage, which owns every style. This file supplies only what
-// the site knows: the copy strings, and the footer links between the four pages.
+// the site knows: the copy strings, and the footer links between the four pages (src/lib/site-nav.ts).
 interface Props {
   title: string;
   description: string;
@@ -26,12 +24,7 @@ const _identityEntry = await getEntry('copy', 'identity');
 if (!_identityEntry) throw new Error('[InfoPage.astro] @j0nathan-ll0yd/copy identity entry missing');
 const id = _identityEntry.data;
 
-const links = [
-  { href: SITE_PAGE_PATHS.about, label: id.about.title },
-  { href: SITE_PAGE_PATHS.contact, label: id.contact.title },
-  { href: AGENT_PATHS.developers, label: llm.developers.title },
-  { href: SITE_PAGE_PATHS.privacy, label: id.privacy.title },
-].map((link) => ({ ...link, current: link.href === path }));
+const links = siteNavLinks(path);
 ---
 <Dashboard title={title} description={description} robots={robots} pageType={pageType}>
   <TextPage title={title} updated={updated} lede={lede} back={{ href: '/', label: id.navigation.backLink }} links={links}>

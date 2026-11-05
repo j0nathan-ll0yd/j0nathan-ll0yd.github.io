@@ -11,7 +11,7 @@ const BUILD_ID_PATTERN = /^[A-Za-z0-9._-]{1,64}$/
 
 /** The commit this build is made from, or `dev` for a local build. */
 export function buildId(env = process.env) {
-  const id = env.GITHUB_SHA || env.CF_PAGES_COMMIT_SHA || 'dev'
+  const id = env.GITHUB_SHA || 'dev'
   if (!BUILD_ID_PATTERN.test(id)) {
     throw new Error(`build id ${JSON.stringify(id)} is not a safe asset name`)
   }

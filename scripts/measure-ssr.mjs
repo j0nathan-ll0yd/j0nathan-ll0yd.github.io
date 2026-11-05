@@ -24,7 +24,7 @@ import {spawn} from 'node:child_process'
 import {appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {pathToFileURL} from 'node:url'
+import {isMainModule} from './lib/main-module.mjs'
 
 /** D2 limits (decision 0160): useful renders, TTFB p75 within 300 ms of the Pages baseline, a 3 s ceiling. */
 export const D2 = Object.freeze({usefulRate: 0.995, pagesBaselineTtfbP75Ms: 124.8, ttfbAllowanceMs: 300, ceilingMs: 3_000})
@@ -188,7 +188,7 @@ async function main() {
   console.log(JSON.stringify({label: args.label, fault: args.fault, ...summarize(records)}, null, 2))
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isMainModule(import.meta.url)) {
   main().catch((error) => {
     console.error(`[measure-ssr] ${error.message}`)
     process.exit(1)

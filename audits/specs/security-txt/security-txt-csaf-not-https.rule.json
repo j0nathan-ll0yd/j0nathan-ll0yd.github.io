@@ -1,0 +1,51 @@
+{
+  "id": "security-txt-csaf-not-https",
+  "title": "A CSAF web URI must begin with https://",
+  "artifact": "security.txt",
+  "rule_class": "local-policy",
+  "severity": "fail",
+  "rationale": "CSAF is not an RFC 9116 field. IANA registered it in the \"security.txt Fields\" registry on 2023-02-15 as a \"Link to a provider-metadata.json resource of the Common Security Advisory Framework (CSAF)\", and the registry record states no scheme requirement. This rule applies the web-URI sentence RFC 9116 attaches to each of its own link fields, as sectxt (DigitalTrustCenter/sectxt) does: it lists csaf among its URI fields and reports no_https for an http value. It is local policy, not conformance, because no published CSAF clause in an immutable source backs it.",
+  "derivedFrom": {
+    "source": "RFC 9116",
+    "clause": "§2.5.3",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "quote": "If this field indicates a web URI, then it MUST begin with \"https://\" (as per Section 2.7.2 of [RFC7230]).",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
+    "retrieved": "2026-10-29",
+    "content_sha256": "adaa512163243c56d0dadefa9e4883ae2fcdd9449fa634b71dd4582beabab44e"
+  },
+  "applicability": "A security.txt body with at least one CSAF value.",
+  "expectation": "No CSAF value matches /^http:/i.",
+  "cases": [
+    {
+      "name": "an http:// CSAF value",
+      "outcome": "failed",
+      "input_file": "cases/csaf-http.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-csaf-not-https",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "an https:// CSAF value",
+      "outcome": "passed",
+      "input_file": "cases/web-uri-https.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "no CSAF field -- the field is optional",
+      "outcome": "inapplicable",
+      "input_file": "cases/valid.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

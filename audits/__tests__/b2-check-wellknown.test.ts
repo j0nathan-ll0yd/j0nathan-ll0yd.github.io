@@ -5,24 +5,38 @@ import {fileURLToPath} from 'node:url'
 import {
   accessHeadersFor,
   AI_CATALOG_MEDIA_TYPE,
+  API_V1_ERROR_PROBES,
+  API_V1_HEADER_PROBE_PATH,
   apiCatalogItems,
+  ARTIFACTS,
+  checkApiV1ErrorShape,
   EXPECTED_API_CATALOG_ITEMS,
   EXPECTED_RESOURCE_URIS,
+  FOCUS_API_ITEM,
   FOCUS_RESOURCE_URI,
   judgeApiCatalogItemAnswer,
   judgeApiCatalogItems,
   judgeMcpExchange,
   judgeModernExchange,
+  judgeOpenApiAnswer,
+  judgeProblemAnswer,
+  judgeRateLimitHeaders,
   judgeResourceExchange,
+  judgeServiceDescTargets,
   LLMS_FULL_RESOURCE_URI,
   MODERN_PROTOCOL_VERSION,
+  OPENAPI_EXPECTED_PATHS,
+  OPENAPI_SERVER_URL,
+  OPENAPI_URL,
   parseMcpBody,
   PINNED_AGENT_SKILLS_SCHEMA,
   PINNED_ARD_SPEC_VERSION,
   probeApiCatalogItems,
   probeMcpRemotes,
+  probeOpenApiTargets,
   rebase,
   SERVER_CARD_MEDIA_TYPE,
+  serviceDescTargets,
   streamableRemotes,
   validateAgentSkillsIndexShape,
   validateAiCatalogShape,
@@ -452,11 +466,22 @@ describe('api-catalog items', () => {
   const served = JSON.parse(readFileSync(join(here, '..', '..', 'public', '.well-known', 'api-catalog'), 'utf8'))
   const S3_ACCESS_DENIED = '<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>'
   const SUPPRESSED = '{"suppressed":true,"reason":"focus mode active"}'
+  const SUPPRESSED_PROBLEM = JSON.stringify({
+    type: 'https://jonathanlloyd.me/developers#problem-focus-suppressed',
+    title: 'Hidden by focus mode',
+    status: 503,
+    detail: 'x',
+    instance: '/api/v1/books.json',
+    suppressed: true,
+    reason: 'focus mode active',
+    retryAfterSeconds: 60
+  })
+  const PROBLEM = 'application/problem+json; charset=utf-8'
   const json = {'content-type': 'application/json'}
 
-  it('the committed catalog lists all nine exports, raw health included, each with a service-desc', () => {
+  it('the committed catalog lists all nine exports at the developer API facade, raw health included, each with a service-desc', () => {
     expect(EXPECTED_API_CATALOG_ITEMS).toHaveLength(9)
-    const raw = ['health', 'sleep', 'workouts'].map((name) => `https://d1pfm520aduift.cloudfront.net/${name}.json`)
+    const raw = ['health', 'sleep', 'workouts'].map((name) => `https://jonathanlloyd.me/api/v1/${name}.json`)
     expect(EXPECTED_API_CATALOG_ITEMS).toEqual(expect.arrayContaining(raw))
     expect(apiCatalogItems(served).sort()).toEqual([...EXPECTED_API_CATALOG_ITEMS].sort())
     expect(judgeApiCatalogItems(served)).toEqual([])
@@ -467,10 +492,10 @@ describe('api-catalog items', () => {
     expect(judgeApiCatalogItems(root).map((f) => f.id)).toEqual(['wellknown-api-catalog-items', 'wellknown-api-catalog-item-no-service-desc'])
   })
 
-  it('accepts a 2xx JSON object and the edge focus gate 403 JSON suppression body', () => {
+  it('accepts a 2xx JSON object and the facade 503 focus-suppressed problem', () => {
     expect(judgeApiCatalogItemAnswer({href: 'a', status: 200, contentType: 'application/json', body: '{"books":[]}'})).toEqual([])
     expect(judgeApiCatalogItemAnswer({href: 'a', status: 200, contentType: 'application/json; charset=utf-8', body: '{}'})).toEqual([])
-    expect(judgeApiCatalogItemAnswer({href: 'a', status: 403, contentType: 'application/json', body: SUPPRESSED})).toEqual([])
+    expect(judgeApiCatalogItemAnswer({href: 'a', status: 503, contentType: PROBLEM, body: SUPPRESSED_PROBLEM})).toEqual([])
   })
 
   // The receipt: the CloudFront root item answered S3 XML AccessDenied. focus.json is never gated
@@ -480,7 +505,10 @@ describe('api-catalog items', () => {
     ['a 403 JSON body that is not a suppression', 'a', 403, 'application/json', '{"message":"Forbidden"}'],
     ['a suppression body with no reason', 'a', 403, 'application/json', '{"suppressed":true}'],
     ['a suppression body served as text/html', 'a', 403, 'text/html', SUPPRESSED],
-    ['a suppression 403 on focus.json', FOCUS_RESOURCE_URI, 403, 'application/json', SUPPRESSED],
+    ['a suppression problem on focus.json', FOCUS_API_ITEM, 503, PROBLEM, SUPPRESSED_PROBLEM],
+    ['the CloudFront 403 suppression body, which the facade never serves', 'a', 403, 'application/json', SUPPRESSED],
+    ['a 503 suppression served as plain JSON', 'a', 503, 'application/json', SUPPRESSED],
+    ['a 502 problem', 'a', 502, PROBLEM, '{"type":"x","status":502}'],
     ['an HTML 200', 'a', 200, 'text/html', '<html></html>'],
     ['a JSON body served as text/html', 'a', 200, 'text/html', '{}'],
     ['a JSON body served as octet-stream', 'a', 200, 'binary/octet-stream', '{}'],
@@ -524,6 +552,111 @@ describe('api-catalog items', () => {
 
 // A preview Version URL sits behind Cloudflare Access (atlas decision 0160). The service token may
 // reach the audited origin only, never production or CloudFront, which discovery documents name.
+describe('api-catalog items on a preview deploy', () => {
+  it('fetches each item from the audited base, with the Access token for that origin only', async () => {
+    const asked: Array<{url: string; headers: Record<string, string>}> = []
+    const get = async (url: string, init: RequestInit) => {
+      asked.push({url, headers: init.headers as Record<string, string>})
+      return new Response('{}', {headers: {'content-type': 'application/json'}})
+    }
+    const catalog = {linkset: [{anchor: 'x', item: [{href: 'https://jonathanlloyd.me/api/v1/books.json'}]}]}
+    const previous = {id: process.env.CF_ACCESS_CLIENT_ID, secret: process.env.CF_ACCESS_CLIENT_SECRET}
+    process.env.CF_ACCESS_CLIENT_ID = 'id'
+    process.env.CF_ACCESS_CLIENT_SECRET = 'secret'
+    try {
+      await probeApiCatalogItems(catalog, get, 'https://pr-1-human-datastream.example.workers.dev')
+    } finally {
+      process.env.CF_ACCESS_CLIENT_ID = previous.id
+      process.env.CF_ACCESS_CLIENT_SECRET = previous.secret
+      if (previous.id === undefined) {
+        delete process.env.CF_ACCESS_CLIENT_ID
+      }
+      if (previous.secret === undefined) {
+        delete process.env.CF_ACCESS_CLIENT_SECRET
+      }
+    }
+    expect(asked).toEqual([{
+      url: 'https://pr-1-human-datastream.example.workers.dev/api/v1/books.json',
+      headers: {Accept: 'application/json', 'CF-Access-Client-Id': 'id', 'CF-Access-Client-Secret': 'secret'}
+    }])
+  })
+})
+
+// covers: developer-api#Every failure under /api is an RFC 9457 problem
+describe('api-v1-error-shape', () => {
+  const PROBLEM = 'application/problem+json; charset=utf-8'
+  const [unknownExport, unsafeMethod, unknownApiPath] = API_V1_ERROR_PROBES
+  const problem = (status: number, instance: string) =>
+    JSON.stringify({type: 'https://jonathanlloyd.me/developers#problem-x', title: 'T', status, detail: 'D', instance})
+
+  it('probes an unknown export, an unsafe method, and an unknown /api path', () => {
+    expect(API_V1_ERROR_PROBES.map((p) => [p.method, p.path, p.status])).toEqual([
+      ['GET', '/api/v1/__not_a_resource__.json', 404],
+      ['POST', '/api/v1/books.json', 405],
+      ['GET', '/api/nope', 404]
+    ])
+    expect(API_V1_HEADER_PROBE_PATH).toBe('/api/v1/focus.json')
+  })
+
+  it('accepts a well-formed problem answer', () => {
+    expect(judgeProblemAnswer({probe: unknownExport!, status: 404, contentType: PROBLEM, allow: null, body: problem(404, unknownExport!.path)})).toEqual([])
+    expect(judgeProblemAnswer({probe: unsafeMethod!, status: 405, contentType: PROBLEM, allow: 'GET, HEAD', body: problem(405, unsafeMethod!.path)}))
+      .toEqual([])
+  })
+
+  it.each([
+    ['the HTML 404 page', 404, 'text/html; charset=utf-8', null, '<!doctype html>'],
+    ['a text/plain 405', 405, 'text/plain; charset=utf-8', 'GET, HEAD', 'Method not allowed'],
+    ['an empty 405 with no problem body', 405, '', null, ''],
+    ['a problem whose status member disagrees', 404, PROBLEM, null, problem(500, '/api/nope')],
+    ['a problem with a relative type', 404, PROBLEM, null, JSON.stringify({type: '#x', title: 'T', status: 404, instance: '/api/nope'})],
+    ['a problem with no instance', 404, PROBLEM, null, JSON.stringify({type: 'https://x.test/', title: 'T', status: 404})],
+    ['a wrong status', 200, 'application/json', null, '{}']
+  ])('rejects %s', (_label, status, contentType, allow, body) => {
+    const probe = status === 405 ? unsafeMethod! : unknownApiPath!
+    expect(judgeProblemAnswer({probe, status, contentType, allow, body}).length).toBeGreaterThan(0)
+  })
+
+  it('requires Allow naming GET on a 405', () => {
+    const findings = judgeProblemAnswer({probe: unsafeMethod!, status: 405, contentType: PROBLEM, allow: null, body: problem(405, unsafeMethod!.path)})
+    expect(findings.map((f) => f.message)).toEqual([expect.stringContaining('Allow')])
+  })
+
+  it('accepts the RateLimit fields with q, w, r and t, and rejects a missing r or t', () => {
+    expect(judgeRateLimitHeaders({policy: '"default";q=60;w=60', rateLimit: '"default";r=59;t=42'})).toEqual([])
+    expect(judgeRateLimitHeaders({policy: '"default";q=60;w=60', rateLimit: null})).toHaveLength(1)
+    expect(judgeRateLimitHeaders({policy: '"default";q=60;w=60', rateLimit: '"default";r=59'})).toHaveLength(1)
+    expect(judgeRateLimitHeaders({policy: '"default";q=60;w=60', rateLimit: '"other";r=59;t=1'})).toHaveLength(1)
+    expect(judgeRateLimitHeaders({policy: 'default;q=60;w=60', rateLimit: '"default";r=59;t=1'})).toHaveLength(1)
+    expect(judgeRateLimitHeaders({policy: null, rateLimit: '"default";r=59;t=1'})).toHaveLength(1)
+  })
+
+  it('counts each held answer as measured, and an unreachable probe as a finding', async () => {
+    const asked: string[] = []
+    const get = async (url: string, init: RequestInit) => {
+      asked.push(`${init.method} ${url}`)
+      const path = new URL(url).pathname
+      if (path === '/api/nope') {
+        throw new Error('ECONNRESET')
+      }
+      if (path === API_V1_HEADER_PROBE_PATH) {
+        return new Response('{}', {headers: {'content-type': 'application/json', 'ratelimit-policy': '"default";q=60;w=60', ratelimit: '"default";r=1;t=2'}})
+      }
+      const status = init.method === 'POST' ? 405 : 404
+      return new Response(problem(status, path), {status, headers: {'content-type': PROBLEM, ...(status === 405 ? {allow: 'GET, HEAD'} : {})}})
+    }
+    const result = await checkApiV1ErrorShape('https://jonathanlloyd.me', get)
+    expect(asked).toEqual([
+      'GET https://jonathanlloyd.me/api/v1/__not_a_resource__.json',
+      'POST https://jonathanlloyd.me/api/v1/books.json',
+      'GET https://jonathanlloyd.me/api/nope',
+      'GET https://jonathanlloyd.me/api/v1/focus.json'
+    ])
+    expect(result.measured).toBe(3)
+    expect(result.findings.map((f) => f.id)).toEqual(['api-v1-error-shape-unreachable'])
+  })
+})
+
 describe('accessHeadersFor', () => {
   const base = 'https://abc12345-human-datastream.account.workers.dev'
   const env = {CF_ACCESS_CLIENT_ID: 'id', CF_ACCESS_CLIENT_SECRET: 'secret'}
@@ -544,5 +677,122 @@ describe('accessHeadersFor', () => {
   it('sends nothing without both credentials or without an audited base', () => {
     expect(accessHeadersFor(`${base}/mcp`, base, {CF_ACCESS_CLIENT_ID: 'id'})).toEqual({})
     expect(accessHeadersFor(`${base}/mcp`, undefined, env)).toEqual({})
+  })
+})
+
+// Arm `openapi`. The fixture is the committed document and catalog, the bytes the site serves.
+describe('openapi arm', () => {
+  const catalog = served('.well-known', 'api-catalog')
+  const documentText = readFileSync(join(REPO_ROOT, 'public', 'openapi.json'), 'utf-8')
+  const document = JSON.parse(documentText)
+  const MEDIA_TYPE = 'application/vnd.oai.openapi+json;version=3.1'
+  const answer = (overrides: Partial<{status: number; contentType: string; body: string}> = {}) => ({
+    href: OPENAPI_URL,
+    status: 200,
+    contentType: MEDIA_TYPE,
+    body: documentText,
+    ...overrides
+  })
+  const ids = (findings: Array<{id: string}>) => findings.map((f) => f.id)
+
+  it('names the production document, the facade server and the nine export paths', () => {
+    expect(OPENAPI_URL).toBe('https://jonathanlloyd.me/openapi.json')
+    expect(OPENAPI_SERVER_URL).toBe('https://jonathanlloyd.me/api/v1')
+    expect(OPENAPI_EXPECTED_PATHS).toHaveLength(9)
+    expect([...OPENAPI_EXPECTED_PATHS].sort()).toEqual(Object.keys(document.paths).sort())
+  })
+
+  it('the committed catalog names one distinct target, the document', () => {
+    expect(serviceDescTargets(catalog)).toEqual([OPENAPI_URL])
+    expect(judgeServiceDescTargets(serviceDescTargets(catalog))).toEqual([])
+  })
+
+  it('a missing, extra or foreign target fails', () => {
+    expect(serviceDescTargets({})).toEqual([])
+    expect(serviceDescTargets({linkset: [{'service-desc': [{}]}, {anchor: 'x'}]})).toEqual([])
+    expect(ids(judgeServiceDescTargets([]))).toEqual(['wellknown-openapi-target'])
+    expect(ids(judgeServiceDescTargets([OPENAPI_URL, 'https://jonathanlloyd.me/llms.txt']))).toEqual(['wellknown-openapi-target'])
+    expect(ids(judgeServiceDescTargets(['https://jonathanlloyd.me/llms.txt']))).toEqual(['wellknown-openapi-target'])
+  })
+
+  it('the committed document, served as advertised, passes', () => {
+    expect(judgeOpenApiAnswer(answer())).toEqual([])
+    expect(judgeOpenApiAnswer(answer({contentType: 'Application/VND.OAI.OpenAPI+JSON; version=3.1'}))).toEqual([])
+  })
+
+  it('a non-200 answer fails on its status alone', () => {
+    expect(ids(judgeOpenApiAnswer(answer({status: 404, contentType: 'text/html', body: '<html>'})))).toEqual(['wellknown-openapi-status'])
+    expect(ids(judgeOpenApiAnswer(answer({status: 308})))).toEqual(['wellknown-openapi-status'])
+  })
+
+  it('application/json is not the advertised media type', () => {
+    expect(ids(judgeOpenApiAnswer(answer({contentType: 'application/json'})))).toEqual(['wellknown-openapi-content-type'])
+    expect(ids(judgeOpenApiAnswer(answer({contentType: ''})))).toEqual(['wellknown-openapi-content-type'])
+  })
+
+  it('a body that is not a JSON object fails', () => {
+    expect(ids(judgeOpenApiAnswer(answer({body: 'not json'})))).toEqual(['wellknown-openapi-json'])
+    expect(ids(judgeOpenApiAnswer(answer({body: 'null'})))).toEqual(['wellknown-openapi-json'])
+    expect(ids(judgeOpenApiAnswer(answer({body: '[]'})))).toEqual(['wellknown-openapi-json'])
+  })
+
+  it('an OpenAPI version other than 3.1.x fails', () => {
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, openapi: '3.0.3'})})))).toEqual(['wellknown-openapi-version'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, openapi: '3.10.0'})})))).toEqual(['wellknown-openapi-version'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, openapi: 3.1})})))).toEqual(['wellknown-openapi-version'])
+  })
+
+  it('a server other than the facade fails', () => {
+    const cloudfront = {...document, servers: [{url: 'https://d1.cloudfront.net'}, document.servers[0]]}
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify(cloudfront)})))).toEqual(['wellknown-openapi-server'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, servers: undefined})})))).toEqual(['wellknown-openapi-server'])
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, servers: []})})))).toEqual(['wellknown-openapi-server'])
+  })
+
+  it('a missing export path fails and names it', () => {
+    const {'/books.json': _books, ...rest} = document.paths
+    const findings = judgeOpenApiAnswer(answer({body: JSON.stringify({...document, paths: {...rest, '/sleep.json': null}})}))
+    expect(ids(findings)).toEqual(['wellknown-openapi-paths'])
+    expect(findings[0].message).toContain('/books.json')
+    expect(findings[0].message).toContain('/sleep.json')
+    expect(findings[0].message).not.toContain('/health.json')
+    expect(ids(judgeOpenApiAnswer(answer({body: JSON.stringify({...document, paths: null})})))).toEqual(['wellknown-openapi-paths'])
+  })
+
+  it('fetches each distinct target once, from the audited base, and counts what it held', async () => {
+    const asked: Array<{url: string; init: RequestInit}> = []
+    const get = async (url: string, init: RequestInit) => {
+      asked.push({url, init})
+      return new Response(documentText, {headers: {'content-type': MEDIA_TYPE}})
+    }
+    const doubled = {linkset: [...catalog.linkset, ...catalog.linkset]}
+    const result = await probeOpenApiTargets(doubled, get, 'https://pr-1-human-datastream.example.workers.dev')
+    expect(asked.map((a) => a.url)).toEqual(['https://pr-1-human-datastream.example.workers.dev/openapi.json'])
+    expect(asked[0].init.redirect).toBe('manual')
+    expect((asked[0].init.headers as Record<string, string>).Accept).toBe(MEDIA_TYPE)
+    expect(result).toEqual({measured: 1, findings: []})
+  })
+
+  it('an unreachable target is a finding and is not measured, never a pass', async () => {
+    const result = await probeOpenApiTargets(catalog, async () => {
+      throw new Error('ECONNRESET')
+    })
+    expect(result.measured).toBe(0)
+    expect(ids(result.findings)).toEqual(['wellknown-openapi-unreachable'])
+    expect(result.findings[0].message).toContain('ECONNRESET')
+  })
+
+  it('a catalog with no target measures nothing and fails', async () => {
+    const result = await probeOpenApiTargets({linkset: []}, async () => {
+      throw new Error('not called')
+    })
+    expect(result).toEqual({measured: 0, findings: [expect.objectContaining({id: 'wellknown-openapi-target'})]})
+  })
+})
+
+// atlas A18 reads this literal statically; the test keeps a change to it visible.
+describe('ARTIFACTS', () => {
+  it('declares the three registered surfaces this runner measures', () => {
+    expect(ARTIFACTS).toEqual([{surfaceId: 'site-api-v1'}, {surfaceId: 'site-mcp-server'}, {surfaceId: 'site-openapi'}])
   })
 })

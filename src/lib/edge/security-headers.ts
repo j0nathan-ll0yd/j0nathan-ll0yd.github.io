@@ -29,7 +29,7 @@ export const CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  `img-src 'self' data: https://*.basemaps.cartocdn.com ${CLOUDFRONT_BASE}`,
+  `img-src 'self' data: ${CLOUDFRONT_BASE}`,
   `connect-src 'self' ${CLOUDFRONT_BASE} ${WEBSOCKET_ORIGIN}`,
   "worker-src 'self'",
   "object-src 'none'",
@@ -55,9 +55,10 @@ export const REPORTING_ENDPOINTS = 'csp-endpoint="https://jonathanlloyd.me/api/c
 // report per innerHTML sink while it runs.
 export const CSP_REPORT_ONLY = "require-trusted-types-for 'script'; report-uri /api/csp-report; report-to csp-endpoint"
 
-// IETF AI Preferences Working Group drafts attach-05/vocab-07 define
+// IETF AI Preferences Working Group drafts attach-05/vocab-08 define
 // Content-Usage as an HTTP Structured Field Dictionary. Keep this out of
 // robots.txt until consumers such as Lighthouse recognize that extension.
+// vocab-08 adds `ai-use`; atlas decision 0174 E2 deferred stating it.
 export const CONTENT_USAGE = 'train-ai=n, search=y'
 
 export const PERMISSIONS_POLICY =
@@ -88,7 +89,7 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
   ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains'],
   ['X-Frame-Options', 'DENY'],
   // COOP: same-origin-allow-popups permits OAuth/payment popups while isolating the browsing context.
-  // COEP/CORP omitted -- would break the cross-origin Carto tile resources.
+  // COEP/CORP omitted -- COEP would block the cross-origin CloudFront images, which send no CORP header.
   ['Cross-Origin-Opener-Policy', 'same-origin-allow-popups'],
   ['Permissions-Policy', PERMISSIONS_POLICY]
 ])
@@ -96,8 +97,10 @@ export const BASE_SECURITY_HEADERS: ReadonlyArray<readonly [string, string]> = O
 /**
  * The paths that never ran code on Pages: `public/_routes.json` excluded them from Functions, so
  * their responses carried the `_headers` policy alone, without the CSP trio. They keep exactly that.
+ * `/css/` and `/vendor/` left the list with the Pages project (atlas decision 0160 D7): they serve
+ * no file, so a request there gets the Worker's 404 with the full header set.
  */
-export const CODE_FREE_PREFIXES = Object.freeze(['/_astro/', '/fonts/', '/css/', '/vendor/', '/assets/'])
+export const CODE_FREE_PREFIXES = Object.freeze(['/_astro/', '/fonts/', '/assets/'])
 
 /**
  * Pages answered every static-asset response, its 404 page and its 405 included, with

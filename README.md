@@ -1,6 +1,6 @@
 # Human Datastream
 
-A personal portfolio dashboard for Jonathan Lloyd, styled as a sci-fi "Human Datastream" -- a read-only display surface that renders real personal data (health, sleep, workouts, focus, reading, GitHub activity, theatre reviews) as a live, glass-morphism dashboard. Built with [Astro](https://astro.build) 7 and deployed to Cloudflare Pages at [jonathanlloyd.me](https://jonathanlloyd.me).
+A personal portfolio dashboard for Jonathan Lloyd, styled as a sci-fi "Human Datastream" -- a read-only display surface that renders real personal data (health, sleep, workouts, focus, reading, GitHub activity, theatre reviews) as a live, glass-morphism dashboard. Built with [Astro](https://astro.build) 7 and deployed as a Cloudflare Worker at [jonathanlloyd.me](https://jonathanlloyd.me).
 
 > **WARNING: merging to `main` deploys production.** No manual gate, no staging environment, no promotion step. See [Deploy](#deploy).
 
@@ -21,7 +21,7 @@ pnpm preview           # preview the production build
 
 All UI widgets come from the Design System package (`@j0nathan-ll0yd/web/production`), published to GitHub Packages; this repository contains no widget source. The committed `.npmrc` maps the `@j0nathan-ll0yd` scope to `https://npm.pkg.github.com` and carries no auth token: local installs read it from your machine-global `~/.npmrc`, and each installing workflow writes it at the user level with `pnpm config set`.
 
-`.husky/pre-push` gates every push -- `doctor:install`, `format:check`, `typecheck`, `lint`, then the visual suite in Docker.
+`.husky/pre-push` gates every push with `doctor:install`, `format:check`, `typecheck` and `lint`. It runs the visual suite in Docker only when a pushed commit changes a rendered input against `origin/main` (`scripts/visual-scope.sh` lists the inputs, and runs the suite when it cannot compute the diff); the required `visual-gate` context binds the pixel gate in CI. `SKIP_VISUAL=1 git push` skips the local suite.
 
 ## Architecture
 

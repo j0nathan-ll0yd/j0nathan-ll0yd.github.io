@@ -1,0 +1,102 @@
+{
+  "id": "security-txt-expires-format",
+  "title": "The Expires value must be an RFC 3339 date-time",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "cites": {
+    "source": "RFC 9116",
+    "clause": "§2.5.5, §4",
+    "quote": "The value of this field is formatted according to the Internet profiles of [ISO.8601-1] and [ISO.8601-2] as defined in [RFC3339]. ... expires-field = \"Expires\" fs SP date-time ... date-time = < imported from Section 5.6 of [RFC3339] >",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
+    "retrieved": "2026-10-29",
+    "content_sha256": "184b3b6e1f609c4ad0514fa48e6e270bdf59841b1bc5a29a3d34617e1877d189",
+    "conformance_testable": true,
+    "verified_against_source": true,
+    "verified_at": "2026-10-29",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-10-29 (file sha256 79d19ce7a4a35496981095a27fd992797a9fc4d6f3649c2a1e14f494607c61f9). Lines 345-347 (§2.5.5) and the §4 ABNF. The prose sentence carries no MUST on its own; the ABNF production is the normative grammar."
+  },
+  "policy_note": "security-txt-expires-unparseable keeps the values Date cannot parse. This rule catches the values Date DOES parse but the grammar rejects: a bare date ('2027-06-20'), prose ('June 20 2027'), a space separator, a missing offset, and an impossible date Date rolls forward ('2027-02-30T00:00:00Z' parses as 2 March). The test is the RFC 3339 §5.6 grammar plus the §5.6/§5.7 part ranges (month 01-12, day within its month, hour 00-23, minute 00-59, second 00-60, offset hour 00-23 and minute 00-59). 'T' and 'Z' match case-insensitively: RFC 3339 §5.6 allows lowercase, and erratum EID 7264 (uppercase Z only) is Reported, not Verified. When this rule fires, the expiry age rules (expired, expiring-soon, expires-over-a-year) are skipped, as sectxt does. A value outside the grammar may lack an offset, and Date reads some such values in the runner's local time zone ('June 20 2027'); Date also rolls an impossible date forward. An age computed from such a value is not trustworthy. A grammatical leap second (second 60) is read as second 59, because Date refuses second 60; it is neither unparseable nor a format finding.",
+  "applicability": "A security.txt body whose first Expires value Date parses.",
+  "expectation": "The first Expires value matches /^(\\d{4})-(\\d{2})-(\\d{2})[Tt](\\d{2}):(\\d{2}):(\\d{2})(?:\\.\\d+)?(?:[Zz]|[+-](\\d{2}):(\\d{2}))$/ and each part is in its RFC 3339 range.",
+  "cases": [
+    {
+      "name": "a bare date",
+      "outcome": "failed",
+      "input_file": "cases/expires-date-only.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-format",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a prose date",
+      "outcome": "failed",
+      "input_file": "cases/expires-prose.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-format",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "30 February, which Date rolls forward to 2 March",
+      "outcome": "failed",
+      "input_file": "cases/expires-impossible-date.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-format",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "lowercase t, a fraction and a numeric offset",
+      "outcome": "passed",
+      "input_file": "cases/expires-lowercase-offset.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "lowercase t and z, as the RFC 9116 §2.5.5 example writes",
+      "outcome": "passed",
+      "input_file": "cases/expires-lowercase-z.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "a leap second (time-second 60) is grammatical",
+      "outcome": "passed",
+      "input_file": "cases/expires-leap-second.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "Date cannot parse it -- security-txt-expires-unparseable fires instead",
+      "outcome": "inapplicable",
+      "input_file": "cases/unparseable.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-unparseable",
+          "severity": "fail"
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 import {existsSync, readFileSync} from 'node:fs'
 import {resolve} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {INTERNAL_ASSET_PATHS} from '../../src/lib/composed/paths'
 import {HEADER_OVERRIDE_PATHS} from '../../src/lib/edge/middleware'
 import {EDGE_ROUTES, matchEdgeRoute, routeHandles} from '../../src/lib/edge/routes'
 
@@ -17,23 +16,34 @@ interface WranglerConfig {
   workers_dev: boolean
   preview_urls: boolean
   observability: {enabled: boolean}
+  kv_namespaces?: {binding: string; id: string}[]
   assets: {binding: string; html_handling: string; not_found_handling: string; run_worker_first: string[]}
   [key: string]: unknown
 }
 
 /** wrangler.jsonc with its whole-line comments removed. The file carries no trailing comments. */
-function readWranglerConfig(): WranglerConfig {
-  const source = readFileSync(resolve(process.cwd(), 'wrangler.jsonc'), 'utf8')
+function readWranglerConfig(file = 'wrangler.jsonc'): WranglerConfig {
+  const source = readFileSync(resolve(process.cwd(), file), 'utf8')
   const json = source.split('\n').filter((line) => !line.trim().startsWith('//')).join('\n')
   return JSON.parse(json) as WranglerConfig
 }
 
 const config = readWranglerConfig()
+const limiterConfig = readWranglerConfig('workers/rate-limiter/wrangler.jsonc')
 
 describe('wrangler.jsonc', () => {
+  // covers: llms-txt#Canonical llms responses always pass through the privacy gate
   it('runs the Worker first on every path that runs code, and on nothing else', () => {
     const routePaths = EDGE_ROUTES.flatMap((route) => (route.catchAll ? [route.path, `${route.path}/*`] : [route.path]))
-    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...routePaths, ...INTERNAL_ASSET_PATHS])
+    // Wrangler rejects a rule another rule makes redundant ("rule '/api/*' makes it redundant"), so a
+    // path under a catch-all glob is covered by that glob and not listed itself.
+    const globs = routePaths.filter((path) => path.endsWith('/*')).map((glob) => glob.slice(0, -1))
+    const listed = routePaths.filter((path) => !globs.some((prefix) => path !== `${prefix}*` && path.startsWith(prefix)))
+    expect(config.assets.run_worker_first).toEqual([...HEADER_OVERRIDE_PATHS, ...listed])
+    expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/api', '/api/*']))
+    // The five gated paths, by name: the static-asset plane must never answer one, because the zone
+    // cache-rule audit that watched the paths around the Worker retired (atlas decision 0160 D7).
+    expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/llms.txt', '/llms-full.txt', '/index.md', '/feed.xml', '/feed.json']))
   })
 
   it('sends an unmatched path to the Worker, which renders the 404 page through the middleware', () => {
@@ -56,21 +66,33 @@ describe('wrangler.jsonc', () => {
     expect(config).not.toHaveProperty('route')
   })
 
-  it('declares no route: the production route lives in Cloudflare, so CI deploys never reset its fail-open (owner decision 2026-10-14)', () => {
+  it('declares no route: production is the Workers Custom Domain, kept in Cloudflare outside the config (atlas decision 0162, O3a)', () => {
     expect(config).not.toHaveProperty('routes')
   })
 
   // covers: llms-txt#Canonical llms responses always pass through the privacy gate
-  it('enables no Workers Caching: the Worker answers ahead of every Cloudflare cache', () => {
-    // With `cache.enabled`, Cloudflare checks a cache BEFORE running the Worker and answers a hit
-    // without it (developers.cloudflare.com/workers/cache/). That would replay a stored LLM document
-    // past the proxy's focus gate, and the B2 llms check would see CF-Cache-Status on the site plane
-    // (audits/checks/b2-llms.mjs siteEdgeCacheFailure).
+  it('enables no Workers Cache: the Worker answers ahead of every Cloudflare cache', () => {
+    // THE SEAM THIS PIN WATCHES: Workers Cache, the one Cloudflare cache that sits IN FRONT of the
+    // Worker. The zone cache cannot store a gated response: the Worker runs before it, and Cache
+    // Rules apply only to the Worker's own fetch() subrequest (cloudflare-docs 6e85ac29,
+    // src/content/docs/cache/interaction-cloudflare-products/workers.mdx). That guarantee replaced
+    // the zone cache-rule audit when the Pages origin retired (atlas decision 0160 D7). Workers
+    // Cache is different: with it on, "Cloudflare checks the cache before running your Worker" and
+    // answers a hit without it (src/content/docs/workers/cache/index.mdx), and "No zone
+    // configuration for caching applies" to it, so a hit would replay a gated llms document or
+    // feed past the proxy's focus gate. Its whole configuration surface is the Wrangler file: a
+    // top-level `cache` block, or a per-entrypoint `cache` in `exports`
+    // (src/content/docs/workers/cache/configuration.mdx; the dashboard switch is "Coming soon" in
+    // limitations.mdx). Atlas decision 0164 D6 deferred Workers Cache until a measured hit rate and a
+    // fresh owner decision on the publish-time gate it implies, so enabling it later must change
+    // this test deliberately. The served result stays measured by siteEdgeCacheFailure
+    // (audits/lib/site-edge-cache.mjs), which b2-llms.mjs and b2-check-feeds.mjs apply.
     expect(config).not.toHaveProperty('cache')
+    expect(config).not.toHaveProperty('exports')
   })
 
-  it('declares no binding beyond the static assets', () => {
-    for (const key of ['kv_namespaces', 'images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'durable_objects']) {
+  it('declares no binding beyond the static assets, the PAGE namespace and the rate limiter (pinned below)', () => {
+    for (const key of ['images', 'r2_buckets', 'd1_databases', 'vars', 'services', 'exports']) {
       expect(config, key).not.toHaveProperty(key)
     }
     expect(config.observability).toEqual({enabled: true})
@@ -88,6 +110,14 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
     ['/llms.txt', '/llms.txt'],
     ['/llms.txt/', '/llms.txt'],
     ['/api/csp-report', '/api/csp-report'],
+    ['/api/v1', '/api/v1'],
+    ['/api/v1/', '/api/v1'],
+    ['/api/v1/books.json', '/api/v1'],
+    ['/api/v1/nested/books.json', '/api/v1'],
+    ['/api', '/api'],
+    ['/api/nope', '/api'],
+    ['/api/csp-report/extra', '/api'],
+    ['/api/v2/books.json', '/api'],
     ['/simple', '/simple'],
     ['/simple/', '/simple'],
     ['/simple/append', '/simple'],
@@ -96,16 +126,26 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
     expect(matchEdgeRoute(pathname)?.path).toBe(expected)
   })
 
-  it.each(['/', '/privacy', '/llms.txt.bak', '/simpleton', '/api', '/api/csp-report/extra', '/llms.txt//'])('%s reaches no route', (pathname) => {
+  it.each(['/', '/privacy', '/llms.txt.bak', '/simpleton', '/apiary', '/llms.txt//'])('%s reaches no route', (pathname) => {
     expect(matchEdgeRoute(pathname)).toBeUndefined()
   })
 
-  it('handles every method on an onRequest route, and only POST on the CSP collector', () => {
+  it('handles every method on an onRequest route, the CSP collector included (it answers the 405 problem)', () => {
     const llms = matchEdgeRoute('/llms.txt')
     const csp = matchEdgeRoute('/api/csp-report')
     expect(llms && routeHandles(llms, 'PUT')).toBe(true)
     expect(csp && routeHandles(csp, 'POST')).toBe(true)
-    expect(csp && routeHandles(csp, 'GET')).toBe(false)
+    expect(csp && routeHandles(csp, 'GET')).toBe(true)
+  })
+
+  // covers: developer-api#Every path under /api reaches the Worker
+  it('hands every method under /api to the facade, which answers its own 405 problem', () => {
+    for (const pathname of ['/api/v1/books.json', '/api/nope', '/api/csp-report']) {
+      const route = matchEdgeRoute(pathname)
+      for (const method of ['GET', 'HEAD', 'OPTIONS', 'POST', 'PUT', 'DELETE']) {
+        expect(route && routeHandles(route, method), `${method} ${pathname}`).toBe(true)
+      }
+    }
   })
 
   it('names every on-demand endpoint under src/pages exactly once', () => {
@@ -119,6 +159,8 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       '/cf-insights.js': 'cf-insights.js.ts',
       '/cf-rum': 'cf-rum.ts',
       '/api/csp-report': 'api/csp-report.ts',
+      '/api/v1': 'api/v1/[...path].ts',
+      '/api': 'api/[...path].ts',
       '/simple': 'simple/[...path].ts',
       '/mcp': 'mcp/index.ts',
       '/mcp/server-card': 'mcp/server-card.ts'
@@ -128,5 +170,54 @@ describe('matchEdgeRoute (the Pages matching rules)', () => {
       const source = readFileSync(resolve(process.cwd(), 'src/pages', file), 'utf8')
       expect(source, file).toMatch(/^export const prerender = false$/m)
     }
+  })
+})
+
+describe('wrangler.jsonc: the developer API rate limiter (owner decision 2026-10-24, option B)', () => {
+  it('binds the class in the rate-limiter Worker through script_name, with no migration of its own', () => {
+    // The binding returned after #399 applied v2: Cloudflare refused the delete twice (error 10061,
+    // the #397 and #398 rollouts, 2026-10-24) while any binding existed in the same upload.
+    expect(config.durable_objects).toEqual({bindings: [{name: 'API_RATE_LIMITER', class_name: 'ClientRateLimitWindow', script_name: limiterConfig.name}]})
+    expect(config.migrations).toEqual([{tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']}, {tag: 'v2', deleted_classes: ['ApiRateLimiter']}])
+    // Cloudflare refuses a delete while any binding names the deleted class, whatever its script_name
+    // (error 10061, the #397 rollout). The bound class and every deleted class must differ.
+    const deleted = (config.migrations as Array<{deleted_classes?: string[]}>).flatMap((step) => step.deleted_classes ?? [])
+    for (const binding of (config.durable_objects as {bindings: Array<{class_name: string}>} | undefined)?.bindings ?? []) {
+      expect(deleted, binding.class_name).not.toContain(binding.class_name)
+    }
+    // Durable Object `exports` entries make every `wrangler versions upload` (the PR preview) fail.
+    expect(config).not.toHaveProperty('exports')
+  })
+
+  it('runs the class in its own Worker, with no route, no assets and no public URL', () => {
+    expect(limiterConfig.name).toBe('human-datastream-rate-limiter')
+    expect(limiterConfig.main).toBe('./src/index.ts')
+    expect(limiterConfig.compatibility_date).toBe(config.compatibility_date)
+    expect(limiterConfig.workers_dev).toBe(false)
+    expect(limiterConfig.preview_urls).toBe(false)
+    // v1 is live (#397); the rename to the class the site binds is a migration, never an edit of v1.
+    expect(limiterConfig.migrations).toEqual([
+      {tag: 'v1', new_sqlite_classes: ['ApiRateLimiter']},
+      {tag: 'v2', renamed_classes: [{from: 'ApiRateLimiter', to: 'ClientRateLimitWindow'}]}
+    ])
+    for (const key of ['routes', 'route', 'assets', 'durable_objects', 'kv_namespaces', 'vars', 'exports', 'services']) {
+      expect(limiterConfig, key).not.toHaveProperty(key)
+    }
+  })
+
+  it('deploys the rate-limiter Worker before the site Worker, in the same job, failing it on error', () => {
+    const workflow = readFileSync(resolve(process.cwd(), '.github/workflows/deploy.yml'), 'utf8')
+    const limiter = workflow.indexOf('pnpm exec wrangler deploy --config workers/rate-limiter/wrangler.jsonc')
+    const site = workflow.indexOf('run: pnpm exec wrangler deploy\n')
+    expect(limiter).toBeGreaterThan(0)
+    expect(site).toBeGreaterThan(limiter)
+    const step = workflow.slice(workflow.lastIndexOf('- name:', limiter), limiter)
+    expect(step).not.toMatch(/continue-on-error/)
+  })
+})
+
+describe('wrangler.jsonc: the published page data (atlas decision 0164)', () => {
+  it('binds ONE KV namespace as PAGE, the owner-created human-datastream-page', () => {
+    expect(config.kv_namespaces).toEqual([{binding: 'PAGE', id: 'dc9dc20506d1401488e00993370f81b2'}])
   })
 })

@@ -1,0 +1,5 @@
+Contact: mailto:security@example.com
+Contact: tel:+1-201-555-0123
+Contact: https://example.com/security-contact.html
+Expires: 2027-06-20T00:00:00.000Z
+Canonical: https://jonathanlloyd.me/.well-known/security.txt

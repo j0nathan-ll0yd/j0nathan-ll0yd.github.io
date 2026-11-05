@@ -5,7 +5,7 @@ import {CLOUDFRONT_BASE, ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contr
 import Ajv2020 from 'ajv/dist/2020.js'
 import * as cheerio from 'cheerio'
 import {describe, expect, it} from 'vitest'
-import {AGENT_PATHS, SERVER_CARD_JSON, SERVER_CARD_MEDIA_TYPE, SERVER_CARD_URL} from '../../src/lib/edge/agent-catalog.mjs'
+import {AGENT_PATHS, API_V1_BASE, API_V1_RATE_LIMIT, SERVER_CARD_JSON, SERVER_CARD_MEDIA_TYPE, SERVER_CARD_URL} from '../../src/lib/edge/agent-catalog.mjs'
 import {clientDir} from '../../scripts/lib/build-paths.mjs'
 
 const distDir = clientDir()
@@ -60,14 +60,15 @@ describe('served portfolio-expert SKILL.md', () => {
 describe('API catalog and OpenAPI', () => {
   const openapi = JSON.parse(read(AGENT_PATHS.openapi))
 
-  // One item per public JSON export, all nine: the catalog is developer documentation, so the raw
-  // health exports are listed. Each item answers JSON, where the old CloudFront-root item answered
-  // an S3 XML 403 (audits/checks/b2-check-wellknown.mjs probes that live).
+  // One item per public JSON export, all nine, at the developer API facade: the catalog is developer
+  // documentation, so the raw health exports are listed. Each item answers JSON, and each failure an
+  // RFC 9457 problem (audits/checks/b2-check-wellknown.mjs probes both live).
   it('the RFC 9727 catalog anchors on itself, lists every JSON export, and describes each with /openapi.json', () => {
     const {linkset} = JSON.parse(read(AGENT_PATHS.apiCatalog))
     expect(linkset[0].anchor).toBe(`${SITE_URL}${AGENT_PATHS.apiCatalog}`)
     const items = linkset[0].item.map((i: {href: string}) => i.href)
-    expect(items.sort()).toEqual(Object.values(ENDPOINTS).map((path) => `${CLOUDFRONT_BASE}${path}`).sort())
+    expect(items.sort()).toEqual(Object.values(ENDPOINTS).map((path) => `${API_V1_BASE}${path}`).sort())
+    expect(API_V1_BASE).toBe(`${SITE_URL}/api/v1`)
     for (const href of items) {
       const api = linkset.find((entry: {anchor: string}) => entry.anchor === href)
       expect(api['service-desc'], href).toEqual([{href: `${SITE_URL}${AGENT_PATHS.openapi}`, type: 'application/vnd.oai.openapi+json;version=3.1'}])
@@ -82,16 +83,62 @@ describe('API catalog and OpenAPI', () => {
     expect(openapi.openapi).toBe('3.1.0')
   })
 
-  it('describes exactly the nine exports on the CloudFront data host', () => {
-    expect(openapi.servers).toEqual([{url: CLOUDFRONT_BASE}])
+  it('describes exactly the nine exports on the developer API facade, with unchanged operation ids', () => {
+    expect(openapi.servers.map((server: {url: string}) => server.url)).toEqual([API_V1_BASE])
     expect(Object.keys(openapi.paths).sort()).toEqual(Object.values(ENDPOINTS).sort())
+    const operationIds = Object.values(openapi.paths).map((item) => (item as {get: {operationId: string}}).get.operationId)
+    expect(new Set(operationIds).size).toBe(9)
   })
 
-  it('declares the focus-suppression 403 on every export except the focus signal', () => {
+  it('declares the focus-suppression 503 problem on every export except the focus signal, and no 403', () => {
     for (const [route, item] of Object.entries(openapi.paths) as Array<[string, {get: {responses: Record<string, unknown>}}]>) {
-      expect('403' in item.get.responses, route).toBe(route !== ENDPOINTS.focus)
+      expect('503' in item.get.responses, route).toBe(route !== ENDPOINTS.focus)
+      expect('403' in item.get.responses, route).toBe(false)
+      for (const status of ['405', '429', '502']) {
+        expect(item.get.responses[status], `${route} ${status}`).toBeDefined()
+      }
     }
-    expect(openapi.components.schemas.Suppressed.properties.suppressed).toEqual({const: true})
+    expect(openapi.components.schemas.Problem.properties.suppressed).toEqual({const: true})
+    expect(openapi.components.schemas).not.toHaveProperty('Suppressed')
+  })
+
+  // api-error-model: every 4xx and 5xx response is typed as an RFC 9457 problem.
+  // covers: developer-api#The OpenAPI document and the API catalog advertise the facade
+  it('types every 4xx and 5xx response as application/problem+json with the Problem schema', () => {
+    const resolve = (response: {$ref?: string}) => response.$ref ? openapi.components.responses[response.$ref.split('/').pop()!] : response
+    const errorResponses = [
+      ...Object.values(openapi.components.responses),
+      ...Object.values(openapi.paths).flatMap((item) =>
+        Object.entries((item as {get: {responses: Record<string, {$ref?: string}>}}).get.responses).filter(([status]) => Number(status) >= 400).map((
+          [, r]
+        ) => resolve(r))
+      )
+    ] as Array<{content: Record<string, {schema: {$ref?: string; allOf?: Array<{$ref?: string}>}}>}>
+    expect(errorResponses.length).toBeGreaterThan(5)
+    for (const response of errorResponses) {
+      expect(Object.keys(response.content)).toEqual(['application/problem+json'])
+      const schema = response.content['application/problem+json'].schema
+      const refs = [schema.$ref, ...(schema.allOf ?? []).map((part) => part.$ref)]
+      expect(refs).toContain('#/components/schemas/Problem')
+    }
+    expect(Object.keys(openapi.components.responses).sort()).toEqual([
+      'FocusSuppressed',
+      'MethodNotAllowed',
+      'NotFound',
+      'RateLimited',
+      'UpstreamUnavailable'
+    ])
+  })
+
+  // covers: developer-api#The versioning promise is published and machine-visible
+  it('states the rate-limit policy and the deprecation fields as response headers', () => {
+    expect(openapi.components.headers['RateLimit-Policy'].example).toBe(
+      `"${API_V1_RATE_LIMIT.policy}";q=${API_V1_RATE_LIMIT.limit};w=${API_V1_RATE_LIMIT.windowSeconds}`
+    )
+    for (const item of Object.values(openapi.paths) as Array<{get: {responses: {200: {headers: Record<string, unknown>}}}}>) {
+      expect(Object.keys(item.get.responses[200].headers).sort()).toEqual(['Deprecation', 'Link', 'RateLimit', 'RateLimit-Policy', 'Sunset'])
+    }
+    expect(openapi.components.responses.RateLimited.headers['Retry-After']).toEqual({$ref: '#/components/headers/Retry-After'})
   })
 
   // The response schemas are the contract's published raw schemas. Proving each one accepts the

@@ -13,7 +13,9 @@ import {
   FocusOverlay, DndOverlay,
   TheatreReviews,
 } from '@j0nathan-ll0yd/web/production';
+import { SiteFooterNav } from '@j0nathan-ll0yd/web/components';
 import type { DashboardData } from '../lib/load-dashboard-data';
+import { siteNavLinks } from '../lib/site-nav';
 import { a11y, app, identity } from '@j0nathan-ll0yd/copy';
 
 interface Props {
@@ -37,6 +39,9 @@ const loading = { state: 'loading' } as const;
       <IdentityCard profile={profile.card} />
       <BioTerminal profile={profile.terminal} />
       <SystemStatus system={system} />
+      <footer class="left-panel-footer">
+        <SiteFooterNav links={siteNavLinks('/')} label={identity.navigation.siteNavLabel} />
+      </footer>
     </aside>
 
     <nav aria-label={a11y.nav.dashboard}>

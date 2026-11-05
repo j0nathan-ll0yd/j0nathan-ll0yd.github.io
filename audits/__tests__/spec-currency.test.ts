@@ -16,12 +16,15 @@ import {describe, expect, it, vi} from 'vitest'
 import {
   checkSpecCurrency,
   classifySource,
+  DRAFT_STATES,
   fetchCurrencySources,
+  fetchDraftStatus,
   judgeCurrency,
   probedRules,
   REPIN_GRACE_MS,
   REPIN_GRACE_RUNS,
-  SOURCES_BUDGET_MS
+  SOURCES_BUDGET_MS,
+  WATCHED_SOURCES
 } from '../checks/b2-check-spec-currency.mjs'
 import {citation, pinned, readRawRules} from '../checks/b2-check-spec-drift.mjs'
 
@@ -29,6 +32,8 @@ const PINNED_SHA = 'c7178b9dcdbf696517f52b2d3126e417eb95fd59'
 const GITHUB_URL = `https://raw.githubusercontent.com/AnswerDotAI/llms-txt/${PINNED_SHA}/nbs/index.qmd`
 const RFC_URL = 'https://www.rfc-editor.org/rfc/rfc9116.txt'
 const RSS_URL = 'https://www.rssboard.org/rss-2-0-11'
+const DRAFT_URL = 'https://www.ietf.org/archive/id/draft-ietf-aipref-vocab-08.txt'
+const DRAFT_RECORD_URL = 'https://datatracker.ietf.org/api/v1/doc/document/draft-ietf-aipref-vocab/?format=json'
 
 const QUOTE = 'An H1 with the name of the project or site. This is the only required section'
 const PINNED_BODY = `## Format\n\n- An optional byte-order mark (BOM)\n- ${QUOTE}\n`
@@ -54,6 +59,10 @@ interface RawRule {
 
 type FetchText = (url: string) => Promise<string>
 type FetchCommit = () => Promise<string | null>
+type FetchDraft = () => Promise<{rev: string; states: string[]}>
+
+/** A datatracker answer for the draft: the latest revision and its lifecycle states. */
+const draftAt = (rev: string, states: string[] = ['active']): FetchDraft => vi.fn(async () => ({rev, states}))
 
 function sha256(s: string): string {
   return createHash('sha256').update(s, 'utf-8').digest('hex')
@@ -293,13 +302,17 @@ describe('check-spec-currency: the measurement channel', () => {
   const liveRules = readRawRules([])
 
   it('measures the applicable sources it held', async () => {
-    const held = await checkSpecCurrency({fetchText: fetchServing(PINNED_BODY, PINNED_BODY), fetchCommit: noCommitLookup})
+    const held = await checkSpecCurrency({fetchText: fetchServing(PINNED_BODY, PINNED_BODY), fetchCommit: noCommitLookup, fetchDraft: draftAt('08')})
     expect(held.measured).toBeGreaterThan(0)
     expect(held.measured).toBe(held.applicableCount)
   })
 
   it('measures ZERO when every applicable source is unreachable, even though the immutable ones are still classified', async () => {
-    const dark = await checkSpecCurrency({fetchText: vi.fn().mockRejectedValue(new Error('HTTP 503')), fetchCommit: noCommitLookup})
+    const dark = await checkSpecCurrency({
+      fetchText: vi.fn().mockRejectedValue(new Error('HTTP 503')),
+      fetchCommit: noCommitLookup,
+      fetchDraft: vi.fn().mockRejectedValue(new Error('HTTP 503'))
+    })
     expect(dark.measured).toBe(0)
     // Darkness on BOTH channels: the count says nothing was held, and a finding per
     // unreachable source says why. The not-applicable sources are still reported, and
@@ -438,5 +451,111 @@ describe('check-spec-currency: the phase budget and its progress channel', () =>
     // The pinned blob sees the full budget; the current blob sees it minus what the first spent.
     expect(budgets[0]).toBe(SOURCES_BUDGET_MS)
     expect(budgets[1]).toBe(SOURCES_BUDGET_MS - 30_000)
+  })
+})
+
+// THE IETF DRAFT ARM (atlas decision 0174 E1). The Content-Usage header implements two AIPREF
+// drafts, and vocab moved from -07 to -08 on 2026-09-14 with nothing in the estate to notice. A
+// draft's archive URL names one frozen revision, so the byte comparison has nothing to compare;
+// the datatracker record's latest `rev` and lifecycle state are the currency answer instead.
+describe('check-spec-currency: IETF drafts', () => {
+  const draftRule = (retrieved = '2026-07-30') => ({rel: 'watched: AIPREF vocabulary', rule: {id: 'watched', derivedFrom: {pinnedAt: DRAFT_URL, retrieved}}})
+
+  async function judgeDraft(fetchDraft: FetchDraft, nowMs = NOW_MS, retrieved?: string): Promise<{findings: Finding[]; held: boolean}> {
+    const rules = [draftRule(retrieved)]
+    const fetchText = vi.fn()
+    const sources = await fetchCurrencySources(rules, {fetchText, fetchCommit: noCommitLookup, fetchDraft, log: () => undefined})
+    // One datatracker read and no archive fetch: the archive revision is frozen by construction.
+    expect(fetchText).not.toHaveBeenCalled()
+    expect(fetchDraft).toHaveBeenCalledTimes(1)
+    return {findings: judgeCurrency(rules, sources, {nowMs}) as Finding[], held: (sources.get(DRAFT_URL) as {held: boolean}).held}
+  }
+
+  it('classifies an archive revision as an ietf-draft whose current version is its datatracker record', () => {
+    expect(classifySource(DRAFT_URL)).toMatchObject({kind: 'ietf-draft', name: 'draft-ietf-aipref-vocab', pinnedRev: '08', currentUrl: DRAFT_RECORD_URL})
+  })
+
+  it('watches both AIPREF drafts at the revisions the site implements', () => {
+    const drafts = WATCHED_SOURCES.map((s) => classifySource(s.pinnedAt)).filter((s) => s.kind === 'ietf-draft')
+    expect(drafts.map((d) => `${(d as {name: string}).name}-${(d as {pinnedRev: string}).pinnedRev}`).sort()).toEqual([
+      'draft-ietf-aipref-attach-05',
+      'draft-ietf-aipref-vocab-08'
+    ])
+  })
+
+  it('reports the pinned revision as current while it is the latest and the draft is active', async () => {
+    const {findings, held} = await judgeDraft(draftAt('08'))
+    expect(held).toBe(true)
+    expect(idsOf(findings)).toEqual(['spec-currency-current'])
+  })
+
+  it('warns when the datatracker has a newer revision, naming both', async () => {
+    const {findings} = await judgeDraft(draftAt('09'))
+    expect(idsOf(findings)).toEqual(['spec-source-moved'])
+    expect(findings[0]!.severity).toBe('warn')
+    expect(findings[0]!.message).toContain('the latest revision is 09, pinned is 08')
+  })
+
+  it.each(['rfc', 'repl', 'expired', 'auth-rm', 'ietf-rm'])('treats a draft that left the active state (%s) as moved, at the same revision',
+    async (state) => {
+      const {findings} = await judgeDraft(draftAt('08', [state]))
+      expect(idsOf(findings)).toEqual(['spec-source-moved'])
+      expect(findings[0]!.message).toContain(`datatracker state ${state}`)
+    })
+
+  it('escalates an un-re-pinned revision to fail after the grace window, like a GitHub source', async () => {
+    const {findings} = await judgeDraft(draftAt('09'), Date.parse('2026-07-30') + REPIN_GRACE_MS + 1)
+    expect(idsOf(findings)).toEqual(['spec-source-moved-unrepinned'])
+    expect(findings[0]!.severity).toBe('fail')
+  })
+
+  it('refuses to read a quoted draft citation as current, because the revision check never compares the quote', async () => {
+    const rules = [{rel: 'x/quoted.rule.json', rule: {id: 'quoted', derivedFrom: {pinnedAt: DRAFT_URL, retrieved: '2026-10-29', quote: QUOTE}}}]
+    const sources = await fetchCurrencySources(rules, {fetchText: vi.fn(), fetchCommit: noCommitLookup, fetchDraft: draftAt('08'), log: () => undefined})
+    const findings = judgeCurrency(rules, sources, {nowMs: NOW_MS}) as Finding[]
+    expect(idsOf(findings)).toEqual(['spec-currency-unclassified-source'])
+    expect(findings[0]!.severity).toBe('fail')
+  })
+
+  it('reports an unreachable datatracker as INDETERMINATE, never current, and does not count it', async () => {
+    const {findings, held} = await judgeDraft(vi.fn().mockRejectedValue(new Error('fetch failed')))
+    expect(held).toBe(false)
+    expect(idsOf(findings)).toEqual(['spec-currency-indeterminate'])
+    expect(findings[0]!.severity).toBe('fail')
+    expect(findings[0]!.message).toContain(DRAFT_RECORD_URL)
+  })
+
+  it.each([
+    ['names another draft', {name: 'draft-ietf-aipref-attach', rev: '08', states: ['/api/v1/doc/state/1/']}],
+    ['carries no two-digit rev', {name: 'draft-ietf-aipref-vocab', rev: 8, states: ['/api/v1/doc/state/1/']}],
+    ['lists no draft lifecycle state', {name: 'draft-ietf-aipref-vocab', rev: '08', states: ['/api/v1/doc/state/38/']}]
+  ])('refuses a record that %s, so the probe reports INDETERMINATE', async (_case, record) => {
+    const fetchJson = vi.fn(async () => record)
+    await expect(fetchDraftStatus(classifySource(DRAFT_URL), {fetchJson})).rejects.toThrow()
+  })
+
+  it("reads the lifecycle states the datatracker lists, and ignores state types that are not the draft's", async () => {
+    const fetchJson = vi.fn(async () => ({
+      name: 'draft-ietf-aipref-vocab',
+      rev: '08',
+      states: ['/api/v1/doc/state/1/', '/api/v1/doc/state/150/', '/api/v1/doc/state/38/']
+    }))
+    expect(await fetchDraftStatus(classifySource(DRAFT_URL), {fetchJson})).toEqual({rev: '08', states: ['active']})
+    expect(fetchJson).toHaveBeenCalledWith(DRAFT_RECORD_URL, expect.anything())
+    expect(Object.values(DRAFT_STATES)).toEqual(['active', 'expired', 'rfc', 'repl', 'auth-rm', 'ietf-rm'])
+  })
+
+  it('never sends the GitHub token to the datatracker', async () => {
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({name: 'draft-ietf-aipref-vocab', rev: '08', states: ['/api/v1/doc/state/1/']})))
+    vi.stubGlobal('fetch', fetchSpy)
+    vi.stubEnv('GITHUB_TOKEN', 'ghs_secret')
+    try {
+      await fetchDraftStatus(classifySource(DRAFT_URL))
+      const [, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
+      expect(JSON.stringify(init.headers)).not.toContain('ghs_secret')
+    } finally {
+      vi.unstubAllGlobals()
+      vi.unstubAllEnvs()
+    }
   })
 })

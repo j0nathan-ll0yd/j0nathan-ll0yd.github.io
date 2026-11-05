@@ -1,0 +1,86 @@
+{
+  "id": "security-txt-contact-not-uri",
+  "title": "Every Contact value must be a URI with a scheme",
+  "artifact": "security.txt",
+  "rule_class": "conformance",
+  "severity": "fail",
+  "cites": {
+    "source": "RFC 9116",
+    "clause": "§2.5.3",
+    "quote": "The value MUST follow the URI syntax described in Section 3 of [RFC3986]. This means that \"mailto\" and \"tel\" URI schemes must be used when specifying email addresses and telephone numbers, as defined in [RFC6068] and [RFC3966].",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
+    "retrieved": "2026-10-29",
+    "content_sha256": "9c0aa73cb36ac44e67aa6f85eb8606d5f6f07b150e766e23357aee1a8e93eecb",
+    "conformance_testable": true,
+    "verified_against_source": true,
+    "verified_at": "2026-10-29",
+    "note": "Transcribed from a live fetch of https://www.rfc-editor.org/rfc/rfc9116.txt on 2026-10-29 (file sha256 79d19ce7a4a35496981095a27fd992797a9fc4d6f3649c2a1e14f494607c61f9). Lines 296-299. The ABNF agrees: contact-field = \"Contact\" fs SP uri (§4)."
+  },
+  "policy_note": "The test is a SHAPE check on the scheme: a letter, then letters, digits, '+', '-' or '.', then ':' and at least one non-space character (RFC 3986 §3.1). That is the half of the URI grammar the quoted sentence spells out, and it is the real failure mode: a bare email address or phone number. A full RFC 3986 parser would add a dependency to a pure function for no case this file can plausibly carry. Every Contact value is checked, not only the first.",
+  "applicability": "A security.txt body with at least one non-empty Contact value. A body with none is security-txt-contact-missing's case.",
+  "expectation": "Every Contact value matches /^[A-Za-z][A-Za-z0-9+.-]*:\\S+$/.",
+  "cases": [
+    {
+      "name": "a bare email address with no mailto: scheme",
+      "outcome": "failed",
+      "input_file": "cases/contact-bare-email.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-contact-not-uri",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "a bare phone number beside a valid mailto: line",
+      "outcome": "failed",
+      "input_file": "cases/contact-bare-phone.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-contact-not-uri",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "mailto:, tel: and https: values",
+      "outcome": "passed",
+      "input_file": "cases/contact-uris.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "an http: value is a URI -- security-txt-web-uri-not-https fires instead",
+      "outcome": "passed",
+      "input_file": "cases/contact-http.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-web-uri-not-https",
+          "severity": "fail"
+        }
+      ]
+    },
+    {
+      "name": "no Contact field -- security-txt-contact-missing fires instead",
+      "outcome": "inapplicable",
+      "input_file": "cases/no-contact.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-contact-missing",
+          "severity": "fail"
+        }
+      ]
+    }
+  ]
+}

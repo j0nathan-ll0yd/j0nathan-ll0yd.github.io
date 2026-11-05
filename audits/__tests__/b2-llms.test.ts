@@ -27,10 +27,10 @@ import {
   managedIssueOutcome,
   ORIGIN_CACHE_FRESHNESS_SECONDS,
   runB2Llms,
-  runB2LlmsCli,
-  siteEdgeCacheFailure
+  runB2LlmsCli
 } from '../checks/b2-llms.mjs'
 import type {LlmsCoherenceInput, LlmsResponseSnapshot} from '../checks/b2-llms.mjs'
+import {siteEdgeCacheFailure} from '../lib/site-edge-cache.mjs'
 import {createDryRunClient, reconcileCheckIssues} from '../lib/file-check-issues.mjs'
 
 const OBSERVED_AT = '2026-08-29T18:00:00.000Z'

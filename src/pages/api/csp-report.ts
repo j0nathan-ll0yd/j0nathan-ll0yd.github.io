@@ -4,6 +4,7 @@
 // 204 so the browser does not retry. Logs a single structured line per invocation
 // visible in `wrangler tail`.
 
+import {apiMethodNotAllowed} from '../../lib/edge/api-v1'
 import {edgeRoute} from '../../lib/edge/routes'
 
 // The route context -- only the fields this handler reads (src/lib/edge/routes.ts EdgeContext).
@@ -46,8 +47,12 @@ export async function onRequestPost(context: PagesContext): Promise<Response> {
   return new Response(null, {status: 204})
 }
 
-// On-demand, POST only, like the Pages onRequestPost it was (atlas decision 0160, PR A).
-// src/worker.ts sends every other method where Pages sent it: GET and HEAD to the 404 page,
-// the rest to a 405.
+/** The collector accepts POST only. Any other method answers the developer API's 405 problem, never the HTML 404. */
+export function onRequest(context: PagesContext): Promise<Response> | Response {
+  return context.request.method === 'POST' ? onRequestPost(context) : apiMethodNotAllowed(context.request, 'POST')
+}
+
+// On-demand, every method (atlas decision 0160, PR A; is-agentic api-v1 plan): POST collects, and
+// every other method answers the 405 problem with `Allow: POST`, like every path under /api.
 export const prerender = false
-export const POST = edgeRoute(onRequestPost)
+export const ALL = edgeRoute(onRequest)

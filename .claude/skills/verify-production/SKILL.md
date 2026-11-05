@@ -173,7 +173,8 @@ print('webmcp.js tools:', 'MATCH' if webmcp == exp else 'MISMATCH %r' % webmcp)
 PY
 # Expect: both MATCH
 
-# Text pages: each answers 200 text/html, and no page carries an email address in clear.
+# Text pages: each answers 200 text/html, and no page carries an email address in clear. The one
+# exception is the organization contact alias inside the JSON-LD block (owner rulings 2026-10-24).
 # /offline has no export (see the Step 0 rules); Step 3 scans the 404 page.
 # The detector is the postbuild gate's own findClearEmails (scripts/check-no-clear-email.mjs).
 PAGES=$(python3 -c "import json; print(' '.join(['/'] + json.load(open('/tmp/vp-expect.json'))['pagePaths'] + ['/offline']))")
@@ -216,7 +217,7 @@ node audits/checks/b2-check-wellknown.mjs
 
 That runner sends JSON-RPC POSTs to `/mcp`. Every method it calls is read-only, and the server exposes only `readOnlyHint: true` tools. Skip it, and say so in the report, when the run is restricted to GET requests. The runner states its expected resources independently of `agent-catalog.mjs` on purpose, so it is a separate measurer from the derived checks above. Do not replace its list with `RESOURCES`.
 
-Score this surface PASS only if all `agent-readiness-check.sh` checks pass AND every additional invariant matches. SHA-256 digest drift is a CRITICAL finding -- it silently breaks agent discovery. A clear email address on any page is a HIGH finding (privacy; the build gate is `scripts/check-no-clear-email.mjs`). A tool-set mismatch is a HIGH finding: agents are told about tools the server does not serve, or the reverse.
+Score this surface PASS only if all `agent-readiness-check.sh` checks pass AND every additional invariant matches. SHA-256 digest drift is a CRITICAL finding -- it silently breaks agent discovery. A clear email address on any page is a HIGH finding (privacy; the build gate is `scripts/check-no-clear-email.mjs`), except the organization contact alias inside the JSON-LD block, which the detector admits (owner rulings 2026-10-24). A tool-set mismatch is a HIGH finding: agents are told about tools the server does not serve, or the reverse.
 
 ## Step 2: CloudFront JSON data sources
 

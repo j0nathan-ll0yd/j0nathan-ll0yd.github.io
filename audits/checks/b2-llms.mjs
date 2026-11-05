@@ -37,8 +37,9 @@ import {durationToMilliseconds, LLM_FRESHNESS_CONFIG} from '@j0nathan-ll0yd/esta
 import {checkLlmsStructure} from '@j0nathan-ll0yd/estate-contracts/llms-structure'
 import {LLMS_TXT_CATALOG} from '@j0nathan-ll0yd/estate-contracts/rule-catalog/llms-txt'
 import {LLMS_ARTIFACTS} from '../../src/lib/edge/llms-artifacts.ts'
-import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers.ts'
+import {SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-headers.ts'
 import {fetchStable, isMain} from '../lib/http.mjs'
+import {hasNoStore, siteEdgeCacheFailure} from '../lib/site-edge-cache.mjs'
 import {publishIssueOutcome, publishMeasured} from '../lib/measurement.mjs'
 import {probeSuppression, suppressionDisposition} from '../lib/suppression.mjs'
 import {emit, rules} from '../specs/load.mjs'
@@ -141,7 +142,7 @@ export function validateLlmsTxt(rawText) {
 
 /**
  * Freshness/skew authority: the packaged estate contract, read in the AUDIT layer
- * only so the Pages Functions runtime bundle stays free of the package (atlas
+ * only so the Worker runtime bundle stays free of the package (atlas
  * decision 0119 D2). The contract owns `maxCompositionAge` (4 hours: the composer
  * runs on a 30-minute EventBridge rate plus an event trigger, bounding missed
  * compositions and the three-hour last-known-good origin fallback) and
@@ -225,10 +226,6 @@ const COMPOSED_AT_HEADER = 'x-amz-meta-composed-at'
 
 function mediaType(contentType) {
   return contentType?.split(';', 1)[0]?.trim().toLowerCase() || null
-}
-
-function hasNoStore(value) {
-  return value?.split(',').some((directive) => directive.trim().toLowerCase() === 'no-store') ?? false
 }
 
 function sameBytes(left, right) {
@@ -361,62 +358,6 @@ export function compositionWireSkew(snapshot) {
     return null // an unparseable header is a malformed wire, not a disagreeing one
   }
   return headerMs === body ? null : {header, body}
-}
-
-/** `CF-Cache-Status` values that say Cloudflare's edge cache did not answer from a stored copy. */
-const EDGE_UNCACHED_STATUSES = new Set(['BYPASS', 'DYNAMIC'])
-
-/**
- * The edge-cache arm of the site plane: no edge cache served a stored, possibly stale, copy of
- * an LLM document. Returns the finding message, or null when the response proves it.
- *
- * TWO PLANES, ONE PROPERTY (atlas decision 0160). On Cloudflare Pages the zone cache sat in
- * front of the Function, so the observable was `CF-Cache-Status: BYPASS|DYNAMIC`. On Workers
- * the Worker runs AHEAD of the zone cache (wrangler.jsonc enables no Workers Caching, pinned by
- * tests/unit/worker-routing.test.ts), and it builds each response itself from a `no-store`
- * CloudFront fetch with no `cf` cache options (src/lib/edge/proxy.ts GATED_FETCH_INIT), refusing
- * any upstream 200 that Cloudflare answered from cache. Its response therefore carries no
- * `CF-Cache-Status` at all. An absent status is accepted ONLY with three corroborating facts:
- *
- * 1. `X-Site-Runtime: workers`, the middleware's platform marker. Without it the Worker did not
- *    answer (a fail-open route sends the request past it), so the absence proves nothing.
- * 2. No `Age`. Cloudflare sets `Age` on a response its cache served (HIT, STALE, UPDATING).
- * 3. `CDN-Cache-Control: no-store`, so no shared cache downstream of the Worker stores it either.
- *    `llms-site-cdn-cache-policy` also reds on that header. The overlap is deliberate: this arm
- *    proves its own pass rather than leaning on another arm, so one defect yields two findings.
- *
- * A present status is still judged on Workers. A Worker response can carry one: a response the
- * Worker takes from the ASSETS binding keeps its headers (src/worker.ts `fromAssets`), and
- * /version.json answered `cf-cache-status: HIT` with `x-site-runtime: workers` on 2026-10-16 UTC.
- *
- * Any `Age` reds, on either plane. A present status other than BYPASS or DYNAMIC reds too: HIT,
- * STALE, UPDATING and REVALIDATED served a stored copy, and MISS or EXPIRED mean the response
- * was eligible for storage and the next request can be a HIT.
- *
- * @param {LlmsResponseSnapshot} snapshot
- * @returns {string | null}
- */
-export function siteEdgeCacheFailure(snapshot) {
-  const age = snapshot.age?.trim() || null
-  if (age !== null) {
-    return `site carries Age: ${JSON.stringify(snapshot.age)}; an edge cache served a stored copy`
-  }
-  const edgeStatus = snapshot.cfCacheStatus?.trim().toUpperCase() || null
-  if (edgeStatus !== null) {
-    return EDGE_UNCACHED_STATUSES.has(edgeStatus)
-      ? null
-      : `site CF-Cache-Status is ${JSON.stringify(snapshot.cfCacheStatus)}; expected BYPASS or DYNAMIC, or none on a Worker response`
-  }
-  const runtime = snapshot.siteRuntime?.trim().toLowerCase() || null
-  if (runtime !== SITE_RUNTIME) {
-    return `site has no CF-Cache-Status and ${SITE_RUNTIME_HEADER} is ${JSON.stringify(snapshot.siteRuntime ?? null)}; ` +
-      `an absent status is accepted only on a Worker response (${SITE_RUNTIME_HEADER}: ${SITE_RUNTIME})`
-  }
-  if (!hasNoStore(snapshot.cdnCacheControl)) {
-    return `site Worker response has no CF-Cache-Status and CDN-Cache-Control is ${JSON.stringify(snapshot.cdnCacheControl)}; ` +
-      'an absent status is accepted only with CDN-Cache-Control: no-store'
-  }
-  return null
 }
 
 /**

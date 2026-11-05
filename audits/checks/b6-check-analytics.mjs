@@ -548,8 +548,8 @@ export async function runBeaconsArm({env = process.env, collectBeacons = collect
  *
  * NO SA_API_KEY PUBLISHES 0. The key is a provisioned repository secret, so its absence under
  * Actions is a lost secret, not a design state: the arm is dark, and a dark arm must turn the tile
- * red that day, exactly as an unreadable Stats API does. The same rule as the B2 Cloudflare
- * cache-rule step, whose refused token publishes 0. Outside Actions there is no output path, so a
+ * red that day, exactly as an unreadable Stats API does. The retired B2 Cloudflare cache-rule step
+ * followed the same rule: its refused token published 0. Outside Actions there is no output path, so a
  * workstation run without the key stays a visible SKIPPED and writes nothing.
  */
 export async function runIngestionArm({

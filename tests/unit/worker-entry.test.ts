@@ -10,7 +10,7 @@ import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../../src/lib/edge/security-hea
 
 const handled: Request[] = []
 const assetRequests: Request[] = []
-const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js', '/_ssr/value-free.json'])
+const KNOWN_FILES = new Set(['/', '/privacy', '/sw.js'])
 
 vi.mock('@astrojs/cloudflare/handler', () => ({
   handle: vi.fn(async (request: Request) => {
@@ -19,7 +19,7 @@ vi.mock('@astrojs/cloudflare/handler', () => ({
   })
 }))
 
-const {default: worker} = await import('../../src/worker')
+const {default: worker, ...workerExports} = await import('../../src/worker')
 
 const ASSETS = {
   async fetch(input: Request | URL | string): Promise<Response> {
@@ -202,17 +202,14 @@ describe('route paths, under the Pages matching rules', () => {
     expect(handled.map((r) => r.method)).toEqual(['PUT'])
   })
 
-  it('sends a GET on the POST-only CSP collector to the 404 page, as Pages did', async () => {
-    const response = await request('/api/csp-report')
-    expect(response.status).toBe(404)
-    expect(response.headers.get('Cache-Control')).toBe('no-store')
-    expect(handled).toHaveLength(0)
+  it('hands a GET on the CSP collector to Astro, which answers the 405 problem, never the 404 page', async () => {
+    await request('/api/csp-report')
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['GET /api/csp-report'])
   })
 
-  it('sends a PUT on the POST-only CSP collector to an empty 405, never to Astro', async () => {
-    const response = await request('/api/csp-report', {method: 'PUT'})
-    expect(response.status).toBe(405)
-    expect(handled).toHaveLength(0)
+  it('hands a PUT on the CSP collector to Astro, never to the asset plane', async () => {
+    await request('/api/csp-report', {method: 'PUT'})
+    expect(handled.map((r) => `${r.method} ${new URL(r.url).pathname}`)).toEqual(['PUT /api/csp-report'])
   })
 
   it('hands a POST on the CSP collector to Astro', async () => {
@@ -287,18 +284,38 @@ describe('the dashboard at / (atlas decision 0160, PR B)', () => {
     expect(response.headers.get('X-SSR-Data')).toBeNull()
   })
 
-  it('answers a public request for the value-free pages with the 404 page, though the file exists', async () => {
-    for (const method of ['GET', 'HEAD']) {
-      const response = await request('/_ssr/value-free.json', {method})
-      expect(response.status, method).toBe(404)
-      expect(response.headers.get('Cache-Control'), method).toBe('no-store')
-    }
-    expect(assetRequests.map((r) => new URL(r.url).pathname)).not.toContain('/_ssr/value-free.json')
-  })
-
   it('still negotiates Markdown at / before any render', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('focus unavailable', {status: 503})))
     await request('/', {headers: {Accept: 'text/markdown'}})
     expect(handled).toHaveLength(0)
   })
+})
+
+describe('the rate limiter Durable Object', () => {
+  // Cloudflare generates no Version URL for a Worker that implements a Durable Object
+  // (developers.cloudflare.com/workers/configuration/previews/, Limitations), so the site Worker must
+  // never export one again; the class lives in the rate-limiter Worker (workers/rate-limiter/).
+  it('is not exported by the site Worker, and is exported by the rate-limiter Worker', async () => {
+    expect(Object.keys(workerExports)).toEqual([])
+    const [limiterWorker, {ClientRateLimitWindow}] = await Promise.all([
+      import('../../workers/rate-limiter/src/index'),
+      import('../../workers/rate-limiter/src/ClientRateLimitWindow')
+    ])
+    expect(limiterWorker.ClientRateLimitWindow).toBe(ClientRateLimitWindow)
+    expect(limiterWorker.default.fetch().status).toBe(404)
+  })
+})
+
+describe('the developer API routes (is-agentic api-v1 plan)', () => {
+  it.each([['GET', '/api/nope'], ['POST', '/api/v1/books.json'], ['DELETE', '/api/v1/books.json'], ['OPTIONS', '/api/v1/books.json'], ['GET', '/api/v1/']])(
+    'hands %s %s to the Astro endpoint, never the asset plane',
+    async (method, path) => {
+      handled.length = 0
+      assetRequests.length = 0
+      const response = await worker.fetch(new Request(`https://jonathanlloyd.me${path}`, {method}), {ASSETS} as never, {waitUntil: () => {}} as never)
+      expect(response.status).toBe(200)
+      expect(handled.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([`${method} ${path.replace(/\/$/, '')}`])
+      expect(assetRequests).toEqual([])
+    }
+  )
 })

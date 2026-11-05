@@ -1,0 +1,9 @@
+Contact: mailto:security@example.com
+Expires: 2027-06-20T00:00:00.000Z
+Canonical: https://jonathanlloyd.me/.well-known/security.txt
+Acknowledgments: https://example.com/hall-of-fame.html
+Encryption: https://example.com/pgp-key.txt
+Encryption: dns:5d2d37ab76d47d36._openpgpkey.example.com?type=OPENPGPKEY
+Hiring: https://example.com/jobs.html
+Policy: https://example.com/disclosure-policy.html
+CSAF: https://example.com/.well-known/csaf/provider-metadata.json

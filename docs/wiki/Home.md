@@ -1,6 +1,6 @@
 # Human Datastream
 
-A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboard with glass-morphism aesthetics and a Three.js particle background. Built with [Astro](https://astro.build) and hosted on Cloudflare Pages.
+A personal portfolio dashboard for Jonathan Lloyd, designed as a sci-fi dashboard with glass-morphism aesthetics and a 2D-canvas particle background. Built with [Astro](https://astro.build) and served by a Cloudflare Worker (atlas decision 0160).
 
 ## Quick Start
 
@@ -30,8 +30,6 @@ Deployment is automatic via GitHub Actions on push to `main`.
 | Technology                                                       | Purpose                                     |
 | ---------------------------------------------------------------- | ------------------------------------------- |
 | [Astro](https://astro.build)                                     | Static site generation (0 KB JS by default) |
-| [Three.js](https://threejs.org)                                  | Particle background animation               |
-| [Leaflet](https://leafletjs.com)                                 | Interactive map widget                      |
 | [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) | Typography                                  |
 | [@vite-pwa/astro](https://github.com/ArmMbworworX/vite-pwa)      | Progressive Web App support                 |
 | [Simple Analytics](https://simpleanalytics.com)                  | Privacy-focused analytics                   |

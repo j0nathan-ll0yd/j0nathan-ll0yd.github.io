@@ -2,12 +2,18 @@ import {readFileSync} from 'node:fs'
 import {expect, type Page, test} from '@playwright/test'
 import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {type Behavior, dataPlaneRequests, resetDataPlane, serveFixtures, setDataPlane} from '../data-plane/control'
+import {PUBLISHED_FILES} from '../../src/lib/data-plane/published-files'
 import {BASELINE_BY_PATH, fixture, KNOWN_ANSWER_BY_PATH} from '../data-plane/baseline'
 import {isAllowedImageUrl, srcsetCandidates} from '../image-url-allowlist'
 import {LIVE_CARD_IDS} from '../shared/fixture-sentinels'
 import {legacyMarkers, RETIRED_OVERLAY_ROWS} from '../shared/legacy-markers'
 import {headFactsOf, prerenderedIndexHtml, visibleTextOf} from '../shared/ssr-page'
 import {READING_LINKS} from '../../src/lib/composed/reading-option'
+import {bookUrl} from '../shared/book-url'
+import {expectRowsFailVisible} from '../shared/fail-visible'
+
+/** The files that stand for the published KV values, which the Worker reads instead of any export. */
+const PUBLISHED_PATHS: ReadonlySet<string> = new Set(Object.values(PUBLISHED_FILES))
 
 // The server render of `/`, read with JavaScript off (atlas decision 0160, PR B; plan Step 6.3).
 //
@@ -150,6 +156,30 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     await expect(page.locator('#dndOverlay')).toBeHidden()
   })
 
+  // covers: bookshelf-render#Each book card links to its book without JavaScript
+  test('every Bookshelf tile links to its book: the title text, the exact href, target and rel, no dialog semantics', async ({page}) => {
+    await expectSummary(page, 'live')
+    const books = knownAnswer('books').books as {asin: string; title: string}[]
+    const tiles = page.locator('#dashShelfRow .shelf-book')
+    await expect(tiles).toHaveCount(books.length)
+    for (const [index, book] of books.entries()) {
+      const tile = tiles.nth(index)
+      const link = tile.locator('.shelf-book-title > a.shelf-book-link')
+      await expect(link, `${book.asin} link`).toHaveCount(1)
+      await expect(link).toHaveText(book.title)
+      await expect(link).toHaveAttribute('href', bookUrl(book.asin))
+      await expect(link).toHaveAttribute('target', '_blank')
+      await expect(link).toHaveAttribute('rel', 'sponsored noopener noreferrer')
+      // Exactly the four server attributes: the enhancement alone adds aria-haspopup.
+      const names = await link.evaluate((el) => el.getAttributeNames().filter((name) => !name.startsWith('data-astro-cid-')))
+      expect(names.sort()).toEqual(['class', 'href', 'rel', 'target'])
+      // The link names the book and is the tile's only link; the cover adds no second name.
+      await expect(tile.locator('a')).toHaveCount(1)
+      await expect(tile.locator('.shelf-cover-wrapper img')).toHaveAttribute('alt', '')
+    }
+    await expectRowsFailVisible(tiles, 'no-JS bookshelf')
+  })
+
   // The design system's ReadingFeed server markup (web 4.3.0, DS #312): one client page of at most
   // ten articles, each title linked to its publisher, a note icon on an article with notes, and no
   // pager (the browser's runtime adds the pager once; see openspec dashboard-ssr). The links follow
@@ -165,7 +195,9 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     await expect(rows).toHaveCount(articles.length)
     await expect(page.locator('#cardReading .article-list-title')).toHaveText(articles.map((a) => a.articleTitle))
     await expect(page.locator('#cardReading .article-list-source')).toHaveText(articles.map((a) => `(${a.sourceTitle})`))
-    await expect(page.locator('#cardReading time.article-list-date')).toHaveText(articles.map(() => /\d+(w|d|h|m) ago|just now/))
+    await expect(page.locator('#cardReading time.article-list-date')).toHaveText(
+      articles.map((a) => `${new Date(a.savedAt).toISOString().slice(0, 16).replace('T', ' ')} UTC`)
+    )
     await expect(page.locator('#cardReading time.article-list-date').first()).toHaveAttribute('datetime', articles[0].savedAt)
     if (READING_LINKS === 'allow') {
       await expect(links).toHaveCount(articles.length)
@@ -181,6 +213,7 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     // The known-answer articles carry no notes; the withNotes variation below does.
     await expect(page.locator('#cardReading .article-list-note')).toHaveCount(0)
     await expect(pager).toHaveCount(0)
+    await expectRowsFailVisible(rows, 'no-JS known answer')
 
     const noted = JSON.parse(readFileSync(fixture('articles', 'withNotes'), 'utf8')).articles as {notes: {comment: string}[] | null}[]
     await serveFixtures({[ENDPOINTS.articles]: fixture('articles', 'withNotes')})
@@ -195,6 +228,7 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     await expect(rows, 'forty exported articles render one client page of ten').toHaveCount(10)
     await expect(links).toHaveCount(READING_LINKS === 'allow' ? 10 : 0)
     await expect(pager).toHaveCount(0)
+    await expectRowsFailVisible(rows, 'no-JS forty articles')
   })
 
   test('sorts as the widgets document, whatever order the export arrives in', async ({page}) => {
@@ -307,18 +341,19 @@ test.describe('server render with JavaScript off: states', () => {
     await setDataPlane({[ENDPOINTS.focus]: {kind: 'status', status: 500}})
     await expectSummary(page, 'unavailable')
     expect(await cardStates(page)).toEqual(expectedStates('unavailable'))
-    // Only the focus signal is read: once, or twice through the proxy's one bounded retry of a
-    // retryable failure (src/lib/edge/proxy.ts FOCUS_MAX_ATTEMPTS). The composed page never is.
+    // No export is read: the Worker reads the published `focus` value once, and the fragments beside
+    // it at most once, never used (atlas decision 0164, src/lib/composed/published.ts readPublished).
     const reads = await dataPlaneRequests()
-    expect(new Set(reads)).toEqual(new Set([ENDPOINTS.focus]))
-    expect(reads.length).toBeLessThanOrEqual(2)
+    expect(reads.filter((path) => !PUBLISHED_PATHS.has(path)), 'no export is read').toEqual([])
+    expect(reads.filter((path) => path === PUBLISHED_FILES.focus)).toHaveLength(1)
+    expect(reads.filter((path) => path === PUBLISHED_FILES.fragments).length).toBeLessThanOrEqual(1)
     expect(await page.content()).not.toContain(TOKEN)
   })
 
-  test('a composed page without a CloudFront request id is refused', async ({page}) => {
-    // The admission rules apply to the Worker's one gated read, the composed artifact. The backend
-    // composer reads the exports from the bucket itself, behind no CloudFront.
-    await setDataPlane({'/dashboard.json': {kind: 'no-cloudfront-id'}})
+  test('a damaged published entry is refused', async ({page}) => {
+    // The Worker checks the published fragments' shape before it splices them (atlas decision 0164);
+    // the data plane answers the fragments file malformed.
+    await setDataPlane({'/dashboard.json': {kind: 'malformed'}})
     const rendered = await open(page)
     expect(rendered.status).toBe(200)
     expect(rendered.summaryHeader, 'X-SSR-Data').toBe('fallback')
@@ -352,7 +387,8 @@ test.describe('server render with JavaScript off: hiding', () => {
       await expect(page.locator(overlay)).toBeVisible()
       await expect(page.locator(other)).toBeHidden()
       expect(await cardStates(page)).toEqual(expectedStates('suppressed'))
-      expect(await dataPlaneRequests(), 'only the focus signal is read').toEqual([ENDPOINTS.focus])
+      // The Worker reads the published `focus` value, and never an export (atlas decision 0164).
+      expect((await dataPlaneRequests()).filter((path) => !PUBLISHED_PATHS.has(path)), 'no export is read').toEqual([])
 
       const html = await page.content()
       const text = await page.locator('body').innerText()

@@ -44,5 +44,9 @@ export function dataPlaneBase(value: unknown): string {
  * CloudFront whatever the variable says.
  */
 export function requestDataPlaneBase(request: Request, value: unknown, hostAllowed: (hostname: string) => boolean): string {
+  // Unset in production: answer without parsing the request URL.
+  if (value === undefined || value === null || value === '') {
+    return CLOUDFRONT_BASE
+  }
   return hostAllowed(new URL(request.url).hostname) ? dataPlaneBase(value) : CLOUDFRONT_BASE
 }

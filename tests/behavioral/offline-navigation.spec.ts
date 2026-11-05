@@ -1,6 +1,6 @@
 import {expect, type Page, test} from '@playwright/test'
 import {createRequire} from 'node:module'
-import {CLOUDFRONT_BASE} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {decodeLikeOrigin, type DistServer, readDist, startDistServer} from './dist-server'
 import {siteGatedProbeUrls, traversalProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
 
@@ -29,8 +29,8 @@ test.afterAll(async () => {
   await server.close()
 })
 
-// Gated URLs as cache keys see them: CloudFront exports (with and without the poll query) and the
-// five site-origin proxy routes.
+// Gated URLs as cache keys see them: CloudFront exports (with and without the poll query), the
+// five site-origin proxy routes and the nine developer API paths.
 const GATED_URLS = new Set(siteGatedProbeUrls())
 let gatedResponses = 0
 // CloudFront paths that carry gated data: every JSON export, and the origin of each proxied artifact.
@@ -185,9 +185,32 @@ test('the fallback works when the host redirects /offline to /offline/', async (
   await expectDataFreeOfflinePage(page)
 })
 
+/**
+ * Fetches every probe from the page, through its worker, in batches of 100. The set holds over 2,000
+ * probes since the developer API's nine paths joined it, and Chromium fails that many concurrent
+ * fetches outright (status 0) instead of queueing them. A network error answers status 0.
+ */
+function fetchProbes(page: Page, probes: string[]): Promise<Array<{url: string; status: number; body: string}>> {
+  return page.evaluate(async (urls) => {
+    const answers: Array<{url: string; status: number; body: string}> = []
+    for (let start = 0; start < urls.length; start += 100) {
+      answers.push(...await Promise.all(urls.slice(start, start + 100).map(async (url) => {
+        try {
+          const response = await fetch(url, {cache: 'no-store'})
+          return {url, status: response.status, body: await response.text()}
+        } catch {
+          return {url, status: 0, body: ''}
+        }
+      })))
+    }
+    return answers
+  }, probes)
+}
+
 // H01 (adversarial review): the old image route tested the whole URL, so
 // /feed.json?preview=/images/books/ was cached CacheFirst and replayed after the origin closed, with
-// no origin read. Every gated URL -- the five site paths and every CloudFront export, focus.json
+// no origin read. Every gated URL -- the site paths (the five proxy routes and the nine developer API
+// paths) and every CloudFront export, focus.json
 // included -- is fetched here through the REAL worker with every probe query string and fragment:
 // first while the origin is open, then with the gate closed (503), then with the origin down. No
 // answer after the first may carry the open-gate marker, every closed-gate fetch must reach the
@@ -196,7 +219,8 @@ test('no gated URL is replayed from a cache, whatever query string or fragment i
   const MARKER = 'GATED_BEFORE_HIDING'
   const siteOrigin = new URL([...GATED_URLS].find((url) => !url.startsWith(CLOUDFRONT_BASE))!).origin
   const sitePaths = [...new Set([...GATED_URLS].filter((url) => url.startsWith(siteOrigin)).map((url) => new URL(url).pathname))]
-  expect(sitePaths.sort()).toEqual(['/feed.json', '/feed.xml', '/index.md', '/llms-full.txt', '/llms.txt'])
+  const apiPaths = Object.values(ENDPOINTS).map((path) => `/api/v1${path}`)
+  expect(sitePaths.sort()).toEqual([...apiPaths, '/feed.json', '/feed.xml', '/index.md', '/llms-full.txt', '/llms.txt'].sort())
   // Site probes go to this server; CloudFront probes stay on CloudFront (answered by context.route).
   const probes = [...GATED_URLS].map((url) => url.startsWith(siteOrigin) ? `${server.origin}${url.slice(siteOrigin.length)}` : url)
   const siteProbes = probes.filter((url) => url.startsWith(server.origin))
@@ -204,16 +228,7 @@ test('no gated URL is replayed from a cache, whatever query string or fragment i
   expect(siteProbes.some((url) => url.endsWith('/feed.json?preview=/images/books/'))).toBe(true)
   expect(cloudfrontProbes.some((url) => url.endsWith('/focus.json?preview=/images/books/'))).toBe(true)
 
-  const fetchAll = () =>
-    page.evaluate((urls) =>
-      Promise.all(urls.map(async (url) => {
-        try {
-          const response = await fetch(url, {cache: 'no-store'})
-          return {url, status: response.status, body: await response.text()}
-        } catch {
-          return {url, status: 0, body: ''}
-        }
-      })), probes)
+  const fetchAll = () => fetchProbes(page, probes)
   const setSiteAnswer = (status: number, body: string) => {
     for (const path of sitePaths) {
       server.overrides.set(path, {status, type: 'text/plain; charset=utf-8', body})
@@ -263,7 +278,7 @@ test('no gated URL is replayed from a cache, whatever query string or fragment i
 // origin that decodes %2F and %5C and resolves `..`, /images/books/..%2F..%2Ffeed.json is the gated
 // feed, and the open-ended route cached it in local-images-v2 and replayed it with the gate closed.
 // This server now decodes like that origin. Every encoded-slash, dot-segment and backslash escape of
-// both image roots, aimed at each of the five site paths, is fetched open, closed and down.
+// both image roots, aimed at each gated site path, is fetched open, closed and down.
 test('no path escape under an image root is cached, even on an origin that decodes it', async ({page}) => {
   const MARKER = 'GATED_BEFORE_HIDING'
   const siteOrigin = new URL([...GATED_URLS].find((url) => !url.startsWith(CLOUDFRONT_BASE))!).origin
@@ -285,16 +300,7 @@ test('no path escape under an image root is cached, even on an origin that decod
   expect(siteProbes).toContain(`${server.origin}/images/books/..%2F..%2Ffeed.json;x.avif`)
   expect(cloudfrontProbes).toContain(`${CLOUDFRONT_BASE}/images/books/..%2F..%2Ffocus.json`)
 
-  const fetchAll = () =>
-    page.evaluate((urls) =>
-      Promise.all(urls.map(async (url) => {
-        try {
-          const response = await fetch(url, {cache: 'no-store'})
-          return {url, status: response.status, body: await response.text()}
-        } catch {
-          return {url, status: 0, body: ''}
-        }
-      })), probes)
+  const fetchAll = () => fetchProbes(page, probes)
   const setSiteAnswer = (status: number, body: string) => {
     for (const path of sitePaths) {
       server.overrides.set(path, {status, type: 'text/plain; charset=utf-8', body})

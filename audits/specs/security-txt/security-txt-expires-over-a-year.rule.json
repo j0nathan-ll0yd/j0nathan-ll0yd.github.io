@@ -1,0 +1,86 @@
+{
+  "id": "security-txt-expires-over-a-year",
+  "title": "Expires should be less than a year into the future",
+  "artifact": "security.txt",
+  "rule_class": "local-policy",
+  "severity": "warn",
+  "rationale": "RFC 9116 §2.5.5 RECOMMENDS an Expires value less than a year ahead, to avoid staleness. A RECOMMENDED is not a MUST, so this rule is local policy at severity warn: the check reports it and does not fail on it. It closes OQ5, which security-txt-expiring-soon's policy_note deferred.",
+  "derivedFrom": {
+    "source": "RFC 9116",
+    "clause": "§2.5.5",
+    "url": "https://www.rfc-editor.org/rfc/rfc9116",
+    "version": "RFC 9116 (April 2022)",
+    "quote": "It is RECOMMENDED that the value of this field be less than a year into the future to avoid staleness.",
+    "pinnedAt": "https://www.rfc-editor.org/rfc/rfc9116.txt",
+    "retrieved": "2026-10-29",
+    "content_sha256": "b9c46a7d3270a09dbbe31778125bbebd4a14dee2290932f996895846906cddd2"
+  },
+  "policy_note": "'A year' is one calendar year after the evaluation instant, in UTC, as sectxt computes it with relativedelta(years=1): 29 February plus a year is 28 February, not 1 March. The comparison is strict (>), so a value exactly one calendar year ahead passes, matching sectxt's long_expiry test. The rule applies only to an Expires value that passes security-txt-expires-format and is at least params.minDaysRemaining days ahead, so it never fires beside security-txt-expired or security-txt-expiring-soon.",
+  "applicability": "A security.txt body whose first Expires value is an RFC 3339 date-time at least params.minDaysRemaining days after the evaluation instant.",
+  "expectation": "The parsed Expires instant is not later than the evaluation instant plus one calendar year (UTC, 29 February clamped to 28 February).",
+  "cases": [
+    {
+      "name": "one second past one calendar year",
+      "outcome": "failed",
+      "input_file": "cases/expires-one-year-plus-1s.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-over-a-year",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "400 days out",
+      "outcome": "failed",
+      "input_file": "cases/expires-400d.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-over-a-year",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "from 29 February, 1 March next year is past the clamped 28 February",
+      "outcome": "failed",
+      "input_file": "cases/leap-day-year-plus-one-day.txt",
+      "input_kind": "text",
+      "now": "2028-02-29T00:00:00.000Z",
+      "expect": [
+        {
+          "id": "security-txt-expires-over-a-year",
+          "severity": "warn"
+        }
+      ]
+    },
+    {
+      "name": "exactly one calendar year passes -- the comparison is strict (>)",
+      "outcome": "passed",
+      "input_file": "cases/expires-one-year.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "from 29 February, 28 February next year is exactly one calendar year",
+      "outcome": "passed",
+      "input_file": "cases/leap-day-exact-year.txt",
+      "input_kind": "text",
+      "now": "2028-02-29T00:00:00.000Z",
+      "expect": []
+    },
+    {
+      "name": "339 days out",
+      "outcome": "passed",
+      "input_file": "cases/valid.txt",
+      "input_kind": "text",
+      "now": "2026-07-16T00:00:00.000Z",
+      "expect": []
+    }
+  ]
+}

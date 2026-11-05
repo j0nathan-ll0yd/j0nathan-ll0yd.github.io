@@ -8,14 +8,15 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {
   type ArtifactFacts,
+  type CheckedValueFreePage,
   type CheckedValueFreeSet,
   COMPOSED_FRAGMENT_IDS,
   type ComposedArtifact,
   type ComposedFragmentId,
   GATE_VARIANT,
-  UNREADABLE_VARIANT,
-  type ValueFreeEntry
+  UNREADABLE_VARIANT
 } from '../../src/lib/composed/artifact'
+import type {PublishedRead} from '../../src/lib/composed/published'
 import type {ComposedRead} from '../../src/lib/composed/read'
 import type {Shell} from '../../src/lib/composed/shell'
 import {
@@ -80,10 +81,10 @@ function fragmentsOf(label: string, scope = SCOPE): Record<ComposedFragmentId, s
   return Object.fromEntries(COMPOSED_FRAGMENT_IDS.map((id) => [id, `<div id="${id}" ${scope}>${label}</div>`])) as Record<ComposedFragmentId, string>
 }
 
-/** A value-free variant whose fragments the Worker already checked (src/lib/composed/artifact.ts checkedVariant). */
-function checkedEntry(summary: 'suppressed' | 'unavailable', label: string, scope = SCOPE, ids?: string[]): ValueFreeEntry {
+/** A value-free variant as the Worker holds it: checked by the build and compiled in (src/lib/composed/value-free.ts). */
+function checkedEntry(summary: 'suppressed' | 'unavailable', label: string, scope = SCOPE, ids?: string[]): CheckedValueFreePage {
   const page = {summary, fragments: fragmentsOf(label, scope)}
-  return {page, checked: {...page, facts: factsOf(scope, ids)}}
+  return {...page, facts: factsOf(scope, ids)}
 }
 
 /** The build's value-free set: one page per hiding value, the gate and an unreadable focus. */
@@ -208,8 +209,8 @@ describe('GET /: the data-free page, with an honest summary', () => {
 })
 
 describe('GET /: the value-free pages', () => {
-  function withValueFree(read: ComposedRead, set: ValueFreeSet | null = VALUE_FREE): DashboardRenderDeps {
-    return {...deps(async () => read).deps, valueFree: async () => set}
+  function withValueFree(read: ComposedRead, set: CheckedValueFreeSet | null = VALUE_FREE): DashboardRenderDeps {
+    return {...deps(async () => read).deps, valueFree: () => set}
   }
 
   // covers: dashboard-ssr#A hiding or unreadable focus value answers the build's value-free page
@@ -239,7 +240,7 @@ describe('GET /: the value-free pages', () => {
   })
 
   it('refuses a value-free page whose scoped-style hash the website does not carry', async () => {
-    const foreign: ValueFreeSet = {
+    const foreign: CheckedValueFreeSet = {
       ...VALUE_FREE,
       variants: {...VALUE_FREE.variants, Work: checkedEntry('suppressed', 'work-overlay', 'data-astro-cid-zzzzzzzz')}
     }
@@ -347,11 +348,177 @@ describe('GET /: the fragment allowlist (review 2026-10-16, H1)', () => {
       ...VALUE_FREE,
       variants: {...VALUE_FREE.variants, Work: checkedEntry('suppressed', 'work-overlay', SCOPE, [SHELL_ID])}
     }
-    const response = await renderDashboard(REQUEST, {
-      ...deps(async () => ({kind: 'suppressed', currentFocus: 'Work'})).deps,
-      valueFree: async () => clobbering
-    })
+    const response = await renderDashboard(REQUEST, {...deps(async () => ({kind: 'suppressed', currentFocus: 'Work'})).deps, valueFree: () => clobbering})
     expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
     expect(await response.text()).toBe('data-free page')
+  })
+})
+
+describe('GET /: the log line times both legs of the concurrent read (soak fix, 2026-10-17)', () => {
+  // covers: dashboard-ssr#The Worker's read spends its whole budget on the focus probe and the artifact
+  it('logs focus_ms and artifact_ms for a composed answer', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf(), timing: {focusMs: 210, artifactMs: 340}}))
+    await renderDashboard(REQUEST, d)
+    expect(logLines(info)[0]).toMatchObject({served: 'composed', focus_ms: 210, artifact_ms: 340})
+  })
+
+  it('logs focus_ms alone when the read stopped at the focus probe', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = deps(async () => ({kind: 'focus-unreadable', timing: {focusMs: 2_000, artifactMs: null}}))
+    await renderDashboard(REQUEST, d)
+    const [line] = logLines(info)
+    expect(line).toMatchObject({summary: 'unavailable', focus_ms: 2_000})
+    expect(line).not.toHaveProperty('artifact_ms')
+  })
+})
+
+describe('GET /: the published page (atlas decision 0164, Variant D)', () => {
+  function published(read: () => Promise<PublishedRead>): {calls: Calls; deps: DashboardRenderDeps} {
+    const base = deps(async () => {
+      throw new Error('the composed artifact must not be read on the published path')
+    })
+    return {calls: base.calls, deps: {...base.deps, valueFree: () => VALUE_FREE, published: {read, shell: SHELL}}}
+  }
+  const TIMING = {focusMs: 3, fragmentsMs: 4}
+
+  // covers: dashboard-ssr#Gated page data rests only in KV, for at most 690 s
+  it('splices the published fragments into the compiled shell, no-store, and logs the KV fields', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {calls, deps: d} = published(async () => ({
+      kind: 'ok',
+      fragments: fragmentsOf('kv-value'),
+      summary: 'live',
+      focusAgeMs: 20_000,
+      fragmentsAgeMs: 90_000,
+      proof: 'focus-key',
+      timing: TIMING
+    }))
+    const response = await renderDashboard(REQUEST, d)
+    const body = await response.text()
+    expect(response.status).toBe(200)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('live')
+    for (const [name, value] of COMPOSED_CACHE_HEADERS) {
+      expect(response.headers.get(name), name).toBe(value)
+    }
+    expect(response.headers.get('ETag')).toBeNull()
+    expect(body).toContain('<meta name="ssr-data" content="live">')
+    expect(body).toContain('kv-value')
+    expect(calls.reads).toBe(0)
+    expect(calls.assets).toEqual([])
+    const [line] = logLines(info)
+    expect(line).toMatchObject({
+      served: 'published',
+      read_path: 'published',
+      focus_read: 'visible',
+      summary: 'live',
+      focus_kv_ms: 3,
+      fragments_kv_ms: 4,
+      focus_age_ms: 20_000,
+      fragments_age_ms: 90_000,
+      visibility_proof: 'focus-key'
+    })
+    expect(JSON.stringify(line)).not.toContain('kv-value')
+  })
+
+  // covers: dashboard-ssr#Each render logs one value-free line
+  it('names the fragments as the proof when they admitted the answer under an old visible focus value', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = published(async () => ({
+      kind: 'ok',
+      fragments: fragmentsOf('kv-value'),
+      summary: 'stale',
+      focusAgeMs: 86_400_000,
+      fragmentsAgeMs: 90_000,
+      proof: 'fragments',
+      timing: TIMING
+    }))
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('stale')
+    expect(logLines(info)[0]).toMatchObject({served: 'published', focus_read: 'visible', visibility_proof: 'fragments', focus_age_ms: 86_400_000})
+  })
+
+  it('answers the hiding value-free page from the build, never the fragments', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = published(async () => ({kind: 'hiding', currentFocus: 'Work', focusAgeMs: 5_000, timing: {focusMs: 2, fragmentsMs: null}}))
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('suppressed')
+    expect(await response.text()).toContain('work-overlay')
+    const [line] = logLines(info)
+    expect(line).toMatchObject({served: 'value-free', focus_read: 'hiding', artifact: 'published:not-used', focus_kv_ms: 2})
+    expect(line).not.toHaveProperty('fragments_kv_ms')
+    expect(JSON.stringify(line)).not.toContain('Work')
+  })
+
+  it('fails closed to the unreadable value-free page', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = published(async () => ({kind: 'focus-unreadable', reason: 'focus-stale', timing: {focusMs: 2, fragmentsMs: null}}))
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('unavailable')
+    expect(await response.text()).toContain('all-unavailable')
+    expect(logLines(info)[0]).toMatchObject({served: 'value-free', focus_read: 'unreadable', artifact: 'published:focus-stale'})
+  })
+
+  it('names why the fragments did not prove visibility under an old visible focus value, and names no proof', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const {deps: d} = published(async () => ({kind: 'focus-unreadable', reason: 'focus-stale', detail: 'summary-suppressed', timing: TIMING}))
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('unavailable')
+    const [line] = logLines(info)
+    expect(line).toMatchObject({served: 'value-free', focus_read: 'unreadable', artifact: 'published:focus-stale:summary-suppressed', fragments_kv_ms: 4})
+    expect(line).not.toHaveProperty('visibility_proof')
+  })
+
+  it.each(['fragments-missing', 'fragments-build', 'fragments-stale', 'fragments-shape', 'shell-misfit'] as const)(
+    'serves the data-free page as fallback for %s',
+    async (reason) => {
+      const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+      const {deps: d} = published(async () => ({kind: 'refused', reason, focusAgeMs: 1_000, timing: TIMING}))
+      const response = await renderDashboard(REQUEST, d)
+      expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
+      expect(response.headers.get('Cache-Control')).toBe('no-cache')
+      expect(await response.text()).toBe('data-free page')
+      expect(logLines(info)[0]).toMatchObject({served: 'data-free', artifact: `published:${reason}`})
+    }
+  )
+
+  it('a read that stalls ends at the ceiling with the data-free page, named in the log', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const base = published(() => new Promise<PublishedRead>(() => {}))
+    const response = await renderDashboard(REQUEST, {...base.deps, ceilingMs: 20})
+    expect(response.status).toBe(200)
+    expect(response.headers.get(SSR_DATA_HEADER)).toBe('fallback')
+    expect(await response.text()).toBe('data-free page')
+    expect(logLines(info)[0]).toMatchObject({served: 'data-free', artifact: 'ceiling', read_path: 'published'})
+  })
+
+  it('answers the 500 page when the read throws', async () => {
+    const {deps: d} = published(async () => {
+      throw new TypeError('kv down')
+    })
+    const response = await renderDashboard(REQUEST, d)
+    expect(response.status).toBe(500)
+  })
+})
+
+describe('GET /: isolate_first marks the first answer on an isolate (atlas decision 0164 soak gate)', () => {
+  // covers: dashboard-ssr#Each render logs one value-free line
+  it('is true on the first GET / of a fresh module and false after, on the old and the published path', async () => {
+    vi.resetModules()
+    const fresh = await import('../../src/lib/data-plane/ssr-response')
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    await fresh.headDashboard(deps(async () => ({kind: 'unavailable', status: 502})).deps)
+    await fresh.renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf()})).deps)
+    const publishedDeps = {
+      ...deps(async () => ({kind: 'unavailable', status: 502})).deps,
+      published: {
+        read: async (): Promise<PublishedRead> => ({kind: 'refused', reason: 'fragments-missing', focusAgeMs: 0, timing: {focusMs: 1, fragmentsMs: 1}}),
+        shell: SHELL
+      }
+    }
+    await fresh.renderDashboard(REQUEST, publishedDeps)
+    await fresh.renderDashboard(REQUEST, deps(async () => ({kind: 'ok', artifact: artifact(), facts: factsOf()})).deps)
+    // HEAD / renders nothing and writes no line, so the first GET is still the isolate's first.
+    expect(logLines(info).map((line) => line.isolate_first)).toEqual([true, false, false])
   })
 })

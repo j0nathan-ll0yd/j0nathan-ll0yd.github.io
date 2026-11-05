@@ -23,6 +23,7 @@
 import {appendFileSync} from 'node:fs'
 import {lookup} from 'node:dns/promises'
 import {SITE_RUNTIME, SITE_RUNTIME_HEADER} from '../src/lib/edge/security-headers.ts'
+import {isMainModule} from './lib/main-module.mjs'
 
 const TIMEOUT_MS = 15_000
 
@@ -122,6 +123,6 @@ async function main() {
   process.exit(verdict === 'pass' ? 0 : verdict === 'fail' ? 1 : unmeasuredOk ? 0 : 3)
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isMainModule(import.meta.url)) {
   await main()
 }
