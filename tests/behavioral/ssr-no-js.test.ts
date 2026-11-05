@@ -10,6 +10,7 @@ import {legacyMarkers, RETIRED_OVERLAY_ROWS} from '../shared/legacy-markers'
 import {headFactsOf, prerenderedIndexHtml, visibleTextOf} from '../shared/ssr-page'
 import {READING_LINKS} from '../../src/lib/composed/reading-option'
 import {bookUrl} from '../shared/book-url'
+import {expectRowsFailVisible} from '../shared/fail-visible'
 
 /** The files that stand for the published KV values, which the Worker reads instead of any export. */
 const PUBLISHED_PATHS: ReadonlySet<string> = new Set(Object.values(PUBLISHED_FILES))
@@ -176,6 +177,7 @@ test.describe('server render with JavaScript off: known-answer projections', () 
       await expect(tile.locator('a')).toHaveCount(1)
       await expect(tile.locator('.shelf-cover-wrapper img')).toHaveAttribute('alt', '')
     }
+    await expectRowsFailVisible(tiles, 'no-JS bookshelf')
   })
 
   // The design system's ReadingFeed server markup (web 4.3.0, DS #312): one client page of at most
@@ -211,6 +213,7 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     // The known-answer articles carry no notes; the withNotes variation below does.
     await expect(page.locator('#cardReading .article-list-note')).toHaveCount(0)
     await expect(pager).toHaveCount(0)
+    await expectRowsFailVisible(rows, 'no-JS known answer')
 
     const noted = JSON.parse(readFileSync(fixture('articles', 'withNotes'), 'utf8')).articles as {notes: {comment: string}[] | null}[]
     await serveFixtures({[ENDPOINTS.articles]: fixture('articles', 'withNotes')})
@@ -225,6 +228,7 @@ test.describe('server render with JavaScript off: known-answer projections', () 
     await expect(rows, 'forty exported articles render one client page of ten').toHaveCount(10)
     await expect(links).toHaveCount(READING_LINKS === 'allow' ? 10 : 0)
     await expect(pager).toHaveCount(0)
+    await expectRowsFailVisible(rows, 'no-JS forty articles')
   })
 
   test('sorts as the widgets document, whatever order the export arrives in', async ({page}) => {

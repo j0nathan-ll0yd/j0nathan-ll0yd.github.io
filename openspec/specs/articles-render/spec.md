@@ -20,7 +20,7 @@ While the articles request is pending, the system SHALL keep the Reading Feed ca
 presentation. The data-free fallback page (`dashboard-shell`), which the Worker serves when a server
 render misses its budget (`dashboard-ssr`), renders no items, so the card shows only its skeleton and a
 hidden, empty scaffold until fresh data arrives.
-Verified by `tests/behavioral/articles-matrix.test.ts:18`.
+Verified by `tests/behavioral/articles-matrix.test.ts:19`.
 
 #### Scenario: The feed stays in its loading presentation while articles.json is outstanding
 
@@ -32,7 +32,7 @@ Verified by `tests/behavioral/articles-matrix.test.ts:18`.
 
 When the articles export contains no articles, the system SHALL display the Reading Feed empty
 message and SHALL NOT render article rows or pagination.
-Verified by `tests/behavioral/articles-matrix.test.ts:30`.
+Verified by `tests/behavioral/articles-matrix.test.ts:31`.
 
 #### Scenario: An empty export shows the empty message and no rows
 
@@ -46,7 +46,7 @@ Verified by `tests/behavioral/articles-matrix.test.ts:30`.
 When the baseline articles fixture is served, the system SHALL render one row per article carrying
 its title, its parenthetical source, and a safe outbound link, and SHALL omit pagination for a
 single-page feed.
-Verified by `tests/behavioral/articles-matrix.test.ts:42`.
+Verified by `tests/behavioral/articles-matrix.test.ts:43`.
 
 #### Scenario: A five-article export renders five sourced rows and no pager
 
@@ -62,7 +62,7 @@ Verified by `tests/behavioral/articles-matrix.test.ts:42`.
 When an article carries no title, the system SHALL render its source in the title slot so the row
 never renders blank, and SHALL suppress that row's parenthetical source so the same string is not
 printed twice.
-Verified by `tests/behavioral/articles-matrix.test.ts:66`.
+Verified by `tests/behavioral/articles-matrix.test.ts:68`.
 
 #### Scenario: A mixed export renders untitled rows by source and keeps the titled row sourced
 
@@ -77,7 +77,7 @@ Verified by `tests/behavioral/articles-matrix.test.ts:66`.
 
 When an article carries reader notes, the system SHALL render a note affordance on that row whose
 text carries every note comment joined together, rather than one affordance per comment.
-Verified by `tests/behavioral/articles-matrix.test.ts:83`.
+Verified by `tests/behavioral/articles-matrix.test.ts:85`.
 
 #### Scenario: A three-article annotated export renders one affordance per row
 
@@ -92,7 +92,7 @@ Verified by `tests/behavioral/articles-matrix.test.ts:83`.
 When the feed holds more articles than one page, the system SHALL render ten rows per page with one
 button per page, marking the current page, and SHALL swap the rendered slice when another page is
 selected.
-Verified by `tests/behavioral/articles-matrix.test.ts:97`.
+Verified by `tests/behavioral/articles-matrix.test.ts:99`.
 
 #### Scenario: A twenty-five-article export pages ten, ten and five
 
@@ -107,7 +107,7 @@ Verified by `tests/behavioral/articles-matrix.test.ts:97`.
 When the export holds more than thirty articles, the system SHALL sort them by save time, newest
 first, and SHALL retain only the first thirty of that ordering, dropping the remainder before
 paginating.
-Verified by `tests/behavioral/articles-matrix.test.ts:118`.
+Verified by `tests/behavioral/articles-matrix.test.ts:123`.
 
 #### Scenario: A forty-article export renders exactly three pages ending at the thirtieth
 

@@ -32,10 +32,10 @@ importers:
         version: 2.4.2
       '@j0nathan-ll0yd/tokens':
         specifier: ^2.2.2
-        version: 2.2.2
+        version: 2.3.1
       '@j0nathan-ll0yd/web':
-        specifier: 4.6.0
-        version: 4.6.0
+        specifier: 4.6.2
+        version: 4.6.2
       '@modelcontextprotocol/server':
         specifier: 2.3.1
         version: 2.3.1
@@ -65,8 +65,8 @@ importers:
         specifier: 0.17.0
         version: 0.17.0(typescript@5.9.3)
       '@j0nathan-ll0yd/fixtures':
-        specifier: 1.6.6
-        version: 1.6.6
+        specifier: 1.6.8
+        version: 1.6.8
       '@lhci/cli':
         specifier: ^0.15.1
         version: 0.15.1(supports-color@10.2.2)
@@ -1908,8 +1908,8 @@ packages:
     peerDependencies:
       typescript: 5.9.2 || 5.9.3 || 6.0.3
 
-  '@j0nathan-ll0yd/fixtures@1.6.6':
-    resolution: {integrity: sha512-6cZ92SPqXo5GWmj8KI4eAIJ1n1lcd6YgGmHdKSpT3CG9MjUcoFkqtTtiT2hGZoa5kS2zgLiOnO9Zep0ZDkVM6Q==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.6.6/1aad49f667ae66eb926fa6fb7465bd48d08ebfdb}
+  '@j0nathan-ll0yd/fixtures@1.6.8':
+    resolution: {integrity: sha512-fVTumE3QiyOcu+elhxjbVPQZdxtTwBfY2aHZFf7i7a4VX6P5fx7GsBs8ujX2qVM9sexI4bmQjuiwImlnYziRSA==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/fixtures/1.6.8/6bcb10f725d100b1e7ed37d63703e6e9e6243725}
 
   '@j0nathan-ll0yd/observability@1.1.1':
     resolution: {integrity: sha512-ReKQzkdlEShtrRIY1wDJk20DTrav7mvN5uatQB7t5vIOdmBHGZAHmRN+jq8GWN0anEITw3v958oR1sX5g0E5Ow==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/observability/1.1.1/e27aee3cae2d05c9497cde8c7c10b2a0db48f7c4}
@@ -1923,11 +1923,11 @@ packages:
   '@j0nathan-ll0yd/schemas@3.0.0':
     resolution: {integrity: sha512-z3thbOqiRYoFgpGC3prpdJP1kVOxfpswnKAU7lPNzvBlVE6ifW3bIdNFnc+3yeiMdjH3cq9s3KuT96C71xqK0g==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/schemas/3.0.0/1ecbedb827c3acc86c20af13ba33ca775c13100d}
 
-  '@j0nathan-ll0yd/tokens@2.2.2':
-    resolution: {integrity: sha512-Rs5Wr2hNURSIqGqWIUDwKmP0ATmllJNi+8iAqQdcuNWEBQzOtJrM2vty1FjIzi3KWGvS6I7k5QE2oBQUmVJCDQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.2.2/4cff4bda993df028214628cf2333f004583a05a6}
+  '@j0nathan-ll0yd/tokens@2.3.1':
+    resolution: {integrity: sha512-5UGAwuGbkdGtq3eO9pIWe82qwlxlxPAXQqYBg7Eq6hEXWbQMfDLq1E+uBxKT2Eypuy80RIvnU92ncNBYzgyhwQ==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/tokens/2.3.1/feda5d0e04972ccf7f3493df3e78a0dcf0206346}
 
-  '@j0nathan-ll0yd/web@4.6.0':
-    resolution: {integrity: sha512-kbUYBCZdhdeWjfxFzoTOcezq5i1q5QJm4Ys7+ZAgRx2RDRGs2f2NjcMyR2iIutfU9W7YurJClPik0IsmrYhI5w==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.6.0/ff5381509f5018ccf6bd5e09599c24efa116c124}
+  '@j0nathan-ll0yd/web@4.6.2':
+    resolution: {integrity: sha512-9+5VMqbb2GBnZwepUBQl2kbBmvsvuOg8AZa+1Il2lZZglwRQTP+iGDTjNee+ssr+GA/D71u1oACjd7xOckMWUg==, tarball: https://npm.pkg.github.com/download/@j0nathan-ll0yd/web/4.6.2/6930cdce16f13d85b5c260e5a2401f210ad45763}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -7986,12 +7986,12 @@ snapshots:
       typescript: 5.9.3
       zod: 4.6.7
 
-  '@j0nathan-ll0yd/fixtures@1.6.6':
+  '@j0nathan-ll0yd/fixtures@1.6.8':
     dependencies:
       '@j0nathan-ll0yd/copy': 4.4.0
       '@j0nathan-ll0yd/portal-contract': 2.8.0
       '@j0nathan-ll0yd/schemas': 3.0.0
-      '@j0nathan-ll0yd/web': 4.6.0
+      '@j0nathan-ll0yd/web': 4.6.2
 
   '@j0nathan-ll0yd/observability@1.1.1':
     dependencies:
@@ -8019,13 +8019,13 @@ snapshots:
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
 
-  '@j0nathan-ll0yd/tokens@2.2.2': {}
+  '@j0nathan-ll0yd/tokens@2.3.1': {}
 
-  '@j0nathan-ll0yd/web@4.6.0':
+  '@j0nathan-ll0yd/web@4.6.2':
     dependencies:
       '@j0nathan-ll0yd/copy': 4.4.0
       '@j0nathan-ll0yd/portal-contract': 2.8.0
-      '@j0nathan-ll0yd/tokens': 2.2.2
+      '@j0nathan-ll0yd/tokens': 2.3.1
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

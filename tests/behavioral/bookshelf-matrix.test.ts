@@ -5,6 +5,7 @@ import {bookUrl} from '../shared/book-url'
 import {FIXTURE_NOW_ISO} from '../data-plane/baseline'
 import {expectNoNewAxeViolations} from './a11y'
 import {expectLiveReady, serveDataFreePage, syncServerPlane} from './dashboard-fixtures'
+import {expectRowsFailVisible} from '../shared/fail-visible'
 
 const require = createRequire(import.meta.url)
 
@@ -91,6 +92,7 @@ test.describe('Bookshelf Render Conformance', () => {
     await expect(page.locator('#cardBooks .shelf-status-finished')).toHaveCount(3)
     await expect(page.locator('#cardBooks')).toContainText('The Tainted Cup')
     await expect(page.locator('#cardBooks')).toContainText('Crafting Engineering Strategy')
+    await expectRowsFailVisible(page.locator('#cardBooks .shelf-book'), 'bookshelf baseline')
 
     await expectNoNewAxeViolations(page, 'bookshelf/baseline')
   })
