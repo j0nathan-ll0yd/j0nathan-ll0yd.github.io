@@ -458,6 +458,18 @@ jobs:
         # report-only) -- ratchet or ship-fix per Phase 6 bake-in, don't silently
         # loosen them.
         #
+        # Lighthouse 13 loosened the performance budget, so
+        # document-latency-insight (minScore 1) restores the lost detection. Same
+        # built site served without compression, 3 runs: 12.6.1 scored 0.82-0.83 and
+        # failed the 0.90 budget; 13.6.0 scored 0.98-0.99 and passed it, because the
+        # Lantern simulation changed. The insight scores 1 with compression and 0.5
+        # without. It also fails on a redirect or a server response above 600 ms.
+        # Weights also moved from 12.6.1 to 13.6.0. Accessibility: aria-roles 7 -> 10,
+        # landmark-one-main added at 3, aria-allowed-role and image-redundant-alt
+        # removed (each 1). Best Practices: viewport and font-size removed (each 1).
+        # The first live weekly run on Lighthouse 13 must be re-measured against all
+        # of these budgets.
+        #
         # best-practices is the ONE exception, held at 0.90 with an expiry:
         #
         # Measured ceiling. Once B3 could complete at all (#212), best-practices

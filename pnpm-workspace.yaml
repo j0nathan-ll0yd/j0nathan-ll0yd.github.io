@@ -19,11 +19,17 @@ overrides:
   # 7.30.1 is the highest patched version on the 7.x line in all eight records.
   # miniflare 5.20261006.1-alpha pins `undici: 7.29.1` exactly, and
   # @cloudflare/vite-plugin 1.63.1 and wrangler 4.149.0 pin that miniflare exactly.
-  # miniflare 5.20261103.0-beta pins 7.30.1 itself. The refresh in range (vite-plugin
-  # 1.67.0, wrangler 4.157.0) also clears it, but it adds `upload_source_maps` and a
-  # source map for each chunk to dist, so it is a production change and needs its own
-  # review. The 6.x and 8.x lines are out of this selector. Drop once `pnpm why undici`
-  # shows no 7.x below 7.30.1 without this entry.
+  # The first miniflare to pin 7.30.1 is 5.20261023.0-beta, with wrangler 4.153.0 and
+  # vite-plugin 1.66.0. This selector reaches only miniflare's copy: wrangler 4.149.0
+  # bundles undici 7.29.1 in `wrangler-dist/cli.js` and vite-plugin 1.63.1 bundles it
+  # in `dist/index.mjs`, so `wrangler deploy` and `wrangler versions upload` still run
+  # 7.29.1. A refresh clears those copies but changes dist. Updating wrangler alone
+  # to 4.157.0 renames dist chunks. Updating vite-plugin to 1.67.0 with it adds
+  # `upload_source_maps`, publishes `dist/client/sw.js.map` and
+  # `dist/client/workbox-677d7057.js.map`, adds `sourceMappingURL` lines and adds a
+  # source map for each chunk. The owner decides that change separately. The 6.x and
+  # 8.x lines are out of this selector. Drop once `pnpm why undici` shows no 7.x below
+  # 7.30.1 without this entry.
   undici@>=7.0.0 <7.30.1: ^7.30.1
   # Security: brace-expansion 2.x < 2.1.7 is GHSA-q2hr-2g5m-vwhr. Pulled by
   # minimatch 5.1.9 < filelist < jake < ejs < workbox-build (vite-plugin-pwa).
@@ -36,10 +42,11 @@ overrides:
   # highest patched version. typed-rest-client 2.3.1 (via @stryker-mutator/core
   # 9.6.1, `~2.3.0`; Stryker 10.0.0 keeps that range) pins `qs: 6.15.1` exactly, and
   # express 4.22.3 and its body-parser 1.20.9 (via @lhci/cli) declare `~6.16.0`. The
-  # caret resolves a later 6.x minor of the same API, so `lhci collect` (express) is
-  # the check. Drop once `pnpm why qs` resolves >=6.16.1 without this entry, i.e.
-  # typed-rest-client, express and body-parser all admit it.
-  qs@>=6.0.0 <6.16.1: ^6.16.1
+  # target is a tilde, not a caret, so the override stays inside `~6.16.0`: a caret
+  # resolves 6.17.x, outside what express and body-parser declare. Drop once
+  # `pnpm why qs` resolves >=6.16.1 without this entry, i.e. typed-rest-client,
+  # express and body-parser all admit it.
+  qs@>=6.0.0 <6.16.1: ~6.16.1
   # Security: basic-ftp <= 6.2.0 is GHSA-c475-qrg2-pj4r (reported by pnpm audit;
   # no Dependabot alert yet). Pulled by get-uri 6.0.5 (`^5.0.2`) < pac-proxy-agent
   # < proxy-agent (@lhci/cli, @puppeteer/browsers); even the latest get-uri
