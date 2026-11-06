@@ -290,7 +290,10 @@ The stylesheets `/` loads SHALL carry every keyframe they name (`@j0nathan-ll0yd
 `prefers-reduced-motion: no-preference`, each `.live-dot` and `.sys-dot` SHALL run `dotPulse`, and
 `.id-name` SHALL run `glowPulse`. A `.live-dot` in a card whose data state is `loading`, `stale`,
 `unavailable` or `suppressed` SHALL NOT pulse, because nothing in it is live. Each Reading Feed row
-SHALL run a finite `fadeSlideRight` entry, which restarts when the runtime repaints the row.
+SHALL run a finite `fadeSlideRight` entry exactly once on a load. The runtime's startup repaint of
+server-rendered rows (`src/lib/runtime/live-data.ts`) replaces those nodes, so it SHALL wait for the
+server rows' entries to end and the rows it writes SHALL run none. A later page change writes new
+rows, and each of them SHALL run its entry.
 A loading skeleton bar SHALL run `shimmerSlide` on its `::after`.
 
 Under `prefers-reduced-motion: reduce`, no CSS animation SHALL start on any element or
@@ -300,10 +303,13 @@ so a row whose entry never runs still shows.
 `.id-avatar::after` names `avatarGlowPulse` and paints nothing, because a loaded `<img>` has no
 `::after`. This requirement does not cover it.
 
-Verified by `tests/behavioral/motion.test.ts:91` (the pulses), `tests/behavioral/motion.test.ts:109`
-(the entry, read in flight and cancelled), `tests/behavioral/motion.test.ts:134` (the shimmer),
-`tests/behavioral/motion.test.ts:152` (reduced motion, populated and paged) and
-`tests/behavioral/motion.test.ts:172` (reduced motion, data-free).
+Verified by `tests/behavioral/motion.test.ts:112` (the pulses),
+`tests/behavioral/motion.test.ts:130` (the entry, once per row, read in flight and cancelled),
+`tests/behavioral/motion.test.ts:149` (one entry with no pager to add),
+`tests/behavioral/motion.test.ts:161` (no replay after a slow first read),
+`tests/behavioral/motion.test.ts:182` (one entry when the first read is newer),
+`tests/behavioral/motion.test.ts:197` (the shimmer), `tests/behavioral/motion.test.ts:215` (reduced
+motion, populated and paged) and `tests/behavioral/motion.test.ts:235` (reduced motion, data-free).
 
 #### Scenario: The status dots and the name run their pulse without a reduced-motion preference
 
@@ -319,6 +325,13 @@ Verified by `tests/behavioral/motion.test.ts:91` (the pulses), `tests/behavioral
 - **WHEN** a page of rows renders and each row's entry is cancelled in flight
 - **THEN** each row SHALL have started `fadeSlideRight` with a finite iteration count, and SHALL compute
   `opacity: 1` once it is cancelled
+
+#### Scenario: The startup repaint does not replay a row's entry
+
+- **GIVEN** a server-rendered Reading Feed under `prefers-reduced-motion: no-preference`
+- **WHEN** the first read repaints the rows, while the entries run or after they ended, on an equal
+  or a newer generation
+- **THEN** each row position SHALL fire `animationstart` exactly once
 
 #### Scenario: A loading skeleton draws its shimmer without a reduced-motion preference
 

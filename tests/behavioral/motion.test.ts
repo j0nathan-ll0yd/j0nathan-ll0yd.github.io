@@ -1,6 +1,7 @@
 import {expect, type Page, test} from '@playwright/test'
-import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
-import {expectLiveReady, fixture, interceptBrowserOnly, loadDashboard, serveDataFreePage} from './dashboard-fixtures'
+import {readFileSync} from 'node:fs'
+import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {expectLiveReady, fixture, interceptBrowserOnly, interceptDashboard, loadDashboard, serveDataFreePage} from './dashboard-fixtures'
 import {expectRowsFailVisible} from '../shared/fail-visible'
 
 // Dashboard motion, read from the built site's own stylesheet set (@j0nathan-ll0yd/web 4.7.0, DS #358).
@@ -10,6 +11,12 @@ import {expectRowsFailVisible} from '../shared/fail-visible'
 /** Longer than the longest finite entry on the page, stagger included, so a negative result means none started. */
 const ENTRY_SETTLE_MS = 1500
 
+/** A first read this slow lands after the last of ten staggered entries (0.63 s delay + 0.4 s) has ended. */
+const SLOW_READ_MS = 2000
+
+/** One hour after the fixtures' shared generation (`FIXTURE_NOW_ISO`). */
+const NEWER_THAN_FIXTURES_ISO = '2026-03-18T13:00:00.000Z'
+
 /** The data states that stop a card's live dot (web `components.css`: "nothing is live"). */
 const QUIET_STATES = ['unavailable', 'suppressed', 'stale', 'loading']
 const QUIET_DOTS = QUIET_STATES.map((state) => `.tri-card[data-ssr-state='${state}'] .live-dot`).join(', ')
@@ -18,12 +25,13 @@ const LIVE_DOTS = `.live-dot:not(${QUIET_DOTS})`
 interface StartedAnimation {
   name: string
   iterations: number | null
+  position: number
 }
 
 /** Records every CSS animation that fires `animationstart`, because a finished entry leaves `getAnimations()`. */
 async function recordAnimationStarts(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const log: {name: string; className: string; iterations: number | null}[] = []
+    const log: {name: string; className: string; iterations: number | null; position: number}[] = []
     ;(window as unknown as {__motionLog: typeof log}).__motionLog = log
     document.addEventListener('animationstart', (event) => {
       const target = event.target as Element
@@ -31,7 +39,8 @@ async function recordAnimationStarts(page: Page): Promise<void> {
       log.push({
         name: event.animationName,
         className: target.getAttribute('class') ?? '',
-        iterations: running?.effect?.getComputedTiming().iterations ?? null
+        iterations: running?.effect?.getComputedTiming().iterations ?? null,
+        position: Array.from(target.parentElement?.children ?? []).indexOf(target)
       })
     }, true)
   })
@@ -39,9 +48,21 @@ async function recordAnimationStarts(page: Page): Promise<void> {
 
 async function startedOn(page: Page, classToken: string): Promise<StartedAnimation[]> {
   return page.evaluate((token) => {
-    const log = (window as unknown as {__motionLog: {name: string; className: string; iterations: number | null}[]}).__motionLog
-    return log.filter((entry) => entry.className.split(/\s+/).includes(token)).map(({name, iterations}) => ({name, iterations}))
+    const log = (window as unknown as {__motionLog: {name: string; className: string; iterations: number | null; position: number}[]}).__motionLog
+    return log.filter((entry) => entry.className.split(/\s+/).includes(token)).map(({name, iterations, position}) => ({name, iterations, position}))
   }, classToken)
+}
+
+/** Every row position `0..count-1` started its finite entry exactly once, once `ENTRY_SETTLE_MS` has passed. */
+async function expectEachRowEntersOnce(page: Page, count: number): Promise<void> {
+  await page.waitForTimeout(ENTRY_SETTLE_MS)
+  const started = await startedOn(page, 'article-list-item')
+  expect(started.map((entry) => entry.position).sort((a, b) => a - b), 'the row position of every entry start').toEqual(
+    Array.from({length: count}, (_, i) => i)
+  )
+  for (const entry of started) {
+    expect(entry).toMatchObject({name: 'fadeSlideRight', iterations: 1})
+  }
 }
 
 /** The CSS animation names running now on every element and pseudo-element of the page. */
@@ -114,20 +135,62 @@ test.describe('Dashboard motion', () => {
     const rows = page.locator('#cardReading .article-list-item')
     await expect(rows).toHaveCount(10)
     await expect(page.locator('#cardReading .article-page-btn'), 'the repaint adds the pager').toHaveCount(3)
-    // The runtime repaints a server feed once at hand-off (live-data.ts `repaint.articles`), so a row
-    // that started before the repaint counts twice. Each of the ten final rows starts at least once.
-    await expect.poll(() => startedOn(page, 'article-list-item').then((started) => started.length), {message: 'an entry start per row'})
-      .toBeGreaterThanOrEqual(10)
-    for (const started of await startedOn(page, 'article-list-item')) {
-      expect(started).toEqual({name: 'fadeSlideRight', iterations: 1})
-    }
+    await expectEachRowEntersOnce(page, 10)
 
     const shown = await showPageAndCancelEntry(page, 3)
     expect(shown.length, 'the last page of 25 articles').toBe(5)
     for (const row of shown) {
-      expect(row).toEqual({names: ['fadeSlideRight'], iterations: [1], opacity: '1'})
+      expect(row, 'a page change still runs its entry').toEqual({names: ['fadeSlideRight'], iterations: [1], opacity: '1'})
     }
     await expectRowsFailVisible(rows, 'after the entry')
+  })
+
+  // covers: dashboard-shell#Dashboard motion runs from the site's own stylesheets and stops under reduced motion
+  test('enters each row once when the runtime repaints the server rows with no pager to add', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'no-preference'})
+    await recordAnimationStarts(page)
+    await loadDashboard(page, {}, '#cardReading')
+
+    const body = page.locator('#cardReading .widget-body')
+    await expect(body, 'the repaint ran').toHaveAttribute('data-current-page', '1')
+    await expectEachRowEntersOnce(page, 5)
+    await expectRowsFailVisible(page.locator('#cardReading .article-list-item'), 'after the repaint')
+  })
+
+  // covers: dashboard-shell#Dashboard motion runs from the site's own stylesheets and stops under reduced motion
+  test('does not replay the entry when a slow first read repaints after the entry ended', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'no-preference'})
+    await recordAnimationStarts(page)
+    await interceptDashboard(page, {[ENDPOINTS.articles]: fixture('articles', 'pagination')})
+    const body = readFileSync(fixture('articles', 'pagination'), 'utf8')
+    let released = 0
+    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.articles}**`, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, SLOW_READ_MS))
+      released += 1
+      await route.fulfill({status: 200, contentType: 'application/json', body})
+    })
+    await page.goto('/')
+    await expectLiveReady(page)
+
+    expect(released, 'the delayed read answered').toBeGreaterThan(0)
+    await expect(page.locator('#cardReading .article-page-btn'), 'the repaint adds the pager').toHaveCount(3)
+    await expectEachRowEntersOnce(page, 10)
+    await expectRowsFailVisible(page.locator('#cardReading .article-list-item'), 'after the slow repaint')
+  })
+
+  // covers: dashboard-shell#Dashboard motion runs from the site's own stylesheets and stops under reduced motion
+  test('enters each row once when the first read is newer than the server render', async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'no-preference'})
+    await recordAnimationStarts(page)
+    await interceptDashboard(page)
+    const newer = {...JSON.parse(readFileSync(fixture('articles', 'baseline'), 'utf8')), generatedAt: NEWER_THAN_FIXTURES_ISO}
+    await page.route(`${CLOUDFRONT_BASE}${ENDPOINTS.articles}**`,
+      (route) => route.fulfill({status: 200, contentType: 'application/json', body: JSON.stringify(newer)}))
+    await page.goto('/')
+    await expectLiveReady(page)
+
+    await expect(page.locator('#cardReading'), 'the newer export repainted').toHaveAttribute('data-generated-at', NEWER_THAN_FIXTURES_ISO)
+    await expectEachRowEntersOnce(page, 5)
   })
 
   // covers: dashboard-shell#Dashboard motion runs from the site's own stylesheets and stops under reduced motion

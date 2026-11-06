@@ -736,6 +736,66 @@ function serverJudgement(key: CardKey): string | null {
   return serverStates[key] ?? null
 }
 
+/** Set while the startup repaint of a server-rendered Reading Feed waits for the rows' entries. */
+let articlesHandOff: Promise<void> | null = null
+
+/** Runs `renderCard('articles')`; the rows it writes in place of `rows` skip their entry animation. */
+function repaintArticlesWithoutEntry(body: HTMLElement, rows: Element[]): void {
+  // The updater swaps `innerHTML`, inside a View Transition when motion is allowed, so the new rows
+  // arrive later. A microtask after the swap comes before the next style pass, so no entry starts.
+  // A mutation that leaves the old rows connected is the updater's other work on the body: keep waiting.
+  const swap = new MutationObserver(() => {
+    if (rows.some((row) => row.isConnected)) {
+      return
+    }
+    swap.disconnect()
+    body.querySelectorAll<HTMLElement>('.article-list-item').forEach((row) => {
+      row.style.animation = 'none'
+    })
+  })
+  swap.observe(body, {childList: true})
+  renderCard('articles')
+  // The updater sets the page only on the path that swaps the rows: a suppressed or an empty result never does.
+  if (body.dataset.currentPage === undefined) {
+    swap.disconnect()
+  }
+}
+
+/**
+ * Repaints the Reading Feed over rows the server rendered, so a visitor sees each row's entry once.
+ * The updater replaces every row (`updateReadingFeed`, design system), and a new node starts its
+ * entry again: a row in or past its entry would replay it. So the repaint waits for the entries the
+ * server rows are running, and the rows it writes run none. The rows stay at their base style,
+ * `opacity: 1`, and a later page change still runs its entry, because it writes new rows.
+ * Returns null when the repaint is done, or the promise that settles when it is.
+ */
+function renderArticlesOverServerRows(): Promise<void> | null {
+  const body = document.querySelector<HTMLElement>('#cardReading .widget-body')
+  const rows = body ? Array.from(body.querySelectorAll('.article-list-item')) : []
+  if (!body || rows.length === 0) {
+    renderCard('articles')
+    return null
+  }
+  const entries = rows.flatMap((row) => (typeof row.getAnimations === 'function' ? row.getAnimations() : []))
+  if (entries.length === 0) {
+    repaintArticlesWithoutEntry(body, rows)
+    return null
+  }
+  // Holds the freshness re-judgement off this card: it has the judgement the repaint will write.
+  const judgement = CARD_RENDERS.articles.judge(Date.now())
+  if (judgement !== null) {
+    renderedJudgement.set('articles', judgement)
+  }
+  // A cancelled entry rejects `finished`, and a row that ends that way needs the repaint all the same.
+  return Promise.allSettled(entries.map((entry) => entry.finished)).then(() => {
+    try {
+      repaintArticlesWithoutEntry(body, rows)
+    } catch (e) {
+      console.warn('[live-data] Articles update failed:', e)
+    }
+  })
+}
+
 /** Marks the first read and first writes done, success or not. Smoke, visual and behavioral tests wait on it. */
 function markLiveReady(): void {
   document.body?.setAttribute('data-live-ready', '1')
@@ -894,8 +954,8 @@ const firstRead = async () => {
   Object.assign(timestamps, isSuppressed() ? {focus: data.timestamps.focus} : data.timestamps)
 
   // ENHANCEMENT EXCEPTION, Reading Feed only. The design-system ReadingFeed server template
-  // (`widgets/reading/ReadingFeed.astro`) renders titles alone: no article link, no note affordance,
-  // no pager, at most 10 rows. The client updater renders all of those (30 rows, 10 per page). An
+  // (`widgets/reading/ReadingFeed.astro`) renders at most 10 rows, no pager, and whatever links and
+  // notes the composer admitted. The client updater renders all of it (30 rows, 10 per page). An
   // equal generation would never repaint, so JS visitors would lose links, notes and pages. Run the
   // updater once on an equal export: same values, richer structure. No other card has this exception.
   // Design-system follow-up: render the same structure on the server, then delete this block.
@@ -958,7 +1018,7 @@ const firstRead = async () => {
 
   if (articles && repaint.articles) {
     try {
-      renderCard('articles')
+      articlesHandOff = renderArticlesOverServerRows()
     } catch (e) {
       console.warn('[live-data] Articles update failed:', e)
     }
@@ -1056,6 +1116,7 @@ const startFetch = async () => {
   try {
     await firstRead()
   } finally {
+    await articlesHandOff
     markLiveReady()
   }
 }
