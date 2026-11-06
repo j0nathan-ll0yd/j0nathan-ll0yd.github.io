@@ -18,7 +18,7 @@ import {
 } from '../../src/lib/edge/api-v1'
 import {onRequest as siteMiddleware} from '../../src/lib/edge/middleware'
 import {PROBLEM_MEDIA_TYPE, problemBody} from '../../src/lib/edge/problem'
-import {SUPPRESSION_REASON, SUPPRESSION_SOURCE} from '../../src/lib/edge/proxy'
+import {PROXY_TIMEOUTS, SUPPRESSION_REASON, SUPPRESSION_SOURCE} from '../../src/lib/edge/proxy'
 import {COMPOSED_AT_METADATA_HEADER} from '../../src/lib/edge/feed-artifacts'
 import {onRequest as cspReport} from '../../src/pages/api/csp-report'
 import {clientKey, type RateLimitDecision, type RateLimiterNamespace} from '../../src/lib/edge/rate-limit'
@@ -464,6 +464,31 @@ describe('handleApiV1: no reader keeps a last-known-good copy (atlas decision 01
     expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
     expect(await response.clone().text()).not.toContain('last-known-good copy')
     expect(matches).toEqual([])
+  })
+
+  it('answers the 502 problem, never the copy, when the artifact body stalls after a gate-open 200', async () => {
+    // The stalled 200 is gate-open evidence, so the factory default would answer from the copy with no gate probe.
+    const {matches} = warmCache()
+    const stalled = {
+      ok: true,
+      status: 200,
+      headers: new Headers({'x-amz-cf-id': 'stalled-request'}),
+      arrayBuffer: () => new Promise<ArrayBuffer>(() => {})
+    } as unknown as Response
+    upstream('None', () => stalled)
+    vi.useFakeTimers()
+    try {
+      const answered = handleApiV1(local(ENDPOINTS.books), env)
+      await vi.advanceTimersByTimeAsync(PROXY_TIMEOUTS.totalMs)
+      const response = await answered
+      expect(response.status).toBe(502)
+      expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
+      expect(response.headers.get('X-Proxy-Stale')).toBeNull()
+      expect(await response.clone().text()).not.toContain('last-known-good copy')
+      expect(matches).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('answers HEAD on an upstream failure with the problem headers and no body', async () => {

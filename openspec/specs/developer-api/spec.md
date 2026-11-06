@@ -186,8 +186,9 @@ hiding value).
 The same suite proves that all nine readers never touch `caches.default`, on a 200 and on an
 upstream failure with a stored copy present and the gate open: they answer the 502 problem with the
 RateLimit fields and no `Warning` or `X-Proxy-Stale`. It also proves that a hiding focus value, the
-gate shut over a visible value and an unreadable focus signal answer as before on the six non-raw
-exports. `tests/behavioral/api-v1.spec.ts` runs the same failure through the built Worker and
+gate shut over a visible value and an unreadable focus signal answer as before on the five
+suppressible non-raw exports, and that the focus signal itself still answers 200 under a hiding
+value. `tests/behavioral/api-v1.spec.ts` runs the same failure through the built Worker and
 workerd's Cache API.
 
 #### Scenario: A hiding focus mode is active

@@ -804,7 +804,7 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
 /**
  * The share of the request budget the artifact attempts may spend. A route with a last-known-good
  * copy keeps LKG_READ_RESERVE_MS back for the cache read; a route without one (the focus signal,
- * the composed dashboard) has nothing to reserve for, so its artifact read gets the whole remainder
+ * the composed dashboard, the developer API facade) has nothing to reserve for, so its artifact read gets the whole remainder
  * after the focus probe (review 2026-10-16, I1: the dashboard's 2.5 s budget left the artifact
  * about 1.5 s).
  */
