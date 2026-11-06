@@ -18,18 +18,17 @@ overrides:
   # GHSA-f72v-6w45-q472, GHSA-9fm3-97px-rjf6 and GHSA-55wc-3pg8-jfw6 (moderate).
   # 7.30.1 is the highest patched version on the 7.x line in all eight records.
   # miniflare 5.20261006.1-alpha pins `undici: 7.29.1` exactly, and
-  # @cloudflare/vite-plugin 1.63.1 and wrangler 4.149.0 pin that miniflare exactly.
+  # @cloudflare/vite-plugin 1.63.1 pins that miniflare exactly, so this entry stays.
   # The first miniflare to pin 7.30.1 is 5.20261023.0-beta, with wrangler 4.153.0 and
-  # vite-plugin 1.66.0. This selector reaches only miniflare's copy: wrangler 4.149.0
-  # bundles undici 7.29.1 in `wrangler-dist/cli.js` and vite-plugin 1.63.1 bundles it
-  # in `dist/index.mjs`, so `wrangler deploy` and `wrangler versions upload` still run
-  # 7.29.1. A refresh clears those copies but changes dist. Updating wrangler alone
-  # to 4.157.0 renames dist chunks. Updating vite-plugin to 1.67.0 with it adds
-  # `upload_source_maps`, publishes `dist/client/sw.js.map` and
-  # `dist/client/workbox-677d7057.js.map`, adds `sourceMappingURL` lines and adds a
-  # source map for each chunk. The owner decides that change separately. The 6.x and
-  # 8.x lines are out of this selector. Drop once `pnpm why undici` shows no 7.x below
-  # 7.30.1 without this entry.
+  # vite-plugin 1.66.0. This selector reaches only miniflare's copy, never a bundled
+  # copy: vite-plugin 1.63.1 bundles undici 7.29.1 in `dist/index.mjs`. wrangler 4.157.0
+  # bundles 7.30.1 in `wrangler-dist/cli.js`, so `wrangler deploy` and
+  # `wrangler versions upload` run the patched copy (atlas decision 0163, open decision 8).
+  # Updating vite-plugin to 1.67.0 adds `upload_source_maps`, publishes
+  # `dist/client/sw.js.map` and `dist/client/workbox-677d7057.js.map`, adds
+  # `sourceMappingURL` lines and adds a source map for each chunk. The owner decides
+  # that change separately. The 6.x and 8.x lines are out of this selector. Drop once
+  # `pnpm why undici` shows no 7.x below 7.30.1 without this entry.
   undici@>=7.0.0 <7.30.1: ^7.30.1
   # Security: brace-expansion 2.x < 2.1.7 is GHSA-q2hr-2g5m-vwhr. Pulled by
   # minimatch 5.1.9 < filelist < jake < ejs < workbox-build (vite-plugin-pwa).
