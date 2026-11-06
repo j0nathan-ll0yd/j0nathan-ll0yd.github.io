@@ -16,7 +16,7 @@
 import {type APIResponse, expect, test} from '@playwright/test'
 import {ENDPOINTS, SITE_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {API_PROBLEMS, API_V1_RATE_LIMIT, DATA_SOURCES} from '../../src/lib/edge/agent-catalog.mjs'
-import {resetDataPlane, setDataPlane} from '../data-plane/control'
+import {dataPlaneRequests, resetDataPlane, setDataPlane} from '../data-plane/control'
 
 const PROBLEM = 'application/problem+json; charset=utf-8'
 const WRANGLER_DEV = `http://127.0.0.1:${process.env.WRANGLER_DEV_PORT ?? '8788'}`
@@ -100,6 +100,35 @@ test.describe('the developer API facade in the Worker', () => {
     const hidden = await request.get(`/api/v1${ENDPOINTS.sleep}`, {headers: client()})
     expect(hidden.status()).toBe(503)
     expect(await hidden.json()).toMatchObject({suppressed: true, type: `${SITE_URL}/developers#problem-focus-suppressed`})
+  })
+
+  // Atlas decision 0166: no facade reader keeps a copy. The failure below is the one the factory
+  // default answers from `caches.default`: a fresh stamped copy, three 503s, then a gate probe that
+  // reads the gate open. workerd's own Cache API runs here, so this is what a real failure answers.
+  test('answers the 502 problem, never a stored copy, when an export fails with the gate open', async ({request}) => {
+    const body = {books: [{title: 'a copy the facade must not keep'}]}
+    await setDataPlane({[ENDPOINTS.books]: {kind: 'json', body, composedAt: true}})
+    const fresh = await request.get(`/api/v1${ENDPOINTS.books}`, {headers: client()})
+    expect(fresh.status()).toBe(200)
+    // A copy is written in waitUntil, after the answer. Give one the time to land.
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    await resetDataPlane()
+    await setDataPlane({[ENDPOINTS.books]: {kind: 'fail-then-json', failures: 3, status: 503, body}})
+    const failed = await request.get(`/api/v1${ENDPOINTS.books}`, {headers: client()})
+    expect(failed.status()).toBe(502)
+    expect(failed.headers()['content-type']).toBe(PROBLEM)
+    expect(failed.headers()['cache-control']).toBe('no-store')
+    expect(failed.headers()['retry-after']).toBe('30')
+    expect(failed.headers()['x-proxy-upstream-status']).toBe('503')
+    expect(failed.headers()['x-proxy-stale']).toBeUndefined()
+    expect(failed.headers()['warning']).toBeUndefined()
+    expect(await failed.json()).toMatchObject({
+      status: 502,
+      type: `${SITE_URL}/developers#problem-upstream-unavailable`,
+      instance: `/api/v1${ENDPOINTS.books}`
+    })
+    expect((await dataPlaneRequests()).filter((path) => path === ENDPOINTS.books)).toHaveLength(3)
   })
 
   test('never lets text/plain or the HTML 404 escape /api', async ({request}) => {

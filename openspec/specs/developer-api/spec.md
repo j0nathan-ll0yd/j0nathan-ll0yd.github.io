@@ -157,20 +157,18 @@ cache in front. It SHALL never answer data the gate withholds. A 200 SHALL pass 
 proxy's diagnostics through, with `Content-Type: application/json; charset=utf-8`,
 `Access-Control-Allow-Origin: *` and `Access-Control-Expose-Headers` naming the RateLimit fields,
 `Retry-After`, the versioning fields (`Deprecation`, `Sunset`, `Link`), `Allow` and the `X-Proxy-*`
-fields; a stale last-known-good copy keeps `Warning: 110` and `X-Proxy-Stale: true`.
+fields.
 
-The readers of the raw health, sleep and workouts exports (`LLM_CHANNEL_POLICY.coarsenedOnly`,
-`API_V1_NO_LAST_KNOWN_GOOD_PATHS`) SHALL keep no last-known-good copy (`lastKnownGood: false`):
-raw point-in-time health values are the estate's sensitive class (atlas decision 0096: LLM channels
-carry only a coarsened health band; atlas decision 0158: the raw exports never reach an LLM
-channel). A last-known-good copy lives in `caches.default`, the data-center cache Cloudflare shares
-with the zone's `fetch` cache (developers.cloudflare.com/workers/reference/how-the-cache-works/,
-Cache API), keyed `https://<host>/<file>.json?__cloudfront_proxy_lkg=v1`
-(`src/lib/edge/proxy.ts` `lkgCacheKey`). When CloudFront fails, those three answer the
-`upstream-unavailable` problem. The other six exports keep the factory default; the MCP readers
-already store the same copies under the same keys. A stale copy is served only on fresh gate-open
-evidence and yields to a suppression (`llms-txt` capability, requirement "Gated artifacts are
-admitted only through the CloudFront gate").
+Every facade reader, all nine exports, SHALL keep no last-known-good copy (`lastKnownGood: false`,
+atlas decision 0166; the raw health, sleep and workouts exports by owner decision 2026-10-24, the
+other six by owner ruling 2026-11-06). A last-known-good copy lives in `caches.default`, the
+data-center cache Cloudflare shares with the zone's `fetch` cache
+(developers.cloudflare.com/workers/reference/how-the-cache-works/, Cache API), keyed
+`https://<host>/<file>.json?__cloudfront_proxy_lkg=v1` (`src/lib/edge/proxy.ts` `lkgCacheKey`). So
+the facade neither writes nor reads one. When CloudFront fails, it answers the
+`upstream-unavailable` problem. No facade answer SHALL carry `Warning: 110` or `X-Proxy-Stale`. The
+MCP readers keep their own copies under the same keys (`llms-txt` capability, requirement "Gated
+artifacts are admitted only through the CloudFront gate"); this requirement does not govern them.
 
 A suppression (a hiding focus value, or the gate's 403 body under a visible one) SHALL answer the
 503 `focus-suppressed` problem with `Retry-After`, `X-Source: cloudfront-proxy-suppressed`,
@@ -185,9 +183,13 @@ Verified by `tests/unit/api-v1.test.ts:248` (the suppression translation and bot
 502 translation, HEAD, and reads through the real gated proxy that never fetch the export under a
 hiding value).
 
-The same suite proves the three raw exports never touch `caches.default` and answer the 502 problem
-on an upstream failure, that the other six store a copy, and that a stale copy passes through with
-`Warning: 110`, `X-Proxy-Stale` and the RateLimit fields.
+The same suite proves that all nine readers never touch `caches.default`, on a 200 and on an
+upstream failure with a stored copy present and the gate open: they answer the 502 problem with the
+RateLimit fields and no `Warning` or `X-Proxy-Stale`. It also proves that a hiding focus value, the
+gate shut over a visible value and an unreadable focus signal answer as before on the five
+suppressible non-raw exports, and that the focus signal itself still answers 200 under a hiding
+value. `tests/behavioral/api-v1.spec.ts` runs the same failure through the built Worker and
+workerd's Cache API.
 
 #### Scenario: A hiding focus mode is active
 
@@ -196,6 +198,15 @@ on an upstream failure, that the other six store a copy, and that a stale copy p
 - **THEN** the facade SHALL answer 503 `application/problem+json` with `suppressed: true` and
   `Retry-After: 60`
 - **AND** it SHALL NOT fetch `/sleep.json` from the data plane
+
+#### Scenario: An export fails while the gate reads open
+
+- **GIVEN** a stored copy of `/books.json` under the shared key, composed less than 3 hours ago
+- **AND** the export answers three 503s, and a further read would answer 200
+- **WHEN** a client asks for `/api/v1/books.json`
+- **THEN** the facade SHALL answer 502 `application/problem+json` of type `upstream-unavailable` with
+  `Retry-After: 30`, `Cache-Control: no-store` and `X-Proxy-Upstream-Status: 503`
+- **AND** it SHALL NOT serve the copy, read the cache, or send `Warning` or `X-Proxy-Stale`
 
 ### Requirement: The OpenAPI document and the API catalog advertise the facade
 

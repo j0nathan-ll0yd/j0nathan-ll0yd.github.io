@@ -8,7 +8,7 @@ import {isSuppressionValue} from '../../src/lib/data-plane/admission'
 import {AGENT_PATHS, API_PROBLEMS, API_V1_BASE, API_V1_RATE_LIMIT, DATA_SOURCES} from '../../src/lib/edge/agent-catalog.mjs'
 import {
   API_V1_EXPOSED_HEADERS,
-  API_V1_NO_LAST_KNOWN_GOOD_PATHS,
+  API_V1_PATHS,
   API_V1_VALID_PATHS,
   apiNotFound,
   type GatedReader,
@@ -347,9 +347,12 @@ describe('handleApiV1: an unexpected error', () => {
   })
 })
 
-describe('handleApiV1: last-known-good copies (review of #395, M1 and I2)', () => {
-  /** A Cache API stand-in that records every write and answers every read with a stored copy. */
-  function recordingCache() {
+describe('handleApiV1: no reader keeps a last-known-good copy (atlas decision 0166)', () => {
+  const COPY = '{"stored":"last-known-good copy"}'
+  const NON_RAW_PATHS = API_V1_PATHS.filter((path) => ![ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts].includes(path))
+
+  /** A Cache API stand-in that records every call and holds a copy the factory default would admit. */
+  function warmCache() {
     const puts: string[] = []
     const matches: string[] = []
     vi.stubGlobal('caches', {
@@ -357,85 +360,206 @@ describe('handleApiV1: last-known-good copies (review of #395, M1 and I2)', () =
         put: async (request: Request) => void puts.push(new URL(request.url).pathname),
         match: async (request: Request) => {
           matches.push(new URL(request.url).pathname)
-          return undefined
+          return new Response(COPY, {headers: {'X-Proxy-Lkg-Composed-At': new Date().toISOString(), 'X-Proxy-Lkg-Stored-At': new Date().toISOString()}})
         }
       }
     })
     return {puts, matches}
   }
 
-  /** CloudFront through the fixture seam: focus visible, the export answering `status`. */
-  function upstream(status: number) {
+  /**
+   * CloudFront through the fixture seam. The focus signal reads `focus`; each artifact read goes to
+   * `artifact`, with its attempt number. A read of the focus signal as the export under test
+   * (`target`) is an artifact read: its reader runs no focus probe.
+   */
+  function upstream(focus: string, artifact: (attempt: number) => Response | Promise<Response>, target?: string) {
+    let attempts = 0
+    const fetched: string[] = []
     vi.stubGlobal('fetch', async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.endsWith('/focus.json')) {
-        return new Response(JSON.stringify({generatedAt: new Date().toISOString(), currentFocus: 'None'}), {
+      const url = new URL(String(input))
+      fetched.push(url.pathname)
+      if (url.pathname === ENDPOINTS.focus && target !== ENDPOINTS.focus && focus !== 'unreadable') {
+        return new Response(JSON.stringify({generatedAt: new Date().toISOString(), currentFocus: focus}), {
           headers: {'content-type': 'application/json', 'x-amz-cf-id': 'test'}
         })
       }
-      // The composition stamp the last-known-good write requires (proxy.ts saveLastKnownGood).
-      const headers = {'content-type': 'application/json', 'x-amz-cf-id': 'test', [COMPOSED_AT_METADATA_HEADER]: new Date().toISOString()}
-      return new Response(status === 200 ? '{"x":1}' : 'boom', {status, headers})
+      attempts += 1
+      return artifact(attempts)
     })
+    return fetched
   }
+
+  /** Every answer carries the composition stamp a last-known-good write requires. */
+  const fromCloudfront = (status: number, body: string) =>
+    new Response(body, {
+      status,
+      headers: {'content-type': 'application/json', 'x-amz-cf-id': 'test', [COMPOSED_AT_METADATA_HEADER]: new Date().toISOString()}
+    })
+
+  /** Three 503s, then 200s: the exact failure the factory default answers with its copy (the gate probe sees the gate open). */
+  const failsThenOpen = (attempt: number) => attempt <= 3 ? fromCloudfront(503, 'boom') : fromCloudfront(200, '{"gate":"probe"}')
 
   const local = (path: string) => ({
     request: new Request(`http://localhost/api/v1${path}`),
     waitUntil: (promise: Promise<unknown>) => void promise.catch(() => {})
   })
-  const env = {vars: {DATA_PLANE_BASE: 'http://127.0.0.1:4399'}, rateLimiter: limiter(() => allowed())}
+  const env = {vars: {DATA_PLANE_BASE: 'http://127.0.0.1:4399'}, rateLimiter: limiter(() => allowed(12, 30))}
 
-  it('keeps no copy of the raw health, sleep and workouts exports (atlas decisions 0096 and 0158)', async () => {
-    expect([...API_V1_NO_LAST_KNOWN_GOOD_PATHS].sort()).toEqual([ENDPOINTS.health, ENDPOINTS.sleep, ENDPOINTS.workouts].sort())
-    const {puts, matches} = recordingCache()
-    upstream(200)
-    for (const path of API_V1_NO_LAST_KNOWN_GOOD_PATHS) {
-      expect((await handleApiV1(local(path), env)).status).toBe(200)
-    }
-    upstream(500)
-    for (const path of API_V1_NO_LAST_KNOWN_GOOD_PATHS) {
-      const response = await handleApiV1(local(path), env)
-      expect(response.status, path).toBe(502)
-      expect((await problemOf(response)).type).toBe(`${SITE_URL}/developers#problem-upstream-unavailable`)
-    }
+  /** Settles the writes a reader handed to `waitUntil`, so a copy it stored is visible to the test. */
+  async function answer(path: string): Promise<{response: Response; waited: number}> {
+    const pending: Array<Promise<unknown>> = []
+    const response = await handleApiV1({...local(path), waitUntil: (promise) => void pending.push(promise)}, env)
+    await Promise.allSettled(pending)
+    return {response, waited: pending.length}
+  }
+
+  it.each(API_V1_PATHS)('%s stores no copy on a 200, and schedules no write', async (path) => {
+    const {puts, matches} = warmCache()
+    upstream('None', () => fromCloudfront(200, '{"x":1}'), path)
+    const {response, waited} = await answer(path)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({x: 1})
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy')
+    expect(waited).toBe(0)
     expect(puts).toEqual([])
     expect(matches).toEqual([])
   })
 
-  it('keeps the factory default for the other six exports: a 200 stores a copy', async () => {
-    const {puts} = recordingCache()
-    upstream(200)
-    await new Promise<void>((resolve) => {
-      void handleApiV1({request: new Request(`http://localhost/api/v1${ENDPOINTS.books}`), waitUntil: (promise) => void promise.finally(resolve)}, env)
-    })
-    expect(puts).toEqual([ENDPOINTS.books])
-  })
-
-  it('passes a stale copy through with Warning 110, X-Proxy-Stale and the RateLimit fields', async () => {
-    const stale = () =>
-      new Response('{"books":[]}', {
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'no-store',
-          Warning: '110 - "Response is stale"',
-          'X-Proxy-Stale': 'true',
-          'X-Source': 'cloudfront-proxy-stale'
-        }
-      })
-    const response = await handleApiV1(context(`/api/v1${ENDPOINTS.books}`), {vars: {}, rateLimiter: limiter(() => allowed(12, 30))}, reader(stale))
-    expect(response.status).toBe(200)
-    expect(response.headers.get('Warning')).toBe('110 - "Response is stale"')
-    expect(response.headers.get('X-Proxy-Stale')).toBe('true')
+  it.each(API_V1_PATHS)('%s answers the 502 problem, never the copy, when the artifact fails and the gate reads open', async (path) => {
+    const {puts, matches} = warmCache()
+    const fetched = upstream('None', failsThenOpen, path)
+    const {response} = await answer(path)
+    expect(response.status).toBe(502)
+    expect(response.headers.get('Content-Type')).toBe(PROBLEM_MEDIA_TYPE)
+    expect(response.headers.get('Cache-Control')).toBe('no-store')
+    expect(response.headers.get('Retry-After')).toBe(String(UPSTREAM_RETRY_AFTER_SECONDS))
+    expect(response.headers.get('X-Source')).toBe('cloudfront-proxy-error')
+    expect(response.headers.get('X-Proxy-Attempts')).toBe('3')
+    expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('503')
     expect(response.headers.get('RateLimit')).toBe('"default";r=12;t=30')
     expect(response.headers.get('RateLimit-Policy')).toBe(POLICY)
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(response.headers.get('Warning')).toBeNull()
+    expect(response.headers.get('X-Proxy-Stale')).toBeNull()
+    const text = await response.clone().text()
+    expect(text).not.toContain('last-known-good copy')
+    expect(text).not.toContain('boom')
+    expect(await problemOf(response)).toMatchObject({
+      type: `${SITE_URL}/developers#problem-upstream-unavailable`,
+      status: 502,
+      instance: `/api/v1${path}`,
+      retryAfterSeconds: UPSTREAM_RETRY_AFTER_SECONDS
+    })
+    // Three artifact attempts and no gate probe: with no copy to admit, there is nothing to ask the gate.
+    expect(fetched.filter((name) => name === path)).toHaveLength(3)
+    expect(puts).toEqual([])
+    expect(matches).toEqual([])
+  })
+
+  it('states an unreachable upstream on the problem, with no body from the copy', async () => {
+    const {matches} = warmCache()
+    upstream('None', () => Promise.reject(new TypeError('connection refused')))
+    const {response} = await answer(ENDPOINTS.books)
+    expect(response.status).toBe(502)
+    expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
+    expect(await response.clone().text()).not.toContain('last-known-good copy')
+    expect(matches).toEqual([])
+  })
+
+  it('answers the 502 problem, never the copy, when the artifact body stalls after a gate-open 200', async () => {
+    // The stalled 200 is gate-open evidence, so the factory default would answer from the copy with no gate probe.
+    const {matches} = warmCache()
+    const stalled = {
+      ok: true,
+      status: 200,
+      headers: new Headers({'x-amz-cf-id': 'stalled-request'}),
+      arrayBuffer: () => new Promise<ArrayBuffer>(() => {})
+    } as unknown as Response
+    upstream('None', () => stalled)
+    vi.useFakeTimers()
+    try {
+      let settled = false
+      const answered = handleApiV1(local(ENDPOINTS.books), env).finally(() => {
+        settled = true
+      })
+      // The rate-limit key is a real crypto.subtle digest, which no fake clock drives, so one advance
+      // can finish before the read starts its timers. Advance in steps until the answer lands. The
+      // proxy suite pins the budget itself (tests/unit/cloudfront-proxy.test.ts).
+      for (let step = 0; step < 1000 && !settled; step++) {
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(settled).toBe(true)
+      const response = await answered
+      expect(response.status).toBe(502)
+      expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
+      expect(response.headers.get('X-Proxy-Stale')).toBeNull()
+      expect(await response.clone().text()).not.toContain('last-known-good copy')
+      expect(matches).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('answers HEAD on an upstream failure with the problem headers and no body', async () => {
+    const {matches} = warmCache()
+    upstream('None', failsThenOpen)
+    const response = await handleApiV1({...local(ENDPOINTS.books), request: new Request(`http://localhost/api/v1${ENDPOINTS.books}`, {method: 'HEAD'})}, env)
+    expect(response.status).toBe(502)
+    expect(response.headers.get('Retry-After')).toBe(String(UPSTREAM_RETRY_AFTER_SECONDS))
+    expect(matches).toEqual([])
+  })
+
+  describe('the focus and privacy gate does not change', () => {
+    const SUPPRESSIBLE = NON_RAW_PATHS.filter((path) => path !== ENDPOINTS.focus)
+
+    it.each(SUPPRESSIBLE)('%s under a hiding focus value answers the 503 problem and never fetches the export', async (path) => {
+      const {matches} = warmCache()
+      const fetched = upstream('Work', () => fromCloudfront(200, '{"x":1}'))
+      const {response} = await answer(path)
+      expect(response.status).toBe(503)
+      expect(response.headers.get('Retry-After')).toBe('60')
+      expect(response.headers.get('X-Source')).toBe(SUPPRESSION_SOURCE)
+      expect(await problemOf(response)).toMatchObject({suppressed: true, reason: SUPPRESSION_REASON})
+      expect(fetched).toEqual([ENDPOINTS.focus])
+      expect(matches).toEqual([])
+    })
+
+    it.each(SUPPRESSIBLE)('%s with the gate shut over a visible focus value answers the 503 problem', async (path) => {
+      const {matches} = warmCache()
+      upstream('None', () => new Response(JSON.stringify({suppressed: true, reason: SUPPRESSION_REASON}), {status: 403, headers: {'x-amz-cf-id': 'test'}}))
+      const {response} = await answer(path)
+      expect(response.status).toBe(503)
+      expect(await problemOf(response)).toMatchObject({suppressed: true, reason: SUPPRESSION_REASON})
+      expect(matches).toEqual([])
+    })
+
+    it.each(SUPPRESSIBLE)('%s with an unreadable focus signal answers the 502 problem and never fetches the export', async (path) => {
+      const {matches} = warmCache()
+      const fetched = upstream('unreadable', () => fromCloudfront(503, 'boom'))
+      const {response} = await answer(path)
+      expect(response.status).toBe(502)
+      expect(fetched.every((name) => name === ENDPOINTS.focus)).toBe(true)
+      expect(matches).toEqual([])
+    })
+
+    it('still serves the focus signal itself under a hiding value: it is never suppressed', async () => {
+      warmCache()
+      upstream('Work', () => fromCloudfront(200, '{"x":1}'))
+      const {response} = await answer(ENDPOINTS.focus)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toMatchObject({currentFocus: 'Work'})
+    })
   })
 
   it('exposes the RateLimit, Retry-After, versioning and Allow fields to cross-origin scripts', async () => {
     const response = await handleApiV1(context('/api/v1/books.json', {method: 'POST'}), {vars: {}}, reader(proxied.ok))
     const exposed = (response.headers.get('Access-Control-Expose-Headers') ?? '').split(', ')
-    for (const name of ['RateLimit-Policy', 'RateLimit', 'Retry-After', 'Deprecation', 'Sunset', 'Link', 'Allow', 'Warning', 'X-Proxy-Stale']) {
+    for (const name of ['RateLimit-Policy', 'RateLimit', 'Retry-After', 'Deprecation', 'Sunset', 'Link', 'Allow']) {
       expect(exposed, name).toContain(name)
+    }
+    // The facade keeps no copy, so nothing it answers carries these two.
+    for (const name of ['Warning', 'X-Proxy-Stale']) {
+      expect(exposed, name).not.toContain(name)
     }
     expect(exposed).toEqual([...API_V1_EXPOSED_HEADERS])
   })

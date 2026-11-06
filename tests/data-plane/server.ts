@@ -13,6 +13,7 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 import {ENDPOINTS, HIDING_FOCUS_MODES} from '@j0nathan-ll0yd/portal-contract/constants'
 import {mirroredBookCovers} from '../../src/lib/book-cover-mirror'
 import {PUBLISHED_FILES} from '../../src/lib/data-plane/published-files'
+import {COMPOSED_AT_METADATA_HEADER} from '../../src/lib/edge/feed-artifacts'
 import {BASELINE_BY_PATH} from './baseline'
 import {type Behavior, CONTROL_PREFIX, DEFAULT_PORT, type GeneratedAtMode, SUPPRESSION_BODY} from './protocol'
 
@@ -22,6 +23,8 @@ const EXPORT_PATHS = new Set(Object.values(ENDPOINTS))
 
 let overrides = new Map<string, Behavior>()
 let requests: string[] = []
+/** Failures each `fail-then-json` behavior has answered. A new `/set` is a new object, so its count starts at 0. */
+const failuresAnswered = new WeakMap<Behavior, number>()
 
 function stamp(body: unknown, mode: GeneratedAtMode): unknown {
   if (mode === 'original' || typeof body !== 'object' || body === null) {
@@ -39,11 +42,12 @@ function readJson(file: string): unknown {
   return JSON.parse(readFileSync(file, 'utf8'))
 }
 
-function send(response: ServerResponse, status: number, body: string, cloudfrontId = true): void {
+function send(response: ServerResponse, status: number, body: string, cloudfrontId = true, extraHeaders: Record<string, string> = {}): void {
   response.writeHead(status, {
     'content-type': 'application/json',
     'cache-control': 'no-store',
-    ...(cloudfrontId ? {'x-amz-cf-id': 'fixture-data-plane'} : {})
+    ...(cloudfrontId ? {'x-amz-cf-id': 'fixture-data-plane'} : {}),
+    ...extraHeaders
   })
   response.end(body)
 }
@@ -61,8 +65,19 @@ function answer(response: ServerResponse, behavior: Behavior): void {
       send(response, 200, JSON.stringify(stamp(readJson(behavior.file), DEFAULT_GENERATED_AT)), false)
       return
     case 'json':
-      send(response, 200, JSON.stringify(stamp(behavior.body, behavior.generatedAt ?? DEFAULT_GENERATED_AT)))
+      send(response, 200, JSON.stringify(stamp(behavior.body, behavior.generatedAt ?? DEFAULT_GENERATED_AT)), true,
+        behavior.composedAt ? {[COMPOSED_AT_METADATA_HEADER]: new Date().toISOString()} : {})
       return
+    case 'fail-then-json': {
+      const answered = failuresAnswered.get(behavior) ?? 0
+      if (answered < behavior.failures) {
+        failuresAnswered.set(behavior, answered + 1)
+        send(response, behavior.status, JSON.stringify({error: 'fixture failure'}))
+        return
+      }
+      send(response, 200, JSON.stringify(stamp(behavior.body, DEFAULT_GENERATED_AT)))
+      return
+    }
     case 'status':
       send(response, behavior.status, JSON.stringify({error: 'fixture failure'}))
       return

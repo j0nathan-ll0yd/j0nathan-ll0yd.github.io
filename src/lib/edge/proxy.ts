@@ -218,9 +218,9 @@ export interface CloudfrontProxyConfig {
   /** Cache directives for the success and stale paths. Defaults to no-store, which every gated route needs. */
   cachePolicy?: CachePolicy
   /**
-   * Whether the route may keep and serve a last-known-good copy. Defaults to true. The dashboard
-   * passes false: decision 0160 D3 allows no last-known-good copy for it, and its fallback is the
-   * data-free page instead.
+   * Whether the route may keep and serve a last-known-good copy. Defaults to true. The developer API
+   * facade passes false on every reader (atlas decision 0166): its fallback is the upstream-unavailable
+   * problem.
    */
   lastKnownGood?: boolean
 }
@@ -804,7 +804,7 @@ function gateSuppressedResponse(method: string, path: string, attempts: number):
 /**
  * The share of the request budget the artifact attempts may spend. A route with a last-known-good
  * copy keeps LKG_READ_RESERVE_MS back for the cache read; a route without one (the focus signal,
- * the composed dashboard) has nothing to reserve for, so its artifact read gets the whole remainder
+ * the composed dashboard, the developer API facade) has nothing to reserve for, so its artifact read gets the whole remainder
  * after the focus probe (review 2026-10-16, I1: the dashboard's 2.5 s budget left the artifact
  * about 1.5 s).
  */
