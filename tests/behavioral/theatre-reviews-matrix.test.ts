@@ -99,7 +99,7 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await page.goto('/', {waitUntil: 'domcontentloaded'})
 
     await expect(page.locator('#cardTheatreReviews.is-loading')).toBeVisible()
-    await expect(page.locator('#cardTheatreReviews .skeleton-bar')).toHaveCount(9)
+    await expect(page.locator('#cardTheatreReviews .skeleton-bar')).toHaveCount(3)
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
 
     await expectNoNewAxeViolations(page, 'theatre-reviews/loading')

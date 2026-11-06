@@ -63,9 +63,15 @@ System Status SHALL render one row per source with the no-reading mark and no st
 timestamp: an OFFLINE or ACTIVE label would be a claim the page has not measured. Neither focus
 overlay SHALL show.
 
+With scripts on, every painted skeleton bar and circle SHALL sit inside its card body at each
+viewport the suites use, and each of the six compact rows (Dev Log, Reading Feed, Starred Repos,
+Workouts, Bookshelf, Theatre Reviews) SHALL be centered in its card body within 1 px. With scripts
+off, no skeleton SHALL paint, and the note SHALL show alone.
+
 Verified by `tests/build/data-free-index.test.ts:87` (every card, its state, skeleton and note
-text; the System Status rows) and `tests/behavioral/data-free-shell.test.ts:70` (scripts off: each
-card visible, its note visible; the overlays hidden).
+text; the System Status rows), `tests/behavioral/data-free-shell.test.ts:70` (scripts off: each
+card visible, its note visible; the overlays hidden) and
+`tests/behavioral/data-free-shell.test.ts:213` (the fit, the centering and the scripts-off note).
 
 #### Scenario: Every card announces that live data needs JavaScript
 
