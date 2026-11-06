@@ -2,6 +2,8 @@
   "defaults": {
     "timeout": 30000,
     "wait": 500,
+    "runners": ["axe", "htmlcs"],
+    "levelCapWhenNeedsReview": "warning",
     "chromeLaunchConfig": {
       "args": ["--no-sandbox"]
     }

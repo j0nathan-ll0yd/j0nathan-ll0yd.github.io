@@ -178,7 +178,8 @@ describe('the entry-check lint rule', () => {
         ])
       }
     }
-  })
+    // The first typed lint builds the TypeScript project: 2 s alone, over the 5 s default at load average 25.
+  }, 60_000)
 
   it('allows the helper itself and the helper call', async () => {
     expect(await restricted('scripts/lib/main-module.mjs', 'export const entry = process.argv[1]\n')).toEqual([])
