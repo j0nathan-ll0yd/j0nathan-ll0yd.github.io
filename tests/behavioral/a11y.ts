@@ -4,7 +4,9 @@
 // Every state a behavioral matrix already renders also gets a scoped axe-core scan of that
 // widget's own card. The scan is scoped to ONE card, never to the page: the whole-page verdict
 // belongs to the weekly B4 pa11y-ci lane (.github/workflows/audit-web.yml), and a page-scoped scan
-// here would refile B4's findings against every widget that happens to share the dashboard.
+// here would refile B4's findings against every widget that happens to share the dashboard. B4 runs
+// axe plus HTML_CodeSniffer, with axe needs-review items capped at warning (.pa11yci). pa11y-ci
+// hides warnings, so an axe finding fails B4 only when it is a real violation.
 //
 // WHAT THIS IS NOT -- THE HONEST CEILING. READ THIS BEFORE CITING A GREEN RUN AS EVIDENCE.
 // Automated scanning catches roughly 57% of accessibility ISSUE VOLUME and maps to about 32% of
@@ -23,9 +25,11 @@
 // axe-core 4.13). `color-contrast` returns INAPPLICABLE for every card-scoped scan here and
 // INCOMPLETE for a whole-page scan of the same DOM. The dashboard's cards are translucent over an
 // animated gradient, so axe cannot resolve a background colour and declines to rule either way.
-// Neither this lane nor the B4 pa11y lane can therefore report a contrast defect on this site, and
-// contrast is the single highest-volume defect class. Treat it as a MANUAL check, alongside Focus
-// Order and Focus Visible. Do not read a green run as evidence of adequate contrast.
+// In B4, axe reads the same DOM as needs-review items (152 on the populated `/`, measured
+// 2026-11-05), and the cap keeps them from failing the lane. Neither lane therefore reports an axe
+// contrast defect on those cards, and contrast is the single highest-volume defect class. Treat it
+// as a MANUAL check, alongside Focus Order and Focus Visible. Do not read a green run as evidence
+// of adequate contrast.
 //
 // THE RATCHET. Most of these widgets had never been a11y-tested, so the first run found
 // pre-existing violations. They are grandfathered into a11y-baseline.json, in the estate ratchet

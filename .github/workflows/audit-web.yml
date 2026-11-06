@@ -540,7 +540,13 @@ jobs:
           path: lhci-reports/
           retention-days: 30
 
-      - name: B4 -- pa11y-ci (axe + htmlcs, live URL + text pages)
+      # .pa11yci is plain JSON, so the reason for its settings lives here. pa11y runs axe and
+      # HTML_CodeSniffer. pa11y/lib/runners/axe.js (choosePa11yLevel) maps an axe "incomplete" (needs
+      # review) item to its impact level, and `levelCapWhenNeedsReview: warning` caps only those
+      # items (owner decision 2026-11-05). A real axe violation stays an error and fails this step.
+      # pa11y-ci hides warnings. axe cannot resolve the background behind the dashboard cards, so
+      # contrast on those cards stays a MANUAL check. A green step says nothing about it.
+      - name: B4 -- pa11y-ci (axe + htmlcs, axe needs-review capped at warning, live URL + text pages)
         id: pa11y
         continue-on-error: true
         env:
