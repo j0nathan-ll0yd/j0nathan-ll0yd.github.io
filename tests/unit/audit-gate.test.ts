@@ -9,6 +9,10 @@ import {describe, expect, it} from 'vitest'
 /** The waivers the owner ruling covers. A new one edits this list in the same reviewed change. */
 const NAMED_WAIVERS = {'GHSA-g3hv-75wg-m249': 'minimatch', 'GHSA-3g3m-2fjr-6pw4': 'glob', 'GHSA-gcqx-w48m-w2h4': 'deepmerge'}
 
+/** The whole command. Any other flag or shell form can defeat the gate: a second `--audit-level`, `-P`, `| tee`, `|| exit 0`. */
+const AUDIT_COMMAND =
+  'pnpm audit --audit-level=high --fetch-timeout=180000 --fetch-retries=3 --fetch-retry-factor=2 --fetch-retry-mintimeout=5000 --fetch-retry-maxtimeout=20000'
+
 const workflow = readFileSync(resolve('.github/workflows/static-checks.yml'), 'utf8')
 const workspace = readFileSync(resolve('pnpm-workspace.yaml'), 'utf8')
 
@@ -20,19 +24,34 @@ function auditStep(): string {
   return workflow.slice(start, end).split('\n').filter((line) => !/^\s*#/.test(line)).join('\n')
 }
 
+/** The step's folded `run: >-` block as the one command the shell receives. */
+function auditCommand(): string {
+  const [, block = ''] = /^ {8}run: >-\n((?: {10}.*\n?)+)/m.exec(auditStep()) ?? []
+  return block.split('\n').map((line) => line.trim()).filter(Boolean).join(' ')
+}
+
+/** Every line under `audit.ignore`, up to the next top-level line. A comment or a blank line among them fails the parse. */
 function waivers(): Array<{ghsa: string; note: string}> {
-  const block = /^audit:\n {2}ignore:\n((?: {4}- .*\n)+)/m.exec(workspace)
-  expect(block, 'pnpm-workspace.yaml has no audit.ignore list').not.toBeNull()
-  return block![1].trimEnd().split('\n').map((line) => {
-    const [ghsa = '', note = ''] = line.replace(/^ {4}- /, '').split(' # ')
-    return {ghsa, note}
+  const lines = workspace.split('\n')
+  const start = lines.indexOf('audit:')
+  expect(start, 'pnpm-workspace.yaml has no audit key').toBeGreaterThan(-1)
+  expect(lines.filter((line) => line === 'audit:')).toHaveLength(1)
+  expect(lines[start + 1]).toBe('  ignore:')
+  const next = lines.findIndex((line, index) => index > start && /^\S/.test(line))
+  const entries = lines.slice(start + 2, next === -1 ? undefined : next)
+  while (entries.at(-1) === '') {
+    entries.pop()
+  }
+  return entries.map((line) => {
+    const match = /^ {4}- (GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}) # (.+)$/.exec(line)
+    expect(match, `not a waiver entry: "${line}"`).not.toBeNull()
+    return {ghsa: match![1], note: match![2]}
   })
 }
 
 describe('the blocking dependency audit', () => {
   it('runs at the high level in the static-checks job, on the install', () => {
     const step = auditStep()
-    expect(step).toMatch(/pnpm audit --audit-level=high/)
     expect(step).toMatch(/^ {8}id: audit_high$/m)
     expect(step).toContain("steps.install.outcome == 'success'")
     expect(workflow.indexOf('- name: Dependency audit')).toBeLessThan(workflow.indexOf('\n  spec-mutation-score:'))
@@ -42,11 +61,10 @@ describe('the blocking dependency audit', () => {
     expect(workflow).toContain('audit_high=${{ steps.audit_high.outcome }}')
   })
 
-  it('cannot pass without judging: no flag or shell form swallows a failure', () => {
+  it('cannot pass without judging: the command is exact, and nothing swallows its exit code', () => {
+    expect(auditCommand()).toBe(AUDIT_COMMAND)
     const step = auditStep()
-    for (const forbidden of ['--ignore', 'continue-on-error', '|| true', '|| :', '; true', '--json', '--prod', '--dev', '-P ', '-D ']) {
-      expect(step, forbidden).not.toContain(forbidden)
-    }
+    expect(step).not.toContain('continue-on-error')
     expect(step).not.toMatch(/^\s+shell:/m)
   })
 })
