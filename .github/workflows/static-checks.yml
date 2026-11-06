@@ -160,6 +160,32 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node scripts/openspec-covers.mjs --blocking
 
+      # The blocking dependency audit (atlas decision 0163 item 3, owner ruling 2026-11-06). A high or
+      # critical advisory that `audit.ignore` in pnpm-workspace.yaml does not name fails this step, so
+      # it fails the required `static-checks` context. A registry error also fails it: a gate that
+      # could not ask must not read green, so `--ignore-registry-errors` stays out.
+      #
+      # NO `--ignore` or `--ignore-unfixable` here. Under pnpm 11 both write to pnpm-workspace.yaml
+      # (pnpm.io/11.x/cli/audit), so the waiver list would change in CI, unreviewed. Waivers live only in
+      # that file. `tests/unit/audit-gate.test.ts` pins this step and the list.
+      #
+      # The advisory data changes without a commit, so a new advisory reds the next PR and the next push
+      # to main. That is the property: fix it, or add a dated waiver in a reviewed change.
+      #
+      # The fetch flags tolerate a slow advisories endpoint and apply to this command only (npm degraded
+      # server-side on 2026-09-03 and 04; the same ladder and measurement are in mantle-LifegamesPortal
+      # ci.yml). Worst case about 12.6 min, inside this job's 25 min.
+      - name: Dependency audit (high and above, blocking)
+        id: audit_high
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: >-
+          pnpm audit --audit-level=high
+          --fetch-timeout=180000
+          --fetch-retries=3
+          --fetch-retry-factor=2
+          --fetch-retry-mintimeout=5000
+          --fetch-retry-maxtimeout=20000
+
       # The build gates run last: they write dist/ and .wrangler/, which the gates above never read.
       # vitest.build.config.ts globalSetup runs the production build first; these
       # assertions are meaningless without the emitted dist/ tree.
@@ -213,6 +239,7 @@ jobs:
             spec_verification=${{ steps.spec_verification.outcome }}
             spec_quote_integrity=${{ steps.spec_quote_integrity.outcome }}
             covers=${{ steps.covers.outcome }}
+            audit_high=${{ steps.audit_high.outcome }}
             build_output=${{ steps.build_output.outcome }}
             composer_parity=${{ steps.composer_parity.outcome }}
             rate_limiter_bundle=${{ steps.rate_limiter_bundle.outcome }}

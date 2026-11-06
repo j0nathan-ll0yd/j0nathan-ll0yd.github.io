@@ -65,6 +65,23 @@ overrides:
   # resolves >=7.1.3 without this entry.
   serialize-javascript@>=7.0.0 <7.1.3: ^7.1.3
 
+# The named waivers of the blocking audit (atlas decision 0163 rule 3; the `static-checks` step
+# `pnpm audit --audit-level=high`). This is the ONE suppression surface. Each entry names an advisory
+# with no fix these dependents can take, and carries its package, severity and the date it was waived.
+# A waiver hides its advisory at every severity, so also read this list when an advisory is re-rated.
+# Revisit at the record's revisit_by (2026-11-21). tests/unit/audit-gate.test.ts pins the list, so
+# adding a waiver means editing that test in the same reviewed change.
+#   - minimatch: no 10.x fix; eslint, @eslint/config-array and @typescript-eslint/typescript-estree
+#     declare ^10 (owner decision 2026-11-03: upstream-blocked, do not force minimatch 11).
+#   - glob: no fix on 11.x or 13.x; glob 14.0.2 needs minimatch ^11. Follows the minimatch decision.
+#     The owner has not confirmed this waiver (decision 0163 open decision 7).
+#   - deepmerge: the advisory lists no patched version, and 4.3.1 is the latest release.
+audit:
+  ignore:
+    - GHSA-g3hv-75wg-m249 # minimatch moderate 2026-11-03
+    - GHSA-3g3m-2fjr-6pw4 # glob moderate 2026-11-05
+    - GHSA-gcqx-w48m-w2h4 # deepmerge low 2026-11-05
+
 # Translated from the npm-only `.npmrc` `legacy-peer-deps=true`. @vite-pwa/astro
 # (<=1.2.0) caps its astro peer at ^5 while this project is on astro 7, so a
 # strict install fails outright. This is the STANDING state, not a soon-to-be-
