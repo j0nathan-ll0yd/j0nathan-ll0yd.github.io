@@ -21,7 +21,7 @@ Verified by `tests/behavioral/theatre-reviews-matrix.test.ts:93`.
 
 - **GIVEN** the Worker serves the data-free fallback page and the dashboard loads with the theatre-reviews.json response held open
 - **WHEN** the page reaches DOMContentLoaded before the review data arrives
-- **THEN** the Theatre Reviews card SHALL be visible in its `is-loading` presentation showing nine
+- **THEN** the Theatre Reviews card SHALL be visible in its `is-loading` presentation showing three
   skeleton bars, and SHALL render zero review cards
 
 ### Requirement: Empty state presents the theatre empty message without cards
