@@ -34,6 +34,7 @@ export default defineConfig({
     '**/data-free-shell.test.ts',
     '**/devlog-matrix.test.ts',
     '**/health-matrix.test.ts',
+    '**/motion.test.ts',
     '**/site-footer-nav.test.ts',
     '**/ssr-no-js.test.ts',
     '**/theatre-reviews-matrix.test.ts'

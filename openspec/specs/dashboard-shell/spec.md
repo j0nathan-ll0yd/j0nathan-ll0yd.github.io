@@ -283,6 +283,56 @@ references, the Person's alias and address, no personal address) and
   carries `email` and `contactType`, and an `address` that carries `postOfficeBoxNumber` and
   `postalCode`
 
+### Requirement: Dashboard motion runs from the site's own stylesheets and stops under reduced motion
+
+The stylesheets `/` loads SHALL carry every keyframe they name (`@j0nathan-ll0yd/web` 4.7.0, DS
+#358), on the data-free page and on the composed page, which share one shell. Under
+`prefers-reduced-motion: no-preference`, each `.live-dot` and `.sys-dot` SHALL run `dotPulse`, and
+`.id-name` SHALL run `glowPulse`. A `.live-dot` in a card whose data state is `loading`, `stale`,
+`unavailable` or `suppressed` SHALL NOT pulse, because nothing in it is live. Each Reading Feed row
+SHALL run a finite `fadeSlideRight` entry, which restarts when the runtime repaints the row.
+A loading skeleton bar SHALL run `shimmerSlide` on its `::after`.
+
+Under `prefers-reduced-motion: reduce`, no CSS animation SHALL start on any element or
+pseudo-element. A Reading Feed row SHALL compute `opacity: 1` at rest and with its entry cancelled,
+so a row whose entry never runs still shows.
+
+`.id-avatar::after` names `avatarGlowPulse` and paints nothing, because a loaded `<img>` has no
+`::after`. This requirement does not cover it.
+
+Verified by `tests/behavioral/motion.test.ts:91` (the pulses), `tests/behavioral/motion.test.ts:109`
+(the entry, read in flight and cancelled), `tests/behavioral/motion.test.ts:134` (the shimmer),
+`tests/behavioral/motion.test.ts:152` (reduced motion, populated and paged) and
+`tests/behavioral/motion.test.ts:172` (reduced motion, data-free).
+
+#### Scenario: The status dots and the name run their pulse without a reduced-motion preference
+
+- **GIVEN** a populated dashboard under `prefers-reduced-motion: no-preference`
+- **WHEN** the runtime has finished its first read
+- **THEN** every `.live-dot` in a live card and every `.sys-dot` SHALL list `dotPulse`, `.id-name`
+  SHALL list `glowPulse` in `getAnimations()`, and a `.live-dot` in a card with no live value SHALL
+  list nothing
+
+#### Scenario: A Reading Feed row runs one finite entry and still shows without it
+
+- **GIVEN** a populated Reading Feed under `prefers-reduced-motion: no-preference`
+- **WHEN** a page of rows renders and each row's entry is cancelled in flight
+- **THEN** each row SHALL have started `fadeSlideRight` with a finite iteration count, and SHALL compute
+  `opacity: 1` once it is cancelled
+
+#### Scenario: A loading skeleton draws its shimmer without a reduced-motion preference
+
+- **GIVEN** the data-free page with the first data read held open
+- **WHEN** a Reading Feed skeleton bar shows
+- **THEN** its `::after` SHALL list `shimmerSlide` in `getAnimations()`
+
+#### Scenario: No CSS animation starts under a reduced-motion preference
+
+- **GIVEN** the dashboard under `prefers-reduced-motion: reduce`, populated, paged or data-free
+- **WHEN** the longest entry delay has passed
+- **THEN** no `animationstart` SHALL have fired, and `document.getAnimations()` SHALL list no CSS
+  animation
+
 ### Requirement: The production build cannot reach the fixtures package
 
 `@j0nathan-ll0yd/fixtures` SHALL be a devDependency. The production build SHALL fail when any
