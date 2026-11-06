@@ -218,9 +218,9 @@ export interface CloudfrontProxyConfig {
   /** Cache directives for the success and stale paths. Defaults to no-store, which every gated route needs. */
   cachePolicy?: CachePolicy
   /**
-   * Whether the route may keep and serve a last-known-good copy. Defaults to true. The dashboard
-   * passes false: decision 0160 D3 allows no last-known-good copy for it, and its fallback is the
-   * data-free page instead.
+   * Whether the route may keep and serve a last-known-good copy. Defaults to true. The developer API
+   * facade passes false on every reader (atlas decision 0166): its fallback is the upstream-unavailable
+   * problem.
    */
   lastKnownGood?: boolean
 }

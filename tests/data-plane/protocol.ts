@@ -7,7 +7,10 @@ export type GeneratedAtMode = 'now' | 'original' | (string & {})
 export type Behavior =
   & (
     | {kind: 'fixture'; file: string; generatedAt?: GeneratedAtMode}
-    | {kind: 'json'; body: unknown; generatedAt?: GeneratedAtMode}
+    /** `composedAt`: send the composition stamp a last-known-good write requires (proxy.ts `saveLastKnownGood`). */
+    | {kind: 'json'; body: unknown; generatedAt?: GeneratedAtMode; composedAt?: boolean}
+    /** Answers `status` to the first `failures` requests after it is set, then 200 with `body`: an artifact failure the gate probe sees open. */
+    | {kind: 'fail-then-json'; failures: number; status: number; body: unknown}
     | {kind: 'status'; status: number}
     | {kind: 'suppress'}
     | {kind: 'stall'}

@@ -12,7 +12,6 @@ import {createEdgeLogger} from '@j0nathan-ll0yd/observability/edge'
 import {ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
 import {errorClass} from '../data-plane/admission'
 import {type RenderVars, upstreamForRequest} from '../data-plane/request'
-import {LLM_WITHHELD_PATHS} from './agent-catalog.mjs'
 import {AGENT_PATHS} from './agent-paths.mjs'
 import {problemResponse} from './problem'
 import {
@@ -58,9 +57,7 @@ const PROXY_DIAGNOSTIC_HEADERS = Object.freeze([
   'X-Proxy-Attempts',
   'X-Proxy-Upstream-Status',
   'X-Proxy-Upstream-Request-Id',
-  'X-Proxy-Stale',
-  'X-Source',
-  'Warning'
+  'X-Source'
 ])
 
 /**
@@ -95,26 +92,16 @@ export interface ApiV1Context {
 }
 
 /**
- * The exports whose readers keep NO last-known-good copy: the raw health, sleep and workouts exports
- * (`LLM_CHANNEL_POLICY.coarsenedOnly`). Raw point-in-time health values are the estate's sensitive
- * class (atlas decision 0096: LLM channels carry only a coarsened health band; atlas decision 0158:
- * the raw exports never reach an LLM channel). A last-known-good copy lives in `caches.default`, the
- * data-center cache shared with the zone (proxy.ts `saveLastKnownGood`, key `lkgCacheKey`), so these
- * three never enter it: when CloudFront fails, their reader answers the upstream-unavailable problem.
- * The other six exports keep the factory default, the copy the MCP readers already store under the
- * same key (owner decision 2026-10-24, review of #395, M1).
+ * One gated reader per export, built once per isolate (the MCP server's pattern). No reader keeps a
+ * last-known-good copy (atlas decision 0166, owner decision 2026-10-24 for the raw health, sleep and
+ * workouts exports, owner ruling 2026-11-06 for the other six). A copy lives in `caches.default`, the
+ * data-center cache shared with the zone (proxy.ts `saveLastKnownGood`, key `lkgCacheKey`), so the
+ * facade neither writes nor reads one: when CloudFront fails, it answers the upstream-unavailable
+ * problem. The MCP readers still store their own copies under the same keys (mcp-server.ts).
  */
-export const API_V1_NO_LAST_KNOWN_GOOD_PATHS: readonly string[] = LLM_WITHHELD_PATHS
-
-/** One gated reader per export, built once per isolate (the MCP server's pattern). */
 const readers = new Map<string, (context: CloudfrontProxyContext) => Promise<Response>>(API_V1_PATHS.map((path) => [
   path,
-  makeCloudfrontProxy({
-    path,
-    contentType: API_V1_CONTENT_TYPE,
-    cachePolicy: LLM_OUTPUT_CACHE_POLICY,
-    lastKnownGood: !API_V1_NO_LAST_KNOWN_GOOD_PATHS.includes(path)
-  })
+  makeCloudfrontProxy({path, contentType: API_V1_CONTENT_TYPE, cachePolicy: LLM_OUTPUT_CACHE_POLICY, lastKnownGood: false})
 ]))
 
 /** The headers every facade response carries: CORS and the policy, which never changes between requests. */
