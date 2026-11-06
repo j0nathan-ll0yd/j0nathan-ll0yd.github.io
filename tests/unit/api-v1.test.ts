@@ -18,7 +18,7 @@ import {
 } from '../../src/lib/edge/api-v1'
 import {onRequest as siteMiddleware} from '../../src/lib/edge/middleware'
 import {PROBLEM_MEDIA_TYPE, problemBody} from '../../src/lib/edge/problem'
-import {PROXY_TIMEOUTS, SUPPRESSION_REASON, SUPPRESSION_SOURCE} from '../../src/lib/edge/proxy'
+import {SUPPRESSION_REASON, SUPPRESSION_SOURCE} from '../../src/lib/edge/proxy'
 import {COMPOSED_AT_METADATA_HEADER} from '../../src/lib/edge/feed-artifacts'
 import {onRequest as cspReport} from '../../src/pages/api/csp-report'
 import {clientKey, type RateLimitDecision, type RateLimiterNamespace} from '../../src/lib/edge/rate-limit'
@@ -478,8 +478,17 @@ describe('handleApiV1: no reader keeps a last-known-good copy (atlas decision 01
     upstream('None', () => stalled)
     vi.useFakeTimers()
     try {
-      const answered = handleApiV1(local(ENDPOINTS.books), env)
-      await vi.advanceTimersByTimeAsync(PROXY_TIMEOUTS.totalMs)
+      let settled = false
+      const answered = handleApiV1(local(ENDPOINTS.books), env).finally(() => {
+        settled = true
+      })
+      // The rate-limit key is a real crypto.subtle digest, which no fake clock drives, so one advance
+      // can finish before the read starts its timers. Advance in steps until the answer lands. The
+      // proxy suite pins the budget itself (tests/unit/cloudfront-proxy.test.ts).
+      for (let step = 0; step < 1000 && !settled; step++) {
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(settled).toBe(true)
       const response = await answered
       expect(response.status).toBe(502)
       expect(response.headers.get('X-Proxy-Upstream-Status')).toBe('unreachable')
