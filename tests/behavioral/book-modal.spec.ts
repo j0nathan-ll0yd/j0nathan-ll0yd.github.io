@@ -55,8 +55,8 @@ async function interceptRoutes(page: Page): Promise<void> {
     }
   })
 
-  // Block WebSocket
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  // page.route never sees a WebSocket; this one opens no connection to the host.
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
 
   // Serve transparent pixel for external images; abort everything else
   const TRANSPARENT_PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQAB' + 'Nl7BcQAAAABJRU5ErkJggg==', 'base64')

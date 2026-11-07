@@ -28,7 +28,7 @@ const squash = (value: string): string => value.replace(/\s+/g, '')
 
 /** Abort every request that leaves the local preview server, so no test reads the network. */
 async function stayLocal(page: Page): Promise<void> {
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
   await page.route('**/*', async (route) => {
     const url = route.request().url()
     if (url.startsWith('http://localhost') || url.startsWith('data:')) {

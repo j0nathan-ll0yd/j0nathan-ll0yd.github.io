@@ -36,7 +36,7 @@ async function interceptDashboardData(page: Page, booksFixture: string, dataFree
       await route.abort()
     }
   })
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
   await page.route('**/*', async (route) => {
     const url = route.request().url()
     if (url.startsWith('http://localhost') || url.startsWith(CLOUDFRONT_BASE) || url.startsWith('data:')) {

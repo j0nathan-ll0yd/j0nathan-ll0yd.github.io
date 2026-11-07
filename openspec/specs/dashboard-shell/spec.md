@@ -309,13 +309,13 @@ so a row whose entry never runs still shows.
 `.id-avatar::after` names `avatarGlowPulse` and paints nothing, because a loaded `<img>` has no
 `::after`. This requirement does not cover it.
 
-Verified by `tests/behavioral/motion.test.ts:112` (the pulses),
-`tests/behavioral/motion.test.ts:130` (the entry, once per row, read in flight and cancelled),
-`tests/behavioral/motion.test.ts:149` (one entry with no pager to add),
-`tests/behavioral/motion.test.ts:161` (no replay after a slow first read),
-`tests/behavioral/motion.test.ts:182` (one entry when the first read is newer),
-`tests/behavioral/motion.test.ts:197` (the shimmer), `tests/behavioral/motion.test.ts:215` (reduced
-motion, populated and paged) and `tests/behavioral/motion.test.ts:235` (reduced motion, data-free).
+Verified by `tests/behavioral/motion.test.ts:111` (the pulses),
+`tests/behavioral/motion.test.ts:129` (the entry, once per row, read in flight and cancelled),
+`tests/behavioral/motion.test.ts:148` (one entry with no pager to add),
+`tests/behavioral/motion.test.ts:160` (no replay after a slow first read),
+`tests/behavioral/motion.test.ts:181` (one entry when the first read is newer),
+`tests/behavioral/motion.test.ts:196` (the shimmer), `tests/behavioral/motion.test.ts:214` (reduced
+motion, populated and paged) and `tests/behavioral/motion.test.ts:234` (reduced motion, data-free).
 
 #### Scenario: The status dots and the name run their pulse without a reduced-motion preference
 

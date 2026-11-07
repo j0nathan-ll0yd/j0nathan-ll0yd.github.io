@@ -1,4 +1,5 @@
 import {expect, type Page, test} from '@playwright/test'
+import {WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {type DistServer, javascript, notFound, startDistServer} from './dist-server'
 
 // Service-worker upgrade over warm retired caches, in real Chromium (atlas decision 0160, PR 0b).
@@ -58,7 +59,8 @@ test.afterAll(async () => {
   await server.close()
 })
 
-test.beforeEach(() => {
+test.beforeEach(async ({context}) => {
+  await context.routeWebSocket(WEBSOCKET_URL, () => {})
   server.overrides.clear()
   server.overrides.set('/sw.js', OLD_WORKER_ANSWER)
 })
