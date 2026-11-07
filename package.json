@@ -86,7 +86,7 @@
     "robots-parser": "^3.0.1",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.64.0",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^4.1.12",
     "wrangler": "^4.149.0"
   }
