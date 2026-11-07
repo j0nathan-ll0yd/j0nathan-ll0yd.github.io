@@ -56,7 +56,7 @@ async function interceptDashboardData(page: Page, theatreFixture: FixtureRespons
       await route.abort()
     }
   })
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
   await page.route('**/*', async (route) => {
     const url = route.request().url()
     if (url.startsWith('http://localhost') || url.startsWith(CLOUDFRONT_BASE) || url.startsWith('data:')) {
@@ -99,7 +99,7 @@ test.describe('Theatre Reviews Render Conformance', () => {
     await page.goto('/', {waitUntil: 'domcontentloaded'})
 
     await expect(page.locator('#cardTheatreReviews.is-loading')).toBeVisible()
-    await expect(page.locator('#cardTheatreReviews .skeleton-bar')).toHaveCount(9)
+    await expect(page.locator('#cardTheatreReviews .skeleton-bar')).toHaveCount(3)
     await expect(page.locator('#cardTheatreReviews .theatre-card')).toHaveCount(0)
 
     await expectNoNewAxeViolations(page, 'theatre-reviews/loading')

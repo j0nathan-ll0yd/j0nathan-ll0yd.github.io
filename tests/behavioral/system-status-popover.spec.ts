@@ -55,7 +55,7 @@ async function interceptRoutes(page: Page): Promise<void> {
     }
   })
 
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
 
   await page.route('**/*', async (route) => {
     const url = route.request().url()

@@ -1,6 +1,6 @@
 import {expect, type Page, test} from '@playwright/test'
 import {createRequire} from 'node:module'
-import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {decodeLikeOrigin, type DistServer, readDist, startDistServer} from './dist-server'
 import {siteGatedProbeUrls, traversalProbeUrls} from '../../scripts/lib/sw-privacy.mjs'
 
@@ -44,6 +44,7 @@ let cloudfrontJson: {status: number; body: string} | 'down' = {status: 200, body
 let cloudfrontDecodes = false
 
 test.beforeEach(async ({context}) => {
+  await context.routeWebSocket(WEBSOCKET_URL, () => {})
   server.overrides.clear()
   server.down = false
   server.decodePaths = false

@@ -90,8 +90,8 @@ export async function interceptRoutes(page: Page, scenario: ScenarioName): Promi
     }
   })
 
-  // Block WebSocket connections
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  // page.route never sees a WebSocket; this one opens no connection to the host.
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
 
   // Catch-all: intercept any remaining external requests (Amazon images,
   // coasttocoastreviews.com posters, etc.). Image requests get a transparent

@@ -63,7 +63,9 @@ export async function interceptBrowserOnly(page: Page, byPath: Readonly<Record<s
       await route.abort()
     }
   })
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  // page.route never sees a WebSocket, so a real focus push could suppress cards mid-test. This route
+  // opens no connection to the host: the page holds an open socket that never receives a frame.
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
   await page.route('**/*', async (route) => {
     const url = route.request().url()
     if (url.startsWith('http://localhost') || url.startsWith(CLOUDFRONT_BASE) || url.startsWith('data:')) {

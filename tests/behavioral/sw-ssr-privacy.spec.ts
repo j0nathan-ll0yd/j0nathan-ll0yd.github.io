@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs'
 import {createRequire} from 'node:module'
 import {expect, type Page, test} from '@playwright/test'
-import {CLOUDFRONT_BASE, ENDPOINTS} from '@j0nathan-ll0yd/portal-contract/constants'
+import {CLOUDFRONT_BASE, ENDPOINTS, WEBSOCKET_URL} from '@j0nathan-ll0yd/portal-contract/constants'
 import {fixture, KNOWN_ANSWER_BY_PATH} from '../data-plane/baseline'
 import {type Behavior, resetDataPlane, serveFixtures, setDataPlane} from '../data-plane/control'
 
@@ -47,6 +47,7 @@ test.beforeAll(async () => {
 })
 
 test.beforeEach(async ({context}) => {
+  await context.routeWebSocket(WEBSOCKET_URL, () => {})
   await resetDataPlane()
   await serveFixtures(KNOWN_ANSWER_BY_PATH)
   // The browser reads the same known-answer exports from "CloudFront", cacheable, so a worker that

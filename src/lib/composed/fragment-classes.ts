@@ -66,7 +66,7 @@ export const FRAGMENT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Readonly
       'widget-label widget-state-notice widget-timestamp widget-timestamp-stale'
   ),
   cardWorkouts: tokens(
-    'live-dot live-dot-pink skeleton-bar skeleton-state tri-card tri-card-accent-pink widget-body ' +
+    'live-dot live-dot-pink skeleton-bar skeleton-state skeleton-state--compact tri-card tri-card-accent-pink widget-body ' +
       'widget-empty widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale workout-rest-center workout-rest-heading workout-rest-icon ' +
       'workout-rest-insight workout-rest-sub workout-stat workout-stat-label workout-stat-value ' +
@@ -74,20 +74,20 @@ export const FRAGMENT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Readonly
   ),
   cardDevLog: tokens(
     'gh-dal-date gh-dal-detail gh-dal-icon gh-dal-line gh-dal-repo gh-dal-terminal gh-dal-title ' +
-      'live-dot skeleton-bar skeleton-state tri-card tri-card-accent-green widget-body widget-empty ' +
+      'live-dot skeleton-bar skeleton-state skeleton-state--compact tri-card tri-card-accent-green widget-body widget-empty ' +
       'widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale'
   ),
   cardReading: tokens(
     'article-list article-list-date article-list-item article-list-note article-list-note-icon article-list-source ' +
       'article-list-title live-dot ' +
-      'skeleton-bar skeleton-state tri-card tri-card-accent-amber widget-body widget-empty ' +
+      'skeleton-bar skeleton-state skeleton-state--compact tri-card tri-card-accent-amber widget-body widget-empty ' +
       'widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale'
   ),
   cardStarredRepos: tokens(
     'gh-sl-date gh-sl-lang gh-sl-lang-dot gh-sl-name gh-sl-owner gh-sl-row gh-sl-stars ' +
-      'gh-starred-list live-dot skeleton-bar skeleton-state tri-card tri-card-accent-green widget-body ' +
+      'gh-starred-list live-dot skeleton-bar skeleton-state skeleton-state--compact tri-card tri-card-accent-green widget-body ' +
       'widget-empty widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale'
   ),
@@ -95,13 +95,13 @@ export const FRAGMENT_CLASS_TOKENS: Readonly<Record<ComposedFragmentId, Readonly
     'live-dot shelf-book shelf-book-active shelf-book-author shelf-book-finished-date ' +
       'shelf-book-link shelf-book-progress shelf-book-progress-bar shelf-book-progress-fill shelf-book-stars ' +
       'shelf-book-status shelf-book-title shelf-cover-wrapper shelf-row shelf-status-finished ' +
-      'shelf-status-pending shelf-status-reading shelf-status-upNext skeleton-bar skeleton-state ' +
+      'shelf-status-pending shelf-status-reading shelf-status-upNext skeleton-bar skeleton-state skeleton-state--compact ' +
       'star-off star-on tri-card tri-card-accent-amber widget-body widget-empty widget-empty--stack ' +
       'widget-empty-body widget-empty-title widget-header widget-header-right widget-label ' +
       'widget-state-notice widget-timestamp widget-timestamp-stale'
   ),
   cardTheatreReviews: tokens(
-    'live-dot skeleton-bar skeleton-state theatre-card theatre-count-link theatre-grade ' +
+    'live-dot skeleton-bar skeleton-state skeleton-state--compact theatre-card theatre-count-link theatre-grade ' +
       'theatre-poster-wrap theatre-row theatre-title tri-card tri-card-accent-yellow widget-body ' +
       'widget-empty widget-header widget-header-right widget-label widget-state-notice widget-timestamp ' +
       'widget-timestamp-stale'

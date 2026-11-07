@@ -72,7 +72,7 @@ async function interceptRoutes(page: Page, overrides: Record<string, string> = {
     }
   })
 
-  await page.route(`${WEBSOCKET_URL}/**`, (route) => route.abort())
+  await page.routeWebSocket(WEBSOCKET_URL, () => {})
 
   await page.route('**/*', async (route) => {
     const url = route.request().url()
